@@ -12,7 +12,9 @@
   const labels = { orders: 'Orders received', fulfilment: 'Average operational fulfilment', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'On-time dispatch', pack_speed: 'Average elapsed packing time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
   const palette = getComputedStyle(root);
   const colour = (name) => palette.getPropertyValue(name).trim();
-  let ordersChart;
+  const money = (value) => `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  let orderVolumeChart;
+  let paidSalesChart;
   let packingChart;
   let latest;
   let packingMode = 'raw';
@@ -169,8 +171,17 @@
 
   function renderCharts(data) {
     if (!window.Chart) return;
-    if (ordersChart) ordersChart.destroy();
-    ordersChart = new Chart(q('[data-kpi-orders-chart]'), { type: 'bar', data: { labels: data.trends.orders.map((row) => row.day), datasets: [{ label: 'Orders', data: data.trends.orders.map((row) => row.orders), backgroundColor: colour('--t-orange-red'), yAxisID: 'y' }, { label: 'Revenue', data: data.trends.orders.map((row) => row.revenue), borderColor: colour('--t-olive'), backgroundColor: colour('--t-olive'), type: 'line', yAxisID: 'revenue', tension: .25 }] }, options: { responsive: true, maintainAspectRatio: false, scales: { revenue: { position: 'right', grid: { display: false } } } } });
+    if (orderVolumeChart) orderVolumeChart.destroy();
+    if (paidSalesChart) paidSalesChart.destroy();
+    const orderRows = data.trends.orders || [];
+    const totalOrders = orderRows.reduce((sum, row) => sum + Number(row.orders || 0), 0);
+    const paidSales = orderRows.reduce((sum, row) => sum + Number(row.revenue || 0), 0);
+    const paidOrders = orderRows.reduce((sum, row) => sum + Number(row.paid_orders || 0), 0);
+    const averagePaidOrder = paidOrders ? paidSales / paidOrders : 0;
+    q('[data-kpi-orders-sales-summary]').innerHTML = `<article><span>Total Orders</span><strong>${totalOrders.toLocaleString()}</strong><small>Created in this period</small></article><article><span>Total Paid Sales</span><strong>${money(paidSales)}</strong><small>${paidOrders.toLocaleString()} paid orders</small></article><article><span>Average Paid Order Value</span><strong>${money(averagePaidOrder)}</strong><small>Paid sales ÷ paid orders</small></article>`;
+    const labels = orderRows.map((row) => row.day);
+    orderVolumeChart = new Chart(q('[data-kpi-order-volume-chart]'), { type: 'bar', data: { labels, datasets: [{ label: 'Orders', data: orderRows.map((row) => row.orders), backgroundColor: colour('--t-orange-red'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
+    paidSalesChart = new Chart(q('[data-kpi-paid-sales-chart]'), { type: 'line', data: { labels, datasets: [{ label: 'Paid Sales', data: orderRows.map((row) => row.revenue), borderColor: colour('--t-olive'), backgroundColor: 'rgba(141, 169, 43, .12)', fill: true, tension: .25, pointRadius: 3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: (value) => `N$ ${Number(value).toLocaleString()}` } } } } });
     renderPackingChart(data);
   }
 

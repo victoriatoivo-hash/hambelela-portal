@@ -3924,6 +3924,17 @@ textarea {
 .kpi-team-card small { color: var(--t-text-light); font-size: 10px; }
 .kpi-team-card i { font-style: normal; }
 .kpi-chart-frame { position: relative; height: 280px; }
+.kpi-orders-sales-panel { grid-column: 1 / -1; }
+.kpi-orders-sales-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 4px 0 16px; }
+.kpi-orders-sales-summary article { padding: 12px 14px; border: 1px solid #e8d9d0; border-radius: 10px; background: #fbf6f2; }
+.kpi-orders-sales-summary span, .kpi-orders-sales-summary small { display: block; color: #806d63; font-size: 11px; }
+.kpi-orders-sales-summary strong { display: block; margin: 4px 0 2px; color: #721b1a; font-size: 18px; font-weight: 700; }
+.kpi-orders-sales-charts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.kpi-orders-sales-charts section { min-width: 0; padding: 14px; border: 1px solid #e8d9d0; border-radius: 10px; background: #fff; }
+.kpi-orders-sales-charts h3 { margin: 0 0 3px; color: #721b1a; font-size: 13px; font-weight: 700; }
+.kpi-orders-sales-charts p { margin: 0 0 10px; color: #806d63; font-size: 11px; }
+.kpi-orders-sales-charts .kpi-chart-frame { height: 220px; }
+@media (max-width: 760px) { .kpi-orders-sales-summary, .kpi-orders-sales-charts { grid-template-columns: 1fr; } }
 .kpi-chart-toggle { display: flex; border: 1px solid var(--t-border); border-radius: 8px; overflow: hidden; }
 .kpi-chart-toggle button { padding: 6px 9px; border: 0; background: var(--t-surface); color: var(--t-text-mid); font: inherit; cursor: pointer; }
 .kpi-chart-toggle button.active { background: var(--t-burgundy); color: var(--t-surface); }
