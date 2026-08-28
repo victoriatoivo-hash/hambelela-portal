@@ -14,6 +14,8 @@ assert.match(page, /kpi-dashboard-operational-grid/, 'fulfilment and risks must 
 assert.match(page, /data-kpi-team/, 'employee summaries must be rendered as a stacked landing-page section');
 assert.match(page, /data-kpi-live-activity/, 'cross-portal activity must have a dedicated region');
 assert.doesNotMatch(page, /Historical Packed By Audit|Presentation Mode|Print \/ PDF/, 'secondary utilities must not clutter the Performance dashboard');
+assert.match(page, /\$visiblePerformanceTabs = \['performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'\]/, 'the top navigation must contain only the approved high-level report tabs');
+assert.match(page, /foreach\(\$visiblePerformanceTabs as \$tabKey=>\$tabLabel\)/, 'the top navigation must not render every detailed report route');
 assert.match(endpoint, /'live_activity'=>\$liveActivity/, 'the Business Health endpoint must provide live activity');
 assert.match(endpoint, /kpi_performance_employee_predicate\('e','r'\)/, 'live activity must respect employee eligibility');
 assert.match(script, /function renderLiveActivity/, 'live activity must be grouped and rendered by module');

@@ -7,6 +7,7 @@ require_once __DIR__ . '/kpi-reporting.php';
 require_role('owner_admin');
 
 $phaseThreeTabs = ['attendance'=>'Attendance','orders'=>'Orders','packing-performance'=>'Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybills','task-management'=>'Task Management','hr-leave'=>'HR and Leave','website-updates'=>'Website Updates','errors-quality'=>'Errors and Quality','performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
+$visiblePerformanceTabs = ['performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
 $tab = (string) ($_GET['tab'] ?? 'business-health');
 if (!in_array($tab, array_merge(['business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'business-health';
 $currentKpiTitle = $tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health'));
@@ -265,7 +266,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <nav class="kpi-health-tabs" aria-label="Employee Performance sections">
         <a href="reports.php?tab=business-health" class="<?= $tab === 'business-health' ? 'active' : '' ?>">Business Health</a>
         <a href="reports.php?tab=employees" class="<?= $tab === 'employees' ? 'active' : '' ?>">Employees</a>
-        <?php foreach($phaseThreeTabs as $tabKey=>$tabLabel): ?><a href="reports.php?tab=<?= $tabKey ?>" class="<?= $tab===$tabKey?'active':'' ?>"><?= htmlspecialchars($tabLabel,ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?>
+        <?php foreach($visiblePerformanceTabs as $tabKey=>$tabLabel): ?><a href="reports.php?tab=<?= $tabKey ?>" class="<?= $tab===$tabKey?'active':'' ?>"><?= htmlspecialchars($tabLabel,ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?>
         <a href="reports.php?tab=settings" class="<?= $tab === 'settings' ? 'active' : '' ?>">Performance Settings</a>
     </nav>
 
