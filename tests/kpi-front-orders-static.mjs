@@ -33,6 +33,7 @@ assert.match(service,/\$scoped = array_values\(array_filter\(\$rows/, 'flow-card
 assert.match(service,/'measured'=>count\(\$eligible\)/, 'flow cards must separately disclose the orders with usable timing evidence');
 for(const clock of ['New → Complete','Paid → Complete','In Progress → Complete'])assert.match(service,new RegExp(clock),`per-mode timing must support ${clock}`);
 assert.match(service,/\$base\['mode_timing'\]=\$modeTiming/, 'the API must expose per-mode completion-time summaries');
+assert.match(service,/\$modeOrder=\['Walk-ins'=>0,'Delivery'=>1,'Courier'=>2,'Collection'=>3\]/, 'time cards must follow the operational workflow order');
 assert.doesNotMatch(service,/if\(!\$walkIn&&!\$readyAt\).*unresolved_attribution/s, 'the presentation layer must not reclassify valid mode-specific clocks as unresolved');
 assert.doesNotMatch(service,/\$base\['metrics'\]=\[\['label'=>'Total Applicable Orders'/, 'the final dashboard layer must not restore the obsolete Total Applicable Orders label');
 assert.doesNotMatch(service,/\$base\['metrics'\]=/, 'the dashboard presentation layer must not override the reconciled evidence metrics');
