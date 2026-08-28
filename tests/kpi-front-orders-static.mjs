@@ -55,6 +55,7 @@ assert.match(client,/data\.pending_orders\?\.length\?data\.pending_orders:\(data
 assert.match(client,/Time remaining/, 'pending order cards must show remaining time');
 assert.match(client,/Timing measured/, 'flow cards must distinguish total orders from timing-eligible orders');
 assert.match(client,/Completion Time by Order Type/, 'the page must show an explicit time-based order-type section');
+assert.match(client,/Number\(minutes\)<=0\?'Less than 1 minute':durationMinutes\(minutes\)/, 'valid sub-minute timing must not look like missing data');
 assert.match(client,/Customer waiting reference only — not scored/, 'collection time must be labelled as external reference timing');
 assert.match(client,/kpi-front-duty-card__bar/, 'flow cards must visualise on-time versus late measured work');
 assert.match(client,/lateShare=measured\?100\*late\/measured:0/, 'late bar width must be proportional to late measured orders');
