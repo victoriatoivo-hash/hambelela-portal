@@ -28,6 +28,9 @@ assert.match(service,/LIMIT 2000/, 'monthly Front Desk reconciliation must not t
 for(const evidence of ['portal_paid_decided_at','paid_updated_at','payment_updated_at','payment_status_updated'])assert.match(service,new RegExp(evidence),`payment audit must use ${evidence}`);
 for(const state of ['Awaiting driver payment','Paid — awaiting completion','Paid — completion overdue','Awaiting customer collection','cancellation review','Complete but not paid — Requires review'])assert.match(service,new RegExp(state.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),`mode-aware result must include ${state}`);
 assert.match(service,/front_orders_close_after_payment_minutes'\]\?\?120/, 'delivery close timing must default to a two-business-hour target');
+assert.match(service,/front_orders_walkin_completion_minutes'\]\?\?120/, 'walk-in completion must default to a two-business-hour target');
+assert.match(service,/elseif\(\$walkIn\).*New → Complete \(business hours\).*\$duration<=\$walkInTarget/s, 'walk-ins must be scored from New to Complete using business time');
+assert.match(service,/Walk-in — completion overdue/, 'pending walk-ins must become overdue only after their business-time target');
 assert.match(client,/Paid at.*Paid by.*Complete.*Completed By/s, 'order evidence must show payment and completion actors and timestamps together');
 assert.match(client,/Orders Used in This Calculation/, 'Front Desk evidence must use a clear user-facing heading');
 assert.match(client,/kpi-order-evidence-item/, 'Front Desk evidence must use a dedicated spacious record layout');
