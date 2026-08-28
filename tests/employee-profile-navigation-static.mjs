@@ -20,6 +20,7 @@ for (const label of ['Business Health','Employees','Performance Reports','Busine
 }
 assert.match(client, /activateEmployeeSection/, 'employee profile tabs must switch focused sections');
 assert.match(client, /front_packing_list_kpi/, 'front-desk website work must be routed to Website Updates instead of duplicated under packing');
+assert.match(client, /ensurePerformanceNavigation/, 'the profile must recover the persistent Performance navigation when production PHP markup is stale');
 assert.match(client, /presentationSection\('hr-leave',s\.hr_leave\)/, 'HR and Leave must render from the existing employee response');
 assert.match(data, /'hr_leave'=>/, 'employee response must expose linked HR leave evidence');
 assert.match(data, /'website_updates'=>\['metrics'=>/, 'employee response must expose attributed Website Update evidence');
