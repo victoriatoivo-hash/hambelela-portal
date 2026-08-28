@@ -16,6 +16,7 @@
   let packingChart;
   let latest;
   let packingMode = 'raw';
+  let loading = false;
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
   async function readKpiJson(response) {
@@ -179,6 +180,8 @@
   }
 
   async function load(refresh = false) {
+    if (loading) return;
+    loading = true;
     q('[data-kpi-error]').hidden = true;
     const params = new URLSearchParams({ period: period.value });
     if (period.value === 'custom') { params.set('date_from', from.value); params.set('date_to', to.value); }
@@ -196,6 +199,8 @@
       root.querySelectorAll('.is-loading').forEach((node) => node.classList.remove('is-loading'));
       q('[data-kpi-error]').textContent = error.message;
       q('[data-kpi-error]').hidden = false;
+    } finally {
+      loading = false;
     }
   }
 
@@ -205,4 +210,6 @@
   includeHistorical.addEventListener('change', () => { persist(); load(true); });
   root.querySelectorAll('[data-kpi-chart-mode]').forEach((button) => button.addEventListener('click', () => { packingMode = button.dataset.kpiChartMode; root.querySelectorAll('[data-kpi-chart-mode]').forEach((item) => item.classList.toggle('active', item === button)); if (latest) renderPackingChart(latest); }));
   load();
+  window.setInterval(() => { if (!document.hidden) load(true); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(true); });
 })();

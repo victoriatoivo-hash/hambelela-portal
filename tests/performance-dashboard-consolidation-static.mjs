@@ -19,6 +19,8 @@ assert.match(endpoint, /kpi_performance_employee_predicate\('e','r'\)/, 'live ac
 assert.match(script, /function renderLiveActivity/, 'live activity must be grouped and rendered by module');
 assert.match(script, /Number\.isFinite\(Number\(person\.summary_score\)\)/, 'employee scores must guard against NaN');
 assert.doesNotMatch(script, /presentationSections|setPresentationMode|data-kpi-management-present|data-kpi-management-print/, 'removed presentation utilities must not leave dead behaviour');
+assert.match(script, /setInterval\(\(\) => \{ if \(!document\.hidden\) load\(true\); \}, 20000\)/, 'the visible dashboard must refresh current evidence every 20 seconds');
+assert.match(endpoint, /NOT IN \('resolved','complete','completed','closed'\).*NULLIF\(TRIM\(COALESCE\(resolution,''\)\),''\) IS NULL/, 'resolved Error Log records must be excluded from current attention');
 assert.match(styles, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/, 'desktop employee metrics must align in one row');
 assert.match(styles, /@media\(max-width:700px\)/, 'the consolidated dashboard must collapse responsively');
 
