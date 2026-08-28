@@ -35,7 +35,7 @@ assert.match(service,/\$eventsByOrder=\$base\['_events_by_order'\]/, 'the dashbo
 assert.match(service,/LIMIT 2000/, 'monthly Front Desk reconciliation must not truncate at the former 500-order cap');
 for(const evidence of ['portal_paid_decided_at','paid_updated_at','payment_updated_at','payment_status_updated'])assert.match(service,new RegExp(evidence),`payment audit must use ${evidence}`);
 for(const state of ['Awaiting driver payment','Paid — awaiting completion','Paid — completion overdue','Awaiting customer collection','cancellation review','Complete but not paid — Requires review'])assert.match(service,new RegExp(state.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')),`mode-aware result must include ${state}`);
-assert.match(service,/front_orders_close_after_payment_minutes'\]\?\?120/, 'delivery close timing must default to a two-business-hour target');
+assert.match(service,/front_orders_close_after_payment_minutes'\]\?\?1440/, 'delivery close timing must default to a twenty-four-business-hour target');
 assert.match(service,/front_orders_walkin_completion_minutes'\]\?\?120/, 'walk-in completion must default to a two-business-hour target');
 assert.match(service,/elseif\(\$walkIn\).*New → Complete \(business hours\).*\$duration<=\$walkInTarget/s, 'walk-ins must be scored from New to Complete using business time');
 assert.match(service,/Walk-in — completion overdue/, 'pending walk-ins must become overdue only after their business-time target');
@@ -46,6 +46,7 @@ assert.match(client,/Pending Completion Timeline/, 'the employee page must show 
 assert.match(client,/data\.pending_orders\?\.length\?data\.pending_orders:\(data\.rows\|\|\[\]\)\.filter\(row=>row\.pending_timing\)/, 'the timeline must fall back to the authoritative source rows');
 assert.match(client,/Time remaining/, 'pending order cards must show remaining time');
 assert.match(css,/\.kpi-pending-timeline/, 'pending completion timeline must use the portal theme');
+assert.match(css,/\.kpi-pending-timeline>div\{[^}]*max-height:360px[^}]*overflow:auto/s, 'pending completion timeline must stay compact and scroll internally');
 assert.match(css,/\.kpi-order-evidence-item dl\{display:grid;grid-template-columns:repeat\(4/, 'order evidence details must use a readable responsive grid');
 assert.match(client,/cache:'no-store'/, 'employee performance loads must bypass stale browser JSON');
 assert.match(client,/_:String\(Date\.now\(\)\)/, 'employee performance loads must use a cache-busting request key');
