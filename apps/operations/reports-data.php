@@ -44,10 +44,11 @@ function kpi_business_duration(?float $minutes): ?string
     return $minute . ' min';
 }
 
+/** Backward-compatible classifier used by the Business Health presentation. */
 function kpi_business_is_test_employee(array $employee): bool
 {
-    $haystack = strtolower(implode(' ', [(string)($employee['full_name'] ?? ''), (string)($employee['email'] ?? ''), (string)($employee['role_key'] ?? '')]));
-    return strpos($haystack, 'karina') !== false || strpos($haystack, 'kaarina') !== false || strpos($haystack, 'test') !== false || strpos($haystack, 'preview') !== false;
+    $identity = strtolower(implode(' ', [(string) ($employee['full_name'] ?? ''), (string) ($employee['email'] ?? ''), (string) ($employee['role_key'] ?? '')]));
+    return (bool) preg_match('/karina|kaarina|test|preview/', $identity);
 }
 
 try {
@@ -109,7 +110,7 @@ try {
     $previousPacking = kpi_scalar_row("SELECT AVG(CASE WHEN date_started IS NOT NULL AND date_completed IS NOT NULL THEN TIMESTAMPDIFF(MINUTE,date_started,date_completed) END) avg_minutes FROM ops_packing_tasks WHERE date_completed BETWEEN ? AND ?", [$previousFromSql, $previousToSql]);
     $approvedLeavePortalIds=[];
     if(ops_table_exists('employee_user_links')){$employeeLinks=ops_rows('SELECT portal_user_id,hr_employee_id FROM employee_user_links WHERE active=1');$hrToPortal=[];foreach($employeeLinks as$link)$hrToPortal[(int)$link['hr_employee_id']]=(int)$link['portal_user_id'];if($hrToPortal){$hrPlaceholders=implode(',',array_fill(0,count($hrToPortal),'?'));$leaveHrRows=ops_hr_rows("SELECT DISTINCT employee_id FROM leave_requests WHERE status='approved' AND start_date<=CURDATE() AND end_date>=CURDATE() AND employee_id IN ({$hrPlaceholders})",array_keys($hrToPortal));foreach($leaveHrRows as$leaveRow)if(isset($hrToPortal[(int)$leaveRow['employee_id']]))$approvedLeavePortalIds[]=$hrToPortal[(int)$leaveRow['employee_id']];}}
-    $staffSql="SELECT COUNT(*) scheduled FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key <> 'owner_admin' AND (e.hire_date IS NULL OR e.hire_date <= CURDATE())";$staffParams=[];if($approvedLeavePortalIds){$staffSql.=' AND e.id NOT IN ('.implode(',',array_fill(0,count($approvedLeavePortalIds),'?')).')';$staffParams=$approvedLeavePortalIds;}$staff=kpi_scalar_row($staffSql,$staffParams);
+    $staffSql="SELECT COUNT(*) scheduled FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE ".kpi_performance_employee_predicate('e','r')." AND (e.hire_date IS NULL OR e.hire_date <= CURDATE())";$staffParams=[];if($approvedLeavePortalIds){$staffSql.=' AND e.id NOT IN ('.implode(',',array_fill(0,count($approvedLeavePortalIds),'?')).')';$staffParams=$approvedLeavePortalIds;}$staff=kpi_scalar_row($staffSql,$staffParams);
     $attendance = kpi_scalar_row("SELECT COUNT(DISTINCT user_id) present FROM kpi_sessions WHERE DATE(DATE_ADD(login_at, INTERVAL 2 HOUR)) = CURDATE()");
     $completedOrders = (int) ($orders['completed_n'] ?? 0);
     $healthCards = [
@@ -150,7 +151,7 @@ try {
     foreach (ops_rows("SELECT id, task_name label, TIMESTAMPDIFF(HOUR,deadline,NOW()) age, assigned_employee_id employee_id,deadline due_at,priority FROM ops_checklist_tasks WHERE employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND status NOT IN ('completed','complete','approved') AND deadline < NOW() AND COALESCE(released_at,date_assigned)>=? AND deleted_at IS NULL ORDER BY deadline LIMIT 8",[$trackingStartSql]) as $row) $attention[]=['type'=>'task','severity'=>strtolower((string)$row['priority'])==='urgent'?'critical':'urgent','description'=>'Overdue task: '.$row['label'],'age_hours'=>(int)$row['age'],'overdue'=>kpi_business_duration((int)$row['age']*60),'due_at'=>$row['due_at'],'employee_id'=>(int)$row['employee_id'],'href'=>'checklists.php'];
     foreach (ops_rows("SELECT id, COALESCE(error_title,category) label, TIMESTAMPDIFF(HOUR,logged_at,NOW()) age, employee_id,logged_at due_at,severity FROM ops_error_logs WHERE status <> 'resolved' AND logged_at>=? AND deleted_at IS NULL ORDER BY logged_at LIMIT 8",[$trackingStartSql]) as $row) $attention[]=['type'=>'error','severity'=>strtolower((string)$row['severity'])==='critical'?'critical':'normal','description'=>'Unresolved confirmed quality error: '.$row['label'],'age_hours'=>(int)$row['age'],'overdue'=>kpi_business_duration((int)$row['age']*60),'due_at'=>$row['due_at'],'employee_id'=>(int)$row['employee_id'],'href'=>'errors.php'];
     $severityRank=['critical'=>3,'urgent'=>2,'normal'=>1];usort($attention,static function(array $a,array $b)use($severityRank):int{$rank=($severityRank[$b['severity']]??0)<=>($severityRank[$a['severity']]??0);return $rank?:($b['age_hours']<=>$a['age_hours']);}); $attention=array_slice($attention,0,12);
-    $names=[]; foreach(ops_rows("SELECT e.id AS id, e.full_name,e.email, r.name role_name, r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key<>'owner_admin' ORDER BY e.full_name") as $row){if(!kpi_business_is_test_employee($row))$names[(int)$row['id']]=$row;}
+    $names=[]; foreach(ops_rows("SELECT e.id AS id, e.full_name,e.email, r.name role_name, r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE ".kpi_performance_employee_predicate('e','r')." ORDER BY e.full_name") as $row){$names[(int)$row['id']]=$row;}
     $team=[]; foreach($names as $id=>$employee){$team[]=['id'=>$id,'name'=>$employee['full_name'],'role'=>$employee['role_name'],'role_key'=>$employee['role_key'],'online'=>false,'hours_today'=>null,'metrics'=>[]];}
     $presenceIds=array_column(ops_rows("SELECT employee_id FROM ops_board_presence WHERE last_seen_at>=DATE_SUB(NOW(),INTERVAL 2 MINUTE)"),'employee_id');
     $hoursRows=ops_rows("SELECT user_id, SUM(TIMESTAMPDIFF(MINUTE,login_at,COALESCE(logout_at,last_seen_at)))/60 hours FROM kpi_sessions WHERE DATE(DATE_ADD(login_at,INTERVAL 2 HOUR))=CURDATE() GROUP BY user_id"); $hours=[];foreach($hoursRows as $r)$hours[(int)$r['user_id']]=(float)$r['hours'];

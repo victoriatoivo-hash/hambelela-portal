@@ -3,6 +3,22 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/kpi-event-reporting.php';
 
+/** Accounts eligible for employee KPI tracking. */
+function kpi_performance_employee_predicate(string $employeeAlias = 'e', string $roleAlias = 'r'): string
+{
+    return "{$employeeAlias}.status = 'active'"
+        . " AND COALESCE({$roleAlias}.role_key, '') NOT IN ('owner_admin', 'accountant')"
+        . " AND LOWER(CONCAT_WS(' ', COALESCE({$employeeAlias}.full_name, ''), COALESCE({$employeeAlias}.email, ''), COALESCE({$roleAlias}.role_key, ''))) NOT REGEXP 'karina|kaarina|test|preview'";
+}
+
+function kpi_performance_employee_eligible(array $employee): bool
+{
+    $role = strtolower(trim((string) ($employee['role_key'] ?? '')));
+    if (($employee['status'] ?? 'active') !== 'active' || in_array($role, ['owner_admin', 'accountant'], true)) return false;
+    $identity = strtolower(implode(' ', [(string) ($employee['full_name'] ?? ''), (string) ($employee['email'] ?? ''), $role]));
+    return !preg_match('/karina|kaarina|test|preview/', $identity);
+}
+
 /**
  * Resolve one reporting period for every KPI endpoint.
  *

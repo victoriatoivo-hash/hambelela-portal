@@ -82,7 +82,7 @@ final class TaskPerformance
         if(isset($filters['employee_id'])&&$filters['employee_id']!==''){$where[]='employee_id=?';$params[]=(int)$filters['employee_id'];}if(!empty($filters['reference_number'])){$where[]='reference_number=?';$params[]=$filters['reference_number'];}
         $limit=max(1,min(1000,$limit));$s=$this->pdo->prepare('SELECT * FROM epi_employee_activity WHERE '.implode(' AND ',$where).' ORDER BY occurred_at DESC,id DESC LIMIT '.$limit);$s->execute($params);return $s->fetchAll(PDO::FETCH_ASSOC)?:[];
     }
-    public function employeeOptions(): array{$q=$this->pdo->query("SELECT e.id,e.full_name FROM ops_employees e WHERE e.status='active' ORDER BY e.full_name");return $q->fetchAll(PDO::FETCH_ASSOC)?:[];}
+    public function employeeOptions(): array{$q=$this->pdo->query("SELECT e.id,e.full_name FROM ops_employees e LEFT JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND COALESCE(r.role_key,'') NOT IN ('owner_admin','accountant') AND LOWER(CONCAT_WS(' ',e.full_name,e.email,COALESCE(r.role_key,''))) NOT REGEXP 'karina|kaarina|test|preview' ORDER BY e.full_name");return $q->fetchAll(PDO::FETCH_ASSOC)?:[];}
 
     private function rows(array $filters,int $limit): array
     {

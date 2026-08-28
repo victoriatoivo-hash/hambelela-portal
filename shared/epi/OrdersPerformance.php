@@ -119,7 +119,7 @@ final class OrdersPerformance
 
     public function employeeOptions(): array
     {
-        $stmt = $this->pdo->query("SELECT DISTINCT e.id,e.full_name FROM ops_employees e JOIN epi_employee_evidence ev ON ev.employee_id=e.id AND ev.module='Orders' ORDER BY e.full_name");
+        $stmt = $this->pdo->query("SELECT DISTINCT e.id,e.full_name FROM ops_employees e JOIN epi_employee_evidence ev ON ev.employee_id=e.id AND ev.module='Orders' LEFT JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND COALESCE(r.role_key,'') NOT IN ('owner_admin','accountant') AND LOWER(CONCAT_WS(' ',e.full_name,e.email,COALESCE(r.role_key,''))) NOT REGEXP 'karina|kaarina|test|preview' ORDER BY e.full_name");
         return $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
     }
 

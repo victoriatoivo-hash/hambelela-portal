@@ -110,7 +110,7 @@ final class AttendancePerformance
     public function getOnlineEmployees(array $filters = []): array
     {
         $recent=$this->settingInt('attendance_recent_activity_minutes',15); $idle=$this->settingInt('attendance_idle_threshold_minutes',15);
-        try {$rows=$this->pdo->query("SELECT p.employee_id,e.full_name,r.role_key,p.last_seen_at,p.page_url FROM ops_board_presence p JOIN ops_employees e ON e.id=p.employee_id LEFT JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' ORDER BY p.last_seen_at DESC")->fetchAll(PDO::FETCH_ASSOC)?:[];}catch(Throwable $e){return [];}
+        try {$rows=$this->pdo->query("SELECT p.employee_id,e.full_name,r.role_key,p.last_seen_at,p.page_url FROM ops_board_presence p JOIN ops_employees e ON e.id=p.employee_id LEFT JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND COALESCE(r.role_key,'') NOT IN ('owner_admin','accountant') AND LOWER(CONCAT_WS(' ',e.full_name,e.email,COALESCE(r.role_key,''))) NOT REGEXP 'karina|kaarina|test|preview' ORDER BY p.last_seen_at DESC")->fetchAll(PDO::FETCH_ASSOC)?:[];}catch(Throwable $e){return [];}
         $now=new DateTimeImmutable('now',$this->zone);$out=[];
         foreach($rows as $row){if(($filters['employee_id']??'')!==''&&(int)$filters['employee_id']!==(int)$row['employee_id'])continue;$seen=new DateTimeImmutable((string)$row['last_seen_at'],$this->zone);$minutes=max(0,(int)(($now->getTimestamp()-$seen->getTimestamp())/60));$row['minutes_since_presence']=$minutes;$row['presence_status']=$minutes<=$idle?'Online / recently active':($minutes<=$recent+45?'Online / idle':'Offline');$row['warning']='Presence is passive and is not counted as meaningful work activity.';$out[]=$row;}
         return $out;
@@ -143,7 +143,7 @@ final class AttendancePerformance
 
     public function employeeOptions(array $filters=[]): array
     {
-        $where=[];$params=[];if(($filters['employee_id']??'')!==''){$where[]='e.id=?';$params[]=(int)$filters['employee_id'];}if(($filters['role']??'')!==''){$where[]='r.role_key=?';$params[]=$filters['role'];}$sql="SELECT e.id,e.full_name,e.status,r.role_key,r.name role_name FROM ops_employees e LEFT JOIN ops_roles r ON r.id=e.role_id".($where?' WHERE '.implode(' AND ',$where):'')." ORDER BY e.status='active' DESC,e.full_name";$s=$this->pdo->prepare($sql);$s->execute($params);return $s->fetchAll(PDO::FETCH_ASSOC)?:[];
+        $where=["e.status='active'","COALESCE(r.role_key,'') NOT IN ('owner_admin','accountant')","LOWER(CONCAT_WS(' ',e.full_name,e.email,COALESCE(r.role_key,''))) NOT REGEXP 'karina|kaarina|test|preview'"];$params=[];if(($filters['employee_id']??'')!==''){$where[]='e.id=?';$params[]=(int)$filters['employee_id'];}if(($filters['role']??'')!==''){$where[]='r.role_key=?';$params[]=$filters['role'];}$sql="SELECT e.id,e.full_name,e.status,r.role_key,r.name role_name FROM ops_employees e LEFT JOIN ops_roles r ON r.id=e.role_id WHERE ".implode(' AND ',$where)." ORDER BY e.full_name";$s=$this->pdo->prepare($sql);$s->execute($params);return $s->fetchAll(PDO::FETCH_ASSOC)?:[];
     }
 
     private function meaningfulActivity(array $filters): array

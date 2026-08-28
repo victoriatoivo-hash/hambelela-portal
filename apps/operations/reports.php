@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/kpi-reporting.php';
 require_role('owner_admin');
 
 $phaseThreeTabs = ['attendance'=>'Attendance','orders'=>'Orders','packing-performance'=>'Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybills','task-management'=>'Task Management','hr-leave'=>'HR and Leave','website-updates'=>'Website Updates','errors-quality'=>'Errors and Quality','performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
@@ -237,7 +238,7 @@ $recentSessions = [];
 if ($ready && $tab === 'settings') {
     foreach (ops_rows('SELECT setting_key, setting_value FROM kpi_settings') as $row) $settings[(string) $row['setting_key']] = (string) $row['setting_value'];
     if (!isset($settings['bookkeeping_adoption_date']) || $settings['bookkeeping_adoption_date'] === '2026-07-14') $settings['bookkeeping_adoption_date'] = '2026-07-20';
-    $employees = ops_rows("SELECT e.id, e.full_name, e.hire_date, e.working_days, e.shift_start, e.shift_end, e.late_grace_minutes, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.status = 'active' ORDER BY e.full_name");
+    $employees = ops_rows("SELECT e.id, e.full_name, e.hire_date, e.working_days, e.shift_start, e.shift_end, e.late_grace_minutes, r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE " . kpi_performance_employee_predicate('e', 'r') . " ORDER BY e.full_name");
     foreach (ops_rows('SELECT employee_id, weekday, shift_start, shift_end FROM kpi_employee_schedules WHERE is_working = 1 ORDER BY employee_id, weekday') as $scheduleRow) $employeeSchedules[(int) $scheduleRow['employee_id']][(int) $scheduleRow['weekday']] = $scheduleRow;
     foreach (ops_rows('SELECT employee_id,effective_from,effective_to,timezone,lunch_start,lunch_end,grace_minutes,change_reason,created_at FROM kpi_employee_schedule_versions ORDER BY employee_id,effective_from DESC,id DESC') as $versionRow) $employeeScheduleVersions[(int) $versionRow['employee_id']][] = $versionRow;
     $holidays = ops_rows('SELECT holiday_date, COALESCE(NULLIF(name, \'\'), holiday_name) AS holiday_name FROM kpi_holidays WHERE active = 1 ORDER BY holiday_date');

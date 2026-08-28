@@ -53,7 +53,7 @@ try {
         "SELECT e.id, e.full_name, r.name role_name, r.role_key
          FROM ops_employees e
          JOIN ops_roles r ON r.id = e.role_id
-         WHERE e.status = 'active' AND r.role_key <> 'owner_admin'
+         WHERE " . kpi_performance_employee_predicate('e', 'r') . "
          ORDER BY r.role_key, e.full_name"
     );
 
