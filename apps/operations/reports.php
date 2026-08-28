@@ -304,11 +304,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
         <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
     <?php elseif ($tab === 'employees'): ?>
-        <section class="kpi-period-panel" aria-label="Reporting period">
-            <label><span>Period</span><select data-kpi-period><option value="since_trusted">Since trusted start</option><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label>
-            <label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label><label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label>
-            <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
-        </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
         <section class="kpi-employee-directory-head" data-kpi-employee-selection-note>
             <div><p class="eyebrow">Team performance</p><h2>Choose an employee</h2><p>Open an individual workspace to review role-specific performance, supporting evidence and activity.</p></div>
