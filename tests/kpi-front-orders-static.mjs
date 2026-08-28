@@ -43,6 +43,7 @@ assert.match(client,/Paid at.*Paid by.*Complete.*Completed By/s, 'order evidence
 assert.match(client,/Orders Used in This Calculation/, 'Front Desk evidence must use a clear user-facing heading');
 assert.match(client,/kpi-order-evidence-item/, 'Front Desk evidence must use a dedicated spacious record layout');
 assert.match(client,/Pending Completion Timeline/, 'the employee page must show a dedicated pending-order countdown section');
+assert.match(client,/data\.pending_orders\?\.length\?data\.pending_orders:\(data\.rows\|\|\[\]\)\.filter\(row=>row\.pending_timing\)/, 'the timeline must fall back to the authoritative source rows');
 assert.match(client,/Time remaining/, 'pending order cards must show remaining time');
 assert.match(css,/\.kpi-pending-timeline/, 'pending completion timeline must use the portal theme');
 assert.match(css,/\.kpi-order-evidence-item dl\{display:grid;grid-template-columns:repeat\(4/, 'order evidence details must use a readable responsive grid');
