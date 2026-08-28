@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/kpi-reporting.php';
 $currentEmployeeId=ops_current_employee_id();$canReview=current_role_key()==='owner_admin';
 
 $employeeId = max(0, (int) ($_GET['id'] ?? $currentEmployeeId));

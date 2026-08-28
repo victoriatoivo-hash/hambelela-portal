@@ -13,6 +13,7 @@ for (const label of ['Orders','Packing Performance','Bookkeeping','Waybills','Ta
 assert.match(index, /data-kpi-employee-tabs/, 'Employees must expose employee-name tabs');
 assert.match(indexClient, /data-kpi-employee-tabs/, 'employee-name tabs must use the existing Employees response');
 assert.match(page, /kpi_performance_employee_predicate/, 'employee tabs must use performance eligibility');
+assert.match(page, /require_once __DIR__ \. '\/kpi-reporting\.php'/, 'employee profile must load the shared performance eligibility helper');
 assert.match(client, /activateEmployeeSection/, 'employee profile tabs must switch focused sections');
 assert.match(client, /presentationSection\('hr-leave',s\.hr_leave\)/, 'HR and Leave must render from the existing employee response');
 assert.match(data, /'hr_leave'=>/, 'employee response must expose linked HR leave evidence');
