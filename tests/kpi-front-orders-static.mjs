@@ -8,7 +8,7 @@ const css=fs.readFileSync('assets/css/portal.css','utf8');
 
 assert.match(backend,/require_once __DIR__ \. '\/kpi-front-orders\.php'/);
 assert.match(backend,/kpi_front_orders_dashboard/);
-assert.match(backend,/\['duty_analysis','pending_breakdown','pending_orders','mode_mix'/, 'the employee payload must forward pending order timing rows to the UI');
+assert.match(backend,/\['duty_analysis','pending_breakdown','pending_orders','mode_mix','mode_performance','mode_timing'/, 'the employee payload must forward pending and per-mode timing rows to the UI');
 assert.match(service,/ops_order_display_datetime_expr\('o'\)/);
 assert.match(service,/kpi_front_order_completion_event/);
 assert.match(service,/kpi_front_order_ready_event/);
@@ -31,6 +31,8 @@ for(const timingState of ['Walk-in completion window','Awaiting customer collect
 assert.match(service,/Every widget uses this same in-scope order set/, 'the dashboard must disclose its common reconciliation set');
 assert.match(service,/\$scoped = array_values\(array_filter\(\$rows/, 'flow-card totals must use the complete reconciled order scope');
 assert.match(service,/'measured'=>count\(\$eligible\)/, 'flow cards must separately disclose the orders with usable timing evidence');
+for(const clock of ['New → Complete','Paid → Complete','In Progress → Complete'])assert.match(service,new RegExp(clock),`per-mode timing must support ${clock}`);
+assert.match(service,/\$base\['mode_timing'\]=\$modeTiming/, 'the API must expose per-mode completion-time summaries');
 assert.doesNotMatch(service,/if\(!\$walkIn&&!\$readyAt\).*unresolved_attribution/s, 'the presentation layer must not reclassify valid mode-specific clocks as unresolved');
 assert.doesNotMatch(service,/\$base\['metrics'\]=\[\['label'=>'Total Applicable Orders'/, 'the final dashboard layer must not restore the obsolete Total Applicable Orders label');
 assert.doesNotMatch(service,/\$base\['metrics'\]=/, 'the dashboard presentation layer must not override the reconciled evidence metrics');
@@ -51,6 +53,8 @@ assert.match(client,/visible=metrics\.filter\(m=>m\.label!==\'Unclear Historical
 assert.match(client,/data\.pending_orders\?\.length\?data\.pending_orders:\(data\.rows\|\|\[\]\)\.filter\(row=>row\.pending_timing\)/, 'the timeline must fall back to the authoritative source rows');
 assert.match(client,/Time remaining/, 'pending order cards must show remaining time');
 assert.match(client,/Timing measured/, 'flow cards must distinguish total orders from timing-eligible orders');
+assert.match(client,/Completion Time by Order Type/, 'the page must show an explicit time-based order-type section');
+assert.match(client,/Customer waiting reference only — not scored/, 'collection time must be labelled as external reference timing');
 assert.match(client,/kpi-front-duty-card__bar/, 'flow cards must visualise on-time versus late measured work');
 assert.match(client,/lateShare=measured\?100\*late\/measured:0/, 'late bar width must be proportional to late measured orders');
 assert.match(client,/class="is-on-time".*class="is-late"/s, 'flow bars must render explicit on-time and late segments');
