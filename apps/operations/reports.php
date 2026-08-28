@@ -311,7 +311,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
         <nav class="kpi-employee-tabs" data-kpi-employee-tabs aria-label="Employees"></nav>
-        <section class="kpi-employee-index" data-kpi-employees><?php foreach (range(1, 3) as $placeholder): ?><article class="kpi-team-card is-loading"><header><span></span><div><strong></strong><small></small></div></header></article><?php endforeach; ?></section>
+        <section class="kpi-employee-selection-note" data-kpi-employee-selection-note><p>Select an employee above to open their individual performance sections and supporting evidence.</p></section>
         <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
     <?php elseif ($tab === 'performance-reports'): ?>
         <section class="performance-report-controls" aria-label="Performance report filters">

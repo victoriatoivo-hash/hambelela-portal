@@ -7,11 +7,12 @@ const client = fs.readFileSync('assets/js/kpi-employee.js', 'utf8');
 const indexClient = fs.readFileSync('assets/js/reports-employees.js', 'utf8');
 const data = fs.readFileSync('apps/operations/kpi-employee-data.php', 'utf8');
 
-for (const label of ['Orders','Packing Performance','Bookkeeping','Waybills','Task Management','HR and Leave','Website Updates','Errors and Quality','Activity Log']) {
+for (const label of ['Order & Packing Performance','Bookkeeping','Waybill Status Management','HR and Leave','Website Updates','Errors and Quality','Activity Log']) {
   assert.match(page, new RegExp(`'[^']+'=>'${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`), `${label} must be an employee profile tab`);
 }
 assert.match(index, /data-kpi-employee-tabs/, 'Employees must expose employee-name tabs');
 assert.match(indexClient, /data-kpi-employee-tabs/, 'employee-name tabs must use the existing Employees response');
+assert.doesNotMatch(indexClient, /Weighted points|kpi-employee-card|kpi-sparkline/, 'the Employees tab must not retain obsolete duplicate summary cards');
 assert.match(page, /kpi_performance_employee_predicate/, 'employee tabs must use performance eligibility');
 assert.match(page, /require_once __DIR__ \. '\/kpi-reporting\.php'/, 'employee profile must load the shared performance eligibility helper');
 assert.match(client, /activateEmployeeSection/, 'employee profile tabs must switch focused sections');
