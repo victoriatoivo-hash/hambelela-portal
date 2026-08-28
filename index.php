@@ -67,8 +67,10 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Bookkeeping', 'desc' => 'cash and bookkeeping workflows', 'icon' => 'book-open', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'active' => true, 'tone' => 'green'],
         ['name' => 'Notifications', 'desc' => 'your account alerts and updates', 'icon' => 'bell', 'href' => BASE_URL . '/notifications.php', 'active' => true, 'tone' => 'green'],
     ];
-    if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
+    if (portal_user_can_access_feature('input_vat')) {
         $apps[] = ['name' => 'Input VAT', 'desc' => 'Capture local purchase invoices and Input VAT records.', 'action' => 'Open Input VAT', 'icon' => 'receipt-text', 'href' => BASE_URL . '/apps/accounts/input-vat.php', 'active' => true, 'tone' => 'green'];
+    }
+    if (in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)) {
         $apps[] = ['name' => 'Error Log', 'desc' => 'operational issue tracking', 'icon' => 'triangle-alert', 'href' => BASE_URL . '/apps/operations/errors.php', 'active' => true, 'tone' => 'pink'];
     }
 }

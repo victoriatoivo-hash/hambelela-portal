@@ -10,6 +10,11 @@ function accounts_role_key(): string { return normalise_portal_role(current_role
 function accounts_is_owner(): bool { return accounts_role_key() === 'owner_admin'; }
 function accounts_is_accountant(): bool { return accounts_role_key() === 'accountant'; }
 function accounts_is_front_desk(): bool { return in_array(accounts_role_key(), ['front_desk_admin', 'front_desk_admin_employee'], true); }
+function accounts_is_input_vat_delegate(): bool
+{
+    return function_exists('portal_user_has_feature_override')
+        && portal_user_has_feature_override('input_vat');
+}
 function accounts_permissions_for_role(?string $roleKey = null): array
 {
     $roleKey = normalise_portal_role($roleKey ?? accounts_role_key());
@@ -30,7 +35,7 @@ function accounts_permissions_for_role(?string $roleKey = null): array
         'vat_reconciliation.view','vat_reconciliation.review','vat_reconciliation.adjust','vat_reconciliation.export',
         'amendments.view','amendments.create','amendments.reply','amendments.resolve','amendments.attach',
     ];
-    if (in_array($roleKey, ['front_desk_admin','front_desk_admin_employee'], true)) return ['input_vat.view','input_vat.create','input_vat.edit'];
+    if (in_array($roleKey, ['front_desk_admin','front_desk_admin_employee'], true) || accounts_is_input_vat_delegate()) return ['input_vat.view','input_vat.create','input_vat.edit'];
     return [];
 }
 function accounts_can(string $permission): bool { return in_array($permission, accounts_permissions_for_role(), true); }

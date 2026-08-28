@@ -35,6 +35,26 @@ function portal_feature_permissions(): array
     ];
 }
 
+function portal_employee_feature_overrides(): array
+{
+    // Employee-specific access approved by the owner. Keep this deliberately
+    // narrow: Klaudia receives Input VAT only, not the wider Accounts workspace.
+    return [
+        7 => ['input_vat'],
+    ];
+}
+
+function portal_user_has_feature_override(string $featureKey, ?array $user = null): bool
+{
+    $user = $user ?? (function_exists('current_user') ? current_user() : []);
+    $employeeId = (int) ($user['id'] ?? 0);
+    $overrides = portal_employee_feature_overrides();
+
+    return $employeeId > 0
+        && isset($overrides[$employeeId])
+        && in_array($featureKey, $overrides[$employeeId], true);
+}
+
 function portal_role_capabilities(): array
 {
     return [
@@ -71,6 +91,15 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
     }
 
     return isset($permissions[$roleKey]) && in_array($featureKey, $permissions[$roleKey], true);
+}
+
+function portal_user_can_access_feature(string $featureKey, ?array $user = null): bool
+{
+    $user = $user ?? (function_exists('current_user') ? current_user() : []);
+    $roleKey = (string) ($user['role_key'] ?? 'guest');
+
+    return portal_role_can_access_feature($roleKey, $featureKey)
+        || portal_user_has_feature_override($featureKey, $user);
 }
 
 function is_employee_session(): bool
@@ -163,7 +192,7 @@ function enforce_employee_feature_for_current_request(): void
         }
     }
     $feature = employee_feature_for_request((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
-    if ($feature !== null && !portal_role_can_access_feature(current_role_key(), $feature[0])) {
+    if ($feature !== null && !portal_user_can_access_feature($feature[0])) {
         if (in_array($feature[0], ['accounts', 'input_vat', 'output_vat', 'import_vat', 'paye', 'vat_reconciliation', 'accounting_amendments'], true)) {
             http_response_code(403);
             exit('You do not have access to ' . $feature[1] . '.');

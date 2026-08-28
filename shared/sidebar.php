@@ -84,7 +84,9 @@ try {
     $epiNavigationEnabled = false;
 }
 
-$accountsNavItem = in_array($packingSidebarRoleKey, ['front_desk_admin', 'front_desk_admin_employee'], true)
+$sidebarHasDirectInputVat = portal_user_can_access_feature('input_vat', $sidebarUser)
+    && !portal_role_can_access_feature($packingSidebarRoleKey, 'accounts');
+$accountsNavItem = $sidebarHasDirectInputVat
     ? ['id' => 'input-vat', 'label' => 'Input VAT', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/input-vat.php', 'match' => ['/apps/accounts/input-vat.php']]
     : ['id' => 'accounts', 'label' => 'Accounts', 'icon' => 'accounts', 'href' => BASE_URL . '/apps/accounts/index.php', 'match' => ['/apps/accounts/index.php', '/apps/accounts/input-vat.php', '/apps/accounts/output-vat.php', '/apps/accounts/import-vat.php', '/apps/accounts/vat-reconciliation.php', '/apps/accounts/sage-reconciliation.php']];
 
@@ -160,7 +162,7 @@ if ($isEmployeeSidebar) {
 $employeePortalNavItems = [];
 foreach ($portalNavItems as $portalNavItem) {
     $featureKey = $featureByNavId[$portalNavItem['id']] ?? '';
-    if (portal_role_can_access_feature($sidebarRoleKey, $featureKey)) {
+    if (portal_user_can_access_feature($featureKey, $sidebarUser)) {
         $employeePortalNavItems[] = $portalNavItem;
     }
 }
