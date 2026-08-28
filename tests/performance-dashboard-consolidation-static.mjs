@@ -24,7 +24,7 @@ assert.match(endpoint, /NOT IN \('resolved','complete','completed','closed'\).*N
 for (const category of ["'system_issues'", "'communications'", "'quality'"]) assert.match(endpoint, new RegExp(category), `${category} must contribute an evidence-gated operational score`);
 assert.match(endpoint, /'operational_score_components'=>\$scores/, 'the score response must disclose its measured components');
 assert.match(script, /operational_score_components/, 'the dashboard must expose the measured score components');
-for (const label of ['Average operational fulfilment', 'Average payment settlement', 'Average final closure']) assert.match(script, new RegExp(label), `${label} must be shown separately`);
+for (const label of ['Average business-hours order completion', 'Average business-hours New to In Progress', 'Average business-hours walk-in completion', 'Average payment settlement', 'Average final closure']) assert.match(script, new RegExp(label), `${label} must be shown separately`);
 assert.match(endpoint, /settlement_minutes.*final_closure_minutes.*settled_n/, 'payment settlement and final closure must use separately measured paid-order evidence');
 assert.match(endpoint, /GREATEST\(completed_at,\{\$paidTimestampExpr\}\)/, 'final closure must stop at the later of completion and paid confirmation');
 assert.match(endpoint, /status IN \('completed','packed','verified'\).*completed_at >= created_at/, 'all order timing clocks must exclude invalid and non-completed records');
@@ -33,6 +33,9 @@ assert.match(script, /Oldest waiting in New/, 'the active New-order age must hav
 assert.match(styles, /\.kpi-flow-metric\.is-green i\{background:#A8CA19\}/, 'flow timing metrics must use the portal colour language');
 assert.match(endpoint, /\['new','new_order','new-order','new order','pending','assigned'\]/, 'Oldest New must recognise every Orders Board new-order status');
 assert.match(endpoint, /\$frontStart=\$isWalkIn\?\$createdAt:\(\$progressEvent\['occurred_at'\]\?\?null\)/, 'Front Desk timing must start at responsibility handoff except for walk-ins');
+assert.match(endpoint, /kpi_business_minutes\(new DateTimeImmutable\(\$createdAt/, 'New to In Progress must exclude closed business hours');
+assert.match(endpoint, /\$walkInCompletionDurations\[\]=\$duration/, 'walk-in New to Complete timing must be reported separately');
+assert.doesNotMatch(endpoint, /'dispatch'\s*=>\s*kpi_business_health_metric/, 'the misleading generic dispatch card must not be emitted');
 assert.match(endpoint, /front_desk_slowest_order/, 'the slowest Front Desk order must carry an auditable reference');
 assert.match(script, /Ready \/ In Progress.*Walk-ins are measured from New to Complete/s, 'the Front Desk flow must explain its responsibility window');
 assert.match(styles, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/, 'desktop employee metrics must align in one row');

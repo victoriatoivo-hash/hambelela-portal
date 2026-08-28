@@ -9,7 +9,7 @@
   const to = q('[data-kpi-to]');
   const custom = root.querySelectorAll('[data-kpi-custom]');
   const includeHistorical = q('[data-kpi-include-historical]');
-  const labels = { orders: 'Orders received', fulfilment: 'Average operational fulfilment', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'On-time dispatch', pack_speed: 'Average elapsed packing time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
+  const labels = { orders: 'Orders received', fulfilment: 'Average business-hours order completion', order_start_response: 'Average business-hours New to In Progress', walk_in_completion: 'Average business-hours walk-in completion', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'Completed within six elapsed hours', pack_speed: 'Average elapsed packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
   const palette = getComputedStyle(root);
   const colour = (name) => palette.getPropertyValue(name).trim();
   const money = (value) => `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -156,9 +156,9 @@
     const cards = data.cards || {};
     const flow = [
       ['Orders received', cards.orders],
-      ['Fulfilment', cards.fulfilment],
-      ['Packing speed', cards.pack_speed],
-      ['Dispatch', cards.dispatch],
+      ['Business-hours completion', cards.fulfilment],
+      ['New → In Progress', cards.order_start_response],
+      ['Walk-in New → Complete', cards.walk_in_completion],
       ['Revenue', cards.revenue]
     ];
     q('[data-kpi-management-flow]').innerHTML = `<div class="kpi-panel-heading"><div><p class="eyebrow">Operational flow</p><h2>From order to completion</h2></div><small>Summary measures only · operational records remain in source modules</small></div><div class="kpi-management-flow__track">${flow.map(([label, metric], index) => `<article><span>${escapeHtml(label)}</span><strong>${display(metric)}</strong><small>${metric?.sample ? `n=${Number(metric.sample)}` : 'Evidence unavailable'}</small>${index < flow.length - 1 ? '<i aria-hidden="true">→</i>' : ''}</article>`).join('')}</div>`;
