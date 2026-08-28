@@ -3925,6 +3925,15 @@ textarea {
 .kpi-team-card i { font-style: normal; }
 .kpi-chart-frame { position: relative; height: 280px; }
 .kpi-chart-context { margin: -4px 0 10px; color: #806d63; font-size: 11px; line-height: 1.45; }
+.kpi-physical-output-panel { grid-column: 1 / -1; }
+.kpi-physical-output-panel .kpi-chart-toggle { flex-wrap: wrap; }
+.kpi-physical-output-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin: 0 0 16px; }
+.kpi-physical-output-summary article { padding: 12px 14px; border: 1px solid #e8d9d0; border-radius: 10px; background: #fbf6f2; }
+.kpi-physical-output-summary article > strong { display: block; margin-bottom: 8px; color: #721b1a; font-size: 13px; }
+.kpi-physical-output-summary article > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.kpi-physical-output-summary span { color: #2d211c; font-size: 14px; font-weight: 700; }
+.kpi-physical-output-summary small { display: block; margin-top: 2px; color: #806d63; font-size: 9px; font-weight: 500; }
+@media (max-width: 760px) { .kpi-physical-output-summary article > div { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .kpi-orders-sales-panel { grid-column: 1 / -1; }
 .kpi-orders-sales-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 4px 0 16px; }
 .kpi-orders-sales-summary article { padding: 12px 14px; border: 1px solid #e8d9d0; border-radius: 10px; background: #fbf6f2; }

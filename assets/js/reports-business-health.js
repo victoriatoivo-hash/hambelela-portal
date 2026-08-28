@@ -17,7 +17,7 @@
   let paidSalesChart;
   let packingChart;
   let latest;
-  let packingMode = 'raw';
+  let packingMode = 'items';
   let loading = false;
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
@@ -192,8 +192,11 @@
     const days = [...new Set(rows.map((row) => row.day))];
     const people = [...new Map(rows.map((row) => [String(row.assigned_employee_id), { id: String(row.assigned_employee_id), name: row.employee_name || `Employee ${row.assigned_employee_id}` }])).values()];
     const colours = ['--t-orange-red', '--t-olive', '--t-amber', '--t-burgundy', '--t-red', '--t-text-mid'];
-    q('[data-kpi-packing-context]').textContent = packingMode === 'weighted' ? 'Effort-weighted workload by employee, calculated from quantity, package effort, size and priority.' : 'Completed packing items by employee and completion date.';
-    packingChart = new Chart(q('[data-kpi-packing-chart]'), { type: 'bar', data: { labels: days, datasets: people.map((person, index) => ({ label: person.name, data: days.map((day) => { const row = rows.find((entry) => entry.day === day && String(entry.assigned_employee_id) === person.id); return row ? Number(row[packingMode === 'weighted' ? 'points' : 'items']) : 0; }), backgroundColor: colour(colours[index % colours.length]) })) }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } } });
+    const modes = { items: ['items', 'Completed packing items by employee and completion date.'], weight: ['weight_kg', 'Measured packed weight in kilograms. Volume is not converted into weight.'], volume: ['volume_l', 'Measured packed volume in litres. Weight is shown separately.'], packages: ['packages', 'Total finished packages recorded in completed packing plans.'], units: ['units', 'Individual count-based units recorded in completed packing plans.'] };
+    const [field, context] = modes[packingMode] || modes.items;
+    q('[data-kpi-packing-context]').textContent = context;
+    q('[data-kpi-physical-output-summary]').innerHTML = people.map((person) => { const personRows = rows.filter((row) => String(row.assigned_employee_id) === person.id); const sum = (key) => personRows.reduce((total, row) => total + Number(row[key] || 0), 0); return `<article><strong>${escapeHtml(person.name)}</strong><div><span>${sum('items').toLocaleString()}<small>Items</small></span><span>${sum('weight_kg').toLocaleString(undefined, { maximumFractionDigits: 2 })}<small>kg</small></span><span>${sum('volume_l').toLocaleString(undefined, { maximumFractionDigits: 2 })}<small>litres</small></span><span>${sum('packages').toLocaleString(undefined, { maximumFractionDigits: 0 })}<small>Packages</small></span><span>${sum('units').toLocaleString(undefined, { maximumFractionDigits: 0 })}<small>Units</small></span></div></article>`; }).join('') || '<div class="kpi-empty-state">No completed physical packing data is available for this period.</div>';
+    packingChart = new Chart(q('[data-kpi-packing-chart]'), { type: 'bar', data: { labels: days, datasets: people.map((person, index) => ({ label: person.name, data: days.map((day) => { const row = rows.find((entry) => entry.day === day && String(entry.assigned_employee_id) === person.id); return row ? Number(row[field] || 0) : 0; }), backgroundColor: colour(colours[index % colours.length]), borderRadius: 4 })) }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } } });
   }
 
   async function load(refresh = false) {
