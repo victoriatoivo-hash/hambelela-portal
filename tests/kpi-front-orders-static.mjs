@@ -65,6 +65,8 @@ assert.match(css,/kpi-front-duty-grid \.kpi-front-duty-card:nth-child\(3\)/, 'th
 assert.match(css,/\.kpi-front-duty-card>p\{[^}]*font-size:11px[^}]*line-height:1\.45/, 'flow-card timing rows must use compact readable typography');
 assert.match(css,/\.kpi-front-duty-card>header h3\{font:600 12px\/1\.35/, 'flow-card headings must compute to twelve pixels');
 assert.match(css,/\.kpi-front-duty-card>p,.kpi-front-duty-card>small\.kpi-front-duty-card__excluded\{font-size:11px!important/, 'bottom timing and exclusion text must compute to eleven pixels');
+assert.match(css,/\.kpi-front-duty-card__bar\{gap:0[^}]*overflow:hidden[^}]*border-radius:999px/, 'outcome proportions must render as one continuous full-width bar');
+assert.match(css,/color-mix\(in srgb,var\(--duty-accent\) 52%,#d88975\)/, 'on-time and late colours must blend at their proportional boundary');
 assert.match(css,/@media\(prefers-reduced-motion:reduce\)/);
 assert.match(backend,/You may view only order evidence affecting your own KPI/);
 
