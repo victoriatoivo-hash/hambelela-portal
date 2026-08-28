@@ -32,6 +32,9 @@ assert.match(script, /kpi-flow-track/, 'order timing must render as colour-coded
 assert.match(script, /Oldest waiting in New/, 'the active New-order age must have a clear label');
 assert.match(styles, /\.kpi-flow-metric\.is-green i\{background:#A8CA19\}/, 'flow timing metrics must use the portal colour language');
 assert.match(endpoint, /\['new','new_order','new-order','new order','pending','assigned'\]/, 'Oldest New must recognise every Orders Board new-order status');
+assert.match(endpoint, /\$frontStart=\$isWalkIn\?\$createdAt:\(\$progressEvent\['occurred_at'\]\?\?null\)/, 'Front Desk timing must start at responsibility handoff except for walk-ins');
+assert.match(endpoint, /front_desk_slowest_order/, 'the slowest Front Desk order must carry an auditable reference');
+assert.match(script, /Ready \/ In Progress.*Walk-ins are measured from New to Complete/s, 'the Front Desk flow must explain its responsibility window');
 assert.match(styles, /grid-template-columns:repeat\(6,minmax\(0,1fr\)\)/, 'desktop employee metrics must align in one row');
 assert.match(styles, /@media\(max-width:700px\)/, 'the consolidated dashboard must collapse responsively');
 
