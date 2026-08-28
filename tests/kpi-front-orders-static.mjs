@@ -22,6 +22,8 @@ assert.match(service,/front_orders_nonwalk_weight/);
 for(const label of ['Front Desk Orders in Scope','Walk-ins Assigned','Other Orders Completed','Orders Still Pending Completion','Completion Compliance','Unclear Historical Responsibility','Paid and Status Exceptions'])assert.match(service,new RegExp(label));
 assert.match(service,/\$walkIn&&\$packedByEmployee/, 'walk-ins must use the assigned employee shown on Orders');
 assert.match(service,/Every widget uses this same in-scope order set/, 'the dashboard must disclose its common reconciliation set');
+assert.match(client,/cache:'no-store'/, 'employee performance loads must bypass stale browser JSON');
+assert.match(client,/_:String\(Date\.now\(\)\)/, 'employee performance loads must use a cache-busting request key');
 for(const label of ['Front Desk Orders in Scope','Walk-ins Assigned','Other Orders Completed','Clock start','Business duration','Applicable Orders by Fulfilment Mode','Completion Performance by Fulfilment Mode','Orders score explanation','Risk flags'])assert.match(client,new RegExp(label));
 assert.match(css,/kpi-front-score__ring/);
 assert.match(css,/@media\(prefers-reduced-motion:reduce\)/);
