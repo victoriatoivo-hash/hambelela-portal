@@ -59,7 +59,8 @@ assert.match(css,/\.kpi-pending-timeline>div\{[^}]*max-height:360px[^}]*overflow
 assert.match(css,/\.kpi-order-evidence-item dl\{display:grid;grid-template-columns:repeat\(4/, 'order evidence details must use a readable responsive grid');
 assert.match(client,/cache:'no-store'/, 'employee performance loads must bypass stale browser JSON');
 assert.match(client,/_:String\(Date\.now\(\)\)/, 'employee performance loads must use a cache-busting request key');
-for(const label of ['Front Desk Orders in Scope','Walk-ins Assigned','Other Front Desk Orders','Clock start','Business duration','Applicable Orders by Fulfilment Mode','Completion Performance by Fulfilment Mode','Orders score explanation','Risk flags'])assert.match(client,new RegExp(label));
+for(const label of ['Front Desk Orders in Scope','Walk-ins Assigned','Other Front Desk Orders','Clock start','Business duration','Order Mix','On-Time Results by Order Type','How the Order Score Is Calculated','Risk flags'])assert.match(client,new RegExp(label));
+for(const obsolete of ['Applicable Orders by Fulfilment Mode','Completion Performance by Fulfilment Mode','Orders score explanation'])assert.doesNotMatch(client,new RegExp(obsolete));
 assert.match(css,/kpi-front-score__ring/);
 assert.match(css,/kpi-front-duty-grid \.kpi-front-duty-card:nth-child\(3\)/, 'the three flow cards must have distinct category colours');
 assert.match(css,/\.kpi-front-duty-card>p\{[^}]*font-size:11px[^}]*line-height:1\.45/, 'flow-card timing rows must use compact readable typography');
