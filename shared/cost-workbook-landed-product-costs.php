@@ -55,5 +55,8 @@ function cw_render_landed_product_costs(array $period):void{ ?>
   <label>Transport allocation<input name="transport_allocation" type="number" min="0" step="any" value="0"></label><label class="landed-product-costs__notes">Notes<textarea name="notes"></textarea></label>
  </div><footer><button type="button" data-lpc-close>Cancel</button><button type="submit">Save Manual Product</button></footer></form>
 </aside>
-<dialog data-lpc-history><form method="dialog"><button aria-label="Close">×</button></form><h2>Cost history</h2><div data-lpc-history-rows></div></dialog><div class="landed-product-costs__toast" data-lpc-toast hidden></div>
+<dialog class="landed-product-costs__history-dialog" data-lpc-history>
+ <header><div><p>COST RECORD</p><h2>Cost history</h2><small>Review the supplier, transport and landed cost recorded for each date.</small></div><form method="dialog"><button type="submit" aria-label="Close cost history"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m7 7 10 10M17 7 7 17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></form></header>
+ <div class="landed-product-costs__history-body" data-lpc-history-rows></div>
+</dialog><div class="landed-product-costs__toast" data-lpc-toast hidden></div>
 <?php }
