@@ -52,6 +52,8 @@ assert.match(client,/data\.pending_orders\?\.length\?data\.pending_orders:\(data
 assert.match(client,/Time remaining/, 'pending order cards must show remaining time');
 assert.match(client,/Timing measured/, 'flow cards must distinguish total orders from timing-eligible orders');
 assert.match(client,/kpi-front-duty-card__bar/, 'flow cards must visualise on-time versus late measured work');
+assert.match(client,/lateShare=measured\?100\*late\/measured:0/, 'late bar width must be proportional to late measured orders');
+assert.match(client,/class="is-on-time".*class="is-late"/s, 'flow bars must render explicit on-time and late segments');
 assert.match(css,/\.kpi-pending-timeline/, 'pending completion timeline must use the portal theme');
 assert.match(css,/\.kpi-pending-timeline>div\{[^}]*max-height:360px[^}]*overflow:auto/s, 'pending completion timeline must stay compact and scroll internally');
 assert.match(css,/\.kpi-order-evidence-item dl\{display:grid;grid-template-columns:repeat\(4/, 'order evidence details must use a readable responsive grid');
