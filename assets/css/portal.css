@@ -3924,6 +3924,7 @@ textarea {
 .kpi-team-card small { color: var(--t-text-light); font-size: 10px; }
 .kpi-team-card i { font-style: normal; }
 .kpi-chart-frame { position: relative; height: 280px; }
+.kpi-chart-context { margin: -4px 0 10px; color: #806d63; font-size: 11px; line-height: 1.45; }
 .kpi-orders-sales-panel { grid-column: 1 / -1; }
 .kpi-orders-sales-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 4px 0 16px; }
 .kpi-orders-sales-summary article { padding: 12px 14px; border: 1px solid #e8d9d0; border-radius: 10px; background: #fbf6f2; }

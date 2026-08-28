@@ -190,9 +190,10 @@
     if (packingChart) packingChart.destroy();
     const rows = data.trends.packing;
     const days = [...new Set(rows.map((row) => row.day))];
-    const people = [...new Set(rows.map((row) => String(row.assigned_employee_id || 'Unassigned')))];
+    const people = [...new Map(rows.map((row) => [String(row.assigned_employee_id), { id: String(row.assigned_employee_id), name: row.employee_name || `Employee ${row.assigned_employee_id}` }])).values()];
     const colours = ['--t-orange-red', '--t-olive', '--t-amber', '--t-burgundy', '--t-red', '--t-text-mid'];
-    packingChart = new Chart(q('[data-kpi-packing-chart]'), { type: 'bar', data: { labels: days, datasets: people.map((person, index) => ({ label: person === 'Unassigned' ? person : `Employee ${person}`, data: days.map((day) => { const row = rows.find((entry) => entry.day === day && String(entry.assigned_employee_id || 'Unassigned') === person); return row ? Number(row[packingMode === 'weighted' ? 'points' : 'items']) : 0; }), backgroundColor: colour(colours[index % colours.length]) })) }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } } });
+    q('[data-kpi-packing-context]').textContent = packingMode === 'weighted' ? 'Effort-weighted workload by employee, calculated from quantity, package effort, size and priority.' : 'Completed packing items by employee and completion date.';
+    packingChart = new Chart(q('[data-kpi-packing-chart]'), { type: 'bar', data: { labels: days, datasets: people.map((person, index) => ({ label: person.name, data: days.map((day) => { const row = rows.find((entry) => entry.day === day && String(entry.assigned_employee_id) === person.id); return row ? Number(row[packingMode === 'weighted' ? 'points' : 'items']) : 0; }), backgroundColor: colour(colours[index % colours.length]) })) }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } } });
   }
 
   async function load(refresh = false) {
