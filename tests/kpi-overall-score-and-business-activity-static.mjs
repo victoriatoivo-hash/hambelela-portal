@@ -9,14 +9,14 @@ const ui=fs.readFileSync('assets/js/kpi-employee.js','utf8');
 const migration=fs.readFileSync('operations-kpi-score-version-migration.sql','utf8');
 
 assert.match(reporting,/packer-v1-2026-08-04/);
-assert.match(reporting,/front-v4-business-impact-2026-08-29/);
+assert.match(reporting,/front-v5-outcome-accountability-2026-08-29/);
 assert.match(reporting,/productivity'=>20.*accuracy'=>20.*speed'=>15.*process'=>10.*notes_evidence'=>5.*tasks'=>10.*courier_upload'=>5.*attendance'=>10.*teamwork'=>5/s);
-assert.match(reporting,/orders'=>25.*packing'=>10.*tasks'=>8.*bookkeeping'=>20.*waybills'=>15.*attendance'=>2.*quality'=>20/s);
+assert.match(reporting,/orders'=>25.*packing'=>8.*tasks'=>7.*bookkeeping'=>18.*waybills'=>12.*quality'=>30/s);
 assert.match(reporting,/rawScore/,'banding must use the unrounded score');
-assert.match(employee,/Work inside its allowed clock is not penalised/);
+assert.match(employee,/Customer-waiting collection time remains external/);
 assert.match(employee,/Activity Log is supporting evidence only/);
 assert.match(employee,/Person Involved error\(s\)/);
-assert.match(employee,/50% on-time completion.*25% overdue control.*15% payment\/status correctness.*10% reopened\/process control/s);
+assert.match(employee,/45% on-time result.*15% mode-specific average speed.*15% completion\/pending control.*10% overdue control.*10% payment\/status correctness.*5% reopened\/process control/s);
 assert.match(employee,/40% frequency\/severity.*30% verified financial impact.*20% recurrence prevention.*10% resolution within 24 elapsed hours/s);
 assert.match(employee,/label'=>'Bookkeeping'/);
 const packerScoreBlock=employee.slice(employee.indexOf('if($packerRole){'),employee.indexOf('}else{',employee.indexOf('if($packerRole){')));

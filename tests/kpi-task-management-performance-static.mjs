@@ -17,7 +17,7 @@ assert.match(service,/\$task\['started_at'\]/,'stored task start must be a valid
 assert.match(service,/duration_stats/,'duration statistics must be exposed to the report renderer');
 assert.match(service,/risk_rows/,'task risks must use the same authoritative evidence rows');
 assert.match(service,/task_score/,'the task section must expose its central score');
-assert.match(service,/\['share'=>40,'score'=>\$onTime\].*\['share'=>25,'score'=>\$completionRate\].*\['share'=>15,'score'=>\$checklistRate\].*\['share'=>10,'score'=>\$noteRate\].*\['share'=>10,'score'=>\$reworkRate\]/s,'task score must use the approved 40/25/15/10/10 weighted components');
+assert.match(service,/\['share'=>35,'score'=>\$onTime\].*\['share'=>25,'score'=>\$completionRate\].*\['share'=>20,'score'=>\$noteRate\].*\['share'=>15,'score'=>\$processEvidenceRate\].*\['share'=>5,'score'=>\$reworkRate\]/s,'task score must use the approved time, completion, note, evidence and rework weights');
 assert.match(service,/Optional proof — evidence only/,'optional proof must not create a score or bonus');
 assert.match(service,/Attribution conflict/,'actor conflicts must be surfaced');
 assert.match(service,/Completed without In Progress/,'direct completion must remain visible');
