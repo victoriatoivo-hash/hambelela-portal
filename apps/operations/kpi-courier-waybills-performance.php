@@ -52,7 +52,7 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
     $roleView = strpos($roleKey, 'packer') !== false ? 'packer' : (strpos($roleKey, 'front') !== false ? 'front' : 'all');
 
     $raw = ops_rows(
-        "SELECT w.id,w.batch_id,w.sent_date,w.courier_names,w.number_of_waybills,w.uploaded_at,w.uploaded_by,
+        "SELECT w.id,w.batch_id,w.sent_date,w.courier_names,w.number_of_waybills,w.file_path,w.original_filename,w.uploaded_at,w.uploaded_by,
                 w.sent_at,w.sent_by,w.status,w.notes,w.waybill_reference,w.order_id,w.customer_name,w.due_by,
                 up.full_name uploaded_by_name,ur.role_key uploaded_role_key,
                 sp.full_name sent_by_name,sr.role_key sent_role_key
@@ -68,9 +68,10 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
     $batches = [];
     foreach ($raw as $record) {
         $batchKey = (string) ($record['batch_id'] ?: 'row-' . $record['id']);
-        if (!isset($batches[$batchKey])) $batches[$batchKey] = $record + ['record_ids'=>[], 'files'=>0, 'declared_waybills'=>max(1,(int)($record['number_of_waybills']??1))];
+        if (!isset($batches[$batchKey])) $batches[$batchKey] = $record + ['record_ids'=>[], 'files'=>0, 'file_names'=>[], 'declared_waybills'=>max(1,(int)($record['number_of_waybills']??1))];
         $batches[$batchKey]['record_ids'][] = (int) $record['id'];
         $batches[$batchKey]['files']++;
+        $batches[$batchKey]['file_names'][] = (string) (($record['original_filename'] ?? '') ?: basename((string) ($record['file_path'] ?? '')));
         $batches[$batchKey]['declared_waybills']=max((int)$batches[$batchKey]['declared_waybills'],max(1,(int)($record['number_of_waybills']??1)));
         if (!empty($record['sent_at']) && (empty($batches[$batchKey]['sent_at']) || $record['sent_at'] < $batches[$batchKey]['sent_at'])) {
             $batches[$batchKey]['sent_at'] = $record['sent_at'];
@@ -80,7 +81,7 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
     }
 
     $rows=[]; $turnaround=[]; $uploadTimes=[];
-    $counts=['batches'=>0,'waybills'=>0,'sent_waybills'=>0,'combined'=>0,'review'=>0,'packer_eligible'=>0,'packer_on_time'=>0,'packer_late'=>0,'within_window'=>0,'next_morning'=>0,'front_eligible'=>0,'front_on_time'=>0,'front_late'=>0,'blocked_late_upload'=>0,'customer_eligible'=>0,'customer_on_time'=>0,'customer_late'=>0,'pending'=>0];
+    $counts=['batches'=>0,'waybills'=>0,'attachments'=>0,'sent_waybills'=>0,'sent_attachments'=>0,'combined'=>0,'review'=>0,'packer_eligible'=>0,'packer_on_time'=>0,'packer_late'=>0,'within_window'=>0,'next_morning'=>0,'front_eligible'=>0,'front_on_time'=>0,'front_late'=>0,'blocked_late_upload'=>0,'customer_eligible'=>0,'customer_on_time'=>0,'customer_late'=>0,'pending'=>0];
     foreach ($batches as $batch) {
         $uploadedAt = !empty($batch['uploaded_at']) ? new DateTimeImmutable((string) $batch['uploaded_at'], $zone) : null;
         $sentAt = !empty($batch['sent_at']) ? new DateTimeImmutable((string) $batch['sent_at'], $zone) : null;
@@ -163,18 +164,20 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
             'packer_eligible'=>!$serviceReview&&$uploadDeadline!==null,'front_eligible'=>!$serviceReview&&$availableBeforeDeadline&&$customerDeadline!==null,
             'late_availability_response_minutes'=>$lateResponse,'late_response_target_minutes'=>$lateTarget?:null,
             'upload_to_send_minutes'=>$duration,'business_minutes'=>$businessDuration,'status'=>$batch['status'],'notes'=>$batch['notes'],'combined_batch'=>$combined,
-            'waybill_count'=>$waybillCount,'file_count'=>(int)$batch['files'],'evidence_quality'=>$review?'requires_review':'exact_and_current_record_evidence',
+            'waybill_count'=>$waybillCount,'attached_items'=>(int)$batch['files'],'file_count'=>(int)$batch['files'],
+            'attached_file_names'=>implode(' | ', array_values(array_filter($batch['file_names'] ?? []))),
+            'evidence_quality'=>$review?'requires_review':'exact_and_current_record_evidence',
             'review_reason'=>$serviceSource==='service_date_unavailable'?'Service date unavailable':($review?'Inferred service date needs confirmation':null)
         ];
         $include = !$employeeId || ($roleView==='packer' ? (int)$row['uploaded_by']===$employeeId : ($roleView==='front' ? ((int)$row['sent_by']===$employeeId||($row['front_eligible']&&!$row['sent_at'])) : ((int)$row['uploaded_by']===$employeeId||(int)$row['sent_by']===$employeeId)));
-        if ($include) { $rows[]=$row; $counts['batches']++;$counts['waybills']+=$waybillCount;if($sentAt)$counts['sent_waybills']+=$waybillCount;if($review)$counts['review']++; }
+        if ($include) { $rows[]=$row; $counts['batches']++;$counts['waybills']+=$waybillCount;$counts['attachments']+=(int)$batch['files'];if($sentAt){$counts['sent_waybills']+=$waybillCount;$counts['sent_attachments']+=(int)$batch['files'];}if($review)$counts['review']++; }
     }
 
     if ($employeeId) {
         foreach (array_keys($counts) as $key) $counts[$key]=0;
         $counts['batches']=count($rows);
         foreach ($rows as $row) {
-            $counts['waybills']+=(int)$row['waybill_count'];if(!empty($row['sent_at']))$counts['sent_waybills']+=(int)$row['waybill_count'];
+            $counts['waybills']+=(int)$row['waybill_count'];$counts['attachments']+=(int)$row['attached_items'];if(!empty($row['sent_at'])){$counts['sent_waybills']+=(int)$row['waybill_count'];$counts['sent_attachments']+=(int)$row['attached_items'];}
             $review=(string)$row['evidence_quality']==='requires_review'; if($review)$counts['review']++;
             if($row['combined_batch'])$counts['combined']++;
             if(!empty($row['packer_eligible'])) { $counts['packer_eligible']++; if(strpos((string)$row['packer_result'],'Uploaded late')===0)$counts['packer_late']++; else $counts['packer_on_time']++; }
@@ -191,14 +194,15 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
     $packerRate=$counts['packer_eligible']?round(100*$counts['packer_on_time']/$counts['packer_eligible'],1):null;
     $frontRate=$counts['front_eligible']?round(100*$counts['front_on_time']/$counts['front_eligible'],1):null;
     $customerRate=$counts['customer_eligible']?round(100*$counts['customer_on_time']/$counts['customer_eligible'],1):null;
-    $courierBreakdown=[];foreach($rows as$row){$courier=trim((string)$row['courier'])?:'Unclassified courier';if(!isset($courierBreakdown[$courier]))$courierBreakdown[$courier]=['courier'=>$courier,'upload_batches'=>0,'waybills_uploaded'=>0,'waybills_sent'=>0,'pending_waybills'=>0];$qty=max(1,(int)$row['waybill_count']);$courierBreakdown[$courier]['upload_batches']++;$courierBreakdown[$courier]['waybills_uploaded']+=$qty;if(!empty($row['sent_at']))$courierBreakdown[$courier]['waybills_sent']+=$qty;else$courierBreakdown[$courier]['pending_waybills']+=$qty;}usort($courierBreakdown,static fn($a,$b)=>$b['waybills_uploaded']<=>$a['waybills_uploaded']);
+    $courierBreakdown=[];foreach($rows as$row){$courier=trim((string)$row['courier'])?:'Unclassified courier';if(!isset($courierBreakdown[$courier]))$courierBreakdown[$courier]=['courier'=>$courier,'upload_batches'=>0,'waybills_uploaded'=>0,'attached_items'=>0,'waybills_sent'=>0,'attached_items_sent'=>0,'pending_waybills'=>0];$qty=max(1,(int)$row['waybill_count']);$attachments=max(0,(int)$row['attached_items']);$courierBreakdown[$courier]['upload_batches']++;$courierBreakdown[$courier]['waybills_uploaded']+=$qty;$courierBreakdown[$courier]['attached_items']+=$attachments;if(!empty($row['sent_at'])){$courierBreakdown[$courier]['waybills_sent']+=$qty;$courierBreakdown[$courier]['attached_items_sent']+=$attachments;}else$courierBreakdown[$courier]['pending_waybills']+=$qty;}usort($courierBreakdown,static fn($a,$b)=>$b['attached_items']<=>$a['attached_items']);
     return [
         'title'=>'Courier Waybills Performance','role_view'=>$roleView,'settings'=>['following_applicable_day_rule'=>$followingRule,'morning_inference_enabled'=>$morningInference,'late_response_target_minutes'=>$lateTarget?:null,'timezone'=>'Africa/Windhoek'],
         'counts'=>$counts,'packer_on_time_rate'=>$packerRate,'front_on_time_rate'=>$frontRate,'customer_on_time_rate'=>$customerRate,
         'metrics'=>[
             ['label'=>'Upload Batches','value'=>$counts['batches'],'explanation'=>'Number of upload actions/batches attributed to this employee. A batch may contain more than one waybill.'],
-            ['label'=>'Waybills Uploaded','value'=>$counts['waybills'],'explanation'=>'Physical waybill quantity from number_of_waybills, not merely the number of upload actions.'],
-            ['label'=>'Waybills Sent','value'=>$counts['sent_waybills'],'explanation'=>'Physical waybill quantity in batches with a recorded Sent timestamp.'],
+            ['label'=>'Courier Waybills Uploaded','value'=>$counts['waybills'],'explanation'=>'The recorded waybill count. One courier waybill remains one even when several item files are attached.'],
+            ['label'=>'Items / Files Attached','value'=>$counts['attachments'],'explanation'=>'Actual files attached across the uploads. For example, one waybill with four uploaded item files is counted as one waybill and four attachments.'],
+            ['label'=>'Courier Waybills Sent','value'=>$counts['sent_waybills'],'explanation'=>'Recorded courier waybills in batches with a Sent timestamp.'],
             ['label'=>'Packer Uploads by 17:00','value'=>$packerRate,'format'=>'percent','numerator'=>$counts['packer_on_time'],'denominator'=>$counts['packer_eligible'],'explanation'=>'Upload batches available by 17:00 on the courier service date.'],
             ['label'=>'Front-Person Sends by 09:00','value'=>$frontRate,'format'=>'percent','numerator'=>$counts['front_on_time'],'denominator'=>$counts['front_eligible'],'explanation'=>'Eligible waybill batches sent by 09:00 on the next working day. Batches uploaded after their availability deadline are excluded from this employee denominator.'],
             ['label'=>'Customer Deadline Met','value'=>$customerRate,'format'=>'percent','numerator'=>$counts['customer_on_time'],'denominator'=>$counts['customer_eligible']],
