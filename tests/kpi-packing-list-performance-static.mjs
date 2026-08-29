@@ -27,7 +27,7 @@ assert.match(action,/packing_website_completed_at/);
 assert.match(action,/frontdesk_website_updated_at/);
 assert.match(employee,/packing_list_performance/);
 assert.match(owner,/exact_quantity_accuracy/);
-for(const label of ['Items Assigned','Items Completed','Planned Weight','Weight Packed','Planned Liquid Volume','Liquid Volume Packed','Planned Pieces','Pieces Packed','Quantity Matches','Supplier Variances Awaiting Review','Average Queue Time','Median Active Packing Time','Average Total Turnaround','Large-Volume Items','Needs Label','Confirmed Corrections','Packer Website Confirmations','Items Requiring Review'])assert.match(service,new RegExp(label));
+for(const label of ['Items Assigned','Items Completed','Weight Packed','Liquid Volume Packed','Pieces Packed','Planned Package Weight','Recorded Package Weight','Planned Package Volume','Recorded Package Volume','Planned Package Pieces','Recorded Package Pieces','Quantity Matches','Supplier Variances Awaiting Review','Average Queue Time','Median Active Packing Time','Average Total Turnaround','Large-Volume Items','Needs Label','Confirmed Corrections','Packer Website Confirmations','Items Requiring Review'])assert.match(service,new RegExp(label));
 assert.doesNotMatch(service,/label'=>'Units Requested'/);
 assert.doesNotMatch(service,/label'=>'Units Packed'/);
 for(const label of ['Packing Output and Accuracy','Queue time','Packing time','Total time','Website update'])assert.match(client,new RegExp(label));
