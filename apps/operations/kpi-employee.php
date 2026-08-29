@@ -9,7 +9,9 @@ $employee = ops_rows('SELECT e.id,e.full_name,e.status,r.name role_name,r.role_k
 if (!$employee || (string) $employee['role_key'] === 'owner_admin') { http_response_code(404); exit('Employee not found.'); }
 $initialAnchor = (string) ($_GET['section'] ?? $_GET['tab'] ?? 'orders');
 if ($initialAnchor === 'order-packing') $initialAnchor = 'orders';
-$anchors = ['orders','packing','tasks','bookkeeping','waybills','hr-attendance','website','quality','activity-log'];
+$showWebsiteUpdates = $employeeId !== 2;
+$anchors = ['orders','packing','tasks','bookkeeping','waybills','hr-attendance','quality','activity-log'];
+if ($showWebsiteUpdates) array_splice($anchors, 6, 0, ['website']);
 if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'orders';
 $pageTitle = $employee['full_name'] . ' Performance Profile | ' . APP_NAME;
 if (empty($_SESSION['kpi_presence_csrf_token'])) $_SESSION['kpi_presence_csrf_token']=bin2hex(random_bytes(32));
@@ -17,7 +19,7 @@ $activeApp = 'kpi';
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main id="kpi-employee-profile" class="workspace module kpi-health-page kpi-employee-page" data-employee-id="<?= (int) $employee['id'] ?>" data-initial-anchor="<?= htmlspecialchars($initialAnchor, ENT_QUOTES, 'UTF-8') ?>" data-can-review="<?= $canReview?'1':'0' ?>" data-presence-csrf="<?= htmlspecialchars((string)$_SESSION['kpi_presence_csrf_token'],ENT_QUOTES,'UTF-8') ?>">
+<main id="kpi-employee-profile" class="workspace module kpi-health-page kpi-employee-page" data-employee-id="<?= (int) $employee['id'] ?>" data-initial-anchor="<?= htmlspecialchars($initialAnchor, ENT_QUOTES, 'UTF-8') ?>" data-show-website-updates="<?= $showWebsiteUpdates?'1':'0' ?>" data-can-review="<?= $canReview?'1':'0' ?>" data-presence-csrf="<?= htmlspecialchars((string)$_SESSION['kpi_presence_csrf_token'],ENT_QUOTES,'UTF-8') ?>">
   <nav class="kpi-employee-breadcrumb" aria-label="Breadcrumb"><a href="reports.php?tab=employees">Employees</a><span aria-hidden="true">›</span><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></nav>
   <section class="module-header kpi-employee-header">
     <div class="kpi-employee-identity"><span class="kpi-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr((string) $employee['full_name'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><div><p class="eyebrow">Employee Performance</p><h1><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?>’s Performance Profile</h1><p><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(ucfirst((string) $employee['status']), ENT_QUOTES, 'UTF-8') ?> <span data-kpi-online-state>· Checking presence…</span></p></div></div>
@@ -36,7 +38,8 @@ include BASE_PATH . '/shared/sidebar.php';
       <small>Missing evidence is not counted as zero.</small>
     </div>
   </section>
-  <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php foreach (['orders'=>'Orders Performance','packing'=>'Packing','tasks'=>'Task Management','bookkeeping'=>'Bookkeeping','waybills'=>'Waybill Status Management','hr-attendance'=>'HR, Leave & Attendance','website'=>'Website Updates','quality'=>'Errors and Quality','activity-log'=>'Activity Log'] as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
+  <?php $profileSections=['orders'=>'Orders Performance','packing'=>'Packing','tasks'=>'Task Management','bookkeeping'=>'Bookkeeping','waybills'=>'Waybill Status Management','hr-attendance'=>'HR, Leave & Attendance','quality'=>'Errors and Quality','activity-log'=>'Activity Log'];if($showWebsiteUpdates)$profileSections=array_slice($profileSections,0,6,true)+['website'=>'Website Updates']+array_slice($profileSections,6,null,true); ?>
+  <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php foreach ($profileSections as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
   <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
   <section class="employee-kpi-page" data-kpi-employee-content><div class="kpi-health-grid"><?php foreach (range(1, 8) as $unused): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
   <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button><div data-kpi-timeline-content></div></dialog>
