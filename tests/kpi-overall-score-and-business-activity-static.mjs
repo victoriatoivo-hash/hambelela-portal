@@ -20,6 +20,9 @@ assert.match(employee,/45% on-time result.*15% mode-specific average speed.*15% 
 assert.match(employee,/40% frequency\/severity.*30% verified financial impact.*20% recurrence prevention.*10% resolution within 24 elapsed hours/s);
 assert.match(employee,/30% completion.*25% active packing speed.*20% confirmed accuracy.*15% packer website confirmation.*10% reopened-work control/s);
 assert.match(employee,/35% within configured New-to-In-Progress target.*20% average speed.*15% courier cut-off control.*5% timestamp coverage.*25% workload compared with the active-packer average/s);
+assert.match(employee,/label'=>'Active-Packer Average Speed'/);
+assert.match(employee,/label'=>'Comparative Speed Score'/);
+assert.match(employee,/min\(\$packerTargetSpeedScore,\$packerRelativeSpeedScore\)/);
 assert.match(employee,/label'=>'Bookkeeping'/);
 const packerScoreBlock=employee.slice(employee.indexOf('if($packerRole){'),employee.indexOf('}else{',employee.indexOf('if($packerRole){')));
 assert.doesNotMatch(packerScoreBlock,/label'=>'Bookkeeping'/);
