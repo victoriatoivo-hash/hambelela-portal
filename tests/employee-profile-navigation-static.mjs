@@ -7,7 +7,7 @@ const client = fs.readFileSync('assets/js/kpi-employee.js', 'utf8');
 const indexClient = fs.readFileSync('assets/js/reports-employees.js', 'utf8');
 const data = fs.readFileSync('apps/operations/kpi-employee-data.php', 'utf8');
 
-for (const label of ['Order & Packing Performance','Task Management','Bookkeeping','Waybill Status Management','HR, Leave & Attendance','Website Updates','Errors and Quality','Activity Log']) {
+for (const label of ['Orders Performance','Packing','Task Management','Bookkeeping','Waybill Status Management','HR, Leave & Attendance','Website Updates','Errors and Quality','Activity Log']) {
   assert.match(page, new RegExp(`'[^']+'=>'${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`), `${label} must be an employee profile tab`);
 }
 assert.match(index, /data-kpi-employee-tabs/, 'Employees must expose employee-name tabs');
@@ -22,7 +22,9 @@ assert.match(page, /Score pending verification/, 'the reserved score summary mus
 assert.match(page, /Missing evidence is not counted as zero/, 'the score placeholder must explain how incomplete evidence is handled');
 assert.doesNotMatch(page, /reports\.php\?tab=performance-reports|reports\.php\?tab=business-activity|reports\.php\?tab=audit-log|reports\.php\?tab=settings/, 'employee profiles must not repeat the top-level Performance navigation');
 assert.match(client, /activateEmployeeSection/, 'employee profile tabs must switch focused sections');
-assert.match(client, /front_packing_list_kpi/, 'front-desk website work must be routed to Website Updates instead of duplicated under packing');
+assert.match(client, /packing:\['packing'\]/, 'Packing must have its own employee-profile tab');
+assert.match(client, /Packing — Live Website Confirmation/, 'front-desk Packing must explain the live website confirmation duty');
+assert.match(client, /8 counted business hours/, 'front-desk Packing must explain its counted-hours target');
 assert.match(client, /presentationSection\('tasks',s\.tasks\)/, 'Task Management must reuse the existing employee task evidence');
 assert.match(client, /presentationSection\('attendance',s\.attendance,data\.presence_summary/, 'HR, Leave and Attendance must surface the existing attendance evidence');
 assert.match(client, /presentationSection\('hr-leave',s\.hr_leave\)/, 'HR and Leave must render from the existing employee response');

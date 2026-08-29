@@ -7,9 +7,10 @@ $employeeId = max(0, (int) ($_GET['id'] ?? $currentEmployeeId));
 if (!$canReview && $employeeId !== $currentEmployeeId) { http_response_code(403); exit('You may view only your own performance report.'); }
 $employee = ops_rows('SELECT e.id,e.full_name,e.status,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? LIMIT 1', [$employeeId])[0] ?? null;
 if (!$employee || (string) $employee['role_key'] === 'owner_admin') { http_response_code(404); exit('Employee not found.'); }
-$initialAnchor = (string) ($_GET['section'] ?? $_GET['tab'] ?? 'order-packing');
-$anchors = ['order-packing','tasks','bookkeeping','waybills','hr-attendance','website','quality','activity-log'];
-if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'order-packing';
+$initialAnchor = (string) ($_GET['section'] ?? $_GET['tab'] ?? 'orders');
+if ($initialAnchor === 'order-packing') $initialAnchor = 'orders';
+$anchors = ['orders','packing','tasks','bookkeeping','waybills','hr-attendance','website','quality','activity-log'];
+if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'orders';
 $pageTitle = $employee['full_name'] . ' Performance Profile | ' . APP_NAME;
 if (empty($_SESSION['kpi_presence_csrf_token'])) $_SESSION['kpi_presence_csrf_token']=bin2hex(random_bytes(32));
 $activeApp = 'kpi';
@@ -35,7 +36,7 @@ include BASE_PATH . '/shared/sidebar.php';
       <small>Missing evidence is not counted as zero.</small>
     </div>
   </section>
-  <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php foreach (['order-packing'=>'Order & Packing Performance','tasks'=>'Task Management','bookkeeping'=>'Bookkeeping','waybills'=>'Waybill Status Management','hr-attendance'=>'HR, Leave & Attendance','website'=>'Website Updates','quality'=>'Errors and Quality','activity-log'=>'Activity Log'] as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
+  <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php foreach (['orders'=>'Orders Performance','packing'=>'Packing','tasks'=>'Task Management','bookkeeping'=>'Bookkeeping','waybills'=>'Waybill Status Management','hr-attendance'=>'HR, Leave & Attendance','website'=>'Website Updates','quality'=>'Errors and Quality','activity-log'=>'Activity Log'] as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
   <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
   <section class="employee-kpi-page" data-kpi-employee-content><div class="kpi-health-grid"><?php foreach (range(1, 8) as $unused): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
   <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button><div data-kpi-timeline-content></div></dialog>
