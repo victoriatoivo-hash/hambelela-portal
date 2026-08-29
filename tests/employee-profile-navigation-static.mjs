@@ -7,11 +7,13 @@ const client = fs.readFileSync('assets/js/kpi-employee.js', 'utf8');
 const indexClient = fs.readFileSync('assets/js/reports-employees.js', 'utf8');
 const data = fs.readFileSync('apps/operations/kpi-employee-data.php', 'utf8');
 
-for (const label of ['Orders Performance','Packing','Task Management','Bookkeeping','Waybill Status Management','HR, Leave & Attendance','Errors and Quality','Activity Log']) {
+for (const label of ['Orders Performance','Packing','Task Management','Bookkeeping','HR, Leave & Attendance','Errors and Quality','Activity Log']) {
   assert.match(page, new RegExp(`'[^']+'=>'${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}'`), `${label} must be an employee profile tab`);
 }
-assert.match(page, /\$showWebsiteUpdates\s*=\s*\$employeeId\s*!==\s*2/, 'Cecilia must not receive the duplicate Website Updates profile tab');
+assert.match(page, /'waybills'=>\$isPacker\?'Waybill Uploads':'Waybill Status Management'/, 'Waybill tab wording must follow the employee role');
+assert.match(page, /\$showWebsiteUpdates\s*=\s*!\$isPacker\s*&&\s*\$employeeId\s*!==\s*2/, 'Cecilia and packers must not receive the duplicate Website Updates profile tab');
 assert.match(page, /if\(\$showWebsiteUpdates\).*\['website'=>'Website Updates'\]/, 'other eligible profiles may retain Website Updates');
+assert.match(page, /if\(!\$isPacker\).*\['bookkeeping'=>'Bookkeeping'\]/, 'Bookkeeping must not be shown on packer profiles');
 assert.match(client, /showWebsiteUpdates\?presentationSection\('website',s\.website_updates\):''/, 'the duplicate Website Updates panel must not render for Cecilia');
 assert.match(index, /data-kpi-employee-tabs/, 'Employees must expose employee-name tabs');
 assert.match(indexClient, /data-kpi-employee-tabs/, 'employee-name tabs must use the existing Employees response');

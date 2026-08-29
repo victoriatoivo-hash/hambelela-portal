@@ -373,6 +373,6 @@ function kpi_weighted_subscore(array $parts): ?float
 
 function kpi_role_weight_template(string $roleKey): array
 {
-    if(strpos($roleKey,'packer')!==false)return['version'=>'packer-v1-2026-08-04','role'=>'packer','effective_from'=>'2026-08-04','components'=>['productivity'=>20,'accuracy'=>20,'speed'=>15,'process'=>10,'notes_evidence'=>5,'tasks'=>10,'courier_upload'=>5,'attendance'=>10,'teamwork'=>5]];
+    if(strpos($roleKey,'packer')!==false)return['version'=>'packer-v2-role-accountability-2026-08-29','role'=>'packer','effective_from'=>'2026-08-29','components'=>['packing'=>40,'orders'=>30,'tasks'=>10,'waybills'=>10,'quality'=>10]];
     return['version'=>'front-v5-outcome-accountability-2026-08-29','role'=>'front_person','effective_from'=>'2026-08-29','components'=>['orders'=>25,'packing'=>8,'tasks'=>7,'bookkeeping'=>18,'waybills'=>12,'quality'=>30]];
 }
