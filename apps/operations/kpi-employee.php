@@ -29,12 +29,12 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="kpi-score-placeholder__mark" aria-hidden="true">—</div>
     <div class="kpi-score-placeholder__copy">
       <p class="eyebrow">Overall performance</p>
-      <h2 id="employee-score-heading">Score pending verification</h2>
-      <p>The overall score will appear here after every role-specific performance section has been checked and its source evidence confirmed.</p>
+      <h2 id="employee-score-heading">Calculating verified score</h2>
+      <p>The portal is checking every role-specific component and its source evidence.</p>
     </div>
     <div class="kpi-score-placeholder__status">
       <span>Current status</span>
-      <strong>Not yet scored</strong>
+      <strong>Loading evidence</strong>
       <small>Missing evidence is not counted as zero.</small>
     </div>
   </section>

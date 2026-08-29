@@ -21,7 +21,7 @@ assert.match(index, /Choose an employee/, 'the Employees page must introduce the
 assert.doesNotMatch(index, /\$tab === 'employees'[\s\S]{0,500}data-kpi-period/, 'the employee directory must not show a reporting-period selector');
 assert.match(page, /kpi-employee-breadcrumb/, 'employee profiles must show an Employees-to-person breadcrumb');
 assert.match(page, /kpi-score-placeholder/, 'employee profiles must reserve a compact overall-score summary above the detailed sections');
-assert.match(page, /Score pending verification/, 'the reserved score summary must not publish a premature total');
+assert.match(page, /Calculating verified score/, 'the reserved score summary must wait for verified live evidence');
 assert.match(page, /Missing evidence is not counted as zero/, 'the score placeholder must explain how incomplete evidence is handled');
 assert.doesNotMatch(page, /reports\.php\?tab=performance-reports|reports\.php\?tab=business-activity|reports\.php\?tab=audit-log|reports\.php\?tab=settings/, 'employee profiles must not repeat the top-level Performance navigation');
 assert.match(client, /activateEmployeeSection/, 'employee profile tabs must switch focused sections');

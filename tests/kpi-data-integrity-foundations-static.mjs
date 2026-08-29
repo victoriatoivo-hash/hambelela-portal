@@ -95,10 +95,10 @@ assert.match(errorsPage, /affects_kpi_accuracy/, 'error attribution must explici
 assert.match(errorsPage, /accuracy_verified_by/, 'personal accuracy attribution must require owner verification');
 assert.match(sections, /l\.responsible_employee_id/, 'quality reports must use the responsible employee, not the logger');
 assert.match(business, /scores_disabled'=>true/, 'Business Health rankings must remain disabled');
-assert.match(employee, /'visible'=>false/, 'employee composite scores must remain hidden');
+assert.match(employee, /'visible'=>true/, 'verified employee composite scores must be visible');
 assert.match(employee, /\$section==='all'/, 'employee pages must load all performance sections in one response');
 assert.match(employee, /'website_updates'=>/, 'the grouped employee response must include website evidence');
-assert.match(employee, /'score_breakdown'=>\['enabled'=>false/, 'the unified employee page must keep composite scoring disabled');
+assert.match(employee, /'score_breakdown'=>\['enabled'=>true/, 'the unified employee page must expose verified role scoring');
 assert.doesNotMatch(employeePage, /kpi-employee-tabs/, 'employee pages must not render fragmented sub-tabs');
 assert.match(employeePage, /employee-kpi-jump-nav/, 'employee pages must use same-page jump navigation');
 assert.match(employeeJs, /section:'all'/, 'the client must fetch all employee sections together');
