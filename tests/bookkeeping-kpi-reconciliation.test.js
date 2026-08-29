@@ -14,7 +14,11 @@ assert.match(helper, /amount_same_date/, 'unique amount and date candidates must
 assert.match(helper, /amount_mismatch/);
 assert.match(helper, /ambiguous/);
 assert.match(helper, /bookkeeping_adoption_date/);
-assert.match(helper, /Cash Delivery \/ COD/);
+assert.match(helper, /isDeliveryMode/);
+assert.match(helper, /walk in customer/);
+assert.match(helper, /Delivery Driver Funds/);
+assert.match(helper, /Delivery Cash Expected/);
+assert.match(helper, /Cash delivery is reconciled against Delivery Driver Funds/i);
 assert.match(helper, /created_at/);
 assert.match(helper, /backdated/);
 assert.match(helper, /retained float/i);
