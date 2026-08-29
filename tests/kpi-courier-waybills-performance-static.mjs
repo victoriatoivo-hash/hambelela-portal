@@ -32,5 +32,8 @@ assert.match(settings, /courier_following_applicable_day_rule[^\n]+'text', 'busi
 assert.match(employee, /courier_waybills_performance/);
 assert.match(client, /Courier Waybills and Attached Items/);
 assert.match(client, /key==='waybills'&&data\.courier_waybills_performance/);
+assert.match(client, /View all waybills/);
+assert.match(client, /kpi-courier-volume-bar/);
+assert.doesNotMatch(client, /Waybill timing and responsibility evidence/);
 assert.match(reportUi, /format==='time'/);
 console.log('Courier Waybills Performance fairness and integration checks passed.');
