@@ -24,6 +24,7 @@ assert.match(helper,/Business-attributed errors are excluded/,'business errors m
 assert.match(helper,/Only recorded amounts are summed/,'missing financial impact must not be inferred');
 assert.match(endpoint,/'error'=>'error_log'/,'error Activity Log timeline must be available');
 assert.match(endpoint,/kpi_error_quality_performance/,'employee KPI must use the dedicated calculation');
+assert.match(endpoint,/\$qualityPerformance\['responsibility_summary'\]\['errors_against_employee'\]/,'overall accuracy must reuse the deduplicated Person Involved responsibility count');
 assert.match(client,/Errors and Quality/,'the dedicated section must be visible');
 assert.match(client,/Recurrence interval/,'the focused evidence table must expose recurrence separately');
 console.log('KPI Error & Quality static checks passed.');
