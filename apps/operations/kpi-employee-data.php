@@ -146,10 +146,10 @@ try {
               ['label'=>'Website updates completed','value'=>count($validWebsite)],
               ['label'=>'Pending website updates','value'=>$pendingWebsite],
               ['label'=>'Average loaded-to-update','value'=>$validWebsite?array_sum(array_map(static fn(array$row):float=>(float)$row['lag_minutes'],$validWebsite))/count($validWebsite):null,'format'=>'minutes']
-          ],'rows'=>$website,'hidden'=>false,'reference_only'=>!$frontDeskRole],
+          ],'rows'=>$website,'hidden'=>$packerRole,'reference_only'=>!$frontDeskRole],
           'tasks'=>['metrics'=>$taskPerformance['metrics'],'rows'=>$taskPerformance['rows'],'floating_tasks'=>$taskPerformance['floating_tasks'] ?? [],'task_management_performance'=>true,'provisional_label'=>'Evidence-led — assignment clock excludes owner allocation delay','duration_stats'=>$taskPerformance['duration_stats'],'status_breakdown'=>$taskPerformance['status_breakdown'],'overdue_by_status'=>$taskPerformance['overdue_by_status'],'risk_rows'=>$taskPerformance['risk_rows'],'task_score'=>$taskPerformance['task_score'],'score_detail'=>$taskPerformance['score_detail'],'methodology'=>$taskPerformance['methodology']],
           'waybills'=>$waybillPerformance,
-          'bookkeeping'=>array_merge($bookkeepingKpi,['rows'=>$bookkeeping,'reconciliations'=>$reconciliations,'reference_only'=>!$frontDeskRole]),
+          'bookkeeping'=>array_merge($bookkeepingKpi,['rows'=>$bookkeeping,'reconciliations'=>$reconciliations,'hidden'=>$packerRole,'reference_only'=>!$frontDeskRole]),
           'hr_leave'=>['metrics'=>[
               ['label'=>'Approved leave records','value'=>count($leave)],
               ['label'=>'Approved leave days','value'=>array_sum(array_map(static fn(array$row):float=>(float)$row['days'],$leave))]
