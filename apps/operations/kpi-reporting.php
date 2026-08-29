@@ -341,6 +341,7 @@ function kpi_calculate_role_score(array $components): array
             'numerator' => $component['numerator'] ?? null,
             'denominator' => $component['denominator'] ?? null,
             'evidence_count' => (int)($component['evidence_count'] ?? ($component['denominator'] ?? 0)),
+            'internal_calculation' => (string)($component['internal_calculation'] ?? ''),
         ];
     }
     $rawScore = $measuredWeight > 0 ? $weightedPoints * 100 / $measuredWeight : null;
@@ -373,5 +374,5 @@ function kpi_weighted_subscore(array $parts): ?float
 function kpi_role_weight_template(string $roleKey): array
 {
     if(strpos($roleKey,'packer')!==false)return['version'=>'packer-v1-2026-08-04','role'=>'packer','effective_from'=>'2026-08-04','components'=>['productivity'=>20,'accuracy'=>20,'speed'=>15,'process'=>10,'notes_evidence'=>5,'tasks'=>10,'courier_upload'=>5,'attendance'=>10,'teamwork'=>5]];
-    return['version'=>'front-v3-section-score-2026-08-29','role'=>'front_person','effective_from'=>'2026-08-29','components'=>['orders'=>20,'packing'=>15,'tasks'=>15,'bookkeeping'=>20,'waybills'=>15,'attendance'=>5,'quality'=>10]];
+    return['version'=>'front-v4-business-impact-2026-08-29','role'=>'front_person','effective_from'=>'2026-08-29','components'=>['orders'=>25,'packing'=>10,'tasks'=>8,'bookkeeping'=>20,'waybills'=>15,'attendance'=>2,'quality'=>20]];
 }
