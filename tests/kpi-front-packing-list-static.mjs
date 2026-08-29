@@ -12,6 +12,10 @@ assert.match(helper,/frontdesk_website_target_minutes/);assert.match(helper,/480
 assert.match(helper,/Pending within deadline/);assert.match(helper,/Confirmation reversed/);assert.match(helper,/Evidence unavailable/);
 assert.doesNotMatch(helper,/packing_website_confirmed/);
 assert.match(endpoint,/kpi_front_packing_list_kpi/);
+assert.match(helper,/overdue_rows/);
+assert.match(helper,/overdue_minutes/);
+assert.doesNotMatch(helper,/\['label'=>'Currently Overdue'/);
+assert.match(client,/Currently Overdue Packing-List Website Updates/);
 assert.match(client,/8 counted business hours/);
 assert.match(client,/Operational date loaded/);
 console.log('Front-person Packing List KPI static checks passed.');
