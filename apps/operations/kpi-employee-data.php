@@ -259,4 +259,4 @@ try {
     }
     $payload['composite']=['visible'=>false,'indicative'=>false,'score'=>null,'message'=>'Composite scores and rankings are disabled while performance source integrity is under review.'];
     kpi_send_json($payload);
-}catch(Throwable$error){error_log(date(DATE_ATOM).' employee detail: '.$error->getMessage().' in '.$error->getFile().':'.$error->getLine().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Employee performance is temporarily unavailable.','error_code'=>'KPI_EMPLOYEE_REPORT_FAILED'],500);}
+}catch(Throwable$error){error_log(date(DATE_ATOM).' employee detail: '.$error->getMessage().' in '.$error->getFile().':'.$error->getLine().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');$debug=current_role_key()==='owner_admin'&&(string)($_GET['debug']??'')==='1';kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Employee performance is temporarily unavailable.','error_code'=>'KPI_EMPLOYEE_REPORT_FAILED']+($debug?['diagnostic'=>$error->getMessage(),'diagnostic_line'=>$error->getLine()]:[]),500);}
