@@ -23,6 +23,8 @@ assert.match(employee,/35% within configured New-to-In-Progress target.*20% aver
 assert.match(employee,/label'=>'Active-Packer Average Speed'/);
 assert.match(employee,/label'=>'Comparative Speed Score'/);
 assert.match(employee,/min\(\$packerTargetSpeedScore,\$packerRelativeSpeedScore\)/);
+assert.match(employee,/label'=>'Courier-Weighted Workload'/);
+assert.match(employee,/\$peerTotal\+\(\.25\*\$peerCourier\)/);
 assert.match(employee,/label'=>'Bookkeeping'/);
 const packerScoreBlock=employee.slice(employee.indexOf('if($packerRole){'),employee.indexOf('}else{',employee.indexOf('if($packerRole){')));
 assert.doesNotMatch(packerScoreBlock,/label'=>'Bookkeeping'/);
