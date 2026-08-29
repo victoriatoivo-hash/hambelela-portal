@@ -28,8 +28,8 @@ function kpi_packer_time_of_day_average(array $timestamps): ?string
 
 function kpi_packer_epi_orders_evidence(int $employeeId,string $fromSql,string $toSql,array $settings,array $holidays):?array
 {
-    if(!ops_table_exists('epi_employee_evidence'))return null;
-    $events=ops_rows("SELECT ev.id evidence_id,ev.reference_number,ev.occurred_at,ev.working_minutes,ev.metadata_json,ev.status_before,ev.status_after,o.id order_id,o.customer_name,o.status,o.assigned_at,o.created_at portal_imported_at,COALESCE(NULLIF(o.fulfilment_mode,''),o.order_type) fulfilment_mode,o.total_weight_kg,e.full_name packed_by,COALESCE(items.item_quantity,0) item_quantity FROM epi_employee_evidence ev LEFT JOIN ops_orders o ON o.order_number=ev.reference_number LEFT JOIN ops_employees e ON e.id=ev.employee_id LEFT JOIN (SELECT order_id,SUM(quantity) item_quantity FROM ops_order_items GROUP BY order_id) items ON items.order_id=o.id WHERE ev.employee_id=? AND LOWER(ev.module)='packing' AND ev.action='order_packed' AND ev.occurred_at BETWEEN ? AND ? ORDER BY ev.occurred_at DESC,ev.id DESC",[$employeeId,$fromSql,$toSql]);
+    $events=[];
+    if(ops_table_exists('epi_employee_evidence'))$events=ops_rows("SELECT ev.id evidence_id,ev.reference_number,ev.occurred_at,ev.working_minutes,ev.metadata_json,ev.status_before,ev.status_after,o.id order_id,o.customer_name,o.status,o.assigned_at,o.created_at portal_imported_at,COALESCE(NULLIF(o.fulfilment_mode,''),o.order_type) fulfilment_mode,o.total_weight_kg,e.full_name packed_by,COALESCE(items.item_quantity,0) item_quantity FROM epi_employee_evidence ev LEFT JOIN ops_orders o ON o.order_number=ev.reference_number LEFT JOIN ops_employees e ON e.id=ev.employee_id LEFT JOIN (SELECT order_id,SUM(quantity) item_quantity FROM ops_order_items GROUP BY order_id) items ON items.order_id=o.id WHERE ev.employee_id=? AND LOWER(ev.module)='packing' AND ev.action='order_packed' AND ev.occurred_at BETWEEN ? AND ? ORDER BY ev.occurred_at DESC,ev.id DESC",[$employeeId,$fromSql,$toSql]);
     if(!$events){
         $normalized=[];$recordIds=[];$references=[];
         foreach(kpi_unified_events($fromSql,$toSql,$employeeId,'orders')as$event){
