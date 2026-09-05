@@ -107,7 +107,7 @@ $portalNavItems = [
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
 if ($packingSidebarRoleKey === 'owner_admin') {
-    array_splice($portalNavItems, 3, 0, [['id'=>'budgeting','label'=>'Budgeting','icon'=>'bookkeeping','href'=>BASE_URL.'/apps/operations/budgeting.php','match'=>['/apps/operations/budgeting.php']]]);
+    array_splice($portalNavItems, 3, 0, [['id'=>'budgeting','label'=>'Budgeting','icon'=>'bookkeeping','href'=>BASE_URL.'/apps/operations/budget-planning.php','match'=>['/apps/operations/budget-planning.php','/apps/operations/budgeting.php']]]);
 }
 if ($packingSidebarRoleKey === 'accountant') {
     $portalNavItems = [
