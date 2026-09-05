@@ -37,6 +37,7 @@ $editing=isset($_GET['new'])||$budget||$_SERVER['REQUEST_METHOD']==='POST';
 $values=$_SERVER['REQUEST_METHOD']==='POST'?$_POST:($budget?['id'=>$budget['id'],'revision'=>$budget['revision'],'kind'=>$budget['kind'],'title'=>$budget['title'],'date'=>$budget['budget_date'],'items'=>json_decode($budget['items_json'],true)]:['kind'=>($_GET['new']??'supplier')==='office'?'office':'supplier','date'=>date('Y-m-d'),'items'=>[]]);
 $extraStylesheets=[['path'=>'assets/css/budgeting.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/budgeting.css')]];
 include BASE_PATH.'/shared/header.php';
+include BASE_PATH.'/shared/sidebar.php';
 ?>
 <main class="workspace module budget-page">
 <header><p class="eyebrow">Plan your purchases</p><h1>Budgeting</h1><p>Supplier stock orders and monthly office shopping lists. Costs are entered manually for now.</p></header>
