@@ -7,8 +7,13 @@ require_once __DIR__ . '/kpi-reporting.php';
 require_role('owner_admin');
 
 $phaseThreeTabs = ['attendance'=>'Attendance','orders'=>'Orders','packing-performance'=>'Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybills','task-management'=>'Task Management','hr-leave'=>'HR and Leave','website-updates'=>'Website Updates','errors-quality'=>'Errors and Quality','performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
-$visiblePerformanceTabs = ['performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
+$visiblePerformanceTabs = ['business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
 $tab = (string) ($_GET['tab'] ?? 'business-health');
+// Retire the standalone presentation report; preserve source data and audit history.
+if ($tab === 'performance-reports') {
+    header('Location: reports.php?tab=employees');
+    exit;
+}
 if (!in_array($tab, array_merge(['business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'business-health';
 $currentKpiTitle = $tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health'));
 $pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
