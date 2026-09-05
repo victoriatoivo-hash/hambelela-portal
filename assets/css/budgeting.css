@@ -61,3 +61,11 @@
  #budgetingPage .budget-cards,#budgetingPage .budget-list{grid-template-columns:minmax(0,1fr)}
  #budgetingPage .budget-actions{grid-template-columns:minmax(0,1fr)}
 }
+#budgetingPage.budget-page .budget-sheet button,#budgetingPage.budget-page .budget-sheet input:not([type=hidden]),#budgetingPage.budget-page .budget-sheet select,#budgetingPage.budget-page .portal-custom-select-trigger{height:34px;min-height:34px;font-size:12px;font-weight:400}
+#budgetingPage .budget-breadcrumb{display:flex;align-items:center;gap:8px;font-size:11px;margin-bottom:12px}
+#budgetingPage .budget-breadcrumb a{color:#ab3619;text-decoration:none}#budgetingPage .budget-breadcrumb a[aria-current]{color:#721b1a}
+#budgetingPage .budget-cards>a{position:relative;border:1px solid #ede3d8;border-top:3px solid #ab3619;border-radius:14px;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}
+#budgetingPage .budget-cards>a:nth-child(2){border-top-color:#a8ca19}
+#budgetingPage .budget-cards>a:hover{transform:translateY(-3px);background:#fffaf5;box-shadow:0 10px 28px rgba(74,35,20,.08)}
+#budgetingPage .budget-cards>a strong{display:block;margin-top:16px;color:#ab3619;font-size:12px;font-weight:500}
+@media(prefers-reduced-motion:reduce){#budgetingPage .budget-cards>a{transition:none}#budgetingPage .budget-cards>a:hover{transform:none}}
