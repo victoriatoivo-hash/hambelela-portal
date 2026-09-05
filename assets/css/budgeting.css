@@ -37,3 +37,27 @@
 #budgetingPage .budget-table th,#budgetingPage .budget-total{background:var(--iv-soft)}
 #budgetingPage .budget-table th{color:var(--iv-burgundy);font-size:10px;font-weight:600}
 @media(max-width:650px){#budgetingPage{padding:14px}#budgetingPage .budget-actions button{height:42px}}
+#budgetingPage .budget-table{border:1px solid #ede3d8;border-radius:10px;background:#fff;overflow:auto}
+#budgetingPage .budget-table table{width:100%;border-collapse:separate;border-spacing:0;table-layout:fixed}
+#budgetingPage .budget-table th,#budgetingPage .budget-table td{border-right:1px solid #ede3d8;border-bottom:1px solid #ede3d8;padding:10px;vertical-align:middle;box-sizing:border-box}
+#budgetingPage .budget-table th{background:#fdf6ee;text-align:left;font-size:10px;line-height:1.4}
+#budgetingPage .budget-table th:first-child{width:20%}#budgetingPage .budget-table th:nth-child(2){width:40%}#budgetingPage .budget-table th:nth-child(3){width:26%}#budgetingPage .budget-table th:last-child{width:14%}
+#budgetingPage .budget-table th:last-child,#budgetingPage .budget-table td:last-child{border-right:0}
+#budgetingPage .budget-table tbody tr:last-child td{border-bottom:0}
+#budgetingPage .budget-table td:last-child{text-align:center}
+#budgetingPage .budget-table input{width:100%;min-width:0}
+#budgetingPage .budget-table td:nth-child(3) input{text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:650px){
+ #budgetingPage .budget-table{border:0;border-radius:0;overflow:visible;background:transparent}
+ #budgetingPage .budget-table table,#budgetingPage .budget-table tbody{display:block;width:100%}
+ #budgetingPage .budget-table thead{display:none}
+ #budgetingPage .budget-table tr{display:grid;grid-template-columns:minmax(0,1fr);width:100%;border:1px solid #ede3d8;border-radius:10px;background:#fff;padding:0;margin:0 0 12px;overflow:hidden}
+ #budgetingPage .budget-table td,#budgetingPage .budget-table tbody tr:last-child td{display:block;width:100%!important;border-right:0;border-bottom:1px solid #ede3d8;padding:12px}
+ #budgetingPage .budget-table td::before{display:block;content:attr(data-label);color:#6b4c3b;font-size:11px;font-weight:600;margin-bottom:6px}
+ #budgetingPage .budget-table td:last-child{border-bottom:0!important;text-align:right;background:#fdf6ee}
+ #budgetingPage .budget-table td:last-child::before{display:none}
+ #budgetingPage .budget-table input,#budgetingPage .budget-fields input,#budgetingPage .budget-fields select{min-height:44px;font-size:16px}
+ #budgetingPage .budget-table button{min-height:44px}
+ #budgetingPage .budget-cards,#budgetingPage .budget-list{grid-template-columns:minmax(0,1fr)}
+ #budgetingPage .budget-actions{grid-template-columns:minmax(0,1fr)}
+}
