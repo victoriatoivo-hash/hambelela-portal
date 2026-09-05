@@ -494,6 +494,10 @@ function checklist_completion_validation(array $task, ?array $checkedOverride = 
 
 function checklist_require_completion(array $task, ?array $checkedOverride = null, ?string $noteOverride = null, bool $newEvidence = false): void
 {
+    if (checklist_normalize_status((string) ($task['status'] ?? 'new')) !== 'complete'
+        && (checklist_normalize_status((string) ($task['status'] ?? 'new')) !== 'in_progress' || empty($task['started_at']))) {
+        throw new RuntimeException(json_encode(['valid'=>false,'code'=>'task_start_required','message'=>'Choose Start Task before completing this task. The recorded start is required to measure task time.','incomplete_items'=>[]], JSON_UNESCAPED_SLASHES));
+    }
     $validation = checklist_completion_validation($task, $checkedOverride, $noteOverride, $newEvidence);
     if (!$validation['valid']) throw new RuntimeException(json_encode($validation, JSON_UNESCAPED_SLASHES));
 }
@@ -4092,6 +4096,34 @@ async function acknowledgeTaskOpen(taskId, panel) {
   }
 }
 
+function promptTaskStart(taskId, panel) {
+  const row = document.querySelector(`[data-task-row][data-task-id="${taskId}"]`);
+  if (!panel || row?.dataset.savedStatus !== 'new' || panel.querySelector('[data-start-prompt]')) return;
+  const prompt = document.createElement('section');
+  prompt.dataset.startPrompt = 'true';
+  prompt.style.cssText = 'margin:16px;padding:16px;border:1px solid #e7cfc1;border-radius:12px;background:#fff8f1;color:#542d20;';
+  prompt.innerHTML = '<strong>Are you starting this task now?</strong><p>Start Task records your start time. Read Only does not start the clock.</p><button type="button" class="btn btn-primary" data-start-now>Start Task</button> <button type="button" class="btn" data-read-only>Read Only</button><p role="status" data-start-message></p>';
+  panel.prepend(prompt);
+  prompt.querySelector('[data-read-only]').onclick = () => prompt.remove();
+  prompt.querySelector('[data-start-now]').onclick = async (event) => {
+    event.currentTarget.disabled = true;
+    const body = new FormData();
+    body.set('action', 'update_task_status'); body.set('task_id', taskId);
+    body.set('status', 'in_progress');
+    const existingNote = panel.querySelector('[name="completion_note"]')?.value?.trim();
+    body.set('completion_note', existingNote && existingNote.length >= 5 ? existingNote : 'Started work using Start Task.');
+    try {
+      const response = await fetch(document.URL, {method:'POST',body,credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'Unable to start task.');
+      location.reload();
+    } catch (error) {
+      prompt.querySelector('[data-start-message]').textContent = error.message;
+      prompt.querySelector('[data-start-now]').disabled = false;
+    }
+  };
+}
+
 function initialiseTaskStatusWorkflow() {
   const popup = document.querySelector('[data-task-status-popup]');
   const page = document.querySelector('.digital-task-page');
@@ -4747,6 +4779,7 @@ document.addEventListener('click', (event) => {
       initializePortalCustomSelects(panel);
       initialiseTaskAttachments(panel);
       acknowledgeTaskOpen(open.dataset.taskOpen, panel);
+      promptTaskStart(open.dataset.taskOpen, panel);
       panel.classList.add('open');
       panel.setAttribute('aria-hidden', 'false');
     }
