@@ -106,6 +106,9 @@ $portalNavItems = [
     ['id' => 'system-issues', 'label' => 'System Issues Log', 'icon' => 'system-issues', 'href' => BASE_URL . '/apps/operations/system-issues.php', 'match' => ['/apps/operations/system-issues.php'], 'badge' => $systemIssueOpenCount, 'badge_label' => $systemIssueOpenCount > 99 ? '99+' : (string) $systemIssueOpenCount, 'badge_kind' => 'system-issues', 'needs_information' => $systemIssueNeedsInformation],
     ['id' => 'settings', 'label' => 'Settings', 'icon' => 'settings', 'href' => BASE_URL . '/apps/operations/my-account.php', 'match' => ['/apps/operations/my-account.php']],
 ];
+if ($packingSidebarRoleKey === 'owner_admin') {
+    array_splice($portalNavItems, 3, 0, [['id'=>'budgeting','label'=>'Budgeting','icon'=>'bookkeeping','href'=>BASE_URL.'/apps/operations/budgeting.php','match'=>['/apps/operations/budgeting.php']]]);
+}
 if ($packingSidebarRoleKey === 'accountant') {
     $portalNavItems = [
         ['id'=>'accounts','label'=>'Finance Dashboard','icon'=>'accounts','href'=>BASE_URL.'/apps/accounts/index.php','match'=>['/apps/accounts/index.php']],
