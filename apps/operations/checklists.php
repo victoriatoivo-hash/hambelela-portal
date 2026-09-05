@@ -4776,6 +4776,8 @@ document.addEventListener('click', (event) => {
     });
     const panel = document.querySelector(`[data-task-panel="${open.dataset.taskOpen}"]`);
     if (panel) {
+      // Keep fixed details outside scrollable/mobile table ancestors.
+      document.body.appendChild(panel);
       initializePortalCustomSelects(panel);
       initialiseTaskAttachments(panel);
       acknowledgeTaskOpen(open.dataset.taskOpen, panel).then(() => promptTaskStart(open.dataset.taskOpen, panel));
