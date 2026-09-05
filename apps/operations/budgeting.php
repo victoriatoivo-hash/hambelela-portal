@@ -39,7 +39,7 @@ $extraStylesheets=[['path'=>'assets/css/budgeting.css','version'=>(string)filemt
 include BASE_PATH.'/shared/header.php';
 include BASE_PATH.'/shared/sidebar.php';
 ?>
-<main class="workspace module budget-page">
+<main class="workspace module budget-page" id="budgetingPage">
 <header class="module-header"><h1>Budgeting</h1><p>Plan supplier orders and monthly office purchases.</p></header>
 <?php if($error):?><p role="alert" class="ops-alert error"><?=bh($error)?></p><?php endif;?>
 <?php if(isset($_GET['saved'])&&!$error):?><p role="status">Budget saved.</p><?php endif;?>

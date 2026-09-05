@@ -25,3 +25,15 @@
 .budget-page .budget-total small,.budget-page #budget-copy-status{font-size:11px;color:#6B4C3B}
 .budget-page .budget-actions{border-top:1px solid #EDE3D8;padding-top:16px;gap:8px}
 @media(max-width:650px){.budget-page .budget-sheet{padding:14px}.budget-page .budget-sheet>header{align-items:flex-start}.budget-page .budget-actions{display:grid;grid-template-columns:1fr 1fr}.budget-page .budget-actions button{width:100%;height:42px}.budget-page #budget-copy-status{grid-column:1/-1}.budget-page .budget-table td{padding:6px 0}.budget-page .budget-sheet>header form{width:100%}.budget-page .budget-sheet>header label{flex:1}}
+#budgetingPage{--iv-page:#fff;--iv-burgundy:#721b1a;--iv-action:#ab3619;--iv-soft:#fdf6ee;--iv-border:#ede3d8;--iv-text:#1a1a1a;--iv-mid:#6b4c3b;background:var(--iv-page);color:var(--iv-text);font-family:Figtree,system-ui,sans-serif;padding:24px}
+/* Match Input VAT's final theme-locked workspace, not its superseded rules. */
+#budgetingPage>.module-header h1{font-size:22px;font-weight:600;color:var(--iv-burgundy);line-height:1.1}
+#budgetingPage>.module-header p{font-size:13px;color:var(--iv-mid)}
+#budgetingPage .budget-sheet button{height:34px;min-height:34px;border-radius:8px;font-size:12px;font-weight:500}
+#budgetingPage .budget-sheet button.budget-primary{background:var(--iv-action);border-color:var(--iv-action)}
+#budgetingPage .budget-sheet button.budget-primary:hover{background:var(--iv-burgundy);border-color:var(--iv-burgundy)}
+#budgetingPage .budget-fields label{font-size:11px;font-weight:600}
+#budgetingPage .budget-sheet,#budgetingPage .budget-cards>a,#budgetingPage .budget-list>a{background:#fff;border-color:var(--iv-border);box-shadow:none}
+#budgetingPage .budget-table th,#budgetingPage .budget-total{background:var(--iv-soft)}
+#budgetingPage .budget-table th{color:var(--iv-burgundy);font-size:10px;font-weight:600}
+@media(max-width:650px){#budgetingPage{padding:14px}#budgetingPage .budget-actions button{height:42px}}
