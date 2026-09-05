@@ -36,6 +36,7 @@ $statusLabels = ['open' => 'Not Resolved', 'resolved' => 'Resolved'];
 $severityChoiceColours = ['critical' => ['#BB1B21', '#FFFFFF'], 'high' => ['#F07420', '#FFFFFF'], 'medium' => ['#AB3619', '#FFFFFF'], 'low' => ['#A8CA19', '#263400']];
 $statusChoiceColours = ['open' => ['#BB1B21', '#FFFFFF'], 'resolved' => ['#A8CA19', '#263400']];
 $errorCategories = [
+    'task_false_completion' => 'Task Marked Complete but Not Done',
     'wrong_product_packed' => 'Wrong Product Packed',
     'wrong_quantity_packed' => 'Wrong Quantity Packed',
     'missing_item' => 'Missing Item',
@@ -1192,6 +1193,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <section class="error-form-section incident-section">
                     <h3><i data-lucide="message-square-warning"></i> What Happened</h3>
                     <label for="description">Description<textarea id="description" name="description" required placeholder="Explain exactly what happened, what caused the issue, and what impact it had."></textarea></label>
+                    <p class="incident-field-help">For Task Marked Complete but Not Done, include Task # followed by its ID and describe the evidence of unfinished work. The higher weight requires owner verification and a matching task completion record. This classification does not establish intent.</p>
                 </section>
 
                 <section class="error-form-section incident-section">
