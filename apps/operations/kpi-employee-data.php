@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/kpi-leave-period.php';
 require_once __DIR__ . '/kpi-reporting.php';
 require_once __DIR__ . '/kpi-front-orders.php';
 require_once __DIR__ . '/kpi-packer-orders.php';
@@ -113,7 +114,7 @@ try {
             $exception=$portalExceptionDates[$day]??null;
             if($scheduleKnown&&!$working&&!$exception)$exception='rest_day';
             $automaticStatus=$scheduleKnown?'not_scheduled':'schedule_not_configured';$scoreEffect='excluded';$requiresReview=!$scheduleKnown;
-            if($working&&!$exception){if($sessionRow&&(int)($sessionRow['late_portal_start']??0)===0){$automaticStatus='sufficient';$scoreEffect='positive';$requiresReview=false;}else{$automaticStatus=$sessionRow?'incomplete':'requires_review';$scoreEffect='none';$requiresReview=true;}}
+            if($working&&!$exception){$automaticStatus=$sessionRow?'portal_activity_only':'requires_review';$scoreEffect='none';$requiresReview=true;}
             if($exception){$automaticStatus=$exception;$scoreEffect='excluded';$requiresReview=false;}
             if($review){$scoreEffect=(string)$review['score_effect'];$automaticStatus=(string)$review['classification'];$requiresReview=false;}
             $base=$sessionRow??['day'=>$day,'first_login'=>null,'last_activity'=>null,'session_end'=>null,'session_end_reason'=>null,'currently_online'=>false,'authenticated_session_hours'=>0,'portal_active_hours'=>0,'active_periods'=>[],'inactive_gaps'=>[],'sessions'=>0,'merged_intervals'=>0,'explicit_logouts'=>0,'inactive_expiries'=>0,'source'=>'kpi_sessions'];
@@ -128,6 +129,9 @@ try {
         $authenticatedHours=round(array_sum(array_column($presenceEvidence,'authenticated_session_hours')),2);$portalActiveHours=round(array_sum(array_column($presenceEvidence,'portal_active_hours')),2);
         $payload['presence_summary']=['currently_online'=>$currentSession!==null,'current_session_started'=>$currentSession['login_at']??null,'current_session_duration_seconds'=>(int)($currentSession['duration_seconds']??0),'last_portal_activity'=>$evidenceRows?($evidenceRows[count($evidenceRows)-1]['last_activity']??null):null,'first_portal_activity'=>$evidenceRows?($evidenceRows[0]['first_login']??$evidenceRows[0]['first_activity']??null):null,'last_period_activity'=>$evidenceRows?($evidenceRows[count($evidenceRows)-1]['last_activity']??null):null,'total_sessions'=>array_sum(array_column($presenceEvidence,'sessions')),'login_days'=>count(array_filter($presenceEvidence,static fn(array$row):bool=>(int)($row['sessions']??0)>0)),'authenticated_session_hours'=>$authenticatedHours,'portal_active_hours'=>$portalActiveHours,'inactive_hours'=>max(0,round($authenticatedHours-$portalActiveHours,2)),'workflow_actions'=>array_sum(array_column($presenceEvidence,'workflow_actions')),'evidence_covered_days'=>count($evidenceRows),'scheduled_days'=>$presenceScheduledDays,'scheduled_evidence_days'=>$presenceCoverageDays,'approved_leave'=>array_sum(array_column($leave,'days')),'days_requiring_review'=>$presenceReviewRequired,'portal_schedule_compliance'=>$portalScheduleCompliance,'evidence_coverage_percent'=>$presenceCoverage,'status'=>$presenceReviewRequired?'provisional':'final','score_contribution_cap'=>$packerRole?1.5:($frontDeskRole?3:0),'presence_timeout_seconds'=>120,'active_evidence_window_seconds'=>$activeWindowSeconds];
         $payload['presence_summary']['schedule_configured']=$scheduleConfigured;$payload['presence_summary']['schedule_source']=$scheduleSource;
+        $leavePeriod=kpi_leave_period($employeeId,$effective->format('Y-m-d'),$to->format('Y-m-d'));
+        $leave=$leavePeriod['rows'];
+        $payload['presence_summary']['approved_leave']=$leavePeriod['total'];
         $bookkeeping=ops_rows("SELECT b.id,b.transaction_date,b.description,b.cash_in,b.cash_out,b.notes,b.status,b.deleted_at FROM ops_cash_book_entries b WHERE COALESCE(b.recorded_by,b.created_by_user_id)=? AND b.transaction_date BETWEEN ? AND ? ORDER BY b.transaction_date DESC LIMIT 300",[$employeeId,$bookkeepingFromSql,$toSql]);
         $reconciliations=ops_rows('SELECT id,recon_date,system_balance,counted_total,variance,variance_note,created_at FROM hambelela_cashbook_recon WHERE logged_by=? AND recon_date BETWEEN ? AND ? ORDER BY recon_date DESC',[$employeeId,substr($bookkeepingFromSql,0,10),$to->format('Y-m-d')]);
         $bookkeepingKpi=$frontDeskRole?kpi_bookkeeping_reconciliation($employeeId,$bookkeepingFromSql,$toSql,$settings):['metrics'=>[],'orders'=>[],'daily'=>[],'deposits'=>[],'score'=>null,'score_evidence'=>'Not applicable to this role.','excluded_from_scoring'=>0,'deposit_schedule_configured'=>false];
@@ -151,9 +155,9 @@ try {
           'waybills'=>$waybillPerformance,
           'bookkeeping'=>array_merge($bookkeepingKpi,['rows'=>$bookkeeping,'reconciliations'=>$reconciliations,'hidden'=>$packerRole,'reference_only'=>!$frontDeskRole]),
           'hr_leave'=>['metrics'=>[
-              ['label'=>'Approved leave records','value'=>count($leave)],
-              ['label'=>'Approved leave days','value'=>array_sum(array_map(static fn(array$row):float=>(float)$row['days'],$leave))]
-          ],'rows'=>$leave,'reference_only'=>true,'provisional_label'=>'Authoritative HR leave records for this employee'],
+              ['label'=>'Approved leave records','value'=>$leavePeriod['available']?count($leave):null,'explanation'=>$leavePeriod['message']],
+              ['label'=>'Approved leave days in period','value'=>$leavePeriod['total'],'explanation'=>$leavePeriod['message']]
+          ],'rows'=>$leave,'available'=>$leavePeriod['available'],'message'=>$leavePeriod['message'],'reference_only'=>true,'provisional_label'=>'HR evidence — selected period only'],
           'quality'=>$qualityPerformance,
           'score_breakdown'=>['enabled'=>true,'message'=>'The role score is published only when configured evidence coverage reaches 100%.','rows'=>[]]
         ];
@@ -261,5 +265,9 @@ try {
         $payload['summary']['items']=$payload['packing_sources']['packing_list_packs'];
     }
     $payload['composite']=['visible'=>false,'indicative'=>false,'score'=>null,'message'=>'Composite scores and rankings are disabled while performance source integrity is under review.'];
+    if($section==='attendance'){
+        $leavePeriod=kpi_leave_period($employeeId,$rateFrom->format('Y-m-d'),$to->format('Y-m-d'));
+        $payload['leave']=$leavePeriod['rows'];$payload['summary']['leave_days']=$leavePeriod['total'];$payload['hr_available']=$leavePeriod['available'];$payload['hr_message']=$leavePeriod['message'];
+    }
     kpi_send_json($payload);
 }catch(Throwable$error){error_log(date(DATE_ATOM).' employee detail: '.$error->getMessage().' in '.$error->getFile().':'.$error->getLine().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Employee performance is temporarily unavailable.','error_code'=>'KPI_EMPLOYEE_REPORT_FAILED'],500);}
