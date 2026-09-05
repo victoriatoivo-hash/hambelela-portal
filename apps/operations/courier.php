@@ -1065,6 +1065,8 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'waybill_upload') {
+            require_once __DIR__.'/courier-order-requirements.php';
+            courier_requirements_schema();
             if (!$canUploadWaybills) {
                 throw new RuntimeException('Only packers and admin can upload waybills.');
             }
@@ -1085,6 +1087,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $courierNames = implode(', ', $couriers);
             $numberOfWaybills = max(1, (int) ($_POST['number_of_waybills'] ?? 1));
+            $linkedOrderId=(int)($_POST['linked_order_id']??0);
+            $shipment=$linkedOrderId?ops_row('SELECT * FROM ops_courier_requirements WHERE order_id=?',[$linkedOrderId]):null;
+            if ($linkedOrderId && (!$shipment || !empty($shipment['batch_id']))) throw new RuntimeException('Shipment not found or already linked.');
+            if ($shipment && (count($couriers)!==1 || strcasecmp($courierNames,$shipment['courier'])!==0 || $sentDate!==$shipment['service_date'])) throw new RuntimeException('Select the courier and service date recorded for this order. Use one order per linked upload batch.');
 
             $batchId = wb_batch_id();
             $uploadedAt = wb_now();
@@ -1121,6 +1127,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $dueBy->format('Y-m-d H:i:s'),
                 ]);
                 $newId = (int) db()->lastInsertId();
+                if ($shipment) db()->prepare('UPDATE hambelela_waybills SET order_id=? WHERE id=?')->execute([$linkedOrderId,$newId]);
                 $legacyStmt->execute([
                     $sentDate,
                     $courierNames,
@@ -1143,6 +1150,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if ($created <= 0) {
                 throw new RuntimeException('No valid waybill files were uploaded.');
+            }
+            if ($shipment) {
+                $link=db()->prepare('UPDATE ops_courier_requirements SET batch_id=?,linked_at=?,linked_by=? WHERE order_id=? AND batch_id IS NULL');
+                $link->execute([$batchId,$uploadedAt->format('Y-m-d H:i:s'),$currentEmployeeId,$linkedOrderId]);
+                if (!$link->rowCount()) throw new RuntimeException('Another upload already linked this order. Review the uploaded files.');
+                ops_activity_log('courier_order_upload_linked','order',$linkedOrderId,['batch_id'=>$batchId,'courier'=>$courierNames,'physical_boxes'=>(int)$shipment['box_count']]);
             }
 
             wb_notify_cecilia(
@@ -1287,6 +1300,10 @@ include BASE_PATH . '/shared/sidebar.php';
 
                 <form class="upload-form" data-waybill-upload enctype="multipart/form-data">
                     <input type="hidden" name="action" value="waybill_upload">
+                    <label class="field-label upload-input-field">Linked courier order (portal order ID)
+                        <input name="linked_order_id" type="number" min="1" step="1" placeholder="Order ID from required uploads">
+                        <small>One order per linked batch. Older unlinked uploads remain unverified.</small>
+                    </label>
                     <label class="field-label upload-input-field">Sent Date
                         <input name="sent_date" type="date" value="<?= wb_e(date('Y-m-d')) ?>" required>
                     </label>

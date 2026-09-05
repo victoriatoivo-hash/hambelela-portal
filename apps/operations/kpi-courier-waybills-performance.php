@@ -204,12 +204,26 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
         $courierTotals['attached_items_sent']=array_sum(array_map(static fn($row)=>(string)$row['courier']===$courierTotals['courier']?(int)$row['sent_file_count']:0,$rows));
     }
     unset($courierTotals);
+    $requirements=[]; $missing=null; $overdue=null; $boxes=null;
+    if (ops_table_exists('ops_courier_requirements')) {
+        $requirements=ops_rows("SELECT r.*,o.order_number FROM ops_courier_requirements r JOIN ops_orders o ON o.id=r.order_id WHERE r.service_date BETWEEN DATE(?) AND DATE(?) AND (?=0 OR r.employee_id=?) AND o.deleted_at IS NULL AND o.status NOT IN ('cancelled','refunded','failed') ORDER BY r.upload_due_at",[$fromSql,$toSql,$employeeId,$employeeId]);
+        $missing=0;$overdue=0;$boxes=0;
+        foreach ($requirements as &$requirement) {
+            $linked=!empty($requirement['batch_id']) && (bool)ops_rows('SELECT id FROM hambelela_waybills WHERE batch_id=? AND deleted_at IS NULL LIMIT 1',[$requirement['batch_id']]);
+            $requirement['upload_state']=$linked?'Linked':((new DateTimeImmutable('now',$zone))->format('Y-m-d H:i:s')>$requirement['upload_due_at']?'Overdue':'Awaiting upload');
+            if (!$linked) { $missing++; if($requirement['upload_state']==='Overdue')$overdue++; }
+            $boxes+=(int)$requirement['box_count'];
+        }
+        unset($requirement);
+    }
     return [
+        'required_uploads'=>$requirements,
         'title'=>'Courier Waybills Performance','role_view'=>$roleView,'settings'=>['following_applicable_day_rule'=>$followingRule,'morning_inference_enabled'=>$morningInference,'late_response_target_minutes'=>$lateTarget?:null,'timezone'=>'Africa/Windhoek'],
         'counts'=>$counts,'packer_on_time_rate'=>$packerRate,'front_on_time_rate'=>$frontRate,'customer_on_time_rate'=>$customerRate,
         'metrics'=>[
-            ['label'=>'Missing Required Uploads','value'=>null,'status'=>'unmeasured','explanation'=>'Not measured: an authoritative list of required courier uploads linked to orders is needed. No missing-upload penalty is inferred from existing uploads.'],
-            ['label'=>'Courier Boxes Used','value'=>null,'status'=>'unmeasured','explanation'=>'Not measured: attached files and declared waybills do not establish a physical box count.'],
+            ['label'=>'Recorded Shipments Awaiting Upload','value'=>$missing,'explanation'=>'Only shipments explicitly recorded in the new workflow. Historical unlinked orders are not covered.'],
+            ['label'=>'Required Uploads Overdue','value'=>$overdue,'explanation'=>'Recorded shipments without an active linked upload after their saved upload deadline.'],
+            ['label'=>'Recorded Physical Boxes','value'=>$boxes,'explanation'=>'Explicit box quantities recorded at In Progress, once per order. Historical unrecorded quantities are excluded.'],
             ['label'=>'Upload Batches','value'=>$counts['batches'],'explanation'=>'Number of upload actions/batches attributed to this employee. A batch may contain more than one waybill.'],
             ['label'=>'Courier Waybills Uploaded','value'=>$counts['waybills'],'explanation'=>'The recorded waybill count. One courier waybill remains one even when several item files are attached.'],
             ['label'=>'Items / Files Attached','value'=>$counts['attachments'],'explanation'=>'Actual files attached across the uploads. For example, one waybill with four uploaded item files is counted as one waybill and four attachments.'],

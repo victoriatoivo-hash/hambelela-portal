@@ -7,6 +7,7 @@ require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/board-columns.php';
 require_once __DIR__ . '/lib/orders-documents.php';
 require_once __DIR__ . '/order-attribution-service.php';
+require_once __DIR__ . '/courier-order-requirements.php';
 
 header('Content-Type: application/json');
 
@@ -856,6 +857,15 @@ try {
         throw new RuntimeException('You do not have permission to access Orders.');
     }
     ops_board_verify_csrf();
+    $courierDetails = null;
+    $targetStatus = $action === 'set_in_progress' ? 'in_progress' : (in_array($action,['status','update_field','bulk_update'],true) ? (string)($_POST['status'] ?? (($_POST['field']??'')==='status'?($_POST['value']??'') : '')) : '');
+    if ($targetStatus === 'in_progress') {
+        courier_requirements_schema();
+        if ($action === 'bulk_update') {
+            foreach (explode(',',(string)($_POST['order_ids']??'')) as $candidate) if (courier_order_required((int)$candidate)) throw new RuntimeException('Move courier orders individually to record their courier and physical boxes.');
+        } else $courierDetails=courier_requirement_input((int)($_POST['order_id']??0));
+        if ($courierDetails && $action !== 'update_field') throw new RuntimeException('Use the Orders board status control to record courier shipment details.');
+    }
 
     if (in_array($action, ['list_order_files', 'upload_order_files', 'delete_order_file'], true)) {
         ops_board_ensure_order_files_schema();
@@ -1791,6 +1801,7 @@ try {
                 $params[] = $orderId;
                 $stmt = $db->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
                 $stmt->execute($params);
+                if ($value === 'in_progress') courier_requirement_save($orderId,$lockedPackerId,$courierDetails);
                 $db->commit();
             } catch (Throwable $statusError) {
                 if ($db->inTransaction()) $db->rollBack();

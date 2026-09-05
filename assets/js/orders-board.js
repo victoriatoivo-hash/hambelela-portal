@@ -934,6 +934,19 @@
   }
 
   async function updateOrdersField(orderIds, field, value, requestMetadata = {}) {
+    if (field === 'status' && value === 'in_progress') {
+      const courierOrders = orderIds.filter(id => { const order=ordersCache.find(item=>String(item.id)===String(id)); return /courier/i.test(order?.fulfilment_mode || order?.order_type || ''); });
+      if (courierOrders.length) {
+        if (orderIds.length !== 1) throw new Error('Move courier orders individually to record boxes and courier.');
+        const courier=window.prompt('Courier service for this order (for example Nampost or Jet-X):');
+        if (courier===null) return;
+        const boxes=window.prompt('Number of physical courier boxes (not uploaded files):');
+        if (boxes===null) return;
+        const serviceDate=window.prompt('Courier service date (YYYY-MM-DD):');
+        if (serviceDate===null) return;
+        requestMetadata={...requestMetadata,dispatch_courier:courier,dispatch_boxes:boxes,dispatch_date:serviceDate};
+      }
+    }
     const ids = orderIds.map(String);
     const sourceRow = ids[0] ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(ids[0])}"]`) : null;
     const position = ordersTablePosition(sourceRow, ids[0] || '');
