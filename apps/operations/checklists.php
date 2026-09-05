@@ -4778,8 +4778,7 @@ document.addEventListener('click', (event) => {
     if (panel) {
       initializePortalCustomSelects(panel);
       initialiseTaskAttachments(panel);
-      acknowledgeTaskOpen(open.dataset.taskOpen, panel);
-      promptTaskStart(open.dataset.taskOpen, panel);
+      acknowledgeTaskOpen(open.dataset.taskOpen, panel).then(() => promptTaskStart(open.dataset.taskOpen, panel));
       panel.classList.add('open');
       panel.setAttribute('aria-hidden', 'false');
     }
