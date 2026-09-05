@@ -80,8 +80,10 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
         $completionSnapshot = [];
         foreach ($events as $event) {
             $action = strtolower((string) ($event['action'] ?? ''));
-            $old = strtolower(trim((string) ($event['previous_status'] ?? '')));
-            $new = strtolower(trim((string) ($event['new_status'] ?? '')));
+            $old = str_replace([' ', '-'], '_', strtolower(trim((string) ($event['previous_status'] ?? ''))));
+            $new = str_replace([' ', '-'], '_', strtolower(trim((string) ($event['new_status'] ?? ''))));
+            if ($old === 'inprogress') $old = 'in_progress';
+            if ($new === 'inprogress') $new = 'in_progress';
             $metadata = (array) ($event['metadata'] ?? []);
             if (!$assignmentEvent && in_array($action, ['task_created','task_assigned','task_reassigned','task_admin_updated','task_released'], true) && (int) ($metadata['assigned_employee_id'] ?? $employeeId) === $employeeId) $assignmentEvent = $event;
             if (!$startEvent && in_array($new, ['in_progress','progress','started'], true)) $startEvent = $event;
@@ -109,10 +111,12 @@ function kpi_task_management_performance(array $employee, string $fromSql, strin
         $personalCompletion = $completed && ($completionActorId === 0 || $completionActorId === $employeeId);
         $attribution = ($startEvent && (int) ($startEvent['actor_user_id'] ?? 0) > 0 && (int) $startEvent['actor_user_id'] !== $employeeId) || ($completed && !$personalCompletion);
 
-        $ackMinutes = !$invalid && $assigned && $started ? kpi_business_minutes($assigned, $started, $holidays) : null;
+        // Start latency depends only on the assignment/start pair, not later completion evidence.
+        $startAttributionConflict = $startEvent && (int) ($startEvent['actor_user_id'] ?? 0) > 0 && (int) $startEvent['actor_user_id'] !== $employeeId;
+        $ackMinutes = $assigned && $started && $started >= $assigned && !$startAttributionConflict ? kpi_business_minutes($assigned, $started, $holidays) : null;
         $activeMinutes = !$invalid && $started && $completed ? kpi_business_minutes($started, $completed, $holidays) : null;
         $turnaroundMinutes = !$invalid && $assigned && $completed ? kpi_business_minutes($assigned, $completed, $holidays) : null;
-        if (!$attribution && $ackMinutes !== null) $durations['ack'][] = $ackMinutes;
+        if ($ackMinutes !== null) $durations['ack'][] = $ackMinutes;
         if (!$attribution && $activeMinutes !== null) $durations['active'][] = $activeMinutes;
         if (!$attribution && $turnaroundMinutes !== null) $durations['turnaround'][] = $turnaroundMinutes;
 
