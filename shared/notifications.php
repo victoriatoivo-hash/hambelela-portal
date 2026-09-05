@@ -804,6 +804,27 @@ function notifications_notify_task_correction(int $taskId, int $correctionId, in
     ], [$employeeId]);
 }
 
+function notifications_notify_task_correction_completed(int $taskId, int $correctionId, int $round, int $employeeId, string $employeeName, string $taskName, string $completionNote): ?int
+{
+    if ($taskId <= 0 || $correctionId <= 0 || $employeeId <= 0) return null;
+    $recipients = notifications_role_recipients(['owner_admin']);
+    if (!$recipients) return null;
+    $plainNote = trim(preg_replace('/\s+/', ' ', strip_tags($completionNote)) ?? '');
+    if (strlen($plainNote) > 180) $plainNote = substr($plainNote, 0, 177) . '…';
+    return notifications_create([
+        'title' => 'Task correction completed',
+        'message' => $employeeName . ' completed the correction for ' . $taskName . ($plainNote !== '' ? ' — ' . $plainNote : ''),
+        'module' => 'tasks',
+        'priority' => 'normal',
+        'sound_key' => 'completed',
+        'deduplication_key' => 'task:' . $taskId . ':correction:' . $correctionId . ':round:' . $round . ':completed',
+        'required_delivery' => true,
+        'related_type' => 'task_correction',
+        'related_id' => $correctionId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=completed&task_id=' . $taskId,
+    ], $recipients);
+}
+
 function notifications_for_current_user(int $limit = 10): array
 {
     $employeeId = notifications_current_employee_id();
