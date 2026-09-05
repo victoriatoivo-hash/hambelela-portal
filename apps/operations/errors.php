@@ -1193,7 +1193,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <section class="error-form-section incident-section">
                     <h3><i data-lucide="message-square-warning"></i> What Happened</h3>
                     <label for="description">Description<textarea id="description" name="description" required placeholder="Explain exactly what happened, what caused the issue, and what impact it had."></textarea></label>
-                    <p class="incident-field-help">For Task Marked Complete but Not Done, include Task # followed by its ID and describe the evidence of unfinished work. The higher weight requires owner verification and a matching task completion record. This classification does not establish intent.</p>
+                    <p class="incident-field-help">For Task Marked Complete but Not Done, include Task # followed by its ID and describe the evidence of unfinished work. The higher weight requires a matching task completion record and employee attribution, not separate owner approval. This classification does not establish intent.</p>
                 </section>
 
                 <section class="error-form-section incident-section">
