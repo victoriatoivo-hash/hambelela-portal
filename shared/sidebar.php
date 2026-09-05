@@ -164,6 +164,10 @@ if ($isEmployeeSidebar) {
 }
 $employeePortalNavItems = [];
 foreach ($portalNavItems as $portalNavItem) {
+    if ($portalNavItem['id'] === 'budgeting') {
+        if ($sidebarRoleKey === 'owner_admin') $employeePortalNavItems[] = $portalNavItem;
+        continue;
+    }
     $featureKey = $featureByNavId[$portalNavItem['id']] ?? '';
     if (portal_user_can_access_feature($featureKey, $sidebarUser)) {
         $employeePortalNavItems[] = $portalNavItem;
