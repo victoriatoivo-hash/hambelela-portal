@@ -2370,6 +2370,7 @@ if ($ready && $canManage && (int)($_GET['recurring_occurrences']??0)>0) {
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/task-correction.css?v=<?= filemtime(BASE_PATH . '/assets/css/task-correction.css') ?>">
 <main class="workspace module digital-task-page" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>" data-can-manage="<?= $canManage ? '1' : '0' ?>">
     <header class="dtb-page-header">
         <div>
