@@ -67,13 +67,15 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
 
     $batches = [];
     foreach ($raw as $record) {
-        $batchKey = (string) ($record['batch_id'] ?: 'row-' . $record['id']);
+        $batchKey = (string) ($record['batch_id'] ?: 'row-' . $record['id']) . ':' . (int)$record['uploaded_by'] . ':' . (string)$record['courier_names'];
         if (!isset($batches[$batchKey])) $batches[$batchKey] = $record + ['record_ids'=>[], 'files'=>0, 'file_names'=>[], 'declared_waybills'=>max(1,(int)($record['number_of_waybills']??1))];
         $batches[$batchKey]['record_ids'][] = (int) $record['id'];
         $batches[$batchKey]['files']++;
+        $batches[$batchKey]['sent_files'] = ($batches[$batchKey]['sent_files'] ?? 0) + (!empty($record['sent_at']) ? 1 : 0);
+        if (!empty($record['uploaded_at']) && $record['uploaded_at'] > $batches[$batchKey]['uploaded_at']) $batches[$batchKey]['uploaded_at'] = $record['uploaded_at'];
         $batches[$batchKey]['file_names'][] = (string) (($record['original_filename'] ?? '') ?: basename((string) ($record['file_path'] ?? '')));
         $batches[$batchKey]['declared_waybills']=max((int)$batches[$batchKey]['declared_waybills'],max(1,(int)($record['number_of_waybills']??1)));
-        if (!empty($record['sent_at']) && (empty($batches[$batchKey]['sent_at']) || $record['sent_at'] < $batches[$batchKey]['sent_at'])) {
+        if (!empty($record['sent_at']) && (empty($batches[$batchKey]['sent_at']) || $record['sent_at'] > $batches[$batchKey]['sent_at'])) {
             $batches[$batchKey]['sent_at'] = $record['sent_at'];
             $batches[$batchKey]['sent_by'] = $record['sent_by'];
             $batches[$batchKey]['sent_by_name'] = $record['sent_by_name'];
@@ -83,6 +85,8 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
     $rows=[]; $turnaround=[]; $uploadTimes=[];
     $counts=['batches'=>0,'waybills'=>0,'attachments'=>0,'sent_waybills'=>0,'sent_attachments'=>0,'combined'=>0,'review'=>0,'packer_eligible'=>0,'packer_on_time'=>0,'packer_late'=>0,'within_window'=>0,'next_morning'=>0,'front_eligible'=>0,'front_on_time'=>0,'front_late'=>0,'blocked_late_upload'=>0,'customer_eligible'=>0,'customer_on_time'=>0,'customer_late'=>0,'pending'=>0];
     foreach ($batches as $batch) {
+        // A partial send is not completion of the entire batch.
+        if (($batch['sent_files'] ?? 0) < $batch['files']) { $batch['sent_at'] = null; $batch['sent_by'] = null; $batch['sent_by_name'] = null; }
         $uploadedAt = !empty($batch['uploaded_at']) ? new DateTimeImmutable((string) $batch['uploaded_at'], $zone) : null;
         $sentAt = !empty($batch['sent_at']) ? new DateTimeImmutable((string) $batch['sent_at'], $zone) : null;
         $serviceDate = null; $serviceSource = 'service_date_unavailable'; $review=false;
@@ -164,7 +168,7 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
             'packer_eligible'=>!$serviceReview&&$uploadDeadline!==null,'front_eligible'=>!$serviceReview&&$availableBeforeDeadline&&$customerDeadline!==null,
             'late_availability_response_minutes'=>$lateResponse,'late_response_target_minutes'=>$lateTarget?:null,
             'upload_to_send_minutes'=>$duration,'business_minutes'=>$businessDuration,'status'=>$batch['status'],'notes'=>$batch['notes'],'combined_batch'=>$combined,
-            'waybill_count'=>$waybillCount,'attached_items'=>(int)$batch['files'],'file_count'=>(int)$batch['files'],
+            'waybill_count'=>$waybillCount,'attached_items'=>(int)$batch['files'],'file_count'=>(int)$batch['files'],'sent_file_count'=>(int)($batch['sent_files']??0),
             'attached_file_names'=>implode(' | ', array_values(array_filter($batch['file_names'] ?? []))),
             'evidence_quality'=>$review?'requires_review':'exact_and_current_record_evidence',
             'review_reason'=>$serviceSource==='service_date_unavailable'?'Service date unavailable':($review?'Inferred service date needs confirmation':null)
@@ -191,20 +195,27 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
         $turnaround=array_values(array_filter(array_column($rows,'business_minutes'),static function($v){return $v!==null;}));
         $uploadTimes=[]; foreach($rows as$row)if(!empty($row['uploaded_at'])){$dt=new DateTimeImmutable((string)$row['uploaded_at'],$zone);$uploadTimes[]=(int)$dt->format('H')*3600+(int)$dt->format('i')*60;}
     }
+    $counts['sent_attachments']=array_sum(array_column($rows,'sent_file_count'));
     $packerRate=$counts['packer_eligible']?round(100*$counts['packer_on_time']/$counts['packer_eligible'],1):null;
     $frontRate=$counts['front_eligible']?round(100*$counts['front_on_time']/$counts['front_eligible'],1):null;
     $customerRate=$counts['customer_eligible']?round(100*$counts['customer_on_time']/$counts['customer_eligible'],1):null;
     $courierBreakdown=[];foreach($rows as$row){$courier=trim((string)$row['courier'])?:'Unclassified courier';if(!isset($courierBreakdown[$courier]))$courierBreakdown[$courier]=['courier'=>$courier,'upload_batches'=>0,'waybills_uploaded'=>0,'attached_items'=>0,'waybills_sent'=>0,'attached_items_sent'=>0,'pending_waybills'=>0];$qty=max(1,(int)$row['waybill_count']);$attachments=max(0,(int)$row['attached_items']);$courierBreakdown[$courier]['upload_batches']++;$courierBreakdown[$courier]['waybills_uploaded']+=$qty;$courierBreakdown[$courier]['attached_items']+=$attachments;if(!empty($row['sent_at'])){$courierBreakdown[$courier]['waybills_sent']+=$qty;$courierBreakdown[$courier]['attached_items_sent']+=$attachments;}else$courierBreakdown[$courier]['pending_waybills']+=$qty;}usort($courierBreakdown,static fn($a,$b)=>$b['attached_items']<=>$a['attached_items']);
+    foreach ($courierBreakdown as &$courierTotals) {
+        $courierTotals['attached_items_sent']=array_sum(array_map(static fn($row)=>(string)$row['courier']===$courierTotals['courier']?(int)$row['sent_file_count']:0,$rows));
+    }
+    unset($courierTotals);
     return [
         'title'=>'Courier Waybills Performance','role_view'=>$roleView,'settings'=>['following_applicable_day_rule'=>$followingRule,'morning_inference_enabled'=>$morningInference,'late_response_target_minutes'=>$lateTarget?:null,'timezone'=>'Africa/Windhoek'],
         'counts'=>$counts,'packer_on_time_rate'=>$packerRate,'front_on_time_rate'=>$frontRate,'customer_on_time_rate'=>$customerRate,
         'metrics'=>[
+            ['label'=>'Missing Required Uploads','value'=>null,'status'=>'unmeasured','explanation'=>'Not measured: an authoritative list of required courier uploads linked to orders is needed. No missing-upload penalty is inferred from existing uploads.'],
+            ['label'=>'Courier Boxes Used','value'=>null,'status'=>'unmeasured','explanation'=>'Not measured: attached files and declared waybills do not establish a physical box count.'],
             ['label'=>'Upload Batches','value'=>$counts['batches'],'explanation'=>'Number of upload actions/batches attributed to this employee. A batch may contain more than one waybill.'],
             ['label'=>'Courier Waybills Uploaded','value'=>$counts['waybills'],'explanation'=>'The recorded waybill count. One courier waybill remains one even when several item files are attached.'],
             ['label'=>'Items / Files Attached','value'=>$counts['attachments'],'explanation'=>'Actual files attached across the uploads. For example, one waybill with four uploaded item files is counted as one waybill and four attachments.'],
             ['label'=>'Courier Waybills Sent','value'=>$counts['sent_waybills'],'explanation'=>'Recorded courier waybills in batches with a Sent timestamp.'],
-            ['label'=>'Packer Uploads by 17:00','value'=>$packerRate,'format'=>'percent','numerator'=>$counts['packer_on_time'],'denominator'=>$counts['packer_eligible'],'explanation'=>'Upload batches available by 17:00 on the courier service date.'],
-            ['label'=>'Front-Person Sends by 09:00','value'=>$frontRate,'format'=>'percent','numerator'=>$counts['front_on_time'],'denominator'=>$counts['front_eligible'],'explanation'=>'Eligible waybill batches sent by 09:00 on the next working day. Batches uploaded after their availability deadline are excluded from this employee denominator.'],
+            ['label'=>'Packer Uploads by '.$uploadCutoff,'value'=>$packerRate,'format'=>'percent','numerator'=>$counts['packer_on_time'],'denominator'=>$counts['packer_eligible'],'explanation'=>'All batch attachments must be available by '.$uploadCutoff.' on the courier service date. Latest attachment time is used.'],
+            ['label'=>'Front-Person Sends by '.$sendCutoff,'value'=>$frontRate,'format'=>'percent','numerator'=>$counts['front_on_time'],'denominator'=>$counts['front_eligible'],'explanation'=>'All attachments sent by '.$sendCutoff.' on the next applicable day. Late availability is excluded from the front-person denominator.'],
             ['label'=>'Customer Deadline Met','value'=>$customerRate,'format'=>'percent','numerator'=>$counts['customer_on_time'],'denominator'=>$counts['customer_eligible']],
             ['label'=>'Blocked by late upload','value'=>$counts['blocked_late_upload']],
             ['label'=>'Pending','value'=>$counts['pending']],
@@ -215,6 +226,6 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
             ['label'=>'Incomplete Source Evidence','value'=>$counts['review'],'status'=>$counts['review']?'warning':'ok','explanation'=>'Only missing or inferred service-date evidence is listed here. Valid multi-waybill uploads do not require owner approval.'],
         ],'rows'=>$rows,'courier_breakdown'=>array_values($courierBreakdown),
         'reference_only'=>false,'courier_waybills_performance'=>true,
-        'methodology'=>'Customer, packer and front-person results are separate. Records unavailable after 08:00 never enter the front-person on-time denominator.'
+        'methodology'=>'Latest attachment upload and full-batch sending determine timing. Missing uploads cannot be established from uploaded records alone; required order-to-waybill linkage must be verified. Attachment and declared waybill counts are not verified box counts.'
     ];
 }
