@@ -40,7 +40,7 @@ include BASE_PATH.'/shared/header.php';
 include BASE_PATH.'/shared/sidebar.php';
 ?>
 <main class="workspace module budget-page">
-<header><p class="eyebrow">Plan your purchases</p><h1>Budgeting</h1><p>Supplier stock orders and monthly office shopping lists. Costs are entered manually for now.</p></header>
+<header class="module-header"><h1>Budgeting</h1><p>Plan supplier orders and monthly office purchases.</p></header>
 <?php if($error):?><p role="alert" class="ops-alert error"><?=bh($error)?></p><?php endif;?>
 <?php if(isset($_GET['saved'])&&!$error):?><p role="status">Budget saved.</p><?php endif;?>
 <nav class="budget-cards"><a href="?new=supplier"><span>Stock purchasing</span><h2>Supplier budget</h2><p>Create a dated list for Fourchem, Chempack, Nautica or any supplier.</p></a><a href="?new=office"><span>Office planning</span><h2>Office expenses</h2><p>Plan supplies and other purchases for the month.</p></a></nav>
