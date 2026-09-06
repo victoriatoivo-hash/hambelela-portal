@@ -31,6 +31,16 @@ function ops_board_sync_log(string $message, array $context = []): void
     @file_put_contents($dir . '/operations-sync.log', $line . PHP_EOL, FILE_APPEND);
 }
 
+function ops_board_safe_woocommerce_error(Throwable $error): string
+{
+    $message = trim($error->getMessage());
+    if ($message === '' || $message !== strip_tags($message) || stripos($message, 'critical error') !== false) {
+        return 'WooCommerce returned an invalid server response.';
+    }
+
+    return strlen($message) > 240 ? substr($message, 0, 237) . '...' : $message;
+}
+
 function ops_board_sync_runtime_dir(): string
 {
     $dir = BASE_PATH . '/storage/cache';
@@ -556,10 +566,14 @@ function ops_board_sync_website_orders(?string $date = null): array
 
     $ordersById = [];
     $syncWarnings = [];
+    $sourceRequestCount = 0;
+    $sourceSuccessCount = 0;
     $statuses = ['processing', 'on-hold', 'pending', 'completed', 'cancelled', 'refunded', 'failed'];
-    $collectOrders = static function (array $query) use (&$ordersById): void {
+    $collectOrders = static function (array $query) use (&$ordersById, &$sourceRequestCount, &$sourceSuccessCount): void {
         for ($page = 1; $page <= 20; $page++) {
+            $sourceRequestCount++;
             $batch = wc_get('orders', $query + ['page' => $page]);
+            $sourceSuccessCount++;
             if (!is_array($batch) || !$batch) {
                 break;
             }
@@ -580,7 +594,7 @@ function ops_board_sync_website_orders(?string $date = null): array
     try {
         $collectOrders($baseQuery + ['status' => 'any']);
     } catch (Throwable $e) {
-        $syncWarnings[] = $e->getMessage();
+        $syncWarnings[] = ops_board_safe_woocommerce_error($e);
     }
 
     if (!$ordersById) {
@@ -588,9 +602,19 @@ function ops_board_sync_website_orders(?string $date = null): array
             try {
                 $collectOrders($baseQuery + ['status' => $status]);
             } catch (Throwable $e) {
-                $syncWarnings[] = $status . ': ' . $e->getMessage();
+                $syncWarnings[] = $status . ': ' . ops_board_safe_woocommerce_error($e);
             }
         }
+    }
+
+    if ($sourceSuccessCount === 0) {
+        ops_board_sync_log('woocommerce order source unavailable', [
+            'requests' => $sourceRequestCount,
+            'warnings' => array_slice(array_unique($syncWarnings), 0, 3),
+        ]);
+        throw new RuntimeException(
+            'WooCommerce order service is temporarily unavailable. Existing portal orders were preserved; no empty sync was recorded.'
+        );
     }
 
     $orders = array_values($ordersById);
@@ -843,6 +867,8 @@ function ops_board_sync_website_orders(?string $date = null): array
         'assigned' => $assigned,
         'requested_date' => $date,
         'website_orders_seen' => count($orders),
+        'source_requests' => $sourceRequestCount,
+        'source_successes' => $sourceSuccessCount,
         'warnings' => array_slice(array_unique($syncWarnings), 0, 3),
     ];
 }
