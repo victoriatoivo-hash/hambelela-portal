@@ -23,6 +23,8 @@ function im2_insert_statement_rows(int $statementId, array $rows): void
     $listedPeriodCheck = db()->prepare('SELECT id FROM accounts_import_vat_liabilities WHERE deleted_at IS NULL AND (reference=? OR (namra_tax_year=? AND namra_tax_period=?)) LIMIT 1');
     foreach ($rows as $row) {
         $duplicateCheck->execute([$row['source_hash'], $statementId]);
+        $duplicateRow = (bool)$duplicateCheck->fetchColumn();
+        $duplicateCheck->closeCursor();
         $alreadyListed = false;
         if (in_array((string)$row['classification'], ['assessment', 'revision'], true)
             && import_vat_tax_period_month((string)$row['tax_year'], (string)$row['tax_period'])) {
@@ -32,8 +34,9 @@ function im2_insert_statement_rows(int $statementId, array $rows): void
                 (int)$row['tax_period'],
             ]);
             $alreadyListed = (bool)$listedPeriodCheck->fetchColumn();
+            $listedPeriodCheck->closeCursor();
         }
-        $matchStatus = ($duplicateCheck->fetchColumn() || $alreadyListed) ? 'possible_duplicate' : $row['match_status'];
+        $matchStatus = ($duplicateRow || $alreadyListed) ? 'possible_duplicate' : $row['match_status'];
         $insert->execute([
             $statementId, $row['source_row_number'], $row['transaction_date'], $row['due_date'], $row['reference'],
             $row['description'], $row['debit'], $row['credit'], $row['import_vat_amount'], $row['other_charge_amount'],

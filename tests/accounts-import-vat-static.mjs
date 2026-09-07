@@ -29,6 +29,7 @@ assert.ok(api.includes("reversal_reason='Accounting-period mapping corrected —
 assert.ok(js.includes('Accounting period:')&&page.includes('Tax Year / Period / Accounting Period'),'review UI exposes authoritative and source period fields');
 assert.ok(api.includes("match_status<>'possible_duplicate'")&&api.includes('source_hash'),'overlapping-statement row deduplication');
 assert.ok(api.includes('namra_tax_year=? AND namra_tax_period=?')&&api.includes("['assessment', 'revision']"),'already-listed Import VAT periods are excluded from later statements');
+assert.ok(api.includes('$duplicateCheck->closeCursor()')&&api.includes('$listedPeriodCheck->closeCursor()'),'statement duplicate lookups close unbuffered query cursors before the next query');
 assert.ok(api.includes("$principal > 0 && $period['principal_rows']"),'payment-only statement periods cannot overwrite an existing liability');
 assert.ok(js.includes('Already on Import VAT list — skipped')&&js.includes('Already listed'),'review clearly identifies skipped listed periods');
 assert.ok(api.includes("'481', '304'")&&api.includes('amount was not used as the sole key'),'exclusions and evidence-first payment matching');
