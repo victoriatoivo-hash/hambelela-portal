@@ -626,6 +626,11 @@ function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $da
     return $rows;
 }
 
+function wb_batch_items(string $batchId): array
+{
+    return ops_rows("SELECT id,order_id,original_filename,file_path,status FROM hambelela_waybills WHERE batch_id=? AND archived_at IS NULL AND deleted_at IS NULL ORDER BY id",[$batchId]);
+}
+
 function wb_stats(): array
 {
     $rows = ops_rows(
@@ -717,7 +722,7 @@ function wb_queue_html(array $rows, bool $canSend): string
                     </label>
                 </div>
                 <div class="courier-cell queue-main" data-column-key="courier">
-                    <div class="file-count"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?></div>
+                    <div class="file-count"><?= number_format((int) $row['file_count']) ?></div>
                     <div>
                         <strong class="ref"><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
                         <span class="meta-value">Sent date: <?= wb_e($row['sent_date'] ?: 'Not set') ?></span>
@@ -747,6 +752,22 @@ function wb_queue_html(array $rows, bool $canSend): string
                     <?php endif; ?>
                 </div>
             </article>
+            <?php $batchItems=wb_batch_items($batchId);$assignedItems=count(array_filter($batchItems,static fn(array$item):bool=>trim((string)($item['order_id']??''))!=='')); ?>
+            <section class="courier-waybill-assignments" data-waybill-assignments="<?= wb_e($batchId) ?>">
+                <header><div><strong>Waybills in this upload</strong><span><?= count($batchItems) ?> attachment<?= count($batchItems)===1?'':'s' ?> separated for order matching</span></div><span class="courier-assignment-progress"><?= $assignedItems ?>/<?= count($batchItems) ?> assigned</span></header>
+                <div class="courier-assignment-table">
+                    <div class="courier-assignment-row courier-assignment-head"><span>#</span><span>Waybill attachment</span><span>Order number</span><span>Action</span></div>
+                    <?php foreach($batchItems as $itemIndex=>$item): ?>
+                        <form class="courier-assignment-row" data-waybill-order-form>
+                            <span class="courier-assignment-number"><?= $itemIndex+1 ?></span>
+                            <span class="courier-assignment-file"><i data-lucide="file-text"></i><?= wb_e((string)($item['original_filename']?:basename((string)$item['file_path']))) ?></span>
+                            <label><span class="sr-only">Order number for waybill <?= $itemIndex+1 ?></span><input name="order_number" value="<?= wb_e((string)($item['order_id']??'')) ?>" placeholder="#36732 or WEB-36732" required></label>
+                            <input type="hidden" name="action" value="waybill_assign_order"><input type="hidden" name="waybill_id" value="<?= (int)$item['id'] ?>"><input type="hidden" name="batch_id" value="<?= wb_e($batchId) ?>">
+                            <button type="submit" class="portal-button portal-button--secondary"><i data-lucide="check"></i><span><?= trim((string)($item['order_id']??''))!==''?'Update':'Assign' ?></span></button>
+                        </form>
+                    <?php endforeach; ?>
+                </div>
+            </section>
             <?php
         }
     }
@@ -1064,6 +1085,30 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 + wb_tools_payload($canManageWaybills, $canDeleteWaybillsForever));
         }
 
+        if ($action === 'waybill_assign_order') {
+            if (!$canUploadWaybills && !$canManageWaybills) throw new RuntimeException('Only packers and admin can assign waybills to orders.');
+            $waybillId=max(0,(int)($_POST['waybill_id']??0));$batchId=trim((string)($_POST['batch_id']??''));$orderNumber=trim((string)($_POST['order_number']??''));
+            if(!$waybillId||$batchId===''||$orderNumber==='')throw new RuntimeException('Enter an order number for this waybill.');
+            if(!preg_match('/^[#A-Za-z0-9 _-]{1,50}$/',$orderNumber))throw new RuntimeException('Use a valid order number, such as #36732 or WEB-36732.');
+            $existing=ops_row('SELECT id,order_id FROM hambelela_waybills WHERE id=? AND batch_id=? AND archived_at IS NULL AND deleted_at IS NULL',[$waybillId,$batchId]);
+            if(!$existing)throw new RuntimeException('Waybill not found.');
+            db()->beginTransaction();
+            try{
+                db()->prepare('UPDATE hambelela_waybills SET order_id=? WHERE id=?')->execute([$orderNumber,$waybillId]);
+                $numericOrderId=(int)preg_replace('/\D+/','',$orderNumber);
+                if($numericOrderId>0){
+                    $shipment=ops_row('SELECT order_id,batch_id,box_count FROM ops_courier_requirements WHERE order_id=?',[$numericOrderId]);
+                    if($shipment&&(empty($shipment['batch_id'])||(string)$shipment['batch_id']===$batchId)){
+                        db()->prepare('UPDATE ops_courier_requirements SET batch_id=?,linked_at=?,linked_by=? WHERE order_id=?')->execute([$batchId,wb_now()->format('Y-m-d H:i:s'),$currentEmployeeId,$numericOrderId]);
+                        ops_activity_log('courier_order_upload_linked','order',$numericOrderId,['batch_id'=>$batchId,'waybill_id'=>$waybillId,'physical_boxes'=>(int)$shipment['box_count']]);
+                    }
+                }
+                db()->commit();
+            }catch(Throwable$assignmentError){if(db()->inTransaction())db()->rollBack();throw$assignmentError;}
+            ops_activity_log('courier_waybill_order_assigned','courier_waybill',$waybillId,['batch_id'=>$batchId,'order_number'=>$orderNumber,'changed_by'=>wb_current_name()]);
+            wb_json(['success'=>true,'message'=>'Order number assigned to this waybill.']+wb_dashboard_payload($canSendWaybills,$historyDateFrom,$historyDateTo));
+        }
+
         if ($action === 'waybill_upload') {
             require_once __DIR__.'/courier-order-requirements.php';
             courier_requirements_schema();
@@ -1086,16 +1131,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('Choose at least one courier.');
             }
             $courierNames = implode(', ', $couriers);
-            $numberOfWaybills = max(1, (int) ($_POST['number_of_waybills'] ?? 1));
-            $linkedOrderId=(int)($_POST['linked_order_id']??0);
-            $shipment=$linkedOrderId?ops_row('SELECT * FROM ops_courier_requirements WHERE order_id=?',[$linkedOrderId]):null;
-            if ($linkedOrderId && (!$shipment || !empty($shipment['batch_id']))) throw new RuntimeException('Shipment not found or already linked.');
-            if ($shipment && (count($couriers)!==1 || strcasecmp($courierNames,$shipment['courier'])!==0 || $sentDate!==$shipment['service_date'])) throw new RuntimeException('Select the courier and service date recorded for this order. Use one order per linked upload batch.');
-
             $batchId = wb_batch_id();
             $uploadedAt = wb_now();
             $dueBy = wb_due_for_upload($uploadedAt);
             $files = wb_normalize_files($_FILES['waybill_files']);
+            $numberOfWaybills=count(array_filter($files,static fn(array$file):bool=>(int)($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE));
             $created = 0;
 
             $stmt = db()->prepare(
@@ -1127,7 +1167,6 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     $dueBy->format('Y-m-d H:i:s'),
                 ]);
                 $newId = (int) db()->lastInsertId();
-                if ($shipment) db()->prepare('UPDATE hambelela_waybills SET order_id=? WHERE id=?')->execute([$linkedOrderId,$newId]);
                 $legacyStmt->execute([
                     $sentDate,
                     $courierNames,
@@ -1151,19 +1190,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($created <= 0) {
                 throw new RuntimeException('No valid waybill files were uploaded.');
             }
-            if ($shipment) {
-                $link=db()->prepare('UPDATE ops_courier_requirements SET batch_id=?,linked_at=?,linked_by=? WHERE order_id=? AND batch_id IS NULL');
-                $link->execute([$batchId,$uploadedAt->format('Y-m-d H:i:s'),$currentEmployeeId,$linkedOrderId]);
-                if (!$link->rowCount()) throw new RuntimeException('Another upload already linked this order. Review the uploaded files.');
-                ops_activity_log('courier_order_upload_linked','order',$linkedOrderId,['batch_id'=>$batchId,'courier'=>$courierNames,'physical_boxes'=>(int)$shipment['box_count']]);
-            }
-
             wb_notify_cecilia(
                 'New waybill upload',
                 wb_current_name() . ' uploaded ' . $numberOfWaybills . ' waybill' . ($numberOfWaybills === 1 ? '' : 's') . ' for ' . $courierNames . ' dated ' . $sentDate . '. Due by ' . wb_due_label($dueBy->format('Y-m-d H:i:s')) . '.',
                 'normal'
             );
-            wb_json(['success' => true, 'message' => $created . ' waybill' . ($created === 1 ? '' : 's') . ' uploaded.', 'due_by' => wb_due_label($dueBy->format('Y-m-d H:i:s'))] + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo));
+            wb_json(['success' => true, 'message' => $created . ' waybill attachment' . ($created === 1 ? '' : 's') . ' uploaded and separated. Add an order number to each row below.', 'batch_id'=>$batchId,'due_by' => wb_due_label($dueBy->format('Y-m-d H:i:s'))] + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo));
         }
 
         if ($action === 'waybill_mark_sent') {
@@ -1300,15 +1332,8 @@ include BASE_PATH . '/shared/sidebar.php';
 
                 <form class="upload-form" data-waybill-upload enctype="multipart/form-data">
                     <input type="hidden" name="action" value="waybill_upload">
-                    <label class="field-label upload-input-field">Linked courier order (portal order ID)
-                        <input name="linked_order_id" type="number" min="1" step="1" placeholder="Order ID from required uploads">
-                        <small>One order per linked batch. Older unlinked uploads remain unverified.</small>
-                    </label>
                     <label class="field-label upload-input-field">Sent Date
                         <input name="sent_date" type="date" value="<?= wb_e(date('Y-m-d')) ?>" required>
-                    </label>
-                    <label class="field-label upload-input-field">Number of Waybills
-                        <input name="number_of_waybills" type="number" min="1" step="1" value="1" required>
                     </label>
                     <div class="field-label span-2 courier-field">
                         <span>Courier</span>
@@ -1329,7 +1354,7 @@ include BASE_PATH . '/shared/sidebar.php';
                             <input name="waybill_files[]" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple required hidden>
                             <div class="dz-icon"><i data-lucide="paperclip"></i></div>
                             <div class="dz-main">Drag and drop waybill files here</div>
-                            <div class="dz-sub">or click to browse. Supports PDF, JPG and PNG.</div>
+                            <div class="dz-sub">or click to browse. Each attached PDF or image becomes its own waybill row.</div>
                         </label>
                         <div data-file-chips></div>
                     </div>
@@ -2105,6 +2130,16 @@ include BASE_PATH . '/shared/sidebar.php';
                     refreshButton.disabled = false;
                 });
         }
+    });
+
+    document.addEventListener('submit', async (event) => {
+        const form=event.target.closest('[data-waybill-order-form]');
+        if(!form)return;
+        event.preventDefault();
+        const button=form.querySelector('button[type="submit"]'),original=button?.innerHTML;
+        if(button){button.disabled=true;button.innerHTML='<i data-lucide="loader-circle"></i><span>Saving...</span>';refreshIcons();}
+        try{const data=await fetchJson('courier.php',{method:'POST',body:new FormData(form)});renderPayload(data);showToast(data.message||'Order number assigned.');}
+        catch(error){showToast(error.message);if(button){button.disabled=false;button.innerHTML=original;refreshIcons();}}
     });
 
     document.addEventListener('change', (event) => {

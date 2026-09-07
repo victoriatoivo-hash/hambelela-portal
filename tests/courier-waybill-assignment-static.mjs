@@ -1,0 +1,11 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const page=fs.readFileSync('apps/operations/courier.php','utf8'),css=fs.readFileSync('assets/css/portal-view-bar.css','utf8');
+assert.match(page,/function wb_batch_items/,'uploaded batch exposes individual waybills');
+assert.match(page,/data-waybill-order-form/,'each waybill has an order assignment row');
+assert.match(page,/waybill_assign_order/,'individual order assignment persists');
+assert.match(page,/courier_order_upload_linked/,'matched portal orders remain linked to performance evidence');
+assert.match(page,/Each attached PDF or image becomes its own waybill row/,'upload explains attachment separation');
+assert.match(page,/\$numberOfWaybills=count\(array_filter/,'waybill count is derived from actual attachments');
+assert.match(css,/courier-waybill-assignments/,'assignment table follows the portal theme');
+assert.match(css,/@media\(max-width:700px\).*courier-assignment-row/,'assignment table is responsive');
+console.log('Courier waybill assignment workflow passed');
