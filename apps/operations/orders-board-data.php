@@ -170,6 +170,21 @@ $orderIds = array_map(static fn (array $order): int => (int) ($order['id'] ?? 0)
 $orderIds = array_values(array_filter($orderIds));
 if ($orderIds) {
     $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+    if (ops_table_exists('ops_courier_requirements')) {
+        $packageSelect = ops_column_exists('ops_courier_requirements', 'package_detail') ? 'package_detail' : 'NULL AS package_detail';
+        $dispatchRows = ops_rows("SELECT order_id,courier,box_count,{$packageSelect},service_date,upload_due_at,batch_id FROM ops_courier_requirements WHERE order_id IN ({$placeholders})", $orderIds);
+        $dispatchByOrder = [];
+        foreach ($dispatchRows as $dispatchRow) $dispatchByOrder[(int)$dispatchRow['order_id']] = $dispatchRow;
+        foreach ($orders as &$order) {
+            $dispatch = $dispatchByOrder[(int)$order['id']] ?? null;
+            $order['dispatch_courier'] = $dispatch['courier'] ?? null;
+            $order['dispatch_package_detail'] = $dispatch['package_detail'] ?? null;
+            $order['dispatch_service_date'] = $dispatch['service_date'] ?? null;
+            $order['dispatch_upload_due_at'] = $dispatch['upload_due_at'] ?? null;
+            $order['dispatch_waybill_linked'] = !empty($dispatch['batch_id']);
+        }
+        unset($order);
+    }
     $orderItems = ops_rows(
         "SELECT id, order_id, product_name, sku, quantity, packed_quantity, status FROM ops_order_items WHERE order_id IN ({$placeholders}) ORDER BY order_id, id",
         $orderIds

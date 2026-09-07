@@ -3864,7 +3864,7 @@
     const cards = [
       ['Order summary', [['Order', formatOrderInvoiceReference(currentOrder.order_number)], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
       ['Customer', [['Name', currentOrder.customer_name || ''], ['Mobile number', currentOrder.customer_contact || '']]],
-      ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned']]],
+      ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned'], ...(currentOrder.dispatch_courier ? [['Courier type', currentOrder.dispatch_courier], ['EasyBox / parcel details', currentOrder.dispatch_package_detail || 'Not recorded'], ['Recorded service date', currentOrder.dispatch_service_date || ''], ['Waybill upload', currentOrder.dispatch_waybill_linked ? 'Linked' : 'Awaiting upload']] : [])]],
       ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
     ];
     panelDetails.innerHTML = documentCard + cards.map(([title, fields]) => `<section class="order-panel-card"><h3>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${esc(value || 'Not set')}</span></div>`).join('')}</div></section>`).join('');

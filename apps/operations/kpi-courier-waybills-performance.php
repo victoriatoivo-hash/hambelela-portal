@@ -216,6 +216,10 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
         }
         unset($requirement);
     }
+    $counts['required_shipments']=count($requirements);
+    $counts['required_uploads_missing']=$missing;
+    $counts['required_uploads_overdue']=$overdue;
+    $counts['recorded_physical_boxes']=$boxes;
     return [
         'required_uploads'=>$requirements,
         'title'=>'Courier Waybills Performance','role_view'=>$roleView,'settings'=>['following_applicable_day_rule'=>$followingRule,'morning_inference_enabled'=>$morningInference,'late_response_target_minutes'=>$lateTarget?:null,'timezone'=>'Africa/Windhoek'],
@@ -240,6 +244,6 @@ function kpi_courier_waybills_performance(?array $employee, string $fromSql, str
             ['label'=>'Incomplete Source Evidence','value'=>$counts['review'],'status'=>$counts['review']?'warning':'ok','explanation'=>'Only missing or inferred service-date evidence is listed here. Valid multi-waybill uploads do not require owner approval.'],
         ],'rows'=>$rows,'courier_breakdown'=>array_values($courierBreakdown),
         'reference_only'=>false,'courier_waybills_performance'=>true,
-        'methodology'=>'Latest attachment upload and full-batch sending determine timing. Missing uploads cannot be established from uploaded records alone; required order-to-waybill linkage must be verified. Attachment and declared waybill counts are not verified box counts.'
+        'methodology'=>'Courier type and EasyBox or parcel details are recorded when the packer moves an order to In Progress. Required shipments are then checked for a linked waybill upload; missing and overdue uploads reduce packer performance. Latest attachment upload and full-batch sending determine timing.'
     ];
 }
