@@ -8,6 +8,7 @@ const css = read('assets/css/portal.css');
 
 assert.match(page, /\$_GET\['task_view'\] \?\? 'active'/, 'The default view must be the combined active task page.');
 assert.match(page, /'manual' => \['title' => 'Manual Tasks'/, 'Tasks view must retain the manual task section.');
+assert.match(page, /'recurring' => \['title' => 'Recurring Tasks',[^\n]*\$recurringTasks/, 'Released recurring occurrences must appear on the active Tasks page.');
 assert.match(page, /'floating' => 'Floating Tasks', 'recurring' => 'Recurring Tasks', 'completed' => 'Completed Tasks'/, 'Recurring Tasks must be a dedicated owner tab before Completed Tasks.');
 assert.match(page, /\['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'\]/, 'Employee navigation must not expose recurrence management.');
 assert.match(page, /data-task-create-kind="manual"/, 'The main New Task button must default to manual.');

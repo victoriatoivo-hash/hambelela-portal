@@ -2535,6 +2535,7 @@ include BASE_PATH . '/shared/sidebar.php';
             ? ['scheduled' => ['title' => 'Scheduled Tasks', 'description' => 'Private tasks awaiting their release time. Edit, release now, or cancel before employees can see them.', 'tasks' => $tasks]]
             : [
                 'manual' => ['title' => 'Manual Tasks', 'description' => 'Tasks created and assigned manually.', 'tasks' => $manualTasks],
+                'recurring' => ['title' => 'Recurring Tasks', 'description' => 'Released recurring tasks currently assigned and ready to complete.', 'tasks' => $recurringTasks],
             ]; ?>
         <?php foreach ($taskDisplaySections as $sectionKey => $section): ?>
             <section class="task-section task-section--<?= $sectionKey ?>" id="<?= $sectionKey ?>Tasks" aria-labelledby="<?= $sectionKey ?>TasksHeading">
