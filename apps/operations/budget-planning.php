@@ -23,7 +23,10 @@ try {
             $stmt->execute([$input['kind'],$input['title'],$input['date'],$json,(int)current_user()['id']]);
             $id=(int)db()->lastInsertId();
         }
-        header('Location: budget-planning.php?id='.$id.'&saved=1'); exit;
+        // Return to a clean entry form after saving while keeping the saved
+        // budget visible in the selected month's list below.
+        $savedMonth=substr($input['date'],0,7);
+        header('Location: budget-planning.php?new='.rawurlencode($input['kind']).'&month='.rawurlencode($savedMonth).'&saved=1'); exit;
     }
     $id=max(0,(int)($_GET['id']??0));
     if ($id) { $stmt=db()->prepare('SELECT * FROM ops_purchase_budgets WHERE id=?');$stmt->execute([$id]);$budget=$stmt->fetch(PDO::FETCH_ASSOC);if(!$budget)throw new RuntimeException('Budget not found.'); }
