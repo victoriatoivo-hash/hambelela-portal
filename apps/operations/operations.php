@@ -1179,7 +1179,7 @@ function ops_can_update_order_paid_status(): bool
 
 function ops_can_update_order_payment_method(): bool
 {
-    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
+    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'packer', 'packer_production_staff');
 }
 
 function ops_staff_text_key(array $employee): string

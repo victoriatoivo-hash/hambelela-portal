@@ -22,6 +22,7 @@ assert.match(operations, /'bluewlt' => 'blue_wallet'/);
 assert.match(action, /save_payment_allocations/);
 assert.match(action, /hash_equals\(\$sessionCsrf, \$submittedCsrf\)/);
 assert.match(action, /ops_can_update_order_payment_method\(\)/);
+assert.match(operations, /function ops_can_update_order_payment_method\(\): bool[\s\S]*?'packer'[\s\S]*?'packer_production_staff'/, 'packer accounts must be permitted to edit order payment methods');
 assert.match(action, /This payment was updated elsewhere/);
 assert.doesNotMatch(action, /Website\/POS payments are read-only/);
 assert.match(action, /wc_put\('orders\/.*_hpos_split/s);
