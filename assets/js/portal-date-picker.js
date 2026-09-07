@@ -70,6 +70,8 @@
     popup.setAttribute('aria-hidden', 'true');
     document.body.appendChild(popup);
     popup.addEventListener('click', handlePopupClick);
+    popup.addEventListener('input', handlePopupTimeInput);
+    popup.addEventListener('change', handlePopupTimeInput);
     popup.addEventListener('keydown', handlePopupKeydown);
     return popup;
   }
@@ -109,7 +111,7 @@
     }).join('');
     const time = draftDate || new Date();
     const clearAction = '<button type="button" class="portal-date-clear" data-portal-date-clear>Clear</button>';
-    popup.innerHTML = `<div class="portal-date-popup-header"><button type="button" class="portal-date-nav" data-date-nav="-1" aria-label="Previous month">${previousIcon}</button><div class="portal-date-heading">${viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div><button type="button" class="portal-date-nav" data-date-nav="1" aria-label="Next month">${nextIcon}</button></div><div class="portal-date-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => `<span class="portal-date-weekday">${day}</span>`).join('')}</div><div class="portal-date-grid">${days}</div>${mode === 'datetime' ? `<div class="portal-time-section"><div class="portal-time-controls"><button type="button" class="portal-time-part" data-time-hour>${pad(time.getHours() % 12 || 12)}</button><span class="portal-time-separator">:</span><button type="button" class="portal-time-part" data-time-minute>${pad(time.getMinutes())}</button><button type="button" class="portal-time-meridiem" data-time-meridiem>${time.getHours() >= 12 ? 'PM' : 'AM'}</button></div><button type="button" class="portal-date-now" data-portal-date-now>${clockIcon}<span>Now</span></button></div>` : ''}<div class="portal-date-actions">${clearAction}${mode === 'datetime' ? '<div><button type="button" class="portal-date-cancel" data-portal-date-cancel>Cancel</button><button type="button" class="portal-date-apply" data-portal-date-apply>Apply</button></div>' : ''}</div>`;
+    popup.innerHTML = `<div class="portal-date-popup-header"><button type="button" class="portal-date-nav" data-date-nav="-1" aria-label="Previous month">${previousIcon}</button><div class="portal-date-heading">${viewDate.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}</div><button type="button" class="portal-date-nav" data-date-nav="1" aria-label="Next month">${nextIcon}</button></div><div class="portal-date-weekdays">${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((day) => `<span class="portal-date-weekday">${day}</span>`).join('')}</div><div class="portal-date-grid">${days}</div>${mode === 'datetime' ? `<div class="portal-time-section"><label class="portal-time-entry"><span>Type time</span><input type="time" value="${pad(time.getHours())}:${pad(time.getMinutes())}" step="300" data-time-input aria-label="Type time"></label><button type="button" class="portal-date-now" data-portal-date-now>${clockIcon}<span>Now</span></button></div>` : ''}<div class="portal-date-actions">${clearAction}${mode === 'datetime' ? '<div><button type="button" class="portal-date-cancel" data-portal-date-cancel>Cancel</button><button type="button" class="portal-date-apply" data-portal-date-apply>Apply</button></div>' : ''}</div>`;
     requestAnimationFrame(positionPopup);
   }
 
@@ -225,13 +227,18 @@
       renderPopup();
       return;
     }
-    if (event.target.closest('[data-time-hour]')) { draftDate = draftDate || new Date(); draftDate.setHours((draftDate.getHours() + 1) % 24); renderPopup(); return; }
-    if (event.target.closest('[data-time-minute]')) { draftDate = draftDate || new Date(); draftDate.setMinutes((Math.floor(draftDate.getMinutes() / 5) * 5 + 5) % 60); renderPopup(); return; }
-    if (event.target.closest('[data-time-meridiem]')) { draftDate = draftDate || new Date(); draftDate.setHours((draftDate.getHours() + 12) % 24); renderPopup(); return; }
     if (event.target.closest('[data-portal-date-now]')) { draftDate = new Date(); viewDate = new Date(draftDate); renderPopup(); return; }
     if (event.target.closest('[data-portal-date-clear]')) { commit(null); return; }
     if (event.target.closest('[data-portal-date-apply]')) { commit(draftDate || new Date()); return; }
     if (event.target.closest('[data-portal-date-cancel]')) close();
+  }
+
+  function handlePopupTimeInput(event) {
+    const input = event.target.closest('[data-time-input]');
+    if (!active || !input || !/^\d{2}:\d{2}$/.test(input.value)) return;
+    const [hours, minutes] = input.value.split(':').map(Number);
+    draftDate = draftDate || new Date();
+    draftDate.setHours(hours, minutes, 0, 0);
   }
 
   function handlePopupKeydown(event) {

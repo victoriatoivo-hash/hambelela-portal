@@ -25,9 +25,10 @@ assert.match(tasks, /const requestData=new FormData\(form\)/, 'the audited activ
 assert.match(tasks, /if\(result\.field==='due_at'\)/, 'server due errors must attach to the active due field');
 assert.match(tasks, /\.replace\(\/\^0\/, ''\)\.toUpperCase\(\)/, 'The contextual summary must use unpadded 12-hour AM/PM text');
 assert.doesNotMatch(tasks, /Assign the task anyway\?/);
-assert.match(picker, /data-time-hour/);
-assert.match(picker, /data-time-minute/);
-assert.match(picker, /data-time-meridiem/);
+assert.match(picker, /type="time"[^>]*data-time-input/, 'the picker time must be directly typeable');
+assert.match(picker, /handlePopupTimeInput/, 'typed times must update the selected deadline');
+assert.match(createForm, /data-task-due-preset="today"[^>]*>Today by 5 PM</);
+assert.match(createForm, /data-task-due-preset="tomorrow"[^>]*>Tomorrow by 5 PM</);
 assert.match(picker, /data-portal-date-now/);
 assert.match(picker, /data-portal-date-clear/);
 assert.match(picker, /data-portal-date-cancel/);
