@@ -617,12 +617,13 @@ function checklist_task_timing(array $task, ?DateTimeImmutable $now = null): arr
             'active_outcome' => 'Scheduled',
             'overdue_minutes' => 0,
             'due_label' => $due ? $due->format('d M Y · H:i') : 'No due date',
+            'due_iso' => $due ? $due->format(DateTimeInterface::ATOM) : '',
         ];
     }
     $completed = null; $started = null;
     try { if (!empty($task['date_completed']) || !empty($task['completed_at'])) $completed = new DateTimeImmutable((string) ($task['date_completed'] ?: $task['completed_at']), $timezone); } catch (Throwable $e) {}
     try { if (!empty($task['started_at'])) $started = new DateTimeImmutable((string) $task['started_at'], $timezone); } catch (Throwable $e) {}
-    $result = ['progress'=>$status === 'complete' ? 100 : 0, 'overdue'=>false, 'outcome'=>'', 'active_outcome'=>$due ? ($now > $due ? 'Overdue' : 'Coming up') : 'No due date', 'overdue_minutes'=>0, 'due_label'=>$due ? $due->format('d M Y · H:i') : 'No due date'];
+    $result = ['progress'=>$status === 'complete' ? 100 : 0, 'overdue'=>false, 'outcome'=>'', 'active_outcome'=>$due ? ($now > $due ? 'Overdue' : 'Coming up') : 'No due date', 'overdue_minutes'=>0, 'due_label'=>$due ? $due->format('d M Y · H:i') : 'No due date','due_iso'=>$due?$due->format(DateTimeInterface::ATOM):''];
     if (!$due) { $result['outcome'] = $status === 'complete' && !$completed ? 'Completion time unavailable' : 'No due date'; return $result; }
     if ($status === 'complete') {
         if (!$completed) { $result['outcome'] = 'Completion time unavailable'; return $result; }
@@ -4314,6 +4315,21 @@ function initialiseTaskDueStates() {
   const dateKey = (date) => new Intl.DateTimeFormat('en-CA', {
     timeZone:TASK_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit'
   }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => part.value).join('-');
+  const countdownLabel = (milliseconds) => {
+    const totalSeconds=Math.max(0,Math.floor(Math.abs(milliseconds)/1000));
+    const days=Math.floor(totalSeconds/86400),hours=Math.floor((totalSeconds%86400)/3600),minutes=Math.floor((totalSeconds%3600)/60),seconds=totalSeconds%60;
+    return `${days}d ${String(hours).padStart(2,'0')}h ${String(minutes).padStart(2,'0')}m ${String(seconds).padStart(2,'0')}s`;
+  };
+  const updateCountdown = (countdown, now) => {
+    const row=countdown.closest('[data-task-row]'),value=countdown.querySelector('[data-task-countdown-value]');
+    if (!value) return;
+    if (row?.dataset.savedStatus==='complete') { value.textContent='Completed'; countdown.classList.add('is-complete'); return; }
+    const due=new Date(countdown.dataset.taskDueAt||'');
+    if (Number.isNaN(due.getTime())) { value.textContent='No due date'; return; }
+    const overdue=now.getTime()>due.getTime();
+    countdown.classList.toggle('is-overdue',overdue);
+    value.textContent=`${overdue?'Overdue ':'Due in '}${countdownLabel(due.getTime()-now.getTime())}`;
+  };
   const update = (indicator, now) => {
     const row = indicator.closest('[data-task-row]');
     if (row?.dataset.savedStatus === 'complete') return null;
@@ -4335,14 +4351,15 @@ function initialiseTaskDueStates() {
     const rows=[...root.querySelectorAll('[data-task-row]')],ids=rows.map(row=>row.dataset.taskId).filter(Boolean);if(!ids.length)return;lastTimingSync=Date.now();
     const body=new FormData();body.set('action','task_timing_snapshot');body.set('csrf_token',timingCsrfToken);body.set('task_ids',ids.join(','));
     const version=++timingVersion;
-    timingRequest=(async()=>{try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(version!==timingVersion||!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const value=Math.max(0,Math.min(100,Number(timing.progress)||0)),track=row.querySelector('[data-task-progress-track]'),fill=row.querySelector('[data-task-progress-fill]'),progress=row.querySelector('[data-task-progress-value]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(track){track.setAttribute('aria-valuenow',String(value));track.classList.toggle('is-overdue',Boolean(timing.overdue));}if(fill)fill.style.width=`${value}%`;if(progress)progress.textContent=`${value}%`;if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}finally{timingRequest=null}})();
+    timingRequest=(async()=>{try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(version!==timingVersion||!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const countdown=row.querySelector('[data-task-countdown]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(countdown){countdown.classList.toggle('is-overdue',Boolean(timing.overdue));if(timing.due_iso)countdown.dataset.taskDueAt=timing.due_iso;}if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}finally{timingRequest=null}})();
     return timingRequest;
   };
   const refresh = () => {
     if (timer) window.clearTimeout(timer);
     const now = new Date();
     const waits = [...root.querySelectorAll('[data-task-due-state][data-task-due-at]')].map((indicator) => update(indicator, now)).filter((wait) => wait !== null);
-    const nextDelay = Math.max(250, Math.min(60000, waits.length ? Math.min(...waits) + 50 : 60000));
+    root.querySelectorAll('[data-task-countdown]').forEach((countdown)=>updateCountdown(countdown,now));
+    const nextDelay = 1000;
     syncTimings();
     timer = window.setTimeout(refresh, nextDelay);
   };
