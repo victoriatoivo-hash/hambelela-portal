@@ -4,6 +4,7 @@ assert.match(shared,/vat_reconciliation_require_owner/);assert.match(shared,/acc
 for(const token of ['import_vat_assessed','import_vat_paid','import_vat_outstanding','projected_position'])assert.match(shared,new RegExp(token),`missing Import VAT reconciliation total ${token}`);
 assert.match(shared,/vat_reconciliation_import_month_window/);assert.match(shared,/start_date.*-1 month/);assert.match(shared,/end_date.*-1 month/);assert.match(shared,/import_months/);
 assert.match(js,/Import months:/);assert.match(js,/ending one month before this VAT return period ends/);
+assert.match(js,/showImportAccountingMonths/);assert.match(js,/Accounting month/);assert.match(js,/accounting_period\|\|s\.imports\[index\]\.import_month/);
 for(const label of ['Assessment reference','Import VAT due','VAT return due','Assessed','Paid','Outstanding','Eligible credit','Awaiting Payment','Paid — Review Required','Planning estimate only'])assert.ok(js.includes(label),`missing Import VAT reconciliation label ${label}`);
 assert.match(api,/Eligible Import VAT cannot exceed the amount paid/);
 assert.match(api,/Evidence is required before Import VAT can be marked eligible/);
