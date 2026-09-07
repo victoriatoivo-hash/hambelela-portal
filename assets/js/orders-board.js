@@ -933,18 +933,51 @@
     control.setSelectionRange(end, end);
   }
 
+  function courierDispatchDetails(order) {
+    return new Promise((resolve) => {
+      const modal = document.createElement('div');
+      modal.className = 'courier-dispatch-prompt';
+      const reference = esc(formatOrderInvoiceReference(order?.order_number || order?.id || 'Courier order'));
+      modal.innerHTML = `<button type="button" class="courier-dispatch-prompt__backdrop" data-courier-prompt-cancel aria-label="Close courier details"></button><section class="courier-dispatch-prompt__dialog" role="dialog" aria-modal="true" aria-labelledby="courier-prompt-title"><header><div><span>Courier preparation</span><h2 id="courier-prompt-title">${reference}</h2><p>Record the parcel details before moving this order to In Progress.</p></div><button type="button" class="courier-dispatch-prompt__close" data-courier-prompt-cancel aria-label="Close">×</button></header><div class="courier-dispatch-prompt__fields"><label><span>1. Type of courier</span><input type="text" list="courier-service-options" data-courier-service placeholder="For example NamPost or Jet-X" autocomplete="off"><datalist id="courier-service-options"><option value="NamPost"><option value="Jet-X"><option value="Hardap Freight"></datalist></label><label data-courier-package-field><span>2. EasyBox type</span><input type="text" data-courier-package placeholder="For example EasyBox A" autocomplete="off"><small data-courier-package-help>Enter the NamPost EasyBox type.</small></label></div><p class="courier-dispatch-prompt__error" data-courier-prompt-error aria-live="polite"></p><footer><button type="button" data-courier-prompt-cancel>Cancel</button><button type="button" class="primary" data-courier-prompt-save>Continue</button></footer></section>`;
+      document.body.appendChild(modal);
+      const service = modal.querySelector('[data-courier-service]');
+      const packageInput = modal.querySelector('[data-courier-package]');
+      const packageLabel = modal.querySelector('[data-courier-package-field] span');
+      const packageHelp = modal.querySelector('[data-courier-package-help]');
+      const error = modal.querySelector('[data-courier-prompt-error]');
+      let finished = false;
+      const isNamPost = () => /nam\s*post/i.test(service.value.trim());
+      const syncPackageQuestion = () => {
+        const nampost = isNamPost();
+        packageLabel.textContent = nampost ? '2. EasyBox type' : '2. Parcel size and weight';
+        packageInput.placeholder = nampost ? 'For example EasyBox A' : 'For example 40 × 30 × 20 cm · 3 kg';
+        packageHelp.textContent = nampost ? 'Enter the NamPost EasyBox type.' : 'Enter the parcel dimensions or size and its weight.';
+      };
+      const finish = (value) => { if (finished) return; finished = true; document.removeEventListener('keydown', onKeydown); modal.remove(); resolve(value); };
+      const onKeydown = (event) => { if (event.key === 'Escape') finish(null); };
+      modal.querySelectorAll('[data-courier-prompt-cancel]').forEach((button) => button.addEventListener('click', () => finish(null)));
+      service.addEventListener('input', syncPackageQuestion);
+      modal.querySelector('[data-courier-prompt-save]').addEventListener('click', () => {
+        const courier = service.value.trim(), packageDetail = packageInput.value.trim();
+        if (!courier || !packageDetail) { error.textContent = 'Please complete both courier questions.'; (!courier ? service : packageInput).focus(); return; }
+        finish({courier, packageDetail});
+      });
+      document.addEventListener('keydown', onKeydown);
+      syncPackageQuestion();
+      requestAnimationFrame(() => { modal.classList.add('is-visible'); service.focus(); });
+    });
+  }
+
   async function updateOrdersField(orderIds, field, value, requestMetadata = {}) {
     if (field === 'status' && value === 'in_progress') {
       const courierOrders = orderIds.filter(id => { const order=ordersCache.find(item=>String(item.id)===String(id)); return /courier/i.test(order?.fulfilment_mode || order?.order_type || ''); });
       if (courierOrders.length) {
         if (orderIds.length !== 1) throw new Error('Move courier orders individually to record boxes and courier.');
-        const courier=window.prompt('Courier service for this order (for example Nampost or Jet-X):');
-        if (courier===null) return;
-        const boxes=window.prompt('Number of physical courier boxes (not uploaded files):');
-        if (boxes===null) return;
-        const serviceDate=window.prompt('Courier service date (YYYY-MM-DD):');
-        if (serviceDate===null) return;
-        requestMetadata={...requestMetadata,dispatch_courier:courier,dispatch_boxes:boxes,dispatch_date:serviceDate};
+        const order=ordersCache.find(item=>String(item.id)===String(orderIds[0]));
+        const details=await courierDispatchDetails(order);
+        if (!details) return;
+        const now=new Date(),serviceDate=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+        requestMetadata={...requestMetadata,dispatch_courier:details.courier,dispatch_package:details.packageDetail,dispatch_boxes:1,dispatch_date:serviceDate};
       }
     }
     const ids = orderIds.map(String);
