@@ -15,6 +15,9 @@ assert.match(page, /data-error-clear-after-save/, 'A filtered-out save must prov
 assert.match(page, /this\.dataset\.saving === '1'/, 'Repeated clicks must be ignored while the save is pending.');
 assert.match(page, /resetErrorEvidenceFiles\(\)/, 'Successful create must clear pending evidence files.');
 assert.match(page, /error-board-row--just-saved/, 'The inserted row must be highlighted after refresh.');
+assert.match(page, /date_basis.*logged/s, 'The default Error Log view must use Date Logged so newly entered historical incidents remain visible.');
+assert.match(page, /error_logged_date_expression/, 'The owner list must filter Date Logged in the business timezone.');
+assert.match(page, /Date Error Occurred/, 'Occurrence-date filtering must remain available for historical and performance review.');
 assert.match(css, /@keyframes error-log-saved-row/, 'The saved-row highlight must be styled.');
 assert.match(css, /prefers-reduced-motion: reduce[\s\S]*?error-board-row--just-saved/, 'Saved-row feedback must respect reduced motion.');
 

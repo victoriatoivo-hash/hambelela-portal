@@ -132,6 +132,7 @@ function error_parse_occurred_on(string $value): string
 }
 
 function error_occurrence_expression(string $alias = 'el'): string { return "{$alias}.occurred_on"; }
+function error_logged_date_expression(string $alias = 'el'): string { return "DATE(DATE_ADD(COALESCE({$alias}.created_at,{$alias}.logged_at), INTERVAL 2 HOUR))"; }
 function error_occurred_on_label(?string $value): string {if(!$value)return'—';$time=strtotime($value);return$time?date('j M Y',$time):$value;}
 function error_occurred_at_label(?string $value, ?string $dateFallback = null): string
 {
@@ -754,8 +755,8 @@ $filters = [
     'month' => trim((string) ($_GET['month'] ?? $defaultErrorMonth)),
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),
     'date_to' => trim((string) ($_GET['date_to'] ?? '')),
-    'date_basis'=>'occurred',
-    'sort'=>trim((string)($_GET['sort']??'occurred_newest')),
+    'date_basis'=>in_array((string)($_GET['date_basis']??'logged'),['logged','occurred'],true)?(string)($_GET['date_basis']??'logged'):'logged',
+    'sort'=>trim((string)($_GET['sort']??'logged_newest')),
     'severity' => trim((string) ($_GET['severity'] ?? '')),
     'category' => trim((string) ($_GET['category'] ?? '')),
     'employee_id' => trim((string) ($_GET['employee_id'] ?? '')),
@@ -767,12 +768,12 @@ $filters = [
     'status' => trim((string) ($_GET['status'] ?? '')),
     'search' => trim((string) ($_GET['search'] ?? '')),
 ];
-$filtersAreActive = ($filters['date_mode'] === 'custom' && ($filters['date_from'] !== '' || $filters['date_to'] !== '')) || ($filters['date_mode'] === 'month' && $filters['month'] !== $defaultErrorMonth) || $filters['sort']!=='occurred_newest' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
+$filtersAreActive = ($filters['date_mode'] === 'custom' && ($filters['date_from'] !== '' || $filters['date_to'] !== '')) || ($filters['date_mode'] === 'month' && $filters['month'] !== $defaultErrorMonth) || $filters['date_basis']!=='logged' || $filters['sort']!=='logged_newest' || $filters['severity'] !== '' || $filters['category'] !== '' || $filters['employee_id'] !== '' || $filters['logged_for']!=='' || $filters['financial_impact_filter']!=='' || $filters['repeat_issue'] !== '' || $filters['customer_impacted'] !== '' || $filters['order_reference'] !== '' || $filters['status'] !== '' || $filters['search'] !== '';
 
 $where = ['el.deleted_at IS NULL'];
 $params = [];
 $requestedErrorId = max(0, (int) ($_GET['error_id'] ?? 0));
-$dateExpression=error_occurrence_expression('el');
+$dateExpression=$filters['date_basis']==='logged'?error_logged_date_expression('el'):error_occurrence_expression('el');
 if ($requestedErrorId > 0) {
     $where[] = 'el.id = ?';
     $params[] = $requestedErrorId;
@@ -903,12 +904,13 @@ $addErrorFilterChip = static function (string $key, string $label, array $remove
     $activeFilterChips[] = ['key' => $key, 'label' => $label, 'url' => 'errors.php' . ($query ? '?' . http_build_query($query) : '')];
 };
 if ($filters['date_mode'] === 'custom' && ($filters['date_from'] !== '' || $filters['date_to'] !== '')) {
-    $addErrorFilterChip('date_mode', 'Occurred: ' . ($filters['date_from'] ?: 'Any date') . ' to ' . ($filters['date_to'] ?: 'Today'), ['date_from', 'date_to']);
+    $addErrorFilterChip('date_mode', ($filters['date_basis']==='logged'?'Logged':'Occurred') . ': ' . ($filters['date_from'] ?: 'Any date') . ' to ' . ($filters['date_to'] ?: 'Today'), ['date_from', 'date_to']);
 } elseif ($filters['date_mode'] === 'month' && $filters['month'] !== $defaultErrorMonth) {
     $monthLabel = DateTimeImmutable::createFromFormat('!Y-m', $filters['month'], new DateTimeZone('Africa/Windhoek'));
     $addErrorFilterChip('month', $monthLabel ? $monthLabel->format('F Y') : $filters['month'], ['date_mode']);
 }
-if ($filters['sort'] !== 'occurred_newest') $addErrorFilterChip('sort', 'Sort: ' . str_replace('_', ' ', $filters['sort']));
+if ($filters['date_basis'] !== 'logged') $addErrorFilterChip('date_basis', 'Date field: Error Occurred');
+if ($filters['sort'] !== 'logged_newest') $addErrorFilterChip('sort', 'Sort: ' . str_replace('_', ' ', $filters['sort']));
 if ($filters['severity'] !== '') $addErrorFilterChip('severity', 'Severity: ' . ($severityLabels[$filters['severity']] ?? $filters['severity']));
 if ($filters['category'] !== '') $addErrorFilterChip('category', 'Category: ' . ($errorCategories[$filters['category']] ?? $filters['category']));
 if ((int) $filters['employee_id'] > 0) $addErrorFilterChip('employee_id', 'Person: ' . ($employeeMap[(int) $filters['employee_id']] ?? 'Employee'));
@@ -995,7 +997,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <label data-error-month-field <?= $filters['date_mode'] === 'custom' ? 'hidden' : '' ?>>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label data-error-custom-date <?= $filters['date_mode'] === 'month' ? 'hidden' : '' ?>>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label data-error-custom-date <?= $filters['date_mode'] === 'month' ? 'hidden' : '' ?>>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <div class="error-filter-date-basis"><span>Date field</span><strong>Date Error Occurred</strong><small>Africa/Windhoek boundaries</small></div>
+                <label>Date field<select name="date_basis" data-portal-custom-select><?php ops_select_options(['logged'=>'Date Logged','occurred'=>'Date Error Occurred'],$filters['date_basis']);?></select><small>Africa/Windhoek boundaries</small></label>
                 <label>Sort<select name="sort" data-portal-custom-select><?php ops_select_options(['occurred_newest'=>'Error Occurred — Newest','occurred_oldest'=>'Error Occurred — Oldest','logged_newest'=>'Date Logged — Newest','logged_oldest'=>'Date Logged — Oldest','financial_highest'=>'Financial Impact — Highest','financial_lowest'=>'Financial Impact — Lowest'],$filters['sort']);?></select></label>
                 <label>Severity<select name="severity" data-portal-custom-select><option value="">All severity</option><?php ops_select_options($severityLabels, $filters['severity']); ?></select></label>
                 <label>Category<select name="category" data-portal-custom-select><option value="">All categories</option><?php ops_select_options($errorCategories, $filters['category']); ?></select></label>
