@@ -26,6 +26,8 @@ assert.ok(shared.includes('accounting_period')&&shared.includes('namra_tax_year'
 assert.ok(shared.includes('COALESCE(l.accounting_period,l.import_month)=?'),'monthly Import VAT filter uses canonical accounting period');
 assert.ok(shared.includes('accounting-period normalization failed'),'existing NamRA liabilities are resynchronised to the corrected accounting month');
 assert.ok(shared.includes("unallocated_payment")&&shared.includes("min((float)$r['total_due'],$r['recorded_paid'])"),'displayed payment is capped at the liability and excess remains identified');
+assert.ok(shared.includes("DATE_FORMAT(p.payment_date,'%Y-%m')=?")&&!shared.includes("$view==='payments'?'DATE_FORMAT(l.due_date"),'payment tracker groups by actual payment date, not liability due date');
+assert.ok(page.includes('data-date-heading')&&js.includes("'Payment Date':'Import Date'")&&js.includes("'Payment recorded month'"),'payment view clearly labels the actual payment month and date');
 assert.ok(api.includes('$appliedPayment = min($statementPayment, $availableBalance)'),'new statement payments cannot overpay one liability');
 assert.ok(api.includes('reprocess_statement')&&api.includes('statement_reprocess_snapshot')&&api.includes('statement_reverted_for_reprocess'),'audit-safe statement reprocessing');
 assert.ok(api.includes("reversal_reason='Accounting-period mapping corrected — reimport required.'"),'generated payments are safely reversed on reprocess');
