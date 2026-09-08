@@ -3,9 +3,9 @@ declare(strict_types=1);
 
 /**
  * Convert a NamRA VAT Import Account tax year/period to its accounting month.
- * The owner's NamRA import-VAT tax cycle runs February through January. The
- * Tax Year is the calendar year in which that cycle ends, so 2027/P1 is
- * February 2026 and 2027/P12 is January 2027.
+ * The owner's NamRA tax cycle runs March through February. The Tax Year is the
+ * calendar year in which that cycle ends, so 2027/P1 is March 2026 and
+ * 2027/P12 is February 2027.
  */
 function import_vat_tax_period_month(string $taxYear, string $taxPeriod): ?string
 {
@@ -19,11 +19,11 @@ function import_vat_tax_period_month(string $taxYear, string $taxPeriod): ?strin
     if ($year < 2000 || $period < 1 || $period > 12) {
         return null;
     }
-    if ($period <= 11) {
-        $month = $period + 1;
+    if ($period <= 10) {
+        $month = $period + 2;
         $year--;
     } else {
-        $month = 1;
+        $month = $period - 10;
     }
     return sprintf('%04d-%02d', $year, $month);
 }
