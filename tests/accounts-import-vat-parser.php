@@ -43,11 +43,11 @@ if ($rows[2]['doc_number'] !== 'BR62KESVT_MVATT-03112025-') {
     throw new RuntimeException('Spaced NamRA payment document number was not normalised.');
 }
 $periodCases = [
-    ['2027', '1', '2026-03'],
-    ['2027', '5', '2026-07'],
-    ['2027', '10', '2026-12'],
-    ['2027', '11', '2027-01'],
-    ['2027', '12', '2027-02'],
+    ['2027', '1', '2026-02'],
+    ['2027', '5', '2026-06'],
+    ['2027', '10', '2026-11'],
+    ['2027', '11', '2026-12'],
+    ['2027', '12', '2027-01'],
 ];
 foreach ($periodCases as [$taxYear, $taxPeriod, $expectedMonth]) {
     if (import_vat_tax_period_month($taxYear, $taxPeriod) !== $expectedMonth) {

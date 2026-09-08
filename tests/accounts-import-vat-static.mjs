@@ -21,9 +21,12 @@ assert.ok(shared.includes("included_in_payable")&&shared.includes("pending_waive
 assert.ok(api.includes("'NAMRA-'")&&api.includes('unique 201 + 204 rows')&&api.includes('Exact Tax Year + Tax Period'),'period principal and payment matching');
 assert.ok(parser.includes('Smalot\\PdfParser\\Parser')&&parser.includes('pdftotext -layout'),'production PDF extractor with fallback');
 assert.ok(parser.includes('import_vat_tax_period_month')&&api.includes("$period['month']"),'NamRA tax period drives accounting month');
-assert.ok(parser.includes('$period + 2')&&parser.includes('$period - 10'),'March-to-February NamRA tax cycle mapping');
+assert.ok(parser.includes('$period + 1')&&parser.includes('$period <= 11'),'February-to-January NamRA tax cycle mapping');
 assert.ok(shared.includes('accounting_period')&&shared.includes('namra_tax_year')&&shared.includes('namra_tax_period'),'canonical accounting period and NamRA source fields persist separately');
 assert.ok(shared.includes('COALESCE(l.accounting_period,l.import_month)=?'),'monthly Import VAT filter uses canonical accounting period');
+assert.ok(shared.includes('accounting-period normalization failed'),'existing NamRA liabilities are resynchronised to the corrected accounting month');
+assert.ok(shared.includes("unallocated_payment")&&shared.includes("min((float)$r['total_due'],$r['recorded_paid'])"),'displayed payment is capped at the liability and excess remains identified');
+assert.ok(api.includes('$appliedPayment = min($statementPayment, $availableBalance)'),'new statement payments cannot overpay one liability');
 assert.ok(api.includes('reprocess_statement')&&api.includes('statement_reprocess_snapshot')&&api.includes('statement_reverted_for_reprocess'),'audit-safe statement reprocessing');
 assert.ok(api.includes("reversal_reason='Accounting-period mapping corrected — reimport required.'"),'generated payments are safely reversed on reprocess');
 assert.ok(js.includes('Accounting period:')&&page.includes('Tax Year / Period / Accounting Period'),'review UI exposes authoritative and source period fields');

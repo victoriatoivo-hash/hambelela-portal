@@ -330,10 +330,21 @@ function im2_confirm_statement(int $statementId): array
                     $duplicatesSkipped++;
                     continue;
                 }
+                $balanceQuery = db()->prepare('SELECT GREATEST(0,l.total_due-COALESCE(SUM(CASE WHEN p.reversed_at IS NULL THEN p.amount ELSE 0 END),0)) FROM accounts_import_vat_liabilities l LEFT JOIN accounts_import_vat_payments p ON p.import_id=l.id WHERE l.id=? GROUP BY l.id');
+                $balanceQuery->execute([$importId]);
+                $availableBalance = round((float)$balanceQuery->fetchColumn(), 2);
+                $statementPayment = abs((float)$payment['transaction_amount']);
+                $appliedPayment = min($statementPayment, $availableBalance);
+                if ($appliedPayment <= 0) {
+                    db()->prepare("UPDATE accounts_import_vat_statement_rows SET matched_import_id=?,match_status='needs_review',match_method='No outstanding balance available; payment retained for review' WHERE id=?")->execute([$importId, (int)$payment['id']]);
+                    continue;
+                }
                 db()->prepare('INSERT INTO accounts_import_vat_payments(import_id,payment_date,amount,reference,payment_method,notes,created_by,created_by_name,source_statement_id,source_statement_row_id) VALUES(?,?,?,?,?,?,?,?,?,?)')->execute([
-                    $importId, $payment['transaction_date'], abs((float)$payment['transaction_amount']),
+                    $importId, $payment['transaction_date'], $appliedPayment,
                     $payment['doc_number'] ?: $payment['reference'], 'NamRA VIA payment',
-                    'Matched by exact NamRA Tax Year + Tax Period; amount was not used as the sole key.',
+                    $statementPayment > $appliedPayment
+                        ? 'Matched by exact NamRA Tax Year + Tax Period; only the outstanding liability was applied and the excess remains in source evidence for review.'
+                        : 'Matched by exact NamRA Tax Year + Tax Period; amount was not used as the sole key.',
                     (int)$user['id'], (string)$user['name'], $statementId, (int)$payment['id'],
                 ]);
                 db()->prepare("UPDATE accounts_import_vat_statement_rows SET matched_import_id=?,match_status='matched',match_method='Exact Tax Year + Tax Period' WHERE id=?")->execute([$importId, (int)$payment['id']]);
