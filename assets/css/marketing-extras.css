@@ -9,4 +9,12 @@
 .marketing-file-icon svg{width:17px}
 .marketing-agenda time{width:82px;color:var(--mk-wine);font-weight:700}
 .marketing-agenda time small{font-weight:400}
-@media(max-width:640px){.marketing-library article,.marketing-agenda article{align-items:flex-start;flex-wrap:wrap}.marketing-library article .portal-button{width:100%}.marketing-agenda time{width:70px}}
+.marketing-product-summary{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;margin-bottom:16px}
+.marketing-product-summary article{padding:14px;border:1px solid var(--mk-border);border-top:3px solid var(--mk-olive);border-radius:12px;background:#fff}
+.marketing-product-summary span,.marketing-product-summary strong{display:block}.marketing-product-summary span{color:var(--mk-muted);font-size:10px;text-transform:uppercase}.marketing-product-summary strong{margin-top:4px;color:var(--mk-wine);font-size:22px}
+.marketing-products,.marketing-change-queue{margin-bottom:16px}.marketing-products header small{display:block;margin-top:4px;color:var(--mk-muted);font-size:10px;font-weight:400}
+.marketing-health{display:inline-flex;padding:4px 7px;border-radius:999px;font-size:10px}.marketing-health.good{background:#eef6cf;color:#496000}.marketing-health.missing{background:#fff0e6;color:#a43618}
+.marketing-inline-actions{display:flex;align-items:center;gap:8px}.marketing-link.danger{color:#8c2220}
+.marketing-safe-note{display:flex;align-items:center;gap:8px;margin:12px 16px;padding:10px;border-left:3px solid var(--mk-olive);background:#f7fbea;color:#5a492f;font-size:11px}.marketing-safe-note svg{width:16px}
+@media(max-width:900px){.marketing-product-summary{grid-template-columns:repeat(3,1fr)}}
+@media(max-width:640px){.marketing-library article,.marketing-agenda article{align-items:flex-start;flex-wrap:wrap}.marketing-library article .portal-button{width:100%}.marketing-agenda time{width:70px}.marketing-product-summary{grid-template-columns:1fr 1fr}}

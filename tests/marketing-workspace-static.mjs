@@ -5,6 +5,7 @@ assert.ok(shared.includes("marketing_sales")&&features.includes("'marketing_sale
 for(const section of ['Dashboard','Content Tasks','Calendar','Social Media','Reels & Video','WhatsApp','Blog & SEO','Newsletter','Website & Products','Campaigns & Ads','Content Library','Ideas','Performance'])assert.ok(page.includes(section),section);
 for(const status of ['brief','to_create','in_progress','ready_for_review','changes_requested','approved','scheduled','published','cancelled'])assert.ok(shared.includes(status),status);
 assert.ok(shared.includes('notifications_create')&&page.includes('Published URL')&&page.includes('Owner approval required'));
+assert.ok(page.includes('Only work ready for review can be approved.')&&page.includes('Add the published link as proof.'));
 assert.ok(sidebar.includes("'marketing'")&&sidebar.includes('/apps/marketing/index.php'));
 assert.ok(css.includes('@media(max-width:640px)')&&css.includes('--mk-rust:#ab3619'));
 console.log('Marketing workspace static contracts passed.');
