@@ -6,6 +6,7 @@ for(const section of ['Dashboard','Content Tasks','Calendar','Social Media','Ree
 for(const status of ['brief','to_create','in_progress','ready_for_review','changes_requested','approved','scheduled','published','cancelled'])assert.ok(shared.includes(status),status);
 assert.ok(shared.includes('notifications_create')&&page.includes('Published URL')&&page.includes('Owner approval required'));
 assert.ok(page.includes('Only work ready for review can be approved.')&&page.includes('Add the published link as proof.'));
+for(const metric of ['Work completed','Published with proof','Proactive ideas approved','Website tasks completed','Blogs / newsletters published'])assert.ok(page.includes(metric),metric);
 assert.ok(sidebar.includes("'marketing'")&&sidebar.includes('/apps/marketing/index.php'));
 assert.ok(css.includes('@media(max-width:640px)')&&css.includes('--mk-rust:#ab3619'));
 console.log('Marketing workspace static contracts passed.');
