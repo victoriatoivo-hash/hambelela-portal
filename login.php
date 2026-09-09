@@ -369,7 +369,7 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
             <div class="login-field">
                 <label for="code">Access code</label>
                 <div class="login-code-wrap">
-                    <input id="code" name="code" type="password" inputmode="numeric" pattern="[0-9]{4}" maxlength="4" autocomplete="current-password" required>
+                    <input id="code" name="code" type="password" inputmode="numeric" pattern="(?:[0-9]{4}|[0-9]{6,10})" minlength="4" maxlength="10" autocomplete="current-password" required>
                     <button type="button" class="login-code-toggle" aria-label="Show access code" aria-pressed="false">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
                     </button>
