@@ -81,6 +81,10 @@ if ($roleKey === 'owner_admin') {
 if (portal_role_can_access_feature($roleKey, 'system_issues')) {
     $apps[] = ['name' => 'System Issues Log', 'desc' => 'Report and track portal problems', 'icon' => 'bug', 'href' => BASE_URL . '/apps/operations/system-issues.php', 'active' => true, 'tone' => 'violet', 'badge' => (int) ($dashboardSystemIssues['count'] ?? 0), 'needs_information' => (int) ($dashboardSystemIssues['needs_information'] ?? 0)];
 }
+if ($roleKey !== 'owner_admin') {
+    $dashboardFeatures = ['Packing List'=>'packing_list','Courier Waybills'=>'courier','HR Portal'=>'hr','Orders'=>'orders','Tasks'=>'task_management','Bookkeeping'=>'bookkeeping','Notifications'=>'notifications','Input VAT'=>'input_vat','Error Log'=>'error_log','Marketing'=>'marketing','System Issues Log'=>'system_issues'];
+    $apps = array_values(array_filter($apps, static fn(array $app): bool => !isset($dashboardFeatures[$app['name']]) || portal_role_can_access_feature($roleKey, $dashboardFeatures[$app['name']])));
+}
 
 include __DIR__ . '/shared/header.php';
 include __DIR__ . '/shared/sidebar.php';

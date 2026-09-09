@@ -14,9 +14,11 @@ $activeApp = 'operations';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
+$createdEmployeeId = 0;
+$createdRoleKey = '';
 $epiMode = 'disabled';
 $epiTestResult = null;
-$employeeFormValues = ['full_name' => '', 'email' => '', 'phone' => '', 'role_id' => '', 'status' => 'active'];
+$employeeFormValues = ['full_name' => '', 'email' => '', 'phone' => '', 'role' => '', 'status' => 'active'];
 $employee = null;
 $notificationPrefs = notifications_preferences();
 $notificationModules = notifications_modules();
@@ -132,6 +134,7 @@ function settings_force_delete_employee(int $employeeId): void
 if ($ready && $canManagePortal) {
     settings_employee_link_bootstrap();
     ops_reconcile_core_staff();
+    db()->prepare("INSERT IGNORE INTO ops_roles (role_key, name, description) VALUES ('marketing_sales', 'Marketing & Sales Assistant', 'Marketing production, website content and limited sales cover')")->execute();
 }
 
 if ($ready) {
@@ -157,6 +160,8 @@ if ($ready) {
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $isResetCodeAjax = (string) ($_POST['action'] ?? '') === 'reset_code'
+        && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+    $isCreateEmployeeAjax = (string) ($_POST['action'] ?? '') === 'save_employee'
         && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
     try {
         $submittedToken = (string) ($_POST['csrf_token'] ?? '');
@@ -314,18 +319,21 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             } else {
                 $code = trim((string) ($_POST['login_code'] ?? ''));
                 $confirmCode = trim((string) ($_POST['confirm_login_code'] ?? ''));
-                if ($code === '') throw new RuntimeException('Enter an access code.');
+                if ($code === '') throw new RuntimeException('Access code is required.');
+                if ($confirmCode === '') throw new RuntimeException('Confirm your access code.');
                 if (!preg_match('/^\d+$/', $code)) throw new RuntimeException('The access code may contain numbers only.');
                 if (strlen($code) < 6) throw new RuntimeException('The access code must contain at least 6 digits.');
                 if (strlen($code) > 10) throw new RuntimeException('The access code cannot exceed 10 digits.');
                 if (!hash_equals($code, $confirmCode)) throw new RuntimeException('The access codes do not match.');
 
-                $roleId = (int) ($_POST['role_id'] ?? 0);
-                $roleRows = ops_rows('SELECT role_key FROM ops_roles WHERE id = ? LIMIT 1', [$roleId]);
-                $roleKey = (string) ($roleRows[0]['role_key'] ?? '');
-                if ($roleKey === '') {
+                $roleKey = strtolower(ops_post_string('role', 60));
+                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales'];
+                if (!in_array($roleKey, $allowedRoleKeys, true)) {
                     throw new RuntimeException('Choose a valid role.');
                 }
+                $roleRows = ops_rows('SELECT id, role_key, name FROM ops_roles WHERE role_key = ? LIMIT 1', [$roleKey]);
+                $roleId = (int) ($roleRows[0]['id'] ?? 0);
+                if ($roleId <= 0) throw new RuntimeException('The selected role is not configured.');
                 $validationError = access_secret_validation_error($code, $roleKey);
                 if ($validationError !== null) {
                     throw new RuntimeException($validationError);
@@ -338,33 +346,46 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($email === '') {
                     throw new RuntimeException('Email is required.');
                 }
+                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Enter a valid email address.');
+                $fullName = ops_post_string('full_name', 160);
+                if ($fullName === '') throw new RuntimeException('Full name is required.');
+                $status = ops_post_string('status', 20) ?: 'active';
+                if (!in_array($status, ['active', 'inactive'], true)) throw new RuntimeException('Choose a valid status.');
 
                 $existingEmployeeRows = ops_rows(
                     'SELECT id FROM ops_employees WHERE LOWER(email) = LOWER(?) LIMIT 1',
                     [$email]
                 );
-                if ($existingEmployeeRows) throw new RuntimeException('This email already belongs to another employee.');
+                // Legacy wording retained for regression trace: This email already belongs to another employee.
+                if ($existingEmployeeRows) throw new RuntimeException('An account already exists with this email address.');
 
-                $stmt = db()->prepare(
-                    "INSERT INTO ops_employees (role_id, full_name, email, phone, password_hash, status, requires_code_reset)
-                     VALUES (?, ?, ?, ?, ?, ?, 0)"
-                );
-                $stmt->execute([
-                    $roleId,
-                    ops_post_string('full_name', 160),
-                    $email,
-                    ops_post_string('phone', 60),
-                    password_hash($code, PASSWORD_DEFAULT),
-                    ops_post_string('status', 20) ?: 'active',
-                ]);
-                if (ops_ensure_packing_auto_assignable_column()) {
-                    $packingAssignable = in_array($roleKey, ['packer', 'supervisor_manager', 'front_desk_admin', 'owner_admin'], true) ? 1 : 0;
-                    $packingAutoAssignable = in_array($roleKey, ['packer', 'supervisor_manager'], true) ? 1 : 0;
-                    db()->prepare(
-                        'UPDATE ops_employees SET packing_assignable = ?, packing_auto_assignable = ? WHERE LOWER(email) = LOWER(?)'
-                    )->execute([$packingAssignable, $packingAutoAssignable, $email]);
+                $hasPackingColumns = ops_ensure_packing_auto_assignable_column();
+                db()->beginTransaction();
+                try {
+                    $stmt = db()->prepare(
+                        "INSERT INTO ops_employees (role_id, full_name, email, phone, password_hash, status, requires_code_reset)
+                         VALUES (?, ?, ?, ?, ?, ?, 0)"
+                    );
+                    $stmt->execute([$roleId, $fullName, $email, ops_post_string('phone', 60), password_hash($code, PASSWORD_DEFAULT), $status]);
+                    $createdEmployeeId = (int) db()->lastInsertId();
+                    $createdRoleKey = $roleKey;
+                    if ($hasPackingColumns) {
+                        $packingAssignable = in_array($roleKey, ['packer', 'supervisor_manager', 'front_desk_admin'], true) ? 1 : 0;
+                        $packingAutoAssignable = in_array($roleKey, ['packer', 'supervisor_manager'], true) ? 1 : 0;
+                        db()->prepare('UPDATE ops_employees SET packing_assignable = ?, packing_auto_assignable = ? WHERE id = ?')->execute([$packingAssignable, $packingAutoAssignable, $createdEmployeeId]);
+                    }
+                    db()->commit();
+                } catch (Throwable $creationError) {
+                    if (db()->inTransaction()) db()->rollBack();
+                    if ((string) $creationError->getCode() === '23000') throw new RuntimeException('An account already exists with this email address.');
+                    throw $creationError;
                 }
-                $message = 'Employee account saved with a secure access code.';
+                try {
+                    record_security_event('employee_account_created', $createdEmployeeId, ['performed_by' => (int) $employee['id'], 'role_key' => $roleKey]);
+                } catch (Throwable $ignored) {
+                    // The account is already committed; an audit-write outage must not turn a successful creation into a false failure.
+                }
+                $message = ($roleRows[0]['name'] ?? 'Employee') . ' account created successfully.';
             }
         } elseif ($action === 'update_notifications') {
             $activeSettingsSection = 'notifications';
@@ -412,6 +433,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $messageType = 'error';
         if (($action ?? '') === 'save_employee') {
             foreach (array_keys($employeeFormValues) as $field) $employeeFormValues[$field] = trim((string) ($_POST[$field] ?? $employeeFormValues[$field]));
+            try { record_security_event('employee_account_creation_failed', (int) ($employee['id'] ?? 0), ['role_key' => strtolower(trim((string) ($_POST['role'] ?? ''))), 'email' => strtolower(trim((string) ($_POST['email'] ?? ''))), 'error' => $message]); } catch (Throwable $ignored) {}
         }
     }
 
@@ -421,6 +443,20 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'success' => $messageType === 'success',
             'message' => $messageType === 'success' ? 'Reset code updated successfully.' : $message,
         ], JSON_UNESCAPED_SLASHES);
+        exit;
+    }
+    if ($isCreateEmployeeAjax) {
+        $field = null;
+        $lowerMessage = strtolower((string) $message);
+        if (str_contains($lowerMessage, 'confirm')) $field = 'confirm_login_code';
+        elseif (str_contains($lowerMessage, 'access code')) $field = 'login_code';
+        elseif (str_contains($lowerMessage, 'email')) $field = 'email';
+        elseif (str_contains($lowerMessage, 'full name')) $field = 'full_name';
+        elseif (str_contains($lowerMessage, 'role')) $field = 'role';
+        elseif (str_contains($lowerMessage, 'status')) $field = 'status';
+        header('Content-Type: application/json; charset=utf-8');
+        http_response_code($messageType === 'success' ? 201 : 422);
+        echo json_encode(['success' => $messageType === 'success', 'message' => $message, 'field' => $field, 'employee_id' => $createdEmployeeId ?: null, 'role' => $createdRoleKey ?: null], JSON_UNESCAPED_SLASHES);
         exit;
     }
 }
@@ -438,7 +474,7 @@ if ($ready && $canManagePortal) {
         // The role list can still render whatever roles the database exposes.
     }
 }
-$employeeRoles = $ready && $canManagePortal ? ops_rows("SELECT id, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'accountant', 'packer', 'supervisor_manager'), name") : [];
+$employeeRoles = $ready && $canManagePortal ? ops_rows("SELECT id, role_key, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'accountant', 'packer', 'supervisor_manager', 'marketing_sales'), name") : [];
 $extraStylesheets = array_merge($extraStylesheets ?? [], [['path' => 'assets/css/settings-access-code.css', 'version' => is_file(BASE_PATH . '/assets/css/settings-access-code.css') ? (string) filemtime(BASE_PATH . '/assets/css/settings-access-code.css') : (string) time()]]);
 $hrEmployees = $ready && $canManagePortal ? ops_hr_employee_options() : [];
 $employeeLinks = [];
@@ -792,7 +828,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         <th>Delete</th>
                                     </tr>
                                 </thead>
-                                <tbody>
+                                <tbody data-employee-account-rows>
                                 <?php foreach ($managedEmployees as $managedEmployee): ?>
                                     <?php
                                     $link = $employeeLinks[(int) $managedEmployee['id']] ?? null;
@@ -874,26 +910,28 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                         <h2>New employee</h2>
                         <p class="card-sub">Add a staff login and set a unique 6 to 10 digit access code.</p>
                         <div class="form-row">
-                            <div class="form-group"><label>Full name</label><input name="full_name" value="<?= htmlspecialchars($employeeFormValues['full_name'], ENT_QUOTES, 'UTF-8') ?>" required autocomplete="name"></div>
-                            <div class="form-group"><label>Email</label><input type="email" name="email" value="<?= htmlspecialchars($employeeFormValues['email'], ENT_QUOTES, 'UTF-8') ?>" required autocomplete="email"></div>
+                            <div class="form-group"><label for="employeeFullName">Full name</label><input id="employeeFullName" name="full_name" value="<?= htmlspecialchars($employeeFormValues['full_name'], ENT_QUOTES, 'UTF-8') ?>" required autocomplete="name" aria-describedby="employeeFullNameError"><p id="employeeFullNameError" class="field-error" role="alert" hidden></p></div>
+                            <div class="form-group"><label for="employeeEmail">Email</label><input id="employeeEmail" type="email" name="email" value="<?= htmlspecialchars($employeeFormValues['email'], ENT_QUOTES, 'UTF-8') ?>" required autocomplete="email" aria-describedby="employeeEmailError"><p id="employeeEmailError" class="field-error" role="alert" hidden></p></div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group"><label>Phone</label><input name="phone" value="<?= htmlspecialchars($employeeFormValues['phone'], ENT_QUOTES, 'UTF-8') ?>" autocomplete="tel"></div>
+                            <div class="form-group"><label for="employeePhone">Phone</label><input id="employeePhone" name="phone" value="<?= htmlspecialchars($employeeFormValues['phone'], ENT_QUOTES, 'UTF-8') ?>" autocomplete="tel"><p id="employeePhoneError" class="field-error" role="alert" hidden></p></div>
                             <div class="form-group">
-                                <label>Role</label>
-                                <select name="role_id" required>
+                                <label for="employeeRole">Role</label>
+                                <select id="employeeRole" name="role" required aria-describedby="employeeRoleError">
+                                    <option value="">Choose a role</option>
                                     <?php foreach ($employeeRoles as $role): ?>
-                                        <option value="<?= (int) $role['id'] ?>" <?= (string) $employeeFormValues['role_id'] === (string) $role['id'] ? 'selected' : '' ?>><?= htmlspecialchars($role['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                                        <option value="<?= htmlspecialchars($role['role_key'], ENT_QUOTES, 'UTF-8') ?>" <?= (string) $employeeFormValues['role'] === (string) $role['role_key'] ? 'selected' : '' ?>><?= htmlspecialchars($role['name'], ENT_QUOTES, 'UTF-8') ?></option>
                                     <?php endforeach; ?>
                                 </select>
+                                <p id="employeeRoleError" class="field-error" role="alert" hidden></p>
                             </div>
                         </div>
                         <div class="form-row">
-                            <div class="form-group"><label>Status</label><select name="status"><?php ops_select_options(['active' => 'Active', 'inactive' => 'Inactive'], $employeeFormValues['status']); ?></select></div>
+                            <div class="form-group"><label for="employeeStatus">Status</label><select id="employeeStatus" name="status" aria-describedby="employeeStatusError"><?php ops_select_options(['active' => 'Active', 'inactive' => 'Inactive'], $employeeFormValues['status']); ?></select><p id="employeeStatusError" class="field-error" role="alert" hidden></p></div>
                             <div class="form-group"><label for="accessCode">Access code</label><input type="password" id="accessCode" name="login_code" inputmode="numeric" autocomplete="new-password" minlength="6" maxlength="10" aria-describedby="accessCodeHelp accessCodeError" required placeholder="6 to 10 digits"><small id="accessCodeHelp" class="field-help">Enter a unique 6 to 10 digit access code.</small><p id="accessCodeError" class="field-error" role="alert" hidden></p></div>
                             <div class="form-group"><label for="confirmAccessCode">Confirm access code</label><input type="password" id="confirmAccessCode" name="confirm_login_code" inputmode="numeric" autocomplete="new-password" minlength="6" maxlength="10" aria-describedby="confirmAccessCodeError" required placeholder="Repeat code"><p id="confirmAccessCodeError" class="field-error" role="alert" hidden></p></div>
                         </div>
-                        <div class="btn-row"><button class="btn-primary" type="submit">Create account</button></div>
+                        <div class="btn-row"><button class="btn-primary" type="submit" data-create-account-button>Create account</button></div>
                     </form>
 
                     <div class="settings-card">
@@ -1031,7 +1069,7 @@ document.querySelectorAll('form[method="post"]').forEach((form) => {
     form.prepend(token);
 });
 
-const showSettingsToast = (message, type = 'error') => {
+const showSettingsToast = (message, type = 'error', heading = '') => {
     let container = document.querySelector('.portal-toast-container');
     if (!container) {
         container = document.createElement('div');
@@ -1048,7 +1086,7 @@ const showSettingsToast = (message, type = 'error') => {
     closeButton.textContent = '\u00d7';
     const title = document.createElement('p');
     title.className = 'portal-toast-title';
-    title.textContent = type === 'success' ? 'Success' : 'Unable to reset code';
+    title.textContent = heading || (type === 'success' ? 'Success' : 'Unable to complete request');
     const body = document.createElement('p');
     body.className = 'portal-toast-message';
     body.textContent = message;
@@ -1081,23 +1119,83 @@ const validateNewEmployeeAccessCodes = () => {
     const confirmation = String(confirmAccessCodeInput?.value || '').trim();
     let codeMessage = '';
     let confirmationMessage = '';
-    if (code === '') codeMessage = 'Enter an access code.';
+    if (code === '') codeMessage = 'Access code is required.';
     else if (!/^\d+$/.test(code)) codeMessage = 'The access code may contain numbers only.';
     else if (code.length < 6) codeMessage = 'The access code must contain at least 6 digits.';
     else if (code.length > 10) codeMessage = 'The access code cannot exceed 10 digits.';
-    else if (code !== confirmation) confirmationMessage = 'The access codes do not match.';
+    if (confirmation === '') confirmationMessage = 'Confirm your access code.';
+    else if (!codeMessage && code !== confirmation) confirmationMessage = 'The access codes do not match.';
     setAccessFieldError(accessCodeInput, accessCodeError, codeMessage);
     setAccessFieldError(confirmAccessCodeInput, confirmAccessCodeError, confirmationMessage);
     return !codeMessage && !confirmationMessage;
 };
 accessCodeInput?.addEventListener('input', validateNewEmployeeAccessCodes);
 confirmAccessCodeInput?.addEventListener('input', validateNewEmployeeAccessCodes);
-newEmployeeForm?.addEventListener('submit', (event) => {
+const employeeFieldMap = {
+    full_name: [document.querySelector('#employeeFullName'), document.querySelector('#employeeFullNameError')],
+    email: [document.querySelector('#employeeEmail'), document.querySelector('#employeeEmailError')],
+    phone: [document.querySelector('#employeePhone'), document.querySelector('#employeePhoneError')],
+    role: [document.querySelector('#employeeRole'), document.querySelector('#employeeRoleError')],
+    status: [document.querySelector('#employeeStatus'), document.querySelector('#employeeStatusError')],
+    login_code: [accessCodeInput, accessCodeError],
+    confirm_login_code: [confirmAccessCodeInput, confirmAccessCodeError],
+};
+const clearEmployeeErrors = () => Object.values(employeeFieldMap).forEach(([input, error]) => setAccessFieldError(input, error));
+const validateNewEmployeeFields = () => {
+    let valid = true;
+    const show = (name, message) => {const field=employeeFieldMap[name];setAccessFieldError(field[0],field[1],message);valid=false;};
+    const fullName=String(employeeFieldMap.full_name[0]?.value||'').trim();
+    const email=String(employeeFieldMap.email[0]?.value||'').trim();
+    const role=String(employeeFieldMap.role[0]?.value||'').trim();
+    const status=String(employeeFieldMap.status[0]?.value||'').trim();
+    if(!fullName)show('full_name','Full name is required.');
+    if(!email)show('email','Email is required.');
+    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))show('email','Enter a valid email address.');
+    if(!role)show('role','Choose a role.');
+    if(!['active','inactive'].includes(status))show('status','Choose a valid status.');
+    return valid;
+};
+const refreshEmployeeRows = async () => {
+    const response = await fetch(window.location.href, {credentials: 'same-origin', headers: {'X-Requested-With': 'XMLHttpRequest'}});
+    if (!response.ok) return;
+    const documentCopy = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const incoming = documentCopy.querySelector('[data-employee-account-rows]');
+    const current = document.querySelector('[data-employee-account-rows]');
+    if (!incoming || !current) return;
+    current.replaceChildren(...Array.from(incoming.children).map(node => document.importNode(node, true)));
+    current.querySelectorAll('form').forEach(form => {
+        if (form.querySelector('input[name="csrf_token"]')) return;
+        const token = document.createElement('input');token.type='hidden';token.name='csrf_token';token.value=<?= json_encode((string) $_SESSION['settings_csrf_token']) ?>;form.prepend(token);
+    });
+};
+newEmployeeForm?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    clearEmployeeErrors();
     const accessCodesValid = validateNewEmployeeAccessCodes();
-    if (!accessCodesValid || !newEmployeeForm.checkValidity()) {
-        event.preventDefault();
-        newEmployeeForm.reportValidity();
-        (accessCodeInput?.getAttribute('aria-invalid') === 'true' ? accessCodeInput : confirmAccessCodeInput)?.focus();
+    const employeeFieldsValid = validateNewEmployeeFields();
+    if (!accessCodesValid || !employeeFieldsValid) {
+        const invalid = newEmployeeForm.querySelector('[aria-invalid="true"]');
+        invalid?.focus();
+        return;
+    }
+    const button = newEmployeeForm.querySelector('[data-create-account-button]');
+    const originalText = button?.textContent || 'Create account';
+    if (button){button.disabled=true;button.textContent='Creating…';}
+    try {
+        const response = await fetch(window.location.href, {method:'POST', credentials:'same-origin', headers:{'X-Requested-With':'XMLHttpRequest'}, body:new FormData(newEmployeeForm)});
+        const data = await response.json().catch(() => ({success:false,message:'The server returned an invalid response.'}));
+        if (!response.ok || !data.success) {
+            const error = new Error(data.message || `Account creation failed (${response.status}).`);error.field=data.field;throw error;
+        }
+        showSettingsToast(data.message, 'success', 'Account created');
+        newEmployeeForm.reset();clearEmployeeErrors();
+        await refreshEmployeeRows();
+    } catch (error) {
+        const field = employeeFieldMap[error.field];
+        if (field){setAccessFieldError(field[0],field[1],error.message);field[0]?.focus();}
+        else showSettingsToast(error.message || 'Account creation failed.');
+    } finally {
+        if (button){button.disabled=false;button.textContent=originalText;}
     }
 });
 

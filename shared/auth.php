@@ -94,6 +94,9 @@ function portal_post_login_destination(array $user, $candidate = null): string
     if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'accountant') {
         return BASE_URL . '/apps/accounts/index.php';
     }
+    if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'marketing_sales') {
+        return BASE_URL . '/apps/marketing/index.php';
+    }
     return portal_safe_return_path($candidate);
 }
 

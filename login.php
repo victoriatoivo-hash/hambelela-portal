@@ -312,7 +312,7 @@ if ($opsLoginReady) {
              FROM ops_employees e
              JOIN ops_roles r ON r.id = e.role_id
              WHERE e.status = 'active'
-             ORDER BY FIELD(r.role_key, 'owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer'), e.full_name"
+             ORDER BY FIELD(r.role_key, 'owner_admin', 'front_desk_admin', 'supervisor_manager', 'packer', 'marketing_sales'), e.full_name"
         )->fetchAll();
     } catch (Throwable $e) {
         $loginEmployees = [];

@@ -32,7 +32,7 @@ function portal_feature_permissions(): array
             'dashboard', 'accounts', 'input_vat', 'output_vat', 'import_vat',
             'paye', 'vat_reconciliation', 'accounting_amendments', 'notifications',
         ],
-        'marketing_sales' => ['dashboard','marketing','orders','task_management','bookkeeping','cash_tools','notifications','hr','system_issues'],
+        'marketing_sales' => ['dashboard','marketing','orders','task_management','bookkeeping','cash_tools','notifications','system_issues'],
     ];
 }
 
@@ -87,7 +87,7 @@ function portal_role_can_access_feature(string $roleKey, string $featureKey): bo
         'dashboard', 'packing_list', 'courier', 'hr', 'orders', 'task_management',
         'bookkeeping', 'cash_tools', 'notifications', 'system_issues',
     ];
-    if ($roleKey !== 'guest' && $roleKey !== 'owner_admin' && $roleKey !== 'accountant' && in_array($featureKey, $employeeModules, true)) {
+    if (!isset($permissions[$roleKey]) && $roleKey !== 'guest' && $roleKey !== 'owner_admin' && $roleKey !== 'accountant' && in_array($featureKey, $employeeModules, true)) {
         return true;
     }
 
