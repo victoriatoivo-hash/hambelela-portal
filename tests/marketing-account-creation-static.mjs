@@ -14,6 +14,8 @@ assert.match(settings,/db\(\)->rollBack\(\)/);
 assert.match(settings,/password_hash\(\$code, PASSWORD_DEFAULT\)/);
 assert.match(settings,/Creating…/);
 assert.match(settings,/http_response_code\(\$messageType === 'success' \? 201 : 422\)/);
+assert.match(settings,/name="response_format" value="json"/);
+assert.match(settings,/\$_POST\['response_format'\].+json/);
 assert.match(settings,/employee_account_creation_failed/);
 assert.doesNotMatch(settings,/employee_account_creation_failed[^\n]+login_code/);
 assert.match(auth,/marketing_sales[\s\S]+apps\/marketing\/index\.php/);

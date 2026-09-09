@@ -162,7 +162,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $isResetCodeAjax = (string) ($_POST['action'] ?? '') === 'reset_code'
         && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
     $isCreateEmployeeAjax = (string) ($_POST['action'] ?? '') === 'save_employee'
-        && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+        && (
+            strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest'
+            || (string) ($_POST['response_format'] ?? '') === 'json'
+        );
     try {
         $submittedToken = (string) ($_POST['csrf_token'] ?? '');
         $sessionToken = (string) ($_SESSION['settings_csrf_token'] ?? '');
@@ -907,6 +910,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
 
                     <form class="settings-card" method="post" id="newEmployeeForm" novalidate>
                         <input type="hidden" name="action" value="save_employee">
+                        <input type="hidden" name="response_format" value="json">
                         <h2>New employee</h2>
                         <p class="card-sub">Add a staff login and set a unique 6 to 10 digit access code.</p>
                         <div class="form-row">
