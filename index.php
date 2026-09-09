@@ -50,6 +50,7 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Packing List', 'desc' => 'consignment breakdowns, fair packer assignments and actual quantities', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php', 'active' => true, 'tone' => 'blue'],
         ['name' => 'Courier', 'desc' => 'upload waybills, alert front desk and track customer sends', 'icon' => 'truck', 'href' => BASE_URL . '/apps/operations/courier.php', 'active' => true, 'tone' => 'green'],
         ['name' => 'Accounts', 'desc' => 'accounting, VAT and financial administration', 'icon' => 'landmark', 'href' => BASE_URL . '/apps/accounts/index.php', 'active' => true, 'tone' => 'pink'],
+        ['name' => 'Marketing', 'desc' => 'content, approvals, campaigns, website work and publishing performance', 'icon' => 'megaphone', 'href' => BASE_URL . '/apps/marketing/index.php', 'active' => true, 'tone' => 'green'],
     ];
 } else {
     $dashboardPackingHref = BASE_URL . '/apps/operations/consignments.php?unread=1';
@@ -67,6 +68,9 @@ if ($roleKey === 'owner_admin') {
         ['name' => 'Bookkeeping', 'desc' => 'cash and bookkeeping workflows', 'icon' => 'book-open', 'href' => BASE_URL . '/apps/operations/bookkeeping.php', 'active' => true, 'tone' => 'green'],
         ['name' => 'Notifications', 'desc' => 'your account alerts and updates', 'icon' => 'bell', 'href' => BASE_URL . '/notifications.php', 'active' => true, 'tone' => 'green'],
     ];
+    if (portal_user_can_access_feature('marketing')) {
+        array_unshift($apps, ['name' => 'Marketing', 'desc' => 'content tasks, calendar, approvals and publishing', 'icon' => 'megaphone', 'href' => BASE_URL . '/apps/marketing/index.php', 'active' => true, 'tone' => 'green']);
+    }
     if (portal_user_can_access_feature('input_vat')) {
         $apps[] = ['name' => 'Input VAT', 'desc' => 'Capture local purchase invoices and Input VAT records.', 'action' => 'Open Input VAT', 'icon' => 'receipt-text', 'href' => BASE_URL . '/apps/accounts/input-vat.php', 'active' => true, 'tone' => 'green'];
     }

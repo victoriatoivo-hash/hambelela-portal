@@ -21,7 +21,7 @@ function portal_feature_permissions(): array
             'dashboard', 'orders', 'bookkeeping', 'cash_tools', 'packing_list',
             'inventory', 'pos_reports', 'kpi_dashboard', 'task_management',
             'error_log', 'settings', 'notifications', 'courier', 'hr',
-            'operations', 'barcode', 'system_issues', 'accounts', 'input_vat',
+            'operations', 'barcode', 'system_issues', 'accounts', 'input_vat', 'marketing',
         ],
         'front_desk_admin' => [...$employeeModules, 'error_log', 'input_vat'],
         'front_desk_admin_employee' => [...$employeeModules, 'error_log', 'input_vat'],
@@ -32,6 +32,7 @@ function portal_feature_permissions(): array
             'dashboard', 'accounts', 'input_vat', 'output_vat', 'import_vat',
             'paye', 'vat_reconciliation', 'accounting_amendments', 'notifications',
         ],
+        'marketing_sales' => ['dashboard','marketing','orders','task_management','bookkeeping','cash_tools','notifications','hr','system_issues'],
     ];
 }
 
@@ -144,6 +145,8 @@ function employee_feature_for_request(string $scriptName): ?array
         '/apps/operations/my-account.php' => ['settings', 'Settings'],
         '/apps/operations/index.php' => ['operations', 'Operations'],
         '/apps/operations/barcode.php' => ['barcode', 'Barcode Verification'],
+        '/apps/marketing/index.php' => ['marketing', 'Marketing'],
+        '/apps/marketing/file.php' => ['marketing', 'Marketing'],
         '/apps/hr-portal/portal-login.php' => ['hr', 'HR Portal'],
         '/apps/hr-portal/index.php' => ['hr', 'HR Portal'],
     ];

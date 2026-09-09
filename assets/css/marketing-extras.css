@@ -1,0 +1,12 @@
+.marketing-library,.marketing-agenda{padding:10px}
+.marketing-library article,.marketing-agenda article{display:flex;align-items:center;gap:12px;padding:11px;border-bottom:1px solid var(--mk-border)}
+.marketing-library article:last-child,.marketing-agenda article:last-child{border-bottom:0}
+.marketing-library article>div:nth-child(2),.marketing-agenda article>div{min-width:0;flex:1}
+.marketing-library strong,.marketing-library small,.marketing-library span,.marketing-agenda strong,.marketing-agenda span,.marketing-agenda time small{display:block}
+.marketing-library strong,.marketing-agenda strong{color:var(--mk-wine);font-size:12px}
+.marketing-library small,.marketing-library span,.marketing-agenda span,.marketing-agenda time{margin-top:3px;color:var(--mk-muted);font-size:10px}
+.marketing-file-icon{display:grid;place-items:center;width:38px;height:38px;border-radius:9px;background:var(--mk-cream);color:var(--mk-rust)}
+.marketing-file-icon svg{width:17px}
+.marketing-agenda time{width:82px;color:var(--mk-wine);font-weight:700}
+.marketing-agenda time small{font-weight:400}
+@media(max-width:640px){.marketing-library article,.marketing-agenda article{align-items:flex-start;flex-wrap:wrap}.marketing-library article .portal-button{width:100%}.marketing-agenda time{width:70px}}

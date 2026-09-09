@@ -1,0 +1,10 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const shared=fs.readFileSync('shared/marketing.php','utf8'),page=fs.readFileSync('apps/marketing/index.php','utf8'),features=fs.readFileSync('shared/employee-features.php','utf8'),sidebar=fs.readFileSync('shared/sidebar.php','utf8'),css=fs.readFileSync('assets/css/marketing.css','utf8');
+for(const table of ['marketing_work_items','marketing_item_versions','marketing_item_history'])assert.ok(shared.includes(table));
+assert.ok(shared.includes("marketing_sales")&&features.includes("'marketing_sales'"));
+for(const section of ['Dashboard','Content Tasks','Calendar','Social Media','Reels & Video','WhatsApp','Blog & SEO','Newsletter','Website & Products','Campaigns & Ads','Content Library','Ideas','Performance'])assert.ok(page.includes(section),section);
+for(const status of ['brief','to_create','in_progress','ready_for_review','changes_requested','approved','scheduled','published','cancelled'])assert.ok(shared.includes(status),status);
+assert.ok(shared.includes('notifications_create')&&page.includes('Published URL')&&page.includes('Owner approval required'));
+assert.ok(sidebar.includes("'marketing'")&&sidebar.includes('/apps/marketing/index.php'));
+assert.ok(css.includes('@media(max-width:640px)')&&css.includes('--mk-rust:#ab3619'));
+console.log('Marketing workspace static contracts passed.');
