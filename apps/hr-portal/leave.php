@@ -9,6 +9,7 @@ $db   = db();
 ensureLeaveShutdownSchema($db);
 $leaveCsrfToken = $_SESSION['leave_csrf_token'] ?? bin2hex(random_bytes(32));
 $_SESSION['leave_csrf_token'] = $leaveCsrfToken;
+hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : null);
 
 // ── Actions ──────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -177,7 +178,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $empContact = null;
         try {
             $db->beginTransaction();
-            $reqStmt = $db->prepare("SELECT * FROM leave_requests WHERE id=? FOR UPDATE");
+            $reqStmt = $db->prepare("SELECT lr.*,e.employment_type FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id WHERE lr.id=? FOR UPDATE");
             $reqStmt->execute([$id]);
             $req = $reqStmt->fetch();
             if (!$req) {
@@ -188,6 +189,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($req['status'] !== 'pending') {
                 $db->rollBack();
                 header('Location: leave.php?msg=already_reviewed');
+                exit;
+            }
+            if ($req['leave_type'] === 'Annual Leave' && hrEmployeeIsOnProbation($req)) {
+                $db->rollBack();
+                header('Location: leave.php?msg=probation_annual_blocked');
                 exit;
             }
 
@@ -319,7 +325,7 @@ $all       = $db->query("SELECT lr.*, CONCAT(e.first_name,' ',e.last_name) AS em
                          JOIN employees e ON e.id=lr.employee_id
                          LEFT JOIN users u ON u.id=lr.approved_by
                          ORDER BY lr.created_at DESC LIMIT 100")->fetchAll();
-$employees = $db->query("SELECT id, CONCAT(first_name,' ',last_name) as name FROM employees WHERE status='active' ORDER BY first_name")->fetchAll();
+$employees = $db->query("SELECT id,employment_type,start_date,CONCAT(first_name,' ',last_name) as name FROM employees WHERE status='active' ORDER BY first_name")->fetchAll();
 $pendingOT = $db->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
 
 $leaveTypes = ['Annual Leave','Sick Leave','Compassionate Leave','Maternity Leave','Unpaid Leave'];
@@ -366,6 +372,7 @@ $msg = $_GET['msg'] ?? '';
     <?php elseif ($msg === 'reject_error'): ?><div class="toast error"><i class="fa-solid fa-xmark"></i> <?=htmlspecialchars((string)($_GET['error'] ?? 'Could not reject the leave request.'), ENT_QUOTES, 'UTF-8')?></div>
     <?php elseif ($msg === 'captured'): ?><div class="toast"><i class="fa-solid fa-check"></i> Past leave captured successfully.</div>
     <?php elseif ($msg === 'adjusted'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave balance adjusted.</div>
+    <?php elseif ($msg === 'probation_annual_blocked'): ?><div class="toast error"><i class="fa-solid fa-lock"></i> Annual Leave cannot be approved while the employee is on probation. The entitlement continues accruing and unlocks after probation.</div>
     <?php elseif ($msg === 'shutdown_saved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Shutdown shortfall handling saved.</div>
     <?php endif ?>
 
@@ -376,7 +383,7 @@ $msg = $_GET['msg'] ?? '';
     $nextMonth    = date('F', mktime(0,0,0,date('n')+1,1));
     ?>
     <div style="background:var(--green-pale);border:1px solid var(--green-mid);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;font-size:13px">
-      <div><i class="fa-solid fa-circle-info" style="color:var(--green);margin-right:8px"></i><strong>Annual Leave Accrual:</strong> Employees accumulate <strong>2 days per month</strong> from 1 January. Current month (<?=date('F')?>) = <strong><?=$accrualDays?> days available</strong>.</div>
+      <div><i class="fa-solid fa-circle-info" style="color:var(--green);margin-right:8px"></i><strong>Annual Leave Accrual:</strong> Employees accumulate <strong>2 days per month</strong>. New employees accrue from their employment commencement date. Probation affects when leave may be requested, not whether entitlement accrues.</div>
       <div style="font-size:12px;color:var(--text-mid)">Next accrual: 1 <?=$nextMonth?> (+2 days)</div>
     </div>
     <!-- Stats -->
@@ -490,12 +497,18 @@ $msg = $_GET['msg'] ?? '';
             $rem  = max(0, $tot - $used);
             $pct  = $tot > 0 ? min(100, round($used/$tot*100)) : 0;
             $col  = $rem <= 2 ? 'var(--red)' : ($rem <= 5 ? 'var(--amber)' : 'var(--green)');
+            $probationAnnual = $lt === 'Annual Leave' && hrEmployeeIsOnProbation($emp);
           ?>
           <td style="text-align:center">
+            <?php if ($probationAnnual): ?>
+            <div style="font-size:12px;font-weight:700;color:var(--amber)">Accruing</div>
+            <div style="font-size:10px;color:var(--text-mid)"><?=number_format($tot,1)?> day(s) accrued · not requestable</div>
+            <?php else: ?>
             <div style="font-size:13px;font-weight:700;color:<?=$col?>"><?=number_format($rem,1)?> <span style="font-weight:400;color:var(--text-mid);font-size:11px">/ <?=number_format($tot,1)?></span></div>
             <div style="height:3px;background:var(--border);border-radius:2px;margin-top:4px;width:60px;margin-inline:auto">
               <div style="height:3px;background:<?=$col?>;border-radius:2px;width:<?=$pct?>%"></div>
             </div>
+            <?php endif ?>
           </td>
           <?php endforeach ?>
           <?php

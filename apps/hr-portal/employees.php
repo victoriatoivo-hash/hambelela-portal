@@ -1,10 +1,12 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 requireAdmin();
 $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
+hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : null);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 if (!$hasSocialSecurity) {
     hrAddColumnSafe($db, 'employees', 'social_security_number', "VARCHAR(50) NULL AFTER tax_number");
@@ -53,6 +55,7 @@ if (isset($_GET['view'])) {
         $onboardTasks->execute([$viewEmp['id']]);
         $onboardTasks = $onboardTasks->fetchAll();
         $viewAnnualLeave = annualLeaveMetrics($db, (int)$viewEmp['id']);
+        $viewLeaveEntitlements = hrLeaveEntitlements($viewEmp);
     }
 }
 
@@ -116,6 +119,7 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
               $sc = $viewEmp['status']==='active' ? 'badge-green' : ($viewEmp['status']==='terminated' ? 'badge-red' : 'badge-amber');
               ?>
               <span class="badge <?=$sc?>"><?=ucfirst($viewEmp['status'])?></span>
+              <?php if (hrEmployeeIsOnProbation($viewEmp)): ?>&nbsp;<span class="badge badge-amber">Probation</span><?php endif ?>
               &nbsp;<span class="badge badge-gray"><?= htmlspecialchars($viewEmp['emp_number']) ?></span>
             </div>
           </div>
@@ -125,7 +129,7 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
             <?php
             $rows = [
               ['Department',       $viewEmp['department']],
-              ['Employment Type',  ucwords(str_replace('_',' ',$viewEmp['employment_type'] ?? ''))],
+              ['Employment Status', ucwords(str_replace('_',' ',$viewEmp['employment_type'] ?? ''))],
               ['Start Date',       $viewEmp['start_date'] ? date('d M Y',strtotime($viewEmp['start_date'])) : '—'],
               ['Basic Salary',     'N$ '.number_format((float)$viewEmp['basic_salary'],2)],
               ['Hourly Rate',      'N$ '.number_format((float)$viewEmp['hourly_rate'],2)],
@@ -163,14 +167,20 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
           $leaveBadge = $viewAnnualLeave['status']==='red' ? 'badge-red' : ($viewAnnualLeave['status']==='amber' ? 'badge-amber' : 'badge-green');
           ?>
           <div style="margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:10px;background:#fff">
+            <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:10px">Leave Entitlements</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px;font-size:12px">
+              <div style="padding:10px;border-radius:8px;background:var(--green-pale)"><strong>Annual Leave</strong><div style="font-size:10.5px;color:<?=hrEmployeeIsOnProbation($viewEmp)?'var(--amber)':'var(--green)'?>;margin-top:3px"><?=htmlspecialchars($viewLeaveEntitlements['annual_leave']['label'])?></div></div>
+              <div style="padding:10px;border-radius:8px;background:var(--green-pale)"><strong>Sick Leave</strong><div style="font-size:10.5px;color:var(--green);margin-top:3px">Available</div></div>
+              <div style="padding:10px;border-radius:8px;background:var(--green-pale)"><strong>Compassionate Leave</strong><div style="font-size:10.5px;color:var(--green);margin-top:3px">Available</div></div>
+            </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid)">Annual Leave Reserve</div>
-              <span class="badge <?=$leaveBadge?>"><?=ucfirst($viewAnnualLeave['status'])?></span>
+              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid)">Annual Leave Accrual</div>
+              <span class="badge <?=hrEmployeeIsOnProbation($viewEmp)?'badge-amber':$leaveBadge?>"><?=hrEmployeeIsOnProbation($viewEmp)?'Accruing during probation':ucfirst($viewAnnualLeave['status'])?></span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12px">
               <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Accrued To Date</div><div style="font-weight:800;color:<?=$leaveColor?>"><?=number_format($viewAnnualLeave['current_accrued'],1)?> days</div></div>
               <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Leave Taken</div><div style="font-weight:800"><?=number_format($viewAnnualLeave['leave_taken'],1)?> days</div></div>
-              <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Available Now</div><div style="font-weight:800"><?=number_format($viewAnnualLeave['available_now'],1)?> days</div></div>
+              <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Available to Request</div><div style="font-weight:800"><?=hrEmployeeIsOnProbation($viewEmp)?'N/A during probation':number_format($viewAnnualLeave['available_now'],1).' days'?></div></div>
             </div>
             <div style="margin-top:10px;font-size:12px;color:var(--text-mid)">Future shutdown reserve: <?=number_format($viewAnnualLeave['projected_reserve'],1)?> day(s). Status: <?=htmlspecialchars($viewAnnualLeave['reserve_status_text'])?>.</div>
             <?php if ($viewAnnualLeave['shortfall'] > 0): ?>

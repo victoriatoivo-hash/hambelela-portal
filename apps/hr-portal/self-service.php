@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 requireLogin();
 $user = currentUser();
 if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard.php'); exit; }
@@ -15,6 +16,9 @@ $medicalAidProfiles = hrMedicalAidMap($db);
 $emp = $db->prepare("SELECT * FROM employees WHERE id=?");
 $emp->execute([$empId]); $emp = $emp->fetch();
 if (!$emp) { header('Location: ' . SITE_URL . '/logout.php'); exit; }
+hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : null);
+$leaveEntitlements = hrLeaveEntitlements($emp);
+$isProbation = $leaveEntitlements['is_probation'];
 $medicalAidProfile = hrApplyMedicalAidToEmployee($emp, $medicalAidProfiles);
 $currentMedicalAidActive = hrMedicalAidEffectiveForPeriod($medicalAidProfile, (int)date('n'), (int)date('Y'));
 
@@ -123,8 +127,8 @@ $currentPage = 'self-service.php';
       ?>
       <div class="stat-card">
         <div class="stat-icon green"><i class="fa-solid fa-calendar-check"></i></div>
-        <div class="stat-value"><?=number_format($annualRemain,1)?></div>
-        <div class="stat-label">Available Annual Leave</div>
+        <div class="stat-value"><?=$isProbation?'N/A':number_format($annualRemain,1)?></div>
+        <div class="stat-label"><?=$isProbation?'Annual Leave — After Probation':'Available Annual Leave'?></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon amber"><i class="fa-solid fa-briefcase-medical"></i></div>
@@ -150,6 +154,15 @@ $currentPage = 'self-service.php';
       <div class="stat-card"><div class="stat-icon <?=$unreadCount>0?'red':'teal'?>"><i class="fa-regular fa-bell"></i></div><div class="stat-value"><?=$unreadCount?></div><div class="stat-label">Unread Notifications</div></div>
     </div>
 
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-shield-heart" style="color:var(--green)"></i> Leave Entitlements</div><span class="badge <?=$isProbation?'badge-amber':'badge-green'?>">Employment Status: <?=$isProbation?'Probation':'Active'?></span></div>
+      <div style="padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px"><strong style="font-size:12px">Annual Leave</strong><div style="font-size:11px;color:<?=$isProbation?'var(--amber)':'var(--green)'?>;margin-top:4px"><?=htmlspecialchars($leaveEntitlements['annual_leave']['label'])?></div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px"><strong style="font-size:12px">Sick Leave</strong><div style="font-size:11px;color:var(--green);margin-top:4px">Available</div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px"><strong style="font-size:12px">Compassionate Leave</strong><div style="font-size:11px;color:var(--green);margin-top:4px">Available</div></div>
+      </div>
+    </div>
+
     <div class="grid-2">
       <!-- Leave Balances -->
       <div class="card">
@@ -173,14 +186,14 @@ $currentPage = 'self-service.php';
             <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px">
               <span style="font-weight:500"><?=htmlspecialchars($lt)?></span>
               <div style="text-align:right">
-                <span style="font-weight:700;color:<?=$col?>"><?=number_format($remain,1)?> <?=$lt==='Annual Leave'?'available':'days remaining'?></span>
+                <span style="font-weight:700;color:<?=$col?>"><?=$lt==='Annual Leave'&&$isProbation?'Not requestable':number_format($remain,1).' '.($lt==='Annual Leave'?'available':'days remaining')?></span>
                 <?php if($used > 0): ?>
                 <span style="font-size:11px;color:var(--text-mid);margin-left:6px">(<?=number_format($used,1)?> taken)</span>
                 <?php endif ?>
               </div>
             </div>
             <?php if ($lt === 'Annual Leave'): ?>
-            <div style="font-size:11px;color:var(--text-mid);margin-bottom:6px">Accrued: <?=number_format($annualMetrics['current_accrued'],1)?> days | Taken: <?=number_format($annualMetrics['leave_taken'],1)?> days</div>
+            <div style="font-size:11px;color:var(--text-mid);margin-bottom:6px">Accrued: <?=number_format($annualMetrics['current_accrued'],1)?> days | Taken: <?=number_format($annualMetrics['leave_taken'],1)?> days<?=$isProbation?' | Available after successful probation':''?></div>
             <?php endif ?>
             <?php if ($accrued > 0): ?>
             <div style="height:5px;background:var(--border);border-radius:3px">

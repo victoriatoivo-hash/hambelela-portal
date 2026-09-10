@@ -7,6 +7,34 @@ function leaveSetting($db, $key, $default = '') {
     return $val !== false ? $val : $default;
 }
 
+function hrEmployeeIsOnProbation($employee): bool {
+    if (is_array($employee)) {
+        $employmentType = $employee['employment_type'] ?? '';
+    } else {
+        $employmentType = $employee;
+    }
+    return strtolower(trim((string)$employmentType)) === 'probation';
+}
+
+function hrAnnualLeaveRequestAllowed($employee): bool {
+    return !hrEmployeeIsOnProbation($employee);
+}
+
+function hrLeaveEntitlements($employee): array {
+    $probation = hrEmployeeIsOnProbation($employee);
+    return [
+        'is_probation' => $probation,
+        'annual_leave' => [
+            'available' => !$probation,
+            'label' => $probation
+                ? 'Accruing — available to request after successful completion of probation.'
+                : 'Available',
+        ],
+        'sick_leave' => ['available' => true, 'label' => 'Available'],
+        'compassionate_leave' => ['available' => true, 'label' => 'Available'],
+    ];
+}
+
 function ensureLeaveShutdownSchema($db) {
     $db->exec("CREATE TABLE IF NOT EXISTS `shutdown_leave_plans` (
       `employee_id` INT UNSIGNED NOT NULL,
@@ -61,6 +89,14 @@ function annualLeaveMetrics($db, $employeeId, $year = null) {
     $stmt = $db->prepare("SELECT balance_days,used_days FROM leave_balances WHERE employee_id=? AND leave_type='Annual Leave' AND year=?");
     $stmt->execute([(int)$employeeId, (int)$year]);
     $bal = $stmt->fetch();
+    $employee = null;
+    if ((int)$employeeId > 0) {
+        $employeeStmt = $db->prepare('SELECT employment_type,start_date,status FROM employees WHERE id=? LIMIT 1');
+        $employeeStmt->execute([(int)$employeeId]);
+        $employee = $employeeStmt->fetch() ?: null;
+    }
+    $entitlements = hrLeaveEntitlements($employee ?? '');
+    $isProbation = $entitlements['is_probation'];
     $accrued = $bal ? (float)$bal['balance_days'] : 0;
     $used = $bal ? (float)$bal['used_days'] : 0;
     $remaining = max(0, $accrued - $used);
@@ -93,19 +129,24 @@ function annualLeaveMetrics($db, $employeeId, $year = null) {
         'total' => $remaining,
         'current_accrued' => $accrued,
         'leave_taken' => $used,
-        'available_now' => $available,
+        'available_now' => $isProbation ? 0.0 : $available,
         'reserve' => $projectedReserve,
         'future_reserve' => $projectedReserve,
         'projected_reserve' => $projectedReserve,
         'reserve_accumulated' => $reserveAccumulated,
         'reserve_remaining' => $reserveRemaining,
         'reserve_active' => $reserveActive,
-        'reserve_status_text' => $reserveActive ? 'Active - accumulating from August to December' : 'Not active yet',
+        'reserve_status_text' => $isProbation
+            ? 'Accruing during probation; requests unlock after successful completion.'
+            : ($reserveActive ? 'Active - accumulating from August to December' : 'Not active yet'),
         'reserve_period' => 'August to December',
-        'available' => $available,
+        'available' => $isProbation ? 0.0 : $available,
         'shortfall' => $shortfall,
         'december_shortfall' => $decemberProjectedShortfall,
-        'status' => $status,
+        'status' => $isProbation ? 'amber' : $status,
+        'is_probation' => $isProbation,
+        'request_available' => !$isProbation,
+        'entitlement_status' => $entitlements['annual_leave']['label'],
     ];
 }
 

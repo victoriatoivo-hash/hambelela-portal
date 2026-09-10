@@ -2,6 +2,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/email.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 requireLogin();
 $user = currentUser();
 if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard.php'); exit; }
@@ -9,6 +10,13 @@ if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard
 $db    = db();
 $empId = (int)($user['emp_id'] ?? 0);
 ensureLeaveShutdownSchema($db);
+
+$employeeProfileStmt = $db->prepare('SELECT id,employment_type,start_date,status FROM employees WHERE id=? LIMIT 1');
+$employeeProfileStmt->execute([$empId]);
+$employeeProfile = $employeeProfileStmt->fetch() ?: [];
+hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : null);
+$leaveEntitlements = hrLeaveEntitlements($employeeProfile);
+$isProbation = $leaveEntitlements['is_probation'];
 
 $leaveTypes = ['Annual Leave','Sick Leave','Compassionate Leave','Maternity Leave','Unpaid Leave'];
 $year = date('Y');
@@ -40,6 +48,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $formError = 'Complete the leave type, start date and end date.';
     } elseif (!in_array($leave_type, $leaveTypes, true)) {
         $formError = 'Select a valid leave type.';
+    } elseif ($leave_type === 'Annual Leave' && !hrAnnualLeaveRequestAllowed($employeeProfile)) {
+        $formError = 'Annual Leave is accruing but cannot be requested until probation has been completed successfully.';
     } else {
         try {
             $start = new DateTimeImmutable($start_date);
@@ -169,6 +179,15 @@ $currentPage = 'my-leave.php';
     <div class="toast"><i class="fa-solid fa-check"></i> Leave request submitted successfully. Your manager will review it shortly.</div>
     <?php endif ?>
 
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-shield-heart" style="color:var(--green)"></i> Leave Entitlements</div><span class="badge <?=$isProbation?'badge-amber':'badge-green'?>">Employment Status: <?=$isProbation?'Probation':'Active'?></span></div>
+      <div style="padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px;background:#fff"><div style="font-size:12px;font-weight:700">Annual Leave</div><div style="font-size:11px;color:<?=$isProbation?'var(--amber)':'var(--green)'?>;margin-top:4px"><?=htmlspecialchars($leaveEntitlements['annual_leave']['label'])?></div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px;background:#fff"><div style="font-size:12px;font-weight:700">Sick Leave</div><div style="font-size:11px;color:var(--green);margin-top:4px">Available</div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px;background:#fff"><div style="font-size:12px;font-weight:700">Compassionate Leave</div><div style="font-size:11px;color:var(--green);margin-top:4px">Available</div></div>
+      </div>
+    </div>
+
     <!-- Leave Balance Cards — remaining only -->
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px">
       <?php foreach ($leaveTypes as $lt):
@@ -190,11 +209,11 @@ $currentPage = 'my-leave.php';
       ?>
       <div class="stat-card" style="cursor:default">
         <div class="stat-icon <?=$col?>"><i class="fa-solid fa-calendar-days"></i></div>
-        <div class="stat-value" style="font-size:22px;color:<?=$lt==='Annual Leave'?$cardColor:($low?'var(--red)':'inherit')?>"><?=number_format($lt==='Annual Leave'?$annualMetrics['available_now']:$remain,1)?></div>
+        <div class="stat-value" style="font-size:22px;color:<?=$lt==='Annual Leave'?$cardColor:($low?'var(--red)':'inherit')?>"><?=$lt==='Annual Leave'&&$isProbation?'N/A':number_format($lt==='Annual Leave'?$annualMetrics['available_now']:$remain,1)?></div>
         <div class="stat-label" style="font-size:11px"><?=htmlspecialchars($lt)?></div>
         <?php if ($lt === 'Annual Leave'): ?>
         <div style="font-size:10px;color:var(--text-light);margin-top:2px">Accrued: <?=number_format($annualMetrics['current_accrued'],1)?> | Taken: <?=number_format($annualMetrics['leave_taken'],1)?></div>
-        <div style="font-size:10px;color:var(--text-light);margin-top:2px">Future reserve: <?=number_format($annualMetrics['projected_reserve'],1)?> | <?=$annualMetrics['reserve_status_text']?></div>
+        <div style="font-size:10px;color:var(--text-light);margin-top:2px"><?=$isProbation?'Not requestable during probation':('Future reserve: '.number_format($annualMetrics['projected_reserve'],1).' | '.$annualMetrics['reserve_status_text'])?></div>
         <?php elseif ($used > 0): ?>
         <div style="font-size:10px;color:var(--text-light);margin-top:2px"><?=number_format($used,1)?> day(s) taken</div>
         <?php else: ?>
@@ -211,11 +230,11 @@ $currentPage = 'my-leave.php';
     $annualUsed   = $annualBal ? (float)$annualBal['used_days'] : 0;
     $annualRemain = max(0, $annualAccrued - $annualUsed);
     ?>
-    <div style="background:var(--green-pale);border:1px solid var(--green-mid);border-radius:10px;padding:12px 18px;margin-bottom:22px;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+    <div style="background:<?=$isProbation?'var(--amber-pale)':'var(--green-pale)'?>;border:1px solid <?=$isProbation?'var(--amber)':'var(--green-mid)'?>;border-radius:10px;padding:12px 18px;margin-bottom:22px;font-size:13px;display:flex;justify-content:space-between;align-items:center">
       <div><i class="fa-solid fa-rotate" style="color:var(--green);margin-right:8px"></i>
-        Annual Leave accrues <strong>2 days on the 1st of every month</strong>. Current accrued leave: <strong><?=number_format($annualMetrics['current_accrued'],1)?></strong>, leave taken: <strong><?=number_format($annualMetrics['leave_taken'],1)?></strong>, available now: <strong><?=number_format($annualMetrics['available_now'],1)?></strong>. Future shutdown reserve: <strong><?=number_format($annualMetrics['projected_reserve'],1)?></strong> for <?=$annualMetrics['reserve_period']?>.
+        <?php if ($isProbation): ?>Annual Leave continues accruing from your employment start date. It becomes available to request automatically after successful completion of probation. Accrued to date: <strong><?=number_format($annualMetrics['current_accrued'],1)?></strong> day(s).<?php else: ?>Annual Leave accrues <strong>2 days on the 1st of every month</strong>. Current accrued leave: <strong><?=number_format($annualMetrics['current_accrued'],1)?></strong>, leave taken: <strong><?=number_format($annualMetrics['leave_taken'],1)?></strong>, available now: <strong><?=number_format($annualMetrics['available_now'],1)?></strong>. Future shutdown reserve: <strong><?=number_format($annualMetrics['projected_reserve'],1)?></strong> for <?=$annualMetrics['reserve_period']?>.<?php endif ?>
       </div>
-      <div style="font-size:12px;color:var(--text-mid);white-space:nowrap;margin-left:16px">Next: +2 days on 1 <?=$nextMonthName?></div>
+      <div style="font-size:12px;color:var(--text-mid);white-space:nowrap;margin-left:16px"><?=$isProbation?'Requests unlock after probation':'Next: +2 days on 1 '.$nextMonthName?></div>
     </div>
 
     <!-- Leave History -->
@@ -297,10 +316,10 @@ $currentPage = 'my-leave.php';
                 $avStr = '';
                 if ($lt === 'Maternity Leave') $avStr = ' (12 weeks — SSF benefit, unpaid)';
                 elseif ($lt === 'Unpaid Leave') $avStr = ' (unpaid)';
-                elseif ($lt === 'Annual Leave') $avStr = ' - '.number_format($annualMetrics['available_now'],1).' day(s) available now';
+                elseif ($lt === 'Annual Leave') $avStr = $isProbation ? ' — available after successful probation' : ' - '.number_format($annualMetrics['available_now'],1).' day(s) available now';
                 else $avStr = ' — '.number_format($rem2,1).' day(s) available';
               ?>
-              <option value="<?=htmlspecialchars($lt)?>" <?= $leave_type === $lt ? 'selected' : '' ?>
+              <option value="<?=htmlspecialchars($lt)?>" <?= $leave_type === $lt ? 'selected' : '' ?> <?=$lt==='Annual Leave'&&$isProbation?'disabled':''?>
                       data-available="<?=$lt==='Annual Leave'?$annualMetrics['available_now']:$rem2?>"
                       data-total="<?=$lt==='Annual Leave'?$annualMetrics['total']:$rem2?>"
                       data-reserve="<?=$lt==='Annual Leave'?$annualMetrics['reserve']:0?>"
