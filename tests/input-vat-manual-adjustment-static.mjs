@@ -20,10 +20,15 @@ assert.match(api, /\$calc\['vat'\]=\$manualVat/);
 assert.match(api, /\$calc\['exclusive'\]=\$manualExclusive/);
 
 assert.match(js, /function resetPurchaseForm\(\)/);
+assert.match(js, /delete form\.dataset\.purchaseId/);
 assert.match(js, /form\.elements\.manual_override\.value = '1'/, 'editing a record must preserve the checkbox submission value');
 assert.doesNotMatch(js, /manual_override: row\.manual_override \? '1' : ''/, 'edit population must not overwrite the checkbox value');
 assert.match(js, /override_reason: row\.override_reason/, 'editing an adjustment must restore its saved reason');
+assert.match(js, /form\.dataset\.purchaseId = String\(row\.id\)/, 'edit identity must survive proxy-control resets');
+assert.match(js, /form\.dataset\.purchaseDate = String\(row\.purchase_date\)/, 'the original edit date must survive proxy-control resets');
 assert.match(js, /control\.dispatchEvent\(new Event\('change', \{bubbles: true\}\)\)/, 'programmatic values must sync portal proxy controls');
+assert.match(js, /payload\.id = form\.dataset\.purchaseId \|\| payload\.id \|\| ''/);
+assert.match(js, /payload\.purchase_date = form\.elements\.purchase_date\.value \|\| form\.dataset\.purchaseDate/, 'save must submit a reliable purchase date');
 assert.match(js, /payload\.manual_override = form\.elements\.manual_override\.checked \? '1' : '0'/, 'save must send an explicit manual override flag');
 assert.match(js, /adjusted VAT amounts were not confirmed by the server/i, 'the client must not report success unless adjusted amounts are returned');
 

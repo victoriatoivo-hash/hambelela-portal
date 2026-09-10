@@ -618,6 +618,8 @@
 
   function resetPurchaseForm() {
     form.reset();
+    delete form.dataset.purchaseId;
+    delete form.dataset.purchaseDate;
     // Never let programmatic edit population replace the checkbox's submitted
     // value. A checked checkbox with an empty value is sent to PHP as false.
     form.elements.manual_override.value = '1';
@@ -714,6 +716,10 @@
       Object.entries({id: row.id, purchase_date: row.purchase_date, supplier: row.supplier, invoice_reference: row.invoice_reference, description: row.description, notes: row.notes, inclusive: row.inclusive, exclusive_source: row.calculation_source === 'exclusive' ? row.automatic_exclusive : '', zero_rated_amount: row.zero_rated_amount, vat_treatment: row.vat_treatment, calculation_source: row.calculation_source, manual_vat: row.vat, manual_exclusive: row.exclusive, override_reason: row.override_reason}).forEach(([field, value]) => {
         setPurchaseFormValue(field, value);
       });
+      // Keep edit identity outside controls enhanced by portal components.
+      // Some browsers reset hidden form controls after proxy widgets update.
+      form.dataset.purchaseId = String(row.id);
+      form.dataset.purchaseDate = String(row.purchase_date);
       form.elements.manual_override.checked = Boolean(row.manual_override);
       form.elements.manual_override.dispatchEvent(new Event('change', {bubbles: true}));
       pending = [];
@@ -776,7 +782,7 @@
     const saveButton = $('[data-save]');
     const originalText = saveButton.textContent;
     const activeLabel = selectedMonthLabel();
-    const enteredDate = String(form.elements.purchase_date.value || '').slice(0, 10);
+    const enteredDate = String(form.elements.purchase_date.value || form.dataset.purchaseDate || '').slice(0, 10);
     const enteredMonth = enteredDate.slice(0, 7);
     const warning = monthWarningMessage(enteredDate);
     if (warning && !warningConfirmed) {
@@ -792,6 +798,8 @@
 
     try {
       const payload = Object.fromEntries(new FormData(form));
+      payload.id = form.dataset.purchaseId || payload.id || '';
+      payload.purchase_date = form.elements.purchase_date.value || form.dataset.purchaseDate || payload.purchase_date || '';
       // Checkbox presence alone is not robust after programmatic form edits.
       // Send an explicit boolean value so the server cannot silently discard
       // manually adjusted VAT and exclusive amounts.
@@ -815,7 +823,7 @@
           throw new Error('The adjusted VAT amounts were not confirmed by the server. Please try again.');
         }
       }
-      if (form.elements.id.value) {
+      if (payload.id) {
         showToast('Purchase updated.');
       } else {
         showToast(`Purchase added. The ${monthLabel(enteredMonth)} Input VAT register has been updated.`);
