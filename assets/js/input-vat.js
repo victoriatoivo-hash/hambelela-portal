@@ -615,6 +615,28 @@
   const fileUploadInstruction = form.querySelector('[data-upload-instruction]');
   let pending = [];
   let warningConfirmed = false;
+
+  function resetPurchaseForm() {
+    form.reset();
+    // Never let programmatic edit population replace the checkbox's submitted
+    // value. A checked checkbox with an empty value is sent to PHP as false.
+    form.elements.manual_override.value = '1';
+    form.querySelectorAll('select[data-portal-custom-select]').forEach((control) => {
+      control.dispatchEvent(new Event('change', {bubbles: true}));
+    });
+  }
+
+  function setPurchaseFormValue(field, value) {
+    const control = form.elements[field];
+    if (!control) return;
+    control.value = value ?? '';
+    // The portal date picker and custom selects render proxy controls. Notify
+    // them when an existing purchase is populated so display and submitted
+    // values cannot drift apart.
+    if (control.matches('select,[data-portal-date-ready="true"]')) {
+      control.dispatchEvent(new Event('change', {bubbles: true}));
+    }
+  }
   page.querySelectorAll('[data-close-purchase]').forEach((button) => {
     button.addEventListener('click', closePurchaseModal);
   });
@@ -666,9 +688,9 @@
   };
 
   $('[data-add-purchase]').onclick = () => {
-    form.reset();
+    resetPurchaseForm();
     form.elements.id.value = '';
-    form.elements.purchase_date.value = $('[data-month]').value === todayLocal().slice(0, 7) ? todayLocal() : '';
+    setPurchaseFormValue('purchase_date', $('[data-month]').value === todayLocal().slice(0, 7) ? todayLocal() : '');
     pending = [];
     warningConfirmed = false;
     pendingRender();
@@ -688,11 +710,12 @@
     if (edit) {
       const row = rows.find((x) => x.id === Number(edit.dataset.edit));
       if (!row) return;
-      form.reset();
-      Object.entries({id: row.id, purchase_date: row.purchase_date, supplier: row.supplier, invoice_reference: row.invoice_reference, description: row.description, notes: row.notes, inclusive: row.inclusive, exclusive_source: row.calculation_source === 'exclusive' ? row.automatic_exclusive : '', zero_rated_amount: row.zero_rated_amount, vat_treatment: row.vat_treatment, calculation_source: row.calculation_source, manual_override: row.manual_override ? '1' : '', manual_vat: row.vat, manual_exclusive: row.exclusive}).forEach(([field, value]) => {
-        if (form.elements[field]) form.elements[field].value = value;
+      resetPurchaseForm();
+      Object.entries({id: row.id, purchase_date: row.purchase_date, supplier: row.supplier, invoice_reference: row.invoice_reference, description: row.description, notes: row.notes, inclusive: row.inclusive, exclusive_source: row.calculation_source === 'exclusive' ? row.automatic_exclusive : '', zero_rated_amount: row.zero_rated_amount, vat_treatment: row.vat_treatment, calculation_source: row.calculation_source, manual_vat: row.vat, manual_exclusive: row.exclusive, override_reason: row.override_reason}).forEach(([field, value]) => {
+        setPurchaseFormValue(field, value);
       });
       form.elements.manual_override.checked = Boolean(row.manual_override);
+      form.elements.manual_override.dispatchEvent(new Event('change', {bubbles: true}));
       pending = [];
       warningConfirmed = false;
       pendingRender();
@@ -734,9 +757,9 @@
     }
 
     if (event.target.closest('[data-add-purchase]')) {
-      form.reset();
+      resetPurchaseForm();
       form.elements.id.value = '';
-      form.elements.purchase_date.value = $('[data-month]').value === todayLocal().slice(0, 7) ? todayLocal() : '';
+      setPurchaseFormValue('purchase_date', $('[data-month]').value === todayLocal().slice(0, 7) ? todayLocal() : '');
       pending = [];
       warningConfirmed = false;
       pendingRender();
@@ -769,6 +792,10 @@
 
     try {
       const payload = Object.fromEntries(new FormData(form));
+      // Checkbox presence alone is not robust after programmatic form edits.
+      // Send an explicit boolean value so the server cannot silently discard
+      // manually adjusted VAT and exclusive amounts.
+      payload.manual_override = form.elements.manual_override.checked ? '1' : '0';
       // The picker is only an intake surface. `pending` is the authoritative
       // attachment list (including removals and add-more selections), so never
       // serialize the native input a second time.
@@ -779,6 +806,15 @@
       monthlyResponseCache.clear();
       refreshRowId = Number(result.row?.id || 0);
       if (!result.row) throw new Error('No response row from server.');
+      if (payload.manual_override === '1') {
+        const requestedVat = Number(payload.manual_vat);
+        const requestedExclusive = Number(payload.manual_exclusive);
+        const savedVat = Number(result.row.vat);
+        const savedExclusive = Number(result.row.exclusive);
+        if (!result.row.manual_override || Math.abs(savedVat - requestedVat) > 0.009 || Math.abs(savedExclusive - requestedExclusive) > 0.009) {
+          throw new Error('The adjusted VAT amounts were not confirmed by the server. Please try again.');
+        }
+      }
       if (form.elements.id.value) {
         showToast('Purchase updated.');
       } else {

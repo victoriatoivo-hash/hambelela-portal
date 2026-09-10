@@ -87,6 +87,13 @@ function iv_valid_purchase_date(string $value): bool
     return checkdate((int) $parts[2], (int) $parts[3], (int) $parts[1]);
 }
 
+function iv_request_flag(string $key): bool
+{
+    if (!array_key_exists($key, $_POST)) return false;
+    $value = strtolower(trim((string) $_POST[$key]));
+    return !in_array($value, ['0', 'false', 'off', 'no'], true);
+}
+
 function iv_require_history_access(): void
 {
     if (accounts_can('input_vat.history')) return;
@@ -330,7 +337,7 @@ try {
         $zeroRatedAmount=round((float)($_POST['zero_rated_amount']??0),2);
         if ($zeroRatedAmount < 0) throw new RuntimeException('Zero-rated amount must be zero or greater.');
         $baseline=accounts_vat_calculate_from_source($amount,$source,$treatment,$zeroRatedAmount);
-        $calc=$baseline; $manualOverride=(int)($_POST['manual_override']??0)===1; $overrideReason=trim((string)($_POST['override_reason']??''));
+        $calc=$baseline; $manualOverride=iv_request_flag('manual_override'); $overrideReason=trim((string)($_POST['override_reason']??''));
         if ($manualOverride) {
             if ($overrideReason==='') throw new RuntimeException('Select or enter a reason for the manual VAT adjustment.');
             $manualVat=round((float)($_POST['manual_vat']??-1),2); $manualExclusive=round((float)($_POST['manual_exclusive']??-1),2);
