@@ -23,6 +23,8 @@ assert.match(page, /waybill_download_file/);
 assert.match(page, /hambelela_waybill_download_log/);
 assert.match(page, /first_downloaded_at=COALESCE/);
 assert.match(page, /download_type.*batch_zip/s);
+assert.match(page, /order_number LIKE/);
+assert.match(page, /legacyCustomer/);
 assert.doesNotMatch(page, /Promise\.resolve\(window\.confirm/);
 assert.match(page, /new DateTimeZone\('Africa\/Windhoek'\)/);
 assert.match(page, /courier_nextday_cutoff/);

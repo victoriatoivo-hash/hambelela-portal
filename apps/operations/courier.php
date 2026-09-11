@@ -771,11 +771,18 @@ function wb_batch_items(string $batchId): array
         $numericOrderId = (int) preg_replace('/\D+/', '', $rawOrder);
         $order = null;
         if ($numericOrderId > 0 && ops_table_exists('ops_orders')) {
-            $order = ops_row('SELECT id,order_number,customer_name FROM ops_orders WHERE id=? LIMIT 1', [$numericOrderId]);
+            $order = ops_row(
+                'SELECT id,order_number,customer_name FROM ops_orders WHERE id=? OR order_number=? OR order_number LIKE ? ORDER BY CASE WHEN id=? THEN 0 WHEN order_number=? THEN 1 ELSE 2 END LIMIT 1',
+                [$numericOrderId, $rawOrder, '%' . $numericOrderId . '%', $numericOrderId, $rawOrder]
+            );
         }
-        $item['order_record_id'] = (int) ($order['id'] ?? ($numericOrderId > 0 ? $numericOrderId : 0));
-        $item['order_display'] = trim((string) ($order['order_number'] ?? '')) ?: $rawOrder;
-        $item['customer_display'] = trim((string) ($item['customer_name'] ?? '')) ?: trim((string) ($order['customer_name'] ?? ''));
+        $sourceOrder = trim((string) ($order['order_number'] ?? '')) ?: $rawOrder;
+        $item['order_record_id'] = (int) ($order['id'] ?? 0);
+        $item['order_display'] = preg_match('/#?(\d{3,})/', $sourceOrder, $numberMatch) ? '#' . $numberMatch[1] : $sourceOrder;
+        $legacyCustomer = preg_replace('/^\s*#?\d{3,}\s*[-–—:]?\s*/u', '', $rawOrder);
+        $item['customer_display'] = trim((string) ($item['customer_name'] ?? ''))
+            ?: trim((string) ($order['customer_name'] ?? ''))
+            ?: trim((string) $legacyCustomer);
         $downloader = ['full_name' => $item['first_downloaded_by_name'] ?? '', 'role_key' => $item['first_downloaded_role'] ?? ''];
         $item['downloaded_by_display'] = $item['first_downloaded_by_name'] ? ops_staff_display_name($downloader) : '-';
     }
@@ -1215,7 +1222,7 @@ function wb_batch_detail_html(array $row, bool $sent, string $detailId): string
                 <div class="courier-file-row" role="row">
                     <span data-label="Customer"><strong><?= wb_e((string) (($item['customer_display'] ?? '') ?: 'Customer not recorded')) ?></strong></span>
                     <span data-label="Order">
-                        <?php if ($orderDisplay !== '' && $orderRecordId > 0): ?><a class="courier-order-link" href="orders-board.php?order_id=<?= $orderRecordId ?>">#<?= wb_e(ltrim($orderDisplay, '#')) ?></a>
+                        <?php if ($orderDisplay !== '' && $orderRecordId > 0): ?><a class="courier-order-link" href="orders-board.php?order_id=<?= $orderRecordId ?>"><?= wb_e($orderDisplay) ?></a>
                         <?php else: ?><span class="courier-muted"><?= wb_e($orderDisplay !== '' ? $orderDisplay : 'Not linked') ?></span><?php endif; ?>
                     </span>
                     <span data-label="Waybill file" class="courier-file-name"><i data-lucide="file-text"></i><span><?= wb_e($filename) ?></span></span>
