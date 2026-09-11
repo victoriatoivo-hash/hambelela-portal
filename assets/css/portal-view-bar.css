@@ -942,10 +942,11 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
   }
 
   .courier-wrap .courier-history-more {
-    width: 30px;
-    min-width: 30px;
-    height: 30px;
-    min-height: 30px;
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px;
   }
 }
 
