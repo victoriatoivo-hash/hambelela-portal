@@ -5,6 +5,7 @@ declare(strict_types=1);
 // routes and metrics. Never query or mutate business data from this template.
 if (($roleKey ?? '') !== 'owner_admin') { return; }
 require_once __DIR__ . '/ess-inspiration.php';
+require_once __DIR__ . '/ess-navigation.php';
 $essNow = new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek'));
 $essInspiration = ess_daily_inspiration($essNow);
 $essFirstName = explode(' ', trim($headerUserName))[0] ?: 'there';
@@ -20,17 +21,16 @@ $essQuickLinks = [
 ?>
 <a class="ess-skip-link" href="#ess-main">Skip to dashboard</a>
 <aside class="ess-sidebar" aria-label="Administrator navigation">
+    <button type="button" class="ess-sidebar-toggle" data-ess-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true" aria-controls="ess-sidebar-links"><i data-lucide="panel-left-close" aria-hidden="true"></i></button>
     <a class="ess-sidebar-logo" href="<?= BASE_URL ?>/index.php" aria-label="Essentials dashboard">
         <span class="ess-sidebar-logo-title">essentials<span>.</span></span>
         <span class="ess-sidebar-logo-subtitle">Hambelela Organic</span>
         <i class="ess-logo-compact" data-lucide="leaf" aria-hidden="true"></i>
     </a>
     <div class="ess-sidebar-divider">WORKSPACE</div>
-    <nav class="ess-nav" aria-label="Business modules">
+    <nav id="ess-sidebar-links" class="ess-nav" aria-label="Business modules">
         <a class="ess-nav-item is-active" href="<?= BASE_URL ?>/index.php" aria-current="page" aria-label="Dashboard" title="Dashboard"><i data-lucide="layout-dashboard" aria-hidden="true"></i><span>Dashboard</span></a>
-        <?php foreach ($apps as $app): ?>
-        <a class="ess-nav-item" href="<?= $essEscape($app['href']) ?>" aria-label="<?= $essEscape($app['name']) ?>" title="<?= $essEscape($app['name']) ?>"><i data-lucide="<?= $essEscape($app['icon']) ?>" aria-hidden="true"></i><span><?= $essEscape($app['name']) ?></span></a>
-        <?php endforeach; ?>
+        <?php ess_render_navigation($apps); ?>
     </nav>
     <div class="ess-sidebar-bottom">
         <a class="ess-nav-item" href="<?= BASE_URL ?>/notifications.php" title="Notifications" aria-label="Notifications"><i data-lucide="bell" aria-hidden="true"></i><span>Notifications</span></a>
@@ -54,7 +54,7 @@ $essQuickLinks = [
     <div class="ess-section-heading"><h2>Business modules</h2><span>Everything you need, in one place</span></div>
     <section class="ess-module-grid" id="ess-modules" aria-label="Business apps">
         <?php foreach ($apps as $index => $app): ?>
-        <a class="ess-module-card" data-ess-module data-search="<?= $essEscape($app['name'] . ' ' . $app['desc']) ?>" href="<?= $essEscape($app['href']) ?>" style="--ess-order:<?= (int) $index ?>" aria-label="<?= $essEscape($app['name'] . ' — ' . $app['desc']) ?>">
+        <a class="ess-module-card" data-ess-module data-ess-accent="<?= $essEscape($app['name']) ?>" data-search="<?= $essEscape($app['name'] . ' ' . $app['desc']) ?>" href="<?= $essEscape($app['href']) ?>" style="--ess-order:<?= (int) $index ?>" aria-label="<?= $essEscape($app['name'] . ' — ' . $app['desc']) ?>">
             <span class="ess-module-icon"><i data-lucide="<?= $essEscape($app['icon']) ?>" aria-hidden="true"></i></span>
             <h3><?= $essEscape($app['name']) ?></h3><p><?= $essEscape($app['desc']) ?></p>
             <?php if ($app['name'] === 'Packing List'): ?><span class="ess-module-badge<?= $dashboardPackingUnread > 0 ? '' : ' is-hidden' ?>" data-packing-unread-badge<?= $dashboardPackingUnread > 0 ? '' : ' hidden' ?> aria-label="<?= $dashboardPackingUnread ?> unread Packing List items"><?= $dashboardPackingUnread > 99 ? '99+' : $dashboardPackingUnread ?></span><?php endif; ?>
@@ -99,7 +99,7 @@ $essQuickLinks = [
 </main>
 <nav class="ess-mobile-nav" aria-label="Mobile navigation"><a href="<?= BASE_URL ?>/index.php" aria-current="page"><i data-lucide="layout-dashboard" aria-hidden="true"></i><span>Dashboard</span></a><a href="<?= BASE_URL ?>/apps/operations/index.php"><i data-lucide="clipboard-check" aria-hidden="true"></i><span>Operations</span></a><a href="<?= BASE_URL ?>/notifications.php"><i data-lucide="bell" aria-hidden="true"></i><span>Notifications</span></a><button type="button" data-ess-more aria-controls="ess-more-dialog" aria-expanded="false"><i data-lucide="menu" aria-hidden="true"></i><span>More</span></button></nav>
 <dialog id="ess-more-dialog" class="ess-more-dialog" aria-labelledby="ess-more-title"><header><h2 id="ess-more-title">Your workspace</h2><button class="ess-icon-btn" type="button" data-ess-close aria-label="Close navigation"><i data-lucide="x" aria-hidden="true"></i></button></header><nav aria-label="All portal links">
-    <?php foreach ($apps as $app): ?><a class="ess-quick-link" href="<?= $essEscape($app['href']) ?>"><i data-lucide="<?= $essEscape($app['icon']) ?>" aria-hidden="true"></i><?= $essEscape($app['name']) ?></a><?php endforeach; ?>
+    <?php ess_render_navigation($apps); ?>
     <a class="ess-quick-link" href="<?= BASE_URL ?>/apps/operations/my-account.php"><i data-lucide="user-round" aria-hidden="true"></i>My account</a><a class="ess-quick-link" href="<?= BASE_URL ?>/login.php?action=logout"><i data-lucide="log-out" aria-hidden="true"></i>Logout</a>
 </nav></dialog>
 <script type="application/json" id="ess-inspiration-data"><?= json_encode(ess_inspiration_catalog(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>

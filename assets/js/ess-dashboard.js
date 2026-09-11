@@ -1,6 +1,30 @@
 (() => {
   'use strict';
   if (!document.body.classList.contains('ess-dashboard')) return;
+  const sidebarToggle = document.querySelector('[data-ess-sidebar-toggle]');
+  const setSidebarCollapsed = (collapsed, remember = true) => {
+    document.body.classList.toggle('ess-sidebar-collapsed', collapsed);
+    sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
+    sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
+    sidebarToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+    if (collapsed) document.querySelectorAll('.ess-sidebar [data-ess-subnav-toggle]').forEach(button => {
+      button.setAttribute('aria-expanded', 'false');
+      document.getElementById(button.getAttribute('aria-controls')).hidden = true;
+    });
+    if (remember) { try { localStorage.setItem('ess-sidebar-collapsed', String(collapsed)); } catch (_) {} }
+  };
+  let savedSidebar = null;
+  try { savedSidebar = localStorage.getItem('ess-sidebar-collapsed'); } catch (_) {}
+  setSidebarCollapsed(savedSidebar === null ? matchMedia('(max-width:1024px)').matches : savedSidebar === 'true', false);
+  sidebarToggle.addEventListener('click', () => setSidebarCollapsed(!document.body.classList.contains('ess-sidebar-collapsed')));
+  document.querySelectorAll('[data-ess-subnav-toggle]').forEach(button => {
+    button.addEventListener('click', () => {
+      const open = button.getAttribute('aria-expanded') !== 'true';
+      if (open && button.closest('.ess-sidebar') && document.body.classList.contains('ess-sidebar-collapsed')) setSidebarCollapsed(false);
+      button.setAttribute('aria-expanded', String(open));
+      document.getElementById(button.getAttribute('aria-controls')).hidden = !open;
+    });
+  });
   const search = document.querySelector('[data-ess-search]');
   const cards = [...document.querySelectorAll('[data-ess-module]')];
   search.addEventListener('input', () => {
