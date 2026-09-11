@@ -12,12 +12,13 @@ $ready = ops_database_ready();
 $currentUser = current_user();
 $currentEmployeeId = ops_current_employee_id();
 $roleKey = current_role_key();
-$canUploadWaybills = $currentEmployeeId > 0 && $roleKey !== 'guest';
+$isPacker = strpos($roleKey, 'packer') !== false;
+$canUploadWaybills = $currentEmployeeId > 0 && ($isPacker || in_array($roleKey, ['owner_admin', 'supervisor_manager'], true));
 $canSendWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'marketing_sales'], true);
 $canExportWaybills = $roleKey === 'owner_admin';
-$canManageWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canManageWaybills = in_array($roleKey, ['owner_admin', 'supervisor_manager'], true);
 $canDeleteWaybillsForever = $roleKey === 'owner_admin';
-$showOrderAssignment = strpos($roleKey, 'packer') !== false;
+$showOrderAssignment = $isPacker;
 $historyDateFrom = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_from'] ?? '')) ? (string) $_GET['date_from'] : date('Y-m-d', strtotime('-7 days'));
 $historyDateTo = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date_to'] ?? '')) ? (string) $_GET['date_to'] : date('Y-m-d');
 
@@ -67,6 +68,8 @@ function wb_bootstrap_schema(): void
             due_by DATETIME NOT NULL,
             sent_by INT NULL,
             sent_at DATETIME NULL,
+            first_downloaded_by INT NULL,
+            first_downloaded_at DATETIME NULL,
             status VARCHAR(20) NOT NULL DEFAULT 'pending',
             waybill_reminder_sent TINYINT(1) NOT NULL DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -85,6 +88,8 @@ function wb_bootstrap_schema(): void
         'courier_names' => "ALTER TABLE hambelela_waybills ADD COLUMN courier_names TEXT NULL AFTER sent_date",
         'number_of_waybills' => "ALTER TABLE hambelela_waybills ADD COLUMN number_of_waybills INT NOT NULL DEFAULT 1 AFTER courier_names",
         'waybill_reminder_sent' => "ALTER TABLE hambelela_waybills ADD COLUMN waybill_reminder_sent TINYINT(1) NOT NULL DEFAULT 0 AFTER status",
+        'first_downloaded_by' => "ALTER TABLE hambelela_waybills ADD COLUMN first_downloaded_by INT NULL AFTER sent_at",
+        'first_downloaded_at' => "ALTER TABLE hambelela_waybills ADD COLUMN first_downloaded_at DATETIME NULL AFTER first_downloaded_by",
         'archived_at' => "ALTER TABLE hambelela_waybills ADD COLUMN archived_at DATETIME NULL AFTER status",
         'archived_by' => "ALTER TABLE hambelela_waybills ADD COLUMN archived_by INT NULL AFTER archived_at",
         'deleted_at' => "ALTER TABLE hambelela_waybills ADD COLUMN deleted_at DATETIME NULL AFTER archived_by",
@@ -111,6 +116,21 @@ function wb_bootstrap_schema(): void
             INDEX idx_waybill_sla_waybill (waybill_id),
             INDEX idx_waybill_sla_user (user_id),
             INDEX idx_waybill_sla_logged (logged_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS hambelela_waybill_download_log (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            waybill_id INT NULL,
+            batch_id VARCHAR(60) NOT NULL,
+            downloaded_by INT NOT NULL,
+            downloaded_at DATETIME NOT NULL,
+            download_type VARCHAR(20) NOT NULL DEFAULT 'file',
+            original_filename VARCHAR(190) NULL,
+            INDEX idx_waybill_download_item (waybill_id, downloaded_at),
+            INDEX idx_waybill_download_batch (batch_id, downloaded_at),
+            INDEX idx_waybill_download_actor (downloaded_by, downloaded_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
     );
 
@@ -495,12 +515,80 @@ function wb_safe_file_path(string $relativePath): ?string
 function wb_files_for_batch(string $batchId): array
 {
     return ops_rows(
-        "SELECT id, file_path, original_filename
+        "SELECT id, batch_id, file_path, original_filename, customer_name, order_id,
+                first_downloaded_at, first_downloaded_by
          FROM hambelela_waybills
-         WHERE batch_id = ?
+         WHERE batch_id = ? AND archived_at IS NULL AND deleted_at IS NULL
          ORDER BY id ASC",
         [$batchId]
     );
+}
+
+function wb_record_download(?int $waybillId, string $batchId, string $downloadType, ?string $originalFilename = null): array
+{
+    $employeeId = ops_current_employee_id();
+    if ($employeeId <= 0) {
+        throw new RuntimeException('Could not identify the logged-in employee.');
+    }
+    $downloadedAt = wb_now()->format('Y-m-d H:i:s');
+    db()->beginTransaction();
+    try {
+        $row = null;
+        if ($waybillId !== null) {
+            $row = ops_row(
+                'SELECT id,batch_id,file_path,original_filename,first_downloaded_at FROM hambelela_waybills WHERE id=? AND batch_id=? AND archived_at IS NULL AND deleted_at IS NULL FOR UPDATE',
+                [$waybillId, $batchId]
+            );
+            if (!$row) {
+                throw new RuntimeException('Waybill file not found.');
+            }
+            db()->prepare('UPDATE hambelela_waybills SET first_downloaded_at=COALESCE(first_downloaded_at,?), first_downloaded_by=COALESCE(first_downloaded_by,?) WHERE id=?')
+                ->execute([$downloadedAt, $employeeId, $waybillId]);
+            $originalFilename = (string) ($row['original_filename'] ?: basename((string) $row['file_path']));
+        } elseif (!wb_files_for_batch($batchId)) {
+            throw new RuntimeException('No files found.');
+        }
+        db()->prepare('INSERT INTO hambelela_waybill_download_log (waybill_id,batch_id,downloaded_by,downloaded_at,download_type,original_filename) VALUES (?,?,?,?,?,?)')
+            ->execute([$waybillId, $batchId, $employeeId, $downloadedAt, $downloadType, $originalFilename]);
+        db()->commit();
+        ops_activity_log('courier_waybill_downloaded', $waybillId === null ? 'courier_waybill_batch' : 'courier_waybill', $waybillId ?: 0, [
+            'batch_id' => $batchId,
+            'waybill_id' => $waybillId,
+            'download_type' => $downloadType,
+            'file' => $originalFilename,
+            'downloaded_at' => $downloadedAt,
+            'downloaded_by' => $employeeId,
+            'changed_by' => wb_current_name(),
+        ]);
+        return $row ?: [];
+    } catch (Throwable $error) {
+        if (db()->inTransaction()) {
+            db()->rollBack();
+        }
+        throw $error;
+    }
+}
+
+function wb_stream_file_download(int $waybillId, string $batchId): void
+{
+    $preview = ops_row('SELECT file_path FROM hambelela_waybills WHERE id=? AND batch_id=? AND archived_at IS NULL AND deleted_at IS NULL', [$waybillId, $batchId]);
+    $previewPath = wb_safe_file_path((string) ($preview['file_path'] ?? ''));
+    if (!$previewPath) {
+        http_response_code(404);
+        exit('File not found.');
+    }
+    $file = wb_record_download($waybillId, $batchId, 'file');
+    $path = wb_safe_file_path((string) ($file['file_path'] ?? ''));
+    if (!$path) {
+        http_response_code(404);
+        exit('File not found.');
+    }
+    $downloadName = (string) (($file['original_filename'] ?? '') ?: basename($path));
+    header('Content-Type: application/octet-stream');
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $downloadName) . '"');
+    header('Content-Length: ' . filesize($path));
+    readfile($path);
+    exit;
 }
 
 function wb_stream_batch_download(string $batchId): void
@@ -510,11 +598,7 @@ function wb_stream_batch_download(string $batchId): void
         http_response_code(404);
         exit('No files found.');
     }
-    ops_activity_log('courier_waybill_downloaded', 'courier_waybill_batch', 0, [
-        'batch_id' => $batchId,
-        'file_count' => count($files),
-        'changed_by' => wb_current_name(),
-    ]);
+    wb_record_download(null, $batchId, 'batch_zip');
 
     if (count($files) === 1) {
         $file = $files[0];
@@ -636,6 +720,7 @@ function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $da
             MIN(w.uploaded_by) AS uploaded_by,
             MIN(w.sent_by) AS sent_by,
             COUNT(*) AS file_count,
+            SUM(CASE WHEN w.first_downloaded_at IS NOT NULL THEN 1 ELSE 0 END) AS downloaded_count,
             SUM(CASE WHEN w.status = 'overdue' THEN 1 ELSE 0 END) AS overdue_count,
             SUM(CASE WHEN w.status = 'sent' THEN 1 ELSE 0 END) AS sent_count,
             GROUP_CONCAT(COALESCE(w.original_filename, SUBSTRING_INDEX(w.file_path, '/', -1)) ORDER BY w.id SEPARATOR ' | ') AS file_names,
@@ -668,7 +753,52 @@ function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $da
 
 function wb_batch_items(string $batchId): array
 {
-    return ops_rows("SELECT id,order_id,original_filename,file_path,status FROM hambelela_waybills WHERE batch_id=? AND archived_at IS NULL AND deleted_at IS NULL ORDER BY id",[$batchId]);
+    $items = ops_rows(
+        "SELECT w.id,w.batch_id,w.customer_name,w.order_id,w.original_filename,w.file_path,w.status,
+                w.first_downloaded_at,w.first_downloaded_by,
+                de.full_name AS first_downloaded_by_name,dr.role_key AS first_downloaded_role,
+                (SELECT COUNT(*) FROM hambelela_waybill_download_log dl WHERE dl.waybill_id=w.id AND dl.download_type='file') AS download_count,
+                (SELECT MAX(dl.downloaded_at) FROM hambelela_waybill_download_log dl WHERE dl.waybill_id=w.id AND dl.download_type='file') AS last_downloaded_at
+         FROM hambelela_waybills w
+         LEFT JOIN ops_employees de ON de.id=w.first_downloaded_by
+         LEFT JOIN ops_roles dr ON dr.id=de.role_id
+         WHERE w.batch_id=? AND w.archived_at IS NULL AND w.deleted_at IS NULL
+         ORDER BY w.id",
+        [$batchId]
+    );
+    foreach ($items as &$item) {
+        $rawOrder = trim((string) ($item['order_id'] ?? ''));
+        $numericOrderId = (int) preg_replace('/\D+/', '', $rawOrder);
+        $order = null;
+        if ($numericOrderId > 0 && ops_table_exists('ops_orders')) {
+            $order = ops_row('SELECT id,order_number,customer_name FROM ops_orders WHERE id=? LIMIT 1', [$numericOrderId]);
+        }
+        $item['order_record_id'] = (int) ($order['id'] ?? ($numericOrderId > 0 ? $numericOrderId : 0));
+        $item['order_display'] = trim((string) ($order['order_number'] ?? '')) ?: $rawOrder;
+        $item['customer_display'] = trim((string) ($item['customer_name'] ?? '')) ?: trim((string) ($order['customer_name'] ?? ''));
+        $downloader = ['full_name' => $item['first_downloaded_by_name'] ?? '', 'role_key' => $item['first_downloaded_role'] ?? ''];
+        $item['downloaded_by_display'] = $item['first_downloaded_by_name'] ? ops_staff_display_name($downloader) : '-';
+    }
+    unset($item);
+    return $items;
+}
+
+function wb_timing_result(?string $sentAt, ?string $dueBy): array
+{
+    if (!$sentAt || !$dueBy) {
+        return ['label' => 'Pending', 'class' => 'ok', 'difference' => 'Awaiting completion'];
+    }
+    $seconds = strtotime($sentAt) - strtotime($dueBy);
+    $late = $seconds > 0;
+    $minutes = (int) ceil(abs($seconds) / 60);
+    if ($minutes < 60) {
+        $difference = $minutes . ' minute' . ($minutes === 1 ? '' : 's') . ($late ? ' late' : ' early');
+    } else {
+        $hours = intdiv($minutes, 60);
+        $remaining = $minutes % 60;
+        $difference = $hours . 'h' . ($remaining ? ' ' . $remaining . 'm' : '') . ($late ? ' late' : ' early');
+    }
+    return ['label' => $late ? 'Sent late' : 'Sent on time', 'class' => $late ? 'overdue' : 'sent', 'difference' => $difference];
 }
 
 function wb_stats(): array
@@ -749,8 +879,9 @@ function wb_queue_html(array $rows, bool $canSend): string
         foreach ($rows as $row) {
             $batchId = (string) $row['batch_id'];
             $statusClass = wb_queue_status_class($row);
+            $detailId = 'courier-detail-' . substr(sha1($batchId), 0, 12);
             ?>
-            <article class="courier-grid courier-grid-waybill courier-grid-row queue-item <?= wb_e($statusClass) ?>" data-batch-id="<?= wb_e($batchId) ?>">
+            <article class="courier-grid courier-grid-waybill courier-grid-row queue-item <?= wb_e($statusClass) ?>" data-batch-id="<?= wb_e($batchId) ?>" data-courier-row-toggle tabindex="0" aria-expanded="false" aria-controls="<?= wb_e($detailId) ?>">
                 <div class="courier-cell courier-select-cell" data-column-key="select">
                     <label class="portal-grid-checkbox courier-row-checkbox" aria-label="Select waybill batch">
                         <input class="portal-grid-checkbox-input" type="checkbox" data-courier-row-select value="<?= wb_e($batchId) ?>">
@@ -762,6 +893,7 @@ function wb_queue_html(array $rows, bool $canSend): string
                     </label>
                 </div>
                 <div class="courier-cell queue-main" data-column-key="courier">
+                    <span class="courier-expand-indicator" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
                     <div>
                         <strong class="ref"><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
                         <span class="meta-value"><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?> waybill<?= (int) ($row['number_of_waybills'] ?: $row['file_count']) === 1 ? '' : 's' ?></span>
@@ -778,13 +910,13 @@ function wb_queue_html(array $rows, bool $canSend): string
                 <div class="courier-cell courier-actions-cell queue-item-actions" data-column-key="actions">
                     <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> <?= (int) $row['file_count'] > 1 ? 'Download All' : 'Download' ?></a>
                     <?php if ($canSend): ?>
-                        <button class="btn-mark-sent mark-sent mark-sent-btn courier-action-btn" type="button" data-batch-id="<?= wb_e($batchId) ?>" data-courier-label="<?= wb_e($row['courier_names'] ?: 'Courier') ?>" data-waybill-count="<?= (int) ($row['number_of_waybills'] ?: $row['file_count']) ?>"><i data-lucide="send"></i> Mark Sent</button>
+                        <button class="btn-mark-sent mark-sent mark-sent-btn courier-action-btn" type="button" data-batch-id="<?= wb_e($batchId) ?>" data-courier-label="<?= wb_e($row['courier_names'] ?: 'Courier') ?>" data-waybill-count="<?= (int) ($row['number_of_waybills'] ?: $row['file_count']) ?>" data-downloaded-count="<?= (int) ($row['downloaded_count'] ?? 0) ?>"><i data-lucide="send"></i> Mark Sent</button>
                     <?php endif; ?>
                     <?php if ($GLOBALS['canManageWaybills'] ?? false): ?>
                         <div class="courier-row-menu">
                             <button type="button" class="courier-row-menu-trigger" data-courier-row-menu aria-label="More waybill actions" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
                             <div class="courier-row-menu-popover" hidden>
-                                <a href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i><span>Download</span></a>
+                                <button type="button" data-courier-view-details data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="file-text"></i><span>View details</span></button>
                                 <button type="button" data-courier-row-action="archive" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="archive"></i><span>Archive</span></button>
                                 <button type="button" class="is-danger" data-courier-row-action="trash" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="trash-2"></i><span>Move to Trash</span></button>
                             </div>
@@ -792,23 +924,7 @@ function wb_queue_html(array $rows, bool $canSend): string
                     <?php endif; ?>
                 </div>
             </article>
-            <?php if ($GLOBALS['showOrderAssignment'] ?? false): $batchItems=wb_batch_items($batchId);$assignedItems=count(array_filter($batchItems,static fn(array$item):bool=>trim((string)($item['order_id']??''))!=='')); ?>
-            <section class="courier-waybill-assignments" data-waybill-assignments="<?= wb_e($batchId) ?>">
-                <header><div><strong>Waybills in this upload</strong><span><?= count($batchItems) ?> attachment<?= count($batchItems)===1?'':'s' ?> separated for order matching</span></div><span class="courier-assignment-progress"><?= $assignedItems ?>/<?= count($batchItems) ?> assigned</span></header>
-                <div class="courier-assignment-table">
-                    <div class="courier-assignment-row courier-assignment-head"><span>#</span><span>Waybill attachment</span><span>Order number</span><span>Action</span></div>
-                    <?php foreach($batchItems as $itemIndex=>$item): ?>
-                        <form class="courier-assignment-row" data-waybill-order-form>
-                            <span class="courier-assignment-number"><?= $itemIndex+1 ?></span>
-                            <span class="courier-assignment-file"><i data-lucide="file-text"></i><?= wb_e((string)($item['original_filename']?:basename((string)$item['file_path']))) ?></span>
-                            <label><span class="sr-only">Order number for waybill <?= $itemIndex+1 ?></span><input name="order_number" value="<?= wb_e((string)($item['order_id']??'')) ?>" placeholder="#36732 or WEB-36732" required></label>
-                            <input type="hidden" name="action" value="waybill_assign_order"><input type="hidden" name="waybill_id" value="<?= (int)$item['id'] ?>"><input type="hidden" name="batch_id" value="<?= wb_e($batchId) ?>">
-                            <button type="submit" class="portal-button portal-button--secondary"><i data-lucide="check"></i><span><?= trim((string)($item['order_id']??''))!==''?'Update':'Assign' ?></span></button>
-                        </form>
-                    <?php endforeach; ?>
-                </div>
-            </section>
-            <?php endif; ?>
+            <?= wb_batch_detail_html($row, false, $detailId) ?>
             <?php
         }
     }
@@ -823,22 +939,36 @@ function wb_history_html(array $rows): string
         echo '<div class="courier-empty">No sent waybills this week yet.</div>';
     } else {
         foreach ($rows as $row) {
+            $batchId = (string) $row['batch_id'];
+            $detailId = 'courier-history-detail-' . substr(sha1($batchId), 0, 12);
+            $timing = wb_timing_result((string) $row['sent_at'], (string) $row['due_by']);
             ?>
-            <article class="courier-grid courier-grid-history courier-grid-row history-row">
+            <article class="courier-grid courier-grid-history courier-grid-row history-row" data-batch-id="<?= wb_e($batchId) ?>" data-courier-row-toggle tabindex="0" aria-expanded="false" aria-controls="<?= wb_e($detailId) ?>">
                 <div class="courier-cell">
-                    <strong><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong>
-                    <span><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?> waybill<?= (int) ($row['number_of_waybills'] ?: $row['file_count']) === 1 ? '' : 's' ?></span>
+                    <span class="courier-expand-indicator" aria-hidden="true"><i data-lucide="chevron-down"></i></span>
+                    <span class="courier-history-main"><strong><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong><span><?= number_format((int) ($row['number_of_waybills'] ?: $row['file_count'])) ?> waybill<?= (int) ($row['number_of_waybills'] ?: $row['file_count']) === 1 ? '' : 's' ?></span></span>
                 </div>
                 <div class="courier-cell"><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></div>
                 <div class="courier-cell"><?= wb_e($row['uploaded_by_display']) ?></div>
                 <div class="courier-cell"><?= wb_e(wb_due_label((string) $row['due_by'])) ?></div>
                 <div class="courier-cell"><?= wb_e(wb_dt((string) $row['sent_at'])) ?></div>
                 <div class="courier-cell"><?= wb_e($row['sent_by_display']) ?></div>
-                <div class="courier-cell"><span class="badge <?= strtotime((string)$row['sent_at']) <= strtotime((string)$row['due_by']) ? 'sent' : 'overdue' ?>"><?= strtotime((string)$row['sent_at']) <= strtotime((string)$row['due_by']) ? 'Sent on time' : 'Sent late' ?></span></div>
+                <div class="courier-cell"><span class="badge <?= wb_e($timing['class']) ?>"><?= wb_e($timing['label']) ?></span></div>
                 <div class="courier-cell courier-actions-cell history-actions">
-                    <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e((string) $row['batch_id']) ?>"><i data-lucide="download"></i> Download</a>
+                    <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download All</a>
+                    <?php if ($GLOBALS['canManageWaybills'] ?? false): ?>
+                        <div class="courier-row-menu">
+                            <button type="button" class="courier-row-menu-trigger" data-courier-row-menu aria-label="More waybill actions" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+                            <div class="courier-row-menu-popover" hidden>
+                                <button type="button" data-courier-view-details data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="history"></i><span>View history</span></button>
+                                <button type="button" data-courier-row-action="archive" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="archive"></i><span>Archive</span></button>
+                                <button type="button" class="is-danger" data-courier-row-action="trash" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="trash-2"></i><span>Move to Trash</span></button>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </article>
+            <?= wb_batch_detail_html($row, true, $detailId) ?>
             <?php
         }
     }
@@ -1035,6 +1165,78 @@ function wb_export_selected_csv(array $batchIds): void
 if ($ready) {
     wb_bootstrap_schema();
     wb_update_overdue_and_reminders();
+}
+
+if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_download_file') {
+    $waybillId = max(0, (int) ($_GET['waybill_id'] ?? 0));
+    $batchId = substr((string) ($_GET['batch_id'] ?? ''), 0, 60);
+    if (!$waybillId || $batchId === '') {
+        http_response_code(400);
+        exit('Choose a valid waybill file.');
+    }
+    wb_stream_file_download($waybillId, $batchId);
+}
+
+function wb_batch_detail_html(array $row, bool $sent, string $detailId): string
+{
+    $batchId = (string) $row['batch_id'];
+    $items = wb_batch_items($batchId);
+    $downloaded = count(array_filter($items, static fn(array $item): bool => !empty($item['first_downloaded_at'])));
+    $timing = wb_timing_result((string) ($row['sent_at'] ?? ''), (string) ($row['due_by'] ?? ''));
+    $isOwner = ($GLOBALS['roleKey'] ?? '') === 'owner_admin';
+    ob_start();
+    ?>
+    <section class="courier-batch-detail" id="<?= wb_e($detailId) ?>" data-courier-detail="<?= wb_e($batchId) ?>" hidden>
+        <header class="courier-detail-heading">
+            <div><span><?= $sent ? 'Sent details' : 'Batch details' ?></span><strong><?= wb_e($row['courier_names'] ?: 'Courier not selected') ?></strong></div>
+            <span class="courier-detail-progress"><?= $downloaded ?> of <?= count($items) ?> downloaded</span>
+        </header>
+        <div class="courier-detail-summary">
+            <div><span>Uploaded</span><strong><?= wb_e(wb_dt((string) $row['uploaded_at'])) ?></strong></div>
+            <div><span>Uploaded by</span><strong><?= wb_e((string) $row['uploaded_by_display']) ?></strong></div>
+            <div><span>Due</span><strong><?= wb_e(wb_due_label((string) $row['due_by'])) ?></strong></div>
+            <div><span>Status</span><strong><?= wb_e($sent ? 'Sent' : ucfirst((string) $row['status'])) ?></strong></div>
+            <?php if ($sent): ?>
+                <div><span>Sent at</span><strong><?= wb_e(wb_dt((string) $row['sent_at'])) ?></strong></div>
+                <div><span>Sent by</span><strong><?= wb_e((string) $row['sent_by_display']) ?></strong></div>
+                <div><span>Performance</span><strong class="courier-result-<?= wb_e($timing['class']) ?>"><?= wb_e($timing['label']) ?></strong></div>
+                <div><span>Timing</span><strong><?= wb_e($timing['difference']) ?></strong></div>
+            <?php endif; ?>
+            <?php if ($isOwner): ?><div><span>Batch reference</span><strong><?= wb_e($batchId) ?></strong></div><?php endif; ?>
+        </div>
+        <div class="courier-file-table" role="table" aria-label="Individual waybills">
+            <div class="courier-file-row courier-file-head" role="row"><span>Customer</span><span>Order</span><span>Waybill file</span><span>Download</span><span>Action</span></div>
+            <?php foreach ($items as $item):
+                $filename = (string) ($item['original_filename'] ?: basename((string) $item['file_path']));
+                $hasDownload = !empty($item['first_downloaded_at']);
+                $orderDisplay = trim((string) ($item['order_display'] ?? ''));
+                $orderRecordId = (int) ($item['order_record_id'] ?? 0);
+            ?>
+                <div class="courier-file-row" role="row">
+                    <span data-label="Customer"><strong><?= wb_e((string) (($item['customer_display'] ?? '') ?: 'Customer not recorded')) ?></strong></span>
+                    <span data-label="Order">
+                        <?php if ($orderDisplay !== '' && $orderRecordId > 0): ?><a class="courier-order-link" href="orders-board.php?order_id=<?= $orderRecordId ?>">#<?= wb_e(ltrim($orderDisplay, '#')) ?></a>
+                        <?php else: ?><span class="courier-muted"><?= wb_e($orderDisplay !== '' ? $orderDisplay : 'Not linked') ?></span><?php endif; ?>
+                    </span>
+                    <span data-label="Waybill file" class="courier-file-name"><i data-lucide="file-text"></i><span><?= wb_e($filename) ?></span></span>
+                    <span data-label="Download" class="courier-download-state">
+                        <span class="courier-download-badge <?= $hasDownload ? 'is-downloaded' : '' ?>"><?= $hasDownload ? 'Downloaded' : 'Not downloaded' ?></span>
+                        <small><?= $hasDownload ? wb_e(wb_dt((string) $item['first_downloaded_at'])) : '—' ?><?= $isOwner && $hasDownload ? ' · ' . wb_e((string) $item['downloaded_by_display']) : '' ?></small>
+                        <?php if ($isOwner && (int) ($item['download_count'] ?? 0) > 1): ?><small><?= (int) $item['download_count'] ?> download events · latest <?= wb_e(wb_dt((string) $item['last_downloaded_at'])) ?></small><?php endif; ?>
+                    </span>
+                    <span data-label="Action"><a class="btn-secondary courier-file-download" data-waybill-file-download data-batch-id="<?= wb_e($batchId) ?>" href="courier.php?action=waybill_download_file&amp;batch_id=<?= wb_e($batchId) ?>&amp;waybill_id=<?= (int) $item['id'] ?>"><i data-lucide="download"></i><?= $hasDownload ? 'Download Again' : 'Download' ?></a></span>
+                </div>
+            <?php endforeach; ?>
+        </div>
+        <?php if (($GLOBALS['showOrderAssignment'] ?? false) && !$sent): ?>
+            <details class="courier-matching-tools"><summary>Order matching tools</summary><div class="courier-matching-list">
+                <?php foreach ($items as $itemIndex => $item): ?><form class="courier-matching-row" data-waybill-order-form><span><?= $itemIndex + 1 ?>. <?= wb_e((string) ($item['original_filename'] ?: basename((string) $item['file_path']))) ?></span><input name="order_number" value="<?= wb_e((string) ($item['order_id'] ?? '')) ?>" placeholder="#36732" required><input type="hidden" name="action" value="waybill_assign_order"><input type="hidden" name="waybill_id" value="<?= (int) $item['id'] ?>"><input type="hidden" name="batch_id" value="<?= wb_e($batchId) ?>"><button type="submit" class="btn-secondary"><i data-lucide="link"></i><?= trim((string) ($item['order_id'] ?? '')) !== '' ? 'Update link' : 'Link order' ?></button></form><?php endforeach; ?>
+            </div></details>
+        <?php endif; ?>
+        <?php if (!empty($row['notes'])): ?><div class="courier-detail-notes"><span>Notes</span><p><?= nl2br(wb_e((string) $row['notes'])) ?></p></div><?php endif; ?>
+    </section>
+    <?php
+    return (string) ob_get_clean();
 }
 
 if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_download_zip') {
@@ -1550,6 +1752,7 @@ include BASE_PATH . '/shared/sidebar.php';
     const history = document.querySelector('[data-waybill-history]');
     const bulkBar = document.querySelector('[data-courier-bulk-bar]');
     const selectedBatches = new Set();
+    const expandedBatches = new Set();
     const toolsPanel = document.querySelector('[data-courier-tools-panel]');
     const toolsBackdrop = document.querySelector('[data-courier-tools-backdrop]');
     const toolsTrash = document.querySelector('[data-courier-tools-trash]');
@@ -1676,6 +1879,13 @@ include BASE_PATH . '/shared/sidebar.php';
                 }
             });
         }
+        expandedBatches.forEach((batchId) => {
+            document.querySelectorAll(`[data-courier-row-toggle][data-batch-id="${CSS.escape(batchId)}"]`).forEach((row) => {
+                row.setAttribute('aria-expanded', 'true');
+                row.classList.add('is-expanded');
+            });
+            document.querySelectorAll(`[data-courier-detail="${CSS.escape(batchId)}"]`).forEach((detail) => { detail.hidden = false; });
+        });
         syncCourierSelection();
         applyCourierColumnWidths();
         refreshIcons();
@@ -1702,6 +1912,30 @@ include BASE_PATH . '/shared/sidebar.php';
         confirmShell.hidden = true;
         if (confirmResolver) confirmResolver(accepted);
         confirmResolver = null;
+    }
+
+    function closeRowMenus(except = null) {
+        document.querySelectorAll('.courier-row-menu-popover').forEach((menu) => {
+            if (menu !== except) menu.hidden = true;
+        });
+        document.querySelectorAll('[data-courier-row-menu]').forEach((button) => {
+            if (!except || button.nextElementSibling !== except) button.setAttribute('aria-expanded', 'false');
+        });
+    }
+
+    function toggleBatchDetails(row, force) {
+        if (!row) return;
+        const batchId = row.dataset.batchId;
+        if (!batchId) return;
+        const shouldOpen = force === undefined ? !expandedBatches.has(batchId) : Boolean(force);
+        document.querySelectorAll(`[data-courier-row-toggle][data-batch-id="${CSS.escape(batchId)}"]`).forEach((candidate) => {
+            candidate.classList.toggle('is-expanded', shouldOpen);
+            candidate.setAttribute('aria-expanded', shouldOpen ? 'true' : 'false');
+        });
+        document.querySelectorAll(`[data-courier-detail="${CSS.escape(batchId)}"]`).forEach((detail) => { detail.hidden = !shouldOpen; });
+        if (shouldOpen) expandedBatches.add(batchId);
+        else expandedBatches.delete(batchId);
+        refreshIcons();
     }
 
     function lifecycleLabel(action) {
@@ -2121,9 +2355,25 @@ include BASE_PATH . '/shared/sidebar.php';
         if (rowMenuTrigger) {
             const menu = rowMenuTrigger.nextElementSibling;
             const willOpen = menu?.hidden;
-            document.querySelectorAll('.courier-row-menu-popover').forEach((item) => { item.hidden = true; });
-            if (menu) menu.hidden = !willOpen;
+            closeRowMenus(menu);
+            if (menu) {
+                menu.hidden = !willOpen;
+                if (willOpen) {
+                    const rect = rowMenuTrigger.getBoundingClientRect();
+                    const menuWidth = 184;
+                    menu.style.left = `${Math.max(8, Math.min(window.innerWidth - menuWidth - 8, rect.right - menuWidth))}px`;
+                    menu.style.top = `${Math.min(window.innerHeight - 132, rect.bottom + 4)}px`;
+                }
+            }
             rowMenuTrigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+            return;
+        }
+        if (!event.target.closest('.courier-row-menu-popover')) closeRowMenus();
+        const viewDetails = event.target.closest('[data-courier-view-details]');
+        if (viewDetails) {
+            const row = document.querySelector(`[data-courier-row-toggle][data-batch-id="${CSS.escape(viewDetails.dataset.batchId || '')}"]`);
+            toggleBatchDetails(row, true);
+            closeRowMenus();
             return;
         }
         const rowAction = event.target.closest('[data-courier-row-action]');
@@ -2170,11 +2420,15 @@ include BASE_PATH . '/shared/sidebar.php';
             const batchId = markButton.getAttribute('data-batch-id');
             if (!batchId) return;
             const count = Number(markButton.dataset.waybillCount || 1);
+            const downloadedCount = Number(markButton.dataset.downloadedCount || 0);
             const courier = markButton.dataset.courierLabel || 'Courier';
+            const missingCount = Math.max(0, count - downloadedCount);
             const confirmed = await askConfirmation(
                 'Mark waybills as sent?',
-                `${courier} · ${count} waybill${count === 1 ? '' : 's'}. This confirms all waybills in this upload were sent to the relevant customers.`,
-                'Mark as Sent'
+                missingCount > 0
+                    ? `${missingCount} of ${count} waybill${count === 1 ? '' : 's'} ${missingCount === 1 ? 'has' : 'have'} not been downloaded. Are you sure all waybills in this batch have been sent?`
+                    : `${courier} · ${count} waybill${count === 1 ? '' : 's'}. This confirms all waybills in this upload were sent to the relevant customers.`,
+                missingCount > 0 ? 'Mark Sent Anyway' : 'Mark as Sent'
             );
             if (!confirmed) return;
             markButton.disabled = true;
@@ -2190,6 +2444,15 @@ include BASE_PATH . '/shared/sidebar.php';
                 .finally(() => {
                     markButton.disabled = false;
                 });
+            return;
+        }
+
+        const fileDownload = event.target.closest('[data-waybill-file-download]');
+        if (fileDownload) {
+            const batchId = fileDownload.dataset.batchId;
+            if (batchId) expandedBatches.add(batchId);
+            window.setTimeout(() => refreshCourierQueue(false).catch(() => {}), 900);
+            return;
         }
 
         const refreshButton = event.target.closest('[data-refresh-waybills]');
@@ -2203,7 +2466,11 @@ include BASE_PATH . '/shared/sidebar.php';
                 .finally(() => {
                     refreshButton.disabled = false;
                 });
+            return;
         }
+
+        const rowToggle = event.target.closest('[data-courier-row-toggle]');
+        if (rowToggle && !event.target.closest('a,button,input,label,select,textarea,summary')) toggleBatchDetails(rowToggle);
     });
 
     document.addEventListener('submit', async (event) => {
@@ -2235,12 +2502,21 @@ include BASE_PATH . '/shared/sidebar.php';
     });
 
     document.addEventListener('keydown', (event) => {
-        if (event.key !== 'Escape') return;
-        if (confirmShell && !confirmShell.hidden) {
-            settleConfirmation(false);
+        if (event.key === 'Escape') {
+            closeRowMenus();
+            if (confirmShell && !confirmShell.hidden) {
+                settleConfirmation(false);
+                return;
+            }
+            if (toolsPanel?.classList.contains('is-open')) closeTools();
             return;
         }
-        if (toolsPanel?.classList.contains('is-open')) closeTools();
+        const row = event.target.closest('[data-courier-row-toggle]');
+        if (row && (event.key === 'Enter' || event.key === ' ')) {
+            if (event.target.closest('a,button,input,label,select,textarea,summary')) return;
+            event.preventDefault();
+            toggleBatchDetails(row);
+        }
     });
 
     scheduleCourierRefresh();
