@@ -56,6 +56,7 @@ assert.match(css, /courier-history-download \.courier-history-download-short[\s\
 assert.match(css, /courier-history-download \.courier-history-download-full\{display:none\}[\s\S]*courier-history-download \.courier-history-download-short\{display:inline\}/);
 assert.match(css, /courier-grid-history \.courier-history-actions \.courier-history-download\{width:auto!important;min-width:0;flex:1 1 auto\}/);
 assert.match(css, /courier-grid-history \.courier-history-actions \.courier-row-menu\{width:32px;flex:0 0 32px\}/);
+assert.match(css, /@media \(min-width: 701px\)[\s\S]*courier-table-shell--history[\s\S]*min-width:\s*max-content[\s\S]*overflow:\s*visible/);
 assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
 
 console.log('Courier Front workflow redesign safeguards passed.');

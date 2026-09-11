@@ -291,6 +291,13 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
   background: #fff;
 }
 
+@media (min-width: 701px) {
+  .courier-wrap .courier-table-shell--history {
+    min-width: max-content;
+    overflow: visible;
+  }
+}
+
 .courier-wrap .card-title {
   font-size: 14px;
   font-weight: 600;
