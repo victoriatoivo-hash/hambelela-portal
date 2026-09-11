@@ -560,8 +560,8 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 .workspace.module.courier-wrap .btn-view,
 .workspace.module.courier-wrap .btn-mark-sent,
 .workspace.module.courier-wrap .btn-add-courier {
-  height: 32px;
-  min-height: 32px;
+  height: 34px;
+  min-height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -604,12 +604,14 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
   padding: 0 12px;
   cursor: pointer;
   text-decoration: none;
-  transition: background .15s, border-color .15s, color .15s;
+  transition: background .17s, border-color .17s, color .17s, transform .17s, box-shadow .17s;
 }
 
 .courier-wrap .btn-secondary:hover {
-  background: #FDF6EE;
+  background: #FFFAF5;
   border-color: #AB3619;
+  color: #721B1A;
+  transform: translateY(-1px);
 }
 
 .courier-wrap .queue-item-actions a.btn-secondary[href*="waybill_download_zip"]:hover,
@@ -736,15 +738,15 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 .courier-wrap .btn-mark-sent {
   background: #AB3619;
   color: #fff;
-  border: none;
-  border-radius: 7px;
+  border: 1px solid #AB3619;
+  border-radius: 8px;
   padding: 0 12px;
   font-size: 12px;
   cursor: pointer;
-  transition: background .15s, opacity .15s;
+  transition: background .17s, border-color .17s, opacity .17s, transform .17s, box-shadow .17s;
 }
 
-.courier-wrap .btn-mark-sent:hover { background: #721B1A; }
+.courier-wrap .btn-mark-sent:hover { background: #F07420; border-color: #F07420; transform: translateY(-1px); box-shadow: 0 6px 14px rgba(114,27,26,.12); }
 .courier-wrap .btn-mark-sent:disabled { opacity: .4; cursor: not-allowed; }
 
 .courier-wrap .due-badge {
@@ -784,24 +786,29 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 .courier-wrap .courier-grid-waybill {
   --courier-columns:
     36px
+    150px
+    88px
     138px
-    104px
+    148px
+    138px
     84px
-    104px
-    108px
-    78px
-    84px
-    minmax(132px, 1fr);
+    130px
+    120px
+    100px
+    minmax(224px, 1fr);
   grid-template-columns: var(--courier-columns);
 }
 
 .courier-wrap .courier-grid-history {
   --courier-columns:
-    minmax(360px, 1.6fr)
-    minmax(220px, 1fr)
-    minmax(220px, 1fr)
-    minmax(220px, 1fr)
-    minmax(150px, .7fr);
+    minmax(150px, 1fr)
+    minmax(138px, .9fr)
+    minmax(150px, 1fr)
+    minmax(138px, .9fr)
+    minmax(138px, .9fr)
+    minmax(130px, .85fr)
+    minmax(110px, .75fr)
+    minmax(112px, .7fr);
   grid-template-columns: var(--courier-columns);
 }
 
@@ -822,18 +829,15 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 
 .courier-wrap .courier-cell {
   min-width: 0;
-  height: 36px;
-  min-height: 36px;
-  max-height: 36px;
+  min-height: 44px;
   box-sizing: border-box;
   border-right: 1px solid #EDE3D8;
   border-bottom: 1px solid #EDE3D8;
   padding: 6px 8px;
   display: flex;
   align-items: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  white-space: normal;
   color: #252733;
   font-size: 12px;
   font-weight: 400;
@@ -849,9 +853,9 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 }
 
 .courier-wrap .courier-grid-header .courier-cell {
-  height: 36px;
-  min-height: 36px;
-  max-height: 36px;
+  height: 38px;
+  min-height: 38px;
+  max-height: 38px;
   padding: 0 8px;
   align-items: center;
   justify-content: flex-start;
@@ -979,7 +983,18 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 /* Task sections use every available workspace pixel. */
 .shell:has(.portal-sidebar)>main.workspace.module.digital-task-page{flex:1 1 0!important;width:auto!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important;justify-self:stretch!important;align-self:stretch!important}
 .workspace.module.digital-task-page,.digital-task-page .task-view-content,.digital-task-page .task-management-page,.digital-task-page .task-sections,.digital-task-page .task-section,.digital-task-page .task-board,.digital-task-page .dtb-sections,.digital-task-page .dtb-status-section,.digital-task-page .dtb-table-wrap{width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important}
-@media(max-width:900px){.courier-wrap .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}@media(max-width:700px){.courier-wrap .stat-cards,.courier-wrap .upload-form{grid-template-columns:1fr!important}.courier-wrap .section-card,.courier-wrap .courier-section{padding:16px!important}}
+@media(max-width:900px){.courier-wrap .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:700px){
+  .courier-wrap{padding:12px}.courier-wrap .stat-cards,.courier-wrap .upload-form{grid-template-columns:1fr!important}.courier-wrap .section-card,.courier-wrap .courier-section{padding:14px!important}
+  .courier-wrap .courier-table-scroll,.courier-wrap .courier-table-wrap{overflow:visible}.courier-wrap .courier-table-shell{border:0;background:transparent;overflow:visible}.courier-wrap .courier-grid-header{display:none}
+  .courier-wrap .queue-list,.courier-wrap .history-list{display:grid;gap:10px}.courier-wrap .courier-grid-row{display:grid;min-width:0!important;grid-template-columns:1fr 1fr!important;padding:12px;border:1px solid #EDE3D8;border-radius:11px;background:#fff;box-shadow:0 6px 18px rgba(114,27,26,.05)}
+  .courier-wrap .courier-grid-row .courier-cell{display:flex;height:auto;min-height:0;padding:7px 6px;border:0;overflow:visible;white-space:normal;flex-direction:column;align-items:flex-start;gap:3px}
+  .courier-wrap .courier-grid-row .courier-cell::before{color:#A08070;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
+  .courier-wrap .courier-grid-waybill .courier-cell:nth-child(1){display:none}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(2){grid-column:1/-1}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(3)::before{content:'Waybills'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(4)::before{content:'Uploaded'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(5)::before{content:'Uploaded by'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(6)::before{content:'Due'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(7)::before{content:'Status'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(8)::before{content:'Sent at'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(9)::before{content:'Sent by'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(10)::before{content:'Notes'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(11){grid-column:1/-1;flex-direction:row;flex-wrap:wrap;padding-top:10px}
+  .courier-wrap .queue-main strong{font-size:14px;color:#721B1A}.courier-wrap .queue-item-actions>a,.courier-wrap .queue-item-actions>button{flex:1 1 130px}.courier-wrap .courier-row-menu{flex:0 0 auto}
+  .courier-wrap .courier-grid-history .courier-cell:nth-child(2)::before{content:'Uploaded'}.courier-wrap .courier-grid-history .courier-cell:nth-child(3)::before{content:'Uploaded by'}.courier-wrap .courier-grid-history .courier-cell:nth-child(4)::before{content:'Due'}.courier-wrap .courier-grid-history .courier-cell:nth-child(5)::before{content:'Sent at'}.courier-wrap .courier-grid-history .courier-cell:nth-child(6)::before{content:'Sent by'}.courier-wrap .courier-grid-history .courier-cell:nth-child(7)::before{content:'Result'}.courier-wrap .courier-grid-history .courier-cell:nth-child(8){grid-column:1/-1;flex-direction:row}
+}
+@media(prefers-reduced-motion:reduce){.courier-wrap .btn-mark-sent,.courier-wrap .btn-secondary{transition:none!important}.courier-wrap .btn-mark-sent:hover,.courier-wrap .btn-secondary:hover{transform:none!important}}
 .courier-wrap .courier-waybill-assignments{margin:-1px 10px 12px 46px;padding:12px;border:1px solid #eadfd3;border-top:3px solid #a8ca19;border-radius:0 0 12px 12px;background:#fffaf5}.courier-wrap .courier-waybill-assignments>header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}.courier-wrap .courier-waybill-assignments>header div{display:flex;flex-direction:column;gap:2px}.courier-wrap .courier-waybill-assignments>header strong{color:#761b1a;font-size:12px}.courier-wrap .courier-waybill-assignments>header span{font-size:11px;color:#80685b}.courier-wrap .courier-assignment-progress{padding:4px 8px;border-radius:999px;background:#eef6d5;color:#556b12!important;font-weight:700}.courier-wrap .courier-assignment-table{overflow:hidden;border:1px solid #eadfd3;border-radius:10px;background:#fff}.courier-wrap .courier-assignment-row{display:grid;grid-template-columns:36px minmax(180px,1fr) minmax(180px,260px) 92px;align-items:center;gap:8px;min-height:42px;padding:6px 10px;border-bottom:1px solid #f0e7de}.courier-wrap .courier-assignment-row:last-child{border-bottom:0}.courier-wrap .courier-assignment-head{min-height:32px;background:#f7eee6;color:#761b1a;font-size:10px;font-weight:700;text-transform:uppercase}.courier-wrap .courier-assignment-file{display:flex;align-items:center;gap:7px;min-width:0;font-size:11px;overflow-wrap:anywhere}.courier-wrap .courier-assignment-file svg{width:14px;height:14px;color:#b64524;flex:0 0 auto}.courier-wrap .courier-assignment-number{font-size:11px;font-weight:700;color:#8a6a58}.courier-wrap .courier-assignment-row input{width:100%;height:32px!important;padding:0 9px!important;border:1px solid #dccfc2!important;border-radius:7px!important;font-size:11px!important}.courier-wrap .courier-assignment-row button{height:32px!important;justify-content:center!important;font-size:11px!important}.courier-wrap .courier-assignment-row button svg{width:13px;height:13px}@media(max-width:700px){.courier-wrap .courier-waybill-assignments{margin:0 0 12px;padding:10px}.courier-wrap .courier-assignment-head{display:none}.courier-wrap .courier-assignment-row{grid-template-columns:26px 1fr 76px}.courier-wrap .courier-assignment-row label{grid-column:2/4}.courier-wrap .courier-assignment-row button{grid-column:3;grid-row:1}.courier-wrap .courier-waybill-assignments>header{align-items:flex-start}.courier-wrap .courier-assignment-progress{white-space:nowrap}}
 
 /* Shared portal filter toolbar — the single visual contract for every module. */

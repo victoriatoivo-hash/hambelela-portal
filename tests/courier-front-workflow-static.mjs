@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const page = fs.readFileSync('apps/operations/courier.php', 'utf8');
+const css = fs.readFileSync('assets/css/portal-view-bar.css', 'utf8');
+const features = fs.readFileSync('shared/employee-features.php', 'utf8');
+
+assert.match(page, /\$showOrderAssignment = strpos\(\$roleKey, 'packer'\) !== false/);
+assert.match(page, /if \(\$GLOBALS\['showOrderAssignment'\] \?\? false\)/);
+assert.match(page, /data-column-key="waybills">Waybills/);
+assert.match(page, /data-column-key="uploaded_by">Uploaded By/);
+assert.match(page, /data-column-key="sent_at">Sent At/);
+assert.match(page, /data-column-key="sent_by">Sent By/);
+assert.match(page, /Download All/);
+assert.match(page, /Mark waybills as sent\?/);
+assert.match(page, /This confirms all waybills in this upload were sent/);
+assert.doesNotMatch(page, /Promise\.resolve\(window\.confirm/);
+assert.match(page, /new DateTimeZone\('Africa\/Windhoek'\)/);
+assert.match(page, /courier_nextday_cutoff/);
+assert.match(page, /\$value = '09:00'/);
+assert.match(page, /courier_waybill_deadline_aligned/);
+assert.match(page, /status IN \('pending','overdue'\).*sent_at IS NULL/);
+assert.match(page, /FOR UPDATE/);
+assert.match(page, /AND status IN \('pending','overdue'\) AND sent_at IS NULL/);
+assert.match(page, /already_sent/);
+assert.match(page, /'sent_at' => \$sentAt/);
+assert.match(page, /'sent_by' => \$currentEmployeeId/);
+assert.match(page, /Sent on time/);
+assert.match(page, /Sent late/);
+assert.match(features, /'marketing_sales'.*'courier'/);
+assert.match(css, /@media\(max-width:700px\).*courier-grid-row/s);
+assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
+
+console.log('Courier Front workflow redesign safeguards passed.');

@@ -32,7 +32,7 @@ function portal_feature_permissions(): array
             'dashboard', 'accounts', 'input_vat', 'output_vat', 'import_vat',
             'paye', 'vat_reconciliation', 'accounting_amendments', 'notifications',
         ],
-        'marketing_sales' => ['dashboard','marketing','orders','task_management','bookkeeping','cash_tools','notifications','system_issues'],
+        'marketing_sales' => ['dashboard','marketing','orders','task_management','bookkeeping','cash_tools','courier','notifications','system_issues'],
     ];
 }
 
