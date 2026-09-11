@@ -910,6 +910,44 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
   height: 15px;
 }
 
+@media (min-width: 1351px) {
+  .courier-wrap .courier-history-download {
+    height: 30px;
+    min-height: 30px;
+    max-width: 112px;
+    padding: 0 8px;
+    gap: 5px;
+    font-size: 10px !important;
+  }
+
+  .courier-wrap .courier-history-download svg,
+  .courier-wrap .courier-history-download i[data-lucide] {
+    width: 14px;
+    height: 14px;
+    flex-basis: 14px;
+  }
+
+  .courier-wrap .courier-history-download .courier-history-download-full {
+    display: none;
+  }
+
+  .courier-wrap .courier-history-download .courier-history-download-short {
+    display: inline;
+  }
+
+  .courier-wrap .courier-history-actions .courier-row-menu {
+    width: 30px;
+    flex: 0 0 30px;
+  }
+
+  .courier-wrap .courier-history-more {
+    width: 30px;
+    min-width: 30px;
+    height: 30px;
+    min-height: 30px;
+  }
+}
+
 .courier-wrap .courier-grid-header,
 .courier-wrap .courier-grid-row {
   border: 0;
