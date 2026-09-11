@@ -105,8 +105,8 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <?php endif; ?>
     <?php if ($ownerPwaEnabled): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/owner-pwa.css?v=<?= is_file(BASE_PATH . '/assets/css/owner-pwa.css') ? (string) filemtime(BASE_PATH . '/assets/css/owner-pwa.css') : '1' ?>"><script defer src="<?= BASE_URL ?>/assets/js/owner-pwa.js?v=<?= is_file(BASE_PATH . '/assets/js/owner-pwa.js') ? (string) filemtime(BASE_PATH . '/assets/js/owner-pwa.js') : '1' ?>"></script><?php endif; ?>
 </head>
-<body>
-<div class="shell">
+<body<?= !empty($isEssDashboard) ? ' class="ess-dashboard"' : '' ?>>
+<div class="shell<?= !empty($isEssDashboard) ? ' ess-dashboard-shell' : '' ?>">
     <?php if ($showPortalHeaderStatus): ?>
         <section class="portal-header-status<?= $showPortalHeaderAccount ? ' portal-header-status--has-account' : '' ?>" data-portal-header-status
                  data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>"

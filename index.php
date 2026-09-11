@@ -110,7 +110,16 @@ if ($roleKey !== 'owner_admin') {
     $apps = array_values(array_filter($apps, static fn(array $app): bool => !isset($dashboardFeatures[$app['name']]) || portal_role_can_access_feature($roleKey, $dashboardFeatures[$app['name']])));
 }
 
+$isEssDashboard = $roleKey === 'owner_admin';
+if ($isEssDashboard) {
+    $extraStylesheets[] = ['path' => 'assets/css/ess-dashboard.css', 'version' => (string) filemtime(__DIR__ . '/assets/css/ess-dashboard.css')];
+}
 include __DIR__ . '/shared/header.php';
+if ($isEssDashboard) {
+    include __DIR__ . '/shared/ess-dashboard.php';
+    include __DIR__ . '/shared/footer.php';
+    exit;
+}
 include __DIR__ . '/shared/sidebar.php';
 ?>
 <main class="workspace launcher">
@@ -137,13 +146,6 @@ include __DIR__ . '/shared/sidebar.php';
             </a>
         <?php endforeach; ?>
     </section>
-    <?php if ($roleKey === 'owner_admin' && $dashboardMarketing !== null): ?>
-    <section class="owner-marketing-widget" aria-labelledby="owner-marketing-title">
-        <header><div><span>MARKETING</span><h2 id="owner-marketing-title">Performance this month</h2></div><a href="<?= BASE_URL ?>/apps/marketing/index.php?view=analytics">Open Marketing <span aria-hidden="true">→</span></a></header>
-        <div><article><span>Published</span><strong><?= number_format($dashboardMarketing['published']) ?></strong></article><article><span>Awaiting Approval</span><strong><?= number_format($dashboardMarketing['awaiting']) ?></strong></article><article><span>Active Campaigns</span><strong><?= number_format($dashboardMarketing['campaigns']) ?></strong></article><article><span>Ad Spend</span><strong>N$ <?= number_format($dashboardMarketing['spend'], 2) ?></strong></article><article><span>Attributed Sales</span><strong><?= $dashboardMarketing['sales'] === null ? 'Not connected' : 'N$ ' . number_format($dashboardMarketing['sales'], 2) ?></strong></article></div>
-    </section>
-    <style>.owner-marketing-widget{margin-top:18px;border:1px solid #ede3d8;border-radius:14px;background:#fff;overflow:hidden;box-shadow:0 8px 24px rgba(114,27,26,.05)}.owner-marketing-widget header{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;background:#fdf6ee}.owner-marketing-widget header span,.owner-marketing-widget article span{display:block;color:#a08070;font-size:9px;font-weight:700;text-transform:uppercase}.owner-marketing-widget h2{margin:3px 0 0;color:#721b1a;font-size:15px}.owner-marketing-widget header a{color:#ab3619;font-size:11px;font-weight:650;text-decoration:none}.owner-marketing-widget>div{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;padding:12px}.owner-marketing-widget article{padding:10px;border:1px solid #ede3d8;border-radius:9px}.owner-marketing-widget article strong{display:block;margin-top:4px;color:#721b1a;font-size:16px}@media(max-width:760px){.owner-marketing-widget>div{grid-template-columns:1fr 1fr}.owner-marketing-widget header{align-items:flex-start;gap:8px;flex-direction:column}}</style>
-    <?php endif; ?>
 </main>
 <?php if ($roleKey !== 'owner_admin' && $dashboardTaskCount > 0): ?><div class="dashboard-task-reminder" data-dashboard-task-reminder hidden><button type="button" class="dashboard-task-reminder-backdrop" data-dashboard-task-dismiss aria-label="Close task reminder"></button><section><button type="button" class="dashboard-task-reminder-close" data-dashboard-task-dismiss aria-label="Close"><i data-lucide="x"></i></button><span>Tasks requiring attention</span><h2>You have <?= number_format($dashboardTaskCount) ?> incomplete task<?= $dashboardTaskCount === 1 ? '' : 's' ?>.</h2><div><?php foreach ($dashboardTaskRows as $task): ?><a href="<?= BASE_URL ?>/apps/operations/checklists.php?task_id=<?= (int) $task['id'] ?>"><strong><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= !empty($task['deadline']) ? htmlspecialchars(date('D j M, H:i', strtotime((string) $task['deadline'])), ENT_QUOTES, 'UTF-8') : 'No due time' ?></small></a><?php endforeach; ?></div><a class="dashboard-task-reminder-open" href="<?= BASE_URL ?>/apps/operations/checklists.php">Open Task Management</a></section></div><script>(()=>{const modal=document.querySelector('[data-dashboard-task-reminder]');if(!modal)return;const key='taskReminder:<?= date('Y-m-d') ?>:<?= (int) (current_user()['id'] ?? 0) ?>';if(!sessionStorage.getItem(key))modal.hidden=false;modal.querySelectorAll('[data-dashboard-task-dismiss]').forEach(button=>button.addEventListener('click',()=>{modal.hidden=true;sessionStorage.setItem(key,'dismissed')}));})();</script><?php endif; ?>
 <?php if ($roleKey !== 'owner_admin'): ?><style>.employee-workspace-intro{margin:0 0 16px}.employee-workspace-intro h1{margin:0 0 5px;color:#721b1a;font-size:14px;font-weight:600}.employee-workspace-intro p{margin:0;color:#6b4c3b;font-size:12px;line-height:1.45}.employee-app-status{position:absolute;top:12px;right:12px;min-height:22px;padding:0 8px;display:inline-flex;align-items:center;border-radius:999px;background:rgba(168,202,25,.14);color:#721b1a;font-size:10px;font-weight:600}.employee-app-action{margin-top:10px;color:#ab3619;font-size:11px;font-weight:600}</style><?php endif; ?>
