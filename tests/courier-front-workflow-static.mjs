@@ -57,7 +57,7 @@ assert.match(css, /courier-history-download \.courier-history-download-full\{dis
 assert.match(css, /courier-grid-history \.courier-history-actions \.courier-history-download\{width:auto!important;min-width:0;flex:1 1 auto\}/);
 assert.match(css, /courier-grid-history \.courier-history-actions \.courier-row-menu\{width:32px;flex:0 0 32px\}/);
 assert.match(css, /@media \(min-width: 701px\)[\s\S]*courier-table-shell--history[\s\S]*min-width:\s*max-content[\s\S]*overflow:\s*visible/);
-assert.match(css, /@media \(min-width: 1351px\)[\s\S]*courier-history-download[\s\S]*max-width:\s*112px[\s\S]*courier-history-download-full[\s\S]*display:\s*none[\s\S]*courier-history-download-short[\s\S]*display:\s*inline[\s\S]*courier-history-more[\s\S]*min-width:\s*30px/);
+assert.match(css, /@media \(min-width: 1351px\)[\s\S]*courier-history-download[\s\S]*height:\s*30px\s*!important[\s\S]*max-width:\s*112px[\s\S]*courier-history-download-full[\s\S]*display:\s*none[\s\S]*courier-history-download-short[\s\S]*display:\s*inline[\s\S]*courier-history-more[\s\S]*min-width:\s*30px/);
 assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
 
 console.log('Courier Front workflow redesign safeguards passed.');

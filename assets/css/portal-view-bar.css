@@ -912,8 +912,9 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 
 @media (min-width: 1351px) {
   .courier-wrap .courier-history-download {
-    height: 30px;
-    min-height: 30px;
+    height: 30px !important;
+    min-height: 30px !important;
+    max-height: 30px;
     max-width: 112px;
     padding: 0 8px;
     gap: 5px;
