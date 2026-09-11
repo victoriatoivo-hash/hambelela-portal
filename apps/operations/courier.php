@@ -961,11 +961,11 @@ function wb_history_html(array $rows): string
                 <div class="courier-cell"><?= wb_e(wb_dt((string) $row['sent_at'])) ?></div>
                 <div class="courier-cell"><?= wb_e($row['sent_by_display']) ?></div>
                 <div class="courier-cell"><span class="badge <?= wb_e($timing['class']) ?>"><?= wb_e($timing['label']) ?></span></div>
-                <div class="courier-cell courier-actions-cell history-actions">
-                    <a class="btn-secondary download-btn courier-secondary-btn" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>"><i data-lucide="download"></i> Download All</a>
+                <div class="courier-cell courier-actions-cell history-actions courier-history-actions" data-column-key="actions">
+                    <a class="btn-secondary download-btn courier-secondary-btn courier-history-download" href="courier.php?action=waybill_download_zip&amp;batch_id=<?= wb_e($batchId) ?>" aria-label="Download all waybills" title="Download all waybills"><i data-lucide="download"></i><span class="courier-history-download-label"><span class="courier-history-download-full">Download All</span><span class="courier-history-download-short">Download</span></span></a>
                     <?php if ($GLOBALS['canManageWaybills'] ?? false): ?>
                         <div class="courier-row-menu">
-                            <button type="button" class="courier-row-menu-trigger" data-courier-row-menu aria-label="More waybill actions" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+                            <button type="button" class="courier-row-menu-trigger courier-history-more" data-courier-row-menu aria-label="More waybill actions" title="More waybill actions" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
                             <div class="courier-row-menu-popover" hidden>
                                 <button type="button" data-courier-view-details data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="history"></i><span>View history</span></button>
                                 <button type="button" data-courier-row-action="archive" data-batch-id="<?= wb_e($batchId) ?>"><i data-lucide="archive"></i><span>Archive</span></button>
@@ -1678,7 +1678,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <div class="courier-table-scroll courier-table-wrap">
                     <div class="courier-table-shell courier-table-shell--history">
                         <div class="courier-grid courier-grid-history courier-grid-header history-head">
-                            <div class="courier-cell">Courier</div><div class="courier-cell">Uploaded</div><div class="courier-cell">Uploaded By</div><div class="courier-cell">Due</div><div class="courier-cell">Sent At</div><div class="courier-cell">Sent By</div><div class="courier-cell">Result</div><div class="courier-cell">Actions</div>
+                            <div class="courier-cell">Courier</div><div class="courier-cell">Uploaded</div><div class="courier-cell">Uploaded By</div><div class="courier-cell">Due</div><div class="courier-cell">Sent At</div><div class="courier-cell">Sent By</div><div class="courier-cell">Result</div><div class="courier-cell courier-history-actions-header" data-column-key="actions">Actions</div>
                         </div>
                         <div class="history-list" data-waybill-history><?= $payload['history_html'] ?></div>
                     </div>
@@ -2477,7 +2477,11 @@ include BASE_PATH . '/shared/sidebar.php';
         }
 
         const rowToggle = event.target.closest('[data-courier-row-toggle]');
-        if (rowToggle && !event.target.closest('a,button,input,label,select,textarea,summary')) toggleBatchDetails(rowToggle);
+        if (rowToggle && event.target.closest('a,button,input,label,select,textarea,summary')) {
+            event.stopPropagation();
+            return;
+        }
+        if (rowToggle) toggleBatchDetails(rowToggle);
     });
 
     document.addEventListener('submit', async (event) => {

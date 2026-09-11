@@ -801,15 +801,106 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 
 .courier-wrap .courier-grid-history {
   --courier-columns:
-    minmax(150px, 1fr)
-    minmax(138px, .9fr)
-    minmax(150px, 1fr)
-    minmax(138px, .9fr)
-    minmax(138px, .9fr)
-    minmax(130px, .85fr)
-    minmax(110px, .75fr)
-    minmax(112px, .7fr);
+    minmax(170px, 1fr)
+    minmax(124px, .82fr)
+    minmax(132px, .88fr)
+    minmax(124px, .82fr)
+    minmax(124px, .82fr)
+    minmax(112px, .74fr)
+    minmax(100px, .66fr)
+    170px;
   grid-template-columns: var(--courier-columns);
+}
+
+.courier-wrap .courier-history-actions-header {
+  min-width: 170px;
+  justify-content: flex-end;
+  text-align: right;
+}
+
+.courier-wrap .courier-history-actions {
+  min-width: 170px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow: visible;
+  white-space: nowrap;
+}
+
+.courier-wrap .courier-history-download {
+  height: 32px;
+  min-height: 32px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  border: 1px solid #EDE3D8;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #721B1A !important;
+  font: 600 11px/1 Figtree, system-ui, sans-serif !important;
+  white-space: nowrap;
+  box-sizing: border-box;
+  transition: background-color .17s ease, border-color .17s ease, color .17s ease, transform .17s ease, box-shadow .17s ease;
+}
+
+.courier-wrap .courier-history-download:hover,
+.courier-wrap .courier-history-download:focus-visible {
+  border-color: #AB3619;
+  background: #FFFAF5;
+  color: #721B1A !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(114, 27, 26, .08);
+}
+
+.courier-wrap .courier-history-download svg,
+.courier-wrap .courier-history-download i[data-lucide] {
+  width: 15px;
+  height: 15px;
+  flex: 0 0 15px;
+}
+
+.courier-wrap .courier-history-download .courier-history-download-full {
+  display: inline;
+}
+
+.courier-wrap .courier-history-download .courier-history-download-short {
+  display: none;
+}
+
+.courier-wrap .courier-history-actions .courier-row-menu,
+.courier-wrap .courier-history-more {
+  flex: 0 0 auto;
+}
+
+.courier-wrap .courier-history-more {
+  width: 32px;
+  min-width: 32px;
+  height: 32px;
+  min-height: 32px;
+  border: 1px solid #EDE3D8;
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: #721B1A;
+  transition: background-color .17s ease, border-color .17s ease, color .17s ease, transform .17s ease, box-shadow .17s ease;
+}
+
+.courier-wrap .courier-history-more:hover,
+.courier-wrap .courier-history-more:focus-visible {
+  border-color: #AB3619;
+  background: #FFFAF5;
+  color: #721B1A;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(114, 27, 26, .08);
+}
+
+.courier-wrap .courier-history-more svg {
+  width: 15px;
+  height: 15px;
 }
 
 .courier-wrap .courier-grid-header,
@@ -984,6 +1075,12 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 .shell:has(.portal-sidebar)>main.workspace.module.digital-task-page{flex:1 1 0!important;width:auto!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important;justify-self:stretch!important;align-self:stretch!important}
 .workspace.module.digital-task-page,.digital-task-page .task-view-content,.digital-task-page .task-management-page,.digital-task-page .task-sections,.digital-task-page .task-section,.digital-task-page .task-board,.digital-task-page .dtb-sections,.digital-task-page .dtb-status-section,.digital-task-page .dtb-table-wrap{width:100%!important;max-width:none!important;min-width:0!important;box-sizing:border-box!important}
 @media(max-width:900px){.courier-wrap .stat-cards{grid-template-columns:repeat(2,minmax(0,1fr))!important}}
+@media(max-width:1100px) and (min-width:701px){
+  .courier-wrap .courier-grid-history{--courier-columns:minmax(150px,1fr) 120px 130px 120px 120px 110px 100px 78px}
+  .courier-wrap .courier-history-actions-header,.courier-wrap .courier-history-actions{min-width:78px}
+  .courier-wrap .courier-history-download{width:32px;min-width:32px;padding:0}
+  .courier-wrap .courier-history-download-label{display:none}
+}
 @media(max-width:700px){
   .courier-wrap{padding:12px}.courier-wrap .stat-cards,.courier-wrap .upload-form{grid-template-columns:1fr!important}.courier-wrap .section-card,.courier-wrap .courier-section{padding:14px!important}
   .courier-wrap .courier-table-scroll,.courier-wrap .courier-table-wrap{overflow:visible}.courier-wrap .courier-table-shell{border:0;background:transparent;overflow:visible}.courier-wrap .courier-grid-header{display:none}
@@ -992,9 +1089,10 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
   .courier-wrap .courier-grid-row .courier-cell::before{color:#A08070;font-size:9px;font-weight:700;letter-spacing:.05em;text-transform:uppercase}
   .courier-wrap .courier-grid-waybill .courier-cell:nth-child(1){display:none}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(2){grid-column:1/-1}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(3)::before{content:'Waybills'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(4)::before{content:'Uploaded'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(5)::before{content:'Uploaded by'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(6)::before{content:'Due'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(7)::before{content:'Status'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(8)::before{content:'Sent at'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(9)::before{content:'Sent by'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(10)::before{content:'Notes'}.courier-wrap .courier-grid-waybill .courier-cell:nth-child(11){grid-column:1/-1;flex-direction:row;flex-wrap:wrap;padding-top:10px}
   .courier-wrap .queue-main strong{font-size:14px;color:#721B1A}.courier-wrap .queue-item-actions>a,.courier-wrap .queue-item-actions>button{flex:1 1 130px}.courier-wrap .courier-row-menu{flex:0 0 auto}
-  .courier-wrap .courier-grid-history .courier-cell:nth-child(2)::before{content:'Uploaded'}.courier-wrap .courier-grid-history .courier-cell:nth-child(3)::before{content:'Uploaded by'}.courier-wrap .courier-grid-history .courier-cell:nth-child(4)::before{content:'Due'}.courier-wrap .courier-grid-history .courier-cell:nth-child(5)::before{content:'Sent at'}.courier-wrap .courier-grid-history .courier-cell:nth-child(6)::before{content:'Sent by'}.courier-wrap .courier-grid-history .courier-cell:nth-child(7)::before{content:'Result'}.courier-wrap .courier-grid-history .courier-cell:nth-child(8){grid-column:1/-1;flex-direction:row}
+  .courier-wrap .courier-grid-history .courier-cell:nth-child(2)::before{content:'Uploaded'}.courier-wrap .courier-grid-history .courier-cell:nth-child(3)::before{content:'Uploaded by'}.courier-wrap .courier-grid-history .courier-cell:nth-child(4)::before{content:'Due'}.courier-wrap .courier-grid-history .courier-cell:nth-child(5)::before{content:'Sent at'}.courier-wrap .courier-grid-history .courier-cell:nth-child(6)::before{content:'Sent by'}.courier-wrap .courier-grid-history .courier-cell:nth-child(7)::before{content:'Result'}.courier-wrap .courier-grid-history .courier-cell:nth-child(8){grid-column:1/-1;min-width:0;flex-direction:row;align-items:center;justify-content:flex-start;gap:6px}
+  .courier-wrap .courier-history-download .courier-history-download-full{display:none}.courier-wrap .courier-history-download .courier-history-download-short{display:inline}
 }
-@media(prefers-reduced-motion:reduce){.courier-wrap .btn-mark-sent,.courier-wrap .btn-secondary{transition:none!important}.courier-wrap .btn-mark-sent:hover,.courier-wrap .btn-secondary:hover{transform:none!important}}
+@media(prefers-reduced-motion:reduce){.courier-wrap .btn-mark-sent,.courier-wrap .btn-secondary,.courier-wrap .courier-history-more{transition:none!important}.courier-wrap .btn-mark-sent:hover,.courier-wrap .btn-secondary:hover,.courier-wrap .courier-history-more:hover{transform:none!important}}
 .courier-wrap [data-courier-row-toggle] { cursor: pointer; transition: background-color .17s ease, box-shadow .17s ease; }
 .courier-wrap [data-courier-row-toggle]:hover .courier-cell,
 .courier-wrap [data-courier-row-toggle]:focus-visible .courier-cell { background: #FFFAF5; }
