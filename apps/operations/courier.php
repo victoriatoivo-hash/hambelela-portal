@@ -2367,9 +2367,15 @@ include BASE_PATH . '/shared/sidebar.php';
                 menu.hidden = !willOpen;
                 if (willOpen) {
                     const rect = rowMenuTrigger.getBoundingClientRect();
-                    const menuWidth = 184;
-                    menu.style.left = `${Math.max(8, Math.min(window.innerWidth - menuWidth - 8, rect.right - menuWidth))}px`;
-                    menu.style.top = `${Math.min(window.innerHeight - 132, rect.bottom + 4)}px`;
+                    const viewportGap = 12;
+                    const menuRect = menu.getBoundingClientRect();
+                    const menuWidth = Math.min(220, Math.max(180, menuRect.width || 184));
+                    const menuHeight = menuRect.height || 116;
+                    const rightAnchoredLeft = rect.right - menuWidth;
+                    menu.style.left = `${Math.max(viewportGap, Math.min(window.innerWidth - menuWidth - viewportGap, rightAnchoredLeft))}px`;
+                    const belowTop = rect.bottom + 6;
+                    const fitsBelow = belowTop + menuHeight <= window.innerHeight - viewportGap;
+                    menu.style.top = `${fitsBelow ? belowTop : Math.max(viewportGap, rect.top - menuHeight - 6)}px`;
                 }
             }
             rowMenuTrigger.setAttribute('aria-expanded', willOpen ? 'true' : 'false');

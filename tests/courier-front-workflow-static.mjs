@@ -58,6 +58,12 @@ assert.match(css, /courier-grid-history \.courier-history-actions \.courier-hist
 assert.match(css, /courier-grid-history \.courier-history-actions \.courier-row-menu\{width:32px;flex:0 0 32px\}/);
 assert.match(css, /@media \(min-width: 701px\)[\s\S]*courier-table-shell--history[\s\S]*min-width:\s*max-content[\s\S]*overflow:\s*visible/);
 assert.match(css, /@media \(min-width: 1351px\)[\s\S]*courier-history-download[\s\S]*height:\s*30px\s*!important[\s\S]*max-width:\s*112px[\s\S]*courier-history-download-full[\s\S]*display:\s*none[\s\S]*courier-history-download-short[\s\S]*display:\s*inline[\s\S]*courier-history-more[\s\S]*min-width:\s*30px/);
+assert.match(css, /courier-history-actions > \*[\s\S]*flex-shrink:\s*0/);
+assert.match(css, /courier-row-menu-popover[\s\S]*max-width:\s*min\(220px, calc\(100vw - 24px\)\)/);
+assert.match(css, /courier-row-menu-popover > button[\s\S]*display:\s*flex\s*!important[\s\S]*height:\s*34px\s*!important/);
+assert.match(css, /courier-row-menu-popover > \.is-danger[\s\S]*color:\s*#BB1B21\s*!important/);
+assert.match(page, /rightAnchoredLeft = rect\.right - menuWidth/);
+assert.match(page, /fitsBelow = belowTop \+ menuHeight <= window\.innerHeight - viewportGap/);
 assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
 
 console.log('Courier Front workflow redesign safeguards passed.');

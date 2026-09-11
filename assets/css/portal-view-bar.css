@@ -827,6 +827,7 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 
 .courier-wrap .courier-history-actions {
   min-width: 170px;
+  max-width: 100%;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -834,6 +835,10 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
   flex-wrap: nowrap;
   overflow: visible;
   white-space: nowrap;
+}
+
+.courier-wrap .courier-history-actions > * {
+  flex-shrink: 0;
 }
 
 .courier-wrap .courier-history-download {
@@ -1194,7 +1199,54 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
 .courier-wrap .courier-matching-row { display: grid; grid-template-columns: minmax(160px, 1fr) minmax(130px, 220px) auto; align-items: center; gap: 8px; }
 .courier-wrap .courier-matching-row>span { color: #6B4C3B; font-size: 11px; overflow-wrap: anywhere; }
 .courier-wrap .courier-matching-row input { height: 34px; padding: 0 9px; border: 1px solid #EDE3D8; border-radius: 8px; font: 400 12px/1 Figtree, system-ui, sans-serif; }
-.courier-wrap .courier-row-menu-popover { position: fixed; top: auto; right: auto; z-index: 62000; width: 184px; }
+.courier-wrap .courier-row-menu-popover {
+  position: fixed;
+  top: auto;
+  right: auto;
+  left: auto;
+  z-index: 62000;
+  width: 184px;
+  min-width: 180px;
+  max-width: min(220px, calc(100vw - 24px));
+  padding: 6px;
+  overflow: visible;
+  box-sizing: border-box;
+}
+
+.workspace.module.courier-wrap .courier-row-menu-popover > button,
+.workspace.module.courier-wrap .courier-row-menu-popover > a {
+  display: flex !important;
+  width: 100% !important;
+  height: 34px !important;
+  min-height: 34px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+  align-items: center !important;
+  justify-content: flex-start !important;
+  gap: 7px !important;
+  border-radius: 6px !important;
+  box-sizing: border-box !important;
+  font: 400 12px/1 Figtree, system-ui, sans-serif !important;
+}
+
+.workspace.module.courier-wrap .courier-row-menu-popover > button svg,
+.workspace.module.courier-wrap .courier-row-menu-popover > a svg {
+  width: 14px !important;
+  height: 14px !important;
+  flex: 0 0 14px !important;
+  stroke: currentColor;
+}
+
+.workspace.module.courier-wrap .courier-row-menu-popover > .is-danger {
+  color: #BB1B21 !important;
+}
+
+.workspace.module.courier-wrap .courier-row-menu-popover > .is-danger:hover,
+.workspace.module.courier-wrap .courier-row-menu-popover > .is-danger:focus-visible {
+  border-color: #BB1B21 !important;
+  background: rgba(187, 27, 33, .06) !important;
+  color: #BB1B21 !important;
+}
 
 @media (max-width: 700px) {
   .courier-wrap .courier-batch-detail { padding: 11px; border: 1px solid #EDE3D8; border-top: 0; border-radius: 0 0 11px 11px; }
