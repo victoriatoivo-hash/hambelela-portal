@@ -15,6 +15,6 @@
         <a class="ess-nav-item" href="<?= BASE_URL ?>/notifications.php" title="Notifications" aria-label="Notifications"><i data-lucide="bell" aria-hidden="true"></i><span>Notifications</span></a>
         <a class="ess-nav-item" href="<?= BASE_URL ?>/apps/operations/my-account.php" title="My account" aria-label="My account"><i data-lucide="user-round" aria-hidden="true"></i><span>My account</span></a>
         <a class="ess-nav-item" href="<?= BASE_URL ?>/login.php?action=logout" title="Logout" aria-label="Logout"><i data-lucide="log-out" aria-hidden="true"></i><span>Logout</span></a>
-        <a class="ess-support-card" href="<?= BASE_URL ?>/apps/operations/system-issues.php"><i data-lucide="circle-help" aria-hidden="true"></i><span><strong>Need a hand?</strong><small>Open System Issues Log <span aria-hidden="true">↗</span></small></span></a>
+        <?php if (!function_exists('portal_user_can_access_feature') || portal_user_can_access_feature('system_issues')): ?><a class="ess-support-card" href="<?= BASE_URL ?>/apps/operations/system-issues.php"><i data-lucide="circle-help" aria-hidden="true"></i><span><strong>Need a hand?</strong><small>Open System Issues Log <span aria-hidden="true">↗</span></small></span></a><?php endif; ?>
     </div>
 </aside>

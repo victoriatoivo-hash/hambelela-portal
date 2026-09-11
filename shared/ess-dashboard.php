@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 // Presentation only: the entry point supplies the existing, permission-filtered
 // routes and metrics. Never query or mutate business data from this template.
-if (($roleKey ?? '') !== 'owner_admin') { return; }
+if (empty($roleKey) || $roleKey === 'guest') { return; }
 require_once __DIR__ . '/ess-inspiration.php';
 require_once __DIR__ . '/ess-navigation.php';
 $essNow = new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek'));
@@ -18,6 +18,13 @@ $essQuickLinks = [
     ['System Issues Log', '/apps/operations/system-issues.php', 'circle-help'],
     ['My account', '/apps/operations/my-account.php', 'user-round'],
 ];
+if ($roleKey !== 'owner_admin') {
+    // Use exactly the current profile's already-filtered dashboard destinations.
+    $essShellApps = $apps;
+    $essAllowedPaths = array_column($apps, 'href');
+    $essQuickLinks = array_values(array_filter($essQuickLinks, static fn(array $link): bool =>
+        $link[1] === '/apps/operations/my-account.php' || in_array(BASE_URL.$link[1], $essAllowedPaths, true)));
+}
 ?>
 <?php include __DIR__.'/ess-sidebar.php'; ?>
 <main id="ess-main" class="workspace ess-dashboard-main" tabindex="-1">
@@ -32,6 +39,7 @@ $essQuickLinks = [
         <a class="ess-module-card" data-ess-module data-ess-accent="<?= $essEscape($app['name']) ?>" data-search="<?= $essEscape($app['name'] . ' ' . $app['desc']) ?>" href="<?= $essEscape($app['href']) ?>" style="--ess-order:<?= (int) $index ?>" aria-label="<?= $essEscape($app['name'] . ' — ' . $app['desc']) ?>">
             <span class="ess-module-icon"><i data-lucide="<?= $essEscape($app['icon']) ?>" aria-hidden="true"></i></span>
             <h3><?= $essEscape($app['name']) ?></h3><p><?= $essEscape($app['desc']) ?></p>
+            <?php if ($app['name'] === 'Tasks' && !empty($dashboardTaskCount)): ?><span class="ess-module-badge" aria-label="<?= (int)$dashboardTaskCount ?> incomplete tasks"><?= $dashboardTaskCount > 99 ? '99+' : (int)$dashboardTaskCount ?></span><?php endif; ?>
             <?php if ($app['name'] === 'Packing List'): ?><span class="ess-module-badge<?= $dashboardPackingUnread > 0 ? '' : ' is-hidden' ?>" data-packing-unread-badge<?= $dashboardPackingUnread > 0 ? '' : ' hidden' ?> aria-label="<?= $dashboardPackingUnread ?> unread Packing List items"><?= $dashboardPackingUnread > 99 ? '99+' : $dashboardPackingUnread ?></span><?php endif; ?>
             <?php if ($app['name'] === 'System Issues Log' && !empty($app['badge'])): ?><span class="ess-module-badge<?= !empty($app['needs_information']) ? ' ess-needs-information' : '' ?>" aria-label="<?= (int) $app['badge'] ?> open system issues<?= !empty($app['needs_information']) ? ', information requested' : '' ?>"><?= (int) $app['badge'] > 99 ? '99+' : (int) $app['badge'] ?></span><?php endif; ?>
             <span class="ess-module-arrow" aria-hidden="true"><i data-lucide="arrow-up-right"></i></span>
@@ -40,6 +48,7 @@ $essQuickLinks = [
     </section>
     <p class="ess-empty" data-ess-search-empty hidden>No modules match your search. Try another name.</p>
     <span class="ess-sr-only" data-ess-search-status role="status" aria-live="polite"></span>
+    <?php if ($roleKey === 'owner_admin'): ?>
     <section class="ess-panel ess-performance" aria-labelledby="ess-marketing-title">
         <header class="ess-panel-header"><div><span class="ess-section-label">MARKETING</span><h2 id="ess-marketing-title" class="ess-panel-title">Performance this month</h2></div><a class="ess-panel-link" href="<?= BASE_URL ?>/apps/marketing/index.php?view=analytics">Open Marketing <i data-lucide="arrow-up-right" aria-hidden="true"></i></a></header>
         <?php if ($dashboardMarketing !== null): ?>
@@ -56,6 +65,7 @@ $essQuickLinks = [
         </div>
         <?php else: ?><p class="ess-empty">Marketing data is currently unavailable. Open Marketing to check the latest information.</p><?php endif; ?>
     </section>
+    <?php endif; ?>
     <div class="ess-lower-grid">
         <section class="ess-panel" aria-labelledby="ess-activity-title"><header class="ess-panel-header"><div><span class="ess-section-label">KEEP UP TO DATE</span><h2 class="ess-panel-title" id="ess-activity-title">Recent notifications</h2></div><a class="ess-panel-link" href="<?= BASE_URL ?>/notifications.php">View all <i data-lucide="arrow-up-right" aria-hidden="true"></i></a></header>
             <div class="ess-activity-list">

@@ -107,19 +107,22 @@ if (portal_role_can_access_feature($roleKey, 'system_issues')) {
 }
 if ($roleKey !== 'owner_admin') {
     $dashboardFeatures = ['Packing List'=>'packing_list','Courier Waybills'=>'courier','HR Portal'=>'hr','Orders'=>'orders','Tasks'=>'task_management','Bookkeeping'=>'bookkeeping','Notifications'=>'notifications','Input VAT'=>'input_vat','Error Log'=>'error_log','Marketing'=>'marketing','System Issues Log'=>'system_issues'];
-    $apps = array_values(array_filter($apps, static fn(array $app): bool => !isset($dashboardFeatures[$app['name']]) || portal_role_can_access_feature($roleKey, $dashboardFeatures[$app['name']])));
+    $apps = array_values(array_filter($apps, static fn(array $app): bool => !isset($dashboardFeatures[$app['name']]) || portal_user_can_access_feature($dashboardFeatures[$app['name']])));
 }
 
-$isEssDashboard = $roleKey === 'owner_admin';
+$isEssDashboard = true;
 if ($isEssDashboard) {
     $extraStylesheets[] = ['path' => 'assets/css/ess-dashboard.css', 'version' => (string) filemtime(__DIR__ . '/assets/css/ess-dashboard.css')];
 }
 include __DIR__ . '/shared/header.php';
 if ($isEssDashboard) {
     include __DIR__ . '/shared/ess-dashboard.php';
+    if ($roleKey === 'owner_admin') {
     include __DIR__ . '/shared/footer.php';
     exit;
+    }
 }
+if (!$isEssDashboard) {
 include __DIR__ . '/shared/sidebar.php';
 ?>
 <main class="workspace launcher">
@@ -147,6 +150,7 @@ include __DIR__ . '/shared/sidebar.php';
         <?php endforeach; ?>
     </section>
 </main>
+<?php } ?>
 <?php if ($roleKey !== 'owner_admin' && $dashboardTaskCount > 0): ?><div class="dashboard-task-reminder" data-dashboard-task-reminder hidden><button type="button" class="dashboard-task-reminder-backdrop" data-dashboard-task-dismiss aria-label="Close task reminder"></button><section><button type="button" class="dashboard-task-reminder-close" data-dashboard-task-dismiss aria-label="Close"><i data-lucide="x"></i></button><span>Tasks requiring attention</span><h2>You have <?= number_format($dashboardTaskCount) ?> incomplete task<?= $dashboardTaskCount === 1 ? '' : 's' ?>.</h2><div><?php foreach ($dashboardTaskRows as $task): ?><a href="<?= BASE_URL ?>/apps/operations/checklists.php?task_id=<?= (int) $task['id'] ?>"><strong><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= !empty($task['deadline']) ? htmlspecialchars(date('D j M, H:i', strtotime((string) $task['deadline'])), ENT_QUOTES, 'UTF-8') : 'No due time' ?></small></a><?php endforeach; ?></div><a class="dashboard-task-reminder-open" href="<?= BASE_URL ?>/apps/operations/checklists.php">Open Task Management</a></section></div><script>(()=>{const modal=document.querySelector('[data-dashboard-task-reminder]');if(!modal)return;const key='taskReminder:<?= date('Y-m-d') ?>:<?= (int) (current_user()['id'] ?? 0) ?>';if(!sessionStorage.getItem(key))modal.hidden=false;modal.querySelectorAll('[data-dashboard-task-dismiss]').forEach(button=>button.addEventListener('click',()=>{modal.hidden=true;sessionStorage.setItem(key,'dismissed')}));})();</script><?php endif; ?>
 <?php if ($roleKey !== 'owner_admin'): ?><style>.employee-workspace-intro{margin:0 0 16px}.employee-workspace-intro h1{margin:0 0 5px;color:#721b1a;font-size:14px;font-weight:600}.employee-workspace-intro p{margin:0;color:#6b4c3b;font-size:12px;line-height:1.45}.employee-app-status{position:absolute;top:12px;right:12px;min-height:22px;padding:0 8px;display:inline-flex;align-items:center;border-radius:999px;background:rgba(168,202,25,.14);color:#721b1a;font-size:10px;font-weight:600}.employee-app-action{margin-top:10px;color:#ab3619;font-size:11px;font-weight:600}</style><?php endif; ?>
 <?php include __DIR__ . '/shared/footer.php'; ?>

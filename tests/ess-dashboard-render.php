@@ -13,7 +13,14 @@ function renderDashboard(string $role, ?array $metrics): string {
     ob_start(); include BASE_PATH . '/shared/ess-dashboard.php'; return ob_get_clean();
 }
 function verify(bool $ok, string $message): void { if (!$ok) throw new RuntimeException($message); }
-foreach (['packer','front_desk_admin','accountant','guest'] as $role) verify(renderDashboard($role, null) === '', 'Admin view must not render for ' . $role);
+verify(renderDashboard('guest', null) === '', 'Guests must not render the dashboard');
+foreach (['packer','front_desk_admin','accountant'] as $role) {
+    $staff = renderDashboard($role, null);
+    verify(str_contains($staff, 'ess-sidebar'), 'Staff must receive the shared sidebar');
+    verify(str_contains($staff, 'Pack &lt;carefully&gt;'), 'Staff must retain permitted app cards');
+    verify(!str_contains($staff, 'ess-marketing-title'), 'Owner reports must remain private');
+    verify(!str_contains($staff, '/apps/cost-manager/'), 'Staff must not receive owner destinations');
+}
 $markup = renderDashboard('owner_admin', ['published'=>17,'awaiting'=>3,'campaigns'=>2,'spend'=>1234.5,'sales'=>9876.54]);
 foreach (['17','N$ 1,234.50','N$ 9,876.54','Review &lt;request&gt;','Pack &lt;carefully&gt;','data-packing-unread-badge','123 unread Packing List items','4 open system issues, information requested','/portal/notifications.php?id=42'] as $needle) verify(str_contains($markup, $needle), 'Must preserve dynamic output: ' . $needle);
 verify(str_contains(renderDashboard('owner_admin', null), 'Marketing data is currently unavailable'), 'Unavailable data must not become invented zeros');
