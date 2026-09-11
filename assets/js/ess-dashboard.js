@@ -28,6 +28,7 @@
   const search = document.querySelector('[data-ess-search]');
   const cards = [...document.querySelectorAll('[data-ess-module]')];
   search.addEventListener('input', () => {
+    if (!cards.length) return;
     const query = search.value.trim().toLocaleLowerCase();
     let count = 0;
     for (const card of cards) {
@@ -37,6 +38,16 @@
     document.querySelector('[data-ess-search-empty]').hidden = count !== 0;
     document.querySelector('[data-ess-search-status]').textContent = `${count} module${count === 1 ? '' : 's'} found`;
   });
+  if (!cards.length) {
+    search.setAttribute('aria-label', 'Find a portal module (press Enter to open)');
+    search.removeAttribute('aria-controls');
+    search.addEventListener('keydown', event => {
+      if (event.key !== 'Enter') return;
+      const query = search.value.trim().toLowerCase();
+      const link = [...document.querySelectorAll('.ess-sidebar .ess-nav-item[href]')].find(item => item.textContent.trim().toLowerCase() === query);
+      if (link) window.location.href = link.href;
+    });
+  }
   document.addEventListener('keydown', event => {
     if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.closest('input,textarea,select,[contenteditable="true"]')) {
       event.preventDefault(); search.focus();
@@ -51,6 +62,7 @@
     const box = dialog.getBoundingClientRect();
     if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close();
   });
+  if (!document.querySelector('#ess-inspiration-data')) return;
   const catalog = JSON.parse(document.querySelector('#ess-inspiration-data').textContent);
   const hero = document.querySelector('[data-ess-inspiration]');
   const updateDay = () => {

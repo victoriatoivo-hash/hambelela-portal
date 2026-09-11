@@ -1529,163 +1529,21 @@ $extraStylesheets[] = [
     'version' => is_file(BASE_PATH . '/assets/css/portal-view-bar.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-view-bar.css') . '-courier2' : (string) time(),
 ];
 $portalViewBarCssLoadedInHead = true;
-
-include BASE_PATH . '/shared/header.php';
-include BASE_PATH . '/shared/sidebar.php';
+$isEssDashboard = true;
+$pageUsesPortalSidebar = false; // Shared shell keeps account controls in the topbar.
+require_once BASE_PATH.'/shared/ess-navigation.php';
+$essShellApps = ess_shell_apps();
+$essActiveModule = 'Courier';
+$essHeadingPartial = BASE_PATH.'/shared/ess-courier-heading.php';
+$extraStylesheets[] = ['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')];
+$extraStylesheets[] = ['path'=>'assets/css/courier-essentials.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/courier-essentials.css')];
+include BASE_PATH.'/shared/header.php';
+include BASE_PATH.'/shared/ess-sidebar.php';
 ?>
-<main class="workspace module courier-wrap" data-courier-user-id="<?= (int) $currentEmployeeId ?>">
-    <section class="module-header">
-        <div>
-            <h1>Courier Waybills</h1>
-            <p class="page-subtitle">Upload, track and send courier waybills from one queue.</p>
-        </div>
-        <div class="courier-page-actions">
-            <?php if ($canManageWaybills): ?>
-                <button type="button" class="courier-tools-button" data-courier-tools-open data-view-bar-action><i data-lucide="wrench"></i><span>Courier tools</span></button>
-            <?php endif; ?>
-            <?php if ($canExportWaybills): ?>
-                <a class="btn-secondary export-btn courier-secondary-btn" data-view-bar-action href="courier.php?action=waybill_export_csv&amp;date_from=<?= wb_e($historyDateFrom) ?>&amp;date_to=<?= wb_e($historyDateTo) ?>"><i data-lucide="download"></i> Export CSV</a>
-            <?php endif; ?>
-        </div>
-    </section>
-
-    <?php if (!$ready) { ops_setup_notice(); } ?>
-
-    <section class="courier-hub" data-waybill-app>
-        <div class="stat-cards">
-            <article class="stat-card uploaded">
-                <div class="sc-head"><span class="sc-icon"><i data-lucide="upload-cloud"></i></span><span class="sc-lbl">Uploaded Today</span></div>
-                <strong class="sc-num" data-stat="uploaded_today"><?= number_format($payload['stats']['uploaded_today']) ?></strong>
-            </article>
-            <article class="stat-card pending">
-                <div class="sc-head"><span class="sc-icon"><i data-lucide="clock-3"></i></span><span class="sc-lbl">Pending Send</span></div>
-                <strong class="sc-num" data-stat="pending"><?= number_format($payload['stats']['pending']) ?></strong>
-            </article>
-            <article class="stat-card overdue">
-                <div class="sc-head"><span class="sc-icon"><i data-lucide="triangle-alert"></i></span><span class="sc-lbl">Overdue</span></div>
-                <strong class="sc-num" data-stat="overdue"><?= number_format($payload['stats']['overdue']) ?></strong>
-            </article>
-            <article class="stat-card sent-month">
-                <div class="sc-head"><span class="sc-icon"><i data-lucide="send"></i></span><span class="sc-lbl">Sent This Month</span></div>
-                <strong class="sc-num" data-stat="sent_this_month"><?= number_format($payload['stats']['sent_this_month']) ?></strong>
-            </article>
-        </div>
-
-        <form class="section-card courier-section filter-strip" method="get" data-waybill-filter>
-            <div class="filter-date-row">
-                <label class="field-label">From
-                    <input type="date" name="date_from" value="<?= wb_e($historyDateFrom) ?>">
-                </label>
-                <label class="field-label">To
-                    <input type="date" name="date_to" value="<?= wb_e($historyDateTo) ?>">
-                </label>
-            </div>
-            <label class="field-label filter-search-row">Search
-                <input type="search" name="search" placeholder="Search courier waybills">
-            </label>
-            <div class="filter-actions-row">
-                <button class="btn-primary filter-apply-button" type="submit"><i data-lucide="check"></i> Apply filters</button>
-                <a class="btn-secondary filter-clear-button" href="courier.php"><i data-lucide="rotate-ccw"></i> Reset</a>
-            </div>
-        </form>
-
-        <?php if ($canUploadWaybills): ?>
-            <section class="section-card courier-section">
-                <div class="card-head courier-section-header">
-                    <div>
-                        <h2 class="card-title">Upload Waybills</h2>
-                        <p class="card-sub">Uploading as: <strong><?= wb_e(wb_current_name()) ?></strong>. Multiple files can be uploaded in one batch.</p>
-                    </div>
-                    <span class="due-badge"><i data-lucide="alarm-clock"></i> Due by: <?= wb_e(wb_due_label($duePreview)) ?></span>
-                </div>
-
-                <form class="upload-form" data-waybill-upload enctype="multipart/form-data">
-                    <input type="hidden" name="action" value="waybill_upload">
-                    <label class="field-label upload-input-field">Sent Date
-                        <input name="sent_date" type="date" value="<?= wb_e(date('Y-m-d')) ?>" required>
-                    </label>
-                    <div class="field-label span-2 courier-field">
-                        <span>Courier</span>
-                        <div class="courier-chips">
-                            <?php foreach (wb_allowed_couriers() as $courier): ?>
-                                <label class="courier-chip"><input type="checkbox" name="couriers[]" value="<?= wb_e($courier) ?>"> <?= wb_e($courier) ?></label>
-                            <?php endforeach; ?>
-                            <button class="btn-add-courier" type="button" data-add-courier>+ Add courier</button>
-                        </div>
-                        <div class="add-courier-inline" data-add-courier-inline>
-                            <input type="text" data-add-courier-name placeholder="Courier name">
-                            <button class="btn-secondary" type="button" data-add-courier-save>Add</button>
-                        </div>
-                    </div>
-                    <div class="field-label span-2 waybill-files-field">
-                        <span>Waybill files *</span>
-                        <label class="dropzone" data-dropzone>
-                            <input name="waybill_files[]" type="file" accept=".pdf,.jpg,.jpeg,.png" multiple required hidden>
-                            <div class="dz-icon"><i data-lucide="paperclip"></i></div>
-                            <div class="dz-main">Drag and drop waybill files here</div>
-                            <div class="dz-sub">or click to browse. Each attached PDF or image becomes its own waybill row.</div>
-                        </label>
-                        <div data-file-chips></div>
-                    </div>
-                    <label class="field-label span-2 notes-field">Notes for Front Desk
-                        <textarea name="notes" placeholder="Optional note for Secilia"></textarea>
-                    </label>
-                    <div class="span-2 form-actions">
-                        <button class="btn-primary" type="submit" data-upload-submit><i data-lucide="upload"></i> Upload Waybills</button>
-                    </div>
-                </form>
-            </section>
-        <?php endif; ?>
-
-        <section class="section-card courier-section">
-            <div class="courier-section-inner">
-                <div class="card-head courier-section-header">
-                    <div>
-                        <h2 class="card-title">Waybill Queue</h2>
-                    </div>
-                    <div class="courier-queue-header-actions">
-                        <button class="btn-secondary refresh-btn courier-secondary-btn" type="button" data-refresh-waybills data-view-sync-action><i data-lucide="refresh-cw"></i> Refresh</button>
-                    </div>
-                </div>
-                <div class="courier-table-scroll courier-table-wrap">
-                        <div class="courier-table-shell courier-table-shell--queue">
-                        <div class="courier-grid courier-grid-waybill courier-grid-header queue-head">
-                            <div class="courier-cell courier-select-cell" data-column-key="select">
-                                <label class="portal-grid-checkbox courier-select-all" aria-label="Select all waybill batches">
-                                    <input class="portal-grid-checkbox-input" type="checkbox" data-courier-select-all>
-                                    <span class="portal-grid-checkbox-box" aria-hidden="true">
-                                        <svg viewBox="0 0 12 12" aria-hidden="true">
-                                            <path d="M2.25 6.25 4.8 8.8 9.75 3.85" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" />
-                                        </svg>
-                                    </span>
-                                </label>
-                            </div><div class="courier-cell queue-main" data-column-key="courier"><span>Courier</span></div><div class="courier-cell" data-column-key="waybills">Waybills</div><div class="courier-cell" data-column-key="uploaded">Uploaded</div><div class="courier-cell" data-column-key="uploaded_by">Uploaded By</div><div class="courier-cell" data-column-key="due">Due</div><div class="courier-cell" data-column-key="status">Status</div><div class="courier-cell" data-column-key="sent_at">Sent At</div><div class="courier-cell" data-column-key="sent_by">Sent By</div><div class="courier-cell" data-column-key="notes">Notes</div><div class="courier-cell" data-column-key="actions">Actions</div>
-                        </div>
-                        <div class="queue-list" data-waybill-queue><?= $payload['queue_html'] ?></div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <section class="section-card courier-section">
-            <div class="courier-section-inner">
-                <div class="card-head courier-section-header history-summary">
-                    <div>
-                        <h2 class="card-title">Sent History</h2>
-                        <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
-                    </div>
-                </div>
-                <div class="courier-table-scroll courier-table-wrap">
-                    <div class="courier-table-shell courier-table-shell--history">
-                        <div class="courier-grid courier-grid-history courier-grid-header history-head">
-                            <div class="courier-cell">Courier</div><div class="courier-cell">Uploaded</div><div class="courier-cell">Uploaded By</div><div class="courier-cell">Due</div><div class="courier-cell">Sent At</div><div class="courier-cell">Sent By</div><div class="courier-cell">Result</div><div class="courier-cell courier-history-actions-header" data-column-key="actions">Actions</div>
-                        </div>
-                        <div class="history-list" data-waybill-history><?= $payload['history_html'] ?></div>
-                    </div>
-                </div>
-            </div>
-        </section>
-    </section>
+<main id="ess-main" class="workspace ess-dashboard-main courier-wrap ess-courier-page" tabindex="-1" data-courier-user-id="<?= (int)$currentEmployeeId ?>">
+<?php include BASE_PATH.'/shared/ess-topbar.php'; ?>
+<?php if (!$ready) { ops_setup_notice(); } ?>
+<?php include BASE_PATH.'/shared/ess-courier-content.php'; ?>
     <div class="courier-bulk-bar" data-courier-bulk-bar hidden>
         <div class="courier-bulk-selection"><span class="courier-bulk-count" data-courier-bulk-count>0</span><strong class="courier-bulk-label" data-courier-bulk-label>items selected</strong></div>
         <div class="courier-bulk-divider" aria-hidden="true"></div>
@@ -1703,7 +1561,7 @@ include BASE_PATH . '/shared/sidebar.php';
     </div>
     <?php if ($canManageWaybills): ?>
         <div class="courier-tools-backdrop" data-courier-tools-backdrop hidden></div>
-        <aside class="courier-tools-panel" data-courier-tools-panel aria-hidden="true" aria-labelledby="courier-tools-title">
+        <aside class="courier-tools-panel" data-courier-tools-panel role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="courier-tools-title">
             <header class="courier-tools-header">
                 <div><span class="courier-tools-kicker">Courier</span><h2 id="courier-tools-title">Courier tools</h2><p>Review deleted waybills, restore archived records and track Courier activity.</p></div>
                 <button type="button" class="courier-tools-close" data-courier-tools-close aria-label="Close Courier tools"><i data-lucide="x"></i></button>
@@ -1776,6 +1634,7 @@ include BASE_PATH . '/shared/sidebar.php';
     let toolsData = null;
     let toolsReturnFocus = null;
     let confirmResolver = null;
+    let confirmReturnFocus = null;
     const statEls = {
         uploaded_today: document.querySelector('[data-stat="uploaded_today"]'),
         pending: document.querySelector('[data-stat="pending"]'),
@@ -1909,6 +1768,7 @@ include BASE_PATH . '/shared/sidebar.php';
         confirmShell.querySelector('[data-courier-confirm-title]').textContent = title;
         confirmShell.querySelector('[data-courier-confirm-message]').textContent = message;
         confirmShell.querySelector('[data-courier-confirm-accept]').textContent = acceptLabel;
+        confirmReturnFocus = document.activeElement;
         confirmShell.hidden = false;
         confirmShell.querySelector('[data-courier-confirm-accept]').focus();
         return new Promise((resolve) => { confirmResolver = resolve; });
@@ -1917,6 +1777,7 @@ include BASE_PATH . '/shared/sidebar.php';
     function settleConfirmation(accepted) {
         if (!confirmShell || confirmShell.hidden) return;
         confirmShell.hidden = true;
+        confirmReturnFocus?.focus?.();
         if (confirmResolver) confirmResolver(accepted);
         confirmResolver = null;
     }
@@ -1996,8 +1857,15 @@ include BASE_PATH . '/shared/sidebar.php';
         if (!toolsPanel) return;
         const body = new FormData();
         body.append('action', 'waybill_tools_data');
-        const data = await fetchJson('courier.php', { method: 'POST', body });
-        renderTools(data.tools);
+        const lists = [toolsTrash, toolsArchived, toolsActivity].filter(Boolean);
+        lists.forEach(list => { list.innerHTML = '<div class="courier-tools-empty" role="status">Loading Courier records…</div>'; });
+        try {
+            const data = await fetchJson('courier.php', { method: 'POST', body });
+            renderTools(data.tools);
+        } catch (error) {
+            lists.forEach(list => { list.innerHTML = `<div class="courier-tools-empty" role="alert"><strong>Records unavailable</strong><span>${esc(error.message)}</span></div>`; });
+            throw error;
+        }
     }
 
     function openTools(trigger) {
@@ -2219,11 +2087,15 @@ include BASE_PATH . '/shared/sidebar.php';
             selectedFiles.forEach((file, index) => {
                 const chip = document.createElement('span');
                 chip.className = 'file-chip';
-                chip.appendChild(document.createTextNode(file.name));
+                const info = document.createElement('span');
+                const title = document.createElement('strong'); title.textContent = file.name;
+                const size = document.createElement('small'); size.textContent = `${(file.size / 1024).toFixed(1)} KB`;
+                info.append(title, size); chip.appendChild(info);
                 const remove = document.createElement('button');
                 remove.type = 'button';
                 remove.className = 'remove';
-                remove.textContent = 'x';
+                remove.textContent = '×';
+                remove.setAttribute('aria-label', `Remove ${file.name}`);
                 remove.addEventListener('click', () => {
                     selectedFiles.splice(index, 1);
                     syncFiles();
@@ -2261,7 +2133,7 @@ include BASE_PATH . '/shared/sidebar.php';
 
         if (addCourierButton && addCourierInline) {
             addCourierButton.addEventListener('click', () => {
-                addCourierInline.classList.add('visible');
+                addCourierInline.showModal();
                 if (addCourierName) addCourierName.focus();
             });
         }
@@ -2269,7 +2141,7 @@ include BASE_PATH . '/shared/sidebar.php';
             addCourierSave.addEventListener('click', () => {
                 addCourierChip(addCourierName.value);
                 addCourierName.value = '';
-                if (addCourierInline) addCourierInline.classList.remove('visible');
+                if (addCourierInline) addCourierInline.close();
             });
             addCourierName.addEventListener('keydown', (event) => {
                 if (event.key === 'Enter') {
@@ -2544,4 +2416,7 @@ include BASE_PATH . '/shared/sidebar.php';
     document.documentElement.classList.add('courier-js-ready');
 })();
 </script>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH.'/assets/js/ess-dashboard.js') ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/courier-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/courier-essentials.js') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

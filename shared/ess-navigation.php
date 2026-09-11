@@ -46,12 +46,52 @@ function ess_navigation_children(string $name): array
     return $links;
 }
 
-function ess_render_navigation(array $apps): void
+function ess_shell_apps(): array
+{
+    $items = [
+        ['Cost Workbook','table-2','/apps/cost-manager/workbook.php','cost_manager'],
+        ['Operations','clipboard-check','/apps/operations/index.php','orders'],
+        ['HR Portal','shield-check','/apps/hr-portal/portal-login.php','hr'],
+        ['Employee Performance','chart-no-axes-combined','/apps/operations/reports.php','kpi_dashboard'],
+        ['Packing List','package-open','/apps/operations/consignments.php','packing_list'],
+        ['Courier','truck','/apps/operations/courier.php','courier'],
+        ['Accounts','landmark','/apps/accounts/index.php','accounts'],
+        ['Marketing','megaphone','/apps/marketing/index.php','marketing'],
+        ['System Issues Log','circle-help','/apps/operations/system-issues.php','system_issues'],
+    ];
+    // Retain staff daily-work links and employee-specific Input VAT grants.
+    if (current_role_key() !== 'owner_admin') {
+        $items = [
+            ['Orders','clipboard-check','/apps/operations/orders-board.php','orders'],
+            ['Bookkeeping','book-open','/apps/operations/bookkeeping.php','bookkeeping'],
+            ['Marketing','megaphone','/apps/marketing/index.php','marketing'],
+            ['Accounts','landmark','/apps/accounts/index.php','accounts'],
+            ['Input VAT','receipt','/apps/accounts/input-vat.php','input_vat'],
+            ['Packing List','package-open','/apps/operations/consignments.php','packing_list'],
+            ['Courier','truck','/apps/operations/courier.php','courier'],
+            ['HR Portal','shield-check','/apps/hr-portal/portal-login.php','hr'],
+            ['Inventory','boxes','/apps/operations/orders.php?tab=inventory','inventory'],
+            ['POS Reports','chart-column','/apps/operations/orders.php','pos_reports'],
+            ['Employee Performance','chart-no-axes-combined','/apps/operations/reports.php','kpi_dashboard'],
+            ['Task Management','list-checks','/apps/operations/checklists.php','task_management'],
+            ['Error Log','circle-alert','/apps/operations/errors.php','error_log'],
+            ['System Issues Log','circle-help','/apps/operations/system-issues.php','system_issues'],
+        ];
+    }
+    $apps = [];
+    foreach ($items as [$name,$icon,$route,$feature]) {
+        if (current_role_key() !== 'owner_admin' && !portal_user_can_access_feature($feature)) continue;
+        $apps[] = ['name'=>$name,'icon'=>$icon,'href'=>BASE_URL.$route];
+    }
+    return $apps;
+}
+
+function ess_render_navigation(array $apps, string $active = 'Dashboard'): void
 {
     static $groupId = 0;
     $escape = static fn($value): string => htmlspecialchars((string)$value, ENT_QUOTES, 'UTF-8');
     foreach ($apps as $app) {
-        $children = ess_navigation_children($app['name']);
+        $children = (!function_exists('current_role_key') || current_role_key() === 'owner_admin') ? ess_navigation_children($app['name']) : [];
         if ($children) {
             $id = 'ess-subnav-'.(++$groupId);
             echo '<div class="ess-nav-group"><div class="ess-nav-row"><a class="ess-nav-item" href="'.$escape($app['href']).'" aria-label="'.$escape($app['name']).'" title="'.$escape($app['name']).'"><i data-lucide="'.$escape($app['icon']).'" aria-hidden="true"></i><span>'.$escape($app['name']).'</span></a><button type="button" class="ess-subnav-toggle" data-ess-subnav-toggle aria-expanded="false" aria-controls="'.$id.'" aria-label="Toggle '.$escape($app['name']).' submenu" title="Toggle '.$escape($app['name']).' submenu"><i class="ess-nav-chevron" data-lucide="chevron-down" aria-hidden="true"></i></button></div><div class="ess-subnav" id="'.$id.'" hidden>';
@@ -59,7 +99,7 @@ function ess_render_navigation(array $apps): void
             foreach ($children as $child) echo '<a href="'.$escape($child['href']).'">'.$escape($child['label']).'</a>';
             echo '</div></div>';
         } else {
-            echo '<a class="ess-nav-item" href="'.$escape($app['href']).'" aria-label="'.$escape($app['name']).'" title="'.$escape($app['name']).'"><i data-lucide="'.$escape($app['icon']).'" aria-hidden="true"></i><span>'.$escape($app['name']).'</span></a>';
+            echo '<a class="ess-nav-item'.($active === $app['name'] ? ' is-active' : '').'" '.($active === $app['name'] ? 'aria-current="page" ' : '').'href="'.$escape($app['href']).'" aria-label="'.$escape($app['name']).'" title="'.$escape($app['name']).'"><i data-lucide="'.$escape($app['icon']).'" aria-hidden="true"></i><span>'.$escape($app['name']).'</span></a>';
         }
     }
 }

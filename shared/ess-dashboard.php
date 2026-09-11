@@ -19,34 +19,9 @@ $essQuickLinks = [
     ['My account', '/apps/operations/my-account.php', 'user-round'],
 ];
 ?>
-<a class="ess-skip-link" href="#ess-main">Skip to dashboard</a>
-<aside class="ess-sidebar" aria-label="Administrator navigation">
-    <button type="button" class="ess-sidebar-toggle" data-ess-sidebar-toggle aria-label="Collapse sidebar" aria-expanded="true" aria-controls="ess-sidebar-links"><i data-lucide="panel-left-close" aria-hidden="true"></i></button>
-    <a class="ess-sidebar-logo" href="<?= BASE_URL ?>/index.php" aria-label="Essentials dashboard">
-        <span class="ess-sidebar-logo-title">essentials<span>.</span></span>
-        <span class="ess-sidebar-logo-subtitle">Hambelela Organic</span>
-        <i class="ess-logo-compact" data-lucide="leaf" aria-hidden="true"></i>
-    </a>
-    <div class="ess-sidebar-divider">WORKSPACE</div>
-    <nav id="ess-sidebar-links" class="ess-nav" aria-label="Business modules">
-        <a class="ess-nav-item is-active" href="<?= BASE_URL ?>/index.php" aria-current="page" aria-label="Dashboard" title="Dashboard"><i data-lucide="layout-dashboard" aria-hidden="true"></i><span>Dashboard</span></a>
-        <?php ess_render_navigation($apps); ?>
-    </nav>
-    <div class="ess-sidebar-bottom">
-        <a class="ess-nav-item" href="<?= BASE_URL ?>/notifications.php" title="Notifications" aria-label="Notifications"><i data-lucide="bell" aria-hidden="true"></i><span>Notifications</span></a>
-        <a class="ess-nav-item" href="<?= BASE_URL ?>/apps/operations/my-account.php" title="My account" aria-label="My account"><i data-lucide="user-round" aria-hidden="true"></i><span>My account</span></a>
-        <a class="ess-nav-item" href="<?= BASE_URL ?>/login.php?action=logout" title="Logout" aria-label="Logout"><i data-lucide="log-out" aria-hidden="true"></i><span>Logout</span></a>
-        <a class="ess-support-card" href="<?= BASE_URL ?>/apps/operations/system-issues.php"><i data-lucide="circle-help" aria-hidden="true"></i><span><strong>Need a hand?</strong><small>Open System Issues Log <span aria-hidden="true">↗</span></small></span></a>
-    </div>
-</aside>
+<?php include __DIR__.'/ess-sidebar.php'; ?>
 <main id="ess-main" class="workspace ess-dashboard-main" tabindex="-1">
-    <header class="ess-topbar">
-        <div class="ess-welcome"><span class="ess-section-label">YOUR WORKSPACE</span><h1><span data-ess-greeting><?= $essGreeting ?></span>, <?= $essEscape($essFirstName) ?></h1><p>Welcome to your business command center.</p></div>
-        <div class="ess-topbar-actions">
-            <label class="ess-search"><i data-lucide="search" aria-hidden="true"></i><input type="search" data-ess-search placeholder="Find a module…" aria-label="Search dashboard modules" aria-controls="ess-modules" autocomplete="off"><span aria-hidden="true">/</span></label>
-            <div class="ess-account-slot" data-portal-header-status-target></div>
-        </div>
-    </header>
+    <?php include __DIR__.'/ess-topbar.php'; ?>
     <section class="ess-hero ess-single-thought" aria-label="Today’s Thought" data-ess-inspiration data-date="<?= $essNow->format('Y-m-d') ?>">
         <div class="ess-inspiration-block" data-ess-verse-panel<?= $essInspiration['type'] !== 'verse' ? ' hidden' : '' ?>><div class="ess-inspiration-label">TODAY’S THOUGHT</div><blockquote class="ess-daily-verse" data-ess-verse>“<?= $essEscape($essInspiration['verse']['text']) ?>”</blockquote><div class="ess-verse-reference" data-ess-reference><?= $essEscape($essInspiration['verse']['reference']) ?> · KJV</div></div>
         <div class="ess-inspiration-block" data-ess-quote-panel<?= $essInspiration['type'] !== 'quote' ? ' hidden' : '' ?>><div class="ess-inspiration-label">TODAY’S THOUGHT</div><blockquote class="ess-daily-verse" data-ess-quote>“<?= $essEscape($essInspiration['quote']['text']) ?>”</blockquote><a class="ess-quote-author" data-ess-author href="<?= $essEscape($essInspiration['quote']['source']) ?>" target="_blank" rel="noopener noreferrer"><?= $essEscape($essInspiration['quote']['author']) ?></a></div>
@@ -97,10 +72,6 @@ $essQuickLinks = [
     </div>
     <footer class="ess-page-footer"><span>essentials · Hambelela Organic</span><span>Built around your business.</span></footer>
 </main>
-<nav class="ess-mobile-nav" aria-label="Mobile navigation"><a href="<?= BASE_URL ?>/index.php" aria-current="page"><i data-lucide="layout-dashboard" aria-hidden="true"></i><span>Dashboard</span></a><a href="<?= BASE_URL ?>/apps/operations/index.php"><i data-lucide="clipboard-check" aria-hidden="true"></i><span>Operations</span></a><a href="<?= BASE_URL ?>/notifications.php"><i data-lucide="bell" aria-hidden="true"></i><span>Notifications</span></a><button type="button" data-ess-more aria-controls="ess-more-dialog" aria-expanded="false"><i data-lucide="menu" aria-hidden="true"></i><span>More</span></button></nav>
-<dialog id="ess-more-dialog" class="ess-more-dialog" aria-labelledby="ess-more-title"><header><h2 id="ess-more-title">Your workspace</h2><button class="ess-icon-btn" type="button" data-ess-close aria-label="Close navigation"><i data-lucide="x" aria-hidden="true"></i></button></header><nav aria-label="All portal links">
-    <?php ess_render_navigation($apps); ?>
-    <a class="ess-quick-link" href="<?= BASE_URL ?>/apps/operations/my-account.php"><i data-lucide="user-round" aria-hidden="true"></i>My account</a><a class="ess-quick-link" href="<?= BASE_URL ?>/login.php?action=logout"><i data-lucide="log-out" aria-hidden="true"></i>Logout</a>
-</nav></dialog>
+<?php include __DIR__.'/ess-mobile-navigation.php'; ?>
 <script type="application/json" id="ess-inspiration-data"><?= json_encode(ess_inspiration_catalog(), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?></script>
 <script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH . '/assets/js/ess-dashboard.js') ?>"></script>
