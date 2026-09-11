@@ -50,7 +50,7 @@ assert.match(css, /courier-grid-history[\s\S]*170px/);
 assert.match(css, /courier-history-actions[\s\S]*flex-wrap:\s*nowrap/);
 assert.match(css, /courier-history-download[\s\S]*flex:\s*0 0 auto/);
 assert.match(css, /courier-history-more[\s\S]*min-width:\s*32px/);
-assert.match(css, /@media\(max-width:1100px\) and \(min-width:701px\)/);
+assert.match(css, /@media\(max-width:1350px\) and \(min-width:701px\)/);
 assert.match(css, /courier-history-download \.courier-history-download-short[\s\S]*display:\s*none/);
 assert.match(css, /courier-history-download \.courier-history-download-full\{display:none\}[\s\S]*courier-history-download \.courier-history-download-short\{display:inline\}/);
 assert.match(css, /@media\(prefers-reduced-motion:reduce\)/);
