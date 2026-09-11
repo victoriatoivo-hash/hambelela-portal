@@ -121,7 +121,9 @@ body.ess-dashboard {margin:0; min-height:100vh; background:var(--cream); color:v
 .ess-dashboard .portal-online-dot {background:var(--success);}
 /* Daily inspiration */
 .ess-dashboard .ess-hero {position:relative; min-height:170px; margin-bottom:22px; padding:27px 32px; display:grid; grid-template-columns:minmax(0,1.4fr) minmax(260px,.8fr); align-items:center; gap:40px; overflow:hidden; border:1px solid rgba(124,139,104,.1); border-radius:var(--radius-lg); background:radial-gradient(circle at 80% 20%,rgba(153,165,138,.22),transparent 38%),linear-gradient(105deg,#F3F5ED 0%,#E7EBDD 54%,#DCE2D2 100%); box-shadow:var(--shadow-xs);}
-.ess-dashboard .ess-hero.ess-single-thought {grid-template-columns:minmax(0,1fr);}
+.ess-dashboard .ess-hero.ess-single-thought {grid-template-columns:minmax(0,1fr); min-height:0; padding:16px 24px; margin-bottom:18px;}
+.ess-dashboard .ess-single-thought .ess-inspiration-label {margin-bottom:5px;}
+.ess-dashboard .ess-single-thought :is(.ess-verse-reference,.ess-quote-author) {margin-top:5px;}
 .ess-dashboard .ess-hero::before {content:''; position:absolute; width:360px; height:360px; right:-150px; top:-210px; border-radius:50%; border:1px solid rgba(52,65,38,.07); pointer-events:none;}
 .ess-dashboard .ess-hero::after {content:''; position:absolute; width:220px; height:220px; right:80px; bottom:-170px; border-radius:50%; background:rgba(255,255,255,.16); pointer-events:none;}
 .ess-dashboard .ess-inspiration-block,.ess-dashboard .ess-thought-block {position:relative; z-index:1; min-width:0;}
@@ -239,6 +241,7 @@ body.ess-dashboard {margin:0; min-height:100vh; background:var(--cream); color:v
   .ess-dashboard .portal-header-actions {width:100%; justify-content:space-between;}
   .ess-dashboard .portal-header-notifications {width:44px; height:44px;}
   .ess-dashboard .ess-hero {padding:23px 20px; grid-template-columns:1fr; gap:20px;}
+  .ess-dashboard .ess-hero.ess-single-thought {padding:14px 18px;}
   .ess-dashboard .ess-module-grid,.ess-dashboard .ess-performance-grid {grid-template-columns:repeat(2,minmax(0,1fr));}
   .ess-dashboard .ess-lower-grid {grid-template-columns:1fr;}
   .ess-dashboard .ess-promo {grid-column:auto;}
