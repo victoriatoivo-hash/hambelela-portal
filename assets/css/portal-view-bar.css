@@ -1079,7 +1079,7 @@ body.portal-panel-open .portal-header-status{visibility:hidden!important;opacity
   .courier-wrap .courier-grid-history{--courier-columns:minmax(150px,1fr) 120px 130px 120px 120px 110px 100px 78px}
   .courier-wrap .courier-history-actions-header,.courier-wrap .courier-history-actions{min-width:78px}
   .courier-wrap .courier-history-download{width:32px;min-width:32px;padding:0}
-  .courier-wrap .courier-history-download-label{display:none}
+  .courier-wrap .courier-history-download .courier-history-download-label{display:none}
 }
 @media(max-width:700px){
   .courier-wrap{padding:12px}.courier-wrap .stat-cards,.courier-wrap .upload-form{grid-template-columns:1fr!important}.courier-wrap .section-card,.courier-wrap .courier-section{padding:14px!important}
