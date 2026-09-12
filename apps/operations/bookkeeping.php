@@ -829,1605 +829,54 @@ $headerNotificationSummary = function_exists('notifications_summary_for_current_
     ? notifications_summary_for_current_user(1)
     : ['unread_count' => 0];
 $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
+$isEssDashboard = true;
+$pageUsesPortalSidebar = false;
+require_once BASE_PATH . '/shared/ess-navigation.php';
+$essShellApps = ess_shell_apps();
+$essActiveModule = 'Bookkeeping';
+$essHeadingPartial = BASE_PATH . '/shared/ess-bookkeeping-heading.php';
+$extraStylesheets[] = ['path' => 'assets/css/ess-dashboard.css', 'version' => (string) filemtime(BASE_PATH . '/assets/css/ess-dashboard.css')];
+$extraStylesheets[] = ['path' => 'assets/css/bookkeeping-essentials.css', 'version' => (string) filemtime(BASE_PATH . '/assets/css/bookkeeping-essentials.css')];
+include BASE_PATH . '/shared/header.php';
+include BASE_PATH . '/shared/ess-sidebar.php';
 ?>
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= (int) @filemtime(BASE_PATH . '/assets/css/portal.css') ?>">
-    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-date-picker.css?v=<?= (int) @filemtime(BASE_PATH . '/assets/css/portal-date-picker.css') ?>">
-    <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-    <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/portal-date-picker.js') ?>"></script>
-    <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/portal-presence.js') ?>"></script>
-    <style>
-        :root {
-            --ledger-red: #721B1A;
-            --ledger-rust: #AB3619;
-            --ledger-orange: #F07420;
-            --ledger-lime: #A8CA19;
-            --ledger-text: #721B1A;
-            --ledger-muted: #AB3619;
-            --ledger-border: rgba(171, 54, 25, .22);
-            --ledger-soft: rgba(240, 116, 32, .06);
-            --ledger-white: #fff;
-        }
-        * { box-sizing: border-box; }
-        body {
-            margin: 0;
-            background: var(--ledger-white);
-            color: var(--ledger-text);
-            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            font-size: 12px;
-        }
-        .ledger-shell {
-            min-height: 100vh;
-            background: var(--ledger-white);
-        }
-        .ledger-page {
-            min-height: 100vh;
-            background: var(--ledger-white);
-            padding: 28px;
-        }
-        .ledger-top {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 18px;
-            margin-bottom: 24px;
-        }
-        .ledger-top-actions {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 10px;
-            min-width: 0;
-        }
-        #bkDrawerBtn.bookkeeping-cash-tools-button {
-            width: 118.469px !important;
-            min-width: 118.469px !important;
-            max-width: 118.469px !important;
-            flex: 0 0 118.469px;
-            transition: background-color 0.16s ease,
-                        border-color 0.16s ease,
-                        color 0.16s ease,
-                        transform 0.12s ease,
-                        box-shadow 0.16s ease !important;
-        }
-        h1 {
-            margin: 0;
-            color: var(--ledger-red);
-            font-size: 14px;
-            letter-spacing: 0;
-            line-height: 1;
-            font-weight: 600;
-        }
-        .ledger-subtitle {
-            margin: 8px 0 0;
-            color: var(--ledger-muted);
-            font-size: 12px;
-        }
-        .stat-grid {
-            display: grid;
-            grid-template-columns: repeat(4, minmax(160px, 1fr));
-            gap: 14px;
-            margin-bottom: 26px;
-        }
-        .stat-card {
-            border: 1px solid var(--ledger-border);
-            border-radius: 18px;
-            background: var(--ledger-white);
-            box-shadow: 0 12px 28px rgba(114, 27, 26, .07);
-            padding: 18px;
-            position: relative;
-            overflow: hidden;
-        }
-        .stat-card::before {
-            content: "";
-            position: absolute;
-            inset: 0 auto 0 0;
-            width: 6px;
-            background: var(--accent);
-        }
-        .stat-label {
-            display: block;
-            color: #6B6B6B;
-            font-size: 12px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: .04em;
-        }
-        .stat-value {
-            display: block;
-            margin-top: 10px;
-            color: #1a1a1a;
-            font-size: 12px !important;
-            font-weight: 800;
-        }
-        .bk-wrap .bk-opening-prompt {
-            border: 1px solid #EDE3D8;
-            border-left: 4px solid #A8CA19;
-            border-radius: 0 12px 12px 0;
-            background: #fff;
-            padding: 10px 16px;
-            margin-bottom: 14px;
-            animation: fadeUp .3s ease both;
-        }
-        .bk-wrap .bk-opening-inner {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            flex-wrap: nowrap;
-        }
-        .bk-wrap .bk-opening-left {
-            flex: 1;
-            min-width: 0;
-        }
-        .bk-wrap .bk-opening-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: #1a1a1a;
-            margin-bottom: 2px;
-        }
-        .bk-wrap .bk-opening-sub {
-            font-size: 11px;
-            color: #6B6B6B;
-        }
-        .bk-wrap .bk-opening-ref {
-            display: block;
-            margin-top: 4px;
-            font-size: 11px;
-            color: #A08070;
-        }
-        .bk-wrap .bk-opening-ref strong {
-            color: #1a1a1a;
-        }
-        .bk-wrap .bk-opening-right {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            flex-shrink: 0;
-            flex-direction: row;
-        }
-        .bk-wrap .bk-opening-input-wrap {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            height: 32px;
-            border: 1px solid #EDE3D8;
-            border-radius: 8px;
-            padding: 0 10px;
-            background: #fff;
-            transition: border-color .15s;
-        }
-        .bk-wrap .bk-opening-input-wrap:focus-within {
-            border-color: #AB3619;
-            box-shadow: 0 0 0 2px rgba(171, 54, 25, .12);
-        }
-        .bk-wrap .bk-opening-input-wrap.is-invalid {
-            border-color: #BB1B21;
-            box-shadow: 0 0 0 2px rgba(187, 27, 33, .12);
-        }
-        .bk-wrap .bk-opening-currency {
-            font-size: 14px;
-            font-weight: 600;
-            color: #6B6B6B;
-        }
-        .bk-wrap .bk-opening-input-wrap input {
-            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            font-size: 12px;
-            border: none !important;
-            outline: none !important;
-            box-shadow: none !important;
-            -webkit-appearance: none;
-            appearance: none;
-            width: 100px;
-            font-weight: 700;
-            color: #1a1a1a;
-            padding: 8px 0 !important;
-            background: transparent;
-        }
-        .bk-wrap .bk-opening-input-wrap input:focus {
-            border: none !important;
-            outline: none !important;
-            box-shadow: none !important;
-        }
-        .bk-wrap .bk-opening-variance {
-            font-size: 11px;
-            font-weight: 600;
-            min-height: 16px;
-        }
-        .bk-wrap .bk-opening-btn {
-            background: #AB3619;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            height: 32px;
-            padding: 0 16px;
-            font-size: 12px;
-            font-weight: 400;
-            white-space: nowrap;
-            cursor: pointer;
-            font-family: Figtree, system-ui, -apple-system, sans-serif;
-            transition: background .15s, transform .1s;
-        }
-        .bk-wrap .bk-opening-btn:hover { background: #721B1A; }
-        .bk-wrap .bk-opening-btn:active { transform: scale(.97); }
-        .ledger-board {
-            display: block;
-            width: 100%;
-            min-width: 0;
-            max-width: 100%;
-            overflow-x: auto;
-            overflow-y: visible;
-            overscroll-behavior-inline: contain;
-            scrollbar-gutter: stable;
-            -webkit-overflow-scrolling: touch;
-            background: var(--ledger-white);
-            padding-bottom: 8px;
-        }
-        .ledger-board-inner {
-            --ledger-grid-template: 32px 220px 130px 100px 100px 100px 380px 44px;
-            --ledger-grid-width: 1106px;
-            width: 100%;
-            min-width: max(100%, var(--ledger-grid-width));
-        }
-        .day-group {
-            border: 1px solid var(--ledger-border);
-            border-radius: 18px;
-            background: var(--ledger-white);
-            box-shadow: 0 10px 26px rgba(114, 27, 26, .06);
-            margin-bottom: 16px;
-            overflow: hidden;
-            border-left: 6px solid var(--ledger-rust);
-        }
-        .day-head,
-        .ledger-row {
-            display: grid;
-            grid-template-columns: var(--ledger-grid-template);
-        }
-        .day-head {
-            min-height: 58px;
-            border-bottom: 1px solid var(--ledger-border);
-            background: var(--ledger-white);
-        }
-        .day-title {
-            grid-column: 1 / 4;
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 0 16px;
-        }
-        .toggle-day {
-            width: 28px;
-            height: 28px;
-            border: 1px solid rgba(171, 54, 25, .2);
-            border-radius: 999px;
-            background: var(--ledger-white);
-            color: var(--ledger-rust);
-            cursor: pointer;
-            font-size: 12px;
-            line-height: 1;
-        }
-        .day-name {
-            color: #721b1a;
-            font-size: 13px;
-            font-weight: 600;
-        }
-        .day-count {
-            display: block;
-            color: rgb(107, 76, 59);
-            font-family: Figtree, system-ui, sans-serif;
-            font-size: 11px;
-            font-weight: 400;
-        }
-        .day-sum {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border-left: 1px solid var(--ledger-border);
-            font-weight: 800;
-            font-size: 11px;
-        }
-        .day-sum span { color: var(--ledger-muted); font-size: 8px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-        .day-sum strong { color: inherit; font: inherit; }
-        .ledger-header {
-            background: #fafafa;
-            color: #1a1a1a;
-            font-size: 10px;
-            font-weight: 700;
-            border-bottom: 1px solid var(--ledger-border);
-            text-transform: uppercase;
-            letter-spacing: .05em;
-        }
-        .ledger-header .ledger-cell {
-            color: #1a1a1a;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-            background: #fafafa;
-            position: relative;
-            padding-right: 18px;
-        }
-        .ledger-header .ledger-cell.check-cell {
-            padding: 0;
-            justify-content: center;
-        }
-        .ledger-column-resize-handle {
-            position: absolute;
-            top: 0;
-            right: -4px;
-            bottom: 0;
-            width: 8px;
-            cursor: col-resize;
-            z-index: 5;
-            background: transparent;
-            touch-action: none;
-        }
-        .ledger-column-resize-handle::after {
-            content: "";
-            position: absolute;
-            top: 7px;
-            bottom: 7px;
-            left: 3px;
-            width: 2px;
-            border-radius: 999px;
-            background: transparent;
-            transition: background .12s ease;
-        }
-        .ledger-column-resize-handle:hover::after,
-        .ledger-column-resize-handle.is-active::after {
-            background: var(--ledger-orange);
-        }
-        body.is-ledger-resizing {
-            cursor: col-resize;
-            user-select: none;
-        }
-        .ledger-row {
-            border-bottom: 1px solid var(--ledger-border);
-        }
-        .ledger-cell {
-            min-height: 42px;
-            display: flex;
-            align-items: center;
-            min-width: 0;
-            padding: 0 12px;
-            border-right: 1px solid var(--ledger-border);
-            overflow: hidden;
-            white-space: nowrap;
-            text-overflow: ellipsis;
-            font-size: 12px;
-            color: #1a1a1a;
-        }
-        .entry-row .ledger-cell,
-        .add-row .ledger-cell {
-            font-size: 12px;
-        }
-        .bk-wrap .entry-row {
-            height: 34px;
-        }
-        .bk-wrap .entry-row .ledger-cell {
-            height: 34px;
-            min-height: 34px;
-        }
-        .ledger-cell:last-child {
-            border-right: 0;
-        }
-        .ledger-total,
-        .money-cell {
-            justify-content: flex-end;
-            font-weight: 800;
-        }
-        .money-in { color: #3d5c00; }
-        .money-out { color: #BB1B21; }
-        .money-net { color: #1a1a1a; }
-        [data-row-total].money-net,
-        [data-add-total].money-net {
-            color: #1a1a1a;
-            font-weight: 600;
-        }
-        .check-cell { justify-content: center; padding: 0; }
-        .ledger-add-col-cell {
-            justify-content: center;
-            padding: 0;
-        }
-        .ledger-add-column-btn {
-            width: 26px;
-            height: 26px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            border-radius: 8px;
-            background: var(--ledger-white);
-            color: var(--ledger-rust);
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 16px;
-            font-weight: 700;
-            line-height: 1;
-            cursor: pointer;
-            transition: background .15s, border-color .15s, color .15s;
-        }
-        .ledger-add-column-btn:hover,
-        .ledger-add-column-btn:focus-visible {
-            background: #FDF6EE;
-            border-color: var(--ledger-rust);
-            color: var(--ledger-burgundy);
-            outline: none;
-        }
-        .ledger-custom-header {
-            gap: 6px;
-        }
-        .ledger-custom-title {
-            min-width: 0;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .ledger-custom-delete {
-            width: 18px;
-            height: 18px;
-            border: 1px solid rgba(171, 54, 25, .18);
-            border-radius: 999px;
-            background: #fff;
-            color: var(--ledger-rust);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            padding: 0;
-            font-size: 12px;
-            cursor: pointer;
-            flex-shrink: 0;
-        }
-        .ledger-custom-header:hover .ledger-custom-delete {
-            display: inline-flex;
-        }
-        .ledger-custom-cell {
-            cursor: text;
-        }
-        .ledger-custom-cell select,
-        .ledger-custom-cell input {
-            width: 100%;
-            height: 26px;
-            border: 0;
-            outline: none;
-            box-shadow: none;
-            background: transparent;
-            font: inherit;
-            color: #1a1a1a;
-        }
-        .custom-status-pill,
-        .custom-person-pill {
-            max-width: 100%;
-            height: 22px;
-            border-radius: 999px;
-            padding: 0 9px;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            background: color-mix(in srgb, var(--pill-colour, #AB3619) 16%, #fff);
-            color: var(--pill-colour, #AB3619);
-            font-size: 11px;
-            font-weight: 700;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        .custom-person-pill span {
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--pill-colour, #AB3619);
-            color: #fff;
-            font-size: 9px;
-            flex-shrink: 0;
-        }
-        .custom-column-popover {
-            position: fixed;
-            width: 320px;
-            max-width: calc(100vw - 24px);
-            max-height: calc(100vh - 24px);
-            overflow-y: auto;
-            border: 1px solid var(--ledger-border);
-            border-radius: 14px;
-            background: #fff;
-            box-shadow: 0 18px 42px rgba(114, 27, 26, .18);
-            z-index: 2500;
-            padding: 12px;
-            display: none;
-        }
-        .custom-column-popover.is-open {
-            display: block;
-        }
-        .custom-type-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .custom-type-btn {
-            min-height: 42px;
-            border: 1px solid var(--ledger-border);
-            border-radius: 10px;
-            background: #fff;
-            color: #1a1a1a;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 0 10px;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-        .custom-type-btn:hover {
-            border-color: var(--ledger-rust);
-            background: #FDF6EE;
-        }
-        .custom-column-form {
-            display: none;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .custom-column-form.is-open {
-            display: flex;
-        }
-        .custom-column-form label,
-        .custom-option-row label {
-            display: grid;
-            gap: 4px;
-            color: #6B4C3B;
-            font-size: 10px;
-            font-weight: 800;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-        }
-        .custom-column-form input,
-        .custom-option-row input {
-            height: 30px;
-            border: 1px solid var(--ledger-border);
-            border-radius: 8px;
-            padding: 0 9px;
-            font-family: Figtree, system-ui, sans-serif;
-            font-size: 12px;
-        }
-        .custom-option-row {
-            display: grid;
-            grid-template-columns: 1fr 48px 24px;
-            align-items: end;
-            gap: 6px;
-        }
-        .custom-option-remove {
-            height: 30px;
-            border: 0;
-            background: transparent;
-            color: var(--ledger-red);
-            cursor: pointer;
-        }
-        .custom-form-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-        }
-        .custom-form-actions button,
-        .custom-add-option {
-            height: 30px;
-            border-radius: 8px;
-            border: 1px solid var(--ledger-border);
-            background: #fff;
-            color: var(--ledger-rust);
-            padding: 0 10px;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-        .custom-form-actions .primary {
-            background: var(--ledger-rust);
-            color: #fff;
-            border-color: var(--ledger-rust);
-        }
-        .row-dot {
-            width: 16px;
-            height: 16px;
-            border-radius: 5px;
-            border: 1px solid rgba(171, 54, 25, .3);
-            background: var(--ledger-white);
-        }
-        .ledger-page .check-cell .bk-row-check,
-        .ledger-page .check-cell .bk-select-all {
-            position: relative;
-            width: 15px;
-            height: 15px;
-            min-width: 15px;
-            min-height: 15px;
-            margin: 0;
-            padding: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            -webkit-appearance: none;
-            appearance: none;
-            border: 1px solid rgba(171, 54, 25, .30);
-            border-radius: 3px;
-            background: #fff;
-            color: #fff;
-            cursor: pointer;
-            box-sizing: border-box;
-            transition: background-color .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;
-        }
-        .ledger-page .check-cell .bk-row-check:hover,
-        .ledger-page .check-cell .bk-select-all:hover {
-            border-color: rgba(171, 54, 25, .55);
-            transform: translateY(-1px);
-        }
-        .ledger-page .check-cell .bk-row-check:checked,
-        .ledger-page .check-cell .bk-select-all:checked {
-            border-color: var(--ledger-rust);
-            background-color: var(--ledger-rust);
-            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 14'%3E%3Cpath d='M3 7.2 5.7 10 11 4.5' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-            background-position: center;
-            background-repeat: no-repeat;
-            background-size: 12px 12px;
-        }
-        .ledger-page .check-cell .bk-select-all:indeterminate {
-            border-color: var(--ledger-rust);
-            background-color: var(--ledger-rust);
-            background-image: linear-gradient(#fff, #fff);
-            background-position: center;
-            background-repeat: no-repeat;
-            background-size: 8px 2px;
-        }
-        .ledger-page .check-cell .bk-row-check:focus-visible,
-        .ledger-page .check-cell .bk-select-all:focus-visible {
-            outline: 0;
-            box-shadow: 0 0 0 3px rgba(171, 54, 25, .12);
-        }
-        .entry-row.bk-row-selected .ledger-cell {
-            background: #f9f5f4 !important;
-        }
-        .entry-row.bk-row-selected .ledger-data-cell:hover {
-            background: #f9f5f4 !important;
-        }
-        .ledger-data-cell,
-        .bk-wrap .bk-editable {
-            cursor: text;
-            transition: background .12s ease;
-        }
-        .ledger-data-cell:hover,
-        .bk-wrap .bk-editable:hover {
-            background: #FDF6EE !important;
-            outline: 1px dashed var(--ledger-orange);
-            outline-offset: -2px;
-            box-shadow: none;
-        }
-        .ledger-data-cell.is-editing {
-            background: var(--ledger-white);
-            outline: none;
-            box-shadow: none;
-        }
-        .ledger-data-cell input,
-        .ledger-data-cell textarea,
-        .bk-wrap .bk-editable input,
-        .bk-wrap .bk-editable textarea,
-        .bk-wrap .bk-editable select,
-        .add-row input,
-        .add-row textarea {
-            width: 100%;
-            height: 26px;
-            border: 1px solid #AB3619;
-            border-radius: 5px;
-            background: var(--ledger-white);
-            color: #1a1a1a;
-            font-family: Figtree, system-ui, sans-serif;
-            font-size: 12px;
-            padding: 0 6px;
-            outline: 0;
-        }
-        .ledger-data-cell input,
-        .ledger-data-cell textarea,
-        .bk-wrap .bk-editable input,
-        .bk-wrap .bk-editable textarea,
-        .bk-wrap .bk-editable select {
-            border: 0;
-            border-radius: 0;
-            box-shadow: none;
-        }
-        .ledger-data-cell input:focus,
-        .ledger-data-cell textarea:focus,
-        .bk-wrap .bk-editable input:focus,
-        .bk-wrap .bk-editable textarea:focus,
-        .bk-wrap .bk-editable select:focus {
-            outline: none;
-            border: 0;
-            box-shadow: none;
-        }
-        .ledger-data-cell textarea,
-        .add-row textarea {
-            height: 32px;
-            padding-top: 7px;
-            resize: none;
-        }
-        .add-row {
-            background: var(--ledger-white);
-        }
-        .add-row .ledger-cell {
-            min-height: 50px;
-            overflow: visible;
-        }
-        .is-invalid {
-            border-color: var(--ledger-red) !important;
-            animation: shake .3s ease;
-        }
-        .day-group.is-collapsed .ledger-header,
-        .day-group.is-collapsed .entry-row,
-        .day-group.is-collapsed .add-row {
-            display: none;
-        }
-        .closing-card {
-            border: 1px solid #f0e6e0;
-            border-radius: 20px;
-            background: #fdf6ee;
-            box-shadow: 0 14px 30px rgba(114, 27, 26, .08);
-            padding: 22px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 18px;
-            margin-top: 18px;
-        }
-        .closing-card span {
-            color: #721b1a;
-            font-weight: 600;
-            text-transform: uppercase;
-            font-size: 13px;
-            letter-spacing: .05em;
-        }
-        .closing-card strong {
-            color: #721b1a;
-            font-size: 13px;
-            font-weight: 400;
-        }
-        .bk-page-layout {
-            display: block;
-        }
-        .bk-ledger-col {
-            min-width: 0;
-        }
-        .bk-sidebar-col {
-            display: none;
-        }
-        .bk-filter-section {
-            margin-bottom: 16px;
-        }
-        .bk-side-section {
-            border: 1px solid var(--ledger-border);
-            border-radius: 14px;
-            background: var(--ledger-white);
-            box-shadow: 0 8px 18px rgba(114, 27, 26, .04);
-            overflow: hidden;
-        }
-        .bk-side-head {
-            min-height: 38px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            padding: 0 12px;
-            border-bottom: 1px solid var(--ledger-border);
-            background: #fafafa;
-            color: #1a1a1a;
-            font-size: 14px;
-            font-weight: 700;
-        }
-        #tab-counter .denom-card > .bk-side-head,
-        #tab-recon .recon-card > .bk-side-head,
-        #tab-activity > .bk-side-section > .bk-side-head {
-            width: 100%;
-            height: 35px;
-            min-height: 34px;
-            box-sizing: border-box;
-            display: table-cell;
-            padding: 0 10px;
-            border-bottom: 1px solid rgb(240, 230, 224);
-            border-collapse: separate;
-            background-color: rgb(253, 246, 238);
-            background-image: none;
-            background-position: 0% 0%;
-            background-repeat: repeat;
-            background-size: auto;
-            background-origin: padding-box;
-            background-clip: border-box;
-            color: rgb(114, 27, 26);
-            font-family: Figtree, system-ui, sans-serif;
-            font-size: 10px;
-            font-weight: 700;
-            line-height: 34px;
-            letter-spacing: .6px;
-            text-align: left;
-            text-indent: 0;
-            text-transform: uppercase;
-            position: sticky;
-            top: 0;
-            z-index: 1;
-        }
-        #tab-counter .denom-card > .bk-side-head .bk-denom-reset {
-            float: none;
-            margin-left: auto;
-            margin-top: 3px;
-        }
-        #tab-counter .denom-card > .bk-side-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-        }
-        #tab-recon .recon-card > .bk-side-head {
-            display: block;
-            width: 100%;
-        }
-        #tab-activity > .bk-side-section > .bk-side-head {
-            display: block;
-            width: 100%;
-        }
-        .bk-side-toggle {
-            width: 24px;
-            height: 24px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            border-radius: 999px;
-            background: var(--ledger-white);
-            color: var(--ledger-rust);
-            cursor: pointer;
-            font-size: 12px;
-        }
-        .bk-side-body {
-            display: grid;
-            gap: 10px;
-            padding: 12px;
-        }
-        .bk-side-section.is-collapsed .bk-side-body {
-            display: none;
-        }
-        .bk-field {
-            display: grid;
-            gap: 4px;
-            color: #721b1a;
-            font-size: 10px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: .05em;
-        }
-        .bk-field input,
-        .bk-field textarea,
-        .bk-filter-grid input {
-            width: 100%;
-            height: 30px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            border-radius: 9px;
-            background: var(--ledger-white);
-            color: #1a1a1a;
-            font: inherit;
-            font-size: 12px;
-            font-weight: 400;
-            padding: 0 8px;
-            outline: 0;
-        }
-
-        .add-row input[data-add-field="transaction_date"] {
-            font-size: 12px;
-            font-weight: 400;
-        }
-        .bk-filter-grid .portal-date-picker,
-        .add-row .portal-date-picker,
-        .ledger-data-cell .portal-date-picker {
-            width: 100%;
-            min-width: 0;
-        }
-        .bk-filter-grid .portal-date-field,
-        .add-row .portal-date-field,
-        .ledger-data-cell .portal-date-field {
-            height: 32px;
-            min-height: 32px;
-            color: #1a1a1a;
-            font-size: 12px;
-            font-weight: 400;
-        }
-        .bk-filter-grid .portal-date-icon,
-        .add-row .portal-date-icon,
-        .ledger-data-cell .portal-date-icon {
-            width: 15px;
-            height: 15px;
-            flex-basis: 15px;
-            color: #ab3619;
-        }
-        .bk-field textarea {
-            height: 58px;
-            padding-top: 7px;
-            resize: vertical;
-        }
-        .bk-field input:focus,
-        .bk-field textarea:focus,
-        .bk-filter-grid input:focus {
-            border-color: var(--ledger-rust);
-            box-shadow: 0 0 0 3px rgba(171, 54, 25, .10);
-        }
-        .bk-filter-grid,
-        .bk-denom-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 8px;
-        }
-        .bk-denom-row {
-            display: grid;
-            grid-template-columns: 52px 1fr;
-            align-items: center;
-            gap: 6px;
-            color: #1a1a1a;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .bk-denom-row input {
-            text-align: right;
-        }
-        .bk-counter-total,
-        .bk-recon-line {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            color: #1a1a1a;
-            font-size: 12px;
-        }
-        .bk-counter-total strong,
-        .bk-recon-line strong {
-            font-size: 14px;
-        }
-        .recon-card .bk-recon-line,
-        .recon-card .bk-recon-line strong {
-            font-size: 12px;
-        }
-        .recon-card .bk-field {
-            color: #721b1a;
-        }
-        .bk-recon-variance.is-negative {
-            color: #BB1B21;
-        }
-        .bk-recon-variance.is-positive {
-            color: #3d5c00;
-        }
-        .bk-side-button {
-            height: 32px;
-            border: 0;
-            border-radius: 999px;
-            background: var(--ledger-rust);
-            color: var(--ledger-white);
-            cursor: pointer;
-            font: inherit;
-            font-size: 12px;
-            font-weight: 800;
-        }
-        .bk-side-button:hover {
-            background: var(--ledger-orange);
-        }
-        .bk-filter-section .bk-side-button {
-            font-weight: 400;
-        }
-        .recon-card .bk-side-button {
-            font-weight: 400;
-        }
-        #tab-recon .recon-card .bk-side-button[data-save-recon] {
-            width: 118.469px;
-            margin-right: auto;
-            margin-left: auto;
-            transition-property: background-color, border-color, color, transform, box-shadow;
-            transition-duration: .16s, .16s, .16s, .12s, .16s;
-            transition-timing-function: ease, ease, ease, ease, ease;
-            transition-delay: 0s, 0s, 0s, 0s, 0s;
-            transition-behavior: normal, normal, normal, normal, normal;
-        }
-        .bk-history-list {
-            display: grid;
-            gap: 7px;
-            margin-top: 2px;
-        }
-        .bk-history-item {
-            border: 1px solid var(--ledger-border);
-            border-radius: 10px;
-            padding: 8px;
-            color: #1a1a1a;
-            font-size: 12px;
-            background: #fff;
-        }
-        .bk-history-item small {
-            display: block;
-            color: #6B6B6B;
-            font-size: 10px;
-            margin-top: 2px;
-        }
-        .bk-drawer-trigger {
-            background: #AB3619;
-            color: #fff;
-            border: none;
-            border-radius: 50px;
-            height: 32px;
-            padding: 0 18px;
-            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            font-size: 12px;
-            font-weight: 400;
-            cursor: pointer;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            flex-shrink: 0;
-            transition: background .2s ease;
-        }
-        .bk-drawer-trigger:hover {
-            background: #721B1A;
-        }
-        .bk-overlay {
-            position: fixed;
-            inset: 0;
-            z-index: 40;
-            background: rgba(37, 39, 51, .18);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity .16s ease;
-        }
-        .bk-overlay.is-open {
-            opacity: 1;
-            pointer-events: auto;
-        }
-        .bk-drawer {
-            position: fixed;
-            top: 0;
-            right: 0;
-            z-index: 45;
-            width: min(380px, calc(100vw - 28px));
-            height: 100vh;
-            background: var(--ledger-white);
-            border-left: 1px solid var(--ledger-border);
-            box-shadow: -18px 0 36px rgba(114, 27, 26, .12);
-            transform: translateX(100%);
-            transition: transform .18s ease;
-            display: flex;
-            flex-direction: column;
-        }
-        .bk-drawer.is-open {
-            transform: translateX(0);
-        }
-        .bk-drawer-header {
-            min-height: 54px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 12px;
-            padding: 0 14px;
-            border-bottom: 1px solid var(--ledger-border);
-        }
-        .bk-drawer-title {
-            color: #1a1a1a;
-            font-size: 14px;
-            font-weight: 900;
-        }
-        .bk-drawer-close {
-            width: 30px;
-            height: 30px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            border-radius: 999px;
-            background: var(--ledger-white);
-            color: #1a1a1a;
-            cursor: pointer;
-            font-size: 18px;
-            line-height: 1;
-        }
-        .bk-tabs.portal-panel-tabs {
-            padding: 0 14px;
-            gap: 22px;
-        }
-        .bk-tabs.portal-panel-tabs .bk-tab {
-            height: 43px;
-            min-height: 43px;
-            padding: 0;
-            border: 0;
-            border-radius: 0;
-            background: transparent;
-            color: #6B4C3B;
-            font: 500 12px/1 Figtree, system-ui, sans-serif;
-            box-shadow: none;
-        }
-        .bk-tabs.portal-panel-tabs .bk-tab:hover,
-        .bk-tabs.portal-panel-tabs .bk-tab.is-active {
-            background: transparent;
-            color: #AB3619;
-        }
-        .bk-drawer-body {
-            display: flex;
-            flex-direction: column;
-            gap: 14px;
-            padding: 14px;
-            overflow-y: auto;
-        }
-        .bk-tab-panel {
-            display: none;
-            min-width: 0;
-        }
-        .bk-tab-panel.is-active {
-            display: block;
-        }
-        .bk-drawer-body .denom-card,
-        .bk-drawer-body .recon-card {
-            width: 100% !important;
-            min-width: 0 !important;
-            flex-shrink: 0;
-        }
-        .bk-drawer-body .denom-grid {
-            width: 100%;
-            min-width: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            grid-template-columns: none !important;
-        }
-        .bk-drawer-body .bk-side-body {
-            min-width: 0;
-        }
-        .bk-drawer-body .bk-denom-row {
-            min-width: 0;
-            display: grid;
-            grid-template-columns: 70px 1fr;
-            align-items: center;
-            column-gap: 12px;
-        }
-        .bk-drawer-body .bk-denom-row span {
-            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            font-size: 12px;
-            font-weight: 400;
-            white-space: nowrap;
-        }
-        #tab-counter .denom-card > .bk-side-body .bk-counter-total strong {
-            font-weight: 400;
-        }
-        .bk-drawer-body .bk-denom-row input {
-            width: 100%;
-            height: 22px;
-            min-width: 0;
-            padding: 0 8px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            border-radius: 3px;
-            background: #ffffff;
-            box-sizing: border-box;
-            text-align: right;
-            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            font-size: 12px;
-            font-weight: 400;
-            color: #252733;
-            outline: none;
-            transition: border-color .15s ease, box-shadow .15s ease;
-            appearance: textfield;
-            -moz-appearance: textfield;
-        }
-        .bk-drawer-body .bk-denom-row input:hover {
-            border-color: rgba(171, 54, 25, .42);
-        }
-        .bk-drawer-body .bk-denom-row input:focus {
-            border-color: #ab3619;
-            box-shadow: 0 0 0 2px rgba(171, 54, 25, .10);
-        }
-        .bk-drawer-body .bk-denom-row input::-webkit-outer-spin-button,
-        .bk-drawer-body .bk-denom-row input::-webkit-inner-spin-button {
-            opacity: .55;
-            margin: 0;
-        }
-        .bk-denom-reset {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            width: auto;
-            height: 28px;
-            padding: 0 8px;
-            background: #ffffff;
-            border: 1px solid #f4b8b1;
-            border-radius: 8px;
-            color: #ef6b62;
-            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            font-size: 12px;
-            font-weight: 500;
-            line-height: 1;
-            cursor: pointer;
-            white-space: nowrap;
-            transition: all .2s ease;
-        }
-        .bk-denom-reset svg {
-            width: 12px;
-            height: 12px;
-            flex: 0 0 12px;
-            color: inherit;
-            stroke-width: 2;
-        }
-        .bk-denom-reset:hover {
-            background: #fff6f5;
-            border-color: #ef6b62;
-            color: #d84b42;
-        }
-        .bk-denom-reset:active {
-            transform: scale(.98);
-        }
-        .bk-denom-reset:active svg,
-        .bk-denom-reset.is-resetting svg {
-            animation: reset-spin .45s ease;
-        }
-        .bk-denom-reset:focus-visible {
-            outline: none;
-            box-shadow: 0 0 0 3px rgba(239, 107, 98, .18);
-        }
-        @keyframes reset-spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(-360deg); }
-        }
-        #copyTotalBtn {
-            font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-            font-size: 12px;
-            font-weight: 400;
-            width: 118.469px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 10px auto 0;
-            background: #AB3619;
-            color: #fff;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition-property: background-color, border-color, color, transform, box-shadow;
-            transition-duration: .16s, .16s, .16s, .12s, .16s;
-            transition-timing-function: ease, ease, ease, ease, ease;
-            transition-delay: 0s, 0s, 0s, 0s, 0s;
-            transition-behavior: normal, normal, normal, normal, normal;
-        }
-        #copyTotalBtn:active,
-        #copyTotalBtn.copied {
-            background: #F07420;
-        }
-        .bk-copy-total-row {
-            padding: 0;
-        }
-        .bk-trash-list { display: flex; flex-direction: column; gap: 0; }
-        .bk-trash-item {
-            min-height: 70px;
-            border: 0;
-            border-bottom: 1px solid var(--ledger-border);
-            border-radius: 0;
-            background: #fff;
-            padding: 10px 8px;
-            display: grid;
-            grid-template-columns: minmax(0, 1fr) auto;
-            align-items: center;
-            gap: 12px;
-        }
-        .bk-trash-item:hover {
-            background: #FFFDFC;
-        }
-        .bk-trash-top {
-            display: flex;
-            align-items: flex-start;
-            justify-content: space-between;
-            gap: 10px;
-        }
-        .bk-trash-title {
-            color: #1a1a1a;
-            font-size: 12px;
-            font-weight: 800;
-            line-height: 1.25;
-        }
-        .bk-trash-meta {
-            color: #6B6B6B;
-            font-size: 11px;
-            margin-top: 3px;
-        }
-        .bk-trash-amount {
-            color: #1a1a1a;
-            font-size: 12px;
-            font-weight: 900;
-            white-space: nowrap;
-        }
-        .bk-trash-actions {
-            display: flex;
-            justify-content: flex-end;
-            gap: 6px;
-        }
-        .bk-trash-btn {
-            height: 28px;
-            border-radius: 8px;
-            border: 1px solid rgba(171, 54, 25, .24);
-            background: #fff;
-            color: var(--ledger-rust);
-            cursor: pointer;
-            font: inherit;
-            font-size: 10px;
-            font-weight: 500;
-            padding: 0 9px;
-        }
-        .bk-trash-btn:hover {
-            background: #FDF6EE;
-        }
-        .bk-trash-btn.danger {
-            color: #BB1B21;
-            border-color: rgba(187, 27, 33, .26);
-        }
-        @media (max-width: 600px) {
-            .bk-tabs.portal-panel-tabs { gap: 18px; padding-inline: 12px; }
-            .bk-trash-item { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-            .bk-trash-actions { justify-content: flex-start; }
-        }
-        #tab-trash .bk-side-head,
-        .bk-trash-title,
-        .bk-trash-meta,
-        .bk-trash-amount,
-        .bk-trash-btn,
-        .bk-trash-btn.danger {
-            color: #1A1A1A !important;
-            font-weight: 400 !important;
-        }
-        .bk-trash-btn:hover,
-        .bk-trash-btn:focus,
-        .bk-trash-btn:focus-visible,
-        .bk-trash-btn:active,
-        .bk-trash-btn.danger:hover,
-        .bk-trash-btn.danger:focus,
-        .bk-trash-btn.danger:focus-visible,
-        .bk-trash-btn.danger:active {
-            color: #1A1A1A !important;
-            font-weight: 400 !important;
-        }
-        #tab-trash .bk-trash-list .bk-trash-amount {
-            font-weight: 400 !important;
-        }
-        #tab-trash .bk-trash-list .bk-trash-title {
-            font-weight: 400 !important;
-        }
-        .bk-log-list {
-            max-height: 400px;
-            overflow-y: auto;
-            padding: 0 2px;
-        }
-        .bk-log-list::-webkit-scrollbar {
-            width: 3px;
-        }
-        .bk-log-list::-webkit-scrollbar-thumb {
-            background: #EDE3D8;
-            border-radius: 2px;
-        }
-        .bk-log-empty {
-            text-align: center;
-            padding: 20px;
-            font-size: 12px;
-            color: #A08070;
-        }
-        .bk-action-bar {
-            position: fixed;
-            left: 50%;
-            bottom: 16px;
-            transform: translate(-50%, 18px);
-            z-index: 300;
-            width: fit-content;
-            max-width: calc(100vw - 24px);
-            min-height: 56px;
-            padding: 7px 10px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            background: #FFFFFF;
-            border: 1px solid #EDE3D8;
-            border-radius: 14px;
-            box-shadow: 0 14px 34px rgba(114, 27, 26, .18);
-            box-sizing: border-box;
-            opacity: 0;
-            visibility: hidden;
-            pointer-events: none;
-            transition: opacity .18s ease, transform .18s ease, visibility .18s ease;
-        }
-        .bk-action-bar.visible {
-            opacity: 1;
-            visibility: visible;
-            transform: translate(-50%, 0);
-            pointer-events: auto;
-        }
-        .bk-action-selection {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            white-space: nowrap;
-        }
-        .bk-action-count {
-            width: 34px;
-            height: 34px;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex: 0 0 34px;
-            border-radius: 50%;
-            background: #AB3619;
-            color: #FFFFFF;
-            font-size: 12px;
-            font-weight: 700;
-            line-height: 1;
-        }
-        .bk-action-label {
-            color: #1A1A1A;
-            font-size: 12px;
-            font-weight: 400;
-            line-height: 1;
-        }
-        .bk-action-divider {
-            width: 1px;
-            height: 32px;
-            flex: 0 0 1px;
-            background: #EDE3D8;
-        }
-        .bk-action-btns {
-            display: flex;
-            align-items: center;
-            gap: 2px;
-        }
-        .bk-action-btn {
-            min-width: 58px;
-            height: 40px;
-            padding: 4px 8px;
-            background: transparent;
-            color: #6B4C3B;
-            border: 0;
-            border-radius: 8px;
-            font-size: 11px;
-            font-weight: 400;
-            line-height: 1;
-            cursor: pointer;
-            display: inline-flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 4px;
-            transition: background-color .15s ease, color .15s ease;
-            font-family: Figtree, system-ui, sans-serif;
-        }
-        .bk-action-btn svg { width: 15px; height: 15px; color: #AB3619; }
-        .bk-action-btn:hover { background: rgba(240,116,32,.08); color: #AB3619; }
-        .bk-action-btn.danger { color: #BB1B21; }
-        .bk-action-btn.danger svg { color: #BB1B21; }
-        .bk-action-btn.danger:hover { background: rgba(187,27,33,.08); }
-        .bk-action-close {
-            width: 32px;
-            height: 32px;
-            padding: 0;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            flex: 0 0 32px;
-            border: 0;
-            border-radius: 8px;
-            background: transparent;
-            color: #AB3619;
-            cursor: pointer;
-        }
-        .bk-action-close:hover { background: rgba(240,116,32,.08); }
-        .bk-action-close svg { width: 15px; height: 15px; }
-        @media (max-width: 620px) {
-            .bk-action-bar { gap: 6px; padding: 6px; }
-            .bk-action-label, .bk-action-divider { display: none; }
-            .bk-action-btn { min-width: 50px; padding-inline: 5px; }
-        }
-        .toast {
-            position: fixed;
-            right: 22px;
-            bottom: 74px;
-            border-radius: 999px;
-            background: var(--ledger-red);
-            color: var(--ledger-white);
-            padding: 10px 16px;
-            box-shadow: 0 12px 28px rgba(114, 27, 26, .16);
-            font-size: 12px;
-            font-weight: 800;
-            opacity: 0;
-            transform: translateY(8px);
-            transition: opacity .16s ease, transform .16s ease;
-            z-index: 20;
-        }
-        .toast.is-visible {
-            opacity: 1;
-            transform: translateY(0);
-        }
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-4px); }
-            75% { transform: translateX(4px); }
-        }
-        @keyframes fadeUp {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        @media (max-width: 760px) {
-            .bk-page-layout { grid-template-columns: 1fr; }
-            .ledger-page { padding: 18px; }
-            .ledger-top { flex-direction: column; }
-            .stat-grid { grid-template-columns: 1fr; }
-            .ledger-board-inner { min-width: max(100%, var(--ledger-grid-width)); }
-            .closing-card { align-items: flex-start; flex-direction: column; }
-        }
-        @media (max-width: 600px) {
-            .bk-wrap .bk-opening-inner { flex-direction: column; align-items: stretch; }
-            .bk-wrap .bk-opening-right { align-items: stretch; }
-        }
-        @media (max-width: 900px) {
-            .bk-page-layout { grid-template-columns: 1fr; }
-        }
-    </style>
-</head>
-<body>
-<div class="ledger-shell shell">
-<?php include BASE_PATH . '/shared/sidebar.php'; ?>
-<main class="ledger-page bk-wrap" data-bookkeeping-access="<?= $isBookkeepingReadOnly ? 'read-only' : ($canManageBookkeeping ? 'full' : 'operational') ?>">
+<main id="ess-main" class="workspace ess-dashboard-main ledger-page ess-bookkeeping-page" data-bookkeeping-access="<?= $isBookkeepingReadOnly ? 'read-only' : ($canManageBookkeeping ? 'full' : 'operational') ?>">
+    <?php include BASE_PATH . '/shared/ess-topbar.php'; ?>
     <header class="ledger-top">
-        <div>
-            <h1>Hambelela Bookkeeping</h1>
+        <div class="book-heading-group">
+            <div class="book-title-row"><span class="book-page-icon"><i data-lucide="notebook-tabs" aria-hidden="true"></i></span><h1>Hambelela Bookkeeping</h1></div>
             <p class="ledger-subtitle">Daily cash in, cash out, net movement, and closing balance.</p>
         </div>
         <div class="ledger-top-actions bookkeeping-header-actions" data-portal-header-status-target>
             <?php if ($ready && $canOperateBookkeeping): ?>
                 <button class="bookkeeping-cash-tools-button" type="button" id="bkDrawerBtn" data-bookkeeping-action="cash-tools" aria-controls="bkDrawer" aria-expanded="false" onclick="openDrawer()"><i data-lucide="calculator"></i><span>Cash Tools</span></button>
             <?php endif; ?>
-            <section class="portal-header-status" data-portal-header-status
-                     data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>">
-                <div class="portal-online-widget" data-portal-online-widget tabindex="0"
-                     aria-label="Online employees" aria-expanded="false">
-                    <div class="portal-online-avatars" data-portal-online-avatars></div>
-                    <span class="portal-online-count" data-portal-online-count>0 online</span>
-                    <div class="portal-online-popover" data-portal-online-popover hidden>
-                        <strong>Currently online</strong>
-                        <div data-portal-online-list>
-                            <p class="portal-online-empty">Checking staff status...</p>
-                        </div>
-                    </div>
-                </div>
-                <a class="portal-header-notifications"
-                   href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"
-                   aria-label="Notifications">
-                    <i data-lucide="bell"></i>
-                    <?php if ($headerNotificationUnread > 0): ?>
-                        <span><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : (string) $headerNotificationUnread, ENT_QUOTES, 'UTF-8') ?></span>
-                    <?php endif; ?>
-                </a>
-                <div class="portal-header-clock" aria-label="Current Namibia time">
-                    <span data-portal-date>---</span>
-                    <strong data-portal-time>--:-- --</strong>
-                </div>
-            </section>
         </div>
     </header>
 
     <?php if (!$ready): ?>
-        <section class="stat-card" style="--accent: #721B1A;"><span class="stat-label">Database</span><strong class="stat-value">Not ready</strong></section>
+        <section class="stat-card"><span class="stat-label">Database</span><strong class="stat-value">Not ready</strong></section>
     <?php else: ?>
         <section class="stat-grid" aria-label="Cash ledger summary">
-            <article class="stat-card" style="--accent: #A8CA19;">
+            <article class="stat-card">
                 <div class="stat-heading"><i data-lucide="circle-arrow-down" aria-hidden="true"></i><span class="stat-label">Cash In Today</span></div>
                 <div class="stat-content"><strong class="stat-value" data-stat-cash-in><?= ledger_money($cashInToday) ?></strong><span class="stat-help">Cash received today</span></div>
             </article>
-            <article class="stat-card" style="--accent: #F07420;">
+            <article class="stat-card">
                 <div class="stat-heading"><i data-lucide="circle-arrow-up" aria-hidden="true"></i><span class="stat-label">Cash Out Today</span></div>
                 <div class="stat-content"><strong class="stat-value" data-stat-cash-out><?= ledger_money($cashOutToday) ?></strong><span class="stat-help">Cash paid out today</span></div>
             </article>
-            <article class="stat-card" style="--accent: #721B1A;">
+            <article class="stat-card">
                 <div class="stat-heading"><i data-lucide="scale" aria-hidden="true"></i><span class="stat-label">Net Balance Today</span></div>
                 <div class="stat-content"><strong class="stat-value" data-stat-net><?= ledger_money($netToday) ?></strong><span class="stat-help">Today's net cash movement</span></div>
             </article>
-            <article class="stat-card" style="--accent: #AB3619;">
+            <article class="stat-card">
                 <div class="stat-heading"><i data-lucide="notebook-tabs" aria-hidden="true"></i><span class="stat-label">Entries Today</span></div>
                 <div class="stat-content"><strong class="stat-value" data-stat-count><?= number_format($entriesToday) ?></strong><span class="stat-help">Ledger entries recorded today</span></div>
+            </article>
+            <article class="stat-card book-current-kpi" aria-label="Current balance">
+                <div class="stat-heading"><i data-lucide="wallet" aria-hidden="true"></i><span class="stat-label">Current Balance</span></div>
+                <div class="stat-content"><strong class="stat-value book-current-kpi-value" data-closing-balance><?= ledger_money($closingBalance) ?></strong><span class="stat-help" data-closing-balance-label>As at <?= htmlspecialchars(date('d M Y', strtotime($latestApplicableDate)), ENT_QUOTES, 'UTF-8') ?></span></div>
             </article>
         </section>
 
@@ -2463,12 +912,12 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
         <section class="bk-side-section bk-filter-section" data-portal-view-filter aria-label="Cash ledger filters" hidden style="display:none!important">
             <div class="bk-side-head"><span>Filters</span></div>
             <div class="bk-side-body">
-                <div class="bk-filter-grid portal-data-filter-grid">
+                <div class="book-filter-grid">
                     <label class="bk-field">Date Range<select data-bk-date-range data-portal-custom-select><option value="all">All dates</option><option value="today">Today</option><option value="week">This week</option><option value="month">This month</option></select></label>
                     <label class="bk-field">Entry Type<select data-bk-filter-entry-type data-portal-custom-select><option value="">All entries</option><option value="cash_in">Cash In</option><option value="cash_out">Cash Out</option></select></label>
                     <label class="bk-field">Payment<select data-bk-filter-payment data-portal-custom-select><option value="">All payments</option></select></label>
                     <label class="bk-field">Person<select data-bk-filter-person data-portal-custom-select><option value="">All people</option></select></label>
-                    <label class="bk-field">Group By<select data-bk-filter-group data-portal-custom-select><option value="date">Date</option></select></label>
+                    <label class="bk-field">Group By<select name="group" data-bk-filter-group data-portal-custom-select><option value="date">Date</option></select></label>
                     <label class="bk-field">Search Bookkeeping<input type="search" data-bk-filter-search placeholder="Search bookkeeping..."></label>
                     <input type="hidden" data-bk-filter-from><input type="hidden" data-bk-filter-to>
                 </div>
@@ -2566,20 +1015,16 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
             </div>
         </section>
 
-        <section class="closing-card" aria-label="Closing balance">
-            <span data-closing-balance-label><?= $latestApplicableDate === $today ? 'Current Balance' : 'Closing Balance' ?> &mdash; <?= htmlspecialchars(date('d F Y', strtotime($latestApplicableDate)), ENT_QUOTES, 'UTF-8') ?></span>
-            <strong data-closing-balance><?= ledger_money($closingBalance) ?></strong>
-        </section>
         </div>
         </div>
     <?php endif; ?>
 </main>
-</div>
 <?php if ($ready && $canOperateBookkeeping): ?>
 <div class="bk-overlay" id="bkOverlay" onclick="closeDrawer()"></div>
-<aside class="bk-drawer cash-tools-panel" id="bkDrawer" aria-label="Cash ledger tools">
+<aside class="bk-drawer cash-tools-panel ess-bookkeeping-page" id="bkDrawer" role="dialog" aria-modal="true" aria-labelledby="bookCashTitle" inert>
     <div class="bk-drawer-header">
-        <div class="bk-drawer-title">Cash tools</div>
+        <span class="book-tools-icon"><i data-lucide="calculator" aria-hidden="true"></i></span>
+        <div><small class="book-eyebrow">BOOKKEEPING</small><h2 class="bk-drawer-title" id="bookCashTitle">Cash Tools</h2><p>Count till, reconcile balances and review cash activity.</p></div>
         <button class="bk-drawer-close" type="button" onclick="closeDrawer()" aria-label="Close cash tools">&times;</button>
     </div>
     <div class="bk-tabs portal-panel-tabs" role="tablist" aria-label="Cash tools tabs">
@@ -2671,7 +1116,7 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
 </aside>
 <?php endif; ?>
 <?php if ($ready && $canSelectBookkeepingRows): ?>
-<div class="bk-action-bar" id="bkActionBar" aria-live="polite">
+<div class="bk-action-bar ess-bookkeeping-page" id="bkActionBar" aria-live="polite">
     <div class="bk-action-selection">
         <span class="bk-action-count" id="bkActionCount">0</span>
         <strong class="bk-action-label" id="bkActionLabel">items selected</strong>
@@ -2701,7 +1146,9 @@ $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ??
 </div>
 <?php endif; ?>
 <?php if ($ready && $canManageBookkeeping): ?>
-<div class="custom-column-popover" id="customColumnPopover" aria-hidden="true">
+<div class="custom-column-popover book-column-type-popover ess-bookkeeping-page" id="customColumnPopover" role="dialog" aria-label="Add column" aria-hidden="true">
+    <h3 class="book-column-type-title">Add column</h3>
+    <p class="book-column-type-copy">Choose a field type</p>
     <div class="custom-type-grid" data-custom-type-grid>
         <button class="custom-type-btn" type="button" data-custom-type="status">Status</button>
         <button class="custom-type-btn" type="button" data-custom-type="dropdown">Dropdown</button>
@@ -2865,6 +1312,9 @@ function renderCustomValue(column, value) {
 function openCustomColumnPopover(button) {
   const popover = document.getElementById('customColumnPopover');
   if (!popover || !button) return;
+  if (popover.classList.contains('is-open') && popover.bookAnchor === button) { closeCustomColumnPopover(); return; }
+  popover.bookAnchor = button;
+  button.setAttribute('aria-expanded','true');
   const rect = button.getBoundingClientRect();
   popover.style.left = `${Math.min(window.innerWidth - 332, Math.max(12, rect.right - 320))}px`;
   popover.style.top = `${Math.min(window.innerHeight - 220, rect.bottom + 8)}px`;
@@ -2877,14 +1327,19 @@ function openCustomColumnPopover(button) {
   form.reset();
   popover.querySelector('[data-custom-options-shell]').hidden = true;
   popover.querySelector('[data-custom-options-list]').innerHTML = '';
+  popover.classList.remove('book-column-editor');
+  popover.querySelector('.book-column-type-copy').textContent = 'Choose a field type';
+  requestAnimationFrame(() => { clampCustomColumnPopover(); popover.querySelector('[data-custom-type]')?.focus(); });
 }
 
 function clampCustomColumnPopover() {
   const popover = document.getElementById('customColumnPopover');
   if (!popover?.classList.contains('is-open')) return;
   const rect = popover.getBoundingClientRect();
-  const top = Math.min(Math.max(12, rect.top), Math.max(12, window.innerHeight - rect.height - 12));
-  const left = Math.min(Math.max(12, rect.left), Math.max(12, window.innerWidth - rect.width - 12));
+  const anchor = popover.bookAnchor?.getBoundingClientRect() || rect;
+  const preferredTop = anchor.bottom + 6 + rect.height <= window.innerHeight - 12 ? anchor.bottom + 6 : anchor.top - rect.height - 6;
+  const top = Math.min(Math.max(12, preferredTop), Math.max(12, window.innerHeight - rect.height - 12));
+  const left = Math.min(Math.max(12, anchor.right - rect.width), Math.max(12, window.innerWidth - rect.width - 12));
   popover.style.top = `${top}px`;
   popover.style.left = `${left}px`;
 }
@@ -2894,17 +1349,20 @@ function closeCustomColumnPopover() {
   if (!popover) return;
   popover.classList.remove('is-open');
   popover.setAttribute('aria-hidden', 'true');
+  popover.bookAnchor?.setAttribute('aria-expanded','false');
+  if (popover.contains(document.activeElement)) popover.bookAnchor?.focus({preventScroll:true});
 }
 
-function addCustomOptionRow(label = '', colour = '#F07420') {
+function addCustomOptionRow(label = '', colour = '#28639B') {
   const list = document.querySelector('[data-custom-options-list]');
   if (!list) return;
   const row = document.createElement('div');
-  row.className = 'custom-option-row';
+  row.className = 'custom-option-row book-option-row';
   row.innerHTML = `
     <label>Label<input type="text" data-option-label maxlength="60" value="${escapeHtml(label)}"></label>
-    <label>Color<input type="color" data-option-colour value="${escapeHtml(colour)}"></label>
-    <button class="custom-option-remove" type="button" data-remove-option aria-label="Remove option">&times;</button>
+    <input type="hidden" data-option-colour value="${escapeHtml(colour)}">
+    <button class="book-colour-swatch" type="button" aria-label="Choose option colour" aria-haspopup="listbox" aria-expanded="false"><span style="background:${escapeHtml(colour)}"></span></button>
+    <button class="custom-option-remove" type="button" data-remove-option aria-label="Remove option"><i data-lucide="trash-2" aria-hidden="true"></i></button>
   `;
   list.appendChild(row);
 }
@@ -2913,6 +1371,8 @@ function chooseCustomType(type) {
   const popover = document.getElementById('customColumnPopover');
   if (!popover) return;
   popover.dataset.selectedType = type;
+  popover.classList.add('book-column-editor');
+  popover.querySelector('.book-column-type-copy').textContent = `Set up your ${type} column`;
   popover.querySelector('[data-custom-type-grid]').hidden = true;
   const form = popover.querySelector('[data-custom-column-form]');
   form.classList.add('is-open');
@@ -2920,8 +1380,8 @@ function chooseCustomType(type) {
   const needsOptions = ['status', 'dropdown'].includes(type);
   popover.querySelector('[data-custom-options-shell]').hidden = !needsOptions;
   if (needsOptions && !popover.querySelector('[data-custom-options-list]').children.length) {
-    addCustomOptionRow(type === 'status' ? 'Paid' : 'Option', '#A8CA19');
-    addCustomOptionRow(type === 'status' ? 'Pending' : 'Another option', '#F07420');
+    addCustomOptionRow(type === 'status' ? 'Paid' : 'Option', '#4F6F52');
+    addCustomOptionRow(type === 'status' ? 'Pending' : 'Another option', '#9A6B32');
   }
   clampCustomColumnPopover();
   requestAnimationFrame(clampCustomColumnPopover);
@@ -2936,7 +1396,7 @@ async function saveCustomColumn(event) {
   const name = popover.querySelector('[data-custom-column-name]').value.trim();
   const options = Array.from(popover.querySelectorAll('.custom-option-row')).map((row) => ({
     label: row.querySelector('[data-option-label]')?.value.trim() || '',
-    colour: row.querySelector('[data-option-colour]')?.value || '#F07420'
+    colour: row.querySelector('[data-option-colour]')?.value || '#28639B'
   })).filter((option) => option.label);
   try {
     await postLedger('cashbook_add_custom_column', {
@@ -3037,7 +1497,7 @@ function startCustomEdit(cell) {
   cell.classList.add('is-editing');
   cell.innerHTML = '';
   cell.appendChild(input);
-  input.focus();
+  if (!['status','dropdown','people','date'].includes(column.type)) input.focus();
   let cancelled = false;
   const finish = async (save) => {
     if (!cell.classList.contains('is-editing')) return;
@@ -3062,7 +1522,9 @@ function startCustomEdit(cell) {
       alert(error.message);
     }
   };
-  input.addEventListener('blur', () => finish(true), { once: true });
+  if (input.tagName !== 'SELECT' && column.type !== 'date') input.addEventListener('blur', () => finish(true), { once: true });
+  input.addEventListener('book-select-cancel', () => finish(false), { once: true });
+  input.addEventListener('portal-date-close', () => finish(false), { once: true });
   input.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
       cancelled = true;
@@ -3074,7 +1536,9 @@ function startCustomEdit(cell) {
       finish(true);
     }
   });
-  if (input.tagName === 'SELECT') input.addEventListener('change', () => input.blur(), { once: true });
+  if (input.tagName === 'SELECT' || column.type === 'date') input.addEventListener('change', () => finish(true), { once: true });
+  if (input.tagName === 'SELECT') { window.enhanceBookkeepingControls?.(); cell.querySelector('.book-select-trigger')?.click(); }
+  if (column.type === 'date') { window.initialisePortalDatePickers?.(input); cell.querySelector('.portal-date-field')?.click(); }
 }
 
 function toast(message) {
@@ -3118,7 +1582,7 @@ function setOpeningVariance() {
   }
   const direction = difference > 0 ? 'over' : 'under';
   varianceNode.textContent = `${money(Math.abs(difference))} ${direction} suggested`;
-  varianceNode.style.color = difference > 0 ? '#3d5c00' : '#BB1B21';
+  varianceNode.style.color = difference > 0 ? 'var(--money-positive)' : 'var(--money-warning)';
 }
 
 async function saveOpeningBalance() {
@@ -3169,10 +1633,10 @@ function copyCountedTotal() {
   const markCopied = () => {
     if (!btn) return;
     btn.textContent = 'Copied';
-    btn.style.background = '#F07420';
+    btn.classList.add('copied');
     setTimeout(() => {
       btn.textContent = 'Copy counted total';
-      btn.style.background = '#AB3619';
+      btn.classList.remove('copied');
     }, 2000);
   };
   if (navigator.clipboard?.writeText) {
@@ -3213,48 +1677,21 @@ function renderActivityLog() {
     list.innerHTML = '<div class="bk-log-empty">No activity yet.</div>';
     return;
   }
-  const actionLabels = {
-    created: { label: 'Created', colour: '#A8CA19' },
-    opening_balance: { label: 'Opening balance', colour: '#A8CA19' },
-    edited: { label: 'Edited', colour: '#F07420' },
-    deleted: { label: 'Deleted', colour: '#BB1B21' },
-    archived: { label: 'Archived', colour: '#6B6B6B' },
-    restored: { label: 'Restored', colour: '#A8CA19' },
-    moved: { label: 'Moved', colour: '#F07420' },
-    reconciled: { label: 'Reconciled', colour: '#AB3619' },
-    permanently_deleted: { label: 'Permanently deleted', colour: '#721B1A' },
-  };
-  const fieldLabels = {
-    description: 'Description',
-    entry_dt: 'Date and time',
-    transaction_date: 'Date and time',
-    cash_in: 'Cash in',
-    cash_out: 'Cash out',
-    notes: 'Notes',
-  };
+  const actionLabels = {created:'Created', opening_balance:'Opening balance', edited:'Edited', deleted:'Deleted', archived:'Archived', restored:'Restored', moved:'Moved', reconciled:'Reconciled', permanently_deleted:'Permanently deleted'};
+  const fieldLabels = {description:'Description', entry_dt:'Date and time', transaction_date:'Date and time', cash_in:'Cash in', cash_out:'Cash out', notes:'Notes'};
   list.innerHTML = rows.map((row) => {
-    const action = actionLabels[row.action] || { label: row.action || 'Activity', colour: '#6B6B6B' };
     const parsedDate = new Date(String(row.created_at || '').replace(' ', 'T'));
-    const time = Number.isNaN(parsedDate.getTime())
-      ? escapeHtml(row.created_at || '')
-      : parsedDate.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-    const entryDesc = row.entry_desc ? String(row.entry_desc).slice(0, 30) : '';
-    const entryRef = entryDesc ? `<span style="color:#A08070;font-size:10px">${escapeHtml(entryDesc)}</span>` : '';
+    const time = Number.isNaN(parsedDate.getTime()) ? escapeHtml(row.created_at || '') : parsedDate.toLocaleString('en-GB', {day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
     const change = row.field
-      ? `<div style="font-size:10px;color:#A08070;margin-top:2px">${escapeHtml(fieldLabels[row.field] || row.field)}: <span style="color:#BB1B21">${escapeHtml(row.old_value || '-')}</span> -> <span style="color:#3d5c00">${escapeHtml(row.new_value || '-')}</span></div>`
-      : (row.description ? `<div style="font-size:10px;color:#A08070;margin-top:2px">${escapeHtml(row.description)}</div>` : '');
-    return `<div style="padding:10px 0;border-bottom:1px solid #EDE3D8;display:flex;gap:10px;align-items:flex-start">
-      <div style="width:8px;height:8px;border-radius:50%;background:${action.colour};margin-top:4px;flex-shrink:0"></div>
-      <div style="flex:1;min-width:0">
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
-          <div style="font-size:12px;font-weight:600;color:#1a1a1a">${escapeHtml(action.label)} ${entryRef}</div>
-          <div style="font-size:10px;color:#A08070;white-space:nowrap">${time}</div>
-        </div>
-        <div style="font-size:11px;color:#6B6B6B;margin-top:1px">${escapeHtml(row.user_name || 'Unknown user')}</div>
-        ${change}
-      </div>
-    </div>`;
+      ? `<div class="cash-activity-meta">${escapeHtml(fieldLabels[row.field] || row.field)}: ${escapeHtml(row.old_value || '-')} → ${escapeHtml(row.new_value || '-')}</div>`
+      : (row.description ? `<div class="cash-activity-meta">${escapeHtml(row.description)}</div>` : '');
+    return `<div class="cash-activity-item">
+      <span class="cash-activity-icon" aria-hidden="true"><i data-lucide="activity"></i></span>
+      <div><div class="cash-activity-title">${escapeHtml(actionLabels[row.action] || row.action || 'Activity')} ${escapeHtml(row.entry_desc || '')}</div>
+      <div class="cash-activity-meta">${escapeHtml(row.user_name || 'Unknown user')}</div>${change}</div>
+      <time class="cash-activity-time">${time}</time></div>`;
   }).join('');
+  window.lucide?.createIcons();
 }
 
 function getSelectedIds() {
@@ -3382,12 +1819,14 @@ async function permanentDeleteTrashItem(id) {
 }
 
 function openDrawer() {
+  window.bookkeepingDrawerFocus?.open();
   document.getElementById('bkDrawer')?.classList.add('is-open');
   document.getElementById('bkOverlay')?.classList.add('is-open');
   document.getElementById('bkDrawerBtn')?.setAttribute('aria-expanded', 'true');
 }
 
 function closeDrawer(restoreFocus = false) {
+  window.bookkeepingDrawerFocus?.close();
   document.getElementById('bkDrawer')?.classList.remove('is-open');
   document.getElementById('bkOverlay')?.classList.remove('is-open');
   document.getElementById('bkDrawerBtn')?.setAttribute('aria-expanded', 'false');
@@ -3435,7 +1874,9 @@ function applySidebarFilters() {
   });
   updateFloatingBar();
   updateDisplayedClosingBalance();
-  updateFilteredBookkeepingStats();
+  // These cards are labelled Today; filtering the ledger must not relabel
+  // historical cash movements as today's totals.
+  recalcStats();
 }
 
 function syncBookkeepingFilterOptions() {
@@ -3536,7 +1977,7 @@ function updateDisplayedClosingBalance() {
     const dateLabel = day
       ? new Date(`${day}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
       : '';
-    labelNode.textContent = dateLabel ? `${label} — ${dateLabel}` : label;
+    labelNode.textContent = dateLabel ? `As at ${dateLabel}` : 'No matching entries';
   }
 }
 
@@ -3972,5 +2413,7 @@ setReconValues();
 setOpeningVariance();
 updateFloatingBar();
 </script>
-</body>
-</html>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH . '/assets/js/ess-dashboard.js') ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/bookkeeping-essentials.js?v=<?= filemtime(BASE_PATH . '/assets/js/bookkeeping-essentials.js') ?>"></script>
+<?php include BASE_PATH . '/shared/footer.php'; ?>

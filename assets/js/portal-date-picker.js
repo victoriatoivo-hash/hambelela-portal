@@ -82,6 +82,9 @@
     const host = openDialog || document.body;
     const datePopup = ensurePopup();
     datePopup.classList.toggle('is-input-vat-popup', isInputVat);
+    // Bookkeeping reuses date parsing/commit behaviour, with its own visual shell.
+    datePopup.classList.toggle('book-date-picker', Boolean(control?.wrapper?.closest('.ess-bookkeeping-page')));
+    datePopup.classList.toggle('ess-bookkeeping-page', datePopup.classList.contains('book-date-picker'));
     datePopup.removeAttribute('popover');
     if (datePopup.parentElement !== host) host.appendChild(datePopup);
     return datePopup;
@@ -177,6 +180,7 @@
     control.trigger.setAttribute('aria-expanded', 'false');
     active = null;
     if (restoreFocus) control.trigger.focus({ preventScroll: true });
+    control.target.dispatchEvent(new Event('portal-date-close'));
   }
 
   function cleanup(scope = document, options = {}) {

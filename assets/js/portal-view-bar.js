@@ -102,7 +102,9 @@
   function headers(surface) {
     if (!surface) return [];
     const selector = surface.matches('.ledger-board') ? '.ledger-header .ledger-cell' : surface.matches('.courier-table-shell--queue') ? '.queue-head .courier-cell' : 'thead th';
-    return [...surface.querySelectorAll(selector)].map((header, columnIndex) => {
+    const headerRoot = surface.matches('.ledger-board') ? (surface.querySelector('.ledger-header') || surface) : surface;
+    const headerSelector = surface.matches('.ledger-board') ? '.ledger-cell' : selector;
+    return [...headerRoot.querySelectorAll(headerSelector)].map((header, columnIndex) => {
       header.dataset.portalColumnIndex = String(columnIndex);
       return header;
     }).filter((header) => header.textContent.trim());
@@ -148,8 +150,9 @@
     const multiplier = direction === 'asc' ? 1 : -1;
     if (surface.matches('.ledger-board')) {
       surface.querySelectorAll('.day-group').forEach((groupNode) => {
-        const rows = [...groupNode.querySelectorAll(':scope > .ledger-row:not(.ledger-header)')];
-        rows.sort((a, b) => (a.children[columnIndex]?.textContent.trim() || '').localeCompare(b.children[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }) * multiplier).forEach((row) => groupNode.append(row));
+        const rows = [...groupNode.querySelectorAll(':scope > .entry-row')];
+        const addRow = groupNode.querySelector(':scope > .add-row');
+        rows.sort((a, b) => (a.children[columnIndex]?.textContent.trim() || '').localeCompare(b.children[columnIndex]?.textContent.trim() || '', undefined, { numeric: true }) * multiplier).forEach((row) => groupNode.insertBefore(row, addRow));
       });
       return;
     }
@@ -577,11 +580,12 @@
         active.formAnchor = formAnchor;
         popover.classList.add('portal-data-filter-popup');
         form.classList.add('portal-data-filter-grid');
-        if (type === 'packing' || type === 'bookkeeping') {
+        if (type === 'packing') {
           popover.classList.add('orders-compact-filter-popup');
           form.classList.add('orders-filter-panel');
         }
         if (type === 'packing') popover.classList.add('packing-filter-popup');
+        if (type === 'bookkeeping') popover.classList.add('book-filter-popover','ess-bookkeeping-page');
         positionPopover(popover, button);
       } else if (action === 'person' && person) {
         const popover = openPopover(button, `<h3>Person</h3><div class="portal-view-bar__popover-list">${controlOptions(person).map((option) => `<button type="button" class="portal-view-bar__choice${option.selected ? ' is-selected' : ''}" data-select-value="${escapeAttribute(option.value)}">${escapeAttribute(option.label)}</button>`).join('')}</div>`);
@@ -710,7 +714,7 @@
 
   document.addEventListener('pointerdown', (event) => {
     if (activeThemeSelect && !event.target.closest('[data-theme-select]')) closeThemeSelect();
-    if (active && !event.target.closest('.portal-view-bar__popover') && !event.target.closest('[data-view-action]')) closePopover();
+    if (active && !event.target.closest('.portal-view-bar__popover,.book-select-menu') && !event.target.closest('[data-view-action]')) closePopover();
     document.querySelectorAll('.portal-toolbar-search.is-open').forEach((searchBox) => {
       if (!searchBox.contains(event.target) && !searchBox.querySelector('input')?.value) {
         searchBox.classList.remove('is-open');
