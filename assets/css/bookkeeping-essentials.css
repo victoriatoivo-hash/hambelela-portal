@@ -69,6 +69,8 @@ body.ess-dashboard .ess-bookkeeping-page .day-sum span {font-size:8px;font-weigh
 body.ess-dashboard .ess-bookkeeping-page .day-sum strong {font-size:11px;font-weight:500;}
 body.ess-dashboard .ess-bookkeeping-page .ledger-row {display:grid;grid-template-columns:var(--ledger-grid-template);border-bottom:1px solid var(--border-soft);transition:background var(--transition-fast);}
 body.ess-dashboard .ess-bookkeeping-page .ledger-cell {min-width:0;height:42px;min-height:42px;display:flex;align-items:center;padding:7px 10px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;border:0;background:transparent;color:var(--text-primary);font-size:10px;font-weight:300;}
+/* Continuous column dividers across headers, entries and the add-entry row. */
+body.ess-dashboard .ess-bookkeeping-page .ledger-row > .ledger-cell:not(:last-child) {border-right:1px solid var(--book-200);}
 body.ess-dashboard .ess-bookkeeping-page .ledger-header {background:var(--book-50);}
 body.ess-dashboard .ess-bookkeeping-page .ledger-header .ledger-cell {height:38px;min-height:38px;position:relative;color:var(--book-800);font-size:8.5px;font-weight:500;letter-spacing:.045em;text-transform:uppercase;}
 body.ess-dashboard .ess-bookkeeping-page .ledger-header [data-ledger-column="cash_in"],body.ess-dashboard .ess-bookkeeping-page .ledger-header [data-ledger-column="cash_out"],body.ess-dashboard .ess-bookkeeping-page .ledger-header [data-ledger-column="total"] {justify-content:flex-end;}
