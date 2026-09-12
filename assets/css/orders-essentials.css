@@ -115,6 +115,10 @@ body.ess-dashboard .ess-orders-page .orders-grid-header>:is(.orders-grid-cell--s
 body.ess-dashboard .ess-orders-page .orders-grid-header>.orders-grid-cell--updates {position:sticky;left:calc(var(--orders-col-select,42px) + var(--orders-col-task,280px));z-index:6;background:#F2F3EB!important;box-shadow:none;}
 body.ess-dashboard .ess-orders-page .orders-grid-scroll.is-scrolled-x .orders-grid-header>.orders-grid-cell--updates {box-shadow:3px 0 5px rgba(28,33,24,.14);}
 body.ess-dashboard .ess-orders-page .orders-grid-row:hover>:is(.orders-grid-cell--select,.orders-grid-cell--task) {background:#FAF7F0;}
+body.ess-dashboard .ess-orders-page .orders-grid-row>:is(.orders-grid-cell--select,.orders-grid-cell--task,.orders-grid-cell--notes) {background:#fff!important;}
+body.ess-dashboard .ess-orders-page .orders-grid-row:is(:hover,:focus-within,.is-selected)>:is(.orders-grid-cell--select,.orders-grid-cell--task,.orders-grid-cell--notes) {background:#FAF7F0!important;}
+body.ess-dashboard .ess-orders-page .orders-grid-header>:is(.orders-grid-cell--select,.orders-grid-cell--task,.orders-grid-cell--updates):is(:hover,:focus-within,.is-editing) {background:#F2F3EB!important;}
+body.ess-dashboard .ess-orders-page .orders-date-group>.orders-date-summary:is(:hover,:focus-visible) {background:#FAF7F0!important;}
 body.ess-dashboard .ess-orders-page .orders-board-v2 {--orders-table-row-height:42px;}
 body.ess-dashboard .ess-orders-page :is(.orders-grid-row,.orders-grid-cell,.orders-task-cell,.orders-grid-cell--paid,.orders-paid-toggle,.orders-grid-cell--packer,.packing-person-component,.packing-person-trigger,.orders-task-name-trigger,.orders-grid-cell--task,.orders-grid-cell--text) {height:42px;min-height:42px;max-height:42px;}
 body.ess-dashboard .ess-orders-page .orders-grid-cell {background:transparent;border-color:var(--border-soft);font-size:10px;font-weight:300;}
