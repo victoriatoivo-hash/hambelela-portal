@@ -86,6 +86,7 @@
     if(!bar.classList.contains('task-filter-shell')){
       bar.classList.add('task-filter-shell');controls.classList.add('task-filter-toolbar');
       controls.querySelectorAll('[data-view-action]').forEach(b=>b.classList.add('task-filter-control'));
+      controls.querySelectorAll('[data-view-action=sort],[data-view-action=group]').forEach(b=>{b.insertAdjacentHTML('beforeend',icon('chevron-down'));b.setAttribute('aria-haspopup','dialog');});
       const search=controls.querySelector('.portal-toolbar-search');
       search?.classList.add('task-filter-search','is-open');
       const input=search?.querySelector('input');if(input){input.placeholder='Search tasks, titles or keywords…';input.setAttribute('aria-label',input.placeholder);}
@@ -100,8 +101,10 @@
       const pop=document.createElement('div');pop.id=id;pop.className='task-filter-popover';pop.setAttribute('popover','auto');pop.setAttribute('role','dialog');pop.setAttribute('aria-label',label);
       nodes.forEach(n=>pop.append(n));root.append(pop);
       const trigger=document.createElement('button');trigger.type='button';trigger.className='task-filter-control';trigger.innerHTML=icon(iconName)+`<span>${label}</span>`+icon('chevron-down');trigger.setAttribute('popovertarget',id);trigger.setAttribute('aria-expanded','false');trigger.dataset.compactTrigger=id;
-      pop.addEventListener('beforetoggle',e=>{trigger.setAttribute('aria-expanded',String(e.newState==='open'));if(e.newState==='open'){const r=trigger.getBoundingClientRect();pop.style.left=Math.max(12,Math.min(r.left,innerWidth-322))+'px';pop.style.top=Math.min(r.bottom+7,innerHeight-360)+'px';}});
-      pop.addEventListener('toggle',e=>{if(e.newState==='closed'&&document.activeElement===document.body)trigger.focus();});
+      trigger.setAttribute('aria-controls',id);trigger.setAttribute('aria-haspopup','dialog');
+      pop.addEventListener('beforetoggle',e=>{trigger.setAttribute('aria-expanded',String(e.newState==='open'));if(e.newState==='open'){const r=trigger.getBoundingClientRect();pop.style.left=Math.max(12,Math.min(r.left,innerWidth-322))+'px';pop.style.top=Math.max(12,Math.min(r.bottom+7,innerHeight-360))+'px';}});
+      pop.addEventListener('toggle',e=>{if(e.newState==='open')pop.querySelector('a.is-active,a,button')?.focus();else if(document.activeElement===document.body||pop.contains(document.activeElement))trigger.focus();});
+      pop.addEventListener('keydown',e=>{const links=[...pop.querySelectorAll('a,button')];const index=links.indexOf(document.activeElement);if(e.key==='Escape'){e.preventDefault();e.stopPropagation();pop.hidePopover();trigger.focus();}else if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?0:e.key==='End'?links.length-1:(index+(e.key==='ArrowUp'?-1:1)+links.length)%links.length;links[next]?.focus();}else if(e.key===' '&&document.activeElement?.matches('a')){e.preventDefault();document.activeElement.click();}});
       pop.addEventListener('click',e=>{if(e.target.closest('a'))pop.hidePopover();});
       return trigger;
     }
@@ -139,6 +142,9 @@
     const signature=JSON.stringify(values);if(bar.dataset.chipState===signature)return;bar.dataset.chipState=signature;
     const row=bar.querySelector('.task-active-filters');row.replaceChildren();row.hidden=!values.length;
     const more=controls.querySelector('[data-view-action=filter]');let badge=more?.querySelector('.task-filter-count');if(more&&!badge){badge=document.createElement('b');badge.className='task-filter-count';more.append(badge);}if(badge){badge.textContent=values.length;badge.hidden=!values.length;}
+    more?.classList.toggle('has-filters',values.length>0);
+    controls.querySelector('[data-compact-trigger=task-employee-picker]')?.classList.toggle('is-active',values.some(v=>v.key==='completed_employee_id'));
+    controls.querySelector('[data-compact-trigger=task-date-picker]')?.classList.toggle('is-active',values.some(v=>v.key==='completed_year'||v.key==='completed_month'));
     if(!values.length)return;
     const label=document.createElement('span');label.className='task-active-filters-label';label.textContent='Filters:';row.append(label);
     const clearUrl=()=>{const url=new URL(location.href);url.search='';url.searchParams.set('task_view',params.get('task_view')||'tasks');if(root){url.searchParams.set('completed_employee_id','all');url.searchParams.set('completed_year','');url.searchParams.set('completed_month','');}return url;};
@@ -204,12 +210,76 @@
     });
     return changed;
   }
+  function decorateDetailWorkspace() {
+    let changed=false;
+    document.querySelectorAll('.task-detail-panel:not([data-workspace-designed])').forEach(panel=>{
+      panel.dataset.workspaceDesigned='true';panel.classList.add('task-detail-drawer');changed=true;
+      panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');
+      const title=panel.querySelector('.task-details-title');if(title){title.id ||= 'task-workspace-title-'+panel.dataset.taskPanel;panel.setAttribute('aria-labelledby',title.id);}
+      const body=panel.querySelector('.task-details-body'), header=panel.querySelector('.task-details-header');
+      if(!body)return;
+      const assignment=panel.querySelector('.task-edit-card');
+      const instructions=body.querySelector('[data-readonly-instructions]')?.closest('section');
+      if(instructions)body.prepend(instructions);
+      if(assignment){
+        const disclosure=document.createElement('details');disclosure.className='task-assignment-disclosure';
+        const summary=document.createElement('summary');summary.textContent='Edit assignment & instructions';assignment.before(disclosure);disclosure.append(summary,assignment);
+        assignment.addEventListener('invalid',()=>{disclosure.open=true;},true);
+        if(instructions){const edit=document.createElement('button');edit.type='button';edit.className='task-instructions-edit';edit.textContent='Edit';edit.addEventListener('click',()=>{disclosure.open=true;assignment.querySelector('[contenteditable=true],textarea')?.focus();disclosure.scrollIntoView({block:'nearest'});});instructions.querySelector('h3')?.append(edit);}
+        const person=assignment.querySelector('[name=assigned_employee_id]')?.selectedOptions[0]?.textContent;
+        const due=assignment.querySelector('[name=deadline]')?.value;
+        if(person||due){const meta=document.createElement('p');meta.className='task-detail-header-meta';meta.textContent=[person?'Assigned to '+person:'',due?'Due '+due.replace('T',' ').slice(0,16):''].filter(Boolean).join(' · ');header.querySelector('.task-details-heading')?.append(meta);}
+      }
+      panel.querySelectorAll('.task-checklist').forEach(list=>{
+        list.classList.add('task-checklist-list');const section=list.closest('section');
+        const count=document.createElement('span');count.className='task-checklist-count';section.querySelector('h3')?.append(count);
+        const track=document.createElement('div');track.className='task-checklist-progress';track.setAttribute('role','progressbar');track.setAttribute('aria-label','Checklist completion');track.setAttribute('aria-valuemin','0');track.setAttribute('aria-valuemax','100');
+        const fill=document.createElement('div');fill.className='task-checklist-progress-bar';track.append(fill);list.before(track);
+        const inputs=[...list.querySelectorAll('input[type=checkbox]')];
+        inputs.forEach(input=>{input.classList.add('task-check-item-input');input.closest('label')?.classList.add('task-check-item');input.closest('label')?.querySelector('small')?.classList.add('task-required-badge');});
+        const sync=()=>{const done=inputs.filter(i=>i.checked).length,percent=inputs.length?Math.round(done/inputs.length*100):0;const text=`${done} of ${inputs.length} complete`;if(count.textContent!==text)count.textContent=text;track.setAttribute('aria-valuenow',String(percent));fill.style.width=percent+'%';inputs.forEach(i=>i.closest('label')?.classList.toggle('is-complete',i.checked));};
+        list.addEventListener('change',sync);list.closest('form')?.addEventListener('reset',()=>requestAnimationFrame(sync));sync();
+      });
+      panel.querySelectorAll('select[name=status]').forEach(select=>{
+        const field=select.closest('.task-field');if(!field)return;
+        const flow=document.createElement('div');flow.className='task-status-flow';flow.setAttribute('role','group');flow.setAttribute('aria-label','Task status');
+        const current=document.createElement('div');current.className='task-progress-current';
+        const label=document.createElement('span');label.textContent='Selected status';const badge=document.createElement('span');badge.className='task-progress-status';current.append(label,badge);
+        field.before(current,flow);field.hidden=true;
+        [...select.options].forEach(option=>{const button=document.createElement('button');button.type='button';button.className='task-status-option';button.dataset.statusValue=option.value;const iconName=option.value==='complete'?'circle-check':option.value==='in_progress'?'clock':'circle';button.innerHTML=`<i data-lucide="${iconName}" aria-hidden="true"></i>`;button.append(document.createTextNode(option.textContent));button.addEventListener('click',()=>{if(select.disabled||option.disabled)return;select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));sync();});flow.append(button);});
+        const sync=()=>{badge.textContent=select.selectedOptions[0]?.textContent||'';flow.querySelectorAll('button').forEach(b=>{const active=b.dataset.statusValue===select.value;b.classList.toggle('is-active',active);b.classList.toggle('is-complete',b.dataset.statusValue==='complete');b.disabled=select.disabled||[...select.options].find(o=>o.value===b.dataset.statusValue)?.disabled;b.setAttribute('aria-pressed',String(active));});};
+        select.addEventListener('change',sync);select.form?.addEventListener('reset',()=>requestAnimationFrame(sync));new MutationObserver(sync).observe(select,{attributes:true,childList:true,subtree:true,attributeFilter:['disabled','selected']});sync();
+        const note=document.createElement('p');note.className='task-status-message';note.textContent='Use Save to apply this status. Existing checklist, note and proof requirements still apply.';flow.after(note);
+      });
+      const progressHeading=panel.querySelector('.task-progress__heading');if(progressHeading?.textContent==='Progress Update')progressHeading.textContent='Progress';
+      const proofInput=panel.querySelector('input[name=completion_evidence_required]');
+      if(proofInput){const proof=document.createElement('section');proof.className='task-detail-proof';proof.innerHTML='<h3><i data-lucide="shield-check" aria-hidden="true"></i>Proof required</h3><p>Upload evidence before completing this task.</p>';instructions?.after(proof);const sync=()=>{proof.hidden=!proofInput.checked;};proofInput.addEventListener('change',sync);sync();}
+      if(!panel.querySelector('.task-progress-card select[name=status]')){
+        const section=document.createElement('section');section.className='task-details-section task-progress-card task-progress-readonly';
+        const heading=document.createElement('h3');heading.className='task-section-title';heading.textContent='Progress';section.append(heading);
+        const status=panel.querySelector('.task-details-badge--status');if(status){const current=document.createElement('div');current.className='task-progress-current';current.append(document.createTextNode('Current status'),status.cloneNode(true));section.append(current);}
+        const flow=document.createElement('div');flow.className='task-status-flow';flow.setAttribute('role','group');flow.setAttribute('aria-label','Task workflow');
+        ['New','In Progress','Complete'].forEach((name,index)=>{const b=document.createElement('button');b.type='button';b.className='task-status-option';const active=status?.textContent.trim().toLowerCase()===name.toLowerCase();b.classList.toggle('is-active',active);b.classList.toggle('is-complete',index===2);b.setAttribute('aria-pressed',String(active));b.textContent=name;b.disabled=true;flow.append(b);});section.append(flow);
+        const hint=document.createElement('p');hint.className='task-status-message';hint.textContent='Current workflow is shown above. Use the available task actions below to save changes.';section.append(hint);
+        panel.querySelector('.task-details-progress-form')?.append(section);
+      }
+      panel.querySelectorAll('.task-content-heading,.task-progress__heading,.task-files__heading h3').forEach(heading=>{const graphic=document.createElement('i');graphic.dataset.lucide=heading.classList.contains('task-checklist__heading')?'list-checks':heading.classList.contains('task-progress__heading')?'chart-no-axes-combined':heading.closest('.task-files')?'paperclip':'file-text';graphic.setAttribute('aria-hidden','true');heading.prepend(graphic);});
+      const footer=document.createElement('footer');footer.className='task-detail-footer';
+      panel.querySelectorAll('.task-edit-actions button[type=submit],.task-progress-actions button[type=submit]').forEach(original=>{
+        const proxy=document.createElement('button');proxy.type='button';proxy.className='task-detail-primary';proxy.addEventListener('click',()=>{if(!original.disabled)original.form?.requestSubmit(original);});footer.append(proxy);
+        const sync=()=>{proxy.disabled=original.disabled;const text=original.textContent;if(proxy.textContent!==text)proxy.textContent=text;};new MutationObserver(sync).observe(original,{attributes:true,childList:true,subtree:true,characterData:true});sync();original.parentElement.hidden=true;
+      });
+      if(footer.children.length)panel.append(footer);
+    });
+    return changed;
+  }
   function decorate() {
     let iconsAdded = false;
     // Controllers portal these surfaces to body. Carry the local theme with them.
     document.querySelectorAll('.task-detail-panel,.task-instructions-modal,.task-template-dialog,.task-import-modal,.task-complete-confirm,.task-trash-confirm,.portal-view-bar__popover,.portal-view-popup,.portal-custom-select-menu,.portal-date-popup,.flatpickr-calendar,.task-status-menu,.task-action-menu').forEach(el => el.classList.add('ess-task-popover'));
     iconsAdded=decorateNotifications();
     iconsAdded=decorateTemplates()||iconsAdded;
+    iconsAdded=decorateDetailWorkspace()||iconsAdded;
     decorateBulkSelection();
     page.querySelectorAll('.portal-view-bar:not(.task-toolbar-designed)').forEach(toolbar=>{
       toolbar.classList.add('task-toolbar-designed');

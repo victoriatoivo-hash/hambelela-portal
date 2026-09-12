@@ -1,5 +1,17 @@
 # Task Management Essentials review
 
+## Task Details workspace — 12 September (local, unpublished)
+
+Added a 560px desktop/full-width mobile detail workspace with read-first instructions, permission-preserving assignment/editor disclosure, native checkbox checklist with count and percentage, status buttons backed by the original selects, proof notice from the real proof checkbox, existing files/history, compact notes and fixed footer. Footer requests submission on the original form with its original submitter; no task APIs, timestamps, permission or transition rules were changed. Workflow choices without an existing selectable status remain read-only.
+
+Browser checks: completed drawer is 560px; three checked items remain checked and show 100%. Uncheck/check updates 2/3 (67%) and 3/3 (100%). Edit opens the original editor; status fields are visually hidden and replacement buttons mirror the native value. On an unfinished task, selecting Complete and saving through the footer is blocked with “11 required checklist items are incomplete.” The snapshot's stale completion-enforced flag was removed in the local-only preview router so the real guard initialized. No production writes occurred. Syntax, presentation and drawer contract tests pass. Actual successful saving, file transfer, proof-server validation, template persistence, employee-profile interaction and mobile browser interaction remain unverified; this is not a claim of complete end-to-end testing.
+
+## Compact filter refinement — 12 September
+
+Refined the existing compact toolbar without changing server filters or permission gates. Added Sort/Group chevrons, shared 38px controls, Task-colour hover/selected states, active More Filters styling, consistent SVG strokes, a persistent single search border, and popover entry motion. Employee/date popovers support arrows, Home/End, Space, Escape and return focus; Escape no longer bubbles to the surrounding Task view.
+
+Local browser checks: employee popover opens, arrow navigation advances, Escape returns to Employee; date popover displays four month columns; search narrows the captured table to one matching row, adds a chip and increments the count; Clear search restores three existing chips. Sort and Group by expose their existing supported choices. Jost and 38px heights verified on all six controls. Syntax and compact-filter/presentation contracts pass. Live employee/year/month query results, full Clear All, sync network behaviour and mobile interaction have not been exercised in this read-only snapshot. This refinement is not deployed.
+
 ## Scope
 
 Local review only, not deployed. Uses the existing Dashboard sidebar, topbar and mobile navigation, with permission-filtered destinations. Task-specific primary colour is #966313. No changes to authentication, database queries, task mutation handlers, recurrence generation, assignment rules or existing task controllers.

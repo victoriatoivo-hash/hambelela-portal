@@ -1,0 +1,13 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const js=readFileSync('assets/js/task-essentials.js','utf8');
+const css=readFileSync('assets/css/task-essentials.css','utf8');
+for(const name of ['task-detail-drawer','task-checklist-count','task-checklist-progress','task-status-flow','task-detail-footer'])assert(js.includes(name)&&css.includes(name),name);
+assert(js.includes("track.setAttribute('aria-valuenow',String(percent))"));
+assert(js.includes('original.form?.requestSubmit(original)'));
+assert(js.includes("select.dispatchEvent(new Event('change',{bubbles:true}))"));
+assert(js.includes('select.disabled||option.disabled'));
+assert(js.includes("panel.setAttribute('aria-modal','true')"));
+assert(css.includes('grid-template-columns:22px minmax(0,1fr)'));
+assert(css.includes('.task-checklist-progress-bar{transition:none}'));
+console.log('Task detail workspace structure, native submission, progress accessibility and responsive rules passed.');
