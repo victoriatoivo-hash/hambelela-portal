@@ -26,29 +26,28 @@ $ordersStylesVersion = is_file(BASE_PATH . '/assets/css/orders-board.css')
 $extraStylesheets = [
     ['path' => 'assets/css/portal-column-resize.css', 'version' => is_file(BASE_PATH . '/assets/css/portal-column-resize.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-column-resize.css') : (string) time()],
     ['path' => 'assets/css/orders-board.css', 'version' => $ordersStylesVersion],
+    ['path' => 'assets/css/orders-essentials.css', 'version' => (string) filemtime(BASE_PATH . '/assets/css/orders-essentials.css')],
 ];
 
+$isEssDashboard = true;
+$pageUsesPortalSidebar = false;
+require_once BASE_PATH . '/shared/ess-navigation.php';
+$essShellApps = ess_shell_apps();
+$essActiveModule = 'Orders';
+$essHeadingPartial = BASE_PATH . '/shared/ess-orders-heading.php';
+array_unshift($extraStylesheets, ['path' => 'assets/css/ess-dashboard.css', 'version' => (string) filemtime(BASE_PATH . '/assets/css/ess-dashboard.css')]);
 include BASE_PATH . '/shared/header.php';
-include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/ess-sidebar.php';
 ?>
-<style>
-.workspace.module.orders-page .orders-summary-label {
-    margin-bottom: 4px;
-    color: #A08070;
-    font-size: 10px;
-    line-height: 1;
-    font-weight: 700;
-    letter-spacing: .04em;
-    text-transform: uppercase;
-}
-</style>
-<main class="workspace module ops-board-page portal-page orders-page" data-board-theme="light">
+<main id="ess-main" class="workspace ess-dashboard-main ops-board-page orders-page ess-orders-page" data-board-theme="light">
+    <?php include BASE_PATH . '/shared/ess-topbar.php'; ?>
     <section class="monday-board-top orders-page-top">
         <header class="monday-board-head work-board-head portal-page-header orders-page-header">
-            <div>
-                <h1 style="color: #721B1A;">Hambelela Orders <i data-lucide="chevron-down"></i></h1>
+            <div class="orders-heading">
+                <span class="orders-page-icon"><i data-lucide="shopping-bag" aria-hidden="true"></i></span>
+                <div><h1>Hambelela Orders</h1><p>Manage and fulfil customer orders in one place.</p></div>
             </div>
-            <div class="monday-board-head-actions orders-header-actions" data-portal-header-status-target>
+            <div class="monday-board-head-actions orders-header-actions">
                 <?php if ($canOpenOrdersTools): ?>
                 <button type="button" class="orders-tools-trigger" data-orders-tools-open><i data-lucide="wrench"></i><span>Orders tools</span></button>
                 <?php endif; ?>
@@ -57,7 +56,7 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
         </header>
 
-        <section class="work-metric-grid portal-stat-grid orders-stat-grid <?= $isAdminBoard ? 'admin-metrics' : '' ?>" aria-label="Work summary">
+        <section class="orders-kpi-grid <?= $isAdminBoard ? 'admin-metrics' : '' ?>" aria-label="Work summary">
             <?php if ($isAdminBoard): ?>
                 <article class="work-metric-card metric-blue"><span class="metric-icon"><i data-lucide="shopping-bag"></i></span><div><span class="metric-title">Total Orders</span><strong data-work-metric="total_orders">0</strong><small>All time</small></div></article>
                 <article class="work-metric-card metric-slate"><span class="metric-icon"><i data-lucide="file-plus-2"></i></span><div><span class="metric-title">New Orders</span><strong data-work-metric="new_today">0</strong><small>Today</small></div></article>
@@ -74,11 +73,11 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php endif; ?>
         </section>
 
-        <section class="ob-video-toolbar orders-tools-bar portal-filter-toolbar portal-table-toolbar" data-filter-toolbar aria-label="Orders tools">
-            <div class="portal-filter-toolbar__controls portal-table-toolbar__controls">
-                <div class="portal-view-bar__search portal-toolbar-search" data-view-search>
-                    <button type="button" class="portal-view-bar__button portal-toolbar-action portal-toolbar-search__trigger" data-search-trigger data-toolbar-action="search" aria-label="Open search" aria-expanded="false"><i data-lucide="search"></i><span>Search</span></button>
-                    <input class="portal-toolbar-search__input" data-board-search type="search" placeholder="Search orders..." aria-label="Search orders">
+        <section class="orders-tools-bar" aria-label="Orders tools">
+            <div class="orders-filter-controls">
+                <div class="orders-search">
+                    <i data-lucide="search" aria-hidden="true"></i>
+                    <input class="orders-search-input" data-board-search type="search" placeholder="Search by order, customer or phone..." aria-label="Search orders">
                     <button type="button" class="portal-toolbar-search__clear" data-search-clear aria-label="Clear search"><i data-lucide="x"></i></button>
                 </div>
                 <button type="button" class="portal-toolbar-action" data-toolbar="person" data-toolbar-action="person" aria-expanded="false"><i data-lucide="circle-user-round"></i> Person</button>
@@ -129,7 +128,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 </div>
             </label>
             <div class="work-filter-actions">
-                <button type="button" data-clear-board-filters><i data-lucide="refresh-cw"></i> Clear Filters</button>
+                <button type="button" data-clear-board-filters><i data-lucide="filter-x"></i> Clear Filters</button>
                 <button type="button" data-board-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
             </div>
             <div class="orders-active-filter-chips" data-orders-active-filter-chips hidden></div>
@@ -260,4 +259,7 @@ window.HambelelaBoard = {
 </script>
 <script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/orders-board.js?v=<?= htmlspecialchars($boardAssetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH . '/assets/js/ess-dashboard.js') ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/orders-essentials.js?v=<?= filemtime(BASE_PATH . '/assets/js/orders-essentials.js') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

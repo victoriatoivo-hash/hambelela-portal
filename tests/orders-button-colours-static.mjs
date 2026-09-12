@@ -13,7 +13,7 @@ assert.match(js, /data-fulfilment-mode=/);
 assert.match(js, /data-payment-method=.*normaliseOrderColourKey/);
 assert.doesNotMatch(css, /data-payment-method=cash\]\{color:#fff;background:#721B1A/);
 assert.match(css, /--orders-button-text: #fff/);
-assert.match(css, /orders-grid-cell--payment \.payment-badge__segment \{[^}]*color:var\(--orders-button-text\)[^}]*-webkit-text-fill-color:var\(--orders-button-text\)/s);
+assert.match(css, /orders-grid-cell--payment \.payment-badge__segment\s*\{[^}]*color:var\(--orders-button-text\)[^}]*-webkit-text-fill-color:var\(--orders-button-text\)/s);
 assert.doesNotMatch(css, /data-(?:order-status|fulfilment-mode)[^}]*color:#1A1A1A/);
 assert.doesNotMatch(css, /data-payment-method=(?:cash|fnb-ewallet|pay2cell|paytoday)[^}]*\{color:#1A1A1A/);
 

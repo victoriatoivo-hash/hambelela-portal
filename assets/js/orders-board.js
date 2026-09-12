@@ -786,10 +786,12 @@
     };
 
     control.addEventListener('blur', () => {
+      if (field === 'assigned_packer_id' && control.hidden) return;
       commit().catch(showError);
     });
 
     if (field === 'assigned_packer_id') {
+      control.addEventListener('orders-select-close', cancel);
       control.addEventListener('change', () => {
         commit().catch(showError);
       });
@@ -1589,7 +1591,7 @@
   }
 
   function groupCountText(count) {
-    return `${count} ${count === 1 ? 'Task' : 'Tasks'}`;
+    return `${count} ${count === 1 ? 'Order' : 'Orders'}`;
   }
 
   function countValues(orders, resolver, defaults = {}) {
@@ -1689,6 +1691,7 @@
 
   async function openOrdersTools(tab = ordersToolsTab) {
     if (!ordersToolsPanel) return;
+    if (panel?.classList.contains('is-open')) closePanel();
     if (ordersToolsCloseTimer) {
       window.clearTimeout(ordersToolsCloseTimer);
       ordersToolsCloseTimer = null;
@@ -1787,7 +1790,7 @@
       : field === 'order_type'
         ? ` data-fulfilment-mode="${esc(normaliseOrderColourKey(text))}"`
         : '';
-    return `<button type="button" class="board-label ${cssClass}" style="--label-color:${esc(color)}"${colourAttribute} aria-haspopup="menu" aria-expanded="false" data-label-field="${field}" data-label-value-current="${esc(value || '')}" data-order-id="${esc(order.id)}"><span class="orders-label-trigger-text">${esc(text)}</span></button>`;
+    return `<button type="button" class="board-label order-data-pill ${cssClass}" style="--label-color:${esc(color)}"${colourAttribute} aria-haspopup="menu" aria-expanded="false" data-label-field="${field}" data-label-value-current="${esc(value || '')}" data-order-id="${esc(order.id)}"><span class="orders-label-trigger-text">${esc(text)}</span></button>`;
   }
 
   function legacyPaymentCode(value) {
@@ -3127,6 +3130,10 @@
 
   function openToolbar(anchor, type) {
     if (!toolbarPopover) return;
+    if (type === 'filter' && page.classList.contains('ess-orders-page')) {
+      ordersFilterPanel?.querySelector('button')?.focus();
+      return;
+    }
     if (toolbarTrigger === anchor && !toolbarPopover.hidden) {
       closeToolbar();
       anchor.focus({ preventScroll: true });
@@ -3867,7 +3874,14 @@
       ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned'], ...(currentOrder.dispatch_courier ? [['Courier type', currentOrder.dispatch_courier], ['EasyBox / parcel details', currentOrder.dispatch_package_detail || 'Not recorded'], ['Recorded service date', currentOrder.dispatch_service_date || ''], ['Waybill upload', currentOrder.dispatch_waybill_linked ? 'Linked' : 'Awaiting upload']] : [])]],
       ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
     ];
-    panelDetails.innerHTML = documentCard + cards.map(([title, fields]) => `<section class="order-panel-card"><h3>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${esc(value || 'Not set')}</span></div>`).join('')}</div></section>`).join('');
+    const detailValue = (label, value) => {
+      if (label === 'Status') return renderLabelCell(currentOrder, 'status', currentOrder.status || 'new_order', statusLabels, 'status-label');
+      if (label === 'Mode') return renderLabelCell(currentOrder, 'order_type', currentOrder.order_type || 'collection', modeLabels, 'mode-label');
+      if (label === 'Method') return renderPaymentBadge(currentOrder);
+      return esc(value || 'Not set');
+    };
+    const sectionIcons = {'Order summary':'clipboard-list',Customer:'user-round',Fulfilment:'package-check',Payment:'wallet'};
+    panelDetails.innerHTML = documentCard + cards.map(([title, fields]) => `<section class="order-panel-card"><h3><i data-lucide="${sectionIcons[title]}" aria-hidden="true"></i>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${detailValue(label,value)}</span></div>`).join('')}</div></section>`).join('') + `<section class="order-panel-card"><h3><i data-lucide="sticky-note" aria-hidden="true"></i>Notes</h3><p class="orders-note-copy">${esc(currentOrder.notes || 'No notes recorded.')}</p><button type="button" class="orders-tools-button" data-orders-notes-edit>Add an update</button></section>`;
     window.lucide?.createIcons?.({ strokeWidth:2 });
     if (hasWebsiteDocuments) hydrateOrderDocumentAvailability(currentOrder.id);
   }
@@ -4200,6 +4214,7 @@
   }
 
   function openPanel(orderId, initialTab = 'details', sourceElement = document.activeElement) {
+    if (ordersToolsPanel?.classList.contains('is-open')) closeOrdersTools();
     currentOrder = ordersCache.find((order) => String(order.id) === String(orderId));
     if (!currentOrder) return;
     panelReturnPosition = ordersTablePosition(sourceElement, orderId);
@@ -5248,6 +5263,7 @@
       }
 
       if (clearFilters) {
+        ['paid', 'minAmount', 'maxAmount', 'createdAfter', 'createdBefore'].forEach(key => { boardState[key] = ''; });
         boardState.search = '';
         boardState.person = '';
         boardState.mode = '';
