@@ -2368,16 +2368,25 @@ if ($ready && $canManage && (int)($_GET['recurring_occurrences']??0)>0) {
     echo json_encode(['success'=>true,'occurrences'=>$rows],JSON_UNESCAPED_SLASHES);exit;
 }
 
+$isEssDashboard = true;
+$pageUsesPortalSidebar = false;
+require_once BASE_PATH . '/shared/ess-navigation.php';
+$essShellApps = ess_shell_apps();
+$essActiveModule = 'Task Management';
+$essHeadingPartial = BASE_PATH . '/shared/ess-task-heading.php';
+$extraStylesheets[] = ['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')];
+$extraStylesheets[] = ['path'=>'assets/css/task-essentials.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-essentials.css')];
 include BASE_PATH . '/shared/header.php';
-include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/ess-sidebar.php';
 ?>
 <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/task-correction.css?v=<?= filemtime(BASE_PATH . '/assets/css/task-correction.css') ?>">
-<main class="workspace module digital-task-page" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>" data-can-manage="<?= $canManage ? '1' : '0' ?>">
-    <header class="dtb-page-header">
+<main id="ess-main" class="workspace ess-dashboard-main digital-task-page ess-task-page" tabindex="-1" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>" data-can-manage="<?= $canManage ? '1' : '0' ?>">
+    <?php include BASE_PATH . '/shared/ess-topbar.php'; ?>
+    <header class="dtb-page-header task-page-header">
         <div>
-            <h1 class="dtb-page-title">Task Management</h1>
+            <div class="task-title-row"><span class="task-page-icon"><i data-lucide="list-checks" aria-hidden="true"></i></span><div><h1 class="dtb-page-title task-page-title">Task Management</h1><p class="task-page-subtitle">Create, assign and track work across your team.</p></div></div>
         </div>
-        <div class="dtb-page-actions task-header-actions" data-portal-header-status-target>
+        <div class="dtb-page-actions task-header-actions">
             <?php if ($canManage): ?>
                 <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open data-task-create-kind="manual"><i data-lucide="plus"></i> New Task</button>
             <?php endif; ?>
@@ -2387,7 +2396,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
-    <section class="dtb-stats-grid task-dashboard-widgets">
+    <section class="dtb-stats-grid task-dashboard-widgets task-kpi-grid<?= !$canManage ? ' task-kpi-grid--employee' : '' ?>">
         <a class="dtb-stat-card" data-stat="new" href="checklists.php?task_view=active&amp;status=new"><span class="dtb-stat-icon"><i data-lucide="sparkles"></i></span><div><p class="dtb-stat-label">New</p><strong class="dtb-stat-value"><?= number_format($metrics['new']) ?></strong></div></a>
         <a class="dtb-stat-card" data-stat="due-today" href="checklists.php?task_view=active&amp;date_from=<?= date('Y-m-d') ?>&amp;date_to=<?= date('Y-m-d') ?>"><span class="dtb-stat-icon"><i data-lucide="calendar-clock"></i></span><div><p class="dtb-stat-label">Due Today</p><strong class="dtb-stat-value"><?= number_format($metrics['due_today']) ?></strong></div></a>
         <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong></div></article>
@@ -2396,7 +2405,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php if ($canManage): ?><a class="dtb-stat-card" data-stat="scheduled" href="checklists.php?task_view=scheduled"><span class="dtb-stat-icon"><i data-lucide="calendar-clock"></i></span><div><p class="dtb-stat-label">Scheduled</p><strong class="dtb-stat-value"><?= number_format($metrics['scheduled']) ?></strong></div></a><?php endif; ?>
     </section>
 
-    <nav class="task-section-tabs task-board-navigation" aria-label="Task views" data-task-view-tabs>
+    <nav class="task-section-tabs task-board-navigation" role="tablist" aria-label="Task views" data-task-view-tabs>
         <?php
         $tabLabels = $canManage ? ['tasks' => 'Tasks', 'scheduled' => 'Scheduled', 'floating' => 'Floating Tasks', 'recurring' => 'Recurring Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'] : ['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
         $tabIcons = ['tasks' => 'clipboard-list', 'scheduled' => 'calendar-clock', 'floating' => 'users-round', 'recurring' => 'repeat-2', 'completed' => 'check-circle-2', 'history' => 'history'];
@@ -2449,7 +2458,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <div class="panel-backdrop task-tools-backdrop" data-task-tools-backdrop hidden></div>
 
     <?php if ($canManage): ?>
-        <aside class="task-create-panel create-task-panel" data-task-create-panel aria-hidden="true">
+        <aside class="task-create-panel create-task-panel" data-task-create-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Create task">
             <header class="create-task-header task-create-heading">
                 <button class="create-task-close" type="button" data-task-create-close aria-label="Close create task"><i data-lucide="x"></i></button>
                 <div class="task-create-heading__copy"><span class="create-task-type-badge" data-task-mode-badge>One-off task</span><h2 class="create-task-title">Create task</h2></div>
@@ -3258,7 +3267,7 @@ function initialiseTaskCreateForm() {
     if (blankForm) { form.reset(); setInstructionHtml(''); checklistList.innerHTML = ''; dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncChecklist(); renderTaskFormState(); syncDueAt(); form.querySelectorAll('select').forEach((field) => field.dispatchEvent(new Event('change', {bubbles:true}))); }
   };
   const loadTemplate = async (id) => {
-    if (formHasWork() && !window.confirm('Loading this template will replace the information currently entered in the New Task form.')) return;
+    if (formHasWork() && !await window.TaskTemplateUI.confirm('Load template?\n\nLoading this template will replace the information currently entered in the New Task form.')) return;
     window.PortalDatePicker?.cleanup?.(form, { restoreFocus: false, removePopup: true });
     const {template} = await templateApi('task_template_get', {template_id:id});
     clearLoadedTemplate(true);
@@ -3291,28 +3300,31 @@ function initialiseTaskCreateForm() {
     form.querySelectorAll('[name="urgent_alert_recipients[]"]').forEach((input) => { input.checked = (template.urgent_recipients || []).includes(input.value); });
     dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncDueAt();
     sourceTemplateId.value = String(template.id); loadedLabel.hidden = false; loadedLabel.textContent = `Template loaded: ${template.template_name}`;
-    (template.attachments || []).forEach((attachment) => { const row = document.createElement('div'); row.className = 'task-template-attachment'; row.dataset.templateAttachmentId = String(attachment.id); const name = document.createElement('span'); name.textContent = attachment.name; const remove = document.createElement('button'); remove.type='button'; remove.textContent='Remove'; remove.addEventListener('click', async () => { if (templateMode === 'manage' && window.confirm(`Remove “${attachment.name}” from the reusable template? Existing tasks will not be changed.`)) { try { await templateApi('task_template_attachment_delete',{template_id:template.id,attachment_id:attachment.id}); } catch(error) { window.alert(error.message); return; } } row.remove(); syncLoadedAttachmentIds(); }); row.append(name, remove); loadedAttachments.appendChild(row); });
+    (template.attachments || []).forEach((attachment) => { const row = document.createElement('div'); row.className = 'task-template-attachment'; row.dataset.templateAttachmentId = String(attachment.id); const name = document.createElement('span'); name.textContent = attachment.name; const remove = document.createElement('button'); remove.type='button'; remove.textContent='Remove'; remove.addEventListener('click', async () => { if (templateMode === 'manage' && await window.TaskTemplateUI.confirm(`Remove attachment?\n\nRemove “${attachment.name}” from the reusable template? Existing tasks will not be changed.`)) { try { await templateApi('task_template_attachment_delete',{template_id:template.id,attachment_id:attachment.id}); } catch(error) { await window.TaskTemplateUI.alert(error.message); return; } } row.remove(); syncLoadedAttachmentIds(); }); row.append(name, remove); loadedAttachments.appendChild(row); });
     syncLoadedAttachmentIds(); templateDialog.hidden = true;
-    if (template.employee_unavailable) window.alert('The employee previously saved with this template is no longer available. Please select another employee.');
+    if (template.employee_unavailable) await window.TaskTemplateUI.alert('Employee unavailable\n\nThe employee previously saved with this template is no longer available. Please select another employee.');
     form.scrollIntoView({behavior:'smooth', block:'start'});
   };
   const renderTemplates = async () => {
-    templateList.textContent = 'Loading templates…';
+    templateMessage.hidden=true;
+    templateList.setAttribute('aria-busy','true');
+    templateList.innerHTML = '<div class="task-template-skeleton" role="status" aria-label="Loading templates"><div></div><div></div><div></div></div>';
     try {
       const {templates} = await templateApi('task_template_list', {search:templateSearch?.value || ''});
       templateList.textContent = '';
-      if (!templates.length) { templateList.textContent = 'No task templates found.'; return; }
+      if (!templates.length) { templateList.innerHTML='<div class="task-template-empty"><i data-lucide="files" aria-hidden="true"></i><strong></strong><p>Save a task as a template to reuse it later.</p></div>';templateList.querySelector('strong').textContent=templateSearch.value.trim()?'No templates match this search.':'No templates found';window.lucide?.createIcons();return; }
       templates.forEach((template) => {
         const row = document.createElement('article'); row.className='task-template-row'; row.dataset.templateId=template.id;
         const content=document.createElement('div'); content.className='task-template-row__content'; const name=document.createElement('h4'); name.className='task-template-row__name'; name.textContent=template.template_name;
         const meta=document.createElement('p'); meta.className='task-template-row__meta'; const updated = new Date(String(template.updated_at).replace(' ', 'T')); meta.textContent=`${template.assigned_name ? `Assigned to: ${template.assigned_name} · ` : ''}${template.checklist_count} checklist items · ${template.task_mode === 'recurring' ? 'Recurring' : 'Manual'} · Updated: ${Number.isNaN(updated.getTime()) ? template.updated_at : updated.toLocaleDateString('en-NA', {dateStyle:'medium'})}`;
         const actions=document.createElement('div'); actions.className='task-template-row__actions';
-        const load=document.createElement('button'); load.type='button'; load.className='task-template-button'; load.textContent=templateMode === 'manage' ? 'Edit / Load' : 'Load'; load.addEventListener('click', () => loadTemplate(template.id).catch((error) => window.alert(error.message)));
+        const load=document.createElement('button'); load.type='button'; load.className='task-template-button'; load.textContent=templateMode === 'manage' ? 'Edit / Load' : 'Load'; load.addEventListener('click', () => loadTemplate(template.id).catch((error) => window.TaskTemplateUI.alert(error.message)));
         actions.appendChild(load);
-        if (templateMode === 'manage') [['Rename','rename'],['Duplicate','duplicate'],['Delete','delete']].forEach(([label, action]) => { const button=document.createElement('button'); button.type='button'; button.className='task-template-row__menu'; button.textContent=label; button.addEventListener('click', async () => { try { if (action === 'rename') { const value=window.prompt('Rename template', template.template_name); if (!value) return; await templateApi('task_template_rename',{template_id:template.id,template_name:value}); } if (action === 'duplicate') { const value=window.prompt('Name for the duplicate template', `${template.template_name} Copy`); if (!value) return; await templateApi('task_template_duplicate',{template_id:template.id,template_name:value}); } if (action === 'delete') { if (!window.confirm(`Delete “${template.template_name}”?\n\nThis will delete the template only. Tasks previously created from it will not be changed.`)) return; await templateApi('task_template_delete',{template_id:template.id}); } await renderTemplates(); } catch(error) { window.alert(error.message); } }); actions.appendChild(button); });
+        if (templateMode === 'manage') [['Rename','rename'],['Duplicate','duplicate'],['Delete','delete']].forEach(([label, action]) => { const button=document.createElement('button'); button.type='button'; button.className='task-template-row__menu'; button.textContent=label; button.addEventListener('click', async () => { try { if (action === 'rename') { const value=await window.TaskTemplateUI.prompt('Rename template', template.template_name); if (!value) return; await templateApi('task_template_rename',{template_id:template.id,template_name:value}); } if (action === 'duplicate') { const value=await window.TaskTemplateUI.prompt('Duplicate template', `${template.template_name} Copy`); if (!value) return; await templateApi('task_template_duplicate',{template_id:template.id,template_name:value}); } if (action === 'delete') { if (!await window.TaskTemplateUI.confirm(`Delete template?\n\nRemove “${template.template_name}”? This removes the saved template. Existing tasks created from it will not be changed.`)) return; await templateApi('task_template_delete',{template_id:template.id}); } await renderTemplates(); } catch(error) { await window.TaskTemplateUI.alert(error.message); } }); actions.appendChild(button); });
         content.append(name,meta); row.append(content,actions); templateList.appendChild(row);
       });
     } catch(error) { templateList.textContent=''; templateMessage.textContent=error.message; templateMessage.hidden=false; }
+    finally { templateList.setAttribute('aria-busy','false'); }
   };
   const openTemplateDialog = (mode) => { templateMode=mode; templateDialog.hidden=false; templateDialog.querySelector('[data-template-dialog-title]').textContent=mode==='manage'?'Manage Templates':'Load Template'; templateSearch.value=''; templateMessage.hidden=true; renderTemplates(); templateSearch.focus(); };
   form.querySelector('[data-template-load-open]')?.addEventListener('click', () => openTemplateDialog('load'));
@@ -3321,18 +3333,18 @@ function initialiseTaskCreateForm() {
   let templateSearchTimer; templateSearch?.addEventListener('input', () => { clearTimeout(templateSearchTimer); templateSearchTimer=setTimeout(renderTemplates,180); });
   form.querySelector('[data-template-save]')?.addEventListener('click', async () => {
     syncInstructions(); syncChecklist(); renderRecurringFields();
-    const name=window.prompt('Save Task Template\n\nTemplate name *', loadedLabel.hidden ? '' : loadedLabel.textContent.replace('Template loaded: ','')); if (!name) return;
-    const data=new FormData(form); data.set('template_name',name); data.set('save_assignee',window.confirm('Save the currently selected employee in this template?')?'1':'');
-    const files=form.querySelector('[data-task-create-attachments]')?.files || []; data.set('include_attachments',files.length && window.confirm('Include the current owner attachments in this template?')?'1':'');
-    try { const result=await templateApi('task_template_save',data); loadedLabel.hidden=false; loadedLabel.textContent=`Template loaded: ${result.template.template_name}`; sourceTemplateId.value=String(result.template.id); window.alert(result.message); }
-    catch(error) { if (error.code === 'duplicate_name') { const update=sourceTemplateId.value && window.confirm('A template with this name already exists.\n\nOK: Update the currently loaded template.\nCancel: Save as a copy.'); if (update) { data.set('template_id',sourceTemplateId.value); try { const result=await templateApi('task_template_save',data); window.alert(result.message); } catch(nextError){window.alert(nextError.message);} } else { const copy=window.prompt('Save as Copy', `${name} Copy`); if(copy){data.set('template_name',copy); try{const result=await templateApi('task_template_save',data); window.alert(result.message);}catch(nextError){window.alert(nextError.message);}} } } else window.alert(error.message); }
+    const name=await window.TaskTemplateUI.prompt('Save as Template\n\nSave this task setup for reuse.', loadedLabel.hidden ? '' : loadedLabel.textContent.replace('Template loaded: ','')); if (!name) return;
+    const data=new FormData(form); data.set('template_name',name); data.set('save_assignee',await window.TaskTemplateUI.confirm('Save assignment?\n\nSave the currently selected employee in this template?')?'1':'');
+    const files=form.querySelector('[data-task-create-attachments]')?.files || []; data.set('include_attachments',files.length && await window.TaskTemplateUI.confirm('Include attachments?\n\nInclude the current owner attachments in this template?')?'1':'');
+    try { const result=await templateApi('task_template_save',data); loadedLabel.hidden=false; loadedLabel.textContent=`Template loaded: ${result.template.template_name}`; sourceTemplateId.value=String(result.template.id); await window.TaskTemplateUI.alert(result.message); }
+    catch(error) { if (error.code === 'duplicate_name') { const update=sourceTemplateId.value && await window.TaskTemplateUI.confirm('A template with this name already exists.\n\nContinue: Update the currently loaded template.\nCancel: Save as a copy.'); if (update) { data.set('template_id',sourceTemplateId.value); try { const result=await templateApi('task_template_save',data); await window.TaskTemplateUI.alert(result.message); } catch(nextError){await window.TaskTemplateUI.alert(nextError.message);} } else { const copy=await window.TaskTemplateUI.prompt('Save as Copy', `${name} Copy`); if(copy){data.set('template_name',copy); try{const result=await templateApi('task_template_save',data); await window.TaskTemplateUI.alert(result.message);}catch(nextError){await window.TaskTemplateUI.alert(nextError.message);}} } } else await window.TaskTemplateUI.alert(error.message); }
   });
-  loadedLabel?.addEventListener('click', () => { if (window.confirm('Clear the loaded template and reset the New Task form?')) clearLoadedTemplate(true); });
+  loadedLabel?.addEventListener('click', async () => { if (await window.TaskTemplateUI.confirm('Clear loaded template?\n\nClear the loaded template and reset the New Task form?')) clearLoadedTemplate(true); });
   document.addEventListener('click', async (event) => {
     const button=event.target.closest('[data-save-task-template]'); if (!button) return;
-    const name=window.prompt('Save Task Template\n\nTemplate name *'); if (!name) return;
-    const include=window.confirm('Include owner-uploaded attachments from this task?\n\nEmployee completion attachments are never included.');
-    try { const result=await templateApi('task_template_from_task',{task_id:button.dataset.saveTaskTemplate,template_name:name,save_assignee:'1',include_attachments:include?'1':''}); window.alert(result.message); } catch(error){window.alert(error.message);}
+    const name=await window.TaskTemplateUI.prompt('Save as Template\n\nSave this task setup for reuse.'); if (!name) return;
+    const include=await window.TaskTemplateUI.confirm('Include owner-uploaded attachments from this task?\n\nEmployee completion attachments are never included.');
+    try { const result=await templateApi('task_template_from_task',{task_id:button.dataset.saveTaskTemplate,template_name:name,save_assignee:'1',include_attachments:include?'1':''}); await window.TaskTemplateUI.alert(result.message); } catch(error){await window.TaskTemplateUI.alert(error.message);}
   });
 
   form.addEventListener('submit', async (event) => {
@@ -3929,7 +3941,7 @@ function initialiseTaskBulkSelection() {
       URL.revokeObjectURL(link.href);
       return;
     }
-    if (action === 'delete' && !window.confirm(`Delete ${rows.length} selected task${rows.length === 1 ? '' : 's'}?`)) return;
+    if (action === 'delete' && !await window.TaskBulkUI.confirmDelete(rows.length)) return;
     const formData = new FormData();
     formData.append('action', 'bulk_task_action');
     formData.append('bulk_action', action);
@@ -4925,6 +4937,9 @@ const initialTaskId = new URLSearchParams(window.location.search).get('task_id')
 if (initialTaskId) window.openTaskPanel(initialTaskId);
 </script>
 <?php if ($canManage): ?><script src="<?= BASE_URL ?>/assets/js/task-import.js?v=<?= rawurlencode((string) @filemtime(BASE_PATH . '/assets/js/task-import.js')) ?>"></script><?php endif; ?>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH.'/assets/js/ess-dashboard.js') ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/task-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-essentials.js') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
 
 
