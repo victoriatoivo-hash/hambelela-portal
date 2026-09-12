@@ -88,8 +88,14 @@ body.ess-dashboard .ess-orders-page .editable-cell:not(.orders-grid-cell--date):
 body.ess-dashboard .ess-orders-page :is(.orders-inline-cell-input,.orders-column-heading-input):focus-visible {background:var(--orders-50)!important;}
 body.ess-dashboard .ess-orders-page .orders-table-scroll {scrollbar-color:var(--orders-200) transparent;}
 body.ess-dashboard .ess-orders-page .orders-grid-scroll {overflow-x:auto!important;overflow-y:visible!important;height:auto!important;max-height:none!important;scrollbar-color:var(--orders-200) transparent;}
-body.ess-dashboard .ess-orders-page .orders-grid-scroll {scrollbar-width:thin!important;scrollbar-color:var(--orders-300) var(--orders-50);}
-body.ess-dashboard .ess-orders-page .orders-grid-scroll:is(:hover,:focus-within,.is-scroll-active) {scrollbar-width:auto!important;scrollbar-color:var(--orders-600) var(--orders-50);}
+body.ess-dashboard .ess-orders-page .orders-grid-scroll {scrollbar-width:none!important;}
+body.ess-dashboard:has(.ess-orders-page) .portal-sticky-horizontal-scrollbar {bottom:0; height:10px;background:#FBF6ED;border-color:#E8D5B4;scrollbar-width:thin;scrollbar-color:#D6BA86 #FBF6ED;}
+body.ess-dashboard:has(.ess-orders-page) .portal-sticky-horizontal-scrollbar:is(:hover,:active,.is-scrollbar-active),
+body.ess-dashboard:has(.orders-grid-scroll.is-scroll-active) .portal-sticky-horizontal-scrollbar {height:18px;scrollbar-width:auto;scrollbar-color:#966313 #FBF6ED;}
+body.ess-dashboard:has(.ess-orders-page) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar {height:6px;}
+body.ess-dashboard:has(.ess-orders-page) .portal-sticky-horizontal-scrollbar:hover::-webkit-scrollbar {height:14px;}
+body.ess-dashboard:has(.ess-orders-page) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-track {background:#FBF6ED;}
+body.ess-dashboard:has(.ess-orders-page) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb {background:#966313;border-color:#FBF6ED;}
 body.ess-dashboard .ess-orders-page .orders-grid-scroll::-webkit-scrollbar {height:6px;}
 body.ess-dashboard .ess-orders-page .orders-grid-scroll:is(:hover,:focus-within,.is-scroll-active)::-webkit-scrollbar {height:12px;}
 body.ess-dashboard .ess-orders-page .orders-grid-scroll::-webkit-scrollbar-track {background:var(--orders-50);border-radius:8px;}

@@ -1187,6 +1187,13 @@ document.addEventListener('click', (event) => {
   mirrorInner.className = 'portal-sticky-horizontal-scrollbar-inner';
   mirror.appendChild(mirrorInner);
   document.body.appendChild(mirror);
+  if (document.querySelector('#ess-main.ess-orders-page')) {
+    mirror.addEventListener('pointerdown', () => mirror.classList.add('is-scrollbar-active'));
+    const releaseOrdersScrollbar = () => mirror.classList.remove('is-scrollbar-active');
+    window.addEventListener('pointerup', releaseOrdersScrollbar);
+    window.addEventListener('pointercancel', releaseOrdersScrollbar);
+    window.addEventListener('blur', releaseOrdersScrollbar);
+  }
   if (document.querySelector('.packing-list-page') && !mirror.dataset.expandBound) {
     mirror.dataset.expandBound = 'true';
     mirror.classList.add('packing-bottom-scrollbar');
