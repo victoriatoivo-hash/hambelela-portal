@@ -4,6 +4,8 @@
  const boardScroll=page.querySelector('.orders-grid-scroll');
  const syncFrozenEdge=()=>boardScroll?.classList.toggle('is-scrolled-x',boardScroll.scrollLeft>0);
  boardScroll?.addEventListener('scroll',syncFrozenEdge,{passive:true});syncFrozenEdge();
+ let scrollbarIdleTimer;
+ boardScroll?.addEventListener('scroll',()=>{boardScroll.classList.add('is-scroll-active');clearTimeout(scrollbarIdleTimer);scrollbarIdleTimer=setTimeout(()=>boardScroll.classList.remove('is-scroll-active'),900);},{passive:true});
  document.querySelector('.orders-tools-tabs')?.classList.remove('portal-tools-tabs');
  document.querySelectorAll('.orders-tools-tab').forEach(n=>n.classList.remove('portal-tools-tab'));
  const toolbar=page.querySelector('.orders-tools-bar'), filters=page.querySelector('.orders-filter-panel');

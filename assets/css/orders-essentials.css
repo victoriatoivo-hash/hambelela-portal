@@ -88,6 +88,13 @@ body.ess-dashboard .ess-orders-page .editable-cell:not(.orders-grid-cell--date):
 body.ess-dashboard .ess-orders-page :is(.orders-inline-cell-input,.orders-column-heading-input):focus-visible {background:var(--orders-50)!important;}
 body.ess-dashboard .ess-orders-page .orders-table-scroll {scrollbar-color:var(--orders-200) transparent;}
 body.ess-dashboard .ess-orders-page .orders-grid-scroll {overflow-x:auto!important;overflow-y:visible!important;height:auto!important;max-height:none!important;scrollbar-color:var(--orders-200) transparent;}
+body.ess-dashboard .ess-orders-page .orders-grid-scroll {scrollbar-width:thin;scrollbar-color:var(--orders-300) var(--orders-50);}
+body.ess-dashboard .ess-orders-page .orders-grid-scroll:is(:hover,:focus-within,.is-scroll-active) {scrollbar-width:auto;scrollbar-color:var(--orders-600) var(--orders-50);}
+body.ess-dashboard .ess-orders-page .orders-grid-scroll::-webkit-scrollbar {height:6px;}
+body.ess-dashboard .ess-orders-page .orders-grid-scroll:is(:hover,:focus-within,.is-scroll-active)::-webkit-scrollbar {height:12px;}
+body.ess-dashboard .ess-orders-page .orders-grid-scroll::-webkit-scrollbar-track {background:var(--orders-50);border-radius:8px;}
+body.ess-dashboard .ess-orders-page .orders-grid-scroll::-webkit-scrollbar-thumb {background:var(--orders-300);border-radius:8px;}
+body.ess-dashboard .ess-orders-page .orders-grid-scroll:is(:hover,:focus-within,.is-scroll-active)::-webkit-scrollbar-thumb {background:var(--orders-600);}
 body.ess-dashboard .ess-orders-page #orders-board-body {width:max-content;min-width:100%;max-height:none;}
 body.ess-dashboard .ess-orders-page :is(.orders-table-surface,.orders-date-content,.orders-grid-body) {height:auto!important;max-height:none!important;overflow:visible!important;}
 /* Keep the identifying columns visible within the shared horizontal board. */
