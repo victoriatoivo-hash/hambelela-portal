@@ -142,7 +142,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
     <?php endif; ?>
 
     <section class="orders-date-groups">
-        <div class="ops-board-scroll orders-grid-scroll">
+        <div class="ops-board-scroll orders-grid-scroll" data-orders-board-scroll>
             <div class="ops-board-table monday-board orders-board-v2 orders-grid-root" id="orders-board-body" data-orders-board data-board-key="orders">
                 <div class="orders-loading-state" role="status" aria-live="polite">
                     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>

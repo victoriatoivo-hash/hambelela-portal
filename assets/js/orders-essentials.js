@@ -1,6 +1,9 @@
 /* Presentation adapter only. Orders mutations remain in orders-board.js. */
 (() => {
  const page=document.querySelector('#ess-main.ess-orders-page');if(!page)return;
+ const boardScroll=page.querySelector('.orders-grid-scroll');
+ const syncFrozenEdge=()=>boardScroll?.classList.toggle('is-scrolled-x',boardScroll.scrollLeft>0);
+ boardScroll?.addEventListener('scroll',syncFrozenEdge,{passive:true});syncFrozenEdge();
  document.querySelector('.orders-tools-tabs')?.classList.remove('portal-tools-tabs');
  document.querySelectorAll('.orders-tools-tab').forEach(n=>n.classList.remove('portal-tools-tab'));
  const toolbar=page.querySelector('.orders-tools-bar'), filters=page.querySelector('.orders-filter-panel');

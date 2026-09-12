@@ -863,7 +863,7 @@
   }
 
   function getOrdersScrollContainer(element) {
-    return element?.closest?.('[data-orders-board-scroll], .orders-table-scroll') || null;
+    return element?.closest?.('[data-orders-board-scroll]') || document.querySelector('.orders-grid-scroll[data-orders-board-scroll]');
   }
 
   function ordersTablePosition(element = null, orderId = '') {
@@ -888,9 +888,7 @@
     const apply = () => {
       const table = position.table?.isConnected
         ? position.table
-        : position.groupKey
-          ? body.querySelector(`[data-group-card="${selectorEsc(position.groupKey)}"] [data-orders-board-scroll], [data-group-card="${selectorEsc(position.groupKey)}"] .orders-table-scroll`)
-          : null;
+        : getOrdersScrollContainer(body);
       if (table) {
         table.scrollLeft = position.tableLeft;
         table.scrollTop = position.tableTop;
@@ -905,7 +903,7 @@
 
   function captureOrdersBoardPositions() {
     return [...body.querySelectorAll('[data-group-card]')].map((group) => {
-      const table = group.querySelector('[data-orders-board-scroll], .orders-table-scroll');
+      const table = getOrdersScrollContainer(group);
       return { groupKey: group.dataset.groupCard || '', tableLeft: table?.scrollLeft || 0, tableTop: table?.scrollTop || 0 };
     });
   }
@@ -2599,7 +2597,7 @@
               <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${packingStyleSummaryBar(statusCounts, statusColours, 'ob-status-bar', 'Status distribution')}</span>
         </button>
         <div class="orders-date-content monday-group-orders" data-orders-date-content${hiddenAttrs}>
-            <div class="orders-table-scroll" data-orders-board-scroll>
+            <div class="orders-table-surface">
               <div class="orders-table-grid">
             <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
               ${ordersColumns.map(columnHeader).join('')}
@@ -2824,7 +2822,7 @@
 
   function positionRichLabelMenu(anchor) {
     const rect = anchor.getBoundingClientRect();
-    const width = labelMenu.dataset.richLabelField === 'payment_method' ? 360 : 202;
+    const width = ['payment_method', 'order_type', 'status'].includes(labelMenu.dataset.richLabelField) ? 360 : 202;
     const menuHeight = Math.min(labelMenu.scrollHeight || 320, window.innerHeight - 16);
     const shouldFlip = rect.bottom + menuHeight + 8 > window.innerHeight;
     labelMenu.style.width = `${width}px`;
@@ -2883,15 +2881,17 @@
     }
     anchor.classList.add('is-active', 'mode-cell');
     anchor.setAttribute('aria-expanded', 'true');
-    labelMenu.hidden = false;
-    labelMenu.className = 'label-menu orders-label-popup is-open';
+    labelMenu.hidden = true;
+    labelMenu.className = 'ess-orders-page label-menu orders-label-popup';
     labelMenu.dataset.richLabelOrder = orderId;
     labelMenu.dataset.richLabelField = field;
     labelMenu.classList.toggle('is-payment-options', field === 'payment_method');
     labelMenu.innerHTML = renderRichLabelPicker(field);
+    labelMenu.hidden = false;
     positionRichLabelMenu(anchor);
     bindRichLabelPicker();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
+    labelMenu.classList.add('is-open');
   }
 
   async function saveRichLabels(field, nextLabels) {
@@ -2998,13 +2998,12 @@
 
   function closeLabelMenu() {
     if (!labelMenu || labelMenu.hidden) return;
+    // Hide before removing the field styles, so rapid toggles never expose the legacy menu.
+    labelMenu.hidden = true;
     closeRichLabelPopover();
     labelMenu.classList.remove('is-open');
     if (labelMenuCloseTimer) window.clearTimeout(labelMenuCloseTimer);
-    labelMenuCloseTimer = window.setTimeout(() => {
-      if (!labelMenu.classList.contains('is-open')) labelMenu.hidden = true;
-      labelMenuCloseTimer = null;
-    }, 160);
+    labelMenuCloseTimer = null;
   }
 
   function uniqueValues(field, fallback = 'Unassigned') {
