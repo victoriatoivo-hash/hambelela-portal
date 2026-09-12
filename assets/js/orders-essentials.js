@@ -2,6 +2,9 @@
 (() => {
  const page=document.querySelector('#ess-main.ess-orders-page');if(!page)return;
  const boardScroll=page.querySelector('.orders-grid-scroll');
+ const sizeDateBars=()=>{if(boardScroll)page.style.setProperty('--orders-visible-board-width',`${boardScroll.clientWidth}px`);};
+ sizeDateBars();window.addEventListener('resize',sizeDateBars);
+ if(boardScroll)new ResizeObserver(sizeDateBars).observe(boardScroll);
  const syncFrozenEdge=()=>boardScroll?.classList.toggle('is-scrolled-x',boardScroll.scrollLeft>0);
  boardScroll?.addEventListener('scroll',syncFrozenEdge,{passive:true});syncFrozenEdge();
  let scrollbarIdleTimer;

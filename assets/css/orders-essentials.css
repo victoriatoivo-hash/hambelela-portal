@@ -105,6 +105,7 @@ body.ess-dashboard .ess-orders-page #orders-board-body {width:max-content;min-wi
 body.ess-dashboard .ess-orders-page :is(.orders-table-surface,.orders-date-content,.orders-grid-body) {height:auto!important;max-height:none!important;overflow:visible!important;}
 /* Keep the identifying columns visible within the shared horizontal board. */
 body.ess-dashboard .ess-orders-page .orders-date-group {overflow:visible;}
+body.ess-dashboard .ess-orders-page .orders-date-group>.orders-date-summary {position:sticky;left:0;width:var(--orders-visible-board-width,100%);max-width:100%;box-sizing:border-box;z-index:7;background:#fff;}
 body.ess-dashboard .ess-orders-page :is(.orders-grid-header,.orders-grid-row,.orders-summary-footer)>:is(.orders-grid-cell--select,.orders-grid-cell--task,.orders-grid-cell--notes) {position:sticky;z-index:4;background:#fff;}
 body.ess-dashboard .ess-orders-page :is(.orders-grid-header,.orders-grid-row,.orders-summary-footer)>.orders-grid-cell--select {left:0;}
 body.ess-dashboard .ess-orders-page :is(.orders-grid-header,.orders-grid-row,.orders-summary-footer)>.orders-grid-cell--task {left:var(--orders-col-select,42px);}
