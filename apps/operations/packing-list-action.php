@@ -25,11 +25,183 @@ function packing_workload_score(string $receivedWeight, string $quantityPlan, st
 {
     preg_match_all('/\((\d+)\)/', $quantityPlan, $matches);
     $units = array_sum(array_map('intval', $matches[1] ?? []));
-    preg_match('/(\d+(?:\.\d+)?)/', $receivedWeight, $weightMatch);
-    $weight = isset($weightMatch[1]) ? (float) $weightMatch[1] : 0.0;
+    $weight = packing_weight_to_kg($receivedWeight);
     $priorityBoost = ['top_critical' => 1.6, 'high' => 1.3, 'medium' => 1.0, 'low' => 0.8][$priority] ?? 1.0;
 
     return round(max(1, $weight) + ($units * 0.18) * $priorityBoost, 2);
+}
+
+function packing_weight_to_kg(string $weightText): float
+{
+    if (!preg_match('/(\d+(?:\.\d+)?)\s*(kg|g|ml|l|lt|liter|litre|pcs|units?)?/i', $weightText, $match)) {
+        return 0.0;
+    }
+
+    $amount = (float) $match[1];
+    $unit = strtolower((string) ($match[2] ?? 'kg'));
+    if ($unit === 'g') {
+        return $amount / 1000;
+    }
+    if (in_array($unit, ['l', 'lt', 'liter', 'litre'], true)) {
+        return $amount;
+    }
+    if ($unit === 'ml') {
+        return $amount / 1000;
+    }
+
+    return $amount;
+}
+
+function packing_monday_column_values(array $row, ?string $assignedName): array
+{
+    $columns = defined('MONDAY_PACKING_COLUMNS') && is_array(MONDAY_PACKING_COLUMNS) ? MONDAY_PACKING_COLUMNS : [];
+    $values = [];
+    $map = [
+        'received_weight' => (string) ($row['received_weight'] ?? ''),
+        'priority' => ucfirst(str_replace('_', ' ', (string) ($row['priority'] ?? 'medium'))),
+        'date_loaded' => substr((string) ($row['date_loaded'] ?? date('Y-m-d')), 0, 10),
+        'quantity_to_pack' => (string) ($row['quantity_planned'] ?? ''),
+        'person_responsible' => (string) ($assignedName ?? ''),
+        'quantity_packed' => '',
+        'date_completed' => '',
+        'website_quantity_updated' => false,
+        'packing_website_confirmed' => false,
+        'packing_status' => 'Not Started',
+        'notes' => (string) ($row['notes'] ?? ''),
+    ];
+
+    foreach ($map as $key => $value) {
+        $columnId = (string) ($columns[$key] ?? '');
+        if ($columnId === '') {
+            continue;
+        }
+        if (is_bool($value)) {
+            $values[$columnId] = ['checked' => $value ? 'true' : 'false'];
+        } elseif ($key === 'date_loaded' || $key === 'date_completed') {
+            $values[$columnId] = $value !== '' ? ['date' => $value] : null;
+        } else {
+            $values[$columnId] = (string) $value;
+        }
+    }
+
+    return $values;
+}
+
+function packing_push_to_monday(array $row, ?string $assignedName): array
+{
+    if (!packing_monday_configured()) {
+        return ['ok' => false, 'message' => 'Monday.com is not configured. Add monday_api_token and monday_packing_board_id to config.local.php.'];
+    }
+    if (!function_exists('curl_init')) {
+        return ['ok' => false, 'message' => 'cURL is not available on this server.'];
+    }
+
+    $columnValues = packing_monday_column_values($row, $assignedName);
+    $query = 'mutation ($board: ID!, $group: String!, $name: String!, $cols: JSON!) { create_item (board_id: $board, group_id: $group, item_name: $name, column_values: $cols) { id } }';
+    $payload = [
+        'query' => $query,
+        'variables' => [
+            'board' => (string) MONDAY_PACKING_BOARD_ID,
+            'group' => defined('MONDAY_PACKING_GROUP_ID') ? (string) MONDAY_PACKING_GROUP_ID : 'topics',
+            'name' => (string) ($row['item_name'] ?? 'Packing item'),
+            'cols' => json_encode($columnValues, JSON_UNESCAPED_SLASHES),
+        ],
+    ];
+
+    $ch = curl_init('https://api.monday.com/v2');
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: ' . MONDAY_API_TOKEN,
+            'Content-Type: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_TIMEOUT => 30,
+    ]);
+    $body = curl_exec($ch);
+    $error = curl_error($ch);
+    $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($body === false || $error !== '') {
+        return ['ok' => false, 'message' => $error ?: 'Monday.com request failed.'];
+    }
+
+    $data = json_decode((string) $body, true);
+    if ($status < 200 || $status >= 300 || !empty($data['errors'])) {
+        return ['ok' => false, 'message' => $data['errors'][0]['message'] ?? ('Monday.com returned HTTP ' . $status)];
+    }
+
+    $itemId = (string) ($data['data']['create_item']['id'] ?? '');
+    if ($itemId === '') {
+        return ['ok' => false, 'message' => 'Monday.com did not return an item ID.'];
+    }
+
+    return ['ok' => true, 'item_id' => $itemId, 'message' => 'Synced to Monday.'];
+}
+
+function packing_sync_update(int $taskId, array $sync): void
+{
+    if (
+        !ops_column_exists('ops_packing_tasks', 'monday_sync_status')
+        || !ops_column_exists('ops_packing_tasks', 'monday_sync_error')
+        || !ops_column_exists('ops_packing_tasks', 'monday_synced_at')
+    ) {
+        return;
+    }
+
+    if (!empty($sync['ok'])) {
+        $set = "monday_sync_status = 'synced', monday_sync_error = NULL, monday_synced_at = NOW()";
+        $params = [];
+        if (ops_column_exists('ops_packing_tasks', 'monday_item_id')) {
+            $set .= ', monday_item_id = ?';
+            $params[] = (string) ($sync['item_id'] ?? '');
+        }
+        $params[] = $taskId;
+        $stmt = db()->prepare("UPDATE ops_packing_tasks SET {$set}, updated_at = CURRENT_TIMESTAMP WHERE id = ?");
+        $stmt->execute($params);
+        return;
+    }
+
+    $stmt = db()->prepare(
+        "UPDATE ops_packing_tasks
+         SET monday_sync_status = 'sync_failed', monday_sync_error = ?, updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?"
+    );
+    $stmt->execute([substr((string) ($sync['message'] ?? 'Monday.com sync failed.'), 0, 2000), $taskId]);
+}
+
+function packing_loads_by_employee(): array
+{
+    $loads = [];
+    foreach (ops_rows(
+        "SELECT e.id,
+            COALESCE(SUM(pt.workload_points), 0) AS load_score,
+            COUNT(pt.id) AS active_items
+         FROM ops_employees e
+         JOIN ops_roles r ON r.id = e.role_id
+         LEFT JOIN ops_packing_tasks pt ON pt.assigned_employee_id = e.id
+           AND pt.packing_status NOT IN ('done', 'done_needs_label', 'label_created', 'website')
+         WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')
+         GROUP BY e.id
+         ORDER BY load_score ASC, active_items ASC, e.id ASC"
+    ) as $row) {
+        $loads[(int) $row['id']] = (float) ($row['load_score'] ?? 0);
+    }
+
+    return $loads;
+}
+
+function packing_next_employee(array $loads): ?int
+{
+    if (!$loads) {
+        return null;
+    }
+
+    asort($loads, SORT_NUMERIC);
+    $ids = array_keys($loads);
+    return (int) ($ids[0] ?? 0) ?: null;
 }
 
 function packing_extract_lines_from_text(string $text): array
@@ -375,6 +547,7 @@ try {
         $rows = [];
         $invoiceDate = '';
         $invoiceNumber = '';
+        $invoiceFilePath = '';
         $message = 'No invoice lines were extracted. Add rows manually or check the PDF.';
 
         if (isset($_FILES['invoice_file']) && is_uploaded_file($_FILES['invoice_file']['tmp_name'])) {
@@ -382,6 +555,7 @@ try {
             if (!$upload['ok']) {
                 throw new RuntimeException($upload['error']);
             }
+            $invoiceFilePath = str_replace(BASE_PATH . '/', '', (string) $upload['path']);
 
             $ai = openai_extract_pdf($upload['path'], $upload['name'], 'supplier', ops_post_string('supplier_name', 190));
             if ($ai['ok']) {
@@ -443,7 +617,212 @@ try {
             'message' => $message,
             'invoice_date' => $invoiceDate,
             'invoice_number' => $invoiceNumber,
+            'invoice_file_path' => $invoiceFilePath,
             'rows' => $rows,
+        ]);
+        exit;
+    }
+
+    if ($action === 'confirm_invoice_sync') {
+        if (!$canManage) {
+            throw new RuntimeException('Only admin/front desk can confirm invoice packing rows.');
+        }
+        foreach (['received_weight', 'packing_website_confirmed', 'date_started', 'invoice_file_path', 'invoice_number', 'invoice_date', 'supplier_name', 'monday_sync_status'] as $column) {
+            if (!ops_column_exists('ops_packing_tasks', $column)) {
+                throw new RuntimeException('Import operations-packing-monday-sync-migration.sql first.');
+            }
+        }
+
+        $rows = json_decode((string) ($_POST['rows'] ?? '[]'), true);
+        if (!is_array($rows) || !$rows) {
+            throw new RuntimeException('No invoice rows were submitted.');
+        }
+
+        $supplierName = ops_post_string('supplier_name', 190);
+        $invoiceNumber = ops_post_string('invoice_number', 100);
+        $invoiceDate = ops_post_string('invoice_date', 20);
+        $invoiceFilePath = ops_post_string('invoice_file_path', 255);
+        $priority = ops_post_string('priority', 30) ?: 'medium';
+        $confirmDuplicates = (string) ($_POST['confirm_duplicates'] ?? '') === '1';
+
+        if ($invoiceDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $invoiceDate)) {
+            $invoiceDate = '';
+        }
+
+        $cleanRows = [];
+        foreach ($rows as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $itemName = substr(trim((string) ($row['item_name'] ?? '')), 0, 190);
+            if ($itemName === '') {
+                continue;
+            }
+            $receivedWeight = substr(trim((string) ($row['received_weight'] ?? '')), 0, 80);
+            $quantityPlan = substr(trim((string) ($row['quantity_planned'] ?? '')), 0, 255);
+            $unit = substr(trim((string) ($row['unit'] ?? '')), 0, 40);
+            $quantityPurchased = substr(trim((string) ($row['quantity_purchased'] ?? '')), 0, 80);
+            $assignedId = (int) ($row['assigned_employee_id'] ?? 0);
+            $workload = packing_workload_score($receivedWeight, $quantityPlan, $priority);
+            $cleanRows[] = [
+                'item_name' => $itemName,
+                'received_weight' => $receivedWeight,
+                'quantity_planned' => $quantityPlan,
+                'unit' => $unit,
+                'quantity_purchased' => $quantityPurchased,
+                'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
+                'workload_points' => $workload,
+            ];
+        }
+
+        if (!$cleanRows) {
+            throw new RuntimeException('No valid invoice rows were submitted.');
+        }
+
+        $duplicates = [];
+        if ($invoiceNumber !== '') {
+            $existing = ops_rows(
+                "SELECT id, item_name, assigned_employee_id
+                 FROM ops_packing_tasks
+                 WHERE invoice_number = ?
+                 ORDER BY id DESC
+                 LIMIT 50",
+                [$invoiceNumber]
+            );
+            if ($existing) {
+                $existingNames = array_map(static function ($row): string {
+                    return strtolower((string) $row['item_name']);
+                }, $existing);
+                foreach ($cleanRows as $row) {
+                    if (in_array(strtolower($row['item_name']), $existingNames, true)) {
+                        $duplicates[] = $row['item_name'];
+                    }
+                }
+            }
+        }
+
+        if ($duplicates && !$confirmDuplicates) {
+            echo json_encode([
+                'ok' => true,
+                'needs_confirmation' => true,
+                'message' => 'These invoice items already exist in the packing list: ' . implode(', ', array_slice(array_unique($duplicates), 0, 8)) . '. Continue only if you are adding another invoice batch.',
+            ]);
+            exit;
+        }
+
+        $loads = packing_loads_by_employee();
+        usort($cleanRows, static function ($a, $b): int {
+            return $b['workload_points'] <=> $a['workload_points'];
+        });
+        foreach ($cleanRows as &$row) {
+            if (!$row['assigned_employee_id']) {
+                $row['assigned_employee_id'] = packing_next_employee($loads);
+            }
+            if ($row['assigned_employee_id']) {
+                $loads[(int) $row['assigned_employee_id']] = ($loads[(int) $row['assigned_employee_id']] ?? 0) + (float) $row['workload_points'];
+            }
+        }
+        unset($row);
+
+        $insert = db()->prepare(
+            "INSERT INTO ops_packing_tasks
+             (item_name, invoice_number, invoice_date, supplier_name, received_weight, priority, date_loaded,
+              quantity_planned, assigned_employee_id, workload_points, notes, invoice_file_path, monday_sync_status, created_by)
+             VALUES (?, ?, ?, ?, ?, ?, NOW(), ?, ?, ?, ?, ?, 'not_synced', ?)"
+        );
+
+        $created = 0;
+        $synced = 0;
+        $failed = 0;
+        $results = [];
+        foreach ($cleanRows as $row) {
+            $notes = trim(
+                "Created from invoice review"
+                . ($supplierName !== '' ? "\nSupplier: {$supplierName}" : '')
+                . ($invoiceNumber !== '' ? "\nInvoice: {$invoiceNumber}" : '')
+                . ($row['unit'] !== '' ? "\nUnit: {$row['unit']}" : '')
+                . ($row['quantity_purchased'] !== '' ? "\nInvoice quantity: {$row['quantity_purchased']}" : '')
+            );
+            $insert->execute([
+                $row['item_name'],
+                $invoiceNumber !== '' ? $invoiceNumber : null,
+                $invoiceDate !== '' ? $invoiceDate : null,
+                $supplierName !== '' ? $supplierName : null,
+                $row['received_weight'],
+                $priority,
+                $row['quantity_planned'],
+                $row['assigned_employee_id'],
+                $row['workload_points'],
+                $notes,
+                $invoiceFilePath !== '' ? $invoiceFilePath : null,
+                $currentEmployeeId,
+            ]);
+            $taskId = (int) db()->lastInsertId();
+            $created++;
+
+            $assignedName = null;
+            if ($row['assigned_employee_id']) {
+                $employee = ops_rows('SELECT full_name FROM ops_employees WHERE id = ? LIMIT 1', [(int) $row['assigned_employee_id']]);
+                $assignedName = (string) ($employee[0]['full_name'] ?? '');
+            }
+            $syncRow = array_merge($row, [
+                'id' => $taskId,
+                'date_loaded' => date('Y-m-d H:i:s'),
+                'notes' => $notes,
+            ]);
+            $sync = packing_push_to_monday($syncRow, $assignedName);
+            packing_sync_update($taskId, $sync);
+            if (!empty($sync['ok'])) {
+                $synced++;
+            } else {
+                $failed++;
+            }
+            $results[] = [
+                'id' => $taskId,
+                'item_name' => $row['item_name'],
+                'assigned_name' => $assignedName,
+                'sync_status' => !empty($sync['ok']) ? 'synced' : 'sync_failed',
+                'sync_message' => $sync['message'] ?? '',
+            ];
+        }
+
+        echo json_encode([
+            'ok' => true,
+            'message' => "Created {$created} packing row(s). Monday sync: {$synced} synced, {$failed} failed.",
+            'created' => $created,
+            'synced' => $synced,
+            'failed' => $failed,
+            'rows' => $results,
+        ]);
+        exit;
+    }
+
+    if ($action === 'retry_monday_sync') {
+        if (!$canManage) {
+            throw new RuntimeException('Only admin/front desk can retry Monday sync.');
+        }
+        $taskId = (int) ($_POST['task_id'] ?? 0);
+        if ($taskId <= 0) {
+            throw new RuntimeException('No packing row selected.');
+        }
+        $rows = ops_rows(
+            "SELECT pt.*, e.full_name AS assigned_name
+             FROM ops_packing_tasks pt
+             LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
+             WHERE pt.id = ?
+             LIMIT 1",
+            [$taskId]
+        );
+        if (!$rows) {
+            throw new RuntimeException('Packing row was not found.');
+        }
+        $sync = packing_push_to_monday($rows[0], (string) ($rows[0]['assigned_name'] ?? ''));
+        packing_sync_update($taskId, $sync);
+
+        echo json_encode([
+            'ok' => true,
+            'synced' => !empty($sync['ok']),
+            'message' => $sync['message'] ?? (!empty($sync['ok']) ? 'Synced to Monday.' : 'Monday sync failed.'),
         ]);
         exit;
     }
@@ -790,8 +1169,20 @@ try {
                 }
             }
         }
+        if (
+            ops_column_exists('ops_packing_tasks', 'monday_sync_status')
+            && !in_array($field, ['website_uploaded', 'packing_website_confirmed'], true)
+        ) {
+            $set .= ", monday_sync_status = CASE WHEN monday_sync_status = 'synced' THEN 'updated' ELSE monday_sync_status END";
+        }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
+        $historyRows = [];
+        if (in_array($field, ['assigned_employee_id', 'quantity_packed', 'website_uploaded', 'packing_website_confirmed', 'packing_status'], true)) {
+            foreach (ops_rows("SELECT id, {$allowed[$field]} AS old_value, assigned_employee_id FROM ops_packing_tasks WHERE id IN ({$placeholders})", $ids) as $row) {
+                $historyRows[(int) $row['id']] = $row;
+            }
+        }
         $params = array_merge([$value], $ids);
         $scope = '';
         if (!$canManage && !in_array($field, ['quantity_packed', 'packing_website_confirmed', 'packing_status', 'notes'], true)) {
@@ -811,6 +1202,15 @@ try {
                 'value' => $value,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
             ]);
+            if (isset($historyRows[$id])) {
+                $row = $historyRows[$id];
+                $assignedId = $field === 'assigned_employee_id'
+                    ? ((int) $value ?: null)
+                    : ((int) ($row['assigned_employee_id'] ?? 0) ?: null);
+                ops_status_history_log('packing', $id, $field, $row['old_value'] === null ? null : (string) $row['old_value'], $value === null ? null : (string) $value, $assignedId, [
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
+            }
         }
 
         echo json_encode(['ok' => true, 'message' => 'Packing row updated.', 'updated' => $stmt->rowCount()]);

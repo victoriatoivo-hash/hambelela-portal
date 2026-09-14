@@ -12,11 +12,15 @@ $ready = ops_database_ready() && ops_table_exists('ops_packing_tasks');
 $migrationReady = $ready
     && ops_column_exists('ops_packing_tasks', 'received_weight')
     && ops_column_exists('ops_packing_tasks', 'packing_website_confirmed')
-    && ops_column_exists('ops_packing_tasks', 'date_started');
+    && ops_column_exists('ops_packing_tasks', 'date_started')
+    && ops_column_exists('ops_packing_tasks', 'invoice_file_path')
+    && ops_column_exists('ops_packing_tasks', 'invoice_number')
+    && ops_column_exists('ops_packing_tasks', 'supplier_name')
+    && ops_column_exists('ops_packing_tasks', 'monday_sync_status');
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canEditHeaders = user_has_role('owner_admin');
 $assetVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
-    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-monday-sync2'
+    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-monday-sync'
     : (string) time();
 
 include BASE_PATH . '/shared/header.php';
@@ -107,7 +111,6 @@ include BASE_PATH . '/shared/sidebar.php';
                 <?php if ($canManage): ?>
                     <button type="button" data-open-packing-create><i data-lucide="plus"></i> New item</button>
                     <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
-                    <button type="button" data-sync-monday-packing><i data-lucide="download-cloud"></i> Sync Monday</button>
                     <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import previous list</button>
                 <?php endif; ?>
                 <button type="button" data-packing-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
@@ -118,7 +121,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if (!$ready): ?>
         <?php ops_setup_notice(); ?>
     <?php elseif (!$migrationReady): ?>
-        <section class="ops-alert">Import <code>operations-packing-list-migration.sql</code> in phpMyAdmin to activate received weight, website confirmation and time tracking fields.</section>
+        <section class="ops-alert">Import <code>operations-packing-list-migration.sql</code> and <code>operations-packing-monday-sync-migration.sql</code> in phpMyAdmin to activate received weight, invoice tracking and Monday sync fields.</section>
     <?php endif; ?>
 
     <section class="ops-board-shell packing-board-shell">
@@ -134,6 +137,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <th data-packing-column="date_loaded" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE LOADED</th>
                         <th data-packing-column="quantity_to_pack" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY TO PACK</th>
                         <th data-packing-column="person" title="Person responsible" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PERSON</th>
+                        <th data-packing-column="monday_sync" title="Monday.com sync status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>MONDAY</th>
                         <th data-packing-column="quantity_packed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY PACKED</th>
                         <th data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
                         <th data-packing-column="website_uploaded" title="Website quantity updated" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WEBSITE</th>
@@ -141,7 +145,7 @@ include BASE_PATH . '/shared/sidebar.php';
                         <th class="add-column-cell"><button type="button">+</button></th>
                     </tr>
                 </thead>
-                <tbody id="packing-list-body"><tr><td colspan="13">Loading packing list...</td></tr></tbody>
+                <tbody id="packing-list-body"><tr><td colspan="14">Loading packing list...</td></tr></tbody>
             </table>
         </div>
     </section>
@@ -191,13 +195,15 @@ include BASE_PATH . '/shared/sidebar.php';
         <form class="panel ops-form packing-modal packing-invoice-flow" data-invoice-draft-form>
             <div class="section-row"><h2>Upload invoice</h2><button type="button" data-close-modal>Close</button></div>
             <ol class="invoice-flow-steps">
-                <li class="active">Upload</li><li>Extract</li><li>Review</li><li>Assign</li><li>Create</li>
+                <li class="active">Upload</li><li>Extract</li><li>Review</li><li>Assign</li><li>Sync</li>
             </ol>
             <div class="form-grid compact">
                 <label>Invoice PDF<input type="file" name="invoice_file" accept="application/pdf"></label>
                 <label>Supplier name<input name="supplier_name" placeholder="Optional"></label>
                 <label>Invoice number<input name="invoice_number" data-draft-invoice-number placeholder="Auto extracted"></label>
                 <label>Invoice date<input name="invoice_date" data-draft-invoice-date type="date"></label>
+                <label>Priority<select name="priority"><option value="medium" selected>Medium</option><option value="high">High</option><option value="top_critical">Top Critical</option><option value="low">Low</option></select></label>
+                <input type="hidden" name="invoice_file_path" data-draft-invoice-path>
             </div>
             <p class="muted">Upload a PDF to extract product lines automatically. If extraction is unavailable, use the manual fallback below.</p>
             <div class="ops-form-actions">
@@ -211,8 +217,9 @@ include BASE_PATH . '/shared/sidebar.php';
                     <tbody data-invoice-draft-body><tr><td colspan="7">Extract an invoice or add a row to review before saving.</td></tr></tbody>
                 </table>
             </div>
+            <p class="muted" data-invoice-assignment-summary>Rows will be assigned fairly without splitting a product line between packers.</p>
             <p class="muted" data-invoice-extract-status>Step 1: upload invoice or type rows manually.</p>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Confirm and create packing list</button></div>
+            <div class="ops-form-actions"><button class="button primary" type="submit">Confirm and sync to Monday</button></div>
         </form>
     </div>
 </main>

@@ -227,9 +227,18 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
             $status = ops_post_string('status', 30) ?: 'not_started';
             if (!array_key_exists($status, $statuses)) $status = 'not_started';
+            $oldRows = ops_rows('SELECT status, assigned_employee_id FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ? WHERE id = ?");
             $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $taskId]);
             ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'assigned_employee_id' => $assignedId]);
+            if ($oldRows) {
+                ops_status_history_log('tasks', $taskId, 'status', (string) $oldRows[0]['status'], $status, $assignedId > 0 ? $assignedId : ((int) ($oldRows[0]['assigned_employee_id'] ?? 0) ?: null), [
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
+                ops_status_history_log('tasks', $taskId, 'assigned_employee_id', (string) ((int) ($oldRows[0]['assigned_employee_id'] ?? 0)), $assignedId > 0 ? (string) $assignedId : null, $assignedId > 0 ? $assignedId : null, [
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
+            }
             $message = 'Task updated.';
         }
 
@@ -237,14 +246,20 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $status = ops_post_string('status', 30) ?: 'in_progress';
             if (!in_array($status, ['not_started', 'in_progress', 'needs_review'], true)) $status = 'in_progress';
             $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
+            $oldRows = ops_rows("SELECT status, assigned_employee_id FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET status = ?, checked_items = ? WHERE {$scope}");
             $stmt->execute([$status, json_encode($checked, JSON_UNESCAPED_SLASHES), ...$scopeParams]);
             ops_activity_log('task_progress_updated', 'checklist_task', $taskId, ['status' => $status, 'checked_items' => $checked]);
+            if ($oldRows) {
+                ops_status_history_log('tasks', $taskId, 'status', (string) $oldRows[0]['status'], $status, (int) ($oldRows[0]['assigned_employee_id'] ?? 0) ?: null, [
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
+            }
             $message = 'Task progress saved.';
         }
 
         if ($action === 'complete_task') {
-            $taskRows = ops_rows("SELECT checklist_items, checklist_type FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
+            $taskRows = ops_rows("SELECT checklist_items, checklist_type, status, assigned_employee_id FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
             $items = checklist_json_items((string) ($taskRows[0]['checklist_items'] ?? ''));
             $taskTypeForProof = (string) ($taskRows[0]['checklist_type'] ?? '');
@@ -271,6 +286,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
             $stmt->execute([...$params, ...$scopeParams]);
             ops_activity_log('task_completed', 'checklist_task', $taskId, ['checked_items' => $checked, 'note' => $note]);
+            ops_status_history_log('tasks', $taskId, 'status', (string) ($taskRows[0]['status'] ?? ''), 'done', (int) ($taskRows[0]['assigned_employee_id'] ?? 0) ?: $currentEmployeeId, [
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+                'completion_note' => $note,
+            ]);
             $message = 'Task completed with note saved.';
         }
     } catch (Throwable $e) {

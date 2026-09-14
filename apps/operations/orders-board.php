@@ -25,7 +25,7 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="monday-board-top">
         <div class="monday-board-head work-board-head">
             <div>
-                <h1>My Work <i data-lucide="chevron-down"></i></h1>
+                <h1>Hambelela Orders <i data-lucide="chevron-down"></i></h1>
                 <p class="work-board-subtitle">Assigned orders, packing status and live website order flow.</p>
             </div>
             <div class="monday-board-head-actions">
@@ -91,7 +91,7 @@ include BASE_PATH . '/shared/sidebar.php';
                 <select data-board-group-select>
                     <option value="date">Date</option>
                     <option value="status">Status</option>
-                    <option value="packer">Picked by</option>
+                    <option value="packer">Packed by</option>
                     <option value="mode">Mode</option>
                 </select>
             </label>
@@ -133,18 +133,18 @@ include BASE_PATH . '/shared/sidebar.php';
             <table class="ops-board-table">
                 <thead>
                     <tr>
-                        <th class="check-cell"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></th>
-                        <th class="comment-cell"></th>
-                        <th data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TASK</th>
-                        <th data-column-key="date" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE</th>
-                        <th data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>MODE</th>
-                        <th data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>MOBILE NUMBER</th>
-                        <th data-column-key="amount" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>AMOUNT</th>
-                        <th data-column-key="payment" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAYMENT</th>
-                        <th data-column-key="paid" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAID</th>
-                        <th data-column-key="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
-                        <th data-column-key="packer" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PICKED BY</th>
-                        <th data-column-key="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TEXT</th>
+                        <th class="check-cell col-checkbox"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></th>
+                        <th class="col-task" data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Task</th>
+                        <th class="comment-cell col-task-icon"></th>
+                        <th class="col-date" data-column-key="date" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE</th>
+                        <th class="col-mobile" data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mobile number</th>
+                        <th class="col-mode" data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Mode</th>
+                        <th class="col-amount" data-column-key="amount" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>AMOUNT</th>
+                        <th class="col-payment" data-column-key="payment" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAYMENT</th>
+                        <th class="col-paid col-header-paid" data-column-key="paid" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAID</th>
+                        <th class="col-status" data-column-key="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Status</th>
+                        <th class="col-packedby" data-column-key="packer" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Packed by</th>
+                        <th class="col-text" data-column-key="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>Text</th>
                         <th class="add-column-cell"><button type="button" data-add-column>+</button></th>
                     </tr>
                 </thead>
