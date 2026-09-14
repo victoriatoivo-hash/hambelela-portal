@@ -1,0 +1,30 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__, 2) . '/config.php';
+require_once BASE_PATH . '/shared/auth.php';
+require_once BASE_PATH . '/shared/employee-features.php';
+require_once BASE_PATH . '/shared/accounts-input-vat.php';
+accounts_require_input_vat_access();
+accounts_input_vat_schema_ready();
+
+$id = (int) ($_GET['id'] ?? 0);
+$stmt = db()->prepare('SELECT * FROM accounts_input_vat_attachments WHERE id=? AND deleted_at IS NULL LIMIT 1');
+$stmt->execute([$id]);
+$file = $stmt->fetch();
+if (!$file) {
+    http_response_code(404);
+    exit('Attachment not found.');
+}
+
+$path = BASE_PATH . '/uploads/input-vat/' . basename((string) $file['stored_filename']);
+if (!is_file($path)) {
+    http_response_code(404);
+    exit('Attachment file is unavailable.');
+}
+
+$download = ($_GET['mode'] ?? 'view') === 'download';
+header('Content-Type: ' . (string) $file['mime_type']);
+header('Content-Length: ' . filesize($path));
+header('X-Content-Type-Options: nosniff');
+header('Content-Disposition: ' . ($download ? 'attachment' : 'inline') . '; filename="' . str_replace(['"', "\r", "\n"], '', (string) $file['original_filename']) . '"');
+readfile($path);

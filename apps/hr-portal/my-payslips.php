@@ -1,19 +1,70 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/loan-agreements.php';
 requireLogin();
 $user = currentUser();
 if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard.php'); exit; }
 $db    = db();
 $empId = (int)($user['emp_id'] ?? 0);
+loanAgreementEnsureSchema($db);
+loanAgreementSyncEmployeePayroll($db, $empId);
+$hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+$socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
+hrEnsureMedicalAidSchemaSafe($db);
+$hasMedicalAidPayslipColumns = hrHasPayslipMedicalAidColumns($db);
+$medicalAidProfiles = hrMedicalAidMap($db);
+$medicalAidSelect = $hasMedicalAidPayslipColumns
+    ? "ps.medical_aid_fund, ps.medical_aid_total, ps.medical_aid_company, ps.medical_aid_employee"
+    : "'' AS medical_aid_fund, 0 AS medical_aid_total, 0 AS medical_aid_company, 0 AS medical_aid_employee";
 
 $payslips = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year, r.id as run_id FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC");
 $payslips->execute([$empId]); $payslips = $payslips->fetchAll();
+foreach ($payslips as $idx => $p) {
+    $medicalProfile = hrApplyMedicalAidToEmployee(['id' => $empId], $medicalAidProfiles);
+    $medicalApplies = hrMedicalAidEffectiveForPeriod($medicalProfile, (int)$p['period_month'], (int)$p['period_year']);
+    if ($medicalApplies) {
+        if ((float)($p['medical_aid_total'] ?? 0) <= 0) {
+            $p['medical_aid_fund'] = $medicalProfile['medical_aid_fund'];
+            $p['medical_aid_total'] = $medicalProfile['medical_aid_total'];
+            $p['medical_aid_company'] = $medicalProfile['medical_aid_company'];
+            $p['medical_aid_employee'] = $medicalProfile['medical_aid_employee'];
+        }
+    } else {
+        $p['medical_aid_total'] = 0;
+        $p['medical_aid_company'] = 0;
+        $p['medical_aid_employee'] = 0;
+    }
+    $displayDeductions = (float)$p['paye']
+        + (float)$p['ssf']
+        + (float)($p['lwop_deduction'] ?? 0)
+        + (float)($p['other_deductions'] ?? 0)
+        + (float)($p['loan_deduction'] ?? 0)
+        + (float)($p['medical_aid_employee'] ?? 0);
+    $p['display_total_deductions'] = $displayDeductions;
+    $p['display_net_salary'] = round((float)$p['basic_salary'] + (float)$p['ot_pay'] + (float)($p['loan_disbursement'] ?? 0) - $displayDeductions, 2);
+    $payslips[$idx] = $p;
+}
 
 // View single payslip
 $viewPayslip = null;
 if (isset($_GET['id'])) {
-    $viewPayslip = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
+    $viewPayslip = $db->prepare("SELECT ps.*, $medicalAidSelect, r.period_month AS ps_period_month, r.period_year AS ps_period_year, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
     $viewPayslip->execute([(int)$_GET['id'], $empId]); $viewPayslip = $viewPayslip->fetch();
+    if ($viewPayslip) {
+        $medicalProfile = hrApplyMedicalAidToEmployee(['id' => (int)$viewPayslip['employee_id']], $medicalAidProfiles);
+        $medicalApplies = hrMedicalAidEffectiveForPeriod($medicalProfile, (int)$viewPayslip['ps_period_month'], (int)$viewPayslip['ps_period_year']);
+        if ($medicalApplies && (float)($viewPayslip['medical_aid_total'] ?? 0) <= 0) {
+            $viewPayslip['medical_aid_fund'] = $medicalProfile['medical_aid_fund'];
+            $viewPayslip['medical_aid_total'] = $medicalProfile['medical_aid_total'];
+            $viewPayslip['medical_aid_company'] = $medicalProfile['medical_aid_company'];
+            $viewPayslip['medical_aid_employee'] = $medicalProfile['medical_aid_employee'];
+        }
+        if (!$medicalApplies) {
+            $viewPayslip['medical_aid_total'] = 0;
+            $viewPayslip['medical_aid_company'] = 0;
+            $viewPayslip['medical_aid_employee'] = 0;
+        }
+    }
 }
 
 $currentPage = 'my-payslips.php';
@@ -32,7 +83,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>My Payslips — Hambelela HR</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -51,30 +102,34 @@ foreach (['company_name','company_reg','company_address','company_city','company
 .ps-slip-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px}
 .ps-slip-month{font-size:22px;font-weight:800;color:#111}
 .ps-meta{display:grid;grid-template-columns:1.2fr .8fr;gap:28px;margin-bottom:24px;padding-bottom:18px;border-bottom:1px dashed #d8d8d8;font-size:11px;color:#555;line-height:1.65}
+.ps-meta>*,.ps-summary>*,.ps-cols>*{min-width:0}
 .ps-meta h4{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin:0 0 8px}
-.ps-meta-grid{display:grid;grid-template-columns:120px 1fr;column-gap:12px;row-gap:4px}
+.ps-meta-grid{display:grid;grid-template-columns:minmax(88px,112px) minmax(0,1fr);column-gap:10px;row-gap:5px;align-items:start}
 .ps-meta .lbl{color:#888}
-.ps-meta .val{font-weight:650;color:#111}
+.ps-meta .val{font-weight:650;color:#111;min-width:0;overflow-wrap:anywhere;word-break:break-word}
 .ps-summary{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px dashed #ccc}
 .ps-emp-block{font-size:12.5px}
 .ps-emp-block h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:10px}
-.ps-emp-row{display:grid;grid-template-columns:118px 1fr;column-gap:10px;margin-bottom:7px;align-items:start}
+.ps-emp-row{display:grid;grid-template-columns:minmax(96px,118px) minmax(0,1fr);column-gap:10px;margin-bottom:7px;align-items:start}
 .ps-emp-row .lbl{color:#888;flex-shrink:0}
-.ps-emp-row .val{font-weight:600;color:#111}
+.ps-emp-row .val{font-weight:600;color:#111;min-width:0;overflow-wrap:anywhere}
 .ps-net-box{background:#fff;border:1.5px solid #111;border-radius:0;padding:18px 20px}
 .ps-net-box .net-amount{font-size:28px;font-weight:800;color:#111;font-family:monospace;margin-bottom:4px;font-variant-numeric:tabular-nums}
 .ps-net-box .net-label{font-size:11px;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
-.ps-net-box .net-sub{margin-top:14px;padding-top:12px;border-top:1px dashed #ccc;display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;font-size:11.5px;color:#555}
+.ps-net-box .net-sub{margin-top:14px;padding-top:12px;border-top:1px dashed #ccc;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px 10px;font-size:11.5px;color:#555}
 .ps-net-box .net-sub .lbl{color:#888}
-.ps-net-box .net-sub .val{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.ps-net-box .net-sub .val{font-weight:600;text-align:right;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
 .ps-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:20px}
 .ps-col-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;background:#fff;color:#111;padding:7px 12px;border:1px solid #111;border-bottom:none}
-.ps-col-table{width:100%;border-collapse:collapse;border:1px solid #e0e0e0;border-top:none}
+.ps-col-table{width:100%;table-layout:fixed;border-collapse:collapse;border:1px solid #e0e0e0;border-top:none}
 .ps-col-table td{padding:8px 12px;font-size:12px;border-bottom:1px solid #f0f0f0}
-.ps-col-table td:last-child{text-align:right;font-family:monospace;font-size:11.5px;font-variant-numeric:tabular-nums}
+.ps-col-table td:first-child{width:auto;overflow-wrap:anywhere}
+.ps-col-table td:last-child{width:112px;text-align:right;font-family:monospace;font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ps-col-table tr:last-child td{border-bottom:none;font-weight:700;background:#fff;border-top:1px solid #bbb}
 .ps-col-table .deduct td:last-child{color:#c00}
 .money{display:inline-block;min-width:96px;text-align:right;font-family:monospace;font-variant-numeric:tabular-nums}
+@media(max-width:900px){.payslip-doc{padding:30px 28px}.ps-meta,.ps-summary,.ps-cols{grid-template-columns:minmax(0,1fr);gap:18px}.ps-meta-grid{grid-template-columns:minmax(96px,120px) minmax(0,1fr)}}
+@media(max-width:520px){.payslip-doc{padding:22px 16px}.ps-meta-grid,.ps-emp-row{grid-template-columns:minmax(84px,104px) minmax(0,1fr)}.ps-col-table td{padding:8px}.ps-col-table td:last-child{width:104px}}
 .ps-net-total{display:flex;justify-content:space-between;align-items:center;border:1.5px solid #111;padding:13px 18px;margin-bottom:10px;background:#fff}
 .ps-net-total .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .ps-net-total .lbl small{display:block;font-weight:400;text-transform:none;letter-spacing:0;color:#888;font-size:10.5px;margin-top:2px}
@@ -100,12 +155,16 @@ foreach (['company_name','company_reg','company_address','company_city','company
   </div>
   <div class="content">
   <?php if ($viewPayslip):
-    $runRow = $db->prepare("SELECT period_label,period_month,period_year,generated_at FROM payroll_runs WHERE id=(SELECT run_id FROM payslips WHERE id=?)");
+    $runRow = $db->prepare("SELECT id, period_label,period_month,period_year,generated_at FROM payroll_runs WHERE id=(SELECT run_id FROM payslips WHERE id=?)");
     $runRow->execute([$viewPayslip['id']]); $runRow = $runRow->fetch();
     $gross = (float)$viewPayslip['basic_salary']+(float)$viewPayslip['ot_pay'];
+    $loanDisbursement = (float)($viewPayslip['loan_disbursement'] ?? 0);
     $loanDed = isset($viewPayslip['loan_deduction']) ? (float)$viewPayslip['loan_deduction'] : 0;
-    $totalDed = (float)$viewPayslip['paye']+(float)$viewPayslip['ssf']+(float)($viewPayslip['lwop_deduction']??0)+(float)($viewPayslip['other_deductions']??0)+$loanDed;
-    $net = (float)$viewPayslip['net_salary'];
+    $medicalAidCompany = (float)($viewPayslip['medical_aid_company'] ?? 0);
+    $medicalAidEmployee = (float)($viewPayslip['medical_aid_employee'] ?? 0);
+    $medicalAidFund = trim((string)($viewPayslip['medical_aid_fund'] ?? 'Medical Aid'));
+    $totalDed = (float)$viewPayslip['paye']+(float)$viewPayslip['ssf']+(float)($viewPayslip['lwop_deduction']??0)+(float)($viewPayslip['other_deductions']??0)+$loanDed+$medicalAidEmployee;
+    $net = round($gross + $loanDisbursement - $totalDed, 2);
     $netInt = (int)round($net);
     function empPayWords($n){$ones=['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];$tens=['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];if($n==0)return'Zero';if($n<20)return$ones[$n];if($n<100)return$tens[intval($n/10)].($n%10?' '.$ones[$n%10]:'');if($n<1000)return$ones[intval($n/100)].' Hundred'.($n%100?' '.empPayWords($n%100):'');if($n<1000000)return empPayWords(intval($n/1000)).' Thousand'.($n%1000?' '.empPayWords($n%1000):'');return(string)$n;}
     $netWords = empPayWords($netInt).' Namibian Dollars Only';
@@ -145,6 +204,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <h4>Payslip Details</h4>
         <div class="ps-meta-grid">
           <span class="lbl">Payslip No</span><span class="val"><?=htmlspecialchars($payslipNo)?></span>
+          <span class="lbl">Payroll Run</span><span class="val">Run #<?=htmlspecialchars((string)$runRow['id'])?> / Payslip #<?=htmlspecialchars((string)$viewPayslip['id'])?></span>
           <span class="lbl">Pay Period</span><span class="val"><?=htmlspecialchars($payPeriodRange)?></span>
           <span class="lbl">Payment Method</span><span class="val"><?=htmlspecialchars($paymentMethod)?></span>
           <span class="lbl">Generated On</span><span class="val"><?=htmlspecialchars($generatedOn)?></span>
@@ -158,6 +218,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <div class="ps-emp-row"><span class="lbl">Designation</span><span class="val"><?=htmlspecialchars($viewPayslip['job_title']?:'—')?></span></div>
         <div class="ps-emp-row"><span class="lbl">Employee ID</span><span class="val"><?=htmlspecialchars($viewPayslip['emp_number'])?></span></div>
         <div class="ps-emp-row"><span class="lbl">ID Number</span><span class="val"><?=htmlspecialchars($viewPayslip['id_number']?:'—')?></span></div>
+        <?php if ($hasSocialSecurity): ?><div class="ps-emp-row"><span class="lbl">Social Security No</span><span class="val"><?=htmlspecialchars($viewPayslip['social_security_number']?:'—')?></span></div><?php endif ?>
         <div class="ps-emp-row"><span class="lbl">Pay Date</span><span class="val"><?=$periodEnd?></span></div>
       </div>
       <div>
@@ -178,6 +239,8 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <table class="ps-col-table">
           <tr><td>Basic Salary</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['basic_salary'],2)?></span></td></tr>
           <?php if($viewPayslip['ot_pay']>0): ?><tr><td>Overtime Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ot_pay'],2)?></span></td></tr><?php endif ?>
+          <?php if($loanDisbursement>0): ?><tr><td>Employee Loan Payout <small>(non-taxable)</small></td><td><span class="money">N$ <?=number_format($loanDisbursement,2)?></span></td></tr><?php endif ?>
+          <?php if($medicalAidCompany>0): ?><tr><td>Medical Aid Employer Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr><?php endif ?>
           <tr><td><strong>Gross Earnings</strong></td><td><strong class="money">N$ <?=number_format($gross,2)?></strong></td></tr>
         </table>
       </div>
@@ -186,6 +249,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <table class="ps-col-table">
           <tr class="deduct"><td>PAYE (Income Tax)</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['paye'],2)?></span></td></tr>
           <tr class="deduct"><td>Social Security (SSF)</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ssf'],2)?></span></td></tr>
+          <?php if($medicalAidEmployee>0): ?><tr class="deduct"><td>Medical Aid Employee Contribution<?= $medicalAidFund !== '' ? ' - '.htmlspecialchars($medicalAidFund) : '' ?></td><td><span class="money">N$ <?=number_format($medicalAidEmployee,2)?></span></td></tr><?php endif ?>
           <?php if(($viewPayslip['lwop_deduction']??0)>0): ?><tr class="deduct"><td>Leave Without Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['lwop_deduction'],2)?></span></td></tr><?php endif ?>
           <?php if($loanDed>0): ?><tr class="deduct"><td>Loan / Advance Deduction</td><td><span class="money">N$ <?=number_format($loanDed,2)?></span></td></tr><?php endif ?>
           <?php if(($viewPayslip['other_deductions']??0)>0): ?><tr class="deduct"><td>Other Deductions</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['other_deductions'],2)?></span></td></tr><?php endif ?>
@@ -194,7 +258,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
       </div>
     </div>
     <div class="ps-net-total">
-      <div class="lbl">Total Net Payable<small>Gross Earnings &minus; Total Deductions</small></div>
+      <div class="lbl">Total Net Payable<small>Taxable gross<?= $loanDisbursement > 0 ? ' + loan payout' : '' ?> &minus; total deductions</small></div>
       <div class="val">N$ <?=number_format($net,2)?></div>
     </div>
     <div class="ps-words">Amount In Words : <strong><?=$netWords?></strong></div>
@@ -222,8 +286,8 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <td style="font-weight:600"><?=htmlspecialchars($p['period_label'])?></td>
         <td style="font-family:monospace">N$ <?=number_format((float)$p['basic_salary'],2)?></td>
         <td style="font-family:monospace;color:var(--green)">+ N$ <?=number_format((float)$p['ot_pay'],2)?></td>
-        <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format((float)$p['paye']+(float)$p['ssf']+(float)($p['lwop_deduction']??0)+(float)($p['other_deductions']??0)+(float)($p['loan_deduction']??0),2)?></td>
-        <td style="font-family:monospace;font-weight:800">N$ <?=number_format((float)$p['net_salary'],2)?></td>
+        <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format((float)$p['display_total_deductions'],2)?></td>
+        <td style="font-family:monospace;font-weight:800">N$ <?=number_format((float)$p['display_net_salary'],2)?></td>
         <td><a href="my-payslips.php?id=<?=$p['id']?>" class="btn btn-secondary btn-sm"><i class="fa-solid fa-eye"></i> View</a></td>
       </tr>
       <?php endforeach ?>

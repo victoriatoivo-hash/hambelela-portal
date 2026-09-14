@@ -1,0 +1,1 @@
+{"$schema":"https://playground.wordpress.net/blueprint-schema.json","preferredVersions":{"php":"8.2","wp":false},"steps":[{"step":"runPHP","code":"<?php ob_start(); register_shutdown_function(static function(){file_put_contents('/workspace/.tmp-phase2-security-output.txt',ob_get_contents());}); require '/workspace/tests/cost-workbook-phase2-security.php';"}]}

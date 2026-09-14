@@ -2,6 +2,7 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/email.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 requireLogin();
 $user = currentUser();
 if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard.php'); exit; }
@@ -9,6 +10,13 @@ if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard
 $db    = db();
 $empId = (int)($user['emp_id'] ?? 0);
 ensureLeaveShutdownSchema($db);
+
+$employeeProfileStmt = $db->prepare('SELECT id,employment_type,start_date,status FROM employees WHERE id=? LIMIT 1');
+$employeeProfileStmt->execute([$empId]);
+$employeeProfile = $employeeProfileStmt->fetch() ?: [];
+hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : null);
+$leaveEntitlements = hrLeaveEntitlements($employeeProfile);
+$isProbation = $leaveEntitlements['is_probation'];
 
 $leaveTypes = ['Annual Leave','Sick Leave','Compassionate Leave','Maternity Leave','Unpaid Leave'];
 $year = date('Y');
@@ -23,14 +31,42 @@ $shutdownSettings = shutdownSettings($db);
 
 // ── Handle leave submission ───────────────────────────────────
 $formError = '';
+$leave_type = '';
+$start_date = '';
+$end_date = '';
+$reason = '';
+$days = 0.0;
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $leave_type = clean($_POST['leave_type'] ?? '');
     $start_date = $_POST['start_date'] ?? '';
     $end_date   = $_POST['end_date']   ?? '';
     $reason     = clean($_POST['reason'] ?? '');
-    $days       = (float)($_POST['days'] ?? 0);
 
-    if ($leave_type && $start_date && $end_date && $days > 0) {
+    if ($empId < 1) {
+        $formError = 'Your employee account is not linked to an HR employee profile. Please contact the Owner/Admin.';
+    } elseif (!$leave_type || !$start_date || !$end_date) {
+        $formError = 'Complete the leave type, start date and end date.';
+    } elseif (!in_array($leave_type, $leaveTypes, true)) {
+        $formError = 'Select a valid leave type.';
+    } elseif ($leave_type === 'Annual Leave' && !hrAnnualLeaveRequestAllowed($employeeProfile)) {
+        $formError = 'Annual Leave is accruing but cannot be requested until probation has been completed successfully.';
+    } else {
+        try {
+            $start = new DateTimeImmutable($start_date);
+            $end = new DateTimeImmutable($end_date);
+            if ($end < $start) {
+                $formError = 'The end date cannot be before the start date.';
+            } else {
+                for ($day = $start; $day <= $end; $day = $day->modify('+1 day')) {
+                    if ((int)$day->format('w') !== 0) $days += 1.0;
+                }
+            }
+        } catch (Throwable $error) {
+            $formError = 'Enter valid leave dates.';
+        }
+    }
+
+    if (!$formError && $days > 0) {
 
         // ── Enforce balance rules ────────────────────────────
         $reserveWarning = 0;
@@ -51,6 +87,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if (!$formError) {
+            $duplicate = $db->prepare("SELECT id FROM leave_requests WHERE employee_id=? AND leave_type=? AND start_date=? AND end_date=? AND status IN ('pending','approved') LIMIT 1");
+            $duplicate->execute([$empId,$leave_type,$start_date,$end_date]);
+            if ($duplicate->fetchColumn()) $formError = 'This leave request has already been submitted.';
+        }
+
+        if (!$formError) {
             // Handle certificate upload
             $certPath = null;
             if (($leave_type === 'Sick Leave' || $leave_type === 'Unpaid Leave') && isset($_FILES['certificate']) && $_FILES['certificate']['error'] === 0) {
@@ -64,15 +106,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
-            $db->prepare("INSERT INTO leave_requests (employee_id,leave_type,start_date,end_date,days,reason,certificate,reserve_warning,status) VALUES (?,?,?,?,?,?,?,?,'pending')")
-               ->execute([$empId,$leave_type,$start_date,$end_date,$days,$reason,$certPath,$reserveWarning]);
+            $db->beginTransaction();
+            try {
+                $insert = $db->prepare("INSERT INTO leave_requests (employee_id,leave_type,start_date,end_date,days,reason,certificate,reserve_warning,status) VALUES (?,?,?,?,?,?,?,?,'pending')");
+                $insert->execute([$empId,$leave_type,$start_date,$end_date,$days,$reason,$certPath,$reserveWarning]);
+                $requestId = (int)$db->lastInsertId();
+                if ($requestId < 1) throw new RuntimeException('leave_insert_failed');
 
-            // Notify admin
-            $admins = $db->query("SELECT id FROM users WHERE role='admin'")->fetchAll();
-            foreach ($admins as $a) {
-                $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'info')")
-                   ->execute([$a['id'],'New Leave Request', $user['name']." submitted $leave_type for ".number_format($days,1)." day(s).".($reserveWarning ? " This request uses part of the December shutdown reserve." : "")]);
+                $admins = $db->query("SELECT id FROM users WHERE role='admin' AND active=1")->fetchAll();
+                $notify = $db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'info',?)");
+                foreach ($admins as $a) {
+                    $notify->execute([$a['id'],'New Leave Request', $user['name']." submitted $leave_type for ".number_format($days,1)." day(s).".($reserveWarning ? " This request uses part of the December shutdown reserve." : ""),'leave.php#pending-requests']);
+                }
+                $db->commit();
+            } catch (Throwable $error) {
+                if ($db->inTransaction()) $db->rollBack();
+                if ($certPath && is_file(__DIR__ . '/' . $certPath)) @unlink(__DIR__ . '/' . $certPath);
+                error_log('HR leave submission failed: '.$error->getMessage());
+                $formError = 'The leave request could not be saved. Please try again or contact the Owner/Admin.';
             }
+
+            if (!$formError) {
             emailHRNotice(
                 'New Leave Request - ' . $user['name'],
                 '<p>' . htmlspecialchars($user['name']) . ' submitted a leave request.</p>
@@ -84,12 +138,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <a href="' . SITE_URL . '/leave.php" class="btn">Review Leave</a>'
             );
             header('Location: my-leave.php?msg=submitted'); exit;
+            }
         }
     }
 }
 
 // Get leave history
-$history = $db->prepare("SELECT * FROM leave_requests WHERE employee_id=? ORDER BY created_at DESC");
+$history = $db->prepare("SELECT lr.*, u.name AS reviewer_name
+                         FROM leave_requests lr
+                         LEFT JOIN users u ON u.id=lr.approved_by
+                         WHERE lr.employee_id=?
+                         ORDER BY lr.created_at DESC");
 $history->execute([$empId]); $history = $history->fetchAll();
 
 $msg = $_GET['msg'] ?? '';
@@ -100,11 +159,11 @@ $currentPage = 'my-leave.php';
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>My Leave — Hambelela HR</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<link rel="stylesheet" href="includes/styles.css">
+<link rel="stylesheet" href="includes/styles.css?v=20260729-1">
 </head>
 <body>
 <?php include __DIR__ . '/includes/emp-sidebar.php'; ?>
@@ -119,6 +178,15 @@ $currentPage = 'my-leave.php';
     <?php if ($msg === 'submitted'): ?>
     <div class="toast"><i class="fa-solid fa-check"></i> Leave request submitted successfully. Your manager will review it shortly.</div>
     <?php endif ?>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-shield-heart" style="color:var(--green)"></i> Leave Entitlements</div><span class="badge <?=$isProbation?'badge-amber':'badge-green'?>">Employment Status: <?=$isProbation?'Probation':'Active'?></span></div>
+      <div style="padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px;background:#fff"><div style="font-size:12px;font-weight:700">Annual Leave</div><div style="font-size:11px;color:<?=$isProbation?'var(--amber)':'var(--green)'?>;margin-top:4px"><?=htmlspecialchars($leaveEntitlements['annual_leave']['label'])?></div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px;background:#fff"><div style="font-size:12px;font-weight:700">Sick Leave</div><div style="font-size:11px;color:var(--green);margin-top:4px">Available</div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px;background:#fff"><div style="font-size:12px;font-weight:700">Compassionate Leave</div><div style="font-size:11px;color:var(--green);margin-top:4px">Available</div></div>
+      </div>
+    </div>
 
     <!-- Leave Balance Cards — remaining only -->
     <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:22px">
@@ -141,11 +209,11 @@ $currentPage = 'my-leave.php';
       ?>
       <div class="stat-card" style="cursor:default">
         <div class="stat-icon <?=$col?>"><i class="fa-solid fa-calendar-days"></i></div>
-        <div class="stat-value" style="font-size:22px;color:<?=$lt==='Annual Leave'?$cardColor:($low?'var(--red)':'inherit')?>"><?=number_format($lt==='Annual Leave'?$annualMetrics['available_now']:$remain,1)?></div>
+        <div class="stat-value" style="font-size:22px;color:<?=$lt==='Annual Leave'?$cardColor:($low?'var(--red)':'inherit')?>"><?=$lt==='Annual Leave'&&$isProbation?'N/A':number_format($lt==='Annual Leave'?$annualMetrics['available_now']:$remain,1)?></div>
         <div class="stat-label" style="font-size:11px"><?=htmlspecialchars($lt)?></div>
         <?php if ($lt === 'Annual Leave'): ?>
         <div style="font-size:10px;color:var(--text-light);margin-top:2px">Accrued: <?=number_format($annualMetrics['current_accrued'],1)?> | Taken: <?=number_format($annualMetrics['leave_taken'],1)?></div>
-        <div style="font-size:10px;color:var(--text-light);margin-top:2px">Future reserve: <?=number_format($annualMetrics['projected_reserve'],1)?> | <?=$annualMetrics['reserve_status_text']?></div>
+        <div style="font-size:10px;color:var(--text-light);margin-top:2px"><?=$isProbation?'Not requestable during probation':('Future reserve: '.number_format($annualMetrics['projected_reserve'],1).' | '.$annualMetrics['reserve_status_text'])?></div>
         <?php elseif ($used > 0): ?>
         <div style="font-size:10px;color:var(--text-light);margin-top:2px"><?=number_format($used,1)?> day(s) taken</div>
         <?php else: ?>
@@ -162,15 +230,15 @@ $currentPage = 'my-leave.php';
     $annualUsed   = $annualBal ? (float)$annualBal['used_days'] : 0;
     $annualRemain = max(0, $annualAccrued - $annualUsed);
     ?>
-    <div style="background:var(--green-pale);border:1px solid var(--green-mid);border-radius:10px;padding:12px 18px;margin-bottom:22px;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+    <div style="background:<?=$isProbation?'var(--amber-pale)':'var(--green-pale)'?>;border:1px solid <?=$isProbation?'var(--amber)':'var(--green-mid)'?>;border-radius:10px;padding:12px 18px;margin-bottom:22px;font-size:13px;display:flex;justify-content:space-between;align-items:center">
       <div><i class="fa-solid fa-rotate" style="color:var(--green);margin-right:8px"></i>
-        Annual Leave accrues <strong>2 days on the 1st of every month</strong>. Current accrued leave: <strong><?=number_format($annualMetrics['current_accrued'],1)?></strong>, leave taken: <strong><?=number_format($annualMetrics['leave_taken'],1)?></strong>, available now: <strong><?=number_format($annualMetrics['available_now'],1)?></strong>. Future shutdown reserve: <strong><?=number_format($annualMetrics['projected_reserve'],1)?></strong> for <?=$annualMetrics['reserve_period']?>.
+        <?php if ($isProbation): ?>Annual Leave continues accruing from your employment start date. It becomes available to request automatically after successful completion of probation. Accrued to date: <strong><?=number_format($annualMetrics['current_accrued'],1)?></strong> day(s).<?php else: ?>Annual Leave accrues <strong>2 days on the 1st of every month</strong>. Current accrued leave: <strong><?=number_format($annualMetrics['current_accrued'],1)?></strong>, leave taken: <strong><?=number_format($annualMetrics['leave_taken'],1)?></strong>, available now: <strong><?=number_format($annualMetrics['available_now'],1)?></strong>. Future shutdown reserve: <strong><?=number_format($annualMetrics['projected_reserve'],1)?></strong> for <?=$annualMetrics['reserve_period']?>.<?php endif ?>
       </div>
-      <div style="font-size:12px;color:var(--text-mid);white-space:nowrap;margin-left:16px">Next: +2 days on 1 <?=$nextMonthName?></div>
+      <div style="font-size:12px;color:var(--text-mid);white-space:nowrap;margin-left:16px"><?=$isProbation?'Requests unlock after probation':'Next: +2 days on 1 '.$nextMonthName?></div>
     </div>
 
     <!-- Leave History -->
-    <div class="card">
+    <div class="card" data-leave-history>
       <div class="card-header"><div class="card-title"><i class="fa-solid fa-list"></i> My Leave History</div></div>
       <?php if (empty($history)): ?>
         <div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i><div>No leave requests yet.</div></div>
@@ -181,16 +249,25 @@ $currentPage = 'my-leave.php';
         <?php foreach ($history as $r):
           $sc = $r['status']==='approved'?'badge-green':($r['status']==='rejected'?'badge-red':'badge-amber');
         ?>
-        <tr>
+        <tr id="leave-request-<?=$r['id']?>">
           <td><?=htmlspecialchars($r['leave_type'])?></td>
           <td><?=date('d M Y',strtotime($r['start_date']))?></td>
           <td><?=date('d M Y',strtotime($r['end_date']))?></td>
           <td><strong><?=number_format((float)$r['days'],1)?></strong></td>
           <td>
-            <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
-            <?php if($r['status']==='rejected' && $r['reject_reason']): ?>
-            <div style="font-size:10px;color:var(--red);margin-top:2px"><?=htmlspecialchars($r['reject_reason'])?></div>
+            <div class="leave-status-cell">
+              <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
+            <?php if($r['status']==='rejected'): ?>
+              <button type="button" class="leave-reason-trigger" data-leave-reason-trigger
+                data-reason="<?=htmlspecialchars(trim((string)($r['reject_reason'] ?? '')) !== '' ? $r['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?>"
+                data-decision-date="<?=htmlspecialchars($r['approved_at'] ? date('d F Y \a\t H:i', strtotime($r['approved_at'])) : 'Not recorded', ENT_QUOTES, 'UTF-8')?>"
+                data-reviewed-by="<?=htmlspecialchars($r['reviewer_name'] ?: 'HR Administration', ENT_QUOTES, 'UTF-8')?>"
+                aria-expanded="false" aria-haspopup="dialog" aria-controls="leave-reason-popover">
+                <span>View reason</span>
+                <svg class="leave-reason-trigger__arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 7.5L10 12l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
             <?php endif ?>
+            </div>
           </td>
           <td>
             <?php if ($r['certificate']): ?>
@@ -212,7 +289,7 @@ $currentPage = 'my-leave.php';
 </div>
 
 <!-- LEAVE REQUEST MODAL -->
-<div class="overlay" id="leaveModal">
+<div class="overlay<?= $formError ? ' open' : '' ?>" id="leaveModal"<?= $formError ? ' style="display:flex"' : '' ?>>
   <div class="modal" style="max-width:500px">
     <div class="modal-header">
       <div class="modal-title"><i class="fa-solid fa-calendar-plus"></i> Request Leave</div>
@@ -239,10 +316,10 @@ $currentPage = 'my-leave.php';
                 $avStr = '';
                 if ($lt === 'Maternity Leave') $avStr = ' (12 weeks — SSF benefit, unpaid)';
                 elseif ($lt === 'Unpaid Leave') $avStr = ' (unpaid)';
-                elseif ($lt === 'Annual Leave') $avStr = ' - '.number_format($annualMetrics['available_now'],1).' day(s) available now';
+                elseif ($lt === 'Annual Leave') $avStr = $isProbation ? ' — available after successful probation' : ' - '.number_format($annualMetrics['available_now'],1).' day(s) available now';
                 else $avStr = ' — '.number_format($rem2,1).' day(s) available';
               ?>
-              <option value="<?=htmlspecialchars($lt)?>"
+              <option value="<?=htmlspecialchars($lt)?>" <?= $leave_type === $lt ? 'selected' : '' ?> <?=$lt==='Annual Leave'&&$isProbation?'disabled':''?>
                       data-available="<?=$lt==='Annual Leave'?$annualMetrics['available_now']:$rem2?>"
                       data-total="<?=$lt==='Annual Leave'?$annualMetrics['total']:$rem2?>"
                       data-reserve="<?=$lt==='Annual Leave'?$annualMetrics['reserve']:0?>"
@@ -268,19 +345,19 @@ $currentPage = 'my-leave.php';
 
           <div class="form-group">
             <label class="form-label">Start Date</label>
-            <input class="form-input" type="date" name="start_date" id="startDate" required onchange="calcDays()">
+            <input class="form-input" type="date" name="start_date" id="startDate" value="<?=htmlspecialchars($start_date ?? '')?>" required onchange="calcDays()">
           </div>
           <div class="form-group">
             <label class="form-label">End Date</label>
-            <input class="form-input" type="date" name="end_date" id="endDate" required onchange="calcDays()">
+            <input class="form-input" type="date" name="end_date" id="endDate" value="<?=htmlspecialchars($end_date ?? '')?>" required onchange="calcDays()">
           </div>
           <div class="form-group full">
             <label class="form-label">Working Days</label>
-            <input class="form-input" type="number" step="0.5" name="days" id="daysField" min="0.5" required placeholder="Auto-calculated" oninput="checkReserveWarning()" onchange="checkReserveWarning()">
+            <input class="form-input" type="number" step="0.5" name="days" id="daysField" min="0.5" value="<?=$days > 0 ? htmlspecialchars((string)$days) : ''?>" readonly required placeholder="Auto-calculated">
           </div>
           <div class="form-group full">
             <label class="form-label">Reason (optional)</label>
-            <textarea class="form-textarea" name="reason" placeholder="Brief reason..."></textarea>
+            <textarea class="form-textarea" name="reason" placeholder="Brief reason..."><?=htmlspecialchars($reason ?? '')?></textarea>
           </div>
 
           <!-- Medical certificate — shown for sick leave only -->
@@ -354,11 +431,15 @@ function checkReserveWarning(){
   return show;
 }
 function confirmReserveWarning(){
-  if(checkReserveWarning()){
-    return confirm("This request will reduce your leave balance below the required December shutdown reserve and requires management approval. Submit anyway?");
+  if(checkReserveWarning()&&!confirm("This request will reduce your leave balance below the required December shutdown reserve and requires management approval. Submit anyway?")){
+    return false;
   }
+  var form=document.getElementById('leaveForm');
+  var submit=form ? form.querySelector('button[type="submit"]') : null;
+  if(submit){submit.disabled=true;submit.textContent='Submitting…';}
   return true;
 }
 </script>
+<script src="includes/leave-reason-popover.js?v=20260729-1"></script>
 </body>
 </html>

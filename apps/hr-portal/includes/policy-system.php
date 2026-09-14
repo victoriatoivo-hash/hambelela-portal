@@ -1,0 +1,367 @@
+<?php
+/* Versioned HR policies and immutable employee acknowledgements. */
+
+const HR_POLICY_ACK_TEXT_VERSION = '1.0';
+
+function hrPolicyAcknowledgementText(): string {
+    return "EMPLOYEE ACKNOWLEDGEMENT\n\n"
+        . "I confirm that I have received access to the Hambelela Organic Employee Handbook & HR Policy, Version 1.0.\n\n"
+        . "I confirm that I have read the policy and have been given an opportunity to ask questions about matters I do not understand.\n\n"
+        . "I understand the standards, procedures and responsibilities applicable to my employment and agree to comply with lawful company policies and reasonable lawful instructions.\n\n"
+        . "I understand that this handbook must be read together with my employment contract and applicable Namibian law.\n\n"
+        . "I understand that this acknowledgement does not waive, reduce or remove any right or protection granted to me by applicable law.\n\n"
+        . "I understand that Hambelela Organic may lawfully amend its policies from time to time and that material amendments may require me to read and acknowledge a new version.";
+}
+
+function hrPolicyEnsureSchema(PDO $db): void {
+    $db->exec("CREATE TABLE IF NOT EXISTS hr_policies (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        title VARCHAR(190) NOT NULL,
+        policy_type VARCHAR(30) NOT NULL DEFAULT 'company_policy',
+        current_version_id INT UNSIGNED NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'draft',
+        created_by INT UNSIGNED NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $db->exec("CREATE TABLE IF NOT EXISTS hr_policy_versions (
+        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        policy_id INT UNSIGNED NOT NULL,
+        version_number VARCHAR(30) NOT NULL,
+        title VARCHAR(190) NOT NULL,
+        created_date DATE NOT NULL,
+        effective_date DATE NOT NULL,
+        acknowledgement_deadline DATE NULL,
+        next_review VARCHAR(80) NULL,
+        file_path VARCHAR(500) NOT NULL,
+        original_filename VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(120) NOT NULL,
+        file_size BIGINT UNSIGNED NOT NULL,
+        document_hash CHAR(64) NOT NULL,
+        acknowledgement_required TINYINT(1) NOT NULL DEFAULT 0,
+        acknowledgement_text_version VARCHAR(30) NOT NULL DEFAULT '1.0',
+        changes_summary TEXT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'draft',
+        created_by INT UNSIGNED NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        published_by INT UNSIGNED NULL,
+        published_at DATETIME NULL,
+        published_by_name VARCHAR(190) NULL,
+        employees_assigned INT UNSIGNED NULL,
+        notifications_created INT UNSIGNED NULL,
+        superseded_at DATETIME NULL,
+        digital_html MEDIUMTEXT NULL,
+        digital_hash CHAR(64) NULL,
+        digital_generated_at DATETIME NULL,
+        UNIQUE KEY policy_version (policy_id, version_number),
+        KEY policy_status (policy_id, status),
+        KEY effective_date (effective_date)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $db->exec("CREATE TABLE IF NOT EXISTS hr_policy_acknowledgements (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        policy_id INT UNSIGNED NOT NULL,
+        version_id INT UNSIGNED NOT NULL,
+        employee_id INT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        legal_name VARCHAR(190) NULL,
+        opened_at DATETIME NULL,
+        last_opened_at DATETIME NULL,
+        reading_percent DECIMAL(5,2) NOT NULL DEFAULT 0,
+        reading_position INT UNSIGNED NOT NULL DEFAULT 0,
+        reached_end_at DATETIME NULL,
+        signed_at DATETIME NULL,
+        acknowledged_at DATETIME NULL,
+        acknowledgement_text MEDIUMTEXT NULL,
+        acknowledgement_text_version VARCHAR(30) NULL,
+        signature_method VARCHAR(20) NULL,
+        signature_data MEDIUMTEXT NULL,
+        document_hash CHAR(64) NULL,
+        evidence_metadata TEXT NULL,
+        acknowledgement_reference VARCHAR(80) NULL,
+        status VARCHAR(30) NOT NULL DEFAULT 'opened',
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY employee_version (employee_id, version_id),
+        UNIQUE KEY acknowledgement_reference (acknowledgement_reference),
+        KEY version_status (version_id, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $db->exec("CREATE TABLE IF NOT EXISTS hr_policy_audit (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        actor_user_id INT UNSIGNED NULL,
+        actor_employee_id INT UNSIGNED NULL,
+        policy_id INT UNSIGNED NULL,
+        version_id INT UNSIGNED NULL,
+        subject_employee_id INT UNSIGNED NULL,
+        action VARCHAR(80) NOT NULL,
+        details TEXT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY policy_event (policy_id, version_id, created_at),
+        KEY employee_event (subject_employee_id, created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $db->exec("CREATE TABLE IF NOT EXISTS hr_policy_notifications (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        version_id INT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        notification_id BIGINT UNSIGNED NULL,
+        delivered_at DATETIME NULL,
+        opened_at DATETIME NULL,
+        remind_after DATETIME NULL,
+        resolved_at DATETIME NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE KEY version_user (version_id, user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $db->exec("CREATE TABLE IF NOT EXISTS hr_policy_assignments (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
+        policy_id INT UNSIGNED NOT NULL,
+        version_id INT UNSIGNED NOT NULL,
+        employee_id INT UNSIGNED NOT NULL,
+        user_id INT UNSIGNED NOT NULL,
+        assigned_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        status VARCHAR(30) NOT NULL DEFAULT 'assigned',
+        UNIQUE KEY employee_version (employee_id, version_id),
+        KEY version_status (version_id, status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_html', 'MEDIUMTEXT NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_hash', 'CHAR(64) NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'digital_generated_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'published_by_name', 'VARCHAR(190) NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'employees_assigned', 'INT UNSIGNED NULL');
+    hrPolicyAddColumn($db, 'hr_policy_versions', 'notifications_created', 'INT UNSIGNED NULL');
+    hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'last_opened_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'reading_percent', 'DECIMAL(5,2) NOT NULL DEFAULT 0');
+    hrPolicyAddColumn($db, 'hr_policy_acknowledgements', 'reading_position', 'INT UNSIGNED NOT NULL DEFAULT 0');
+    hrPolicyAddColumn($db, 'hr_policy_notifications', 'delivered_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_notifications', 'opened_at', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_notifications', 'remind_after', 'DATETIME NULL');
+    hrPolicyAddColumn($db, 'hr_policy_notifications', 'resolved_at', 'DATETIME NULL');
+}
+
+function hrPolicyAddColumn(PDO $db, string $table, string $column, string $definition): void {
+    $q=$db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?");
+    $q->execute(array($table,$column));
+    if (!(int)$q->fetchColumn()) $db->exec("ALTER TABLE `{$table}` ADD COLUMN `{$column}` {$definition}");
+}
+
+function hrPolicyXmlText(DOMNode $node): string {
+    $value='';
+    foreach ($node->childNodes as $child) $value.=$child->nodeType===XML_TEXT_NODE ? $child->nodeValue : hrPolicyXmlText($child);
+    return trim(preg_replace('/\s+/u',' ',$value));
+}
+
+function hrPolicyDocxDigitalHtml(string $path): array {
+    if (!class_exists('ZipArchive') || !class_exists('DOMDocument')) throw new RuntimeException('The server cannot create the required digital policy viewer from this DOCX file.');
+    $zip=new ZipArchive();
+    if ($zip->open($path)!==true) throw new RuntimeException('The approved DOCX file could not be opened for digital conversion.');
+    $xml=$zip->getFromName('word/document.xml'); $zip->close();
+    if ($xml===false) throw new RuntimeException('The approved DOCX file has no readable document body.');
+    $dom=new DOMDocument();
+    if (!@$dom->loadXML($xml,LIBXML_NONET|LIBXML_COMPACT)) throw new RuntimeException('The approved DOCX body could not be parsed.');
+    $xp=new DOMXPath($dom); $xp->registerNamespace('w','http://schemas.openxmlformats.org/wordprocessingml/2006/main');
+    $body=$xp->query('//w:body')->item(0); $html=''; $toc=array(); $listOpen=false; $headingIndex=0;
+    foreach ($body->childNodes as $node) {
+        if ($node->localName==='p') {
+            $text=hrPolicyXmlText($node); if ($text==='') continue;
+            $styleNode=$xp->query('./w:pPr/w:pStyle',$node)->item(0); $style=$styleNode ? (string)$styleNode->getAttributeNS('http://schemas.openxmlformats.org/wordprocessingml/2006/main','val') : '';
+            $isList=stripos($style,'List')!==false;
+            if ($isList && !$listOpen) {$html.='<ul>'; $listOpen=true;}
+            if (!$isList && $listOpen) {$html.='</ul>'; $listOpen=false;}
+            $safe=htmlspecialchars($text,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
+            if (stripos($style,'Title')!==false) $html.='<h1 class="policy-document-title">'.$safe.'</h1>';
+            elseif (preg_match('/Heading\s*1|Heading1/i',$style)) { $headingIndex++; $id='policy-section-'.$headingIndex; $toc[]=array('id'=>$id,'text'=>$text); $html.='<h2 id="'.$id.'">'.$safe.'</h2>'; }
+            elseif (preg_match('/Heading\s*2|Heading2/i',$style)) $html.='<h3>'.$safe.'</h3>';
+            elseif ($isList) $html.='<li>'.$safe.'</li>';
+            elseif ($text==='HAMBELELA ORGANIC') $html.='<p class="policy-brand">'.$safe.'</p>';
+            else $html.='<p>'.$safe.'</p>';
+        } elseif ($node->localName==='tbl') {
+            if ($listOpen) {$html.='</ul>'; $listOpen=false;}
+            $html.='<div class="policy-digital-table"><table><tbody>';
+            foreach ($xp->query('./w:tr',$node) as $row) {
+                $html.='<tr>';
+                foreach ($xp->query('./w:tc',$row) as $cell) $html.='<td>'.htmlspecialchars(hrPolicyXmlText($cell),ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8').'</td>';
+                $html.='</tr>';
+            }
+            $html.='</tbody></table></div>';
+        }
+    }
+    if ($listOpen) $html.='</ul>';
+    if (!$toc || strlen(strip_tags($html))<1000) throw new RuntimeException('Digital policy conversion produced incomplete content. The draft was not saved.');
+    return array('html'=>$html,'toc'=>$toc,'hash'=>hash('sha256',$html));
+}
+
+function hrPolicyCsrf(): string {
+    if (empty($_SESSION['hr_policy_csrf'])) $_SESSION['hr_policy_csrf'] = bin2hex(random_bytes(24));
+    return $_SESSION['hr_policy_csrf'];
+}
+
+function hrPolicyVerifyCsrf(string $token): void {
+    if (!hash_equals(hrPolicyCsrf(), $token)) throw new RuntimeException('Your session token expired. Refresh the page and try again.');
+}
+
+function hrPolicyPrivateDir(): string {
+    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'policies';
+}
+
+function hrPolicyAuthorizedV1CorrectionTemplate(): string {
+    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'private' . DIRECTORY_SEPARATOR . 'policy-upgrades'
+        . DIRECTORY_SEPARATOR . 'Hambelela_Organic_Employee_Handbook_HR_Policy_v1.0.docx';
+}
+
+function hrPolicyApplyAuthorizedV1DraftCorrection(PDO $db, array $user): array {
+    $result=array('corrected'=>false,'previous_source_hash'=>null,'new_source_hash'=>null,'previous_digital_hash'=>null,'new_digital_hash'=>null);
+    if (($user['role']??'employee')==='employee') return $result;
+
+    $find=$db->prepare("SELECT v.*,p.policy_type FROM hr_policy_versions v JOIN hr_policies p ON p.id=v.policy_id
+        WHERE v.version_number='1.0' AND v.title='Employee Handbook & HR Policy'
+          AND v.status IN ('draft','ready_to_publish') AND v.effective_date='2026-09-01'
+          AND v.digital_html LIKE '%Pending owner approval%'
+        ORDER BY v.id DESC LIMIT 1");
+    $find->execute(); $version=$find->fetch(PDO::FETCH_ASSOC);
+    if (!$version) return $result;
+
+    $versionId=(int)$version['id']; $policyId=(int)$version['policy_id'];
+    $counts=$db->prepare("SELECT
+        (SELECT COUNT(*) FROM hr_policy_acknowledgements WHERE version_id=?) acknowledgements,
+        (SELECT COUNT(*) FROM hr_policy_assignments WHERE version_id=?) assignments,
+        (SELECT COUNT(*) FROM hr_policy_notifications WHERE version_id=?) notifications");
+    $counts->execute(array($versionId,$versionId,$versionId)); $usage=$counts->fetch(PDO::FETCH_ASSOC);
+    if ((int)$usage['acknowledgements']>0 || (int)$usage['assignments']>0 || (int)$usage['notifications']>0) {
+        throw new RuntimeException('Version 1.0 already has employee records and cannot be corrected in place.');
+    }
+
+    $template=hrPolicyAuthorizedV1CorrectionTemplate();
+    if (!is_file($template)) throw new RuntimeException('The approved corrected Version 1.0 source document is not available.');
+    $digital=hrPolicyDocxDigitalHtml($template);
+    $digitalPlain=html_entity_decode(strip_tags($digital['html']),ENT_QUOTES,'UTF-8');
+    if (stripos($digitalPlain,'Pending owner approval')!==false || stripos($digitalPlain,'1 September 2026')===false) {
+        throw new RuntimeException('The corrected Version 1.0 source document failed its effective-date validation.');
+    }
+
+    $current=hrPolicyPrivateDir().DIRECTORY_SEPARATOR.basename((string)$version['file_path']);
+    if (!is_file($current)) throw new RuntimeException('The current Version 1.0 source document could not be found.');
+    $previousSourceHash=hash_file('sha256',$current);
+    if (!hash_equals(strtolower((string)$version['document_hash']),strtolower($previousSourceHash))) {
+        throw new RuntimeException('The current Version 1.0 source file does not match its stored hash. No correction was applied.');
+    }
+    $newSourceHash=hash_file('sha256',$template);
+    $previousDigitalHash=(string)($version['digital_hash']??'');
+    $historyDir=hrPolicyPrivateDir().DIRECTORY_SEPARATOR.'draft-history';
+    if (!is_dir($historyDir) && !mkdir($historyDir,0750,true)) throw new RuntimeException('The policy draft history directory could not be created.');
+    $historyFile=$historyDir.DIRECTORY_SEPARATOR.'version-1.0-'.$previousSourceHash.'.docx';
+    if (!is_file($historyFile) && !copy($current,$historyFile)) throw new RuntimeException('The previous Version 1.0 draft could not be preserved.');
+    $pending=$current.'.metadata-fix-'.bin2hex(random_bytes(6));
+    if (!copy($template,$pending)) throw new RuntimeException('The corrected Version 1.0 source document could not be staged.');
+
+    $replaced=false;
+    try {
+        $db->beginTransaction();
+        $lock=$db->prepare("SELECT status,document_hash,digital_html FROM hr_policy_versions WHERE id=? FOR UPDATE");
+        $lock->execute(array($versionId)); $locked=$lock->fetch(PDO::FETCH_ASSOC);
+        if (!$locked || !in_array($locked['status'],array('draft','ready_to_publish'),true)
+            || stripos((string)$locked['digital_html'],'Pending owner approval')===false
+            || !hash_equals(strtolower((string)$locked['document_hash']),strtolower($previousSourceHash))) {
+            throw new RuntimeException('The Version 1.0 draft changed while the correction was being prepared. Refresh and review the policy.');
+        }
+        if (!copy($pending,$current)) throw new RuntimeException('The corrected Version 1.0 source document could not replace the current draft.');
+        $replaced=true;
+        $update=$db->prepare("UPDATE hr_policy_versions SET created_date='2026-08-11',effective_date='2026-09-01',
+            acknowledgement_deadline='2026-08-31',next_review='August 2027',acknowledgement_required=1,
+            file_size=?,document_hash=?,digital_html=?,digital_hash=?,digital_generated_at=NOW()
+            WHERE id=? AND status IN ('draft','ready_to_publish')");
+        $update->execute(array(filesize($current),$newSourceHash,$digital['html'],$digital['hash'],$versionId));
+        if ($update->rowCount()!==1) throw new RuntimeException('The Version 1.0 metadata correction could not be saved.');
+        $correctedBy=trim((string)($user['name']??$user['full_name']??$user['username']??$user['email']??'Owner/Admin'));
+        hrPolicyAudit($db,'version_1_0_draft_metadata_corrected',$policyId,$versionId,null,array(
+            'previous_effective_date'=>'Pending owner approval','new_effective_date'=>'1 September 2026',
+            'reason'=>'Owner approved Effective Date before publication.','corrected_by'=>$correctedBy,
+            'corrected_at'=>date('c'),
+            'previous_source_hash'=>$previousSourceHash,'new_source_hash'=>$newSourceHash,
+            'previous_digital_hash'=>$previousDigitalHash,'new_digital_hash'=>$digital['hash'],
+            'previous_draft_archive'=>basename($historyFile)
+        ));
+        $db->commit();
+    } catch (Throwable $error) {
+        if ($db->inTransaction()) $db->rollBack();
+        if ($replaced) @copy($historyFile,$current);
+        @unlink($pending);
+        throw $error;
+    }
+    @unlink($pending);
+    return array('corrected'=>true,'previous_source_hash'=>$previousSourceHash,'new_source_hash'=>$newSourceHash,
+        'previous_digital_hash'=>$previousDigitalHash,'new_digital_hash'=>$digital['hash']);
+}
+
+function hrPolicyAudit(PDO $db, string $action, ?int $policyId, ?int $versionId, ?int $employeeId, array $details = array()): void {
+    $u = currentUser();
+    $stmt = $db->prepare("INSERT INTO hr_policy_audit (actor_user_id,actor_employee_id,policy_id,version_id,subject_employee_id,action,details) VALUES (?,?,?,?,?,?,?)");
+    $stmt->execute(array($u ? (int)$u['id'] : null, $u && !empty($u['emp_id']) ? (int)$u['emp_id'] : null, $policyId, $versionId, $employeeId, $action, json_encode($details)));
+}
+
+function hrPolicyEmployeeId(array $user): int {
+    return !empty($user['emp_id']) ? (int)$user['emp_id'] : 0;
+}
+
+function hrPolicyLegalName(PDO $db, int $employeeId): string {
+    $s = $db->prepare("SELECT TRIM(CONCAT(first_name,' ',last_name)) FROM employees WHERE id=? LIMIT 1");
+    $s->execute(array($employeeId));
+    return trim((string)$s->fetchColumn());
+}
+
+function hrPolicyVersion(PDO $db, int $id): ?array {
+    $s=$db->prepare("SELECT v.*,p.policy_type,p.current_version_id FROM hr_policy_versions v JOIN hr_policies p ON p.id=v.policy_id WHERE v.id=?");
+    $s->execute(array($id)); $row=$s->fetch(PDO::FETCH_ASSOC); return $row ?: null;
+}
+
+function hrPolicyDisplayStatus(array $v): string {
+    if ($v['status']==='draft') return 'Draft';
+    if ($v['status']==='ready_to_publish') return 'Ready to Publish';
+    if ($v['status']==='superseded') return 'Superseded';
+    if ($v['status']==='archived') return 'Archived';
+    return date('Y-m-d') < $v['effective_date'] ? 'Published — Effective ' . date('j F Y', strtotime($v['effective_date'])) : 'Current — In Force';
+}
+
+function hrPolicyMetadataMismatches(array $v): array {
+    $issues=array(); $html=(string)($v['digital_html']??''); $plain=html_entity_decode(strip_tags($html),ENT_QUOTES,'UTF-8');
+    $effectiveLabel=date('j F Y',strtotime($v['effective_date']));
+    if (stripos($plain,'Effective Date Pending owner approval')!==false || stripos($plain,'Pending owner approval')!==false) {
+        $issues[]='Original rendered cover says “Effective Date: Pending owner approval”; portal metadata says “Effective Date: '.$effectiveLabel.'”.';
+    }
+    if (!preg_match('/Effective Date\s*'.preg_quote($effectiveLabel,'/').'/i',$plain)) $issues[]='Digital policy effective date does not match portal Effective Date '.$effectiveLabel.'.';
+    if ($v['version_number']==='' || stripos($plain,'Version '.$v['version_number'])===false) $issues[]='Digital policy version does not match portal Version '.$v['version_number'].'.';
+    if (empty($v['document_hash']) || !preg_match('/^[a-f0-9]{64}$/i',(string)$v['document_hash'])) $issues[]='Original source document hash is missing or invalid.';
+    if (empty($v['digital_hash']) || !preg_match('/^[a-f0-9]{64}$/i',(string)$v['digital_hash'])) $issues[]='Rendered digital document hash is missing or invalid.';
+    if (!empty($v['digital_hash']) && !hash_equals(strtolower((string)$v['digital_hash']),hash('sha256',$html))) $issues[]='Rendered digital document does not match its stored integrity hash.';
+    $sourcePath=hrPolicyPrivateDir().DIRECTORY_SEPARATOR.basename((string)($v['file_path']??''));
+    if (!is_file($sourcePath)) $issues[]='Original source document is unavailable.';
+    elseif (!empty($v['document_hash']) && !hash_equals(strtolower((string)$v['document_hash']),hash_file('sha256',$sourcePath))) $issues[]='Original source document does not match its stored integrity hash.';
+    if (!empty($v['acknowledgement_required']) && empty($v['acknowledgement_deadline'])) $issues[]='Acknowledgement is required but no deadline is set.';
+    return $issues;
+}
+
+function hrPolicyPopupForUser(PDO $db, int $userId): ?array {
+    if ($userId<=0) return null;
+    $s=$db->prepare("SELECT pn.id notification_requirement_id,pn.opened_at notification_opened_at,pn.remind_after,
+        v.id version_id,v.policy_id,v.version_number,v.title,v.effective_date,v.acknowledgement_deadline
+        FROM hr_policy_notifications pn JOIN hr_policy_versions v ON v.id=pn.version_id
+        LEFT JOIN hr_policy_acknowledgements a ON a.version_id=v.id AND a.user_id=pn.user_id
+        WHERE pn.user_id=? AND v.status='published' AND v.acknowledgement_required=1
+          AND pn.resolved_at IS NULL AND a.signed_at IS NULL
+          AND (pn.remind_after IS NULL OR pn.remind_after<=NOW())
+        ORDER BY v.acknowledgement_deadline ASC,pn.created_at ASC LIMIT 1");
+    $s->execute(array($userId));$row=$s->fetch(PDO::FETCH_ASSOC);
+    return $row?:null;
+}
+
+function hrPolicyPending(PDO $db, int $employeeId): array {
+    $s=$db->prepare("SELECT v.*,p.title AS policy_title,a.opened_at,a.signed_at
+      FROM hr_policy_versions v JOIN hr_policies p ON p.id=v.policy_id
+      LEFT JOIN hr_policy_acknowledgements a ON a.version_id=v.id AND a.employee_id=?
+      WHERE v.status='published' AND v.acknowledgement_required=1 AND a.signed_at IS NULL
+      ORDER BY v.acknowledgement_deadline IS NULL,v.acknowledgement_deadline,v.id");
+    $s->execute(array($employeeId)); return $s->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function hrPolicyAckStatus(array $version, ?array $ack): string {
+    if ($ack && !empty($ack['signed_at'])) return 'Signed & Acknowledged';
+    if (!empty($version['acknowledgement_deadline']) && date('Y-m-d') > $version['acknowledgement_deadline']) return 'Overdue — Acknowledgement Required';
+    if ($ack && !empty($ack['opened_at'])) return 'In Progress — Signature Pending';
+    return 'Not Opened';
+}

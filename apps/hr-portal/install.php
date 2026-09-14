@@ -58,6 +58,13 @@ $tables_sql = [
   `bank_account`      VARCHAR(50),
   `bank_branch`       VARCHAR(80),
   `tax_number`        VARCHAR(30),
+  `social_security_number` VARCHAR(50),
+  `medical_aid_fund`     VARCHAR(120),
+  `medical_aid_active`   TINYINT(1) NOT NULL DEFAULT 0,
+  `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 275.00,
+  `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 110.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+  `medical_aid_start_date` DATE NULL,
   `address`           TEXT,
   `emergency_name`    VARCHAR(120),
   `emergency_phone`   VARCHAR(30),
@@ -76,6 +83,21 @@ $tables_sql = [
   `used_days`     DECIMAL(5,1) DEFAULT 0.0,
   `year`          INT NOT NULL,
   UNIQUE KEY `emp_type_year` (`employee_id`, `leave_type`, `year`),
+  FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+'leave_accrual_ledger' => "CREATE TABLE IF NOT EXISTS `leave_accrual_ledger` (
+  `id`             INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `employee_id`    INT UNSIGNED NOT NULL,
+  `leave_type`     VARCHAR(50) NOT NULL DEFAULT 'Annual Leave',
+  `accrual_year`   INT NOT NULL,
+  `accrual_month`  TINYINT UNSIGNED NOT NULL,
+  `accrued_total`  DECIMAL(5,1) NOT NULL,
+  `source`         VARCHAR(40) NOT NULL,
+  `actor_user_id`  INT UNSIGNED NULL,
+  `applied_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `employee_type_period` (`employee_id`, `leave_type`, `accrual_year`, `accrual_month`),
+  KEY `accrual_period` (`accrual_year`, `accrual_month`),
   FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
@@ -148,12 +170,60 @@ $tables_sql = [
   `lwop_deduction`   DECIMAL(10,2) DEFAULT 0.00,
   `paye`             DECIMAL(10,2) DEFAULT 0.00,
   `ssf`              DECIMAL(10,2) DEFAULT 0.00,
+  `loan_deduction`   DECIMAL(10,2) DEFAULT 0.00,
+  `loan_disbursement` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_fund`     VARCHAR(120),
+  `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `other_deductions` DECIMAL(10,2) DEFAULT 0.00,
   `net_salary`       DECIMAL(10,2) NOT NULL,
   `pdf_path`         VARCHAR(255) NULL,
   `created_at`       TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`run_id`)      REFERENCES `payroll_runs`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
+
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+'medical_aid_payments' => "CREATE TABLE IF NOT EXISTS `medical_aid_payments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `period_month` TINYINT NOT NULL,
+  `period_year` INT NOT NULL,
+  `active_employee_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  `total_payable` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `company_contribution` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `employee_contribution` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `paid_status` TINYINT(1) NOT NULL DEFAULT 0,
+  `paid_date` DATETIME NULL,
+  `paid_by` INT UNSIGNED NULL,
+  `notes_reference` TEXT NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `month_year` (`period_month`, `period_year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+'medical_aid_memberships' => "CREATE TABLE IF NOT EXISTS `medical_aid_memberships` (
+  `employee_id` INT UNSIGNED NOT NULL PRIMARY KEY,
+  `medical_aid_fund` VARCHAR(120) NULL,
+  `medical_aid_active` TINYINT(1) NOT NULL DEFAULT 0,
+  `medical_aid_total` DECIMAL(10,2) NOT NULL DEFAULT 275.00,
+  `medical_aid_company` DECIMAL(10,2) NOT NULL DEFAULT 110.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+  `medical_aid_start_date` DATE NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
+
+'medical_aid_employee_payments' => "CREATE TABLE IF NOT EXISTS `medical_aid_employee_payments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `employee_id` INT UNSIGNED NOT NULL,
+  `period_month` TINYINT NOT NULL,
+  `period_year` INT NOT NULL,
+  `paid_status` TINYINT(1) NOT NULL DEFAULT 0,
+  `paid_date` DATE NULL,
+  `payment_reference` VARCHAR(190) NULL,
+  `notes` TEXT NULL,
+  `paid_by` INT UNSIGNED NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `employee_month_year` (`employee_id`,`period_month`,`period_year`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
 
 'documents' => "CREATE TABLE IF NOT EXISTS `documents` (
@@ -175,6 +245,7 @@ $tables_sql = [
   `issued_date`     DATE NOT NULL,
   `title`           VARCHAR(200) NOT NULL DEFAULT 'Employment Confirmation Letter',
   `body_html`       MEDIUMTEXT NOT NULL,
+  `responsibilities` TEXT NULL,
   `status`          ENUM('draft','published') NOT NULL DEFAULT 'draft',
   `download_count`  TINYINT UNSIGNED NOT NULL DEFAULT 0,
   `download_limit`  TINYINT UNSIGNED NOT NULL DEFAULT 2,
@@ -200,6 +271,7 @@ $tables_sql = [
   `title`       VARCHAR(200) NOT NULL,
   `message`     TEXT,
   `type`        ENUM('info','success','warning','error') DEFAULT 'info',
+  `action_url`  VARCHAR(255) NULL,
   `is_read`     TINYINT(1) DEFAULT 0,
   `created_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4",
@@ -235,6 +307,15 @@ $defaults = [
     ['company_email','victoriatoivo@gmail.com'],
     ['company_vat',''],
     ['company_bank',''],
+    ['letter_company_legal_name','Neaco Trading CC'],
+    ['letter_company_trading_name','Hambelela Organic'],
+    ['letter_company_reg','cc/2023/03878'],
+    ['letter_physical_address','Office 3, floor one, Lazarette house, Erf 7173, corner of Julius Nyerere Street and John Muundjua Street, Ausspannplatz, Windhoek, Namibia'],
+    ['letter_email','info@hambelelaorganic.com'],
+    ['letter_phone','0856628598'],
+    ['letter_website','www.hambelelaorganic.com'],
+    ['letter_signatory_name','Ms. Victoria Toivo'],
+    ['letter_default_responsibilities','packaging products, packing customer orders, preparing orders for courier, delivery or collection, handling inventory with care, maintaining dispatch records, and ensuring a clean and organised workspace'],
     ['payroll_month','March 2025'],
     ['payroll_run_day','25'],
     ['ssf_rate','0.9'],
@@ -251,8 +332,13 @@ $stmt = $pdo->prepare("INSERT IGNORE INTO `settings` (`setting_key`,`setting_val
 foreach ($defaults as $row) $stmt->execute($row);
 $messages[] = 'Default settings inserted';
 
-// Insert default admin — password: Admin@Hambelela2025
-$pw = password_hash('Admin@Hambelela2025', PASSWORD_BCRYPT);
+// Insert the initial administrator using an environment-provided secret.
+$initialAdminPassword = (string) getenv('HR_INITIAL_ADMIN_PASSWORD');
+if (strlen($initialAdminPassword) < 12) {
+    $errors[] = 'Set HR_INITIAL_ADMIN_PASSWORD to a unique value of at least 12 characters before installing.';
+    goto output;
+}
+$pw = password_hash($initialAdminPassword, PASSWORD_DEFAULT);
 $stmt = $pdo->prepare("INSERT IGNORE INTO `users` (`name`,`email`,`password`,`role`) VALUES (?,?,?,?)");
 $stmt->execute(['Victoria Oaingome','victoria@hambelelaorganic.com',$pw,'admin']);
 $messages[] = 'Admin account ready';
@@ -291,9 +377,7 @@ $success = empty($errors);
   <?php if($success): ?>
   <div class="done">
     <strong>Installation complete!</strong><br><br>
-    Login details:<br>
-    Email: <code>victoria@hambelelaorganic.com</code><br>
-    Password: <code>Admin@Hambelela2025</code><br><br>
+    The administrator account was created using the password supplied through the secure installation environment.<br><br>
     <strong>Delete <code>install.php</code> and <code>install.sql</code> after logging in.</strong>
   </div>
   <a href="index.php" class="btn">Go to HR Portal</a>

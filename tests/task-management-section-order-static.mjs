@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+
+const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
+const page = read('apps/operations/checklists.php');
+const table = read('apps/operations/partials/checklist-task-table.php');
+const css = read('assets/css/portal.css');
+
+assert.match(page, /\$_GET\['task_view'\] \?\? 'active'/, 'The default view must be the combined active task page.');
+assert.match(page, /'manual' => \['title' => 'Manual Tasks'/, 'Tasks view must retain the manual task section.');
+assert.match(page, /'recurring' => \['title' => 'Recurring Tasks',[^\n]*\$recurringTasks/, 'Released recurring occurrences must appear on the active Tasks page.');
+assert.match(page, /'floating' => 'Floating Tasks', 'recurring' => 'Recurring Tasks', 'completed' => 'Completed Tasks'/, 'Recurring Tasks must be a dedicated owner tab before Completed Tasks.');
+assert.match(page, /\['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'\]/, 'Employee navigation must not expose recurrence management.');
+assert.match(page, /data-task-create-kind="manual"/, 'The main New Task button must default to manual.');
+assert.match(page, /data-task-create-kind="recurring"/, 'Recurring creation must remain available from the recurring view.');
+assert.match(page, /allowedRecurringRules/, 'The backend must validate submitted recurrence rules.');
+assert.match(page, /assigned_employee_id = \?/, 'The authenticated employee scope must remain server-side.');
+assert.match(page, /include __DIR__ \. '\/partials\/checklist-recurring-tasks\.php'/, 'Recurring definitions must use their dedicated renderer.');
+assert.match(table, /foreach \(\$displayTasks as \$task\)/, 'The shared renderer must receive an already scoped dataset.');
+assert.match(css, /\.task-management-page \{ display: grid;[^}]*gap: 18px;/, 'The shared section layout must be styled.');
+assert.match(css, /@media \(max-width: 760px\)[\s\S]*\.task-management-page \{ gap: 12px;/, 'The section layout must remain responsive.');
+
+console.log('Task Management section order static checks passed.');

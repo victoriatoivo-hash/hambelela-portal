@@ -24,6 +24,15 @@ INSERT IGNORE INTO `settings` (`setting_key`, `setting_val`) VALUES
   ('company_email',   'victoriatoivo@gmail.com'),
   ('company_vat',     ''),
   ('company_bank',    ''),
+  ('letter_company_legal_name', 'Neaco Trading CC'),
+  ('letter_company_trading_name', 'Hambelela Organic'),
+  ('letter_company_reg', 'cc/2023/03878'),
+  ('letter_physical_address', 'Office 3, floor one, Lazarette house, Erf 7173, corner of Julius Nyerere Street and John Muundjua Street, Ausspannplatz, Windhoek, Namibia'),
+  ('letter_email', 'info@hambelelaorganic.com'),
+  ('letter_phone', '0856628598'),
+  ('letter_website', 'www.hambelelaorganic.com'),
+  ('letter_signatory_name', 'Ms. Victoria Toivo'),
+  ('letter_default_responsibilities', 'packaging products, packing customer orders, preparing orders for courier, delivery or collection, handling inventory with care, maintaining dispatch records, and ensuring a clean and organised workspace'),
   ('payroll_month',   'March 2025'),
   ('payroll_run_day', '25'),
   ('ssf_rate',        '0.9'),
@@ -67,6 +76,13 @@ CREATE TABLE IF NOT EXISTS `employees` (
   `bank_account`      VARCHAR(50),
   `bank_branch`       VARCHAR(80),
   `tax_number`        VARCHAR(30),
+  `social_security_number` VARCHAR(50),
+  `medical_aid_fund`     VARCHAR(120),
+  `medical_aid_active`   TINYINT(1) NOT NULL DEFAULT 0,
+  `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 275.00,
+  `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 110.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+  `medical_aid_start_date` DATE NULL,
   `address`           TEXT,
   `emergency_name`    VARCHAR(120),
   `emergency_phone`   VARCHAR(30),
@@ -163,6 +179,12 @@ CREATE TABLE IF NOT EXISTS `payslips` (
   `lwop_deduction`  DECIMAL(10,2) DEFAULT 0.00,
   `paye`            DECIMAL(10,2) DEFAULT 0.00,
   `ssf`             DECIMAL(10,2) DEFAULT 0.00,
+  `loan_deduction`  DECIMAL(10,2) DEFAULT 0.00,
+  `loan_disbursement` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_fund`     VARCHAR(120),
+  `medical_aid_total`    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_company`  DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `other_deductions`DECIMAL(10,2) DEFAULT 0.00,
   `net_salary`      DECIMAL(10,2) NOT NULL,
   `pdf_path`        VARCHAR(255) NULL,
@@ -172,6 +194,47 @@ CREATE TABLE IF NOT EXISTS `payslips` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Documents ────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS `medical_aid_payments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `period_month` TINYINT NOT NULL,
+  `period_year` INT NOT NULL,
+  `active_employee_count` INT UNSIGNED NOT NULL DEFAULT 0,
+  `total_payable` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `company_contribution` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `employee_contribution` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `paid_status` TINYINT(1) NOT NULL DEFAULT 0,
+  `paid_date` DATETIME NULL,
+  `paid_by` INT UNSIGNED NULL,
+  `notes_reference` TEXT NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `month_year` (`period_month`, `period_year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `medical_aid_memberships` (
+  `employee_id` INT UNSIGNED NOT NULL PRIMARY KEY,
+  `medical_aid_fund` VARCHAR(120) NULL,
+  `medical_aid_active` TINYINT(1) NOT NULL DEFAULT 0,
+  `medical_aid_total` DECIMAL(10,2) NOT NULL DEFAULT 275.00,
+  `medical_aid_company` DECIMAL(10,2) NOT NULL DEFAULT 110.00,
+  `medical_aid_employee` DECIMAL(10,2) NOT NULL DEFAULT 165.00,
+  `medical_aid_start_date` DATE NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `medical_aid_employee_payments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `employee_id` INT UNSIGNED NOT NULL,
+  `period_month` TINYINT NOT NULL,
+  `period_year` INT NOT NULL,
+  `paid_status` TINYINT(1) NOT NULL DEFAULT 0,
+  `paid_date` DATE NULL,
+  `payment_reference` VARCHAR(190) NULL,
+  `notes` TEXT NULL,
+  `paid_by` INT UNSIGNED NULL,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `employee_month_year` (`employee_id`,`period_month`,`period_year`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE IF NOT EXISTS `documents` (
   `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
   `employee_id`   INT UNSIGNED NULL,
@@ -191,6 +254,7 @@ CREATE TABLE IF NOT EXISTS `employment_letters` (
   `issued_date`     DATE NOT NULL,
   `title`           VARCHAR(200) NOT NULL DEFAULT 'Employment Confirmation Letter',
   `body_html`       MEDIUMTEXT NOT NULL,
+  `responsibilities` TEXT NULL,
   `status`          ENUM('draft','published') NOT NULL DEFAULT 'draft',
   `download_count`  TINYINT UNSIGNED NOT NULL DEFAULT 0,
   `download_limit`  TINYINT UNSIGNED NOT NULL DEFAULT 2,
@@ -218,6 +282,7 @@ CREATE TABLE IF NOT EXISTS `notifications` (
   `title`       VARCHAR(200) NOT NULL,
   `message`     TEXT,
   `type`        ENUM('info','success','warning','error') DEFAULT 'info',
+  `action_url`  VARCHAR(255) NULL,
   `is_read`     TINYINT(1) DEFAULT 0,
   `created_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`user_id`) REFERENCES `users`(`id`) ON DELETE CASCADE
@@ -233,13 +298,96 @@ CREATE TABLE IF NOT EXISTS `audit_log` (
   `created_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- ── Employee Loans & Agreements ──────────────────────────────
+CREATE TABLE IF NOT EXISTS `loans` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `employee_id` INT UNSIGNED NOT NULL,
+  `amount` DECIMAL(10,2) NOT NULL,
+  `balance` DECIMAL(10,2) NOT NULL,
+  `repayment_amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `repayment_method` ENUM('salary_deduction','cash','other') DEFAULT 'salary_deduction',
+  `loan_date` DATE NOT NULL,
+  `notes` TEXT,
+  `status` ENUM('active','settled') DEFAULT 'active',
+  `created_by` INT UNSIGNED NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_repayments` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `loan_id` INT UNSIGNED NOT NULL,
+  `amount` DECIMAL(10,2) NOT NULL,
+  `notes` TEXT,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_agreements` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `loan_id` INT UNSIGNED NOT NULL,
+  `version_no` INT UNSIGNED NOT NULL DEFAULT 1,
+  `status` VARCHAR(40) NOT NULL DEFAULT 'draft',
+  `agreement_date` DATE NOT NULL,
+  `first_deduction_date` DATE NULL,
+  `deduction_day` TINYINT UNSIGNED NULL,
+  `instalment_amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `number_of_instalments` INT UNSIGNED NOT NULL DEFAULT 0,
+  `final_instalment_amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `purpose` TEXT NULL,
+  `repayment_method` VARCHAR(40) NOT NULL DEFAULT 'salary_deduction',
+  `legal_notes` TEXT NULL,
+  `snapshot_json` MEDIUMTEXT NULL,
+  `document_hash` CHAR(64) NULL,
+  `sent_at` DATETIME NULL,
+  `employee_signed_at` DATETIME NULL,
+  `owner_signed_at` DATETIME NULL,
+  `fully_signed_at` DATETIME NULL,
+  `created_by` INT UNSIGNED NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY `loan_agreement_version` (`loan_id`,`version_no`),
+  KEY `loan_agreement_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_agreement_signatures` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agreement_id` INT UNSIGNED NOT NULL,
+  `signer_role` VARCHAR(20) NOT NULL,
+  `signer_user_id` INT UNSIGNED NULL,
+  `signer_name` VARCHAR(180) NOT NULL,
+  `signature_data` MEDIUMTEXT NOT NULL,
+  `document_hash` CHAR(64) NOT NULL,
+  `ip_address` VARCHAR(64) NULL,
+  `user_agent` VARCHAR(255) NULL,
+  `signed_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY `agreement_signer` (`agreement_id`,`signer_role`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_repayment_schedule` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agreement_id` INT UNSIGNED NOT NULL,
+  `instalment_no` INT UNSIGNED NOT NULL,
+  `due_date` DATE NOT NULL,
+  `amount` DECIMAL(10,2) NOT NULL,
+  `status` VARCHAR(24) NOT NULL DEFAULT 'scheduled',
+  `paid_amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+  `paid_at` DATETIME NULL,
+  UNIQUE KEY `agreement_instalment` (`agreement_id`,`instalment_no`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `loan_agreement_events` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `agreement_id` INT UNSIGNED NOT NULL,
+  `loan_id` INT UNSIGNED NOT NULL,
+  `event_type` VARCHAR(60) NOT NULL,
+  `actor_user_id` INT UNSIGNED NULL,
+  `actor_role` VARCHAR(30) NULL,
+  `metadata_json` TEXT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY `loan_agreement_event` (`agreement_id`,`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ── Default Admin User ───────────────────────────────────────
--- Password: Admin@Hambelela2025 (change after first login)
-INSERT IGNORE INTO `users` (`name`, `email`, `password`, `role`) VALUES (
-  'Victoria Oaingome',
-  'victoria@hambelelaorganic.com',
-  '$2y$12$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uXTMlF7Im',
-  'admin'
-);
+-- The initial administrator password must be supplied outside source control.
+-- Administrator creation is intentionally omitted from this SQL file.

@@ -1,0 +1,34 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+
+const errors=fs.readFileSync('apps/operations/errors.php','utf8');
+const css=fs.readFileSync('assets/css/portal.css','utf8');
+const quality=fs.readFileSync('apps/operations/kpi-error-quality.php','utf8');
+const reporting=fs.readFileSync('apps/operations/reports-section-data.php','utf8');
+const migration=fs.readFileSync('operations-error-attribution-financial-impact-migration.sql','utf8');
+
+assert.match(errors,/WHO IS THIS ERROR BEING LOGGED FOR\?/);
+assert.match(errors,/name="error_attribution" value="employee:/);
+assert.doesNotMatch(errors,/<input[^>]+name="error_attribution"[^>]*\schecked(?:\s|>)/);
+assert.match(errors,/value="delivery_driver"/);
+assert.match(errors,/value="business"/);
+assert.match(errors,/name="attribution_type"/);
+assert.match(errors,/name="attributed_employee_id"/);
+assert.match(errors,/Please select who this error is being logged for\./);
+assert.match(errors,/DOES THIS ERROR HAVE A FINANCIAL IMPACT\?/);
+assert.match(errors,/name="has_financial_impact" value="0" required/);
+assert.match(errors,/name="has_financial_impact" value="1"/);
+assert.match(errors,/financial_impact_amount/);
+assert.match(errors,/Enter the financial impact amount\./);
+assert.match(errors,/error_attribution_corrected/);
+assert.match(errors,/previous_financial_amount/);
+assert.match(errors,/Not historically captured/);
+assert.match(errors,/Only an owner\/admin may correct error attribution/);
+assert.match(css,/#logErrorForm \.error-attribution-option\[data-attribution-type="delivery_driver"\]/);
+assert.match(css,/#logErrorForm \.error-attribution-option\[data-attribution-type="business"\]/);
+assert.match(quality,/\$isEmployeeAttribution/);
+assert.match(reporting,/Delivery Driver errors/);
+assert.match(reporting,/Business errors/);
+for(const field of ['attribution_type','attributed_employee_id','original_attribution_type','logged_by_user_id','has_financial_impact','financial_impact_notes'])assert.match(migration,new RegExp(`\\b${field}\\b`));
+assert.doesNotMatch(migration,/SET has_financial_impact=0/);
+console.log('Error attribution and financial-impact safeguards passed.');

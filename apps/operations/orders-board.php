@@ -13,36 +13,56 @@ $hasAvailability = $ready && ops_table_exists('ops_employee_availability');
 $defaultBoardDate = date('Y-m-d');
 $isAdminBoard = user_has_role('owner_admin', 'supervisor_manager');
 $canBulkAssign = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-$canEditHeaders = user_has_role('owner_admin');
+$canOpenOrdersTools = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+$canEditHeaders = current_role_key() !== 'guest';
+$ordersCsrfToken = (string) ($_SESSION['orders_csrf_token'] ?? '');
+if ($ordersCsrfToken === '') { $ordersCsrfToken = bin2hex(random_bytes(32)); $_SESSION['orders_csrf_token'] = $ordersCsrfToken; }
 $boardAssetVersion = is_file(BASE_PATH . '/assets/js/orders-board.js')
-    ? (string) filemtime(BASE_PATH . '/assets/js/orders-board.js') . '-bulk-actions-clean2'
+    ? (string) filemtime(BASE_PATH . '/assets/js/orders-board.js') . '-orders-rebuild'
     : (string) time();
+$ordersStylesVersion = is_file(BASE_PATH . '/assets/css/orders-board.css')
+    ? (string) filemtime(BASE_PATH . '/assets/css/orders-board.css')
+    : (string) time();
+$extraStylesheets = [
+    ['path' => 'assets/css/portal-column-resize.css', 'version' => is_file(BASE_PATH . '/assets/css/portal-column-resize.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-column-resize.css') : (string) time()],
+    ['path' => 'assets/css/orders-board.css', 'version' => $ordersStylesVersion],
+];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module ops-board-page" data-board-theme="light">
-    <section class="monday-board-top">
-        <div class="monday-board-head work-board-head">
+<style>
+.workspace.module.orders-page .orders-summary-label {
+    margin-bottom: 4px;
+    color: #A08070;
+    font-size: 10px;
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+</style>
+<main class="workspace module ops-board-page portal-page orders-page" data-board-theme="light">
+    <section class="monday-board-top orders-page-top">
+        <header class="monday-board-head work-board-head portal-page-header orders-page-header">
             <div>
-                <h1>My Work <i data-lucide="chevron-down"></i></h1>
-                <p class="work-board-subtitle">Assigned orders, packing status and live website order flow.</p>
+                <h1 style="color: #721B1A;">Hambelela Orders <i data-lucide="chevron-down"></i></h1>
             </div>
-            <div class="monday-board-head-actions">
-                <div class="board-viewers" id="board-viewers" aria-label="Currently viewing"></div>
-                <button type="button" class="invite-btn" data-export-excel><i data-lucide="download"></i> Export Excel</button>
-                <button type="button" data-undo-board disabled><i data-lucide="undo-2"></i> Undo</button>
-                <button type="button" data-theme-toggle><i data-lucide="moon"></i></button>
+            <div class="monday-board-head-actions orders-header-actions" data-portal-header-status-target>
+                <?php if ($canOpenOrdersTools): ?>
+                <button type="button" class="orders-tools-trigger" data-orders-tools-open><i data-lucide="wrench"></i><span>Orders tools</span></button>
+                <?php endif; ?>
+                <button type="button" class="invite-btn packing-btn packing-btn-secondary orders-export-button" data-export-excel><i data-lucide="download"></i> Export Excel</button>
+                <span class="board-state" id="board-sync-state" aria-live="polite"></span>
             </div>
-        </div>
+        </header>
 
-        <section class="work-metric-grid <?= $isAdminBoard ? 'admin-metrics' : '' ?>" aria-label="Work summary">
+        <section class="work-metric-grid portal-stat-grid orders-stat-grid <?= $isAdminBoard ? 'admin-metrics' : '' ?>" aria-label="Work summary">
             <?php if ($isAdminBoard): ?>
                 <article class="work-metric-card metric-blue"><span class="metric-icon"><i data-lucide="shopping-bag"></i></span><div><span class="metric-title">Total Orders</span><strong data-work-metric="total_orders">0</strong><small>All time</small></div></article>
                 <article class="work-metric-card metric-slate"><span class="metric-icon"><i data-lucide="file-plus-2"></i></span><div><span class="metric-title">New Orders</span><strong data-work-metric="new_today">0</strong><small>Today</small></div></article>
                 <article class="work-metric-card metric-orange"><span class="metric-icon"><i data-lucide="clock-3"></i></span><div><span class="metric-title">In Progress</span><strong data-work-metric="in_progress_today">0</strong><small>Today</small></div></article>
                 <article class="work-metric-card metric-green"><span class="metric-icon"><i data-lucide="circle-check"></i></span><div><span class="metric-title">Completed</span><strong data-work-metric="completed_all">0</strong><small>All time</small></div></article>
-                <article class="work-metric-card metric-purple"><span class="metric-icon"><i data-lucide="badge-dollar-sign"></i></span><div><span class="metric-title">Total Revenue</span><strong data-work-metric="total_revenue">N$0</strong><small>Visible paid Woo total</small></div></article>
                 <article class="work-metric-card metric-pink"><span class="metric-icon"><i data-lucide="user-round-x"></i></span><div><span class="metric-title">Unassigned</span><strong data-work-metric="unassigned_orders">0</strong><small>Orders</small></div></article>
                 <article class="work-metric-card metric-red"><span class="metric-icon"><i data-lucide="triangle-alert"></i></span><div><span class="metric-title">Overdue</span><strong data-work-metric="overdue_orders">0</strong><small>Orders</small></div></article>
             <?php else: ?>
@@ -54,56 +74,66 @@ include BASE_PATH . '/shared/sidebar.php';
             <?php endif; ?>
         </section>
 
-        <section class="work-filter-bar" aria-label="Board filters">
+        <section class="ob-video-toolbar orders-tools-bar portal-filter-toolbar portal-table-toolbar" data-filter-toolbar aria-label="Orders tools">
+            <div class="portal-filter-toolbar__controls portal-table-toolbar__controls">
+                <div class="portal-view-bar__search portal-toolbar-search" data-view-search>
+                    <button type="button" class="portal-view-bar__button portal-toolbar-action portal-toolbar-search__trigger" data-search-trigger data-toolbar-action="search" aria-label="Open search" aria-expanded="false"><i data-lucide="search"></i><span>Search</span></button>
+                    <input class="portal-toolbar-search__input" data-board-search type="search" placeholder="Search orders..." aria-label="Search orders">
+                    <button type="button" class="portal-toolbar-search__clear" data-search-clear aria-label="Clear search"><i data-lucide="x"></i></button>
+                </div>
+                <button type="button" class="portal-toolbar-action" data-toolbar="person" data-toolbar-action="person" aria-expanded="false"><i data-lucide="circle-user-round"></i> Person</button>
+                <button type="button" class="portal-toolbar-action" data-toolbar="filter" data-toolbar-action="filter" aria-expanded="false"><i data-lucide="filter"></i> Filter</button>
+                <button type="button" class="portal-toolbar-action" data-toolbar="sort" data-toolbar-action="sort" aria-expanded="false"><i data-lucide="arrow-up-down"></i> Sort</button>
+                <button type="button" class="portal-toolbar-action" data-toolbar="group" data-toolbar-action="group" aria-expanded="false"><i data-lucide="columns-3"></i> Group by</button>
+                <button type="button" class="ob-new-task portal-toolbar-action orders-toolbar__sync" data-board-action="sync" data-toolbar-action="sync" data-orders-sync aria-label="Sync orders" aria-busy="false"><i class="orders-toolbar__sync-icon" data-lucide="refresh-cw" aria-hidden="true"></i><span>Sync</span></button>
+            </div>
+            <button type="button" class="portal-toolbar-action portal-toolbar-action--more" data-toolbar="more" data-toolbar-action="tools" aria-label="More tools" aria-expanded="false"><i data-lucide="ellipsis"></i></button>
+        </section>
+
+        <div class="orders-filter-panel" aria-label="Board filters" hidden>
             <label>Date Range
-                <div class="date-filter-row">
-                    <input id="board-date-filter" type="date" value="<?= htmlspecialchars($defaultBoardDate, ENT_QUOTES, 'UTF-8') ?>">
-                    <button type="button" data-date-all>All dates</button>
+                <div class="orders-filter-select" data-orders-filter-select="datePreset">
+                    <input id="board-date-preset" type="hidden" value="today">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>Today</span><i data-lucide="chevron-down"></i></button>
                 </div>
             </label>
+            <label class="orders-custom-date-field" data-orders-custom-date-field hidden>Date From
+                <input id="board-date-from" type="date" value="<?= htmlspecialchars($defaultBoardDate, ENT_QUOTES, 'UTF-8') ?>">
+            </label>
+            <label class="orders-custom-date-field" data-orders-custom-date-field hidden>Date To
+                <input id="board-date-to" type="date" value="<?= htmlspecialchars($defaultBoardDate, ENT_QUOTES, 'UTF-8') ?>">
+            </label>
+            <p class="orders-date-filter-error" data-orders-date-filter-error role="alert" hidden></p>
             <label>Status
-                <select data-board-filter="status">
-                    <option value="">All</option>
-                    <option value="new_order">New Order</option>
-                    <option value="in_progress">In Progress</option>
-                    <option value="completed">Complete</option>
-                </select>
+                <div class="orders-filter-select" data-orders-filter-select="status">
+                    <input type="hidden" data-board-filter="status" value="">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>All statuses</span><i data-lucide="chevron-down"></i></button>
+                </div>
             </label>
             <label>Mode
-                <select data-board-filter="mode">
-                    <option value="">All</option>
-                    <option value="collection">Collection</option>
-                    <option value="delivery">Delivery</option>
-                    <option value="courier">Courier</option>
-                </select>
+                <div class="orders-filter-select" data-orders-filter-select="mode">
+                    <input type="hidden" data-board-filter="mode" value="">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>All modes</span><i data-lucide="chevron-down"></i></button>
+                </div>
             </label>
             <label>Payment
-                <select data-board-filter="payment">
-                    <option value="">All</option>
-                    <option value="Cash">Cash</option>
-                    <option value="EFT">EFT</option>
-                    <option value="Ewallet">Ewallet</option>
-                    <option value="Bluewallet">Bluewallet</option>
-                    <option value="Swipe">Swipe</option>
-                </select>
+                <div class="orders-filter-select" data-orders-filter-select="payment">
+                    <input type="hidden" data-board-filter="payment" value="">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>All payments</span><i data-lucide="chevron-down"></i></button>
+                </div>
             </label>
             <label>Group By
-                <select data-board-group-select>
-                    <option value="date">Date</option>
-                    <option value="status">Status</option>
-                    <option value="packer">Picked by</option>
-                    <option value="mode">Mode</option>
-                </select>
-            </label>
-            <label class="work-search">Search Orders
-                <input data-board-search type="search" placeholder="Search orders...">
+                <div class="orders-filter-select" data-orders-filter-select="group">
+                    <input type="hidden" data-board-group-select value="date">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>Date</span><i data-lucide="chevron-down"></i></button>
+                </div>
             </label>
             <div class="work-filter-actions">
-                <button type="button" data-clear-board-filters><i data-lucide="rotate-ccw"></i> Clear Filters</button>
+                <button type="button" data-clear-board-filters><i data-lucide="refresh-cw"></i> Clear Filters</button>
                 <button type="button" data-board-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
-                <button type="button" data-toolbar="more"><i data-lucide="sliders-horizontal"></i> More Filters</button>
             </div>
-        </section>
+            <div class="orders-active-filter-chips" data-orders-active-filter-chips hidden></div>
+        </div>
     </section>
 
     <?php if (!$ready): ?>
@@ -112,90 +142,122 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ops-alert">Import <code>operations-live-board-migration.sql</code> in phpMyAdmin first. This adds packer lunch/availability tracking.</section>
     <?php endif; ?>
 
-    <section class="monday-control-strip">
-        <div class="board-day-control">
-            <i data-lucide="calendar-days"></i>
-            <button type="button" id="board-group-label" data-toolbar="group">Grouped by date</button>
-        </div>
-        <div class="availability-switch-wrap">
-            <span>Available</span>
-            <button class="availability-switch is-available" type="button" data-availability-toggle aria-pressed="true">
-                <span></span>
-            </button>
-            <span>Lunch</span>
-        </div>
-        <div class="board-state" id="board-sync-state">Live</div>
-        <div class="board-quick-actions"></div>
-    </section>
-
-    <section class="ops-board-shell">
-        <div class="ops-board-scroll">
-            <table class="ops-board-table">
-                <thead>
-                    <tr>
-                        <th class="check-cell"><input type="checkbox" data-select-all-orders aria-label="Select all visible orders"></th>
-                        <th class="comment-cell"></th>
-                        <th data-column-key="task" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TASK</th>
-                        <th data-column-key="date" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE</th>
-                        <th data-column-key="mode" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>MODE</th>
-                        <th data-column-key="mobile" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>MOBILE NUMBER</th>
-                        <th data-column-key="amount" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>AMOUNT</th>
-                        <th data-column-key="payment" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAYMENT</th>
-                        <th data-column-key="paid" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PAID</th>
-                        <th data-column-key="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
-                        <th data-column-key="packer" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PICKED BY</th>
-                        <th data-column-key="text" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>TEXT</th>
-                        <th class="add-column-cell"><button type="button" data-add-column>+</button></th>
-                    </tr>
-                </thead>
-                <tbody id="orders-board-body"><tr><td colspan="13">Loading orders...</td></tr></tbody>
-            </table>
+    <section class="orders-date-groups">
+        <div class="ops-board-scroll orders-grid-scroll">
+            <div class="ops-board-table monday-board orders-board-v2 orders-grid-root" id="orders-board-body" data-orders-board data-board-key="orders">
+                <div class="orders-loading-state" role="status" aria-live="polite">
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v6h-6"/></svg>
+                    <strong>Loading orders...</strong>
+                    <span>Getting the latest Orders Board data.</span>
+                </div>
+            </div>
         </div>
     </section>
 
     <div class="label-menu" id="board-label-menu" hidden></div>
     <div class="toolbar-popover" id="toolbar-popover" hidden></div>
-    <aside class="order-updates-panel" id="order-updates-panel" aria-hidden="true">
-        <div class="updates-panel-head">
-            <button type="button" data-panel-close><i data-lucide="x"></i></button>
-            <h2 id="panel-order-title">Order</h2>
-            <span class="avatar-dot">SS</span>
-            <button type="button"><i data-lucide="ellipsis"></i></button>
-        </div>
-        <nav class="updates-tabs">
-            <button class="active" type="button" data-panel-tab="updates"><i data-lucide="home"></i> Updates / 1</button>
-            <button type="button" data-panel-tab="files">Files</button>
-            <button type="button" data-panel-tab="activity">Activity Log</button>
-            <button type="button">+</button>
-        </nav>
-        <section class="updates-tab-panel active" data-panel-name="updates">
-            <div class="update-composer">
-                <textarea id="panel-notes" placeholder="Write an update and mention others with @"></textarea>
-                <div><span>@</span><span>GIF</span><span>Smile</span><button type="button" data-save-notes>Update</button></div>
+    <div class="orders-filter-menu" id="orders-filter-menu" role="listbox" hidden></div>
+    <div class="orders-more-backdrop" data-orders-more-backdrop hidden></div>
+    <aside class="orders-more-panel" data-orders-more-panel aria-hidden="true" aria-labelledby="orders-more-title">
+        <header class="orders-more-header">
+            <div>
+                <span>ORDERS</span>
+                <h2 id="orders-more-title">More filters</h2>
+                <p>Refine the Orders Board with additional operational filters.</p>
             </div>
-            <article class="update-card">
-                <div><span class="avatar-dot">SS</span><strong>Hambelela Operations</strong><small>now</small></div>
-                <p id="panel-note-preview">No updates yet.</p>
-                <footer><button type="button"><i data-lucide="thumbs-up"></i> Like</button><button type="button"><i data-lucide="reply"></i> Reply</button></footer>
-            </article>
-        </section>
-        <section class="updates-tab-panel" data-panel-name="files">
-            <label class="file-drop">Upload file, proof of payment, delivery note or packing photo<input type="file"></label>
-            <div class="activity-line">Files will be linked to this order in the next storage step.</div>
-        </section>
-        <section class="updates-tab-panel" data-panel-name="activity">
-            <div id="panel-activity-log" class="activity-log"></div>
-        </section>
+            <div class="orders-more-header-actions">
+                <span class="orders-more-active-count" data-orders-more-active-count>No active filters</span>
+                <button type="button" class="orders-more-close" data-orders-more-close aria-label="Close More filters"><i data-lucide="x"></i></button>
+            </div>
+        </header>
+        <div class="orders-more-body" data-orders-more-body></div>
+        <footer class="orders-more-footer">
+            <button type="button" class="orders-more-button orders-more-button--reset" data-orders-more-reset><i data-lucide="rotate-ccw"></i> Reset filters</button>
+            <div>
+                <button type="button" class="orders-more-button" data-orders-more-cancel>Cancel</button>
+                <button type="button" class="orders-more-button orders-more-button--primary" data-orders-more-apply>Apply filters</button>
+            </div>
+        </footer>
     </aside>
-    <div class="panel-backdrop" id="panel-backdrop" hidden></div>
+    <?php if ($canOpenOrdersTools): ?>
+    <div class="orders-tools-backdrop" data-orders-tools-backdrop hidden></div>
+    <aside class="orders-tools-panel" data-orders-tools-panel aria-hidden="true" aria-labelledby="orders-tools-title">
+        <header class="orders-tools-header">
+            <div><span>ORDERS</span><h2 id="orders-tools-title">Orders tools</h2><p>Review deleted orders, restore archived records and track changes made to the Orders Board.</p></div>
+            <button type="button" class="orders-tools-close" data-orders-tools-close aria-label="Close Orders tools"><i data-lucide="x"></i></button>
+        </header>
+        <nav class="orders-tools-tabs portal-tools-tabs" role="tablist" aria-label="Orders tools sections">
+            <button type="button" class="orders-tools-tab portal-tools-tab is-active" role="tab" aria-selected="true" data-orders-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
+            <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+            <?php if (user_has_role('owner_admin')): ?><button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="attribution"><i data-lucide="user-search" aria-hidden="true"></i><span>Attribution review</span></button><?php endif; ?>
+            <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
+            <button type="button" class="orders-tools-tab portal-tools-tab" role="tab" aria-selected="false" data-orders-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button>
+        </nav>
+        <div class="orders-tools-content" data-orders-tools-content><div class="orders-tools-loading">Loading Orders tools…</div></div>
+    </aside>
+    <?php endif; ?>
+    <aside class="order-panel" id="order-updates-panel" data-orders-details-panel aria-hidden="true" aria-labelledby="panel-order-title">
+        <header class="order-panel-header">
+            <button class="order-panel-close" type="button" data-panel-close aria-label="Close order panel"><i data-lucide="x"></i></button>
+            <div class="order-panel-heading"><span class="order-panel-kicker">Order</span><h2 class="order-panel-title" id="panel-order-title">Order</h2><div class="order-panel-meta" id="panel-order-meta"></div></div>
+            <button class="order-panel-menu" type="button" data-order-panel-menu aria-label="Open order actions"><span></span><span></span><span></span></button>
+        </header>
+        <nav class="order-panel-tabs updates-tabs portal-panel-tabs" role="tablist" aria-label="Order details sections">
+            <button class="order-panel-tab portal-panel-tab is-active active" type="button" role="tab" aria-selected="true" data-panel-tab="details"><i data-lucide="layout-list" aria-hidden="true"></i><span>Details</span></button>
+            <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="items"><i data-lucide="package" aria-hidden="true"></i><span>Items</span></button>
+            <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="updates" id="panel-updates-tab"><i data-lucide="message-square" aria-hidden="true"></i><span>Updates</span></button>
+            <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="files"><i data-lucide="paperclip" aria-hidden="true"></i><span>Files</span></button>
+            <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+        </nav>
+        <div class="order-panel-body">
+        <section class="order-panel-section updates-tab-panel active" data-panel-name="details"><div id="panel-order-details"></div></section>
+        <section class="order-panel-section updates-tab-panel" data-panel-name="items"><div class="order-panel-card order-items-card" id="panel-order-items"></div></section>
+        <section class="order-panel-section updates-tab-panel" data-panel-name="updates">
+            <div class="order-update-composer" id="order-update-composer">
+                <textarea class="order-update-textarea" id="panel-update-editor" placeholder="Write an update about this order..." rows="4"></textarea>
+                <input type="file" id="order-update-file-input" hidden multiple accept="image/*,.pdf,.doc,.docx">
+                <div class="order-selected-attachments" id="order-selected-attachments" hidden></div>
+                <div class="order-update-actions">
+                    <button type="button" class="order-update-attach" data-composer-action="attach" disabled title="Order file storage is not connected"><i data-lucide="paperclip"></i> Attach</button>
+                    <button class="order-update-submit" type="button" data-save-notes>Add update</button>
+                </div>
+            </div>
+            <div class="order-panel-empty" id="panel-empty-updates" hidden><i data-lucide="message-square"></i><strong>No updates yet</strong><span>Add an update to share progress or important order information.</span></div>
+            <div id="panel-updates-list" class="order-updates-list"></div>
+        </section>
+        <section class="order-panel-section updates-tab-panel" data-panel-name="files">
+            <input type="file" id="order-files-input" hidden multiple accept="application/pdf,image/jpeg,image/png,image/webp,.pdf,.jpg,.jpeg,.png,.webp">
+            <button type="button" class="order-file-dropzone" id="order-file-dropzone" data-order-files-choose>
+                <i data-lucide="upload-cloud" aria-hidden="true"></i>
+                <strong>Drop files here or choose files</strong>
+                <span>PDF, JPG, PNG or WEBP · up to 5 files · 10 MB each</span>
+            </button>
+            <div class="order-file-upload-status" id="order-file-upload-status" hidden aria-live="polite">
+                <span id="order-file-upload-message">Uploading files…</span>
+                <div class="order-file-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span></span></div>
+            </div>
+            <div id="panel-files-list" class="order-files-list" aria-live="polite"></div>
+        </section>
+        <section class="order-panel-section order-activity-tab updates-tab-panel" data-panel-name="activity">
+            <header><h3 class="order-activity-heading">Activity</h3><p class="order-activity-subheading">Operational changes made to this order.</p></header>
+            <div id="panel-activity-log" class="portal-activity-timeline" aria-live="polite"></div>
+        </section>
+        </div>
+    </aside>
+    <div class="order-panel-backdrop" id="panel-backdrop" hidden></div>
 </main>
 <script>
 window.HambelelaBoard = {
   dataUrl: 'orders-board-data.php',
   actionUrl: 'orders-board-action.php',
   statuses: <?= json_encode(OPS_ORDER_STATUSES) ?>,
-  canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>
+  canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>,
+  canOpenOrdersTools: <?= $canOpenOrdersTools ? 'true' : 'false' ?>,
+  currentRole: <?= json_encode(current_role_key()) ?>,
+  currentUserId: <?= (int) (current_user()['id'] ?? 0) ?>,
+  csrfToken: <?= json_encode($ordersCsrfToken) ?>
 };
 </script>
+<script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/orders-board.js?v=<?= htmlspecialchars($boardAssetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

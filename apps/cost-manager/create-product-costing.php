@@ -7,7 +7,7 @@ require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/woocommerce.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Raw Resale Product | ' . APP_NAME;
 $activeApp = 'cost-manager';

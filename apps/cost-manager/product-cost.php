@@ -8,7 +8,7 @@ require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/costing.php';
 require_once BASE_PATH . '/shared/engines/cost-engine.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Product Cost | ' . APP_NAME;
 $activeApp = 'cost-manager';

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+  "steps": [
+    {
+      "step": "installPlugin",
+      "pluginData": {
+        "resource": "url",
+        "url": "https://downloads.wordpress.org/plugin/woocommerce.11.0.1.zip"
+      },
+      "options": { "activate": true }
+    },
+    {
+      "step": "setSiteOptions",
+      "options": {
+        "woocommerce_feature_cost_of_goods_sold_enabled": "yes"
+      }
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php define('PHASE3_COGS_EXPECTED_STATE', 'enabled'); require '/workspace/tests/woocommerce-cogs-11.0.1-contract.php';"
+    }
+  ]
+}

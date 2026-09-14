@@ -13,10 +13,43 @@ CREATE TABLE IF NOT EXISTS ops_employees (
   email VARCHAR(190) UNIQUE,
   phone VARCHAR(60),
   password_hash VARCHAR(255),
+  failed_login_attempts INT NOT NULL DEFAULT 0,
+  locked_until DATETIME NULL,
+  last_failed_login_at DATETIME NULL,
+  requires_code_reset TINYINT(1) NOT NULL DEFAULT 1,
   status ENUM('active', 'inactive') NOT NULL DEFAULT 'active',
+  packing_assignable TINYINT(1) NOT NULL DEFAULT 0,
+  packing_auto_assignable TINYINT(1) NOT NULL DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (role_id) REFERENCES ops_roles(id)
+);
+
+CREATE TABLE IF NOT EXISTS ops_login_attempts (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  employee_id INT NULL,
+  identity_hash CHAR(64) NOT NULL,
+  ip_address VARCHAR(80) NOT NULL,
+  successful TINYINT(1) NOT NULL DEFAULT 0,
+  attempted_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ops_login_attempts_ip_time (ip_address, attempted_at),
+  INDEX idx_ops_login_attempts_employee_time (employee_id, attempted_at)
+);
+
+CREATE TABLE IF NOT EXISTS ops_security_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  event_type VARCHAR(80) NOT NULL,
+  employee_id INT NULL,
+  ip_address VARCHAR(80) NULL,
+  user_agent VARCHAR(255) NULL,
+  metadata_json TEXT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_ops_security_events_type_time (event_type, created_at)
+);
+
+CREATE TABLE IF NOT EXISTS ops_security_migrations (
+  migration_key VARCHAR(120) PRIMARY KEY,
+  applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS ops_employee_availability (
@@ -149,15 +182,32 @@ CREATE TABLE IF NOT EXISTS ops_error_logs (
   severity ENUM('low', 'medium', 'high', 'critical') NOT NULL DEFAULT 'low',
   description TEXT NOT NULL,
   customer_impact TEXT,
-  financial_impact DECIMAL(12,2) NOT NULL DEFAULT 0,
+  financial_impact DECIMAL(12,2) NULL DEFAULT NULL,
   resolution TEXT,
   repeat_issue TINYINT(1) NOT NULL DEFAULT 0,
   logged_by INT NULL,
   logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  occurred_on DATE NULL,
+  occurred_on_source VARCHAR(40) NULL,
   FOREIGN KEY (employee_id) REFERENCES ops_employees(id),
   FOREIGN KEY (order_id) REFERENCES ops_orders(id),
   FOREIGN KEY (logged_by) REFERENCES ops_employees(id)
 );
+
+CREATE TABLE IF NOT EXISTS ops_error_field_audit (
+  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  error_id INT NOT NULL,
+  field_name VARCHAR(60) NOT NULL,
+  previous_value TEXT NULL,
+  new_value TEXT NULL,
+  changed_by_employee_id INT NULL,
+  changed_by_role VARCHAR(80) NOT NULL,
+  change_source VARCHAR(60) NOT NULL,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_error_field_audit_error (error_id, created_at)
+);
+ALTER TABLE ops_error_field_audit ADD COLUMN IF NOT EXISTS changed_by_user_id INT NULL AFTER changed_by_employee_id;
+ALTER TABLE ops_error_field_audit ADD COLUMN IF NOT EXISTS changed_by_name VARCHAR(190) NULL AFTER changed_by_user_id;
 
 CREATE TABLE IF NOT EXISTS ops_consignments (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -197,12 +247,12 @@ CREATE TABLE IF NOT EXISTS ops_packing_tasks (
   item_name VARCHAR(190) NOT NULL,
   priority ENUM('top_critical', 'high', 'medium', 'low') NOT NULL DEFAULT 'medium',
   date_loaded DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  quantity_planned VARCHAR(190) NOT NULL,
+  quantity_planned VARCHAR(255) NULL,
   assigned_employee_id INT NULL,
   quantity_packed VARCHAR(190),
   date_completed DATETIME NULL,
   website_uploaded TINYINT(1) NOT NULL DEFAULT 0,
-  packing_status ENUM('not_started', 'packing', 'website', 'done', 'done_needs_label') NOT NULL DEFAULT 'not_started',
+  packing_status VARCHAR(80) NOT NULL DEFAULT 'not_started',
   notes TEXT,
   workload_points DECIMAL(10,2) NOT NULL DEFAULT 0,
   created_by INT NULL,
@@ -305,6 +355,68 @@ CREATE TABLE IF NOT EXISTS ops_report_settings (
   setting_value VARCHAR(255) NOT NULL,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS ops_kpi_employee_inputs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  employee_id INT NOT NULL,
+  period_month CHAR(7) NOT NULL,
+  monthly_salary DECIMAL(12,2) NOT NULL DEFAULT 0,
+  attendance_score DECIMAL(5,2) NOT NULL DEFAULT 85,
+  reliability_score DECIMAL(5,2) NOT NULL DEFAULT 85,
+  compliance_score DECIMAL(5,2) NOT NULL DEFAULT 85,
+  team_contribution_score DECIMAL(5,2) NOT NULL DEFAULT 85,
+  admin_accuracy_score DECIMAL(5,2) NOT NULL DEFAULT 85,
+  dispatch_score DECIMAL(5,2) NOT NULL DEFAULT 85,
+  operational_accuracy_score DECIMAL(5,2) NOT NULL DEFAULT 85,
+  notes TEXT,
+  updated_by INT NULL,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY uniq_kpi_employee_period (employee_id, period_month),
+  FOREIGN KEY (employee_id) REFERENCES ops_employees(id) ON DELETE CASCADE,
+  FOREIGN KEY (updated_by) REFERENCES ops_employees(id)
+);
+
+CREATE TABLE IF NOT EXISTS ops_kpi_rewards (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  reward_name VARCHAR(160) NOT NULL,
+  reward_value DECIMAL(12,2) NOT NULL DEFAULT 0,
+  reward_type VARCHAR(80) NOT NULL DEFAULT 'recognition',
+  active TINYINT(1) NOT NULL DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS ops_order_stage_events (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  order_id INT NOT NULL,
+  stage_key VARCHAR(80) NOT NULL,
+  employee_id INT NULL,
+  metadata JSON NULL,
+  occurred_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_stage_order (order_id, stage_key),
+  INDEX idx_stage_employee (employee_id, occurred_at),
+  FOREIGN KEY (order_id) REFERENCES ops_orders(id) ON DELETE CASCADE,
+  FOREIGN KEY (employee_id) REFERENCES ops_employees(id)
+);
+
+INSERT INTO ops_kpi_rewards (reward_name, reward_value, reward_type)
+SELECT 'Driving lesson sponsorship', 800.00, 'development'
+WHERE NOT EXISTS (SELECT 1 FROM ops_kpi_rewards WHERE reward_name = 'Driving lesson sponsorship');
+
+INSERT INTO ops_kpi_rewards (reward_name, reward_value, reward_type)
+SELECT 'Employee of the Month', 0.00, 'recognition'
+WHERE NOT EXISTS (SELECT 1 FROM ops_kpi_rewards WHERE reward_name = 'Employee of the Month');
+
+INSERT INTO ops_kpi_rewards (reward_name, reward_value, reward_type)
+SELECT 'Gift voucher', 0.00, 'voucher'
+WHERE NOT EXISTS (SELECT 1 FROM ops_kpi_rewards WHERE reward_name = 'Gift voucher');
+
+INSERT INTO ops_kpi_rewards (reward_name, reward_value, reward_type)
+SELECT 'Additional cash reward', 0.00, 'cash'
+WHERE NOT EXISTS (SELECT 1 FROM ops_kpi_rewards WHERE reward_name = 'Additional cash reward');
+
+INSERT INTO ops_kpi_rewards (reward_name, reward_value, reward_type)
+SELECT 'Performance certificate', 0.00, 'recognition'
+WHERE NOT EXISTS (SELECT 1 FROM ops_kpi_rewards WHERE reward_name = 'Performance certificate');
 
 INSERT IGNORE INTO ops_roles (role_key, name, description) VALUES
 ('owner_admin', 'Owner/Admin', 'Full access to operations, reports, financial tracking and settings'),

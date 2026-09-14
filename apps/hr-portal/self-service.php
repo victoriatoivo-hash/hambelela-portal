@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 requireLogin();
 $user = currentUser();
 if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard.php'); exit; }
@@ -8,11 +9,18 @@ if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard
 $db   = db();
 $empId = (int)($user['emp_id'] ?? 0);
 ensureLeaveShutdownSchema($db);
+hrEnsureMedicalAidSchemaSafe($db);
+$medicalAidProfiles = hrMedicalAidMap($db);
 
 // Get employee details
 $emp = $db->prepare("SELECT * FROM employees WHERE id=?");
 $emp->execute([$empId]); $emp = $emp->fetch();
 if (!$emp) { header('Location: ' . SITE_URL . '/logout.php'); exit; }
+hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : null);
+$leaveEntitlements = hrLeaveEntitlements($emp);
+$isProbation = $leaveEntitlements['is_probation'];
+$medicalAidProfile = hrApplyMedicalAidToEmployee($emp, $medicalAidProfiles);
+$currentMedicalAidActive = hrMedicalAidEffectiveForPeriod($medicalAidProfile, (int)date('n'), (int)date('Y'));
 
 // Leave balances
 $year = date('Y');
@@ -30,12 +38,30 @@ $shutdownEndYear = substr($shutdownSettings['end_md'], 0, 2) === '01' ? (int)dat
 $shutdownEnd = date('d F', strtotime($shutdownEndYear . '-' . $shutdownSettings['end_md']));
 
 // Latest payslip
-$latestPS = $db->prepare("SELECT ps.*, r.period_label FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC LIMIT 1");
+$latestPS = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC LIMIT 1");
 $latestPS->execute([$empId]); $latestPS = $latestPS->fetch();
 $latestSSF = $latestPS ? (float)$latestPS['ssf'] : 0;
+$latestMedicalAidFund = trim((string)($medicalAidProfile['medical_aid_fund'] ?? 'Medical Aid'));
+$latestMedicalAidTotal = 0;
+$latestMedicalAidCompany = 0;
+$latestMedicalAidEmployee = 0;
+if ($latestPS) {
+  $latestMedicalAidProfile = hrApplyMedicalAidToEmployee(['id' => $empId], $medicalAidProfiles);
+  if (hrMedicalAidEffectiveForPeriod($latestMedicalAidProfile, (int)$latestPS['period_month'], (int)$latestPS['period_year'])) {
+    $latestMedicalAidFund = trim((string)($latestPS['medical_aid_fund'] ?? '')) ?: (string)$latestMedicalAidProfile['medical_aid_fund'];
+    $latestMedicalAidTotal = (float)($latestPS['medical_aid_total'] ?? 0);
+    $latestMedicalAidCompany = (float)($latestPS['medical_aid_company'] ?? 0);
+    $latestMedicalAidEmployee = (float)($latestPS['medical_aid_employee'] ?? 0);
+    if ($latestMedicalAidTotal <= 0) $latestMedicalAidTotal = (float)$latestMedicalAidProfile['medical_aid_total'];
+    if ($latestMedicalAidCompany <= 0) $latestMedicalAidCompany = (float)$latestMedicalAidProfile['medical_aid_company'];
+    if ($latestMedicalAidEmployee <= 0) $latestMedicalAidEmployee = (float)$latestMedicalAidProfile['medical_aid_employee'];
+  }
+}
 $latestTotalDeductions = $latestPS
-  ? (float)$latestPS['paye'] + $latestSSF + (float)($latestPS['lwop_deduction'] ?? 0) + (float)($latestPS['other_deductions'] ?? 0) + (float)($latestPS['loan_deduction'] ?? 0)
+  ? (float)$latestPS['paye'] + $latestSSF + (float)($latestPS['lwop_deduction'] ?? 0) + (float)($latestPS['other_deductions'] ?? 0) + (float)($latestPS['loan_deduction'] ?? 0) + $latestMedicalAidEmployee
   : 0;
+$latestGross = $latestPS ? (float)$latestPS['basic_salary'] + (float)$latestPS['ot_pay'] : 0;
+$latestNetPay = $latestPS ? round($latestGross - $latestTotalDeductions, 2) : 0;
 
 // Unread notifications
 $notifs = $db->prepare("SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 10");
@@ -45,6 +71,8 @@ $unreadCount = count(array_filter($notifs, function($n){ return !$n['is_read']; 
 // Pending leave requests
 $pendingLeave = $db->prepare("SELECT * FROM leave_requests WHERE employee_id=? AND status='pending' ORDER BY created_at DESC LIMIT 5");
 $pendingLeave->execute([$empId]); $pendingLeave = $pendingLeave->fetchAll();
+$latestRejectedLeave = $db->prepare("SELECT * FROM leave_requests WHERE employee_id=? AND status='rejected' ORDER BY approved_at DESC, created_at DESC LIMIT 1");
+$latestRejectedLeave->execute([$empId]); $latestRejectedLeave = $latestRejectedLeave->fetch();
 
 // Upcoming Namibia public holidays
 $today = date('Y-m-d');
@@ -71,7 +99,7 @@ $currentPage = 'self-service.php';
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>My Dashboard — Hambelela HR</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -99,18 +127,40 @@ $currentPage = 'self-service.php';
       ?>
       <div class="stat-card">
         <div class="stat-icon green"><i class="fa-solid fa-calendar-check"></i></div>
-        <div class="stat-value"><?=number_format($annualRemain,1)?></div>
-        <div class="stat-label">Available Annual Leave</div>
+        <div class="stat-value"><?=$isProbation?'N/A':number_format($annualRemain,1)?></div>
+        <div class="stat-label"><?=$isProbation?'Annual Leave — After Probation':'Available Annual Leave'?></div>
       </div>
       <div class="stat-card">
         <div class="stat-icon amber"><i class="fa-solid fa-briefcase-medical"></i></div>
         <div class="stat-value"><?=number_format($sickRemain,1)?></div>
         <div class="stat-label">Sick Leave Remaining</div>
       </div>
-      <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-money-bill-wave"></i></div><div class="stat-value" style="font-size:18px"><?=$latestPS ? 'N$'.number_format((float)$latestPS['net_salary'],0) : '—'?></div><div class="stat-label">Last Net Pay</div></div>
+      <div class="stat-card"><div class="stat-icon blue"><i class="fa-solid fa-money-bill-wave"></i></div><div class="stat-value" style="font-size:18px"><?=$latestPS ? 'N$'.number_format($latestNetPay,0) : '—'?></div><div class="stat-label">Last Net Pay</div></div>
       <div class="stat-card"><div class="stat-icon teal"><i class="fa-solid fa-shield-heart"></i></div><div class="stat-value" style="font-size:18px"><?=$latestPS ? 'N$'.number_format($latestSSF,2) : '—'?></div><div class="stat-label">Social Security Deduction</div></div>
+      <?php if ($currentMedicalAidActive): ?>
+      <div class="stat-card">
+        <div class="stat-icon green"><i class="fa-solid fa-kit-medical"></i></div>
+        <div class="stat-value" style="font-size:16px;line-height:1.2"><?=htmlspecialchars($medicalAidProfile['medical_aid_fund'])?></div>
+        <div class="stat-label">Medical Aid</div>
+        <div style="margin-top:8px;display:grid;gap:4px;font-size:10.5px;color:var(--text-mid);text-align:left">
+          <div style="display:flex;justify-content:space-between;gap:8px"><span>Total Fund</span><strong style="color:var(--text-dark);font-family:monospace">N$<?=number_format((float)$medicalAidProfile['medical_aid_total'],2)?></strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px"><span>Company Portion</span><strong style="color:var(--green);font-family:monospace">N$<?=number_format((float)$medicalAidProfile['medical_aid_company'],2)?></strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px"><span>Employee Portion</span><strong style="color:var(--red);font-family:monospace">N$<?=number_format((float)$medicalAidProfile['medical_aid_employee'],2)?></strong></div>
+          <div style="display:flex;justify-content:space-between;gap:8px"><span>Status</span><strong style="color:var(--green)">Active</strong></div>
+        </div>
+      </div>
+      <?php endif ?>
       <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-calendar-days"></i></div><div class="stat-value" style="font-size:18px"><?=number_format($reserveCurrent,0)?> / <?=number_format($reserveTotal,0)?> Days</div><div class="stat-label">December Shutdown Reserve</div><div style="font-size:10px;color:var(--text-mid);margin-top:3px"><?=$reserveStatusText?></div></div>
       <div class="stat-card"><div class="stat-icon <?=$unreadCount>0?'red':'teal'?>"><i class="fa-regular fa-bell"></i></div><div class="stat-value"><?=$unreadCount?></div><div class="stat-label">Unread Notifications</div></div>
+    </div>
+
+    <div class="card" style="margin-bottom:20px">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-shield-heart" style="color:var(--green)"></i> Leave Entitlements</div><span class="badge <?=$isProbation?'badge-amber':'badge-green'?>">Employment Status: <?=$isProbation?'Probation':'Active'?></span></div>
+      <div style="padding:16px 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px"><strong style="font-size:12px">Annual Leave</strong><div style="font-size:11px;color:<?=$isProbation?'var(--amber)':'var(--green)'?>;margin-top:4px"><?=htmlspecialchars($leaveEntitlements['annual_leave']['label'])?></div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px"><strong style="font-size:12px">Sick Leave</strong><div style="font-size:11px;color:var(--green);margin-top:4px">Available</div></div>
+        <div style="padding:12px;border:1px solid var(--border);border-radius:9px"><strong style="font-size:12px">Compassionate Leave</strong><div style="font-size:11px;color:var(--green);margin-top:4px">Available</div></div>
+      </div>
     </div>
 
     <div class="grid-2">
@@ -136,14 +186,14 @@ $currentPage = 'self-service.php';
             <div style="display:flex;justify-content:space-between;margin-bottom:5px;font-size:13px">
               <span style="font-weight:500"><?=htmlspecialchars($lt)?></span>
               <div style="text-align:right">
-                <span style="font-weight:700;color:<?=$col?>"><?=number_format($remain,1)?> <?=$lt==='Annual Leave'?'available':'days remaining'?></span>
+                <span style="font-weight:700;color:<?=$col?>"><?=$lt==='Annual Leave'&&$isProbation?'Not requestable':number_format($remain,1).' '.($lt==='Annual Leave'?'available':'days remaining')?></span>
                 <?php if($used > 0): ?>
                 <span style="font-size:11px;color:var(--text-mid);margin-left:6px">(<?=number_format($used,1)?> taken)</span>
                 <?php endif ?>
               </div>
             </div>
             <?php if ($lt === 'Annual Leave'): ?>
-            <div style="font-size:11px;color:var(--text-mid);margin-bottom:6px">Accrued: <?=number_format($annualMetrics['current_accrued'],1)?> days | Taken: <?=number_format($annualMetrics['leave_taken'],1)?> days</div>
+            <div style="font-size:11px;color:var(--text-mid);margin-bottom:6px">Accrued: <?=number_format($annualMetrics['current_accrued'],1)?> days | Taken: <?=number_format($annualMetrics['leave_taken'],1)?> days<?=$isProbation?' | Available after successful probation':''?></div>
             <?php endif ?>
             <?php if ($accrued > 0): ?>
             <div style="height:5px;background:var(--border);border-radius:3px">
@@ -227,6 +277,20 @@ $currentPage = 'self-service.php';
     </div>
     <?php endif ?>
 
+    <?php if ($latestRejectedLeave): ?>
+    <div class="card">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-calendar-xmark" style="color:var(--red)"></i> Latest Leave Decision</div><a class="btn btn-secondary btn-sm" href="my-leave.php?leave_request=<?=$latestRejectedLeave['id']?>#leave-request-<?=$latestRejectedLeave['id']?>">View request</a></div>
+      <div style="padding:16px 20px">
+        <div style="font-size:13px;font-weight:600"><?=htmlspecialchars($latestRejectedLeave['leave_type'])?> · <?=date('d M Y',strtotime($latestRejectedLeave['start_date']))?> - <?=date('d M Y',strtotime($latestRejectedLeave['end_date']))?> <span class="badge badge-red">Rejected</span></div>
+        <section class="leave-decision leave-decision--rejected">
+          <div class="leave-decision__heading"><i class="fa-solid fa-circle-info" aria-hidden="true"></i><h3>Reason for rejection</h3></div>
+          <p class="leave-decision__reason"><?=htmlspecialchars(trim((string)($latestRejectedLeave['reject_reason'] ?? '')) !== '' ? $latestRejectedLeave['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?></p>
+          <div class="leave-decision__meta"><span>Decision date: <?=$latestRejectedLeave['approved_at'] ? date('d F Y \a\t H:i',strtotime($latestRejectedLeave['approved_at'])) : 'Not recorded'?></span><span>Reviewed by: HR Administration</span></div>
+        </section>
+      </div>
+    </div>
+    <?php endif ?>
+
     <!-- Latest Payslip preview -->
     <?php if ($latestPS): ?>
     <div class="card">
@@ -238,8 +302,14 @@ $currentPage = 'self-service.php';
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Basic Salary</div><div style="font-weight:700;font-family:monospace">N$ <?=number_format((float)$latestPS['basic_salary'],2)?></div></div>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Overtime</div><div style="font-weight:700;font-family:monospace;color:var(--green)">+ N$ <?=number_format((float)$latestPS['ot_pay'],2)?></div></div>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Social Security</div><div style="font-weight:700;font-family:monospace;color:var(--red)">- N$ <?=number_format($latestSSF,2)?></div></div>
+        <?php if ($latestMedicalAidEmployee > 0): ?>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Medical Aid Employee</div><div style="font-weight:700;font-family:monospace;color:var(--red)">- N$ <?=number_format($latestMedicalAidEmployee,2)?></div></div>
+        <?php endif ?>
+        <?php if ($latestMedicalAidCompany > 0): ?>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Medical Aid Employer</div><div style="font-weight:700;font-family:monospace;color:var(--green)">N$ <?=number_format($latestMedicalAidCompany,2)?></div></div>
+        <?php endif ?>
         <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Total Deductions</div><div style="font-weight:700;font-family:monospace;color:var(--red)">- N$ <?=number_format($latestTotalDeductions,2)?></div></div>
-        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Net Pay</div><div style="font-weight:800;font-family:monospace;font-size:16px">N$ <?=number_format((float)$latestPS['net_salary'],2)?></div></div>
+        <div><div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:3px">Net Pay</div><div style="font-weight:800;font-family:monospace;font-size:16px">N$ <?=number_format($latestNetPay,2)?></div></div>
       </div>
     </div>
     <?php endif ?>

@@ -49,32 +49,24 @@ function ops_sync_recent_logs(int $limit = 30): array
     return array_slice(array_reverse($lines), 0, $limit);
 }
 
-function ops_wc_payment_status(array $order): string
+function ops_wc_normalise_walk_in_marker(?string $value): string
 {
-    if (in_array((string) ($order['status'] ?? ''), ['cancelled', 'refunded', 'failed'], true)) {
-        return 'refunded';
-    }
+    $value = strtolower(trim((string) $value));
+    $value = preg_replace('/[\s\-_]+/', ' ', $value) ?? '';
 
-    if (!empty($order['date_paid']) || (($order['status'] ?? '') === 'processing') || (($order['status'] ?? '') === 'completed')) {
-        return 'paid';
-    }
+    return trim($value);
+}
 
-    return 'unpaid';
+function ops_wc_initial_payment_status(?string $sourceMobile): string
+{
+    return ops_wc_normalise_walk_in_marker($sourceMobile) === 'walk in customer'
+        ? 'paid'
+        : 'unpaid';
 }
 
 function ops_wc_order_type(array $order): string
 {
-    $method = strtolower((string) (($order['shipping_lines'][0]['method_title'] ?? '') . ' ' . ($order['shipping_lines'][0]['method_id'] ?? '')));
-
-    if (strpos($method, 'courier') !== false || strpos($method, 'pudo') !== false || strpos($method, 'ship') !== false) {
-        return 'courier';
-    }
-
-    if (strpos($method, 'delivery') !== false || strpos($method, 'local') !== false) {
-        return 'delivery';
-    }
-
-    return 'collection';
+    return ops_pos_fulfilment_from_order($order)['mode'];
 }
 
 function ops_wc_customer_name(array $order): string
@@ -159,6 +151,11 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             && ops_column_exists('ops_orders', 'shipping_tax_total')
             && ops_column_exists('ops_orders', 'discount_total')
             && ops_column_exists('ops_orders', 'refund_total');
+        $displayDateTimeColumn = ops_order_display_datetime_update_column();
+        $displayDateTimeInsertColumn = $displayDateTimeColumn !== 'created_at' ? ', ' . $displayDateTimeColumn : '';
+        $displayDateTimeInsertValue = $displayDateTimeColumn !== 'created_at' ? ', ?' : '';
+        $displayDateTimeUpdate = $displayDateTimeColumn . ' = VALUES(' . $displayDateTimeColumn . ')';
+        ops_ensure_order_payment_schema();
         $pdo->beginTransaction();
 
         $amountColumns = $hasTotalAmount ? ', total_amount' : '';
@@ -177,16 +174,16 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $orderStmt = $pdo->prepare(
             "INSERT INTO ops_orders (
                 woo_order_id, order_number, customer_name, customer_contact, payment_method{$amountColumns}{$breakdownColumns}, payment_status,
-                order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at
-             ) VALUES (?, ?, ?, ?, ?{$amountValues}{$breakdownValues}, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at{$displayDateTimeInsertColumn}
+             ) VALUES (?, ?, ?, ?, ?{$amountValues}{$breakdownValues}, ?, ?, ?, ?, ?, ?, ?, ?, ?{$displayDateTimeInsertValue})
              ON DUPLICATE KEY UPDATE
                 customer_name = VALUES(customer_name),
                 customer_contact = VALUES(customer_contact),
-                payment_method = VALUES(payment_method){$amountUpdates}{$breakdownUpdates},
-                payment_status = VALUES(payment_status),
+                payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END{$amountUpdates}{$breakdownUpdates},
                 order_type = VALUES(order_type),
                 notes = VALUES(notes),
                 workload_score = VALUES(workload_score),
+                {$displayDateTimeUpdate},
                 updated_at = CURRENT_TIMESTAMP"
         );
 
@@ -219,7 +216,9 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $complexity = count($items) >= 8 ? 3 : (count($items) >= 4 ? 2 : 1);
             $priority = ($order['status'] ?? '') === 'pending' ? 'normal' : 'urgent';
             $workload = ops_workload_score($itemCount, $orderType, $complexity, $priority);
-            $packerId = null;
+            $customerName = ops_wc_customer_name($order);
+            $customerContact = (string) (($order['billing']['phone'] ?? '') ?: ($order['billing']['email'] ?? ''));
+            $packerId = ops_initial_order_packer_id($customerName, $customerContact, $orderType);
             $createdAt = date('Y-m-d H:i:s', strtotime((string) ($order['date_created'] ?? 'now')));
             $orderNumber = 'WEB-' . (string) ($order['number'] ?? $wooOrderId);
             $breakdown = ops_wc_order_breakdown($order);
@@ -227,9 +226,9 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderValues = [
                 $wooOrderId,
                 $orderNumber,
-                ops_wc_customer_name($order),
-                (string) (($order['billing']['phone'] ?? '') ?: ($order['billing']['email'] ?? '')),
-                (string) ($order['payment_method_title'] ?? $order['payment_method'] ?? ''),
+                $customerName,
+                $customerContact,
+                ops_wc_payment_method($order),
             ];
             if ($hasTotalAmount) {
                 $orderValues[] = (float) ($order['total'] ?? 0);
@@ -246,7 +245,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 );
             }
             $orderValues = array_merge($orderValues, [
-                ops_wc_payment_status($order),
+                ops_wc_initial_payment_status($customerContact),
                 $orderType,
                 $priority,
                 $complexity,
@@ -256,6 +255,9 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $workload,
                 $createdAt,
             ]);
+            if ($displayDateTimeColumn !== 'created_at') {
+                $orderValues[] = $createdAt;
+            }
 
             $orderStmt->execute($orderValues);
 
@@ -269,6 +271,24 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $orderIdStmt = $pdo->query('SELECT id FROM ops_orders WHERE woo_order_id = ' . $wooOrderId);
             $orderId = (int) $orderIdStmt->fetchColumn();
             $orderIdStmt->closeCursor();
+            $paymentAllocations = ops_wc_payment_allocations($order);
+            if ($paymentAllocations) {
+                $paymentVersion = (string) (($order['date_modified_gmt'] ?? '') ?: ($order['date_modified'] ?? '') ?: date(DATE_ATOM));
+                ops_sync_order_payment_allocations($orderId, $paymentAllocations, ops_wc_payment_source($order), $paymentVersion);
+            }
+            if ($affected === 1) ops_apply_initial_portal_paid_confirmation($orderId, $order, $customerContact);
+            if (ops_column_exists('ops_orders', 'fulfilment_mode')) {
+                $pdo->prepare('UPDATE ops_orders SET fulfilment_mode = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$orderType, $orderId]);
+            }
+
+            if ($affected === 1) {
+                ops_log_order_stage_event($orderId, 'order_received', [
+                    'source' => 'woocommerce_sync',
+                    'woo_order_id' => $wooOrderId,
+                    'order_number' => $orderNumber,
+                ]);
+                ops_log_initial_order_assignment($orderId, $packerId, 'woocommerce_sync');
+            }
 
             foreach ($items as $line) {
                 $sku = (string) ($line['sku'] ?? '');

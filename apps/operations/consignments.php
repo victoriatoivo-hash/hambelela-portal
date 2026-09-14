@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 
 require_login();
+if (empty($_SESSION['packing_attachment_csrf'])) $_SESSION['packing_attachment_csrf'] = bin2hex(random_bytes(24));
+$packingAttachmentCsrf = (string) $_SESSION['packing_attachment_csrf'];
 
 $pageTitle = 'Packing List | ' . APP_NAME;
 $activeApp = 'operations-consignments';
@@ -14,71 +16,76 @@ $migrationReady = $ready
     && ops_column_exists('ops_packing_tasks', 'packing_website_confirmed')
     && ops_column_exists('ops_packing_tasks', 'date_started');
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-$canEditHeaders = user_has_role('owner_admin');
-$assetVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
-    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-monday-sync2'
+$canViewWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
+$canViewPackingTools = true;
+$packingJsVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
+    ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-people3'
     : (string) time();
+$packingCssVersion = is_file(BASE_PATH . '/assets/css/packing-board.css')
+    ? (string) filemtime(BASE_PATH . '/assets/css/packing-board.css') . '-people4'
+    : (string) time();
+$extraStylesheets[] = [
+    'path' => 'assets/css/portal-column-resize.css',
+    'version' => is_file(BASE_PATH . '/assets/css/portal-column-resize.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-column-resize.css') : (string) time(),
+];
+$extraStylesheets[] = [
+    'path' => 'assets/css/packing-board.css',
+    'version' => $packingCssVersion,
+];
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module ops-board-page packing-list-page" data-board-theme="light">
-    <section class="monday-board-top">
-        <div class="monday-board-head work-board-head">
+<main class="workspace module ops-board-page packing-list-page packing-page-v2" data-board-theme="light">
+    <section class="monday-board-top packing-page-shell">
+        <div class="monday-board-head work-board-head packing-header">
             <div>
                 <h1>Hambelela Packing <i data-lucide="chevron-down"></i></h1>
-                <p class="work-board-subtitle">Bulk stock, invoice weights, packing allocation and website update tracking.</p>
                 <p class="packing-load-state" data-packing-count>Loading packing list...</p>
             </div>
-            <div class="monday-board-head-actions">
-                <button type="button" class="invite-btn" data-packing-export><i data-lucide="download"></i> Export Excel</button>
-                <button type="button" data-packing-undo disabled><i data-lucide="undo-2"></i> Undo</button>
-                <button type="button" data-theme-toggle><i data-lucide="moon"></i></button>
+            <div class="monday-board-head-actions packing-header-actions" data-portal-header-status-target>
+                <?php if ($canViewPackingTools): ?><button type="button" class="packing-tools-button" data-open-packing-tools><i data-lucide="wrench"></i><span>Packing tools</span></button><?php endif; ?>
+                <button type="button" class="invite-btn packing-btn packing-btn-secondary" data-packing-export><i data-lucide="download"></i> Export Excel</button>
             </div>
         </div>
 
-        <section class="work-metric-grid packing-metric-grid" aria-label="Packing summary">
-            <article class="work-metric-card metric-blue">
+        <section class="work-metric-grid packing-metric-grid packing-stats" aria-label="Packing summary">
+            <article class="work-metric-card packing-stat-card pk-total">
                 <span class="metric-icon"><i data-lucide="package-open"></i></span>
-                <div><span class="metric-title">Total Items</span><strong data-packing-metric="total">0</strong><small>In packing list</small></div>
+                <div><span class="metric-title">Total Items</span><strong data-packing-metric="total">0</strong></div>
             </article>
-            <article class="work-metric-card metric-orange">
+            <article class="work-metric-card packing-stat-card pk-packing">
                 <span class="metric-icon"><i data-lucide="clock-3"></i></span>
-                <div><span class="metric-title">Packing</span><strong data-packing-metric="packing">0</strong><small>Currently active</small></div>
+                <div><span class="metric-title">Packing</span><strong data-packing-metric="packing">0</strong></div>
             </article>
-            <article class="work-metric-card metric-green">
+            <article class="work-metric-card packing-stat-card pk-done">
                 <span class="metric-icon"><i data-lucide="check-circle-2"></i></span>
-                <div><span class="metric-title">Done</span><strong data-packing-metric="done">0</strong><small>Completed rows</small></div>
+                <div><span class="metric-title">Done</span><strong data-packing-metric="done">0</strong></div>
             </article>
-            <article class="work-metric-card metric-purple">
+            <article class="work-metric-card packing-stat-card pk-website">
                 <span class="metric-icon"><i data-lucide="globe-2"></i></span>
-                <div><span class="metric-title">Website Updated</span><strong data-packing-metric="website">0</strong><small>Quantity confirmed</small></div>
+                <div><span class="metric-title">Website Complete</span><strong data-packing-metric="website">0</strong></div>
             </article>
-            <article class="work-metric-card metric-red">
+            <article class="work-metric-card packing-stat-card pk-pending">
                 <span class="metric-icon"><i data-lucide="hourglass"></i></span>
-                <div><span class="metric-title">Pending</span><strong data-packing-metric="pending">0</strong><small>Awaiting action</small></div>
+                <div><span class="metric-title">Pending</span><strong data-packing-metric="pending">0</strong></div>
             </article>
-            <article class="work-metric-card metric-pink">
+            <article class="work-metric-card packing-stat-card pk-unassigned">
                 <span class="metric-icon"><i data-lucide="user-round-x"></i></span>
-                <div><span class="metric-title">Unassigned</span><strong data-packing-metric="unassigned">0</strong><small>Needs person</small></div>
+                <div><span class="metric-title">Unassigned</span><strong data-packing-metric="unassigned">0</strong></div>
             </article>
         </section>
 
-        <section class="work-filter-bar packing-filter-bar" aria-label="Packing filters">
-            <label>Date
-                <input data-packing-date type="text" value="" placeholder="All months or YYYY-MM" inputmode="numeric">
-            </label>
-            <label>Priority
-                <select data-packing-filter="priority">
-                    <option value="">All</option>
-                    <option value="top_critical">Top Critical</option>
-                    <option value="high">High</option>
-                    <option value="medium">Medium</option>
-                    <option value="low">Low</option>
-                </select>
+        <section class="work-filter-bar packing-filter-bar packing-toolbar" data-portal-view-filter aria-label="Packing filters" hidden style="display:none!important">
+            <label>Date Range
+                <div class="portal-date-field" data-portal-date-field>
+                    <input class="portal-date-input" type="text" placeholder="All months" autocomplete="off" data-month-mode="true" data-submit-target="#packing-date-value">
+                    <input id="packing-date-value" data-packing-date type="hidden" value="">
+                    <button type="button" class="portal-date-trigger" aria-label="Open month picker"><i data-lucide="calendar-days"></i></button>
+                </div>
             </label>
             <label>Status
-                <select data-packing-filter="status">
+                <select data-packing-filter="status" data-portal-custom-select>
                     <option value="">All</option>
                     <option value="not_started">Not Started</option>
                     <option value="packing">Packing</option>
@@ -89,25 +96,34 @@ include BASE_PATH . '/shared/sidebar.php';
                     <option value="correction_needed">Correction Needed</option>
                 </select>
             </label>
+            <label>Priority
+                <select data-packing-filter="priority" data-portal-custom-select>
+                    <option value="">All</option>
+                    <option value="top_critical">Top Critical</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                </select>
+            </label>
             <label>Person
-                <select data-packing-filter="person"><option value="">All</option></select>
+                <select data-packing-filter="person" data-portal-custom-select><option value="">All</option></select>
             </label>
             <label>Group By
-                <select data-packing-group-select>
+                <select data-packing-group-select data-portal-custom-select>
                     <option value="month">Month</option>
                     <option value="priority">Priority</option>
                     <option value="person">Person</option>
                     <option value="status">Status</option>
                 </select>
             </label>
-            <label class="work-search">Search
-                <input data-packing-search type="search" placeholder="Search packing items...">
+            <label class="work-search">Search Packing
+                <input class="packing-search-input" data-packing-search type="search" placeholder="Search packing...">
             </label>
             <div class="work-filter-actions">
                 <?php if ($canManage): ?>
                     <button type="button" data-open-packing-create><i data-lucide="plus"></i> New item</button>
                     <button type="button" data-open-invoice><i data-lucide="upload"></i> Upload invoice</button>
-                    <button type="button" data-sync-monday-packing><i data-lucide="download-cloud"></i> Sync Monday</button>
+                    <button type="button" data-find-packing-duplicates><i data-lucide="scan-search"></i> Find possible duplicates</button>
                     <button type="button" data-import-previous-packing><i data-lucide="copy-plus"></i> Import previous list</button>
                 <?php endif; ?>
                 <button type="button" data-packing-refresh><i data-lucide="refresh-cw"></i> Refresh</button>
@@ -121,107 +137,158 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="ops-alert">Import <code>operations-packing-list-migration.sql</code> in phpMyAdmin to activate received weight, website confirmation and time tracking fields.</section>
     <?php endif; ?>
 
-    <section class="ops-board-shell packing-board-shell">
-        <div class="ops-board-scroll">
-            <table class="ops-board-table packing-table">
-                <thead>
-                    <tr>
-                        <th class="check-cell"><input type="checkbox" data-packing-select-all></th>
-                        <th data-packing-column="item" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>ITEM</th>
-                        <th class="comment-cell" title="Open full item details"></th>
-                        <th data-packing-column="received" title="Weight on invoice / received weight" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>RECEIVED</th>
-                        <th data-packing-column="priority" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PRIORITY</th>
-                        <th data-packing-column="date_loaded" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>DATE LOADED</th>
-                        <th data-packing-column="quantity_to_pack" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY TO PACK</th>
-                        <th data-packing-column="person" title="Person responsible" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>PERSON</th>
-                        <th data-packing-column="quantity_packed" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>QUANTITY PACKED</th>
-                        <th data-packing-column="status" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>STATUS</th>
-                        <th data-packing-column="website_uploaded" title="Website quantity updated" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>WEBSITE</th>
-                        <th data-packing-column="notes" title="Open notes and full details" <?= $canEditHeaders ? 'contenteditable="true"' : '' ?>>NOTES</th>
-                        <th class="add-column-cell"><button type="button">+</button></th>
-                    </tr>
-                </thead>
-                <tbody id="packing-list-body"><tr><td colspan="13">Loading packing list...</td></tr></tbody>
-            </table>
+    <section class="packing-board-shell packing-board-v2 packing-list-section" aria-label="Packing board">
+        <input type="checkbox" class="packing-select-all-master" data-packing-select-all aria-hidden="true" tabindex="-1">
+        <div class="packing-list-viewport" id="packingListViewport" data-packing-list-table-scroll role="region" aria-label="Packing List table">
+            <div class="packing-list-grid" id="packingListGrid">
+                <div id="packing-list-body" class="packing-date-groups" aria-live="polite">
+                    <div class="packing-loading-state">Loading packing list...</div>
+                </div>
+            </div>
         </div>
     </section>
 
     <div class="label-menu" id="packing-label-menu" hidden></div>
     <div class="toolbar-popover" id="packing-popover" hidden></div>
-    <aside class="order-updates-panel" id="packing-panel" aria-hidden="true">
-        <div class="updates-panel-head">
-            <button type="button" data-packing-panel-close><i data-lucide="x"></i></button>
-            <h2 id="packing-panel-title">Packing item</h2>
-        </div>
-        <nav class="updates-tabs">
-            <button class="active" type="button" data-packing-panel-tab="details"><i data-lucide="home"></i> Details</button>
-            <button type="button" data-packing-panel-tab="files">Files</button>
-        </nav>
-        <section class="updates-tab-panel active" data-packing-panel-name="details">
-            <div class="update-composer">
-                <textarea id="packing-panel-notes" placeholder="Quantity differences, label issues, stock notes"></textarea>
-                <div><button type="button" data-packing-save-notes>Update</button></div>
+    <aside class="order-updates-panel packing-item-panel" id="packing-panel" aria-hidden="true">
+        <header class="packing-item-panel-header">
+            <button type="button" class="packing-item-close" data-packing-panel-close aria-label="Close item details"><i data-lucide="x"></i></button>
+            <div class="packing-item-heading">
+                <p class="packing-item-kicker">Packing Item</p>
+                <h1 class="packing-item-title" id="packing-panel-title">Packing item</h1>
+                <div class="packing-item-header-meta">
+                    <span id="packing-panel-item-id">Portal item</span>
+                    <span id="packing-panel-source">Packing list</span>
+                </div>
             </div>
-            <div id="packing-panel-activity" class="activity-log"></div>
+        </header>
+        <nav class="packing-item-tabs portal-panel-tabs" role="tablist" aria-label="Packing item sections">
+            <?php if ($canViewWebsiteUpdate): ?><button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="website"><i data-lucide="globe-2"></i> Website</button><?php endif; ?>
+            <button class="packing-item-tab active is-active" type="button" role="tab" aria-selected="true" data-packing-panel-tab="details"><i data-lucide="layout-list"></i> Details</button>
+            <button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="files"><i data-lucide="paperclip"></i> Files</button>
+        </nav>
+        <section class="updates-tab-panel packing-item-panel-body active" data-packing-panel-name="details">
+            <section class="packing-item-section packing-item-notes-section">
+                <div class="packing-item-section-header">
+                    <div>
+                        <h2 class="packing-item-section-title">Notes</h2>
+                        <p class="packing-item-section-subtitle">Add packing instructions, corrections or internal notes.</p>
+                    </div>
+                </div>
+                <textarea class="packing-item-notes-input" id="packing-panel-notes" rows="4" placeholder="Quantity differences, label issues, stock notes"></textarea>
+                <div class="packing-item-section-actions"><button type="button" class="pk-btn pk-btn--primary" data-packing-save-notes>Save notes</button></div>
+            </section>
+            <div id="packing-panel-activity" class="packing-item-activity"></div>
         </section>
-        <section class="updates-tab-panel" data-packing-panel-name="files">
-            <label class="file-drop">Upload invoice, labels or product photos<input type="file"></label>
-            <div class="activity-line">File storage will be linked in the next storage step.</div>
+        <?php if ($canViewWebsiteUpdate): ?>
+        <section class="updates-tab-panel packing-item-panel-body" data-packing-panel-name="website">
+            <section class="packing-item-section packing-item-website-section">
+                <h2 class="packing-item-section-title">Website Updated</h2>
+                <p class="packing-item-section-subtitle">Confirm that the product or inventory information was updated on the live website.</p>
+                <label class="packing-panel-website-toggle packing-website-control" data-packing-website-control><input type="checkbox" data-packing-panel-website><span>Website updated</span><span class="packing-website-confirmed-badge" data-packing-website-confirmed hidden><i data-lucide="check"></i> Confirmed</span></label>
+                <dl class="packing-panel-website-audit"><div><dt>Updated</dt><dd data-packing-website-updated-at>Not updated</dd></div><div><dt>Updated by</dt><dd data-packing-website-updated-by>—</dd></div></dl>
+                <div class="packing-website-completed-by" data-website-completed-by hidden>
+                    <div class="packing-website-user-avatar" data-website-updated-by-initials></div>
+                    <div class="packing-website-user-copy"><span class="packing-website-user-label">Completed by</span><strong class="packing-website-user-name" data-website-updated-by-name></strong><span class="packing-website-user-role" data-website-updated-by-role></span></div>
+                </div>
+            </section>
+        </section>
+        <?php endif; ?>
+        <section class="updates-tab-panel packing-item-panel-body" data-packing-panel-name="files">
+            <section class="packing-item-section">
+                <h2 class="packing-item-section-title">Files</h2>
+                <p class="packing-item-section-subtitle">Upload invoices, labels or product photos for this packing item.</p>
+                <label class="packing-item-file-drop" data-packing-file-drop tabindex="0">
+                    <i data-lucide="upload-cloud"></i><strong>Choose files</strong><span>or drag and drop files here</span><small>PDF, JPG, PNG or WebP — maximum 10 MB per file</small>
+                    <input type="file" id="packing-item-files" name="files[]" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple hidden data-packing-file-input>
+                </label>
+                <div class="packing-item-file-progress" data-packing-file-progress role="status" aria-live="polite" hidden></div>
+                <div class="packing-item-files-list" data-packing-files-list></div>
+            </section>
         </section>
     </aside>
     <div class="panel-backdrop" id="packing-backdrop" hidden></div>
 
-    <div class="modal-backdrop" id="packing-create-modal" hidden>
-        <form class="panel ops-form packing-modal" data-packing-create-form>
-            <div class="section-row"><h2>New packing item</h2><button type="button" data-close-modal>Close</button></div>
-            <div class="form-grid compact">
-                <label>Item<input name="item_name" required placeholder="Chia Seeds"></label>
-                <label>Received weight<input name="received_weight" placeholder="25kg"></label>
-                <label>Priority<select name="priority"><option value="top_critical">Top Critical</option><option value="high" selected>High</option><option value="medium">Medium</option><option value="low">Low</option></select></label>
-                <label>Date loaded<input name="date_loaded" type="datetime-local" value="<?= htmlspecialchars(date('Y-m-d\TH:i'), ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Quantity to pack<input name="quantity_planned" required placeholder="100g(150), 500g(8), 1kg(1)"></label>
-                <label>Person<select name="assigned_employee_id" data-create-person><option value="">Auto assign</option></select></label>
+    <div class="modal-backdrop packing-item-modal-overlay" id="packing-create-modal" hidden>
+        <form class="packing-item-modal" data-packing-create-form>
+            <header class="packing-item-modal-header">
+                <div><p class="packing-item-modal-kicker">Packing List</p><h2 class="packing-item-modal-title">New packing item</h2><p class="packing-item-modal-subtitle">Add the item, quantities, assignment and packing details.</p></div>
+                <button type="button" class="packing-item-modal-close" data-close-modal aria-label="Close new packing item"><i data-lucide="x"></i></button>
+            </header>
+            <div class="packing-item-modal-body">
+                <section class="packing-item-form-section">
+                    <div class="packing-item-form-section-header"><h3>Item details</h3><p>Enter the received item and quantities to be packed.</p></div>
+                    <div class="packing-item-form-grid">
+                        <div class="packing-item-form-field"><label>Item <span aria-hidden="true">*</span></label><input name="item_name" required placeholder="Chia Seeds"></div>
+                        <div class="packing-item-form-field"><label>Received weight</label><input name="received_weight" placeholder="25kg"></div>
+                        <div class="packing-item-form-field"><label>Quantity to pack <span aria-hidden="true">*</span></label><input name="quantity_planned" required placeholder="100g(150), 500g(8), 1kg(1)"></div>
+                        <div class="packing-item-form-field" data-portal-date-field><label>Date loaded</label><input id="new-packing-date-display" class="portal-date-input" type="text" data-enable-time="true" data-submit-target="#new-packing-date" placeholder="Select date and time"><input id="new-packing-date" name="date_loaded" type="hidden" value=""></div>
+                    </div>
+                </section>
+                <section class="packing-item-form-section">
+                    <div class="packing-item-form-section-header"><h3>Assignment and priority</h3><p>Choose the urgency and responsible packer.</p></div>
+                    <div class="packing-item-form-grid packing-item-form-grid--two">
+                        <div class="packing-item-form-field"><label>Priority</label><select name="priority" data-portal-custom-select><option value="top_critical">Top Critical</option><option value="high" selected>High</option><option value="medium">Medium</option><option value="low">Low</option></select></div>
+                        <div class="packing-item-form-field"><label>Person</label><select name="assigned_employee_id" data-create-person data-portal-custom-select><option value="">Auto assign</option></select></div>
+                    </div>
+                </section>
+                <section class="packing-item-form-section">
+                    <div class="packing-item-form-section-header"><h3>Notes</h3><p>Add packing instructions or internal information.</p></div>
+                    <div class="packing-item-form-field packing-item-form-field--full"><label>Notes</label><textarea name="notes" placeholder="Invoice notes or packing instructions"></textarea></div>
+                </section>
             </div>
-            <label>Notes<textarea name="notes" placeholder="Invoice notes or packing instructions"></textarea></label>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Create packing row</button></div>
+            <footer class="packing-item-modal-footer"><button type="button" class="pk-btn pk-btn--secondary" data-close-modal>Cancel</button><button type="button" class="pk-btn pk-btn--secondary" data-open-multi-packing><i data-lucide="layers-2"></i><span>Load multiple items</span></button><button type="submit" class="pk-btn pk-btn--primary" data-create-packing-submit><span data-create-packing-submit-text>Create packing row</span></button></footer>
         </form>
     </div>
 
-    <div class="modal-backdrop" id="packing-invoice-modal" hidden>
-        <form class="panel ops-form packing-modal packing-invoice-flow" data-invoice-draft-form>
-            <div class="section-row"><h2>Upload invoice</h2><button type="button" data-close-modal>Close</button></div>
-            <ol class="invoice-flow-steps">
-                <li class="active">Upload</li><li>Extract</li><li>Review</li><li>Assign</li><li>Create</li>
-            </ol>
-            <div class="form-grid compact">
-                <label>Invoice PDF<input type="file" name="invoice_file" accept="application/pdf"></label>
-                <label>Supplier name<input name="supplier_name" placeholder="Optional"></label>
-                <label>Invoice number<input name="invoice_number" data-draft-invoice-number placeholder="Auto extracted"></label>
-                <label>Invoice date<input name="invoice_date" data-draft-invoice-date type="date"></label>
+    <div class="invoice-upload-overlay" id="packing-invoice-modal" hidden>
+        <form class="invoice-upload-modal packing-invoice-flow" data-invoice-draft-form role="dialog" aria-modal="true" aria-labelledby="invoice-upload-title">
+            <header class="invoice-upload-header"><div><p class="invoice-upload-kicker">Packing List</p><h2 class="invoice-upload-title" id="invoice-upload-title" data-packing-draft-title>Upload invoice</h2><p class="invoice-upload-subtitle" data-packing-draft-subtitle>Extract invoice items, review quantities, assign packers and create approved rows.</p></div><button type="button" class="invoice-upload-close" data-close-modal aria-label="Close Upload Invoice" data-packing-draft-close><i data-lucide="x"></i></button></header>
+            <div class="invoice-upload-body">
+                <nav class="invoice-progress" data-invoice-stepper data-invoice-only aria-label="Invoice upload progress">
+                    <?php foreach ([['upload','Upload'],['extract','Extract'],['review','Review'],['assign','Assign'],['create','Create']] as $index => [$stepKey,$stepLabel]): ?>
+                    <?= $index ? '<span class="invoice-progress-line"></span>' : '' ?><button type="button" class="invoice-progress-step<?= $index === 0 ? ' active is-active' : '' ?>" data-invoice-step="<?= htmlspecialchars($stepKey, ENT_QUOTES, 'UTF-8') ?>"><span class="invoice-progress-number"><?= $index + 1 ?></span><span><?= htmlspecialchars($stepLabel, ENT_QUOTES, 'UTF-8') ?></span></button>
+                    <?php endforeach; ?>
+                </nav>
+                <section class="invoice-section" data-invoice-only><div class="invoice-section-header"><div><h3 class="invoice-section-title">Invoice source</h3><p class="invoice-section-description">Choose the PDF and confirm the invoice details before extraction.</p></div></div>
+                    <div class="invoice-form-grid">
+                        <div class="invoice-form-field"><label for="invoice-file">Invoice PDF</label><div class="invoice-file-upload" data-invoice-file-upload><input id="invoice-file" type="file" name="invoice_file" accept="application/pdf" hidden><button type="button" class="invoice-file-button" data-select-invoice-file><i data-lucide="upload"></i><span>Choose invoice PDF</span></button><span class="invoice-file-name" data-invoice-file-name>No PDF selected</span><button type="button" class="invoice-file-remove" data-remove-invoice-file hidden aria-label="Remove selected PDF"><i data-lucide="x"></i></button></div></div>
+                        <div class="invoice-form-field"><label for="invoice-supplier">Supplier name</label><input id="invoice-supplier" name="supplier_name" placeholder="Optional"></div>
+                        <div class="invoice-form-field"><label for="invoice-number">Invoice number</label><input id="invoice-number" name="invoice_number" data-draft-invoice-number placeholder="Auto extracted"></div>
+                        <div class="invoice-form-field"><label for="invoice-date-display">Invoice date</label><div class="invoice-date-field" data-portal-date-field><input id="invoice-date-display" class="portal-date-input invoice-date-input" type="text" data-enable-time="false" data-submit-target="#invoice-date" placeholder="Select date" autocomplete="off"><input id="invoice-date" name="invoice_date" data-draft-invoice-date type="hidden"><button type="button" class="portal-date-trigger invoice-date-trigger" aria-label="Open invoice date calendar"><i data-lucide="calendar-days"></i></button></div></div>
+                    </div>
+                </section>
+                <section class="invoice-section" data-invoice-only><div class="invoice-section-header"><div><h3 class="invoice-section-title">Extraction settings</h3><p class="invoice-section-description">Choose the default priority and how matching portal rows should be handled.</p></div></div><div class="invoice-form-grid invoice-form-grid--two">
+                    <div class="invoice-form-field"><label for="invoice-priority">Default priority</label><select id="invoice-priority" name="invoice_priority" data-invoice-priority data-portal-custom-select><option value="top_critical">Top Critical</option><option value="high">High</option><option value="medium" selected>Medium</option><option value="low">Low</option></select></div>
+                    <div class="invoice-form-field"><label for="invoice-match-mode">Matching rows</label><select id="invoice-match-mode" name="sync_mode" data-portal-custom-select><option value="update_existing" selected>Update existing / skip duplicates</option><option value="skip_duplicates">Skip duplicates only</option><option value="create_only">Create new rows only</option></select></div>
+                </div><div class="invoice-action-strip"><div class="invoice-action-help"><strong>Ready to extract?</strong><span>Upload a PDF or add rows manually if the invoice cannot be read.</span></div><div class="invoice-action-buttons"><button class="invoice-btn invoice-btn--primary" type="button" data-extract-invoice><i data-lucide="scan-text"></i><span>Extract invoice</span></button><button class="invoice-btn invoice-btn--secondary" type="button" data-add-draft-row><i data-lucide="plus"></i>Add row</button><button class="invoice-btn invoice-btn--secondary" type="button" data-redistribute-draft><i data-lucide="shuffle"></i>Redistribute packers</button></div></div>
+                    <div class="invoice-process-state" data-invoice-progress hidden><span class="invoice-process-spinner" aria-hidden="true"></span><div><strong data-invoice-progress-title>Reading invoice</strong><span data-invoice-progress-text>Extracting products, weights and quantities…</span></div></div>
+                </section>
+                <section class="invoice-section" data-invoice-only><div class="invoice-section-header"><div><h3 class="invoice-section-title">Manual fallback</h3><p class="invoice-section-description">Enter one item per line when the invoice PDF cannot be extracted.</p></div></div><div class="invoice-form-field"><label for="invoice-manual">Invoice rows</label><textarea id="invoice-manual" class="invoice-manual-input" name="invoice_draft" placeholder="Mango Butter | 5kg | 100g(20), 250g(8)"></textarea><p class="invoice-manual-example">Format: Product | received weight | quantity to pack</p></div></section>
+                <section class="manual-multi-toolbar" data-manual-only hidden><div><strong>Manual packing items</strong><span>Add one or many products, confirm their physical quantities, then distribute complete rows by workload.</span></div><div><button class="invoice-btn invoice-btn--secondary" type="button" data-add-draft-row><i data-lucide="plus"></i>Add item</button><button class="invoice-btn invoice-btn--primary" type="button" data-redistribute-draft><i data-lucide="shuffle"></i>Distribute by weight</button></div></section>
+                <section class="invoice-section" data-packing-draft-review><div class="invoice-section-header"><div><h3 class="invoice-section-title" data-packing-review-title>Packing review</h3><p class="invoice-section-description" data-packing-review-description>Step 1 confirms received quantity and unit. Step 2 adds packing instructions after whole-row packer distribution.</p></div></div><div class="invoice-workflow-steps" aria-label="Packing workflow"><span class="is-active" data-invoice-review-stage="received"><b>1</b> Confirm Received Quantity</span><span data-invoice-review-stage="instructions"><b>2</b> Enter Packing Instructions</span><span data-invoice-review-stage="create"><b>3</b> Create Packing Items</span></div><div class="draft-workload-summary invoice-review-summary" data-draft-workload-summary hidden></div><div class="invoice-review-table-wrap invoice-draft-wrap"><table class="invoice-review-table invoice-draft-table"><thead><tr data-invoice-draft-head><th>Item</th><th>Extracted quantity</th><th>Unit *</th><th>Normalised quantity</th><th>Status</th><th>Action</th></tr></thead><tbody data-invoice-draft-body><tr class="invoice-empty-row"><td colspan="6"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No rows yet</strong><span>Add an item to begin.</span></div></div></td></tr></tbody></table></div></section>
             </div>
-            <p class="muted">Upload a PDF to extract product lines automatically. If extraction is unavailable, use the manual fallback below.</p>
-            <div class="ops-form-actions">
-                <button class="button" type="button" data-extract-invoice><i data-lucide="scan-text"></i> Extract invoice</button>
-                <button class="button" type="button" data-add-draft-row><i data-lucide="plus"></i> Add row</button>
-            </div>
-            <label>Manual fallback<textarea name="invoice_draft" rows="4" placeholder="Product | received weight | quantity to pack, e.g. Mango Butter | 5kg | 100g(20), 250g(8)"></textarea></label>
-            <div class="invoice-draft-wrap">
-                <table class="invoice-draft-table">
-                    <thead><tr><th>Item</th><th>Received</th><th>Unit</th><th>Quantity to pack</th><th>Assigned</th><th>Workload</th><th></th></tr></thead>
-                    <tbody data-invoice-draft-body><tr><td colspan="7">Extract an invoice or add a row to review before saving.</td></tr></tbody>
-                </table>
-            </div>
-            <p class="muted" data-invoice-extract-status>Step 1: upload invoice or type rows manually.</p>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Confirm and create packing list</button></div>
+            <footer class="invoice-upload-footer"><div class="invoice-footer-status"><strong data-packing-footer-label>Step 1 of 5</strong><span data-invoice-extract-status>Upload an invoice or add rows manually.</span></div><div class="invoice-footer-actions"><button class="invoice-btn invoice-btn--secondary" type="button" data-close-modal>Cancel</button><button class="invoice-btn invoice-btn--primary" type="submit" data-confirm-quantities-create disabled>Create Packing Items</button></div></footer>
         </form>
     </div>
+    <?php if ($canViewPackingTools): ?>
+    <div class="packing-tools-backdrop" data-close-packing-tools></div>
+    <aside class="packing-tools-panel" data-packing-tools-panel aria-hidden="true">
+      <header class="packing-tools-panel-header"><div><p class="packing-tools-kicker">Packing List</p><h2 class="packing-tools-title">Packing tools</h2><p class="packing-tools-subtitle">Review deleted items, restore changes and track Packing List activity.</p></div><button type="button" class="packing-tools-close" data-close-packing-tools aria-label="Close Packing Tools"><i data-lucide="x"></i></button></header>
+      <nav class="packing-tools-tabs portal-panel-tabs" role="tablist" aria-label="Packing tools"><button type="button" class="packing-tools-tab portal-panel-tab is-active" role="tab" aria-selected="true" data-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button><button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity log</span></button><button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button><button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-tools-tab="import-history"><i data-lucide="arrow-down-to-line" aria-hidden="true"></i><span>Import history</span></button><button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-tools-tab="columns"><i data-lucide="columns-3" aria-hidden="true"></i><span>Columns</span></button><?php if ($canManage): ?><button type="button" class="packing-tools-tab portal-panel-tab" role="tab" aria-selected="false" data-tools-tab="bulk-actions"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button><?php endif; ?></nav>
+      <div class="packing-tools-body" data-packing-tools-body><div class="packing-tools-empty">Loading Packing Tools…</div></div>
+    </aside>
+    <?php endif; ?>
 </main>
 <script>
 window.HambelelaPacking = {
   dataUrl: 'packing-list-data.php',
   actionUrl: 'packing-list-action.php',
-  canEditHeaders: <?= $canEditHeaders ? 'true' : 'false' ?>
+  filesUrl: 'packing-item-files.php',
+  notificationsUrl: 'packing-item-notifications.php',
+  filesCsrf: <?= json_encode($packingAttachmentCsrf) ?>,
 };
 </script>
-<script defer src="<?= BASE_URL ?>/assets/js/packing-list.js?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/packing-list.js?v=<?= htmlspecialchars($packingJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

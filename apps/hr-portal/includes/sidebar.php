@@ -3,13 +3,28 @@
 $pendingLeave = db()->query("SELECT COUNT(*) FROM leave_requests WHERE status='pending'")->fetchColumn();
 $pendingOT    = db()->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
 $currentPage  = basename($_SERVER['PHP_SELF']);
+$showBusinessPortalLink = strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') !== false;
+$buildInfoPath = __DIR__ . '/../build-info.php';
+if (is_file($buildInfoPath)) {
+    require_once $buildInfoPath;
+}
 function navItem($href, $icon, $label, $badge=0, $current='') {
     $active = (basename($href) === $current) ? ' active' : '';
     $b = $badge > 0 ? "<span class='nav-badge'>$badge</span>" : '';
     return "<a href='$href' class='nav-item$active'><i class='$icon'></i> ".htmlspecialchars($label)."$b</a>";
 }
 ?>
-<nav class="sidebar">
+<link rel="stylesheet" href="includes/styles.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/styles.css')) ?>">
+<link rel="stylesheet" href="../../assets/css/portal-date-picker.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/css/portal-date-picker.css')) ?>">
+<script defer src="../../assets/js/portal-date-picker.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/js/portal-date-picker.js')) ?>"></script>
+<button type="button" class="hr-mobile-menu-toggle" data-hr-menu-open aria-label="Open HR navigation" aria-controls="hrPortalSidebar" aria-expanded="false">
+  <span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>
+</button>
+<nav class="sidebar" id="hrPortalSidebar" data-hr-sidebar aria-label="HR Portal navigation">
+  <div class="hr-sidebar-mobile-header">
+    <span>HR Portal</span>
+    <button type="button" class="hr-sidebar-close" data-hr-menu-close aria-label="Close HR navigation">&times;</button>
+  </div>
   <div class="sidebar-logo">
     <img src="data:image/jpeg;base64,YOUR_EXISTING_BASE64_HERE" alt="Hambelela Organic" style="width:160px;height:auto;display:block;filter:invert(1) brightness(2);">
     <div style="font-size:9px;color:rgba(255,255,255,0.28);margin-top:6px;letter-spacing:.1em;font-family:'Century Gothic','Futura',Arial,sans-serif;text-transform:uppercase">HR Portal</div>
@@ -25,13 +40,18 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
 
   <div style="flex:1;overflow-y:auto">
     <div class="nav-section">Overview</div>
+    <?= navItem('../../index.php','fa-solid fa-arrow-left','Back to Portal',0,$currentPage) ?>
     <?= navItem('dashboard.php','fa-solid fa-house','Dashboard',0,$currentPage) ?>
+    <?php if ((int)($user['emp_id'] ?? 0) > 0): ?>
+      <?= navItem('self-service.php','fa-solid fa-user','My HR Profile',0,$currentPage) ?>
+    <?php endif ?>
     <div class="nav-section">HR Management</div>
     <?= navItem('employees.php','fa-solid fa-users','Employees',0,$currentPage) ?>
     <?= navItem('leave.php','fa-solid fa-calendar-xmark','Leave Management',(int)$pendingLeave,$currentPage) ?>
     <?= navItem('leave-calendar.php','fa-solid fa-calendar-days','Leave Calendar',0,$currentPage) ?>
     <?= navItem('overtime.php','fa-regular fa-clock','Overtime',(int)$pendingOT,$currentPage) ?>
     <?= navItem('payroll.php','fa-solid fa-money-bill-wave','Payroll & Payslips',0,$currentPage) ?>
+    <?= navItem('medical-aid.php','fa-solid fa-kit-medical','Medical Aid',0,$currentPage) ?>
     <?= navItem('documents.php','fa-solid fa-folder-open','Documents',0,$currentPage) ?>
     <?= navItem('policies.php','fa-solid fa-file-shield','Company Policies',0,$currentPage) ?>
     <?= navItem('loans.php','fa-solid fa-hand-holding-dollar','Loans',0,$currentPage) ?>
@@ -40,8 +60,15 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
   </div>
 
   <div class="sidebar-footer">
+    <?php if (defined('HR_PORTAL_BUILD_COMMIT')): ?>
+      <div style="font-size:10px;line-height:1.35;color:rgba(255,255,255,.42);margin-bottom:10px">
+        Build <?=htmlspecialchars(substr(HR_PORTAL_BUILD_COMMIT,0,7))?><br>
+        <?=htmlspecialchars(HR_PORTAL_BUILD_DATE)?>
+      </div>
+    <?php endif ?>
     <form method="POST" action="logout.php">
       <button type="submit" class="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out</button>
     </form>
   </div>
 </nav>
+<script defer src="includes/hr-responsive.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/hr-responsive.js')) ?>"></script>

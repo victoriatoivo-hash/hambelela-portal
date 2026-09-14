@@ -33,10 +33,22 @@
     }
 
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/loan-agreements.php';
 requireAdmin();
 require_once __DIR__ . '/includes/email.php';
 $user = currentUser();
 $db   = db();
+loanAgreementEnsureSchema($db);
+$hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+$socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
+hrEnsureMedicalAidSchemaSafe($db);
+$hasMedicalAid = hrMedicalAidAvailable($db);
+$hasMedicalAidPayslipColumns = hrHasPayslipMedicalAidColumns($db);
+$medicalAidDefaults = hrMedicalAidDefaults();
+$medicalAidProfiles = hrMedicalAidMap($db);
+$medicalAidSelect = $hasMedicalAidPayslipColumns
+    ? "ps.medical_aid_fund, ps.medical_aid_total, ps.medical_aid_company, ps.medical_aid_employee"
+    : "'' AS medical_aid_fund, 0 AS medical_aid_total, 0 AS medical_aid_company, 0 AS medical_aid_employee";
 
 // ── Get company settings ──────────────────────────────────────
 function getSetting($key, $default='') {
@@ -68,10 +80,59 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Generate payslips for all active employees
         $employees = $db->query("SELECT * FROM employees WHERE status='active'")->fetchAll();
         foreach ($employees as $emp) {
+            $loanPayroll = loanAgreementPayrollAmounts($db, (int)$emp['id'], $month, $year);
+            $loan_disbursement = $loanPayroll['disbursement'];
+            $loan_deduction = $loanPayroll['deduction'];
             // Check if payslip already exists for this run
-            $exists = $db->prepare("SELECT id FROM payslips WHERE run_id=? AND employee_id=?");
+            $existingMedicalAidSelect = $hasMedicalAidPayslipColumns ? "COALESCE(medical_aid_employee,0)" : "0";
+            $exists = $db->prepare("SELECT *, $existingMedicalAidSelect AS existing_medical_aid_employee FROM payslips WHERE run_id=? AND employee_id=?");
             $exists->execute([$run,$emp['id']]); 
-            if ($exists->fetchColumn()) continue;
+            $existingPayslip = $exists->fetch();
+            if ($existingPayslip) {
+                if ($hasMedicalAid) {
+                    $profile = hrApplyMedicalAidToEmployee($emp, $medicalAidProfiles);
+                    $medicalAidFund = $medicalAidDefaults['fund'];
+                    $medicalAidTotal = 0.00;
+                    $medicalAidCompany = 0.00;
+                    $medicalAidEmployee = 0.00;
+                    if (hrMedicalAidEffectiveForPeriod($profile, $month, $year)) {
+                        $medicalAidFund = trim((string)($profile['medical_aid_fund'] ?? '')) ?: $medicalAidDefaults['fund'];
+                        $medicalAidTotal = (float)($profile['medical_aid_total'] ?? $medicalAidDefaults['total']);
+                        $medicalAidCompany = (float)($profile['medical_aid_company'] ?? $medicalAidDefaults['company']);
+                        $medicalAidEmployee = (float)($profile['medical_aid_employee'] ?? $medicalAidDefaults['employee']);
+                    }
+                    $updatedNet = round(
+                        (float)($existingPayslip['basic_salary'] ?? 0)
+                        + (float)($existingPayslip['ot_pay'] ?? 0)
+                        + $loan_disbursement
+                        - (float)($existingPayslip['paye'] ?? 0)
+                        - (float)($existingPayslip['ssf'] ?? 0)
+                        - (float)($existingPayslip['lwop_deduction'] ?? 0)
+                        - (float)($existingPayslip['other_deductions'] ?? 0)
+                        - $loan_deduction
+                        - $medicalAidEmployee,
+                        2
+                    );
+                    if ($hasMedicalAidPayslipColumns) {
+                        $db->prepare("UPDATE payslips SET medical_aid_fund=?, medical_aid_total=?, medical_aid_company=?, medical_aid_employee=?, loan_disbursement=?, loan_deduction=?, net_salary=? WHERE id=?")
+                           ->execute([$medicalAidFund, $medicalAidTotal, $medicalAidCompany, $medicalAidEmployee, $loan_disbursement, $loan_deduction, $updatedNet, (int)$existingPayslip['id']]);
+                    } else {
+                        $db->prepare("UPDATE payslips SET loan_disbursement=?, loan_deduction=?, net_salary=? WHERE id=?")
+                           ->execute([$loan_disbursement, $loan_deduction, $updatedNet, (int)$existingPayslip['id']]);
+                    }
+                } else {
+                    $updatedNet = round(
+                        (float)($existingPayslip['basic_salary'] ?? 0) + (float)($existingPayslip['ot_pay'] ?? 0) + $loan_disbursement
+                        - (float)($existingPayslip['paye'] ?? 0) - (float)($existingPayslip['ssf'] ?? 0)
+                        - (float)($existingPayslip['lwop_deduction'] ?? 0) - (float)($existingPayslip['other_deductions'] ?? 0)
+                        - $loan_deduction,
+                        2
+                    );
+                    $db->prepare("UPDATE payslips SET loan_disbursement=?, loan_deduction=?, net_salary=? WHERE id=?")
+                       ->execute([$loan_disbursement, $loan_deduction, $updatedNet, (int)$existingPayslip['id']]);
+                }
+                continue;
+            }
 
             $basic = (float)$emp['basic_salary'];
 
@@ -83,18 +144,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $paye = calculateNamibiaPAYE($basic + $ot_pay);
             $ssf = calculateEmployeeSSF($basic);
 
-            // Get active loan deduction for this employee
-            try {
-                $loanDed = $db->prepare("SELECT COALESCE(SUM(repayment_amount),0) FROM loans WHERE employee_id=? AND status='active'");
-                $loanDed->execute([$emp['id']]);
-                $loan_deduction = (float)$loanDed->fetchColumn();
-            } catch (Exception $e) { $loan_deduction = 0; }
+            $medicalAidFund = $medicalAidDefaults['fund'];
+            $medicalAidTotal = 0.00;
+            $medicalAidCompany = 0.00;
+            $medicalAidEmployee = 0.00;
+            if ($hasMedicalAid) {
+                $emp = hrApplyMedicalAidToEmployee($emp, $medicalAidProfiles);
+            }
+            if ($hasMedicalAid && hrMedicalAidEffectiveForPeriod($emp, $month, $year)) {
+                $medicalAidFund = trim((string)($emp['medical_aid_fund'] ?? '')) ?: $medicalAidDefaults['fund'];
+                $medicalAidTotal = (float)($emp['medical_aid_total'] ?? $medicalAidDefaults['total']);
+                $medicalAidCompany = (float)($emp['medical_aid_company'] ?? $medicalAidDefaults['company']);
+                $medicalAidEmployee = (float)($emp['medical_aid_employee'] ?? $medicalAidDefaults['employee']);
+            }
 
-            $net = round($basic + $ot_pay - $paye - $ssf - $loan_deduction, 2);
+            $net = round($basic + $ot_pay + $loan_disbursement - $paye - $ssf - $loan_deduction - $medicalAidEmployee, 2);
 
             try {
-                $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,paye,ssf,loan_deduction,net_salary) VALUES (?,?,?,?,?,?,?,?)")
-                   ->execute([$run,$emp['id'],$basic,$ot_pay,$paye,$ssf,$loan_deduction,$net]);
+                if ($hasMedicalAidPayslipColumns) {
+                    $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,paye,ssf,loan_deduction,loan_disbursement,medical_aid_fund,medical_aid_total,medical_aid_company,medical_aid_employee,net_salary) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+                       ->execute([$run,$emp['id'],$basic,$ot_pay,$paye,$ssf,$loan_deduction,$loan_disbursement,$medicalAidFund,$medicalAidTotal,$medicalAidCompany,$medicalAidEmployee,$net]);
+                } else {
+                    $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,paye,ssf,loan_deduction,loan_disbursement,net_salary) VALUES (?,?,?,?,?,?,?,?,?)")
+                       ->execute([$run,$emp['id'],$basic,$ot_pay,$paye,$ssf,$loan_deduction,$loan_disbursement,$net]);
+                }
             } catch (Exception $e) {
                 $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,paye,ssf,net_salary) VALUES (?,?,?,?,?,?,?)")
                    ->execute([$run,$emp['id'],$basic,$ot_pay,$paye,$ssf,$net]);
@@ -146,13 +219,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $ssf  = calculateEmployeeSSF($basic);
 
         $loan_deduction = 0;
+        $loan_disbursement = 0;
         try {
-            $loanStmt = $db->prepare("SELECT COALESCE(loan_deduction,0) FROM payslips WHERE id=?");
+            $loanStmt = $db->prepare("SELECT COALESCE(loan_deduction,0),COALESCE(loan_disbursement,0) FROM payslips WHERE id=?");
             $loanStmt->execute([$psId]);
-            $loan_deduction = (float)$loanStmt->fetchColumn();
-        } catch (Exception $e) { $loan_deduction = 0; }
+            $loanRow = $loanStmt->fetch(PDO::FETCH_NUM);
+            $loan_deduction = (float)($loanRow[0] ?? 0);
+            $loan_disbursement = (float)($loanRow[1] ?? 0);
+        } catch (Exception $e) { $loan_deduction = 0; $loan_disbursement = 0; }
 
-        $net  = round($basic+$ot_pay-$paye-$ssf-$lwop-$other-$loan_deduction,2);
+        $medicalAidEmployee = 0;
+        if ($hasMedicalAidPayslipColumns) {
+            try {
+                $medStmt = $db->prepare("SELECT ps.employee_id, COALESCE(ps.medical_aid_employee,0) AS medical_aid_employee, r.period_month, r.period_year FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=?");
+                $medStmt->execute([$psId]);
+                $medRow = $medStmt->fetch();
+                if ($medRow) {
+                    $medProfile = hrApplyMedicalAidToEmployee(['id' => (int)$medRow['employee_id']], $medicalAidProfiles);
+                    $medicalAidEmployee = hrMedicalAidEffectiveForPeriod($medProfile, (int)$medRow['period_month'], (int)$medRow['period_year'])
+                        ? (float)$medRow['medical_aid_employee']
+                        : 0;
+                }
+            } catch (Exception $e) { $medicalAidEmployee = 0; }
+        }
+        $net  = round($basic+$ot_pay+$loan_disbursement-$paye-$ssf-$lwop-$other-$loan_deduction-$medicalAidEmployee,2);
 
         $db->prepare("UPDATE payslips SET basic_salary=?,ot_pay=?,lwop_deduction=?,other_deductions=?,paye=?,ssf=?,net_salary=? WHERE id=?")
            ->execute([$basic,$ot_pay,$lwop,$other,$paye,$ssf,$net,$psId]);
@@ -160,6 +250,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $rid = $db->prepare("SELECT run_id FROM payslips WHERE id=?");
         $rid->execute([$psId]); $rid = $rid->fetchColumn();
         header('Location: payroll.php?run='.$rid.'&msg=edited'); exit;
+    }
+
+    if ($action === 'save_medical_aid_payment') {
+        $runId = (int)($_POST['run_id'] ?? 0);
+        $run = $db->prepare("SELECT period_month, period_year FROM payroll_runs WHERE id=?");
+        $run->execute([$runId]);
+        $run = $run->fetch();
+        if ($run && $hasMedicalAidPayslipColumns) {
+            $paid = isset($_POST['medical_aid_paid']) ? 1 : 0;
+            $notes = clean($_POST['medical_aid_notes'] ?? '');
+            $totals = $db->prepare("SELECT COUNT(*) AS active_count, COALESCE(SUM(medical_aid_total),0) AS total_payable, COALESCE(SUM(medical_aid_company),0) AS company_portion, COALESCE(SUM(medical_aid_employee),0) AS employee_portion FROM payslips WHERE run_id=? AND medical_aid_total > 0");
+            $totals->execute([$runId]);
+            $totals = $totals->fetch();
+            $db->prepare("INSERT INTO medical_aid_payments (period_month,period_year,active_employee_count,total_payable,company_contribution,employee_contribution,paid_status,paid_date,paid_by,notes_reference)
+                VALUES (?,?,?,?,?,?,?,?,?,?)
+                ON DUPLICATE KEY UPDATE active_employee_count=VALUES(active_employee_count), total_payable=VALUES(total_payable), company_contribution=VALUES(company_contribution), employee_contribution=VALUES(employee_contribution), paid_status=VALUES(paid_status), paid_date=VALUES(paid_date), paid_by=VALUES(paid_by), notes_reference=VALUES(notes_reference)")
+               ->execute([(int)$run['period_month'], (int)$run['period_year'], (int)$totals['active_count'], (float)$totals['total_payable'], (float)$totals['company_portion'], (float)$totals['employee_portion'], $paid, $paid ? date('Y-m-d H:i:s') : null, $user['id'], $notes]);
+        }
+        header('Location: payroll.php?run='.$runId.'&msg=medical_aid_saved'); exit;
     }
 
     if ($action === 'save_settings') {
@@ -175,23 +284,65 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Data ─────────────────────────────────────────────────────
 $runId = (int)($_GET['run'] ?? 0);
+if ($runId) loanAgreementSyncPayrollRun($db, $runId);
 $runs  = $db->query("SELECT * FROM payroll_runs ORDER BY period_year DESC, period_month DESC")->fetchAll();
 
 $currentRun  = null;
 $payslips    = [];
-$runTotals   = ['basic'=>0,'ot'=>0,'paye'=>0,'ssf'=>0,'net'=>0];
+$runTotals   = ['basic'=>0,'ot'=>0,'paye'=>0,'ssf'=>0,'net'=>0,'medical_total'=>0,'medical_company'=>0,'medical_employee'=>0,'medical_active'=>0];
+$medicalAidPayment = null;
 
 if ($runId) {
     $currentRun = $db->prepare("SELECT * FROM payroll_runs WHERE id=?");
     $currentRun->execute([$runId]); $currentRun = $currentRun->fetch();
-    $payslips = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, e.job_title, e.department, e.id_number FROM payslips ps JOIN employees e ON e.id=ps.employee_id WHERE ps.run_id=? ORDER BY e.first_name");
+    $payslips = $db->prepare("SELECT ps.*, $medicalAidSelect, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number FROM payslips ps JOIN employees e ON e.id=ps.employee_id WHERE ps.run_id=? ORDER BY e.first_name");
     $payslips->execute([$runId]); $payslips = $payslips->fetchAll();
-    foreach ($payslips as $p) {
+    foreach ($payslips as $idx => $p) {
+        $medicalAppliesForRun = false;
+        if ($hasMedicalAid) {
+            $medicalProfile = hrApplyMedicalAidToEmployee(['id' => (int)$p['employee_id']], $medicalAidProfiles);
+            $medicalAppliesForRun = hrMedicalAidEffectiveForPeriod($medicalProfile, (int)$currentRun['period_month'], (int)$currentRun['period_year']);
+            if ($medicalAppliesForRun && (float)($p['medical_aid_total'] ?? 0) <= 0) {
+                $p['medical_aid_fund'] = $medicalProfile['medical_aid_fund'];
+                $p['medical_aid_total'] = $medicalProfile['medical_aid_total'];
+                $p['medical_aid_company'] = $medicalProfile['medical_aid_company'];
+                $p['medical_aid_employee'] = $medicalProfile['medical_aid_employee'];
+            }
+        }
+        if (!$medicalAppliesForRun) {
+            $p['medical_aid_total'] = 0;
+            $p['medical_aid_company'] = 0;
+            $p['medical_aid_employee'] = 0;
+        }
+        $p['net_salary'] = round(
+            (float)($p['basic_salary'] ?? 0)
+            + (float)($p['ot_pay'] ?? 0)
+            + (float)($p['loan_disbursement'] ?? 0)
+            - (float)($p['paye'] ?? 0)
+            - (float)($p['ssf'] ?? 0)
+            - (float)($p['lwop_deduction'] ?? 0)
+            - (float)($p['other_deductions'] ?? 0)
+            - (float)($p['loan_deduction'] ?? 0)
+            - (float)($p['medical_aid_employee'] ?? 0),
+            2
+        );
+        $payslips[$idx] = $p;
         $runTotals['basic'] += $p['basic_salary'];
         $runTotals['ot']    += $p['ot_pay'];
         $runTotals['paye']  += $p['paye'];
         $runTotals['ssf']   += $p['ssf'];
         $runTotals['net']   += $p['net_salary'];
+        $runTotals['medical_total'] += (float)($p['medical_aid_total'] ?? 0);
+        $runTotals['medical_company'] += (float)($p['medical_aid_company'] ?? 0);
+        $runTotals['medical_employee'] += (float)($p['medical_aid_employee'] ?? 0);
+        if ((float)($p['medical_aid_total'] ?? 0) > 0) $runTotals['medical_active']++;
+    }
+    if ($hasMedicalAidPayslipColumns && $currentRun) {
+        try {
+            $mp = $db->prepare("SELECT * FROM medical_aid_payments WHERE period_month=? AND period_year=?");
+            $mp->execute([(int)$currentRun['period_month'], (int)$currentRun['period_year']]);
+            $medicalAidPayment = $mp->fetch();
+        } catch (Exception $e) { $medicalAidPayment = null; }
     }
 } elseif (!empty($runs)) {
     header('Location: payroll.php?run='.$runs[0]['id']); exit;
@@ -212,15 +363,31 @@ $msg = $_GET['msg'] ?? '';
 // View payslip
 $viewPayslip = null;
 if (isset($_GET['payslip'])) {
-    $viewPayslip = $db->prepare("SELECT ps.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, e.job_title, e.department, e.id_number, e.address, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=?");
+    $viewPayslip = $db->prepare("SELECT ps.*, $medicalAidSelect, r.period_month AS ps_period_month, r.period_year AS ps_period_year, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.address, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=?");
     $viewPayslip->execute([(int)$_GET['payslip']]); $viewPayslip = $viewPayslip->fetch();
+    $viewMedicalApplies = false;
+    if ($viewPayslip) {
+        $medicalProfile = hrApplyMedicalAidToEmployee(['id' => (int)$viewPayslip['employee_id']], $medicalAidProfiles);
+        $viewMedicalApplies = hrMedicalAidEffectiveForPeriod($medicalProfile, (int)$viewPayslip['ps_period_month'], (int)$viewPayslip['ps_period_year']);
+        if ($viewMedicalApplies && (float)($viewPayslip['medical_aid_total'] ?? 0) <= 0) {
+            $viewPayslip['medical_aid_fund'] = $medicalProfile['medical_aid_fund'];
+            $viewPayslip['medical_aid_total'] = $medicalProfile['medical_aid_total'];
+            $viewPayslip['medical_aid_company'] = $medicalProfile['medical_aid_company'];
+            $viewPayslip['medical_aid_employee'] = $medicalProfile['medical_aid_employee'];
+        }
+        if (!$viewMedicalApplies) {
+            $viewPayslip['medical_aid_total'] = 0;
+            $viewPayslip['medical_aid_company'] = 0;
+            $viewPayslip['medical_aid_employee'] = 0;
+        }
+    }
 }
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Payroll — Hambelela HR</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -241,30 +408,34 @@ if (isset($_GET['payslip'])) {
 .ps-slip-label{font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.1em;margin-bottom:2px}
 .ps-slip-month{font-size:22px;font-weight:800;color:#111}
 .ps-meta{display:grid;grid-template-columns:1.2fr .8fr;gap:28px;margin-bottom:24px;padding-bottom:18px;border-bottom:1px dashed #d8d8d8;font-size:11px;color:#555;line-height:1.65}
+.ps-meta>*,.ps-summary>*,.ps-cols>*{min-width:0}
 .ps-meta h4{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#888;margin:0 0 8px}
-.ps-meta-grid{display:grid;grid-template-columns:120px 1fr;column-gap:12px;row-gap:4px}
+.ps-meta-grid{display:grid;grid-template-columns:minmax(88px,112px) minmax(0,1fr);column-gap:10px;row-gap:5px;align-items:start}
 .ps-meta .lbl{color:#888}
-.ps-meta .val{font-weight:650;color:#111}
+.ps-meta .val{font-weight:650;color:#111;min-width:0;overflow-wrap:anywhere;word-break:break-word}
 .ps-summary{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-bottom:24px;padding-bottom:20px;border-bottom:1px dashed #ccc}
 .ps-emp-block{font-size:12.5px}
 .ps-emp-block h4{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#888;margin-bottom:10px}
-.ps-emp-row{display:grid;grid-template-columns:118px 1fr;column-gap:10px;margin-bottom:7px;align-items:start}
+.ps-emp-row{display:grid;grid-template-columns:minmax(96px,118px) minmax(0,1fr);column-gap:10px;margin-bottom:7px;align-items:start}
 .ps-emp-row .lbl{color:#888;flex-shrink:0}
-.ps-emp-row .val{font-weight:600;color:#111}
+.ps-emp-row .val{font-weight:600;color:#111;min-width:0;overflow-wrap:anywhere}
 .ps-net-box{background:#fff;border:1.5px solid #111;border-radius:0;padding:18px 20px}
 .ps-net-box .net-amount{font-size:28px;font-weight:800;color:#111;font-family:monospace;margin-bottom:4px;font-variant-numeric:tabular-nums}
 .ps-net-box .net-label{font-size:11px;color:#555;font-weight:600;text-transform:uppercase;letter-spacing:.06em}
-.ps-net-box .net-sub{margin-top:14px;padding-top:12px;border-top:1px dashed #ccc;display:grid;grid-template-columns:1fr 1fr;gap:7px 10px;font-size:11.5px;color:#555}
+.ps-net-box .net-sub{margin-top:14px;padding-top:12px;border-top:1px dashed #ccc;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:7px 10px;font-size:11.5px;color:#555}
 .ps-net-box .net-sub .lbl{color:#888}
-.ps-net-box .net-sub .val{font-weight:600;text-align:right;font-variant-numeric:tabular-nums}
+.ps-net-box .net-sub .val{font-weight:600;text-align:right;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
 .ps-cols{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-bottom:20px}
 .ps-col-header{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;background:#fff;color:#111;padding:7px 12px;border:1px solid #111;border-bottom:none}
-.ps-col-table{width:100%;border-collapse:collapse;border:1px solid #e0e0e0;border-top:none}
+.ps-col-table{width:100%;table-layout:fixed;border-collapse:collapse;border:1px solid #e0e0e0;border-top:none}
 .ps-col-table td{padding:8px 12px;font-size:12px;border-bottom:1px solid #f0f0f0}
-.ps-col-table td:last-child{text-align:right;font-family:monospace;font-size:11.5px;font-variant-numeric:tabular-nums}
+.ps-col-table td:first-child{width:auto;overflow-wrap:anywhere}
+.ps-col-table td:last-child{width:112px;text-align:right;font-family:monospace;font-size:11.5px;font-variant-numeric:tabular-nums;white-space:nowrap}
 .ps-col-table tr:last-child td{border-bottom:none;font-weight:700;background:#fff;border-top:1px solid #bbb}
 .ps-col-table .deduct td:last-child{color:#c00}
 .money{display:inline-block;min-width:96px;text-align:right;font-family:monospace;font-variant-numeric:tabular-nums}
+@media(max-width:900px){.payslip-doc{padding:30px 28px}.ps-meta,.ps-summary,.ps-cols{grid-template-columns:minmax(0,1fr);gap:18px}.ps-meta-grid{grid-template-columns:minmax(96px,120px) minmax(0,1fr)}}
+@media(max-width:520px){.payslip-doc{padding:22px 16px}.ps-meta-grid,.ps-emp-row{grid-template-columns:minmax(84px,104px) minmax(0,1fr)}.ps-col-table td{padding:8px}.ps-col-table td:last-child{width:104px}}
 .ps-net-total{display:flex;justify-content:space-between;align-items:center;border:1.5px solid #111;padding:13px 18px;margin-bottom:10px;background:#fff}
 .ps-net-total .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .ps-net-total .lbl small{display:block;font-weight:400;text-transform:none;letter-spacing:0;color:#888;font-size:10.5px;margin-top:2px}
@@ -274,15 +445,47 @@ if (isset($_GET['payslip'])) {
 .ps-bank .lbl{color:#888;margin-bottom:2px;font-size:10px;text-transform:uppercase;letter-spacing:.05em}
 .ps-bank .val{font-weight:600}
 .ps-footer{border-top:1px solid #eee;padding-top:12px;font-size:9.5px;color:#aaa;text-align:center;margin-top:4px}
+.medical-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;padding:18px 20px 6px}
+.medical-mini-card{border:1px solid var(--border);border-radius:12px;background:#f8faf9;padding:14px 15px;min-height:86px}
+.medical-mini-label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--text-mid);font-weight:800;margin-bottom:8px}
+.medical-mini-value{font-size:22px;font-weight:800;color:var(--text)}
+.medical-payment-row{display:grid;grid-template-columns:minmax(190px,auto) minmax(220px,1fr) auto;gap:12px;align-items:end;padding:16px 20px 20px;border-top:1px solid var(--border);background:#fff}
+.medical-paid-toggle{height:40px;display:flex;align-items:center;gap:9px;font-size:13px;font-weight:800;color:var(--text);padding:0 12px;border:1.5px solid var(--border);border-radius:8px;background:#f8faf9}
+.medical-paid-toggle input{width:17px;height:17px;accent-color:var(--green)}
+.medical-payment-row .form-input{height:40px}
+@media(max-width:1100px){.medical-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.medical-payment-row{grid-template-columns:1fr}}
+.hr-payroll-header,.hr-payroll-actions,.hr-payroll-layout,.hr-payroll-periods,.hr-payroll-details{min-width:0;max-width:100%;box-sizing:border-box}
+.hr-payroll-header{flex-wrap:wrap;gap:10px}
+.hr-payroll-actions{display:flex;flex-wrap:wrap;gap:8px}
+.hr-payroll-layout{display:grid;grid-template-columns:minmax(180px,200px) minmax(0,1fr);align-items:start;gap:20px;width:100%}
+.hr-payroll-periods,.hr-payroll-details{width:100%}
+.hr-payroll-period-row{display:grid;grid-template-columns:minmax(0,1fr) 34px;align-items:center;gap:6px;width:100%;min-width:0;margin-bottom:6px}
+.hr-payroll-period-row__content{display:block;min-width:0;padding:10px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;overflow-wrap:anywhere}
+.hr-payroll-period-row form{width:34px;min-width:0}
+.hr-payroll-period-row__delete{display:inline-flex;width:34px;height:34px;align-items:center;justify-content:center;padding:0}
+.hr-payroll-details>.grid-4>*{min-width:0;width:100%}
+.hr-payroll-details .card,.hr-payroll-details .medical-summary-grid{min-width:0;max-width:100%}
+@media(max-width:767px){
+  .hr-payroll-layout{grid-template-columns:minmax(0,1fr);gap:12px}
+  .hr-payroll-periods,.hr-payroll-details{grid-column:1/-1}
+  .hr-payroll-details>.grid-4{grid-template-columns:minmax(0,1fr);gap:10px}
+  .medical-summary-grid{grid-template-columns:minmax(0,1fr)}
+  .hr-payroll-header{align-items:flex-start}
+  .hr-payroll-actions{width:auto}
+}
+@media(max-width:359px){
+  .hr-payroll-actions{display:grid;grid-template-columns:minmax(0,1fr);width:100%}
+  .hr-payroll-actions>.btn{width:100%;justify-content:center}
+}
 </style>
 </head>
 <body>
 <?php include __DIR__ . '/includes/sidebar.php'; ?>
 
 <div class="main">
-  <div class="topbar no-print">
+  <div class="topbar no-print hr-payroll-header">
     <div class="topbar-title">Payroll &amp; Payslips</div>
-    <div style="display:flex;gap:8px">
+    <div class="hr-payroll-actions">
       <?php if ($viewPayslip): ?>
         <button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Payslip</button>
         <a href="payroll.php?run=<?=$runId?>" class="btn btn-secondary"><i class="fa-solid fa-arrow-left"></i> Back</a>
@@ -302,9 +505,13 @@ if (isset($_GET['payslip'])) {
     $runRow = $db->prepare("SELECT id, period_label, period_month, period_year, generated_at FROM payroll_runs WHERE id=(SELECT run_id FROM payslips WHERE id=?)");
     $runRow->execute([$viewPayslip['id']]); $runRow = $runRow->fetch();
     $gross = (float)$viewPayslip['basic_salary'] + (float)$viewPayslip['ot_pay'];
+    $loanDisbursement = (float)($viewPayslip['loan_disbursement'] ?? 0);
     $loanDed = isset($viewPayslip['loan_deduction']) ? (float)$viewPayslip['loan_deduction'] : 0;
-    $totalDed = (float)$viewPayslip['paye'] + (float)$viewPayslip['ssf'] + (float)$viewPayslip['lwop_deduction'] + (float)$viewPayslip['other_deductions'] + $loanDed;
-    $net = (float)$viewPayslip['net_salary'];
+    $medicalAidCompany = (float)($viewPayslip['medical_aid_company'] ?? 0);
+    $medicalAidEmployee = (float)($viewPayslip['medical_aid_employee'] ?? 0);
+    $medicalAidFund = trim((string)($viewPayslip['medical_aid_fund'] ?? 'Medical Aid'));
+    $totalDed = (float)$viewPayslip['paye'] + (float)$viewPayslip['ssf'] + (float)$viewPayslip['lwop_deduction'] + (float)$viewPayslip['other_deductions'] + $loanDed + $medicalAidEmployee;
+    $net = round($gross + $loanDisbursement - $totalDed, 2);
     $netInt = (int)round($net);
     $periodStart = date('d F Y', mktime(0,0,0,(int)$runRow['period_month'],1,(int)$runRow['period_year']));
     $periodEnd = date('d F Y', mktime(0,0,0,(int)$runRow['period_month']+1,0,(int)$runRow['period_year']));
@@ -355,6 +562,7 @@ if (isset($_GET['payslip'])) {
         <h4>Payslip Details</h4>
         <div class="ps-meta-grid">
           <span class="lbl">Payslip No</span><span class="val"><?=htmlspecialchars($payslipNo)?></span>
+          <span class="lbl">Payroll Run</span><span class="val">Run #<?=htmlspecialchars((string)$runRow['id'])?> / Payslip #<?=htmlspecialchars((string)$viewPayslip['id'])?></span>
           <span class="lbl">Pay Period</span><span class="val"><?=htmlspecialchars($payPeriodRange)?></span>
           <span class="lbl">Payment Method</span><span class="val"><?=htmlspecialchars($paymentMethod)?></span>
           <span class="lbl">Generated On</span><span class="val"><?=htmlspecialchars($generatedOn)?></span>
@@ -371,6 +579,7 @@ if (isset($_GET['payslip'])) {
         <div class="ps-emp-row"><span class="lbl">Employee ID</span><span class="val"><?=htmlspecialchars($viewPayslip['emp_number'])?></span></div>
         <div class="ps-emp-row"><span class="lbl">ID Number</span><span class="val"><?=htmlspecialchars($viewPayslip['id_number'] ?: '—')?></span></div>
         <div class="ps-emp-row"><span class="lbl">Department</span><span class="val"><?=htmlspecialchars($viewPayslip['department'] ?: '—')?></span></div>
+        <?php if ($hasSocialSecurity): ?><div class="ps-emp-row"><span class="lbl">Social Security No</span><span class="val"><?=htmlspecialchars($viewPayslip['social_security_number'] ?: '—')?></span></div><?php endif ?>
         <div class="ps-emp-row"><span class="lbl">Pay Date</span><span class="val"><?=$periodEnd?></span></div>
         <div class="ps-emp-row"><span class="lbl">Hourly Rate</span><span class="val">N$ <?=number_format((float)$viewPayslip['contract_salary'] > 0 ? (float)$viewPayslip['contract_salary']/160 : 0, 2)?>/hr</span></div>
       </div>
@@ -396,6 +605,12 @@ if (isset($_GET['payslip'])) {
           <?php if($viewPayslip['ot_pay'] > 0): ?>
           <tr><td>Overtime Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ot_pay'],2)?></span></td></tr>
           <?php endif ?>
+          <?php if($loanDisbursement > 0): ?>
+          <tr><td>Employee Loan Payout <small>(non-taxable)</small></td><td><span class="money">N$ <?=number_format($loanDisbursement,2)?></span></td></tr>
+          <?php endif ?>
+          <?php if($medicalAidCompany > 0): ?>
+          <tr><td>Medical Aid Employer Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr>
+          <?php endif ?>
           <tr><td><strong>Gross Earnings</strong></td><td><strong class="money">N$ <?=number_format($gross,2)?></strong></td></tr>
         </table>
       </div>
@@ -404,6 +619,9 @@ if (isset($_GET['payslip'])) {
         <table class="ps-col-table">
           <tr class="deduct"><td>PAYE (Income Tax)</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['paye'],2)?></span></td></tr>
           <tr class="deduct"><td>Social Security (SSF)</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ssf'],2)?></span></td></tr>
+          <?php if($medicalAidEmployee > 0): ?>
+          <tr class="deduct"><td>Medical Aid Employee Contribution<?= $medicalAidFund !== '' ? ' - '.htmlspecialchars($medicalAidFund) : '' ?></td><td><span class="money">N$ <?=number_format($medicalAidEmployee,2)?></span></td></tr>
+          <?php endif ?>
           <?php if($viewPayslip['lwop_deduction'] > 0): ?>
           <tr class="deduct"><td>Leave Without Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['lwop_deduction'],2)?></span></td></tr>
           <?php endif ?>
@@ -420,7 +638,7 @@ if (isset($_GET['payslip'])) {
 
     <!-- TOTAL NET PAYABLE -->
     <div class="ps-net-total">
-      <div class="lbl">Total Net Payable<small>Gross Earnings &minus; Total Deductions</small></div>
+      <div class="lbl">Total Net Payable<small>Taxable gross<?= $loanDisbursement > 0 ? ' + loan payout' : '' ?> &minus; total deductions</small></div>
       <div class="val">N$ <?=number_format($net,2)?></div>
     </div>
 
@@ -446,20 +664,21 @@ if (isset($_GET['payslip'])) {
   <?php if ($msg === 'generated'): ?><div class="toast no-print"><i class="fa-solid fa-check"></i> Payroll generated successfully.</div>
   <?php elseif ($msg === 'deleted'): ?><div class="toast no-print error"><i class="fa-solid fa-trash"></i> Payroll run deleted successfully.</div>
   <?php elseif ($msg === 'edited'): ?><div class="toast no-print"><i class="fa-solid fa-check"></i> Payslip updated successfully. PAYE and SSF recalculated.</div>
+  <?php elseif ($msg === 'medical_aid_saved'): ?><div class="toast no-print"><i class="fa-solid fa-check"></i> Medical Aid payment status saved.</div>
   <?php endif ?>
   <?php if ($msg === 'settings_saved'): ?><div class="toast no-print"><i class="fa-solid fa-check"></i> Company details saved.</div><?php endif ?>
 
-  <div style="display:flex;gap:20px;align-items:flex-start">
+  <div class="hr-payroll-layout">
 
     <!-- Run Selector -->
-    <div style="width:200px;flex-shrink:0" class="no-print">
+    <div class="hr-payroll-periods no-print">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-mid);margin-bottom:10px">Payroll Periods</div>
       <?php if (empty($runs)): ?>
         <div style="font-size:13px;color:var(--text-mid);padding:10px 0">No payroll runs yet.<br>Click Generate to start.</div>
       <?php else: ?>
       <?php foreach ($runs as $r): ?>
-        <div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">
-          <a href="payroll.php?run=<?=$r['id']?>" style="flex:1;display:block;padding:10px 14px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;<?=$r['id']==$runId?'background:var(--green);color:#fff':'background:var(--card);color:var(--text);border:1px solid var(--border)'?>">
+        <div class="hr-payroll-period-row">
+          <a class="hr-payroll-period-row__content" href="payroll.php?run=<?=$r['id']?>" style="<?=$r['id']==$runId?'background:var(--green);color:#fff':'background:var(--card);color:var(--text);border:1px solid var(--border)'?>">
             <?=htmlspecialchars($r['period_label'])?>
             <?php if ($r['status']==='finalised'): ?>
               <span style="font-size:10px;opacity:.7;display:block;font-weight:400">Finalised</span>
@@ -468,7 +687,7 @@ if (isset($_GET['payslip'])) {
           <form method="POST" onsubmit="return confirm('Delete entire <?=htmlspecialchars($r['period_label'])?> payroll run? This cannot be undone.')">
             <input type="hidden" name="action" value="delete_run">
             <input type="hidden" name="run_id" value="<?=$r['id']?>">
-            <button type="submit" class="btn btn-danger btn-sm no-print" title="Delete this payroll run" style="padding:8px 10px"><i class="fa-solid fa-trash"></i></button>
+            <button type="submit" class="btn btn-danger btn-sm no-print hr-payroll-period-row__delete" title="Delete this payroll run"><i class="fa-solid fa-trash"></i></button>
           </form>
         </div>
       <?php endforeach ?>
@@ -476,7 +695,7 @@ if (isset($_GET['payslip'])) {
     </div>
 
     <!-- Payroll Details -->
-    <div style="flex:1">
+    <div class="hr-payroll-details">
       <?php if ($currentRun): ?>
       <!-- Summary Cards -->
       <div class="grid-4" style="margin-bottom:20px">
@@ -485,6 +704,31 @@ if (isset($_GET['payslip'])) {
         <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-receipt"></i></div><div class="stat-value" style="font-size:20px">N$<?=number_format($runTotals['paye'],0)?></div><div class="stat-label">PAYE Deductions</div></div>
         <div class="stat-card"><div class="stat-icon amber"><i class="fa-regular fa-clock"></i></div><div class="stat-value" style="font-size:20px">N$<?=number_format($runTotals['ot'],0)?></div><div class="stat-label">OT Pay Included</div></div>
       </div>
+
+      <?php if ($hasMedicalAid && $runTotals['medical_active'] > 0): ?>
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-header">
+          <div class="card-title"><i class="fa-solid fa-kit-medical" style="color:var(--green)"></i> Medical Aid Summary</div>
+          <a class="btn btn-secondary btn-sm" href="medical-aid.php?month=<?=$currentRun['period_month']?>&year=<?=$currentRun['period_year']?>"><i class="fa-solid fa-arrow-up-right-from-square"></i> Manage Monthly Payments</a>
+        </div>
+        <div class="medical-summary-grid">
+          <div class="medical-mini-card"><div class="medical-mini-label">Active Employees</div><div class="medical-mini-value"><?=$runTotals['medical_active']?></div></div>
+          <div class="medical-mini-card"><div class="medical-mini-label">Total Payable</div><div class="medical-mini-value">N$ <?=number_format($runTotals['medical_total'],2)?></div></div>
+          <div class="medical-mini-card"><div class="medical-mini-label">Company Portion</div><div class="medical-mini-value">N$ <?=number_format($runTotals['medical_company'],2)?></div></div>
+          <div class="medical-mini-card"><div class="medical-mini-label">Employee Portion</div><div class="medical-mini-value">N$ <?=number_format($runTotals['medical_employee'],2)?></div></div>
+        </div>
+        <form method="POST" class="medical-payment-row">
+          <input type="hidden" name="action" value="save_medical_aid_payment">
+          <input type="hidden" name="run_id" value="<?=$currentRun['id']?>">
+          <label class="medical-paid-toggle"><input type="checkbox" name="medical_aid_paid" value="1" <?=!empty($medicalAidPayment['paid_status'])?'checked':''?>> Medical Aid Paid</label>
+          <div class="form-group">
+            <label class="form-label">Payment Reference / Notes</label>
+            <input class="form-input" name="medical_aid_notes" value="<?=htmlspecialchars($medicalAidPayment['notes_reference'] ?? '')?>" placeholder="Reference or notes">
+          </div>
+          <button class="btn btn-primary" type="submit"><i class="fa-solid fa-floppy-disk"></i> Save Status</button>
+        </form>
+      </div>
+      <?php endif ?>
 
       <div class="card">
         <div class="card-header">

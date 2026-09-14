@@ -9,9 +9,29 @@ function wc_configured(): bool
     return WC_STORE_URL !== '' && WC_CONSUMER_KEY !== '' && WC_CONSUMER_SECRET !== '';
 }
 
-function wc_get(string $path, array $query = []): array
+function wc_request_log(string $message, array $context = []): void
+{
+    $basePath = defined('BASE_PATH') ? BASE_PATH : dirname(__DIR__);
+    $dir = $basePath . '/storage/logs';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+
+    $line = '[' . date('Y-m-d H:i:s') . '] ' . $message;
+    if ($context) {
+        $line .= ' ' . json_encode($context, JSON_UNESCAPED_SLASHES);
+    }
+
+    @file_put_contents($dir . '/woocommerce-api.log', $line . PHP_EOL, FILE_APPEND);
+}
+
+function wc_get(string $path, array $query = [], int $timeout = 12): array
 {
     if (!wc_configured()) {
+        wc_request_log('WooCommerce API request skipped', [
+            'endpoint' => $path,
+            'error' => 'WooCommerce API is not configured in config.local.php.',
+        ]);
         throw new RuntimeException('WooCommerce API is not configured in config.local.php.');
     }
 
@@ -23,13 +43,18 @@ function wc_get(string $path, array $query = []): array
     $url = WC_STORE_URL . '/wp-json/wc/v3/' . ltrim($path, '/') . '?' . http_build_query($query);
 
     if (!function_exists('curl_init')) {
+        wc_request_log('WooCommerce API request failed', [
+            'endpoint' => $path,
+            'error' => 'PHP cURL is not enabled on this server.',
+        ]);
         throw new RuntimeException('PHP cURL is not enabled on this server.');
     }
 
     $ch = curl_init($url);
     curl_setopt_array($ch, [
         CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_TIMEOUT => 60,
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => max(1, $timeout),
         CURLOPT_HTTPHEADER => ['Accept: application/json'],
     ]);
     $body = curl_exec($ch);
@@ -38,15 +63,64 @@ function wc_get(string $path, array $query = []): array
     curl_close($ch);
 
     if ($body === false || $body === '') {
+        wc_request_log('WooCommerce API response failed', [
+            'endpoint' => $path,
+            'status' => $status,
+            'count' => 0,
+            'error' => $error ?: 'empty response',
+            'body' => is_string($body) ? substr($body, 0, 500) : '',
+        ]);
         throw new RuntimeException('WooCommerce request failed: ' . ($error ?: 'empty response'));
     }
 
     $data = json_decode($body, true);
+    $count = is_array($data) ? count($data) : 0;
+    wc_request_log('WooCommerce API response', [
+        'endpoint' => $path,
+        'status' => $status,
+        'count' => $count,
+        'error' => $error ?: null,
+        'body' => $status >= 400 ? substr((string) $body, 0, 500) : null,
+    ]);
     if ($status >= 400) {
         $message = is_array($data) ? ($data['message'] ?? $body) : $body;
+        wc_request_log('WooCommerce API response error', [
+            'endpoint' => $path,
+            'status' => $status,
+            'count' => $count,
+            'error' => $message,
+            'body' => substr((string) $body, 0, 500),
+        ]);
         throw new RuntimeException('WooCommerce request failed: ' . $message);
     }
 
+    return is_array($data) ? $data : [];
+}
+
+function wc_put(string $path, array $payload): array
+{
+    if (!wc_configured()) {
+        throw new RuntimeException('WooCommerce API is not configured in config.local.php.');
+    }
+    $url = WC_STORE_URL . '/wp-json/wc/v3/' . ltrim($path, '/') . '?' . http_build_query([
+        'consumer_key' => WC_CONSUMER_KEY,
+        'consumer_secret' => WC_CONSUMER_SECRET,
+    ]);
+    if (!function_exists('curl_init')) throw new RuntimeException('PHP cURL is not enabled on this server.');
+    $bodyJson = json_encode($payload, JSON_UNESCAPED_SLASHES);
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true, CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 15,
+        CURLOPT_CUSTOMREQUEST => 'PUT', CURLOPT_POSTFIELDS => $bodyJson,
+        CURLOPT_HTTPHEADER => ['Accept: application/json', 'Content-Type: application/json'],
+    ]);
+    $body = curl_exec($ch); $error = curl_error($ch); $status = (int) curl_getinfo($ch, CURLINFO_RESPONSE_CODE); curl_close($ch);
+    $data = is_string($body) ? json_decode($body, true) : null;
+    wc_request_log('WooCommerce API update', ['endpoint'=>$path, 'status'=>$status, 'error'=>$error ?: null]);
+    if ($body === false || $status >= 400) {
+        $message = is_array($data) ? (string) ($data['message'] ?? '') : '';
+        throw new RuntimeException('WooCommerce update failed: ' . ($message ?: $error ?: 'HTTP ' . $status));
+    }
     return is_array($data) ? $data : [];
 }
 
