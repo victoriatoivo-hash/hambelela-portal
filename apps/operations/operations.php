@@ -49,9 +49,7 @@ function ops_nav(string $active): void
             'account' => ['My Account', 'key-round', 'my-account.php'],
             'board' => ['Orders Board', 'table-2', 'orders-board.php'],
             'orders' => ['Orders', 'shopping-bag', 'orders.php'],
-            'whatsapp' => ['WhatsApp KPI', 'messages-square', 'whatsapp.php'],
             'bookkeeping' => ['Bookkeeping', 'wallet-cards', 'bookkeeping.php'],
-            'bank-processor' => ['Bank Processor', 'file-spreadsheet', 'bank-statement-processor.php'],
             'checklists' => ['Task Management', 'list-checks', 'checklists.php'],
             'errors' => ['Errors', 'triangle-alert', 'errors.php'],
             'barcode' => ['Barcode', 'scan-barcode', 'barcode.php'],
@@ -61,9 +59,7 @@ function ops_nav(string $active): void
         $items = [
             'account' => ['My Account', 'key-round', 'my-account.php'],
             'board' => ['Orders Board', 'table-2', 'orders-board.php'],
-            'whatsapp' => ['WhatsApp KPI', 'messages-square', 'whatsapp.php'],
             'bookkeeping' => ['Bookkeeping', 'wallet-cards', 'bookkeeping.php'],
-            'bank-processor' => ['Bank Processor', 'file-spreadsheet', 'bank-statement-processor.php'],
             'checklists' => ['Task Management', 'list-checks', 'checklists.php'],
             'errors' => ['Errors', 'triangle-alert', 'errors.php'],
         ];
@@ -154,58 +150,6 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
         ]);
     } catch (Throwable $e) {
         // Activity logging should never block the operational workflow.
-    }
-}
-
-function ops_status_history_log(
-    string $module,
-    int $recordId,
-    string $fieldName,
-    ?string $oldValue,
-    ?string $newValue,
-    ?int $assignedEmployeeId = null,
-    array $metadata = []
-): void {
-    if ($recordId <= 0 || $oldValue === $newValue) {
-        return;
-    }
-
-    try {
-        db()->exec(
-            "CREATE TABLE IF NOT EXISTS ops_status_history (
-                id BIGINT AUTO_INCREMENT PRIMARY KEY,
-                module VARCHAR(80) NOT NULL,
-                record_id INT NOT NULL,
-                field_name VARCHAR(80) NOT NULL DEFAULT 'status',
-                old_value VARCHAR(120) NULL,
-                new_value VARCHAR(120) NULL,
-                changed_by_employee_id INT NULL,
-                assigned_employee_id INT NULL,
-                metadata JSON NULL,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_ops_status_record (module, record_id, field_name),
-                INDEX idx_ops_status_changed_by (changed_by_employee_id, created_at),
-                INDEX idx_ops_status_assigned (assigned_employee_id, created_at)
-            )"
-        );
-
-        $stmt = db()->prepare(
-            "INSERT INTO ops_status_history
-             (module, record_id, field_name, old_value, new_value, changed_by_employee_id, assigned_employee_id, metadata)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        $stmt->execute([
-            $module,
-            $recordId,
-            $fieldName,
-            $oldValue,
-            $newValue,
-            ops_current_employee_id(),
-            $assignedEmployeeId,
-            json_encode($metadata, JSON_UNESCAPED_SLASHES),
-        ]);
-    } catch (Throwable $e) {
-        // KPI history should never block the operational workflow.
     }
 }
 

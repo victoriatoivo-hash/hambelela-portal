@@ -43,8 +43,8 @@
 
   const columns = [
     ['select', 'Select'], ['task', 'Task'], ['updates', 'Updates'], ['date', 'Date'],
-    ['mobile', 'Mobile number'], ['mode', 'Mode'], ['amount', 'Amount'], ['payment', 'Payment'],
-    ['paid', 'Paid'], ['status', 'Status'], ['packer', 'Packed by'], ['text', 'Text']
+    ['mode', 'Mode'], ['mobile', 'Mobile number'], ['amount', 'Amount'], ['payment', 'Payment'],
+    ['paid', 'Paid'], ['status', 'Status'], ['packer', 'Picked by'], ['text', 'Text']
   ];
 
   let paymentLabels = [
@@ -65,7 +65,6 @@
   let statusLabels = [
     ['new_order', 'NEW ORDER', '#bdbdbd'], ['assigned', 'NEW ORDER', '#bdbdbd'], ['in_progress', 'IN PROGRESS', '#fdab3d'], ['completed', 'COMPLETE', '#e2445c']
   ];
-  const groupColours = ['#c73557', '#579bfc', '#00c875', '#fdab3d', '#a25ddc', '#0086c9'];
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -249,7 +248,7 @@
 
   function groupKey(order) {
     if (boardState.groupBy === 'status') return `Status: ${findText(statusLabels, order.status || 'new_order')}`;
-    if (boardState.groupBy === 'packer') return `Packed by: ${order.packer_name || 'Unassigned'}`;
+    if (boardState.groupBy === 'packer') return `Picked by: ${order.packer_name || 'Unassigned'}`;
     if (boardState.groupBy === 'mode') return `Mode: ${findText(modeLabels, order.order_type || 'collection')}`;
     return dateKey(order.created_at);
   }
@@ -331,7 +330,7 @@
 
   function applyHiddenColumns() {
     const map = {
-      select: 1, task: 2, updates: 3, date: 4, mobile: 5, mode: 6,
+      select: 1, task: 2, updates: 3, date: 4, mode: 5, mobile: 6,
       amount: 7, payment: 8, paid: 9, status: 10, packer: 11, text: 12
     };
 
@@ -370,13 +369,13 @@
   }
 
   function exportOrders(rows, filename) {
-    const headers = ['Order', 'Customer', 'Date', 'Mobile number', 'Mode', 'Amount', 'Payment', 'Paid', 'Status', 'Packed by', 'Text'];
+    const headers = ['Order', 'Customer', 'Date', 'Mode', 'Mobile number', 'Amount', 'Payment', 'Paid', 'Status', 'Picked by', 'Text'];
     const csvRows = [headers, ...rows.map((order) => [
       order.order_number || '',
       order.customer_name || '',
       prettyDate(order.created_at),
-      order.customer_contact || '',
       findText(modeLabels, order.order_type || ''),
+      order.customer_contact || '',
       Number(order.total_amount || 0),
       order.payment_method || '',
       order.payment_status || '',
@@ -465,13 +464,9 @@
     } catch (error) {
       labels = {};
     }
-    if (normalize(labels.packer || '') === 'picked_by') {
-      labels.packer = 'Packed by';
-      localStorage.setItem('hambelelaBoardHeaders', JSON.stringify(labels));
-    }
     document.querySelectorAll('[data-column-key]').forEach((header) => {
       const key = header.dataset.columnKey;
-      if (labels[key]) header.textContent = labels[key];
+      if (labels[key]) header.textContent = labels[key].toUpperCase();
     });
   }
 
@@ -484,7 +479,7 @@
       labels = {};
     }
     const key = header.dataset.columnKey;
-    const value = header.textContent.trim();
+    const value = header.textContent.trim().toUpperCase();
     if (!key || !value) return;
     labels[key] = value;
     header.textContent = value;
@@ -507,57 +502,55 @@
 
   function renderPaidCell(order) {
     const checked = order.payment_status === 'paid' ? 'checked' : '';
-    return `<label class="paid-toggle"><input type="checkbox" data-paid-toggle="${esc(order.id)}" ${checked} aria-label="Mark order paid"><span class="paid-tick">&check;</span></label>`;
+    return `<label class="paid-toggle"><input type="checkbox" data-paid-toggle="${esc(order.id)}" ${checked} aria-label="Mark order paid"><span>&check;</span></label>`;
   }
 
-  function renderGroup(key, orders, index) {
+  function renderGroup(key, orders) {
     const total = orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
     const paid = orders.filter((order) => order.payment_status === 'paid').length;
     const complete = orders.filter((order) => order.status === 'completed').length;
-    const colour = groupColours[index % groupColours.length];
 
-    const rows = orders.map((order, rowIndex) => {
+    const rows = orders.map((order) => {
       const paidMark = order.payment_status === 'paid' ? '&check;' : '';
-      const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
       return `
-        <tr data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" class="${stripClass} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}">
-          <td class="check-cell col-checkbox"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></td>
-          <td class="task-cell col-task"><span class="task-name">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</span></td>
-          <td class="comment-cell col-task-icon"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
-          <td class="col-date">${prettyDate(order.created_at)}</td>
-          <td class="col-mobile">${esc(order.customer_contact || '')}</td>
-          <td class="col-mode">${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</td>
-          <td class="col-amount">${esc(money(order.total_amount))}</td>
-          <td class="col-payment">${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</td>
-          <td class="paid-cell col-paid ${order.payment_status === 'paid' ? '' : 'unpaid'}">${renderPaidCell(order)}</td>
-          <td class="col-status">${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</td>
-          <td class="col-packedby">${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></td>
-          <td class="notes-cell col-text"><button type="button" data-expand-note>${esc(order.notes || '')}</button></td>
-          <td class="add-column-cell"></td>
+        <tr data-order-id="${esc(order.id)}" class="${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}">
+          <td class="check-cell"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"></td>
+          <td class="task-cell">${esc(order.order_number.replace(/^WEB-/, ''))} ${esc(order.customer_name)}</td>
+          <td class="comment-cell"><button type="button" data-open-panel="${esc(order.id)}"><i data-lucide="message-circle-plus"></i></button></td>
+          <td>${prettyDate(order.created_at)}</td>
+          <td>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</td>
+          <td>${esc(order.customer_contact || '')}</td>
+          <td>${esc(money(order.total_amount))}</td>
+          <td>${renderLabelCell(order, 'payment_method', order.payment_method || 'Cash', paymentLabels, 'payment-label')}</td>
+          <td class="paid-cell">${renderPaidCell(order)}</td>
+          <td>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</td>
+          <td>${renderPackerCell(order)}<small class="pick-duration">${esc(durationText(order.packing_started_at, order.completed_at || order.packed_at))}</small></td>
+          <td class="notes-cell"><button type="button" data-expand-note>${esc(order.notes || '')}</button></td>
+          <td></td>
         </tr>
       `;
     }).join('');
 
     return `
-      <tr class="group-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}">
-        <td colspan="13"><button type="button" data-collapse-group="${esc(key)}" data-task-count="${orders.length} ${orders.length === 1 ? 'Task' : 'Tasks'}"><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td>
+      <tr class="group-row" data-group="${esc(key)}">
+        <td colspan="13"><button type="button" data-collapse-group="${esc(key)}"><i data-lucide="chevron-down"></i>${esc(groupLabel(key))}</button></td>
       </tr>
       ${rows}
-      <tr class="add-task-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}"><td class="col-checkbox"></td><td class="col-task" colspan="12"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
-      <tr class="summary-row" data-group-row="${esc(key)}" style="--ob-group-colour:${esc(colour)}">
-        <td class="col-checkbox"></td>
-        <td class="col-task"></td>
-        <td class="col-task-icon"></td>
-        <td class="col-date"><span class="summary-pill">${esc(groupLabel(key))}</span></td>
-        <td class="col-mobile"></td>
-        <td class="col-mode"><span class="summary-swatch">${summaryBars(orders, 'order_type', modeLabels)}</span></td>
-        <td class="col-amount"><strong>${esc(money(total))}</strong><small>sum</small></td>
-        <td class="col-payment"><span class="summary-swatch">${summaryBars(orders, 'payment_method', paymentLabels)}</span></td>
-        <td class="col-paid">${paid}/${orders.length}</td>
-        <td class="col-status"><span class="summary-swatch">${summaryBars(orders, 'status', statusLabels)}</span></td>
-        <td class="col-packedby">${complete}/${orders.length}</td>
-        <td class="col-text"></td>
-        <td class="add-column-cell"></td>
+      <tr class="add-task-row"><td></td><td colspan="12"><button type="button" data-add-task="${esc(key)}">+ Add task</button></td></tr>
+      <tr class="summary-row">
+        <td></td>
+        <td></td>
+        <td></td>
+        <td><span class="summary-pill">${esc(groupLabel(key))}</span></td>
+        <td><span class="summary-swatch">${summaryBars(orders, 'order_type', modeLabels)}</span></td>
+        <td></td>
+        <td><strong>${esc(money(total))}</strong><small>sum</small></td>
+        <td><span class="summary-swatch">${summaryBars(orders, 'payment_method', paymentLabels)}</span></td>
+        <td>${paid}/${orders.length}</td>
+        <td><span class="summary-swatch">${summaryBars(orders, 'status', statusLabels)}</span></td>
+        <td>${complete}/${orders.length}</td>
+        <td></td>
+        <td></td>
       </tr>
     `;
   }
@@ -577,7 +570,7 @@
     }
 
     const groups = groupedOrders(visible);
-    body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key, index) => renderGroup(key, groups[key], index)).join('');
+    body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key) => renderGroup(key, groups[key])).join('');
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();
     updateSelectionBar();
@@ -756,7 +749,7 @@
       return `<div class="toolbar-panel"><strong>Group by</strong>
         ${optionButton('Date', 'group', 'date', boardState.groupBy === 'date')}
         ${optionButton('Status', 'group', 'status', boardState.groupBy === 'status')}
-        ${optionButton('Packed by', 'group', 'packer', boardState.groupBy === 'packer')}
+        ${optionButton('Picked by', 'group', 'packer', boardState.groupBy === 'packer')}
         ${optionButton('Mode', 'group', 'mode', boardState.groupBy === 'mode')}
       </div>`;
     }
@@ -794,7 +787,7 @@
     panelActivity.innerHTML = `
       <div class="activity-line">Created ${esc(prettyDate(currentOrder.created_at))}</div>
       <div class="activity-line">Status: ${esc(findText(statusLabels, currentOrder.status))}</div>
-      <div class="activity-line">Packed by: ${esc(currentOrder.packer_name || 'Unassigned')}</div>
+      <div class="activity-line">Picked by: ${esc(currentOrder.packer_name || 'Unassigned')}</div>
       <div class="activity-line">Picking time: ${esc(durationText(currentOrder.packing_started_at, currentOrder.completed_at || currentOrder.packed_at) || 'Not started')}</div>
     `;
     panel.classList.add('open');
@@ -828,7 +821,7 @@
     if (syncState && !lastSyncMessage) syncState.textContent = `Loaded ${data.orders?.length || 0} orders at ${new Date().toLocaleTimeString()}`;
   }
 
-  async function syncWebsite(quiet = false, trigger = null, force = false) {
+  async function syncWebsite(quiet = false, trigger = null) {
     if (syncInFlight) return null;
     syncInFlight = true;
     if (trigger) {
@@ -837,11 +830,10 @@
     }
     try {
       if (!quiet && syncState) syncState.textContent = 'Syncing website orders...';
-      const data = await post('sync', { date: dateFilter?.value || '', force: force ? '1' : '' });
+      const data = await post('sync', { date: dateFilter?.value || '' });
       const result = data.result || {};
       const warnings = Array.isArray(result.warnings) && result.warnings.length ? ` - warning: ${result.warnings[0]}` : '';
-      const skipped = result.skipped ? ' (recent sync reused)' : '';
-      lastSyncMessage = `Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${skipped}${warnings}`;
+      lastSyncMessage = `Website: ${result.website_orders_seen ?? 0} seen, ${result.imported ?? 0} new, ${result.updated ?? 0} updated${warnings}`;
       if (syncState) {
         syncState.textContent = lastSyncMessage;
       }
@@ -939,7 +931,7 @@
 
       if (toolbarAction) {
         const action = toolbarAction.dataset.toolbarAction;
-        if (action === 'sync') await syncWebsite(false, toolbarAction, true).then(refresh);
+        if (action === 'sync') await syncWebsite(false, toolbarAction).then(refresh);
         else if (action === 'assign') await post('assign').then(refresh);
         else if (action === 'theme') {
           const next = page.dataset.boardTheme === 'dark' ? 'light' : 'dark';
@@ -1023,11 +1015,11 @@
 
       if (assign) await post('assign').then(refresh);
       if (sync) {
-        await syncWebsite(false, sync, true).then(refresh);
+        await syncWebsite(false, sync).then(refresh);
       }
       if (refreshButton) {
         lastSyncMessage = '';
-        await syncWebsite(false, refreshButton, true).then(refresh);
+        await syncWebsite(false, refreshButton).then(refresh);
       }
 
       if (dateAll) {
@@ -1097,7 +1089,7 @@
 
     if (event.target === dateFilter) {
       if (syncState) syncState.textContent = 'Loading selected date...';
-      syncWebsite(false, null, true).then(refresh).catch((error) => {
+      syncWebsite(false).then(refresh).catch((error) => {
         showError(error);
         refresh().catch(() => {});
       });
@@ -1135,22 +1127,14 @@
   }
 
   heartbeat();
-  refresh()
+  syncWebsite(false)
     .catch((error) => {
-      body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
+      body.innerHTML = `<tr><td colspan="13">Website sync issue: ${esc(error.message)}</td></tr>`;
     })
-    .finally(() => {
-      if (document.visibilityState !== 'hidden') {
-        syncWebsite(true).then(refresh).catch((error) => {
-          if (syncState) syncState.textContent = `Sync issue: ${error.message}`;
-        });
-      }
-    });
+    .finally(() => refresh().catch((error) => {
+      body.innerHTML = `<tr><td colspan="13">${esc(error.message)}</td></tr>`;
+    }));
   window.setInterval(heartbeat, 30000);
-  window.setInterval(() => {
-    if (document.visibilityState !== 'hidden') refresh().catch((error) => showError(error));
-  }, 10000);
-  window.setInterval(() => {
-    if (document.visibilityState !== 'hidden') syncWebsite(true).then(refresh).catch((error) => showError(error));
-  }, 60000);
+  window.setInterval(() => refresh().catch((error) => showError(error)), 5000);
+  window.setInterval(() => syncWebsite(true).then(refresh).catch((error) => showError(error)), 15000);
 })();

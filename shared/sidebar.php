@@ -11,18 +11,14 @@ if ($roleKey === 'owner_admin') {
     $navItems[] = ['id' => 'cost-manager', 'label' => 'Cost Workbook', 'icon' => 'table-2', 'href' => BASE_URL . '/apps/cost-manager/workbook.php'];
     $navItems[] = ['id' => 'operations', 'label' => 'Operations', 'icon' => 'clipboard-check', 'href' => BASE_URL . '/apps/operations/index.php'];
     $navItems[] = ['id' => 'operations-employees', 'label' => 'Employees', 'icon' => 'users', 'href' => BASE_URL . '/apps/operations/employees.php'];
-    $navItems[] = ['id' => 'operations-whatsapp', 'label' => 'WhatsApp KPI', 'icon' => 'messages-square', 'href' => BASE_URL . '/apps/operations/whatsapp.php'];
     $navItems[] = ['id' => 'hr-portal', 'label' => 'HR Portal', 'icon' => 'shield-check', 'href' => BASE_URL . '/apps/hr-gate.php'];
     $navItems[] = ['id' => 'kpi', 'label' => 'KPI Reports', 'icon' => 'chart-no-axes-combined', 'href' => BASE_URL . '/apps/operations/reports.php'];
     $navItems[] = ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'wallet-cards', 'href' => BASE_URL . '/apps/operations/bookkeeping.php'];
-    $navItems[] = ['id' => 'operations-bank-processor', 'label' => 'Bank Processor', 'icon' => 'file-spreadsheet', 'href' => BASE_URL . '/apps/operations/bank-statement-processor.php'];
     $navItems[] = ['id' => 'operations-consignments', 'label' => 'Packing List', 'icon' => 'package-open', 'href' => BASE_URL . '/apps/operations/consignments.php'];
 } elseif (in_array($roleKey, ['front_desk_admin', 'supervisor_manager'], true)) {
     $navItems[] = ['id' => 'operations', 'label' => 'Live Orders', 'icon' => 'table-2', 'href' => BASE_URL . '/apps/operations/orders-board.php'];
     if ($roleKey === 'front_desk_admin') {
-        $navItems[] = ['id' => 'operations-whatsapp', 'label' => 'WhatsApp KPI', 'icon' => 'messages-square', 'href' => BASE_URL . '/apps/operations/whatsapp.php'];
         $navItems[] = ['id' => 'operations-bookkeeping', 'label' => 'Bookkeeping', 'icon' => 'wallet-cards', 'href' => BASE_URL . '/apps/operations/bookkeeping.php'];
-        $navItems[] = ['id' => 'operations-bank-processor', 'label' => 'Bank Processor', 'icon' => 'file-spreadsheet', 'href' => BASE_URL . '/apps/operations/bank-statement-processor.php'];
     }
     $navItems[] = ['id' => 'operations-checklists', 'label' => 'Tasks', 'icon' => 'list-checks', 'href' => BASE_URL . '/apps/operations/checklists.php'];
     $navItems[] = ['id' => 'operations-errors', 'label' => 'Error Log', 'icon' => 'triangle-alert', 'href' => BASE_URL . '/apps/operations/errors.php'];

@@ -27,79 +27,6 @@ function ops_board_sync_log(string $message, array $context = []): void
     @file_put_contents($dir . '/operations-sync.log', $line . PHP_EOL, FILE_APPEND);
 }
 
-function ops_board_sync_runtime_dir(): string
-{
-    $dir = BASE_PATH . '/storage/cache';
-    if (!is_dir($dir)) {
-        @mkdir($dir, 0775, true);
-    }
-
-    return is_dir($dir) ? $dir : BASE_PATH . '/storage/logs';
-}
-
-function ops_board_recent_sync_result(?string $date, int $maxAgeSeconds): ?array
-{
-    $key = preg_replace('/[^a-z0-9_-]+/i', '_', $date ?: 'all');
-    $path = ops_board_sync_runtime_dir() . '/orders-board-sync-' . $key . '.json';
-    if (!is_file($path) || (time() - (int) @filemtime($path)) > $maxAgeSeconds) {
-        return null;
-    }
-
-    $data = json_decode((string) @file_get_contents($path), true);
-    return is_array($data) ? $data : null;
-}
-
-function ops_board_run_guarded_sync(?string $date, bool $force = false): array
-{
-    $minAge = $force ? 15 : 45;
-    $recent = ops_board_recent_sync_result($date, $minAge);
-    if ($recent) {
-        $recent['skipped'] = true;
-        $recent['skip_reason'] = 'recent_sync';
-        return $recent;
-    }
-
-    $dir = ops_board_sync_runtime_dir();
-    $key = preg_replace('/[^a-z0-9_-]+/i', '_', $date ?: 'all');
-    $lock = @fopen($dir . '/orders-board-sync-' . $key . '.lock', 'c');
-    if (!$lock) {
-        return ops_board_sync_website_orders($date);
-    }
-
-    if (!flock($lock, LOCK_EX | LOCK_NB)) {
-        $recent = ops_board_recent_sync_result($date, 300);
-        if ($recent) {
-            $recent['skipped'] = true;
-            $recent['skip_reason'] = 'sync_in_progress';
-            fclose($lock);
-            return $recent;
-        }
-
-        fclose($lock);
-        return [
-            'imported' => 0,
-            'updated' => 0,
-            'lines' => 0,
-            'assigned' => 0,
-            'requested_date' => $date,
-            'website_orders_seen' => 0,
-            'warnings' => ['Website sync already running.'],
-            'skipped' => true,
-            'skip_reason' => 'sync_in_progress',
-        ];
-    }
-
-    try {
-        $result = ops_board_sync_website_orders($date);
-        $result['synced_at'] = date('Y-m-d H:i:s');
-        @file_put_contents($dir . '/orders-board-sync-' . $key . '.json', json_encode($result, JSON_UNESCAPED_SLASHES));
-        return $result;
-    } finally {
-        flock($lock, LOCK_UN);
-        fclose($lock);
-    }
-}
-
 function ops_board_payment_status(array $order): string
 {
     if (in_array((string) ($order['status'] ?? ''), ['cancelled', 'refunded', 'failed'], true)) {
@@ -536,8 +463,7 @@ try {
 
     if ($action === 'sync') {
         $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_POST['date'] ?? '')) ? (string) $_POST['date'] : null;
-        $force = (string) ($_POST['force'] ?? '') === '1';
-        $result = ops_board_run_guarded_sync($date, $force);
+        $result = ops_board_sync_website_orders($date);
         echo json_encode([
             'ok' => true,
             'message' => 'Website orders synced.',
@@ -554,9 +480,6 @@ try {
             throw new RuntimeException('Invalid order status update.');
         }
 
-        $oldRows = ops_rows('SELECT status, assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
-        $oldStatus = $oldRows ? (string) $oldRows[0]['status'] : null;
-        $assignedEmployeeId = $oldRows ? ((int) ($oldRows[0]['assigned_packer_id'] ?? 0) ?: null) : null;
         $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
         if ($status === 'in_progress' && ops_column_exists('ops_orders', 'packing_started_at')) {
             $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
@@ -570,9 +493,6 @@ try {
 
         $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
         $stmt->execute([$status, $orderId]);
-        ops_status_history_log('orders', $orderId, 'status', $oldStatus, $status, $assignedEmployeeId, [
-            'changed_by' => current_user()['name'] ?? 'Unknown',
-        ]);
 
         echo json_encode(['ok' => true, 'message' => 'Order status updated.']);
         exit;
@@ -610,8 +530,6 @@ try {
             if (!in_array($roleKey, ['owner_admin', 'front_desk_admin', 'supervisor_manager'], true)) {
                 throw new RuntimeException('Only front desk, supervisor or admin can change Packed by.');
             }
-            $oldRows = ops_rows('SELECT assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
-            $oldPacker = $oldRows ? (string) ((int) ($oldRows[0]['assigned_packer_id'] ?? 0)) : null;
             $packerId = $value === '' ? null : (int) $value;
             $assignedAt = ops_column_exists('ops_orders', 'assigned_at') ? ', assigned_at = CASE WHEN ? IS NULL THEN NULL ELSE COALESCE(assigned_at, NOW()) END' : '';
             $stmt = db()->prepare('UPDATE ops_orders SET assigned_packer_id = ?' . $assignedAt . ', updated_at = CURRENT_TIMESTAMP WHERE id = ?');
@@ -620,13 +538,7 @@ try {
             } else {
                 $stmt->execute([$packerId, $orderId]);
             }
-            ops_status_history_log('orders', $orderId, 'assigned_packer_id', $oldPacker, $packerId === null ? null : (string) $packerId, $packerId, [
-                'changed_by' => current_user()['name'] ?? 'Unknown',
-            ]);
         } elseif ($field === 'status') {
-            $oldRows = ops_rows('SELECT status, assigned_packer_id FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
-            $oldStatus = $oldRows ? (string) $oldRows[0]['status'] : null;
-            $assignedEmployeeId = $oldRows ? ((int) ($oldRows[0]['assigned_packer_id'] ?? 0) ?: null) : null;
             $set = 'status = ?, updated_at = CURRENT_TIMESTAMP';
             if ($value === 'in_progress' && ops_column_exists('ops_orders', 'packing_started_at')) {
                 $set .= ', packing_started_at = COALESCE(packing_started_at, NOW())';
@@ -639,9 +551,6 @@ try {
             }
             $stmt = db()->prepare('UPDATE ops_orders SET ' . $set . ' WHERE id = ?');
             $stmt->execute([$value, $orderId]);
-            ops_status_history_log('orders', $orderId, 'status', $oldStatus, $value, $assignedEmployeeId, [
-                'changed_by' => current_user()['name'] ?? 'Unknown',
-            ]);
         } elseif ($field === 'payment_status') {
             $stmt = db()->prepare('UPDATE ops_orders SET payment_status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
             $stmt->execute([$value, $orderId]);
@@ -696,12 +605,6 @@ try {
         }
 
         $placeholders = implode(',', array_fill(0, count($ids), '?'));
-        $oldRows = [];
-        if (in_array($field, ['status', 'assigned_packer_id'], true)) {
-            foreach (ops_rows("SELECT id, status, assigned_packer_id FROM ops_orders WHERE id IN ({$placeholders})", $ids) as $row) {
-                $oldRows[(int) $row['id']] = $row;
-            }
-        }
         $params = [];
         $set = $allowed[$field] . ' = ?';
         if ($field === 'assigned_packer_id') {
@@ -724,20 +627,6 @@ try {
                 'value' => $value,
                 'changed_by' => current_user()['name'] ?? 'Unknown',
             ]);
-            if ($field === 'status') {
-                $old = $oldRows[$id] ?? null;
-                ops_status_history_log('orders', $id, 'status', $old ? (string) $old['status'] : null, (string) $value, $old ? ((int) ($old['assigned_packer_id'] ?? 0) ?: null) : null, [
-                    'changed_by' => current_user()['name'] ?? 'Unknown',
-                    'bulk' => true,
-                ]);
-            }
-            if ($field === 'assigned_packer_id') {
-                $old = $oldRows[$id] ?? null;
-                ops_status_history_log('orders', $id, 'assigned_packer_id', $old ? (string) ((int) ($old['assigned_packer_id'] ?? 0)) : null, $value === null ? null : (string) $value, $value === null ? null : (int) $value, [
-                    'changed_by' => current_user()['name'] ?? 'Unknown',
-                    'bulk' => true,
-                ]);
-            }
         }
 
         echo json_encode(['ok' => true, 'message' => 'Updated ' . $changed . ' selected orders.', 'updated' => $changed]);

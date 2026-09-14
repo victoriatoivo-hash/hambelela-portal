@@ -28,5 +28,3 @@ define('WC_CONSUMER_KEY', getenv('WC_CONSUMER_KEY') ?: ($localSecrets['wc_consum
 define('WC_CONSUMER_SECRET', getenv('WC_CONSUMER_SECRET') ?: ($localSecrets['wc_consumer_secret'] ?? ''));
 define('MONDAY_API_TOKEN', getenv('MONDAY_API_TOKEN') ?: ($localSecrets['monday_api_token'] ?? ''));
 define('MONDAY_PACKING_BOARD_ID', getenv('MONDAY_PACKING_BOARD_ID') ?: ($localSecrets['monday_packing_board_id'] ?? ''));
-define('MONDAY_PACKING_GROUP_ID', getenv('MONDAY_PACKING_GROUP_ID') ?: ($localSecrets['monday_packing_group_id'] ?? 'topics'));
-define('MONDAY_PACKING_COLUMNS', $localSecrets['monday_packing_columns'] ?? []);

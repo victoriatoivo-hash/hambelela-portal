@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
-require_once BASE_PATH . '/shared/woocommerce.php';
 
 require_login();
 
@@ -57,78 +56,6 @@ if ($action === 'transport-preview') {
         ],
         'next_step' => 'Run PDF extraction, confirm extracted weight and charges, then allocate transport cost into product COGS.',
     ]);
-    exit;
-}
-
-if ($action === 'woo-search') {
-    $query = trim((string) ($_GET['q'] ?? ''));
-    if ($query === '' || strlen($query) < 2) {
-        echo json_encode(['products' => []]);
-        exit;
-    }
-
-    try {
-        $products = wc_get('products', [
-            'search' => $query,
-            'per_page' => 10,
-            'status' => 'publish',
-        ]);
-
-        $results = [];
-        foreach ($products as $product) {
-            $type = (string) ($product['type'] ?? 'simple');
-            $base = [
-                'id' => (int) ($product['id'] ?? 0),
-                'variation_id' => null,
-                'name' => (string) ($product['name'] ?? ''),
-                'sku' => (string) ($product['sku'] ?? ''),
-                'price' => (float) ($product['price'] ?? $product['regular_price'] ?? 0),
-                'stock_quantity' => isset($product['stock_quantity']) ? (int) $product['stock_quantity'] : 0,
-                'variation' => '',
-                'type' => $type,
-            ];
-
-            if ($type !== 'variable') {
-                $results[] = $base;
-                continue;
-            }
-
-            $variations = wc_get('products/' . (int) $product['id'] . '/variations', [
-                'per_page' => 50,
-                'status' => 'publish',
-            ]);
-
-            if (!$variations) {
-                $results[] = $base;
-                continue;
-            }
-
-            foreach ($variations as $variation) {
-                $attrs = [];
-                foreach (($variation['attributes'] ?? []) as $attr) {
-                    if (!empty($attr['option'])) {
-                        $attrs[] = (string) $attr['option'];
-                    }
-                }
-                $variationLabel = implode(' / ', $attrs);
-                $results[] = [
-                    'id' => (int) ($product['id'] ?? 0),
-                    'variation_id' => (int) ($variation['id'] ?? 0),
-                    'name' => trim((string) ($product['name'] ?? '') . ($variationLabel ? ' - ' . $variationLabel : '')),
-                    'sku' => (string) ($variation['sku'] ?? $product['sku'] ?? ''),
-                    'price' => (float) ($variation['price'] ?? $variation['regular_price'] ?? 0),
-                    'stock_quantity' => isset($variation['stock_quantity']) ? (int) $variation['stock_quantity'] : 0,
-                    'variation' => $variationLabel,
-                    'type' => 'variation',
-                ];
-            }
-        }
-
-        echo json_encode(['products' => array_values($results)]);
-    } catch (Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['error' => $e->getMessage(), 'products' => []]);
-    }
     exit;
 }
 

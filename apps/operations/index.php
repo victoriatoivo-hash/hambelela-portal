@@ -21,7 +21,6 @@ $sections = [
     ['Employees & Roles', 'Create staff accounts and permission levels for owner, front desk, packers and supervisors.', 'users', 'employees.php', 'Core'],
     ['Live Orders Board', 'Monday-style shared order table with packer assignment and lunch availability.', 'table-2', 'orders-board.php', 'Core'],
     ['Customer Orders Report', 'Sales operations reporting, payment insights, order timing and management intelligence.', 'shopping-bag', 'orders.php', 'Core'],
-    ['WhatsApp KPI Dashboard', 'Track response speed, unresolved chats, follow-ups, FAQs and chat-to-sale conversion.', 'messages-square', 'whatsapp.php', 'Core'],
     ['Task Management', 'Assigned work, automatic cleaning tasks, daily shelf stocking and completion notes.', 'list-checks', 'checklists.php', 'Core'],
     ['Error Logging', 'Record errors by category, severity, impact, resolution and repeat issue.', 'triangle-alert', 'errors.php', 'Core'],
     ['Barcode Verification', 'Keyboard-input scanner screen with match/mismatch logging.', 'scan-barcode', 'barcode.php', 'Phase 3'],
@@ -34,12 +33,6 @@ if (user_has_role('owner_admin', 'front_desk_admin')) {
         'wallet-cards',
         'bookkeeping.php',
         'Core',
-    ], [
-        'Bank Statement Processor',
-        'Convert FNB Namibia PDF statements into Sage Accounting CSV imports using the uploaded Sage template headers.',
-        'file-spreadsheet',
-        'bank-statement-processor.php',
-        'Finance',
     ]]);
 }
 

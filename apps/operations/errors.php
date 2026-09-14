@@ -193,15 +193,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $errorId = (int) ($_POST['error_id'] ?? 0);
             $status = ops_post_string('status', 30);
             if (!array_key_exists($status, $statusLabels)) throw new RuntimeException('Choose a valid status.');
-            $oldRows = ops_rows('SELECT status, employee_id FROM ops_error_logs WHERE id = ? LIMIT 1', [$errorId]);
             $stmt = db()->prepare('UPDATE ops_error_logs SET status = ? WHERE id = ?');
             $stmt->execute([$status, $errorId]);
             ops_activity_log('error_status_updated', 'error_log', $errorId, ['status' => $status]);
-            if ($oldRows) {
-                ops_status_history_log('errors', $errorId, 'status', (string) $oldRows[0]['status'], $status, (int) ($oldRows[0]['employee_id'] ?? 0) ?: null, [
-                    'changed_by' => current_user()['name'] ?? 'Unknown',
-                ]);
-            }
             $message = 'Error status updated.';
         }
     } catch (Throwable $e) {
@@ -353,6 +347,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <div>
             <p class="eyebrow">Operations</p>
             <h1>Error Log</h1>
+            <p>Track mistakes, customer impact, repeat issues, resolution and employee accountability.</p>
         </div>
         <button class="button primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
     </section>
