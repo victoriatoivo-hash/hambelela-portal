@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 300" fill="none">
+<defs><linearGradient id="leafFill" x1="0" y1="0" x2="75" y2="-34" gradientUnits="userSpaceOnUse"><stop stop-color="#344126"/><stop offset=".48" stop-color="#667653"/><stop offset="1" stop-color="#99A58A"/></linearGradient><linearGradient id="leafLight" x1="0" x2="74" y2="-24" gradientUnits="userSpaceOnUse"><stop stop-color="#7C8B68"/><stop offset="1" stop-color="#B9C3A5"/></linearGradient><g id="leaf"><path d="M0 0C13-24 44-40 78-30C62-5 26 10 0 0Z" fill="url(#leafFill)"/><path d="M0 0C24-13 50-23 78-30C49-19 28 4 0 0Z" fill="url(#leafLight)" opacity=".65"/><path d="M2-1 71-28" stroke="#D3DAC6" stroke-opacity=".46" stroke-width=".65"/></g></defs>
+<ellipse cx="158" cy="283" rx="127" ry="12" fill="#465636" opacity=".045"/>
+<g transform="translate(25 19) rotate(-8 150 150)"><path d="M85 305C72 216 150 103 286-5M117 244C168 202 231 149 310 89" stroke="#667653" stroke-width="3" stroke-linecap="round"/>
+<use href="#leaf" transform="translate(53 248) rotate(-42) scale(0.95)"/>
+<use href="#leaf" transform="translate(107 210) rotate(146) scale(0.94)"/>
+<use href="#leaf" transform="translate(93 190) rotate(-35) scale(1.02)"/>
+<use href="#leaf" transform="translate(156 166) rotate(154) scale(0.97)"/>
+<use href="#leaf" transform="translate(131 138) rotate(-24) scale(0.85)"/>
+<use href="#leaf" transform="translate(197 116) rotate(155) scale(0.92)"/>
+<use href="#leaf" transform="translate(177 85) rotate(-15) scale(0.8)"/>
+<use href="#leaf" transform="translate(238 60) rotate(149) scale(0.77)"/>
+<use href="#leaf" transform="translate(230 31) rotate(-3) scale(0.62)"/>
+<use href="#leaf" transform="translate(278 13) rotate(150) scale(0.62)"/>
+<use href="#leaf" transform="translate(129 256) rotate(5) scale(0.85)"/>
+<use href="#leaf" transform="translate(195 231) rotate(175) scale(0.76)"/>
+<use href="#leaf" transform="translate(188 207) rotate(4) scale(0.8)"/>
+<use href="#leaf" transform="translate(254 181) rotate(172) scale(0.8)"/>
+<use href="#leaf" transform="translate(241 155) rotate(14) scale(0.75)"/>
+<use href="#leaf" transform="translate(297 126) rotate(170) scale(0.7)"/>
+<g fill="#465636"><ellipse cx="184" cy="141" rx="7" ry="10" transform="rotate(22 184 141)"/><ellipse cx="199" cy="150" rx="6" ry="9" transform="rotate(-12 199 150)"/><ellipse cx="266" cy="81" rx="6" ry="9"/></g><g fill="#B9C3A5" opacity=".6"><ellipse cx="182" cy="138" rx="2" ry="4"/><ellipse cx="264" cy="78" rx="2" ry="3"/></g></g></svg>
