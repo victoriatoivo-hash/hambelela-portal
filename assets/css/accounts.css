@@ -1,0 +1,869 @@
+.accounts-page{display:grid;gap:18px;padding:24px}.accounts-hero{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.accounts-hero h1{margin:2px 0 5px;color:#721b1a;font-size:28px}.accounts-hero p{margin:0;color:#765d50}.accounts-actions{display:flex;gap:8px;flex-wrap:wrap}.accounts-actions a{text-decoration:none}.accounts-app-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,420px));gap:16px}.accounts-app-card{display:flex;gap:15px;padding:22px;border:1px solid #e8ddd3;border-radius:14px;background:#fff;color:#2b1b16;text-decoration:none;box-shadow:0 10px 28px rgba(74,35,20,.06)}.accounts-app-card h2{margin:0 0 5px}.accounts-app-card p{margin:0 0 14px;color:#765d50}.accounts-app-card strong{color:#ab3619}.accounts-app-icon{display:grid;place-items:center;width:58px;height:58px;flex:0 0 58px;border-radius:13px;background:#f7fbea;color:#721b1a;font-weight:800}.accounts-toolbar{display:flex;align-items:end;gap:10px;flex-wrap:wrap;padding:13px;border:1px solid #eadfd5;border-radius:12px;background:#fff}.accounts-toolbar label{display:grid;gap:4px;color:#765d50;font-size:10px;font-weight:700;text-transform:uppercase}.accounts-toolbar input,.accounts-toolbar select,.accounts-dialog input,.accounts-dialog select,.accounts-dialog textarea{min-height:38px;padding:8px 10px;border:1px solid #d8cbc0;border-radius:8px;background:#fff;color:#2b1b16;font:500 12px Figtree,sans-serif}.accounts-summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}.accounts-summary article,.accounts-breakdowns article{padding:16px;border:1px solid #eadfd5;border-radius:12px;background:#fff}.accounts-summary small{display:block;color:#80695e;font-size:10px;font-weight:700;text-transform:uppercase}.accounts-summary strong{display:block;margin-top:6px;color:#721b1a;font-size:21px}.accounts-breakdowns{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.accounts-breakdowns h2{margin:0 0 10px;font-size:14px}.summary-line{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid #f0e7df;font-size:11px}.accounts-table-card{border:1px solid #eadfd5;border-radius:12px;background:#fff;overflow:hidden}.accounts-table-wrap{overflow:auto}.accounts-table{width:100%}.accounts-table-card table{width:100%;min-width:1100px;border-collapse:collapse}.accounts-table-card th,.accounts-table-card td{padding:10px;border-bottom:1px solid #eee5de;text-align:left;font-size:11px}.accounts-table-card th{background:#fbf6f1;color:#721b1a;font-size:9px;text-transform:uppercase}.accounts-table-card th[data-sort]{cursor:pointer}.accounts-table-card td.money,.accounts-table-card tfoot td{font-variant-numeric:tabular-nums;font-weight:700}.status-pill{display:inline-flex;padding:4px 7px;border-radius:999px;background:#f5eee8;font-size:9px;font-weight:700}.status-pill.reviewed{background:#eef7e7;color:#3e6500}.status-pill.needs_correction{background:#fff1ed;color:#922d1f}.row-actions{display:flex;gap:5px}.row-actions button{min-height:28px;padding:0 8px}.attachment-list{display:grid;gap:4px}.attachment-list a{color:#ab3619}.accounts-dialog{width:min(680px,calc(100% - 24px));padding:0;border:0;border-radius:14px;box-shadow:0 28px 80px rgba(33,17,12,.25)}.accounts-dialog::backdrop{background:rgba(32,18,13,.52)}.accounts-dialog form{padding:18px}.accounts-dialog header,.accounts-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:12px}.accounts-dialog header h2{margin:0}.accounts-dialog header>button{border:0;background:transparent;font-size:24px}.accounts-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0}.accounts-dialog label{display:grid;gap:5px;color:#6b4c3b;font-size:11px;font-weight:700}.accounts-dialog textarea{min-height:80px;resize:vertical}.span-2{grid-column:span 2}.vat-preview{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:12px;border-radius:9px;background:#f7fbea}.vat-preview strong{display:block}.pending-files{display:grid;gap:6px}.pending-file{display:flex;align-items:center;justify-content:space-between;padding:7px;background:#faf6f2;border-radius:7px;font-size:11px}.form-message{min-height:18px;color:#922d1f}.empty-row{text-align:center!important;color:#80695e;padding:28px!important}@media print{.portal-sidebar,.portal-header,.accounts-actions,.accounts-toolbar,.row-actions{display:none!important}.workspace{margin:0!important}.accounts-breakdowns{break-inside:avoid}.accounts-table-card table{min-width:0}.accounts-table-card th,.accounts-table-card td{font-size:8px}}
+@media(max-width:760px){.accounts-page{padding:14px}.accounts-hero{flex-direction:column}.accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.accounts-breakdowns{grid-template-columns:1fr}.accounts-toolbar>*{flex:1 1 145px}.accounts-form-grid{grid-template-columns:1fr}.span-2{grid-column:span 1}.accounts-dialog footer button{min-height:44px}.vat-preview{grid-template-columns:1fr}.accounts-actions{width:100%}.accounts-actions>*{flex:1}}
+
+/* Output VAT — owner-only WooCommerce accounting reconciliation */
+/* Input VAT working controls and accounting settings */
+#inputVatPage{--iv-primary:#721b1a;--iv-accent:#ab3619;--iv-border:#e6d9cf;--iv-muted:#765d50;--iv-soft:#fbf7f3;gap:20px;max-width:1600px;margin-inline:auto}
+#inputVatPage .accounts-hero{padding-bottom:4px}
+#inputVatPage .accounts-hero h1{font-size:clamp(28px,3vw,38px);letter-spacing:-.03em}
+#inputVatPage .accounts-actions>*{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:34px;padding-inline:14px;border-radius:8px;font-weight:700}
+#inputVatPage .portal-button[data-add-purchase]{font-weight:400;font-size:12px}
+#inputVatPage .accounts-toolbar{display:grid;grid-template-columns:minmax(460px,1.5fr) minmax(240px,1fr) minmax(170px,.55fr);align-items:end;gap:14px;padding:16px;border-color:var(--iv-border);box-shadow:0 8px 24px rgba(74,35,20,.045)}
+#inputVatPage .accounts-toolbar label,#inputVatPage .accounts-control-label{display:grid;gap:6px;color:var(--iv-muted);font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+#inputVatPage .accounts-filter-group{display:grid;gap:6px}
+#inputVatPage .accounts-period-controls{display:grid;grid-template-columns:auto minmax(128px,.8fr) minmax(145px,1fr) auto;gap:8px}
+#inputVatPage .accounts-toolbar input,#inputVatPage .accounts-toolbar select,#inputVatPage .accounts-month-step{width:100%;min-height:34px;border-radius:8px}
+#inputVatPage .accounts-search-control input{padding-left:34px;background-image:none}
+#inputVatPage input:focus,#inputVatPage select:focus,#inputVatPage textarea:focus{outline:3px solid rgba(171,54,25,.15);border-color:var(--iv-accent)}
+#inputVatPage .input-vat-settings-card{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:15px 17px;border:1px solid var(--iv-border);border-left:4px solid var(--iv-primary);border-radius:12px;background:linear-gradient(135deg,#fff,var(--iv-soft))}
+#inputVatPage .input-vat-settings-copy{display:flex;align-items:center;gap:12px;min-width:0}
+#inputVatPage .input-vat-settings-copy h2{margin:1px 0 3px;font-size:15px;color:var(--iv-primary)}
+#inputVatPage .input-vat-settings-copy p{margin:0;color:var(--iv-muted);font-size:11px}
+#inputVatPage .input-vat-settings-icon{display:grid;place-items:center;width:38px;height:38px;flex:0 0 38px;border-radius:9px;background:#f4e9e1;color:var(--iv-primary);font-size:18px}
+#inputVatPage .input-vat-settings-value{display:grid;grid-template-columns:auto auto auto;align-items:center;gap:12px;color:var(--iv-muted);font-size:11px;font-weight:700}
+#inputVatPage .input-vat-settings-value strong{color:var(--iv-primary);font-size:20px}
+#inputVatPage .input-vat-rate-indicator{display:inline-flex;justify-self:start;align-items:center;gap:9px;padding:7px 10px;border:1px solid var(--iv-border);border-radius:999px;background:var(--iv-soft);color:var(--iv-muted);font-size:10px;font-weight:700;text-transform:uppercase}
+#inputVatPage .input-vat-rate-indicator strong{color:var(--iv-primary);font-size:12px}
+#inputVatPage .accounts-summary article{min-height:118px;padding:18px;border-top:3px solid var(--iv-accent);box-shadow:0 8px 24px rgba(74,35,20,.045)}
+#inputVatPage .accounts-summary article>span{display:block;margin-top:7px;color:var(--iv-muted);font-size:10px}
+#inputVatPage .accounts-summary strong{font-size:clamp(19px,2vw,25px)}
+#inputVatPage .accounts-breakdowns article{min-height:180px}
+#inputVatPage .analysis-empty{display:grid;place-items:center;min-height:100px;color:#927e73;text-align:center}
+#inputVatPage .analysis-empty span{font-size:24px}
+#inputVatPage .analysis-empty p{margin:3px 0;font-size:11px}
+#inputVatPage .accounts-table-card{position:relative;border-color:var(--iv-border);box-shadow:0 10px 30px rgba(74,35,20,.05)}
+#inputVatPage .accounts-scroll-hint{display:none;margin:0;padding:8px 12px;background:var(--iv-soft);color:var(--iv-muted);font-size:10px;text-align:right}
+#inputVatPage .accounts-table-card th{position:sticky;top:0;z-index:1;height:34px;min-height:34px;padding-block:0;background:#f7f0ea;letter-spacing:.06em;font-size:11px;font-weight:400;line-height:34px}
+#inputVatPage .accounts-table-card tbody tr:hover{background:#fffaf6}
+#inputVatPage .accounts-table-card td.money{text-align:right;white-space:nowrap}
+#inputVatPage .accounts-table-card td.vat-money{color:var(--iv-primary)}
+#inputVatPage .accounts-table-card tfoot td{background:#f8f1eb;color:var(--iv-primary)}
+#inputVatPage .row-actions button{display:inline-grid;place-items:center;width:28px;height:28px;padding:0;border:1px solid var(--iv-border);border-radius:7px;background:#fff;color:var(--iv-primary)}
+#inputVatPage .row-actions button:hover{background:#f6ebe4;border-color:#d9bdae}
+#inputVatPage .table-empty-state{display:grid;place-items:center;gap:5px;min-height:145px}
+#inputVatPage .table-empty-state>span{font-size:26px;color:#a9958a}
+#inputVatPage .table-empty-state strong{color:var(--iv-primary);font-size:13px}
+#inputVatPage .table-empty-state p{margin:0;font-size:11px}
+#inputVatPage .accounts-dialog input,#inputVatPage .accounts-dialog select,#inputVatPage .accounts-dialog textarea{min-height:42px}
+#inputVatPage .field-help{color:#8a756a;font-size:10px;font-weight:500}
+#inputVatPage .rate-change-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:18px 0}
+#inputVatPage .rate-change-grid>div,#inputVatPage .rate-change-grid>label{padding:14px;border:1px solid var(--iv-border);border-radius:10px;background:var(--iv-soft)}
+#inputVatPage .rate-change-grid span{display:block;color:var(--iv-muted);font-size:10px;font-weight:800;text-transform:uppercase}
+#inputVatPage .rate-change-grid strong{display:block;margin-top:6px;color:var(--iv-primary);font-size:24px}
+#inputVatPage .rate-input-wrap{display:flex;align-items:center;gap:8px}
+#inputVatPage .rate-input-wrap input{min-width:0;flex:1}
+#inputVatPage .rate-input-wrap span{font-size:15px}
+#inputVatPage .settings-warning{padding:12px;border-left:3px solid #c57a18;border-radius:6px;background:#fff8e8;color:#6b5032;font-size:11px;line-height:1.5}
+@media(max-width:1050px){#inputVatPage .accounts-toolbar{grid-template-columns:1fr 1fr}#inputVatPage .accounts-period-group{grid-column:1/-1}}
+@media(max-width:760px){#inputVatPage{padding:14px 12px}#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .accounts-period-group{grid-column:auto}#inputVatPage .accounts-period-controls{grid-template-columns:42px 1fr 1fr 42px}#inputVatPage .accounts-month-step span{display:none}#inputVatPage .input-vat-settings-card{align-items:flex-start;flex-direction:column}#inputVatPage .input-vat-settings-value{width:100%;grid-template-columns:1fr auto auto}#inputVatPage .accounts-scroll-hint{display:block}#inputVatPage .accounts-breakdowns article{min-height:0}}
+@media(max-width:430px){#inputVatPage .accounts-actions{display:grid;grid-template-columns:1fr 1fr}#inputVatPage .accounts-actions [data-add-purchase]{grid-column:1/-1}#inputVatPage .accounts-period-controls{grid-template-columns:38px 1fr 38px}#inputVatPage .accounts-period-controls label:first-of-type{display:none}#inputVatPage .accounts-summary{grid-template-columns:1fr}#inputVatPage .accounts-summary article{min-height:96px}#inputVatPage .input-vat-settings-copy p{display:none}#inputVatPage .input-vat-settings-value{grid-template-columns:1fr auto}#inputVatPage .input-vat-settings-value button{grid-column:1/-1;width:100%}#inputVatPage .rate-change-grid{grid-template-columns:1fr}}
+/* Input VAT final button/control polish */
+#inputVatPage{font-family:inherit}
+#inputVatPage .accounts-hero h1{font-size:32px;font-weight:600;line-height:1.1}
+#inputVatPage .accounts-hero p{margin:0;color:var(--iv-muted);font-size:12px;font-weight:400;line-height:1.45}
+#inputVatPage .accounts-hero p.input-vat-active-period{display:flex;align-items:center;gap:8px;color:#80695e;font-size:12px;line-height:1.2}
+#inputVatPage .accounts-hero p.input-vat-active-period span{font-size:12px;font-weight:400}
+#inputVatPage .input-vat-active-period strong{display:inline-block;padding:4px 9px;border:1px solid var(--iv-border);border-radius:999px;background:var(--iv-soft);color:var(--iv-primary);font-size:12px;font-weight:600;text-transform:none}
+#inputVatPage .accounts-breakdowns h2,#inputVatPage .input-vat-settings-copy h2{font-size:16px;font-weight:600;line-height:1.3}
+#inputVatPage .accounts-summary strong{font-size:26px}
+#inputVatPage .accounts-summary article small,#inputVatPage .summary-line small,#inputVatPage .analysis-empty p,#inputVatPage .settings-warning,#inputVatPage .field-help{font-size:12px;font-weight:400;line-height:1.45}
+#inputVatPage .accounts-summary article>span{font-size:11px;font-weight:600;letter-spacing:.025em}
+#inputVatPage .accounts-filter-group .accounts-period-controls label span,#inputVatPage .accounts-control-label,#inputVatPage .accounts-search-control span,#inputVatPage .accounts-status-control span,#inputVatPage .input-vat-settings-copy .eyebrow,#inputVatPage .input-vat-rate-indicator span,#inputVatPage .input-vat-settings-value{font-size:11px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
+#inputVatPage .accounts-toolbar label{font-size:11px}
+#inputVatPage .input-vat-settings-card,#inputVatPage .input-vat-settings-value{padding:14px 16px}
+#inputVatPage .input-vat-settings-value strong{font-size:21px;font-weight:600}
+#inputVatPage .input-vat-settings-copy p{font-size:12px;font-weight:400}
+#inputVatPage .accounts-toolbar{padding:16px;border-color:var(--iv-border);border-radius:12px}
+#inputVatPage .accounts-toolbar,#inputVatPage .accounts-period-controls,#inputVatPage .accounts-period-group{align-items:end}
+#inputVatPage .accounts-toolbar .accounts-control-label{text-transform:uppercase}
+#inputVatPage .accounts-toolbar,#inputVatPage .accounts-filter-group{gap:12px}
+#inputVatPage .accounts-toolbar input,#inputVatPage .accounts-toolbar select,#inputVatPage .accounts-period-controls label,#inputVatPage .accounts-input-date-label{height:34px;min-height:34px}
+#inputVatPage .accounts-toolbar input,#inputVatPage .accounts-toolbar select,#inputVatPage .accounts-input-date-label input{height:34px;min-height:34px;max-height:34px;border:1px solid #d6c6ba;border-radius:8px;padding:0 12px;background:#fff;box-shadow:none;outline:0;color:var(--iv-muted);font:400 12px inherit;appearance:none;-webkit-appearance:none}
+#inputVatPage .accounts-toolbar input:focus,#inputVatPage .accounts-toolbar select:focus{border-color:var(--iv-accent);box-shadow:0 0 0 2px rgba(171,54,25,.12)}
+#inputVatPage .portal-button{appearance:none;-webkit-appearance:none;font:500 12px inherit;line-height:1;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:34px;min-height:34px;padding:0 13px;border-radius:8px;box-shadow:none;text-shadow:none;outline-offset:2px;border:1px solid transparent;text-decoration:none;transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .16s ease}
+#inputVatPage .portal-button:focus-visible{outline:2px solid rgba(171,54,25,.2);outline-offset:2px}
+#inputVatPage .portal-button--primary{background:var(--iv-primary);border-color:var(--iv-primary);color:#fff}
+#inputVatPage .portal-button--primary:hover{background:#5f1716;transform:translateY(-1px);box-shadow:0 6px 14px rgba(95,23,22,.16)}
+#inputVatPage .portal-button--secondary{background:#fff;border-color:var(--iv-border);color:#6a4437}
+#inputVatPage .portal-button--secondary:hover{border-color:var(--iv-accent);background:var(--iv-soft)}
+#inputVatPage .portal-button--ghost{background:transparent;border-color:transparent;color:var(--iv-primary)}
+#inputVatPage .portal-button--ghost:hover{background:var(--iv-soft);border-color:var(--iv-accent);color:var(--iv-accent)}
+#inputVatPage .portal-button--nav{background:transparent;border-color:#d6c6ba;color:var(--iv-primary)}
+#inputVatPage .portal-button--nav:hover{background:var(--iv-soft);border-color:var(--iv-accent);color:var(--iv-accent)}
+#inputVatPage .accounts-actions > *{height:34px;min-height:34px}
+#inputVatPage .accounts-toolbar input[type='search']{padding-left:38px;background-image:radial-gradient(circle at 11px 50%,transparent 5px,#8d7569 5.5px,#8d7569 6.5px,transparent 7px),linear-gradient(45deg,transparent 48%,#8d7569 49%,#8d7569 55%,transparent 56%);background-position:0 0,16px 50%;background-size:auto,8px 8px;background-repeat:no-repeat}
+#inputVatPage .accounts-form-grid label{font-size:11px}
+#inputVatPage .accounts-form-grid label{font-weight:600}
+#inputVatPage .accounts-toolbar .accounts-period-controls,#inputVatPage .accounts-filter-group,#inputVatPage .accounts-search-control,#inputVatPage .accounts-status-control{display:grid;gap:6px}
+#inputVatPage .input-vat-rate-indicator{padding:8px 11px;border-radius:10px}
+#inputVatPage .input-vat-rate-indicator span{font-weight:500}
+#inputVatPage .input-vat-rate-indicator strong{font-size:20px}
+#inputVatPage .portal-button__icon{font-size:14px;line-height:1}
+#inputVatPage .row-actions button{height:34px;min-height:34px;border-radius:8px}
+#inputVatPage .accounts-summary article,#inputVatPage .accounts-breakdowns article{border-radius:12px;padding:16px}
+#inputVatPage .accounts-table-card,#inputVatPage .input-vat-settings-card{border-radius:14px}
+#inputVatPage .input-vat-settings-value button{border-radius:8px}
+#inputVatPage .accounts-summary article small,#inputVatPage .accounts-breakdowns h2,#inputVatPage .analysis-empty p,#inputVatPage .form-message,#inputVatPage .table-empty-state p,#inputVatPage .summary-line small{letter-spacing:.01em}
+#inputVatPage .accounts-month-step{padding:0 11px}
+#inputVatPage .accounts-period-controls{grid-template-columns:auto minmax(165px,1fr) auto}
+#inputVatPage .accounts-actions{flex-wrap:nowrap}
+@media (max-width:760px){#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .accounts-actions{display:grid;grid-template-columns:1fr 1fr;gap:8px}#inputVatPage .accounts-actions [data-add-purchase]{grid-column:1/-1}#inputVatPage .accounts-period-controls{grid-template-columns:40px 1fr 40px}#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .accounts-summary,#inputVatPage .accounts-breakdowns{grid-template-columns:1fr}}
+/* Input VAT premium interaction refinements */
+#inputVatPage{--iv-row-transition:150ms}
+#inputVatPage .accounts-table-card th:first-child,#inputVatPage .accounts-table-card td:first-child{min-width:112px;max-width:112px}
+#inputVatPage .accounts-table-card td:first-child{white-space:nowrap}
+#inputVatPage .accounts-table-card td.money{text-align:right;white-space:nowrap}
+#inputVatPage .accounts-table-card tfoot td{font-weight:700}
+#inputVatPage .input-vat-row-highlight{animation:input-vat-row-highlight 1000ms ease-out forwards}
+#inputVatPage .input-vat-row-highlight td{position:relative}
+#inputVatPage .input-vat-row-highlight td::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,rgba(168,202,25,.18),rgba(241,248,237,.3));opacity:.7;pointer-events:none;animation:input-vat-row-shine 1000ms ease-out}
+#inputVatPage.is-loading .accounts-summary article,#inputVatPage.is-loading .accounts-breakdowns article,#inputVatPage.is-loading .accounts-table-card{opacity:.8;filter:saturate(.95)}
+#inputVatPage.is-loading #inputVatPage .accounts-summary strong{animation:input-vat-pill-pulse 900ms ease-in-out infinite alternate}
+#inputVatPage [data-summary],#inputVatPage [data-treatment-summary],#inputVatPage [data-supplier-summary],#inputVatPage [data-description-summary],#inputVatPage [data-rows],#inputVatPage [data-totals],#inputVatPage [data-active-capture-status]{transition:opacity 120ms ease}
+#inputVatPage.is-updating [data-summary],#inputVatPage.is-updating [data-treatment-summary],#inputVatPage.is-updating [data-supplier-summary],#inputVatPage.is-updating [data-description-summary],#inputVatPage.is-updating [data-rows],#inputVatPage.is-updating [data-totals],#inputVatPage.is-updating [data-active-capture-status]{opacity:.72}
+#inputVatPage [data-active-period]{position:relative}
+#inputVatPage.is-updating [data-active-period]::after{content:"";width:11px;height:11px;margin-left:7px;border:2px solid rgba(171,54,25,.2);border-top-color:#ab3619;border-radius:50%;animation:input-vat-update-spin 700ms linear infinite}
+#inputVatPage .accounts-table-wrap{scrollbar-width:thin}
+#inputVatPage .accounts-dialog{animation:input-vat-dialog-enter 180ms cubic-bezier(.16,1,.3,1)}
+#inputVatPage .summary-line,#inputVatPage .analysis-empty,#inputVatPage .table-empty-state{transition:opacity 220ms ease, transform 220ms ease}
+#inputVatPage .empty-row,.input-vat-loading{animation:input-vat-fade-up 240ms ease-out}
+@media (prefers-reduced-motion: reduce){
+  #inputVatPage,.accounts-table-wrap,.portal-button,#inputVatPage .accounts-table-card th,#inputVatPage .accounts-table-card td,#inputVatPage .input-vat-row-highlight,#inputVatPage .accounts-table-wrap{transition:none!important;animation:none!important}
+  #inputVatPage [data-summary],#inputVatPage [data-treatment-summary],#inputVatPage [data-supplier-summary],#inputVatPage [data-description-summary],#inputVatPage [data-rows],#inputVatPage [data-totals],#inputVatPage [data-active-capture-status],#inputVatPage.is-updating [data-active-period]::after{transition:none!important;animation:none!important}
+}
+@keyframes input-vat-row-highlight{0%{background-color:#f1f8ed}65%{background-color:#f1f8ed}100%{background-color:transparent}}
+@keyframes input-vat-row-shine{0%{transform:translateX(-100%)}100%{transform:translateX(120%)}}
+@keyframes input-vat-update-spin{to{transform:rotate(360deg)}}
+@keyframes input-vat-pill-pulse{0%{opacity:.65}100%{opacity:1}}
+@keyframes input-vat-fade-up{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes input-vat-dialog-enter{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes input-vat-dialog-exit{to{opacity:0;transform:translateY(6px) scale(.985)}}
+
+/* Input VAT premium layout — scoped to the accounts register. */
+#inputVatPage{width:min(100%,1480px);margin-inline:auto;padding-inline:clamp(14px,2.3vw,34px);overflow-x:clip}
+#inputVatPage .accounts-hero{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:16px;margin-bottom:18px}
+#inputVatPage .accounts-hero-copy{min-width:0}
+#inputVatPage .accounts-actions{align-items:center;justify-content:flex-end;gap:8px}
+#inputVatPage .input-vat-active-period{grid-column:1/-1;width:max-content;max-width:100%;padding:6px 10px;border:1px solid #eadbd2;border-radius:999px;background:#fffaf7}
+#inputVatPage .input-vat-active-period svg{width:14px;height:14px;color:var(--iv-accent)}
+#inputVatPage .accounts-toolbar{display:grid;grid-template-columns:minmax(340px,1.4fr) minmax(230px,1fr) minmax(150px,.6fr);gap:14px;margin-bottom:14px;background:linear-gradient(180deg,#fff,#fffaf7)}
+#inputVatPage .accounts-summary{gap:14px;margin-block:14px}
+#inputVatPage .accounts-summary article{min-height:112px;display:flex;flex-direction:column;justify-content:space-between;border-color:#eadbd2;transition:transform 160ms ease,border-color 160ms ease,box-shadow 160ms ease}
+#inputVatPage .accounts-summary article:hover{transform:translateY(-2px);border-color:#d9b8a8;box-shadow:0 10px 24px rgba(73,37,26,.08)}
+#inputVatPage .accounts-summary article.is-primary-metric{border-top:3px solid var(--iv-accent);background:linear-gradient(145deg,#fff,#fff6f1)}
+#inputVatPage .accounts-summary article>svg{width:18px;height:18px;color:var(--iv-accent);margin-bottom:5px}
+#inputVatPage .accounts-breakdowns{gap:14px;margin-block:14px}
+#inputVatPage .accounts-breakdowns article{min-height:180px;border-color:#eadbd2;overflow:hidden}
+#inputVatPage .summary-line{display:grid;grid-template-columns:minmax(90px,1fr) auto;align-items:center;gap:4px 12px;padding:8px 0;border-bottom:1px solid #f1e6df}
+#inputVatPage .summary-line:last-child{border-bottom:0}
+#inputVatPage .analysis-line-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#inputVatPage .analysis-line-total{justify-self:end;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums;font-weight:600}
+#inputVatPage .analysis-bar-track{grid-column:1/-1;height:5px;overflow:hidden;border-radius:999px;background:#f1e4dd}
+#inputVatPage .analysis-bar-fill{display:block;width:var(--iv-bar,0%);height:100%;border-radius:inherit;background:linear-gradient(90deg,var(--iv-primary),var(--iv-accent));transform-origin:left;animation:input-vat-bar-grow 520ms cubic-bezier(.2,.8,.2,1)}
+#inputVatPage .summary-line svg{width:13px;height:13px;margin-right:5px;vertical-align:-2px;color:#9b6755}
+#inputVatPage .analysis-empty{min-height:112px;display:grid;place-content:center;text-align:center;color:var(--iv-muted)}
+#inputVatPage .analysis-empty svg{width:22px;height:22px;margin:0 auto 8px;color:#b99789}
+#inputVatPage .accounts-table-card{border-color:#e7d8cf;box-shadow:0 12px 30px rgba(67,35,25,.055);overflow:hidden}
+#inputVatPage .accounts-table-wrap{max-width:100%;overflow:auto;overscroll-behavior-inline:contain}
+#inputVatPage .accounts-table-card table{min-width:980px;border-collapse:separate;border-spacing:0}
+#inputVatPage .accounts-table-card thead th{position:sticky;top:0;z-index:1;background:#721b1a;color:#fff;font-size:10px;letter-spacing:.06em;text-transform:uppercase}
+#inputVatPage .accounts-table-card th,#inputVatPage .accounts-table-card td{padding:11px 12px;border-bottom:1px solid #f0e6e0;vertical-align:middle}
+#inputVatPage .accounts-table-card tbody tr{transition:background-color 150ms ease}
+#inputVatPage .accounts-table-card tbody tr:hover{background:#fff9f5}
+#inputVatPage .accounts-table-card th.money,#inputVatPage .accounts-table-card td.money{text-align:right;font-variant-numeric:tabular-nums}
+#inputVatPage .row-actions{display:flex;justify-content:flex-end;gap:4px}
+#inputVatPage .row-actions button,#inputVatPage .row-actions a{display:inline-grid;place-items:center;width:30px;min-width:30px;height:30px;min-height:30px;padding:0;border:0;border-radius:8px;background:transparent;color:#765b50;text-decoration:none}
+#inputVatPage .row-actions button:hover,#inputVatPage .row-actions a:hover{background:#f4e7e0;color:var(--iv-primary)}
+#inputVatPage .row-actions svg{width:15px;height:15px}
+#inputVatPage .table-empty-state{min-height:150px;display:grid;place-content:center;text-align:center;color:var(--iv-muted)}
+#inputVatPage .table-empty-state svg{width:28px;height:28px;margin:0 auto 9px;color:#b99789}
+#inputVatPage .input-vat-period-notice{display:flex;align-items:center;justify-content:space-between;gap:14px;margin:0 0 14px;padding:11px 13px;border:1px solid #d9c4b8;border-left:3px solid var(--iv-accent);border-radius:10px;background:#fff9f5;color:#65483d}
+#inputVatPage .input-vat-period-notice[hidden]{display:none}
+#inputVatPage .input-vat-period-notice div{display:grid;gap:2px}
+#inputVatPage .input-vat-period-notice span{font-size:12px;color:var(--iv-muted)}
+#inputVatPage .input-vat-month-warning{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;margin-top:8px;padding:10px;border:1px solid #e5b768;border-radius:9px;background:#fff8e8;color:#684d24}
+#inputVatPage .input-vat-month-warning[hidden]{display:none}
+#inputVatPage .input-vat-month-warning>svg{width:18px;height:18px;color:#a96713}
+#inputVatPage .input-vat-month-warning p{margin:0;font-size:12px;line-height:1.4}
+#inputVatPage .input-vat-month-warning>div{display:flex;gap:6px}
+#inputVatPage .accounts-dialog{width:min(680px,calc(100vw - 28px));max-height:min(88vh,820px);overflow:auto;border:1px solid #e5d5cc;border-radius:16px;box-shadow:0 26px 70px rgba(45,23,17,.22)}
+#inputVatPage .accounts-form-grid input,#inputVatPage .accounts-form-grid select,#inputVatPage .accounts-form-grid textarea{transition:border-color 150ms ease,box-shadow 150ms ease,background-color 150ms ease}
+#inputVatPage .accounts-form-grid input:focus,#inputVatPage .accounts-form-grid select:focus,#inputVatPage .accounts-form-grid textarea:focus{border-color:var(--iv-accent);box-shadow:0 0 0 3px rgba(171,54,25,.1)}
+#inputVatPage.is-loading .accounts-summary strong{animation:input-vat-pill-pulse 900ms ease-in-out infinite alternate}
+#inputVatPage.is-loading .accounts-table-card tbody{opacity:.55}
+@keyframes input-vat-bar-grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@media(max-width:1050px){#inputVatPage .accounts-toolbar{grid-template-columns:1fr 1fr}#inputVatPage .accounts-period-group{grid-column:1/-1}#inputVatPage .accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#inputVatPage .accounts-hero{grid-template-columns:1fr}#inputVatPage .accounts-actions{justify-content:stretch}#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .accounts-breakdowns{grid-template-columns:1fr}#inputVatPage .input-vat-month-warning{grid-template-columns:auto 1fr}#inputVatPage .input-vat-month-warning>div{grid-column:1/-1;justify-content:flex-end}}
+@media(max-width:430px){#inputVatPage{padding-inline:12px}#inputVatPage .accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}#inputVatPage .accounts-summary article{min-height:104px;padding:13px}#inputVatPage .accounts-summary strong{font-size:21px}#inputVatPage .input-vat-period-notice{align-items:flex-start;flex-direction:column}#inputVatPage .input-vat-period-notice button{width:100%}#inputVatPage .accounts-dialog{width:calc(100vw - 16px);max-height:94vh;border-radius:13px}}
+@media(max-width:340px){#inputVatPage .accounts-summary{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){#inputVatPage *,#inputVatPage *::before,#inputVatPage *::after{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+.input-vat-override-toggle{display:flex!important;align-items:center;gap:8px;padding:10px 12px;border:1px dashed var(--portal-border,#dfe3e8);border-radius:10px}
+.input-vat-override-toggle input{width:auto!important}
+/* Input VAT purchase modal visual refinement */
+#inputVatPage .input-vat-purchase-dialog .eyebrow{color:var(--iv-primary);font-weight:400}
+#inputVatPage .input-vat-purchase-dialog h2{color:var(--iv-primary);font-weight:400;line-height:1.25}
+#inputVatPage .input-vat-purchase-dialog .accounts-dialog{animation:none}
+#inputVatPage .input-vat-purchase-dialog[open]{animation:input-vat-purchase-open .19s cubic-bezier(.16,1,.3,1) forwards}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input,
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select{height:42px;min-height:42px;max-height:42px;padding:0 12px}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid label{display:grid;align-items:stretch;gap:6px}
+#input-vat-purchase-dialog .accounts-form-grid>label,
+#input-vat-purchase-dialog .accounts-form-grid>div{width:100%}
+#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid{display:grid;grid-template-columns:minmax(210px,1.35fr) minmax(170px,.9fr) minmax(170px,.95fr);gap:12px;grid-column:1/-1;align-items:end}
+#inputVatPage .input-vat-purchase-dialog .input-vat-financial-field{display:grid}
+#inputVatPage .input-vat-purchase-dialog .input-vat-manual-wrap{display:grid;gap:12px}
+#inputVatPage .input-vat-purchase-dialog .input-vat-manual-wrap label{display:grid}
+#inputVatPage .input-vat-purchase-dialog textarea[name="description"]{min-height:120px}
+#inputVatPage .input-vat-purchase-dialog textarea[name="description"],
+#inputVatPage .input-vat-purchase-dialog textarea[name="notes"]{border-radius:10px;min-height:90px;border:1px solid #d6c6ba;padding:10px 12px}
+#inputVatPage .input-vat-purchase-dialog .portal-button--secondary{background:#fff;border-color:var(--iv-primary);color:var(--iv-primary);height:42px;min-height:42px}
+#inputVatPage .input-vat-purchase-dialog .portal-button--secondary:hover{background:#fff5f1;border-color:var(--iv-accent)}
+#inputVatPage .input-vat-purchase-dialog .portal-button--secondary:focus-visible,
+#inputVatPage .input-vat-purchase-dialog .portal-button--primary:focus-visible,
+#inputVatPage .input-vat-purchase-dialog .input-vat-choose-files:focus-visible,
+#inputVatPage .input-vat-purchase-dialog .row-button:focus-visible,
+#inputVatPage .input-vat-purchase-dialog [data-choose-files]:focus-visible{outline:2px solid rgba(171,54,25,.2);outline-offset:2px}
+#inputVatPage .input-vat-purchase-dialog .portal-button{transition:transform .15s ease,background-color .15s ease,border-color .15s ease,color .15s ease,box-shadow .15s ease}
+#inputVatPage .input-vat-purchase-dialog .portal-button:hover{transform:translateY(-1px)}
+#inputVatPage .input-vat-purchase-dialog[open]::backdrop{animation:input-vat-purchase-backdrop .19s ease forwards;background:rgba(32,18,13,.52)}
+#inputVatPage .input-vat-purchase-dialog::backdrop{background:rgba(32,18,13,.0)}
+#inputVatPage .input-vat-purchase-dialog.is-closing{animation:input-vat-purchase-close .16s ease forwards}
+#input-vat-purchase-dialog.is-closing::backdrop{animation:input-vat-purchase-backdrop-out .16s ease forwards}
+#inputVatPage .input-vat-purchase-dialog footer{align-items:stretch}
+#inputVatPage .input-vat-file-upload{display:flex}
+#inputVatPage .input-vat-file-upload__area{display:flex;position:relative;gap:12px;border:1px dashed #d6c6ba;border-radius:12px;background:linear-gradient(180deg,#fff,#fffaf6);padding:14px;transition:background .15s ease,border-color .15s ease,transform .15s ease;cursor:pointer}
+#inputVatPage .input-vat-file-upload__area.is-dragover{border-color:var(--iv-accent);background:#fff0ea;transform:translateY(-1px)}
+#inputVatPage .input-vat-file-upload__area input{position:absolute;inset:0;width:1px;height:1px;opacity:0;overflow:hidden}
+#inputVatPage .input-vat-file-upload__content{display:flex;align-items:center;gap:12px;flex-wrap:wrap;min-height:58px;width:100%}
+#inputVatPage .input-vat-file-upload__icon{font-size:18px}
+#inputVatPage .input-vat-file-upload__text{display:grid;gap:2px;min-width:170px;color:var(--iv-muted);font-size:12px;line-height:1.25}
+#inputVatPage .input-vat-file-upload__hint{font-size:11px;color:#81695c}
+#inputVatPage .input-vat-file-upload .input-vat-choose-files{margin-left:auto}
+
+@keyframes input-vat-purchase-open{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes input-vat-purchase-close{to{opacity:0;transform:translateY(8px) scale(.99)}}
+@keyframes input-vat-purchase-backdrop{from{opacity:0}to{opacity:1}}
+@keyframes input-vat-purchase-backdrop-out{to{opacity:0}}
+
+@media (max-width:760px){#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid{grid-template-columns:1fr}}
+@media (max-width:640px){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload{margin-top:2px}}
+@media (prefers-reduced-motion: reduce){#inputVatPage .input-vat-purchase-dialog,#inputVatPage .input-vat-purchase-dialog::backdrop,#inputVatPage .input-vat-purchase-dialog .portal-button,#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area{animation:none!important;transition:none!important}#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid{gap:8px}}
+/* Input VAT monthly workspace and owner transaction history. */
+#inputVatPage [hidden]{display:none!important}
+#inputVatPage .input-vat-primary-tabs{display:flex;align-items:center;gap:3px;margin:0 0 14px;padding:3px;border:1px solid #e4d7cf;border-radius:11px;background:#f6eee9;width:max-content;max-width:100%}
+#inputVatPage .input-vat-primary-tabs button{height:34px;display:inline-flex;align-items:center;gap:7px;padding:0 13px;border:0;border-radius:8px;background:transparent;color:#765b50;font:600 12px/1 Figtree,system-ui,sans-serif;cursor:pointer}
+#inputVatPage .input-vat-primary-tabs button svg{width:15px;height:15px}
+#inputVatPage .input-vat-primary-tabs button.is-active{background:#641f24;color:#fff;box-shadow:0 2px 8px rgba(65,22,25,.16)}
+#inputVatPage .input-vat-primary-tabs button:focus-visible,#inputVatPage .input-vat-month-tab:focus-visible{outline:3px solid rgba(113,31,34,.22);outline-offset:2px}
+#inputVatPage .input-vat-month-workspace{display:grid;gap:10px;margin-bottom:14px}
+#inputVatPage .input-vat-month-tabs{display:flex;gap:6px;max-width:100%;padding:2px 1px 6px;overflow-x:auto;overscroll-behavior-inline:contain;scrollbar-width:thin}
+#inputVatPage .input-vat-month-tab{min-width:108px;min-height:50px;display:grid;align-content:center;gap:4px;padding:6px 10px;border:1px solid #e5d8d0;border-radius:9px;background:#fff;color:#5e463e;text-align:left;cursor:pointer}
+#inputVatPage .input-vat-month-tab>span{font-size:12px;font-weight:700;white-space:nowrap}
+#inputVatPage .input-vat-month-tab small,#inputVatPage .input-vat-capture-badge{width:max-content;padding:2px 6px;border-radius:999px;background:#f1ebe7;color:#7c655b;font-size:9px;font-weight:700;letter-spacing:.02em;text-transform:uppercase;white-space:nowrap}
+#inputVatPage .input-vat-month-tab small.in_progress,#inputVatPage .input-vat-capture-badge.in_progress{background:#fff0cf;color:#7b5513}
+#inputVatPage .input-vat-month-tab small.complete,#inputVatPage .input-vat-capture-badge.complete{background:#e7f3e9;color:#33643d}
+#inputVatPage .input-vat-month-tab.is-active{border-color:#7b2a2d;background:#fff8f4;box-shadow:inset 0 -2px #7b2a2d}
+#inputVatPage .input-vat-month-status{min-height:58px;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 12px;border:1px solid #e4d4ca;border-radius:11px;background:linear-gradient(110deg,#fff,#faf2ed)}
+#inputVatPage .input-vat-month-status>div{display:grid;grid-template-columns:auto auto;align-items:center;gap:3px 9px;min-width:0}
+#inputVatPage .input-vat-month-status strong{font-size:13px}.input-vat-month-status small{grid-column:1/-1;color:#80695f;font-size:11px}
+#inputVatPage .input-vat-selected-month{height:34px;display:flex;align-items:center;justify-content:center;padding:0 12px;border:1px solid #d8c9c0;border-radius:8px;background:#fff;color:#49372f;font-size:13px!important;font-weight:600;white-space:nowrap}
+#inputVatPage .accounts-input-date-label{min-width:0;align-self:end}
+#inputVatPage .accounts-input-date-label>span:first-child{display:none}
+#inputVatPage .input-vat-history-toolbar{grid-template-columns:repeat(7,minmax(0,1fr));gap:10px}
+#inputVatPage .input-vat-history-toolbar label{display:grid;gap:5px;min-width:0;color:#765b50;font-size:10px;font-weight:700;letter-spacing:.04em}
+#inputVatPage .input-vat-history-toolbar input,#inputVatPage .input-vat-history-toolbar select,#inputVatPage .accounts-toolbar input,#inputVatPage .accounts-toolbar select{height:34px;min-height:34px;border-radius:8px;font-size:13px}
+#inputVatPage .input-vat-history-toolbar .accounts-search-control{grid-column:span 2}
+#inputVatPage .input-vat-cell-meta{display:block;margin-top:3px;color:#8a746a;font-size:9px;font-weight:500;white-space:nowrap}
+#inputVatPage .input-vat-month-tabs+.input-vat-month-status{animation:input-vat-fade-up 180ms ease-out}
+@media(max-width:1100px){#inputVatPage .input-vat-history-toolbar{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:700px){#inputVatPage .input-vat-history-toolbar{grid-template-columns:1fr 1fr}#inputVatPage .input-vat-history-toolbar .accounts-search-control{grid-column:1/-1}}
+@media(max-width:480px){#inputVatPage .input-vat-primary-tabs{width:100%}#inputVatPage .input-vat-primary-tabs button{flex:1;justify-content:center;padding-inline:8px}#inputVatPage .input-vat-primary-tabs button span{font-size:10px}#inputVatPage .input-vat-month-status{align-items:flex-start;flex-direction:column}#inputVatPage .input-vat-month-status .portal-button{width:100%}#inputVatPage .input-vat-history-toolbar{grid-template-columns:1fr}#inputVatPage .input-vat-history-toolbar .accounts-search-control{grid-column:auto}}
+
+/* Input VAT final theme-locked workspace. */
+#inputVatPage{
+  --iv-page:#fff;--iv-burgundy:#721b1a;--iv-action:#ab3619;--iv-amber:#f07420;--iv-olive:#a8ca19;
+  --iv-soft:#fdf6ee;--iv-hover:#fffaf5;--iv-border:#ede3d8;--iv-text:#1a1a1a;--iv-mid:#6b4c3b;--iv-light:#a08070;
+  --iv-fast:120ms;--iv-normal:180ms;--iv-slow:240ms;--iv-ease:cubic-bezier(.2,.8,.2,1);
+  color:var(--iv-text);font-family:Figtree,system-ui,sans-serif;background:var(--iv-page)
+}
+#inputVatPage .accounts-breadcrumb{margin-bottom:8px}
+#inputVatPage .accounts-hero{gap:14px;margin-bottom:var(--portal-section-gap,16px)}
+#inputVatPage .accounts-hero h1{font-size:22px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .accounts-hero .eyebrow,#inputVatPage .accounts-control-label,#inputVatPage .accounts-toolbar label>span{font-size:11px;font-weight:600}
+#inputVatPage .accounts-hero-copy>p:not(.eyebrow):not(.input-vat-active-period){font-size:13px;color:var(--iv-mid)}
+#inputVatPage .accounts-actions{display:flex;flex-wrap:wrap}
+#inputVatPage .accounts-actions .portal-button{height:34px;min-height:34px;border-radius:8px;font-size:12px;font-weight:500}
+#inputVatPage .accounts-actions .portal-button--primary{background:var(--iv-action);border-color:var(--iv-action)}
+#inputVatPage .accounts-actions .portal-button--primary:hover{background:var(--iv-burgundy);border-color:var(--iv-burgundy)}
+#inputVatPage .accounts-actions .input-vat-settings-action{background:#f07420;border:1px solid #f07420;color:#fff}
+#inputVatPage .accounts-actions .input-vat-settings-action svg{color:#fff;stroke:currentColor}
+#inputVatPage .accounts-actions .input-vat-settings-action:hover,#inputVatPage .accounts-actions .input-vat-settings-action:focus-visible{background:#f07420;border-color:#f07420;color:#fff}
+#inputVatPage .input-vat-settings-action svg{width:14px;height:14px}
+#inputVatPage .input-vat-active-period{display:inline-grid;grid-template-columns:auto auto;gap:2px 8px;align-items:center;padding:7px 10px;border-color:var(--iv-border);border-radius:8px;background:var(--iv-soft)}
+#inputVatPage .input-vat-active-period svg{grid-row:1/3;color:var(--iv-action)}
+#inputVatPage .input-vat-active-period span{font-size:10px;font-weight:600;letter-spacing:.05em;color:var(--iv-light)}
+#inputVatPage .input-vat-active-period strong{font-size:12px;font-weight:600;color:var(--iv-burgundy);text-transform:none}
+#inputVatPage .input-vat-primary-tabs{width:100%;height:auto;gap:22px;margin:0 0 var(--portal-section-gap,16px);padding:0;border:0;border-bottom:1px solid var(--iv-border);border-radius:0;background:transparent}
+#inputVatPage .input-vat-primary-tabs button{position:relative;height:38px;padding:0 2px;border-radius:0;color:var(--iv-burgundy);font:600 12px/1 Figtree,system-ui,sans-serif;transition:color var(--iv-normal) var(--iv-ease)}
+#inputVatPage .input-vat-primary-tabs button::after{content:"";position:absolute;right:0;bottom:-1px;left:0;height:2px;background:var(--iv-action);transform:scaleX(0);transform-origin:left;transition:transform var(--iv-normal) var(--iv-ease)}
+#inputVatPage .input-vat-primary-tabs button.is-active{background:transparent;color:var(--iv-action);box-shadow:none}
+#inputVatPage .input-vat-primary-tabs button.is-active::after{transform:scaleX(1)}
+#inputVatPage .input-vat-month-workspace{gap:10px;margin-bottom:12px}
+#inputVatPage .input-vat-month-nav{display:grid;grid-template-columns:34px auto minmax(0,1fr) 34px;align-items:end;gap:8px;border-bottom:1px solid var(--iv-border)}
+#inputVatPage .input-vat-month-arrow{width:34px;height:34px;display:grid;place-items:center;margin-bottom:5px;padding:0;border:1px solid var(--iv-border);border-radius:8px;background:#fff;color:var(--iv-burgundy);cursor:pointer;transition:background var(--iv-fast) ease,border-color var(--iv-fast) ease}
+#inputVatPage .input-vat-month-arrow:hover{background:var(--iv-hover);border-color:#dcc8bb}
+#inputVatPage .input-vat-month-arrow svg{width:15px;height:15px}
+#inputVatPage .input-vat-year-select{display:grid;gap:3px;margin-bottom:5px}
+#inputVatPage .input-vat-year-select>span{font-size:9px;font-weight:600;color:var(--iv-light);text-transform:uppercase}
+#inputVatPage .input-vat-year-select select{width:92px;min-width:92px;height:34px;box-sizing:border-box;padding:0 30px 0 11px;border:1px solid var(--iv-border);border-radius:8px;background:#fff;color:var(--iv-burgundy);font:600 12px Figtree,sans-serif;font-variant-numeric:tabular-nums}
+#inputVatPage .input-vat-month-tabs{gap:14px;padding:0;scrollbar-width:none}
+#inputVatPage .input-vat-month-tabs::-webkit-scrollbar{display:none}
+#inputVatPage .input-vat-month-tab{position:relative;min-width:72px;min-height:52px;display:grid;place-items:center;align-content:center;gap:3px;padding:5px 7px 7px;border:0;border-radius:8px 8px 0 0;background:transparent;color:var(--iv-mid);text-align:center;transition:background var(--iv-normal) var(--iv-ease),color var(--iv-normal) var(--iv-ease)}
+#inputVatPage .input-vat-month-tab::after{content:"";position:absolute;right:4px;bottom:0;left:4px;height:2px;background:var(--iv-action);transform:scaleX(0);transition:transform var(--iv-normal) var(--iv-ease)}
+#inputVatPage .input-vat-month-tab:hover{background:var(--iv-hover)}
+#inputVatPage .input-vat-month-tab.is-active{border:0;background:var(--iv-soft);box-shadow:none;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-month-tab.is-active::after{transform:scaleX(1)}
+#inputVatPage .input-vat-month-tab>span{font-size:12px;font-weight:600}
+#inputVatPage .input-vat-month-tab small,#inputVatPage .input-vat-capture-badge{padding:1px 5px;font-size:8px;font-weight:600}
+#inputVatPage .input-vat-month-status{min-height:64px;padding:10px 12px;border-color:var(--iv-border);border-radius:12px;background:var(--iv-soft)}
+#inputVatPage .input-vat-month-status-copy{display:grid!important;grid-template-columns:1fr!important;gap:3px!important}
+#inputVatPage .input-vat-month-status-copy>strong{font-size:13px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-month-status-copy>span{display:flex;align-items:center;gap:7px;font-size:11px;color:var(--iv-mid)}
+#inputVatPage .input-vat-month-status-copy>small{grid-column:auto;font-size:10px;color:var(--iv-light)}
+#inputVatPage .input-vat-month-status .portal-button{height:34px;min-height:34px;background:#fff;border-color:#d8b9aa;color:var(--iv-burgundy);font-size:12px}
+#inputVatPage .accounts-toolbar{grid-template-columns:minmax(260px,1fr) minmax(160px,260px);align-items:end;gap:12px;margin-bottom:10px;padding:10px 12px;border-color:var(--iv-border);border-radius:12px;background:#fff}
+#inputVatPage .accounts-toolbar input,#inputVatPage .accounts-toolbar select,#inputVatPage .input-vat-history-toolbar input,#inputVatPage .input-vat-history-toolbar select{height:36px;min-height:36px;max-height:36px;border-color:var(--iv-border);border-radius:8px;color:var(--iv-text);font:400 12px Figtree,sans-serif}
+#inputVatPage .input-vat-rate-indicator{display:flex;align-items:center;gap:8px;width:max-content;margin:0 0 10px;padding:5px 8px;border:1px solid var(--iv-border);border-radius:8px;background:var(--iv-soft);color:var(--iv-mid)}
+#inputVatPage .input-vat-rate-indicator span{font-size:10px;font-weight:500}
+#inputVatPage .input-vat-rate-indicator strong{font-size:12px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .accounts-summary{gap:12px;margin:10px 0 12px}
+#inputVatPage.paye-page .accounts-summary{grid-template-columns:repeat(auto-fit,minmax(180px,1fr))}
+#inputVatPage .accounts-summary article{position:relative;min-height:92px;padding:13px 14px;border:1px solid var(--iv-border);border-left:4px solid var(--iv-olive);border-radius:12px;background:#fff;box-shadow:none;transition:none}
+#inputVatPage .accounts-summary article:nth-child(2){border-left-color:var(--iv-action)}
+#inputVatPage .accounts-summary article:nth-child(3),#inputVatPage .accounts-summary article.is-primary-metric{border:1px solid var(--iv-border);border-left:4px solid var(--iv-amber);background:var(--iv-soft)}
+#inputVatPage .accounts-summary article:nth-child(4){border-left-color:var(--iv-burgundy)}
+#inputVatPage.paye-page .accounts-summary article:nth-child(5){border-left-color:var(--iv-action)}
+#inputVatPage .accounts-summary article:hover{transform:none;border-top-color:var(--iv-border);box-shadow:none}
+#inputVatPage .accounts-summary article small{font-size:10px;font-weight:600;color:var(--iv-mid)}
+#inputVatPage .accounts-summary article strong{font-size:21px;font-weight:600;color:var(--iv-text);font-variant-numeric:tabular-nums}
+#inputVatPage .accounts-summary article span{font-size:10px;color:var(--iv-light)}
+#inputVatPage .accounts-breakdowns{gap:12px;margin:0 0 12px}
+#inputVatPage .accounts-breakdowns article{min-height:132px;padding:13px;border-color:var(--iv-border);border-radius:12px}
+#inputVatPage .accounts-breakdowns h2{font-size:16px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .analysis-empty{min-height:72px;font-size:12px}
+#inputVatPage .analysis-empty strong{font-size:12px;font-weight:600}
+#inputVatPage .analysis-empty p{margin:3px 0 0;font-size:11px;color:var(--iv-light)}
+#inputVatPage .analysis-bar-fill{animation-duration:var(--iv-slow);background:linear-gradient(90deg,var(--iv-action),var(--iv-amber))}
+#inputVatPage .accounts-table-card{border-color:var(--iv-border);border-radius:14px;box-shadow:none}
+#inputVatPage .accounts-table-card thead th{height:35px;padding:0 10px;background:var(--iv-soft);color:#721b1a;font-size:10px;font-weight:600}
+#inputVatPage .accounts-table-card tbody td{height:35px;padding:5px 10px;font-size:12px}
+#inputVatPage .accounts-table-card th.money,#inputVatPage .accounts-table-card td.money,#inputVatPage .accounts-table-card tfoot td:nth-child(4),#inputVatPage .accounts-table-card tfoot td:nth-child(5),#inputVatPage .accounts-table-card tfoot td:nth-child(6){text-align:right;font-variant-numeric:tabular-nums}
+#inputVatPage .accounts-table-card tbody td.money,#inputVatPage .accounts-table-card tfoot td:nth-child(4),#inputVatPage .accounts-table-card tfoot td:nth-child(5),#inputVatPage .accounts-table-card tfoot td:nth-child(6){font-weight:400}
+#inputVatPage .accounts-table-card .status-pill{font-weight:400}
+#inputVatPage .table-empty-state{min-height:112px;padding:16px}
+#inputVatPage .table-empty-state strong{font-size:13px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-history-toolbar{position:relative;display:block;margin-bottom:10px;padding:10px 12px;border:1px solid var(--iv-border);border-radius:12px;background:#fff}
+#inputVatPage .input-vat-history-primary{display:grid;grid-template-columns:minmax(280px,1fr) 170px 160px auto;align-items:end;gap:10px}
+#inputVatPage .input-vat-history-toolbar label{display:grid;gap:5px;min-width:0;color:#6b4c3b;font:600 11px Figtree,sans-serif;letter-spacing:0;text-transform:none}
+#inputVatPage .input-vat-history-toolbar .accounts-search-control{grid-column:auto}
+#inputVatPage .input-vat-history-toolbar input,#inputVatPage .input-vat-history-toolbar select,#inputVatPage .input-vat-history-toolbar .portal-select__trigger{height:32px;min-height:32px;max-height:32px;border-color:var(--iv-border);border-radius:8px;color:var(--iv-text);font:400 12px Figtree,sans-serif;text-transform:none}
+#inputVatPage .input-vat-history-toolbar .input-vat-search-field>svg{width:15px;height:15px}
+#inputVatPage .input-vat-history-more{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;min-height:32px;padding:0 11px;border-color:#d8b9aa;color:var(--iv-burgundy);font:500 12px Figtree,sans-serif;white-space:nowrap}
+#inputVatPage .input-vat-history-more svg{width:15px;height:15px}
+#inputVatPage .input-vat-history-more b{display:inline-grid;place-items:center;min-width:17px;height:17px;padding:0 4px;border-radius:999px;background:var(--iv-action);color:#fff;font-size:10px;font-weight:600}
+#inputVatPage .input-vat-history-advanced{position:absolute;z-index:40;top:calc(100% + 6px);right:12px;width:min(580px,calc(100vw - 48px));padding:14px;border:1px solid var(--iv-border);border-radius:12px;background:#fff;box-shadow:0 14px 34px rgba(82,45,28,.16);animation:input-vat-filter-in 180ms var(--iv-ease)}
+#inputVatPage .input-vat-history-advanced[hidden],#inputVatPage .input-vat-history-chips[hidden],#inputVatPage .input-vat-history-more b[hidden]{display:none!important}
+#inputVatPage .input-vat-history-advanced-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px 12px}
+#inputVatPage .input-vat-history-advanced footer{display:flex;justify-content:flex-end;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid var(--iv-border)}
+#inputVatPage .input-vat-history-advanced footer .portal-button{height:32px;min-height:32px;font-size:12px}
+#inputVatPage .input-vat-history-chips{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:9px;padding-top:9px;border-top:1px solid var(--iv-border)}
+#inputVatPage .input-vat-history-chip{display:inline-flex;align-items:center;gap:5px;min-height:25px;padding:3px 7px;border:1px solid #e4d3c7;border-radius:999px;background:var(--iv-soft);color:var(--iv-burgundy);font:500 11px Figtree,sans-serif;cursor:pointer}
+#inputVatPage .input-vat-history-chip:hover{border-color:#d1aa95;background:var(--iv-hover)}
+#inputVatPage .input-vat-history-chip svg{width:12px;height:12px}
+#inputVatPage .input-vat-history-clear-link{min-height:25px;padding:2px 4px;border:0;background:transparent;color:var(--iv-action);font:600 11px Figtree,sans-serif;cursor:pointer}
+#inputVatPage .input-vat-history-clear-link:hover{text-decoration:underline}
+@keyframes input-vat-filter-in{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+#inputVatPage .accounts-dialog.input-vat-purchase-dialog{width:min(700px,calc(100vw - 32px));height:auto;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);padding:0;overflow:hidden;border-color:var(--iv-border);border-radius:14px}
+#inputVatPage .input-vat-purchase-dialog>form{display:flex;max-height:calc(100vh - 32px);max-height:calc(100dvh - 32px);flex-direction:column;padding:0;background:#fff}
+#inputVatPage .input-vat-purchase-dialog>form>header{padding:16px 18px;border-bottom:1px solid var(--iv-border);background:#fff}
+#inputVatPage .input-vat-purchase-dialog>form>header h2{font-size:20px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid{flex:0 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;padding:16px 18px;gap:12px;overscroll-behavior:contain;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input,#inputVatPage .input-vat-purchase-dialog .accounts-form-grid select{height:36px;min-height:36px;max-height:36px;border-color:var(--iv-border);font-size:12px}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid label{gap:5px;font-size:11px;font-weight:600;color:var(--iv-mid)}
+#inputVatPage .input-vat-purchase-dialog textarea[name="description"]{min-height:72px}
+#inputVatPage .input-vat-purchase-dialog textarea[name="notes"]{min-height:58px}
+#inputVatPage .input-vat-purchase-dialog textarea{border-color:var(--iv-border);border-radius:8px;font-size:12px}
+#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid{grid-template-columns:1fr 1fr;gap:12px}
+#inputVatPage .vat-preview{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;padding:1px;border:1px solid #dbe7c7;border-radius:10px;background:#dbe7c7;overflow:hidden}
+#inputVatPage .vat-preview>span{display:grid;gap:3px;padding:10px;background:#f6fbe9;text-align:left}
+#inputVatPage .vat-preview small{font-size:9px;font-weight:600;color:var(--iv-mid);text-transform:uppercase}
+#inputVatPage .vat-preview strong{font-size:14px;font-weight:600;color:var(--iv-burgundy);font-variant-numeric:tabular-nums}
+#inputVatPage .input-vat-form-section-title{margin:4px 0 -2px;padding-bottom:6px;border-bottom:1px solid var(--iv-border);color:var(--iv-burgundy);font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+#inputVatPage .input-vat-override-toggle{display:grid!important;grid-template-columns:auto 1fr;gap:2px 8px;padding:7px 9px;border:0;border-radius:8px;background:var(--iv-soft)}
+#inputVatPage .input-vat-override-toggle input{grid-row:1/3}
+#inputVatPage .input-vat-override-toggle small{font-size:10px;font-weight:400;color:var(--iv-light)}
+#inputVatPage .input-vat-manual-wrap{padding:10px;border-left:3px solid var(--iv-amber);border-radius:8px;background:#fff8e8}
+#inputVatPage .input-vat-file-upload__area{border-color:#ddcbbf;border-radius:10px;background:var(--iv-soft)}
+#inputVatPage .input-vat-purchase-dialog>form>.form-message{min-height:0;margin:0;padding:0 18px}
+#inputVatPage .input-vat-purchase-dialog>form>footer{position:relative;display:flex;justify-content:space-between;padding:12px 18px;border-top:1px solid var(--iv-border);background:#fff}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button{height:34px;min-height:34px}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary{margin-left:auto;background:var(--iv-action);border-color:var(--iv-action)}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary:hover{background:var(--iv-burgundy);border-color:var(--iv-burgundy)}
+@media(max-width:1100px){#inputVatPage .input-vat-history-primary{grid-template-columns:minmax(240px,1fr) 155px 150px auto}}
+@media(max-width:760px){#inputVatPage .accounts-actions{display:grid;grid-template-columns:1fr 1fr}#inputVatPage .accounts-toolbar{grid-template-columns:1fr 180px}#inputVatPage .input-vat-history-primary{grid-template-columns:1fr 1fr auto}#inputVatPage .input-vat-history-search{grid-column:1/-1}#inputVatPage .input-vat-month-nav{grid-template-columns:34px minmax(0,1fr) 34px}#inputVatPage .input-vat-year-select{grid-column:1/-1;grid-row:1}#inputVatPage .input-vat-year-select select{width:100%}#inputVatPage .input-vat-month-arrow:first-child{grid-column:1;grid-row:2}#inputVatPage .input-vat-month-tabs{grid-column:2;grid-row:2}#inputVatPage .input-vat-month-arrow:last-child{grid-column:3;grid-row:2}}
+@media(max-width:600px){#inputVatPage .accounts-dialog.input-vat-purchase-dialog{inset:0;width:100vw;max-width:none;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;margin:0;border:0;border-radius:0}#inputVatPage .input-vat-purchase-dialog>form{height:100vh;height:100dvh;max-height:100vh;max-height:100dvh}#inputVatPage .input-vat-purchase-dialog .accounts-form-grid{flex:1 1 auto;grid-template-columns:1fr}#inputVatPage .input-vat-purchase-dialog .span-2{grid-column:auto}#inputVatPage .input-vat-purchase-dialog .input-vat-financial-grid,#inputVatPage .vat-preview{grid-template-columns:1fr}#inputVatPage .input-vat-purchase-dialog input,#inputVatPage .input-vat-purchase-dialog select,#inputVatPage .input-vat-purchase-dialog textarea{font-size:16px!important}}
+@media(max-width:480px){#inputVatPage .input-vat-primary-tabs{gap:14px}#inputVatPage .input-vat-primary-tabs button{justify-content:flex-start}#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .input-vat-month-status{align-items:stretch}#inputVatPage .accounts-summary{grid-template-columns:1fr 1fr}#inputVatPage .accounts-summary article{min-height:92px;padding:11px}#inputVatPage .input-vat-history-primary{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}#inputVatPage .input-vat-history-search{grid-column:1/-1}#inputVatPage .input-vat-history-more{width:100%}#inputVatPage .input-vat-history-advanced{position:fixed;top:auto;right:12px;bottom:12px;left:12px;width:auto;max-height:calc(100dvh - 24px);overflow:auto}#inputVatPage .input-vat-history-advanced-grid{grid-template-columns:1fr}}
+@media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-history-advanced{animation:none}}
+
+/* Input VAT modal, upload, header and scrolling correction. */
+#inputVatPage .accounts-hero>.accounts-actions{align-items:center;justify-content:flex-end}
+#inputVatPage .accounts-actions>.portal-header-status{margin-left:4px}
+#inputVatPage .accounts-summary{order:initial;margin-top:4px}
+#inputVatPage .accounts-form-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:12px;margin:0}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label{min-width:0;align-self:start}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label>input,
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label>select{width:100%;box-sizing:border-box}
+#inputVatPage .input-vat-purchase-dialog .field-help{min-height:15px;margin:0;font-size:10px;line-height:1.35}
+#inputVatPage .input-vat-purchase-dialog textarea[name="description"]{height:96px;min-height:96px}
+#inputVatPage .input-vat-purchase-dialog textarea[name="notes"]{height:64px;min-height:64px}
+#inputVatPage .input-vat-form-section-title{margin:4px 0 0;padding-bottom:7px;font-size:16px;font-weight:600;letter-spacing:0;text-transform:none}
+#inputVatPage .input-vat-override-toggle{min-height:54px;padding:10px 12px;border:1px solid var(--iv-border)}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]{appearance:none;-webkit-appearance:none;width:18px!important;height:18px!important;min-height:18px!important;margin:1px 0 0;padding:0;border:1px solid #cbb8aa;border-radius:5px;background:#fff;display:grid;place-items:center;cursor:pointer;transition:background-color 120ms ease,border-color 120ms ease}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]::after{content:"";width:8px;height:4px;border:0 solid #fff;border-width:0 0 2px 2px;opacity:0;transform:translateY(-1px) rotate(-45deg) scale(.7);transition:opacity 120ms ease,transform 120ms ease}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]:checked{border-color:var(--iv-burgundy);background:var(--iv-burgundy)}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]:checked::after{opacity:1;transform:translateY(-1px) rotate(-45deg) scale(1)}
+#inputVatPage .input-vat-override-toggle input[type="checkbox"]:focus-visible{outline:2px solid rgba(171,54,25,.25);outline-offset:2px}
+#inputVatPage .input-vat-manual-wrap{grid-template-columns:repeat(2,minmax(0,1fr));animation:input-vat-expand 180ms var(--iv-ease)}
+#inputVatPage .input-vat-manual-wrap label:last-child{grid-column:1/-1}
+@keyframes input-vat-expand{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+#inputVatPage .vat-preview{background:#dbe7c7}
+#inputVatPage .input-vat-file-upload{width:100%}
+#inputVatPage .input-vat-file-upload__area{width:100%;min-height:144px;display:grid;place-items:center;padding:17px;border:1px dashed #d5bba9;border-radius:12px;background:var(--iv-hover);box-sizing:border-box;text-align:center}
+#inputVatPage .input-vat-file-upload__area.is-dragover{border-color:var(--iv-action);background:var(--iv-soft);transform:none}
+#inputVatPage .input-vat-file-upload__content{min-height:0;display:grid;place-items:center;gap:7px}
+#inputVatPage .input-vat-file-upload__icon{width:34px;height:34px;display:grid;place-items:center;border-radius:50%;background:#fff;color:var(--iv-action);font-size:17px}
+#inputVatPage .input-vat-file-upload__text{min-width:0;place-items:center;gap:2px;color:var(--iv-mid);font-size:12px}
+#inputVatPage .input-vat-file-upload__text strong{font-size:13px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-file-upload__text>span:not(.input-vat-file-upload__hint){font-size:10px;color:var(--iv-light)}
+#inputVatPage .input-vat-file-upload .input-vat-choose-files{height:34px;min-height:34px;margin:3px 0 0;padding-inline:13px}
+#inputVatPage .pending-files{gap:7px}
+#inputVatPage .pending-file{min-height:40px;gap:10px;padding:7px 9px;border:1px solid var(--iv-border);border-radius:8px;background:var(--iv-soft);animation:input-vat-file-in 160ms var(--iv-ease)}
+#inputVatPage .pending-file>span{min-width:0;display:grid;gap:2px}
+#inputVatPage .pending-file strong{overflow:hidden;font-size:11px;font-weight:600;text-overflow:ellipsis;white-space:nowrap}
+#inputVatPage .pending-file small{font-size:9px;color:var(--iv-light)}
+#inputVatPage .pending-file button{height:28px;padding:0 8px;border:0;border-radius:6px;background:transparent;color:var(--iv-action);font:600 10px Figtree,sans-serif}
+#inputVatPage .pending-file button:hover{background:#fff0ea}
+@keyframes input-vat-file-in{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+#inputVatPage .input-vat-purchase-dialog>form{overflow:hidden}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid{min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#inputVatPage .input-vat-purchase-dialog>form>footer{position:sticky;bottom:0;z-index:2}
+#inputVatPage .input-vat-rate-dialog{width:min(520px,calc(100vw - 28px));max-height:82vh;overflow:hidden;border:1px solid var(--iv-border);border-radius:14px}
+#inputVatPage .input-vat-rate-dialog>form{max-height:82vh;display:grid;grid-template-rows:auto minmax(0,1fr) auto;padding:0;overflow:hidden;background:#fff}
+#inputVatPage .input-vat-rate-dialog>form>header{padding:15px 17px;border-bottom:1px solid var(--iv-border)}
+#inputVatPage .input-vat-rate-dialog .eyebrow{font-size:10px;font-weight:600;color:var(--iv-action)}
+#inputVatPage .input-vat-rate-dialog h2{font-size:18px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-rate-dialog-body{min-height:0;padding:15px 17px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+#inputVatPage .input-vat-rate-dialog .rate-change-grid{grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;margin:0 0 12px}
+#inputVatPage .input-vat-rate-card{min-height:88px;display:grid!important;align-content:center;gap:7px;padding:12px!important;box-sizing:border-box}
+#inputVatPage .input-vat-rate-card>span{font-size:10px;font-weight:600;color:var(--iv-light)}
+#inputVatPage .input-vat-rate-card strong{margin:0;font-size:22px;font-weight:600;color:var(--iv-burgundy)}
+#inputVatPage .input-vat-rate-card .rate-input-wrap{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:7px}
+#inputVatPage .input-vat-rate-card input,#inputVatPage .input-vat-rate-dialog-body>label input{height:36px;min-height:36px;font-size:12px}
+#inputVatPage .input-vat-rate-dialog-body>label{display:grid;gap:5px;font-size:11px;font-weight:600;color:var(--iv-mid)}
+#inputVatPage .input-vat-rate-dialog .settings-warning{margin-top:12px;margin-bottom:10px;padding:9px 11px;border-left:3px solid var(--iv-amber);border-radius:6px;background:#fff8e8;font-size:11px}
+#inputVatPage .input-vat-rate-dialog>form>footer{padding:11px 17px;border-top:1px solid var(--iv-border);background:#fff}
+#inputVatPage .input-vat-rate-dialog>form>footer .portal-button{height:34px;min-height:34px;font-size:12px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog .portal-button,#inputVatPage .input-vat-rate-dialog .portal-button{font-size:12px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog .portal-date-field,#inputVatPage .input-vat-rate-dialog .portal-date-field{height:36px;min-height:36px;box-sizing:border-box;font-size:12px}
+body.input-vat-dialog-open{overflow:hidden!important}
+@media(max-width:900px){#inputVatPage .accounts-hero>.accounts-actions{width:100%;justify-content:flex-start}#inputVatPage .accounts-actions>.portal-header-status{width:100%;margin:4px 0 0;justify-content:flex-end}}
+@media(max-width:768px){#inputVatPage .accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#inputVatPage .input-vat-purchase-dialog{width:calc(100vw - 24px)}}
+@media(max-width:600px){#inputVatPage .accounts-form-grid,#inputVatPage .input-vat-manual-wrap{grid-template-columns:1fr}#inputVatPage .input-vat-manual-wrap label:last-child{grid-column:auto}#inputVatPage .input-vat-file-upload__area{min-height:132px;padding:15px}#inputVatPage .input-vat-rate-dialog{inset:0;width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border:0;border-radius:0}#inputVatPage .input-vat-rate-dialog>form{height:100dvh;max-height:none;grid-template-rows:auto minmax(0,1fr) auto;overflow-y:auto}#inputVatPage .input-vat-rate-dialog .rate-change-grid{grid-template-columns:1fr}}
+@media(max-width:430px){#inputVatPage .accounts-summary{grid-template-columns:1fr}#inputVatPage .accounts-actions>.portal-header-status{justify-content:flex-start;overflow-x:auto}}
+@media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-override-toggle input[type="checkbox"],#inputVatPage .input-vat-override-toggle input[type="checkbox"]::after,#inputVatPage .input-vat-manual-wrap,#inputVatPage .pending-file{animation:none!important;transition:none!important}}
+
+/* Input VAT Add Purchase final flow and compact evidence control. */
+#inputVatPage .input-vat-purchase-dialog .vat-preview{grid-template-columns:repeat(3,minmax(0,1fr));min-height:54px;margin:0;padding:1px;overflow:hidden}
+#inputVatPage .input-vat-purchase-dialog .vat-preview>span{min-width:0;min-height:52px;align-content:center;padding:7px 9px}
+#inputVatPage .input-vat-purchase-dialog .vat-preview strong{overflow:hidden;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+#inputVatPage .input-vat-mixed-breakdown{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px 12px;padding:10px 12px;border:1px solid #eadfd5;border-radius:9px;background:#fffaf5}
+#inputVatPage .input-vat-mixed-breakdown[hidden]{display:none}
+#inputVatPage .input-vat-mixed-breakdown__title{grid-column:1/-1;margin:0;color:var(--iv-burgundy);font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+#inputVatPage .input-vat-mixed-breakdown__values{display:grid;gap:5px;align-content:center;padding-top:17px}
+#inputVatPage .input-vat-mixed-breakdown__values span{display:flex;justify-content:space-between;gap:10px;color:var(--iv-mid);font-size:10px}
+#inputVatPage .input-vat-mixed-breakdown__values strong{color:var(--iv-burgundy);font-variant-numeric:tabular-nums}
+#inputVatPage .input-vat-mixed-breakdown [data-mixed-guidance]:not(:empty){color:#8a5414}
+#inputVatPage .input-vat-treatment-badge{display:inline-flex;margin-top:4px;padding:2px 6px;border:1px solid #e5c8a5;border-radius:999px;background:#fff7e9;color:#7a3f16;font-size:9px;font-weight:600;white-space:nowrap}
+#inputVatPage .input-vat-purchase-dialog .vat-preview+.input-vat-form-section-title{margin:18px 0 0;padding:0 0 7px;border-bottom:1px solid #ede3d8;transform:none}
+@media(max-width:600px){#inputVatPage .input-vat-mixed-breakdown{grid-template-columns:1fr}#inputVatPage .input-vat-mixed-breakdown__values{padding-top:0}}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area{display:flex;min-height:58px;align-items:center;padding:10px 13px;text-align:left}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__content{display:flex;min-height:0;align-items:center;gap:8px;flex-wrap:nowrap}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__icon{display:block;width:24px;height:24px;flex:0 0 24px;border-radius:0;background:transparent;color:#ab3619;fill:none;stroke:currentColor;stroke-linecap:round;stroke-linejoin:round;stroke-width:1.7;animation:inputVatUploadFloat 2.8s ease-in-out infinite;will-change:transform}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__arrow{transform-origin:center;transition:transform .22s,opacity .22s}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area:hover .input-vat-file-upload__arrow,#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area.is-dragover .input-vat-file-upload__arrow{transform:translateY(-3px)}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__area.is-dragover{border-color:#ab3619;background:#fffaf5}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text{display:flex;min-width:0;flex:1;align-items:center;gap:6px;white-space:nowrap}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text strong{font-size:12px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text>span{font-size:11px!important;color:var(--iv-light)}
+#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload .input-vat-choose-files{height:32px;min-height:32px;margin:0 0 0 auto;padding:0 10px;border-radius:8px;font-size:11px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button{height:32px;min-height:32px;padding:0 12px;border-radius:8px;font-size:11px}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary{background:#ab3619;border-color:#ab3619}
+#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button--primary:hover{background:#721b1a;border-color:#721b1a}
+@media(max-width:700px){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__content{flex-wrap:wrap}#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__text{flex-wrap:wrap;white-space:normal}#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload .input-vat-choose-files{margin-left:auto}}
+@media(max-width:520px){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload .input-vat-choose-files{width:100%;min-height:40px}#inputVatPage .input-vat-purchase-dialog>form>footer .portal-button{min-height:44px;height:44px}}
+@keyframes inputVatUploadFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__icon{animation:none!important;will-change:auto}#inputVatPage .input-vat-purchase-dialog .input-vat-file-upload__arrow{transition:none!important}}
+
+/* Input VAT owner-requested header and type scale. */
+#inputVatPage .accounts-hero-copy>p:not(.eyebrow):not(.input-vat-active-period){font-size:11px}
+#inputVatPage .accounts-hero-copy>.input-vat-active-period{margin-top:10px}
+#inputVatPage .accounts-hero{margin-bottom:0}
+#inputVatPage .accounts-hero+.accounts-summary{margin-top:-6px}
+#inputVatPage .accounts-summary article strong{font-size:12px}
+#inputVatPage .accounts-breakdowns h2{font-size:16px}
+
+/* Input VAT Add Purchase compact portal control system. */
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]),
+#inputVatPage .input-vat-purchase-dialog .portal-custom-select-trigger{
+  box-sizing:border-box;
+  width:100%;
+  height:32px;
+  min-height:32px;
+  max-height:32px;
+  padding:0 11px;
+  border:1px solid rgba(171,54,25,.24);
+  border-radius:8px;
+  background-color:#fff;
+  color:#1a1a1a;
+  box-shadow:none;
+  font-family:Figtree,system-ui,sans-serif;
+  font-size:12px;
+  font-weight:400;
+  line-height:1.2;
+}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]):hover,
+#inputVatPage .input-vat-purchase-dialog .portal-custom-select-trigger:hover{border-color:rgba(171,54,25,.42);background-color:rgba(253,246,238,.28)}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]):focus,
+#inputVatPage .input-vat-purchase-dialog .portal-custom-select-trigger:focus-visible,
+#inputVatPage .input-vat-purchase-dialog .portal-custom-select.is-open .portal-custom-select-trigger{border-color:#ab3619;outline:0;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input[type="date"]{padding-right:8px}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input[type="date"]::-webkit-calendar-picker-indicator{width:14px;height:14px;margin:0;padding:0;cursor:pointer}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input[type="number"]{font-variant-numeric:tabular-nums;text-align:left}
+#inputVatPage .input-vat-purchase-dialog .accounts-form-grid>label{gap:6px;font-size:11px;font-weight:600}
+#inputVatPage .input-vat-purchase-dialog .field-help{margin:0;color:#a08070;font-size:10px;font-weight:400;line-height:1.35}
+#inputVatPage .input-vat-purchase-dialog .portal-date-picker .portal-date-field{box-sizing:border-box;height:32px;min-height:32px;max-height:32px;padding-block:0;font-size:12px;font-weight:400;line-height:1.2}
+/* Canonical portal dropdowns throughout Input VAT. The native selects remain the
+   authoritative form controls; portal.js supplies the themeable trigger/listbox. */
+#inputVatPage .portal-custom-select-trigger{height:32px;min-height:32px;padding:0 11px;border-color:rgba(171,54,25,.24);border-radius:8px;background:#fff;color:#1a1a1a;font-family:Figtree,system-ui,sans-serif;font-size:12px;font-weight:400;box-shadow:none}
+#inputVatPage .portal-custom-select-trigger:hover{border-color:rgba(171,54,25,.42);background:rgba(253,246,238,.28)}
+#inputVatPage .portal-custom-select.is-open .portal-custom-select-trigger,
+#inputVatPage .portal-custom-select-trigger:focus-visible{border-color:#ab3619;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
+#inputVatPage .portal-custom-select-value{font-size:12px;font-weight:400}
+#inputVatPage .portal-custom-select-chevron{width:14px;height:14px;color:#721b1a}
+.portal-select-popup[data-portal-select-variant="input-vat"]{border-color:#ede3d8;border-radius:10px;background:#fff;box-shadow:0 16px 34px rgba(114,27,26,.16)}
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option:hover,
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option.is-active,
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option:focus-visible{background:rgba(240,116,32,.06);color:#721b1a}
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option.is-selected,
+.portal-select-popup[data-portal-select-variant="input-vat"] .portal-select-option[aria-selected="true"]{background:rgba(171,54,25,.08);color:#721b1a}
+@media(max-width:600px){#inputVatPage .input-vat-purchase-dialog .accounts-form-grid input:not([type="checkbox"]):not([type="file"]){font-size:16px}}
+
+/* Input VAT approved summary placement and compact reporting hierarchy. */
+#inputVatPage .accounts-summary{gap:10px;margin:4px 0 12px}
+#inputVatPage .accounts-summary article{display:flex;min-height:82px;padding:11px 13px;justify-content:space-between;border-radius:11px}
+#inputVatPage .accounts-summary-heading{display:flex;align-items:center;gap:7px;min-width:0}
+#inputVatPage .accounts-summary-heading svg{width:18px;height:18px;flex:0 0 18px;margin:0;color:var(--iv-action);stroke-width:1.8}
+#inputVatPage .accounts-summary article:nth-child(1) .accounts-summary-heading svg{color:var(--iv-olive)}
+#inputVatPage .accounts-summary article:nth-child(3) .accounts-summary-heading svg{color:var(--iv-amber)}
+#inputVatPage .accounts-summary article:nth-child(4) .accounts-summary-heading svg{color:var(--iv-burgundy)}
+#inputVatPage .accounts-summary-heading small{display:block;margin:0;color:var(--iv-mid);font-size:10px;font-weight:700;line-height:1.25}
+#inputVatPage .accounts-summary-value{display:grid;gap:2px;align-content:end}
+#inputVatPage .accounts-summary-value strong{display:block;margin:0;color:var(--iv-text);font-size:18px;font-weight:600;line-height:1.15}
+#inputVatPage .accounts-summary-value span{display:block;margin:0;color:var(--iv-light);font-size:10px;font-weight:500;line-height:1.3}
+#inputVatPage .accounts-breakdowns h2{font-size:14px}
+#inputVatPage .accounts-table-card thead th{font-weight:700}
+#inputVatPage .accounts-table-card tfoot td{font-size:11px}
+#inputVatPage .portal-button[data-add-purchase]:hover,
+#inputVatPage .portal-button[data-add-purchase]:active{border-color:#f07420;background:#f07420}
+@media(max-width:480px){#inputVatPage .accounts-summary{grid-template-columns:repeat(2,minmax(0,1fr))}#inputVatPage .accounts-summary article{min-height:80px;padding:10px 11px}#inputVatPage .accounts-summary-value strong{font-size:17px}}
+@media(max-width:340px){#inputVatPage .accounts-summary{grid-template-columns:1fr}}
+
+/* Owner-approved vertical rhythm: 12px header-to-summary, 20px summary-to-tabs,
+   and 15px tabs-to-month navigation. */
+#inputVatPage .accounts-hero+.accounts-summary{margin-top:-6px;margin-bottom:2px}
+#inputVatPage .input-vat-primary-tabs{margin-bottom:-3px}
+@media(min-width:901px){#inputVatPage .accounts-actions>.portal-header-status{gap:8px;margin-left:0}}
+
+/* Input VAT canonical 32px control system. These rules target the existing
+   components after removing the obsolete generated search glyph above. */
+#inputVatPage{
+  --iv-control-height:32px;
+  --iv-radius:8px;
+  --iv-motion-fast:120ms;
+  --iv-motion:180ms;
+  --iv-ease:cubic-bezier(.4,0,.2,1);
+  overflow-x:hidden
+}
+#inputVatPage .accounts-toolbar{grid-template-columns:minmax(0,1fr) minmax(180px,260px);align-items:end;gap:12px}
+#inputVatPage .accounts-toolbar .accounts-search-control,
+#inputVatPage .accounts-toolbar .accounts-status-control{display:grid;gap:6px;margin:0;min-width:0}
+#inputVatPage .accounts-toolbar .accounts-search-control>span:first-child,
+#inputVatPage .accounts-toolbar .accounts-status-control>span:first-child,
+#inputVatPage .input-vat-active-period-label{margin:0;color:#6b4c3b;font:600 11px/1.2 Figtree,system-ui,sans-serif;letter-spacing:0;text-transform:none}
+#inputVatPage .accounts-toolbar .accounts-search-control>span:first-child,
+#inputVatPage .accounts-toolbar .accounts-status-control>span:first-child{color:#721b1a}
+#inputVatPage .input-vat-search-field{position:relative;display:block;min-width:0;width:100%}
+#inputVatPage .input-vat-search-field>svg{position:absolute;z-index:1;top:50%;left:11px;width:15px;height:15px;color:#6b4c3b;pointer-events:none;transform:translateY(-50%);transition:color var(--iv-motion-fast) ease}
+#inputVatPage .input-vat-search-field:focus-within>svg{color:#ab3619}
+#inputVatPage .accounts-toolbar .input-vat-search-field>input{box-sizing:border-box;width:100%;height:var(--iv-control-height);min-height:var(--iv-control-height);max-height:var(--iv-control-height);padding:0 11px 0 34px;border:1px solid rgba(171,54,25,.24);border-radius:var(--iv-radius);background:#fff;color:#1a1a1a;box-shadow:none;font:400 12px/1.2 Figtree,system-ui,sans-serif;transition:border-color var(--iv-motion-fast) ease,background-color var(--iv-motion-fast) ease,box-shadow var(--iv-motion-fast) ease}
+#inputVatPage .accounts-toolbar .input-vat-search-field>input:hover{border-color:rgba(171,54,25,.42);background:rgba(253,246,238,.28)}
+#inputVatPage .accounts-toolbar .input-vat-search-field>input:focus{border-color:#ab3619;outline:0;background:#fff;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
+#inputVatPage .accounts-status-control .portal-custom-select-trigger{box-sizing:border-box;width:100%;height:var(--iv-control-height);min-height:var(--iv-control-height);max-height:var(--iv-control-height);border:1px solid rgba(171,54,25,.24);border-radius:var(--iv-radius);font-size:12px;font-weight:400;text-transform:none}
+#inputVatPage .accounts-status-control .portal-custom-select-value{font-weight:400;text-transform:none}
+#inputVatPage select.portal-custom-select-native{position:absolute;width:1px;height:1px;min-width:1px;min-height:1px;max-width:1px;max-height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+#inputVatPage .input-vat-active-period{box-sizing:border-box;display:inline-flex;width:max-content;height:var(--iv-control-height);min-height:var(--iv-control-height);align-items:center;gap:7px;padding:0 10px;border:1px solid #ede3d8;border-radius:var(--iv-radius);background:#fffaf5;color:#6b4c3b}
+#inputVatPage .input-vat-active-period{margin-top:8px}
+#inputVatPage .input-vat-active-period svg{grid-row:auto;width:14px;height:14px;flex:0 0 14px;color:#ab3619}
+#inputVatPage .input-vat-active-period span{font-size:11px;font-weight:600;letter-spacing:0;color:#6b4c3b;text-transform:none}
+#inputVatPage .accounts-hero p.input-vat-active-period .input-vat-active-period-label{font:600 11px/1.2 Figtree,system-ui,sans-serif;letter-spacing:0;color:#6b4c3b;text-transform:none}
+#inputVatPage .input-vat-active-period strong{display:inline;margin:0;padding:0;border:0;background:transparent;color:#721b1a;font:600 11px/1.2 Figtree,system-ui,sans-serif;white-space:nowrap}
+#inputVatPage .input-vat-month-nav{grid-template-columns:32px auto minmax(0,1fr) 32px;align-items:end;gap:6px;border:0;border-radius:0;outline:0;background:transparent;box-shadow:none}
+#inputVatPage .input-vat-month-arrow{position:relative;box-sizing:border-box;display:inline-flex;width:32px;height:32px;min-width:32px;min-height:32px;margin:0;align-items:center;justify-content:center;border:1px solid #ede3d8;border-radius:var(--iv-radius);background:#fff;color:#721b1a;transition:color var(--iv-motion-fast) ease,background-color var(--iv-motion-fast) ease,border-color var(--iv-motion-fast) ease,transform 80ms ease}
+#inputVatPage .input-vat-month-arrow:hover{border-color:rgba(171,54,25,.36);background:#fdf6ee;color:#ab3619}
+#inputVatPage .input-vat-month-arrow:active{transform:translateY(1px)}
+#inputVatPage .input-vat-month-arrow:focus-visible{outline:0;box-shadow:0 0 0 3px rgba(171,54,25,.12)}
+#inputVatPage .input-vat-month-arrow svg{width:15px;height:15px}
+#inputVatPage .input-vat-year-select{margin:0}
+#inputVatPage .input-vat-year-select .portal-custom-select-trigger{height:32px;min-height:32px}
+#inputVatPage .input-vat-month-tabs{display:flex;min-width:0;flex:1;align-items:flex-end;gap:6px;padding:0;overflow-x:auto;overflow-y:hidden;border:0;border-radius:0;outline:0;background:transparent;box-shadow:none;scrollbar-width:thin;-webkit-overflow-scrolling:touch}
+#inputVatPage .input-vat-month-tab{box-sizing:border-box;position:relative;display:inline-grid;min-width:86px;min-height:52px;flex:0 0 auto;place-items:center;align-content:center;gap:3px;padding:8px 14px 7px;border:0;border-radius:0;background:transparent;box-shadow:none;color:#6b4c3b;font:600 11px/1.2 Figtree,system-ui,sans-serif;text-align:center;transition:background-color 180ms ease,color 180ms ease,box-shadow 180ms ease}
+#inputVatPage .input-vat-month-tab::after{display:none}
+#inputVatPage .input-vat-month-tab:not(.is-active):hover,
+#inputVatPage .input-vat-month-tab[aria-selected="false"]:hover{background:rgba(171,54,25,.04);color:#ab3619}
+#inputVatPage .input-vat-month-tab.is-active,
+#inputVatPage .input-vat-month-tab[aria-selected="true"]{border:0;background:rgba(240,116,32,.08);color:#721b1a;box-shadow:inset 0 -2px 0 #ab3619}
+#inputVatPage .input-vat-month-tab>span{color:inherit;font:700 12px/1.2 Figtree,system-ui,sans-serif;text-transform:uppercase}
+#inputVatPage .input-vat-month-tab small,#inputVatPage .input-vat-capture-badge{min-height:0;padding:2px 6px;border-radius:999px;background:#f3ece8;color:#8c5e4b;font:600 8px/1 Figtree,system-ui,sans-serif}
+#inputVatPage .input-vat-capture-badge.in_progress{background:#fff7e8;color:#b45309}
+#inputVatPage .input-vat-capture-badge.complete{background:#f1f8ed;color:#315b24}
+#inputVatPage .input-vat-month-status .input-vat-capture-complete{box-sizing:border-box;height:32px;min-height:32px;padding:0 11px;border:1px solid rgba(171,54,25,.28);border-radius:8px;background:#fff;color:#721b1a;font:600 11px/1 Figtree,system-ui,sans-serif;transition:background-color var(--iv-motion-fast) ease,border-color var(--iv-motion-fast) ease,color var(--iv-motion-fast) ease,transform 80ms ease}
+#inputVatPage .input-vat-month-status .input-vat-capture-complete:hover{border-color:#ab3619;background:#fdf6ee;color:#ab3619}
+#inputVatPage .input-vat-month-status .input-vat-capture-complete:active{transform:translateY(1px)}
+#inputVatPage .input-vat-purchase-dialog .portal-date-picker>.portal-date-field{height:32px;min-height:32px;max-height:32px;padding:0 34px 0 11px;border-radius:8px;font-size:12px}
+.portal-date-popup.is-input-vat-popup{position:fixed;inset:auto;margin:0;z-index:var(--portal-z-date-picker,70000);width:300px;max-width:calc(100vw - 24px);overflow:visible;border-radius:12px}
+.portal-date-popup.is-input-vat-popup .portal-date-nav svg{width:15px;height:15px}
+.portal-date-popup.is-input-vat-popup .portal-date-actions:has(> .portal-date-clear:only-child){justify-content:flex-start}
+.portal-date-popup.is-input-vat-popup .portal-date-day{height:32px;min-height:32px;border-radius:8px;font-size:12px}
+.portal-date-popup.is-input-vat-popup .portal-date-day:hover{background:#fdf6ee;color:#ab3619;transform:none}
+.portal-date-popup.is-input-vat-popup .portal-date-day:disabled{cursor:not-allowed;opacity:.34;background:transparent;color:#8b8b8b;text-decoration:line-through;text-decoration-thickness:1px}
+.portal-date-popup.is-input-vat-popup .portal-date-day:disabled:hover{background:transparent;color:#8b8b8b}
+.portal-date-popup.is-input-vat-popup .portal-date-day.is-selected{border-color:#f07420;background:rgba(240,116,32,.10);color:#721b1a;font-weight:600}
+@media(max-width:760px){#inputVatPage .input-vat-month-nav{grid-template-columns:32px minmax(0,1fr) 32px}#inputVatPage .input-vat-year-select{grid-column:1/-1;grid-row:1}#inputVatPage .input-vat-month-arrow:first-child{grid-column:1;grid-row:2}#inputVatPage .input-vat-month-tabs{grid-column:2;grid-row:2}#inputVatPage .input-vat-month-arrow:last-child{grid-column:3;grid-row:2}}
+@media(max-width:600px){#inputVatPage .accounts-toolbar{grid-template-columns:1fr}#inputVatPage .input-vat-month-arrow::before{content:"";position:absolute;inset:-6px}}
+@media(prefers-reduced-motion:reduce){#inputVatPage *,#inputVatPage *::before,#inputVatPage *::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}.portal-date-popup.is-input-vat-popup,.portal-date-popup.is-input-vat-popup *{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+#inputVatPage .portal-button:not(:disabled):hover,
+#inputVatPage .portal-button:not(:disabled):active{border-color:#f07420!important;background:#f07420!important;color:#fff!important}
+
+/* Keep the owner Settings action in step with Add Purchase motion. */
+#inputVatPage .input-vat-settings-action{
+  transition:background-color .16s ease,border-color .16s ease,color .16s ease,transform .12s ease,box-shadow .16s ease;
+}
+#inputVatPage .input-vat-settings-action:not(:disabled):hover,
+#inputVatPage .input-vat-settings-action:not(:disabled):focus-visible{
+  transform:translateY(-1px);
+  box-shadow:0 6px 14px rgba(95,23,22,.16);
+}
+#inputVatPage .input-vat-settings-action:not(:disabled):active{
+  transform:translateY(0);
+  box-shadow:0 3px 8px rgba(95,23,22,.14);
+}
+#inputVatPage .input-vat-settings-action svg{
+  transform-origin:center;
+  transition:transform .38s ease;
+}
+#inputVatPage .input-vat-settings-action:hover svg,
+#inputVatPage .input-vat-settings-action:focus-visible svg{
+  transform:rotate(180deg);
+}
+#inputVatPage .input-vat-settings-action:active svg{
+  transform:rotate(360deg) scale(.92);
+}
+
+/* Output VAT only needs layout for concepts that Input VAT does not have. */
+#inputVatPage.output-vat-page .output-vat-source-note{display:flex;align-items:center;gap:8px;margin:0;padding:9px 11px;border:1px solid #ede3d8;border-radius:8px;background:#fdf6ee;color:#6b4c3b;font:400 11px/1.4 Figtree,system-ui,sans-serif}
+#inputVatPage.output-vat-page .output-vat-source-note svg{width:16px;height:16px;flex:0 0 16px;color:#a8ca19}
+#inputVatPage.output-vat-page .output-vat-reconciliation{padding:13px;border:1px solid #ede3d8;border-radius:12px;background:#fff}
+#inputVatPage.output-vat-page .output-vat-reconciliation>header,#inputVatPage.output-vat-page .output-vat-reconciliation>footer,#inputVatPage.output-vat-page .output-vat-table-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#inputVatPage.output-vat-page .output-vat-reconciliation h2,#inputVatPage.output-vat-page .output-vat-table-heading h2{margin:2px 0;color:#721b1a;font-size:14px;font-weight:600}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:11px 0}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article{min-width:0;padding:11px 12px;border:1px solid #ede3d8;border-left:4px solid #ab3619;border-radius:11px;background:#fff}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article:nth-child(2){border-left-color:#f07420}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article:nth-child(3){border-left-color:#bb1b21}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article:nth-child(4){border-left-color:#6b4c3b}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid article.is-final{border-left-color:#a8ca19;background:#fdf6ee}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid [data-filter-difference]{cursor:pointer}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid [data-filter-difference]:focus-visible{outline:2px solid #ab3619;outline-offset:2px}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid span,#inputVatPage.output-vat-page .output-vat-reconcile-grid small{display:block;color:#a08070;font-size:10px;line-height:1.35}
+#inputVatPage.output-vat-page .output-vat-reconcile-grid strong{display:block;margin:5px 0;color:#1a1a1a;font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+#inputVatPage.output-vat-page .output-vat-reconciliation>footer{color:#a08070;font-size:10px}
+#inputVatPage.output-vat-page .output-vat-reconciliation>footer>div{display:flex;gap:7px}
+#inputVatPage.output-vat-page .output-vat-change{display:flex;align-items:flex-start;gap:7px;padding:9px;border-radius:8px;background:#fdf6ee;color:#721b1a;font-size:11px}
+#inputVatPage.output-vat-page .output-vat-help{margin:8px 0 0;color:#a08070;font-size:10px;line-height:1.5}
+#inputVatPage.output-vat-page .output-vat-filters{margin:0 0 10px}
+#inputVatPage.output-vat-page .output-vat-table-heading{padding:11px 13px;border-bottom:1px solid #ede3d8}
+#inputVatPage.output-vat-page .output-vat-table-heading p{margin:0}
+#inputVatPage.output-vat-page .output-vat-table-heading>span{color:#a08070;font-size:11px}
+#inputVatPage.output-vat-page .accounts-table-wrap table{min-width:1480px}
+#inputVatPage.output-vat-page .status-pill{text-transform:capitalize}
+#inputVatPage.output-vat-page .status-pill.reconciled{background:#fdf6ee;color:#721b1a;box-shadow:inset 3px 0 #a8ca19}
+#inputVatPage.output-vat-page .status-pill.review_required,#inputVatPage.output-vat-page .status-pill.excluded{background:#fdf6ee;color:#bb1b21}
+#inputVatPage.output-vat-page .status-pill.adjusted{background:#fdf6ee;color:#ab3619}
+#inputVatPage.output-vat-page .input-vat-month-tab small.in_progress{background:#fff7e8;color:#ab3619}
+#inputVatPage.output-vat-page .input-vat-month-tab small.reconciled{background:#f2f7df;color:#526600}
+#inputVatPage.output-vat-page .input-vat-month-tab small.review_required{background:#fff0eb;color:#721b1a}
+#inputVatPage.output-vat-page .input-vat-month-tab small.adjusted{background:#fdf6ee;color:#ab3619}
+#inputVatPage.output-vat-page .accounts-actions .portal-button,#inputVatPage.output-vat-page .output-vat-reconciliation .portal-button,#inputVatPage.output-vat-page .accounts-dialog .portal-button{height:34px;min-height:34px;font:600 11px/1 Figtree,system-ui,sans-serif}
+#inputVatPage.output-vat-page .portal-button--primary:not(:disabled):hover{border-color:#f07420;background:#f07420;color:#fff}
+#inputVatPage.output-vat-page tbody tr.is-excluded{opacity:.64}
+#inputVatPage.output-vat-page.is-loading{cursor:progress}
+#inputVatPage.output-vat-page.is-loading [data-sync] svg,#inputVatPage.output-vat-page.is-updating [data-sync] svg{animation:output-vat-refresh 1s linear infinite}
+#inputVatPage.output-vat-page .output-vat-reconciliation .eyebrow,#inputVatPage.output-vat-page .output-vat-table-heading .eyebrow{color:#ab3619}
+#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px}
+#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{margin-left:2px}
+#inputVatPage.output-vat-page [data-sync][aria-busy="true"]{color:#721b1a;background:#fdf6ee}
+@keyframes output-vat-refresh{to{transform:rotate(360deg)}}
+@media(max-width:1100px){#inputVatPage.output-vat-page .output-vat-reconcile-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){#inputVatPage.output-vat-page .output-vat-reconcile-grid{grid-template-columns:1fr}#inputVatPage.output-vat-page .output-vat-reconciliation>footer{align-items:flex-start;flex-direction:column}#inputVatPage.output-vat-page .output-vat-reconciliation>footer>div{width:100%;display:grid;grid-template-columns:1fr 1fr}}
+
+/* Import VAT reuses the Input VAT accounting family. */
+#inputVatPage.import-vat-page .accounts-toolbar{grid-template-columns:minmax(260px,1fr) minmax(180px,260px)}
+#inputVatPage.import-vat-page .status-pill.overdue,#inputVatPage.import-vat-page .status-pill.overpayment{color:#bb1b21;background:#fff0eb}
+#inputVatPage.import-vat-page .status-pill.due_soon{color:#ab3619;background:#fdf6ee}
+#inputVatPage.import-vat-page .status-pill.paid{color:#526600;background:#f2f7df}
+#inputVatPage.import-vat-page .status-pill.partially_paid{color:#ab3619;background:#fff7e8}
+#inputVatPage.import-vat-page .accounts-table-wrap table{min-width:1260px}
+@media(max-width:760px){#inputVatPage.import-vat-page .accounts-toolbar{grid-template-columns:1fr}}
+@media(max-width:1024px){#inputVatPage.output-vat-page .accounts-hero{grid-template-columns:1fr}#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{width:100%;justify-content:flex-start}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{margin-left:auto}}
+@media(max-width:768px){#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{display:flex;flex-wrap:wrap}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{width:100%;margin-left:0;justify-content:flex-start}}
+@media(max-width:430px){#inputVatPage.output-vat-page .accounts-hero>.accounts-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}#inputVatPage.output-vat-page .accounts-hero>.accounts-actions>.portal-button{padding-inline:8px}#inputVatPage.output-vat-page .accounts-actions>.portal-header-status{grid-column:1/-1;width:100%;overflow-x:auto}}
+@media(prefers-reduced-motion:reduce){#inputVatPage.output-vat-page.is-loading [data-sync] svg,#inputVatPage.output-vat-page.is-updating [data-sync] svg{animation:none}}
+@media(max-width:480px){#inputVatPage.output-vat-page .output-vat-filters .input-vat-history-primary{grid-template-columns:1fr}#inputVatPage.output-vat-page .output-vat-filters label{grid-column:auto}}
+@media print{#inputVatPage.output-vat-page .input-vat-month-workspace,#inputVatPage.output-vat-page .output-vat-source-note,#inputVatPage.output-vat-page .accounts-actions,#inputVatPage.output-vat-page .accounts-toolbar,#inputVatPage.output-vat-page .output-vat-reconciliation footer{display:none!important}}
+/* Shared VAT application header actions. */
+#inputVatPage.vat-reconciliation-page .accounts-hero>.accounts-actions .portal-button,
+#inputVatPage.import-vat-page .accounts-hero>.accounts-actions .portal-button,
+#inputVatPage.output-vat-page .accounts-hero>.accounts-actions .portal-button{color:#3d3d3d;font:400 12px/1 Figtree,system-ui,sans-serif}
+#inputVatPage.import-vat-page .accounts-hero>.accounts-actions .portal-button--primary{border-color:var(--iv-border,#dec8bd);background:#fff}
+#inputVatPage.vat-reconciliation-page .accounts-hero>.accounts-actions .portal-button svg,
+#inputVatPage.import-vat-page .accounts-hero>.accounts-actions .portal-button svg,
+#inputVatPage.output-vat-page .accounts-hero>.accounts-actions .portal-button svg{width:18px;height:18px;flex:0 0 18px;transform-origin:center;animation:vat-header-action-float 2.8s ease-in-out infinite;transition:transform .18s ease,color .18s ease}
+#inputVatPage.vat-reconciliation-page .accounts-hero>.accounts-actions .portal-button:hover svg,
+#inputVatPage.import-vat-page .accounts-hero>.accounts-actions .portal-button:hover svg,
+#inputVatPage.output-vat-page .accounts-hero>.accounts-actions .portal-button:hover svg{transform:translateY(-1px) scale(1.06)}
+@keyframes vat-header-action-float{0%,100%{translate:0 0}50%{translate:0 -1px}}
+@media(prefers-reduced-motion:reduce){#inputVatPage.vat-reconciliation-page .accounts-hero>.accounts-actions .portal-button svg,#inputVatPage.import-vat-page .accounts-hero>.accounts-actions .portal-button svg,#inputVatPage.output-vat-page .accounts-hero>.accounts-actions .portal-button svg{animation:none;transition:none}}
+/* Import VAT statement reconciliation */
+.namra-tax-period-fields{display:grid;grid-template-columns:minmax(72px,1fr) 54px;gap:6px;margin-bottom:4px}.namra-tax-period-fields input{width:100%;min-width:0;height:32px;padding:0 8px;border:1px solid rgba(171,54,25,.24);border-radius:8px;font:400 12px/1 Figtree,system-ui,sans-serif;color:#2d211c;background:#fff}
+.import-vat-statement-history{margin-top:24px}.import-vat-statement-history>header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;padding:18px 20px;border-bottom:1px solid var(--portal-border,#ead9cf)}.import-vat-statement-history h2{margin:2px 0 4px;font-size:18px}.import-vat-statement-history p{margin:0;color:var(--portal-muted,#806f68)}.import-vat-statement-history td small{display:block;margin-top:3px;color:var(--portal-muted,#806f68)}
+.import-vat-statement-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 18px}.import-vat-statement-steps span{display:flex;align-items:center;gap:8px;padding:9px 11px;border:1px solid var(--portal-border,#ead9cf);border-radius:10px;background:#fffaf5;font-size:12px}.import-vat-statement-steps b{display:inline-grid;width:22px;height:22px;place-items:center;border-radius:50%;background:#8b1f17;color:#fff}
+.import-vat-statement-drop{min-height:132px;align-items:center!important;justify-content:center;border:1px dashed #c76235!important;border-radius:12px;background:#fffaf5;text-align:center;cursor:pointer}.import-vat-statement-drop svg{width:28px;height:28px;color:#b63b1f}.import-vat-statement-drop span{font-size:12px;color:var(--portal-muted,#806f68)}.import-vat-statement-drop input{max-width:320px}
+.import-vat-exclusion-rule{margin:12px 18px;border:1px solid var(--portal-border,#ead9cf);border-radius:10px;background:#fffaf5}.import-vat-exclusion-rule summary{padding:10px 12px;cursor:pointer;font-size:12px;font-weight:700;color:#721b1a}.import-vat-exclusion-rule form{display:flex;align-items:end;gap:12px;flex-wrap:wrap;padding:0 12px 12px}.import-vat-exclusion-rule label{display:grid;gap:4px;font-size:11px}.import-vat-exclusion-rule input[type=date]{height:32px;border:1px solid #dec8bd;border-radius:7px;padding:4px 7px}.import-vat-exclusion-rule p{flex:1 1 360px;font-size:11px}
+.import-vat-review-dialog{width:min(1180px,96vw);max-width:1180px}.import-vat-review-shell{display:flex;max-height:min(820px,90vh);flex-direction:column}.import-vat-review-shell>header,.import-vat-review-shell>footer{flex:0 0 auto}.import-vat-review-shell>.accounts-table-wrap{flex:1 1 auto;overflow:auto}.import-vat-review-shell table{min-width:1100px}.import-vat-review-shell td input,.import-vat-review-shell td select{min-width:118px;height:32px;border:1px solid var(--portal-border,#dec8bd);border-radius:7px;background:#fff;padding:4px 7px;font:inherit}.import-vat-review-shell td label{display:block;margin:3px 0;font-size:11px}.import-vat-review-shell td label input{min-width:84px;width:100px}.import-vat-review-shell tr.is-excluded{opacity:.55;background:#f4f1ee}.import-vat-review-shell footer{display:flex;justify-content:flex-end;gap:8px;padding:14px 18px;border-top:1px solid var(--portal-border,#ead9cf);background:#fff}.import-vat-review-shell footer [data-source-file]{margin-right:auto}
+@media(max-width:700px){.import-vat-statement-history>header{align-items:stretch;flex-direction:column}.import-vat-statement-steps{grid-template-columns:1fr}.import-vat-review-dialog{width:100vw;max-width:none;height:100dvh;max-height:none;margin:0;border-radius:0}.import-vat-review-shell{max-height:100dvh}.import-vat-review-shell footer{flex-wrap:wrap}.import-vat-review-shell footer [data-source-file]{margin-right:0}}
+/* VAT Reconciliation: Input VAT supplies typography, header, controls, cards and tables. */
+#inputVatPage.vat-reconciliation-page{--vr-border:#ede3d8;--vr-soft:#fdf6ee;--vr-cream:#fffaf5;--vr-burgundy:#721b1a;--vr-action:#ab3619;--vr-orange:#f07420;--vr-olive:#a8ca19;color:#6b4c3b;font-family:Figtree,system-ui,sans-serif}
+#inputVatPage.vat-reconciliation-page #vrContent,#inputVatPage.vat-reconciliation-page .vr-schedule{min-width:0;width:100%;max-width:100%}
+#inputVatPage.vat-reconciliation-page .vr-period-workspace{margin-top:4px}
+#inputVatPage .vr-notice{margin:10px 0;padding:10px 12px;border:1px solid #e8d4c7;border-left:3px solid var(--vr-orange);border-radius:8px;background:var(--vr-soft);color:var(--vr-burgundy);font-size:12px}
+#inputVatPage .vr-return-header,#inputVatPage .vr-source-status,#inputVatPage .vr-final,#inputVatPage .vr-controls{margin:12px 0;padding:14px;border:1px solid var(--vr-border);border-radius:12px;background:#fff}
+#inputVatPage .vr-return-header{display:flex;align-items:center;justify-content:space-between;gap:14px;background:var(--vr-soft)}
+#inputVatPage .vr-return-header h2,#inputVatPage .vr-source-status h2,#inputVatPage .vr-final h2,#inputVatPage .vr-controls h2,#inputVatPage .vr-schedule h2{margin:2px 0;color:var(--vr-burgundy);font-size:14px;font-weight:600}
+#inputVatPage.vat-reconciliation-page .eyebrow,#inputVatPage.vat-reconciliation-page .vr-section-eyebrow{color:var(--vr-action);font:700 10px/1.2 Figtree,system-ui,sans-serif;letter-spacing:.08em}
+#inputVatPage .vr-return-header span{font-size:11px;color:#a08070}
+#inputVatPage .vr-source-status>header{margin-bottom:10px}.vr-source-status>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+#inputVatPage .vr-source-status article{display:grid;grid-template-columns:1fr auto;align-items:center;gap:4px 10px;padding:11px;border:1px solid var(--vr-border);border-radius:9px;background:var(--vr-cream)}
+#inputVatPage .vr-source-status article div{display:grid;gap:2px}#inputVatPage .vr-source-status article strong{font-size:12px;color:var(--vr-burgundy)}#inputVatPage .vr-source-status article span{font-size:11px;color:#a08070}#inputVatPage .vr-source-status article a{grid-column:1/-1;color:var(--vr-action);font-size:11px;font-weight:600;text-decoration:none}#inputVatPage .vr-source-status article a:hover{color:var(--vr-orange)}
+#inputVatPage .vr-schedule{margin:12px 0}#inputVatPage .vr-schedule-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid var(--vr-border);background:var(--vr-cream)}#inputVatPage .vr-schedule-heading a{color:var(--vr-action);font-size:11px;font-weight:600;text-decoration:none}#inputVatPage .vr-schedule-heading a:hover{color:var(--vr-orange)}
+#inputVatPage .vr-schedule table{min-width:680px}#inputVatPage .vr-schedule thead th{box-sizing:border-box;height:34px;min-height:34px;padding:0 10px;color:var(--vr-burgundy);font:700 11px/1.2 Figtree,system-ui,sans-serif}#inputVatPage .vr-schedule tbody th,#inputVatPage .vr-schedule tbody td{box-sizing:border-box;height:34px;min-height:34px;padding:6px 10px;line-height:1.2}#inputVatPage .vr-schedule th.money,#inputVatPage .vr-schedule td.money{text-align:right;font-variant-numeric:tabular-nums}#inputVatPage .vr-schedule tbody th{font-size:12px;font-weight:600;color:#3d3d3d}#inputVatPage .vr-schedule tbody td.money{color:#3d3d3d;font:400 12px/1.2 Figtree,system-ui,sans-serif}#inputVatPage .vr-schedule tfoot th,#inputVatPage .vr-schedule tfoot td,#inputVatPage .vr-schedule tfoot td.money{box-sizing:border-box;height:36px;padding:6px 10px;background:#f4f8e6;color:#3d3d3d;font:600 12px/1.2 Figtree,system-ui,sans-serif}#inputVatPage .vr-schedule .empty-row{height:64px;min-height:64px;padding:12px!important;color:#80695e;font-size:12px;font-weight:400;text-align:center!important}
+#inputVatPage .vr-month-link{color:var(--vr-burgundy);font:600 12px/1.2 Figtree,system-ui,sans-serif;text-decoration:none}#inputVatPage .vr-month-link:hover,#inputVatPage .vr-month-link:focus-visible{color:var(--vr-orange);text-decoration:underline;text-underline-offset:2px}#inputVatPage .vr-schedule tbody th .input-vat-capture-badge{margin-left:7px;vertical-align:middle}
+#inputVatPage .vr-sales-breakdown{border-top:1px solid var(--vr-border);background:var(--vr-cream)}#inputVatPage .vr-sales-breakdown summary{padding:9px 14px;color:var(--vr-action);font-size:11px;font-weight:600;cursor:pointer}#inputVatPage .vr-sales-breakdown>div{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:1px;padding:0 14px 12px}#inputVatPage .vr-sales-breakdown span{display:flex;justify-content:space-between;gap:10px;padding:7px 9px;background:#fff;color:#6b4c3b;font-size:11px}#inputVatPage .vr-sales-breakdown strong{color:#3d3d3d;font-weight:600;white-space:nowrap}
+#inputVatPage .vr-final{max-width:760px;margin-left:auto;background:linear-gradient(135deg,#fff,#fdf6ee)}#inputVatPage .vr-final-lines{margin-top:8px}#inputVatPage .vr-final-lines>div{display:flex;box-sizing:border-box;min-height:34px;align-items:center;justify-content:space-between;gap:20px;padding:6px 2px;border-bottom:1px solid var(--vr-border);color:#3d3d3d;font-size:12px}#inputVatPage .vr-final-lines strong{color:#3d3d3d;font:400 12px/1.2 Figtree,system-ui,sans-serif;font-variant-numeric:tabular-nums}#inputVatPage .vr-final-lines .vr-final-total{min-height:46px;margin-top:4px;padding:10px;border:0;border-radius:8px;background:#f4f8e6;color:var(--vr-burgundy);font-size:15px;font-weight:700}#inputVatPage .vr-final-total strong{color:var(--vr-burgundy);font-size:16px;font-weight:700}#inputVatPage .vr-formula,#inputVatPage .vr-audit-note{font-size:11px;color:#a08070}#inputVatPage .vr-formula{margin:8px 0 0}
+#inputVatPage .vr-projected-position{display:grid;gap:3px;margin-top:12px;padding:11px 12px;border:1px dashed var(--vr-border);border-radius:9px;background:#fbf6f2;color:#6b4c3b;font-size:11px}#inputVatPage .vr-projected-position strong{color:var(--vr-burgundy);font-size:14px;font-weight:600}#inputVatPage .vr-projected-position small{color:#a08070;font-size:10px;font-weight:500}
+#inputVatPage .vr-return-due{display:block;margin-top:4px;color:#6b4c3b;font-size:11px;font-weight:500}#inputVatPage .vr-return-due strong{color:var(--vr-burgundy);font-weight:600}
+#inputVatPage.vat-reconciliation-page .portal-button,#inputVatPage.vat-reconciliation-page .input-vat-month-arrow,#inputVatPage.vat-reconciliation-page .portal-select__trigger{height:34px;min-height:34px;font-family:Figtree,system-ui,sans-serif;font-size:12px}#inputVatPage.vat-reconciliation-page .portal-button{font-weight:600}#inputVatPage.vat-reconciliation-page .status-pill{min-height:20px;max-height:22px;align-items:center;padding:2px 7px}
+#inputVatPage .vr-action-form{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:12px 0}#inputVatPage .vr-action-form input,#inputVatPage .vr-action-form select{box-sizing:border-box;height:34px;min-height:34px;padding:0 10px;border:1px solid #dec8bd;border-radius:8px;background:#fff;color:#6b4c3b;font:400 12px Figtree,system-ui,sans-serif}#inputVatPage .vr-payment-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}#inputVatPage .vr-payment-grid span{display:grid;gap:4px;padding:10px;border:1px solid var(--vr-border);border-radius:8px;font-size:11px}#inputVatPage .vr-payment-grid strong{color:var(--vr-burgundy);font-size:14px}
+#inputVatPage .vr-credit-review{margin-top:6px}#inputVatPage .vr-credit-review summary{color:var(--vr-action);font-size:10px;font-weight:600;cursor:pointer}#inputVatPage .vr-credit-review form{display:grid;gap:5px;min-width:210px;margin-top:6px}#inputVatPage .vr-credit-review input,#inputVatPage .vr-credit-review select{box-sizing:border-box;width:100%;height:32px;border:1px solid #dec8bd;border-radius:7px;background:#fff;padding:0 7px;font:400 11px Figtree,system-ui,sans-serif}#inputVatPage .vr-schedule tbody th small{display:block;margin-top:3px;color:#a08070;font-size:10px;font-weight:400}
+@media(max-width:760px){#inputVatPage .vr-source-status>div{grid-template-columns:1fr}#inputVatPage .vr-sales-breakdown>div{grid-template-columns:1fr}#inputVatPage .vr-payment-grid{grid-template-columns:1fr 1fr}#inputVatPage .vr-action-form>*{flex:1 1 180px}}
+@media(max-width:430px){#inputVatPage.vat-reconciliation-page .accounts-summary{grid-template-columns:1fr}#inputVatPage.vat-reconciliation-page .accounts-actions{grid-template-columns:1fr 1fr}#inputVatPage.vat-reconciliation-page .accounts-actions #vrPrint{grid-column:1/-1}#inputVatPage .vr-return-header{align-items:flex-start;flex-direction:column}#inputVatPage .vr-final{width:100%;max-width:100%;padding:13px}#inputVatPage .vr-final-lines>div{gap:10px}#inputVatPage .vr-payment-grid{grid-template-columns:1fr}#inputVatPage .vr-action-form>*{width:100%;flex-basis:100%}}
+@media print{#inputVatPage.vat-reconciliation-page{padding:0!important}#inputVatPage.vat-reconciliation-page .accounts-breadcrumb,#inputVatPage.vat-reconciliation-page .accounts-actions,#inputVatPage.vat-reconciliation-page .vr-period-workspace,#inputVatPage.vat-reconciliation-page .vr-controls,#inputVatPage.vat-reconciliation-page .vr-source-status{display:none!important}#inputVatPage.vat-reconciliation-page .accounts-summary{grid-template-columns:repeat(4,1fr)}#inputVatPage.vat-reconciliation-page .accounts-table-card{break-inside:avoid}#inputVatPage.vat-reconciliation-page .accounts-table-wrap{overflow:visible}#inputVatPage.vat-reconciliation-page .vr-schedule table{min-width:0}#inputVatPage.vat-reconciliation-page .vr-final{max-width:none;margin-left:0}}
+.paye-page .accounts-table-card{margin-top:12px}.paye-page .accounts-table-card table{min-width:820px}.paye-page .accounts-table-card td small{display:block;color:#a08070;font-size:10px}.paye-page .status-pill{text-transform:capitalize}.paye-page .import-vat-statement-history header{padding:14px 16px}.paye-page .import-vat-statement-history header h2{margin:2px 0;color:#721b1a;font-size:14px}.paye-page .import-vat-statement-history header p{margin:2px 0;color:#a08070;font-size:10px}@media print{.paye-page .accounts-actions,.paye-page .accounts-breadcrumb,.paye-page .import-vat-statement-history{display:none!important}}
+.paye-page .paye-return-workflow header{padding:12px 14px;border-bottom:1px solid #eadbd2}.paye-page .paye-return-workflow h2{margin:2px 0;color:#721b1a;font-size:14px}.paye-page .paye-return-workflow header p:last-child{margin:3px 0 0;color:#806d63;font-size:11px}.paye-page .paye-return-form{display:grid;grid-template-columns:1.1fr 1fr 1.4fr 1fr auto;align-items:end;gap:10px;padding:12px 14px}.paye-page .paye-return-form label{display:grid;gap:5px;color:#6b4c3b;font-size:11px;font-weight:600}.paye-page .paye-return-form input,.paye-page .paye-return-form select{height:32px;border:1px solid #e8d9d0;border-radius:7px;background:#fff;padding:0 9px;color:#2d211c;font:400 12px Figtree,system-ui,sans-serif}.paye-page .paye-return-form .form-message{grid-column:1/-1;margin:0;color:#806d63;font-size:11px}@media(max-width:900px){.paye-page .paye-return-form{grid-template-columns:1fr 1fr}}@media(max-width:560px){.paye-page .paye-return-form{grid-template-columns:1fr}}
+
+/* Owner-only Sage Posting & Reconciliation reuses the Input VAT Accounts theme. */
+.sage-page{--sage-border:#ede3d8;--sage-soft:#fdf6ee;--sage-burgundy:#721b1a;--sage-action:#ab3619;--sage-olive:#a8ca19;font-family:Figtree,system-ui,sans-serif}.sage-page .sage-grid{display:grid;gap:12px;margin-top:12px}.sage-page .sage-section-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;border-bottom:1px solid var(--sage-border);background:#fffaf5}.sage-page .sage-section-heading h2{margin:2px 0;color:var(--sage-burgundy);font-size:15px}.sage-page .sage-progress{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin:12px 0}.sage-page .sage-progress span{display:flex;align-items:center;gap:6px;min-height:38px;padding:7px;border:1px solid var(--sage-border);border-radius:9px;background:#fff;color:#80695e;font-size:10px}.sage-page .sage-progress b{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#f5ece4;color:var(--sage-action)}.sage-page .sage-progress .is-done{background:#f4f8e6;color:#4e5f13}.sage-page .sage-progress .is-done b{background:var(--sage-olive);color:#fff}.sage-page .sage-pack-meta,.sage-page .sage-recon-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:12px 14px}.sage-page .sage-pack-meta span,.sage-page .sage-recon-grid span{display:grid;gap:4px;padding:9px;border:1px solid var(--sage-border);border-radius:8px;color:#80695e;font-size:10px}.sage-page .sage-pack-meta strong,.sage-page .sage-recon-grid strong{color:#3d3d3d;font-size:12px}.sage-page .sage-pack table{width:100%}.sage-page .sage-pack th,.sage-page .sage-pack td{height:32px;padding:6px 14px;border-top:1px solid #f2e9e1;color:#3d3d3d;font-size:12px;text-align:left}.sage-page .sage-pack td.money{text-align:right}.sage-page .sage-actions{display:flex;justify-content:flex-end;gap:8px;padding:12px 14px}.sage-page .sage-warning{margin:10px 14px;padding:9px 11px;border-left:3px solid #f07420;border-radius:7px;background:#fff8ef;color:#721b1a;font-size:11px}.sage-page .sage-dual{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 14px 12px}.sage-page .sage-dual h3{color:var(--sage-burgundy);font-size:12px}.sage-page .sage-dual table{width:100%}.sage-page .sage-dual th,.sage-page .sage-dual td{padding:6px;border-bottom:1px solid var(--sage-border);font-size:11px;text-align:left}.sage-page .sage-dual td.money{text-align:right}.sage-page .sage-review-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:8px;padding:12px 14px;background:var(--sage-soft)}.sage-page .sage-review-form label{display:grid;gap:4px;font-size:10px}.sage-page .sage-review-form input{height:32px;border:1px solid #dec8bd;border-radius:7px;padding:0 8px}.sage-page .sage-difference{display:flex;justify-content:space-between;padding:11px 14px;color:var(--sage-burgundy);font-size:12px}.sage-page .sage-purchases table{min-width:1080px}.sage-page .sage-purchases td small{display:block;color:#a08070}.sage-page [data-purchase-form]{display:grid;grid-template-columns:1fr 90px 105px auto;gap:4px;min-width:440px}.sage-page [data-purchase-form] input,.sage-page [data-purchase-form] select{min-width:0;height:30px;border:1px solid #dec8bd;border-radius:6px;padding:0 6px;font-size:10px}.sage-page [data-purchase-form] label{font-size:9px}.sage-page .sage-final>a,.sage-page .sage-recon-grid a{color:var(--sage-action)}.sage-page .sage-final>.portal-button{margin:0 14px 14px}.sage-page .sage-dialog{max-width:760px}.sage-page .accounts-loading-card{min-height:180px}.sage-page .toast{position:fixed;right:24px;bottom:24px;z-index:2000;padding:10px 14px;border-radius:8px;background:#3f5310;color:#fff}.sage-page .toast-error{background:#8c1d18}@media(max-width:900px){.sage-page .sage-progress{grid-template-columns:repeat(2,1fr)}.sage-page .sage-pack-meta,.sage-page .sage-recon-grid{grid-template-columns:repeat(2,1fr)}.sage-page .sage-review-form{grid-template-columns:1fr 1fr}}@media(max-width:600px){.sage-page .sage-progress,.sage-page .sage-pack-meta,.sage-page .sage-recon-grid,.sage-page .sage-dual,.sage-page .sage-review-form{grid-template-columns:1fr}.sage-page .sage-section-heading{align-items:flex-start;flex-direction:column}.sage-page .sage-actions{flex-direction:column}.sage-page .sage-actions .portal-button{width:100%}}@media print{.sage-page .accounts-breadcrumb,.sage-page .accounts-actions,.sage-page .input-vat-month-workspace,.sage-page button,.sage-page dialog,.sage-page .toast{display:none!important}.sage-page .sage-grid{gap:8px}.sage-page .accounts-table-card{break-inside:avoid}.sage-page .accounts-table-wrap{overflow:visible}.sage-page .sage-purchases table{min-width:0;font-size:9px}}
+
+/* Import VAT statement upload and review */
+.import-vat-page .import-vat-dialog-close{width:34px;height:34px;min-width:34px;padding:0;display:inline-flex;align-items:center;justify-content:center;border:1px solid #ede3d8;border-radius:8px;background:#fff;color:#ab3619;transition:background-color 160ms ease,border-color 160ms ease}.import-vat-page .import-vat-dialog-close:hover{border-color:#ab3619;background:#fffaf5}.import-vat-page .import-vat-dialog-close:focus-visible{outline:2px solid #f07420;outline-offset:2px}.import-vat-page .import-vat-dialog-close svg{width:15px;height:15px}.import-vat-page .import-vat-statement-steps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0}.import-vat-page .import-vat-statement-steps span{display:flex;align-items:center;gap:8px;min-height:38px;padding:7px 10px;border:1px solid #ede3d8;border-radius:8px;background:#fff;color:#6b4c3b;font-size:12px;font-weight:600}.import-vat-page .import-vat-statement-steps b{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border-radius:50%;background:#f2e5dc;color:#ab3619;font-size:11px}.import-vat-page .import-vat-statement-steps b svg{width:12px;height:12px}.import-vat-page .import-vat-statement-steps .is-complete{background:#f8faef;color:#536610}.import-vat-page .import-vat-statement-steps .is-complete b{background:#a8ca19;color:#fff}.import-vat-page .import-vat-statement-steps .is-active{border-color:#ab3619;background:#fffaf5;color:#721b1a}.import-vat-page .import-vat-statement-steps .is-active b{background:#ab3619;color:#fff}
+.import-vat-page .import-vat-review-dialog{width:min(1480px,calc(100vw - 48px));max-width:none;height:min(900px,calc(100dvh - 40px));max-height:calc(100dvh - 40px);padding:0;overflow:hidden;border:1px solid #ede3d8;border-radius:12px;background:#fff;box-shadow:0 20px 50px rgba(61,61,61,.18);font-family:Figtree,system-ui,sans-serif}.import-vat-page .import-vat-review-dialog::backdrop{background:rgba(79,58,48,.34)}.import-vat-page .namra-review-modal{display:flex;width:100%;height:100%;min-height:0;flex-direction:column;overflow:hidden}.import-vat-page .namra-review-modal__header{display:flex;flex:0 0 auto;align-items:flex-start;justify-content:space-between;gap:16px;padding:14px 16px 10px;border-bottom:1px solid #ede3d8;background:#fff}.import-vat-page .namra-review-modal__header .eyebrow{margin:0 0 3px;color:#ab3619;font-size:11px;font-weight:700}.import-vat-page .namra-review-modal__header h2{margin:0;color:#721b1a;font-size:18px;font-weight:600;line-height:1.25}.import-vat-page .namra-review-modal__header p{margin:4px 0 0;color:#6b4c3b;font-size:12px;font-weight:400;line-height:1.45}.import-vat-page .namra-review-modal__header small{display:block;margin-top:2px;color:#7f675a;font-size:11px;line-height:1.4}.import-vat-page .namra-review-modal__summary{flex:0 0 auto;padding:10px 16px;border-bottom:1px solid #ede3d8;background:#fff}.import-vat-page .import-vat-review-summary{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:10px 0}.import-vat-page .import-vat-review-summary article{display:grid;grid-template-columns:20px 1fr auto;align-items:center;gap:7px;min-height:64px;padding:10px 12px;border:1px solid #ede3d8;border-left:3px solid #ab3619;border-radius:10px;background:#fff}.import-vat-page .import-vat-review-summary article:nth-child(2),.import-vat-page .import-vat-review-summary article:nth-child(6){border-left-color:#f07420}.import-vat-page .import-vat-review-summary article:nth-child(3){border-left-color:#721b1a}.import-vat-page .import-vat-review-summary article:nth-child(4),.import-vat-page .import-vat-review-summary article:nth-child(5){border-left-color:#bb1b21}.import-vat-page .import-vat-review-summary svg{width:18px;height:18px;color:#ab3619}.import-vat-page .import-vat-review-summary article:nth-child(4) svg,.import-vat-page .import-vat-review-summary article:nth-child(5) svg{color:#bb1b21}.import-vat-page .import-vat-review-summary span{color:#6b4c3b;font-size:10px;font-weight:600;text-transform:uppercase}.import-vat-page .import-vat-review-summary strong{color:#3d3d3d;font-size:19px;font-weight:600}
+.import-vat-page .import-vat-review-toolbar{display:grid;grid-template-columns:minmax(260px,1fr) 180px 220px auto;align-items:center;gap:8px}.import-vat-page .import-vat-review-toolbar input,.import-vat-page .import-vat-review-toolbar select{width:100%;height:32px;border:1px solid #ede3d8;border-radius:8px;background:#fff;color:#3d3d3d;font:400 12px Figtree,system-ui,sans-serif}.import-vat-page .import-vat-review-toolbar select{padding:0 30px 0 9px}.import-vat-page .import-vat-review-search{position:relative;display:block}.import-vat-page .import-vat-review-search svg{position:absolute;left:9px;top:8px;width:15px;height:15px;color:#6b4c3b}.import-vat-page .import-vat-review-search input{padding:0 10px 0 31px}.import-vat-page .import-vat-review-toolbar .portal-button{height:32px;min-height:32px;color:#721b1a;font-size:11px;font-weight:600}.import-vat-page .import-vat-review-toolbar .portal-button span{display:inline-grid;min-width:18px;height:18px;place-items:center;border-radius:9px;background:#fdf6ee}.import-vat-page .import-vat-review-toolbar .portal-button.is-active{border-color:#f07420;background:#fffaf5}
+.import-vat-page .namra-review-modal__table-wrap{flex:1 1 auto;min-height:0;overflow:auto;border:0;border-radius:0;background:#fff}.import-vat-page .namra-review-table{width:100%;min-width:1220px;border-collapse:separate;border-spacing:0}.import-vat-page .namra-review-table thead th{position:sticky;top:0;z-index:2;height:36px;padding:0 10px;border-bottom:1px solid #ede3d8;background:#fdf6ee;color:#721b1a;font-size:11px;font-weight:700;text-align:left;white-space:nowrap}.import-vat-page .namra-review-table thead th.money{text-align:right}.import-vat-page .namra-review-table tbody td{height:48px;padding:7px 10px;border-bottom:1px solid #ede3d8;background:#fff;color:#3d3d3d;font-size:12px;font-weight:400;vertical-align:middle}.import-vat-page .namra-review-table tbody tr:hover td{background:#fffaf5}.import-vat-page .namra-review-table td:first-child{min-width:140px}.import-vat-page .namra-review-table td:nth-child(2){min-width:175px}.import-vat-page .namra-review-table td:nth-child(3){min-width:100px}.import-vat-page .namra-review-table td:nth-child(4),.import-vat-page .namra-review-table td:nth-child(5){min-width:132px}.import-vat-page .namra-review-table td:nth-child(7){min-width:240px}.import-vat-page .namra-review-table td small{display:block;margin-top:3px;color:#6b4c3b;font-size:10px;font-weight:400;line-height:1.3}.import-vat-page .namra-review-table td input,.import-vat-page .namra-review-table td select{height:32px;border:1px solid #ede3d8;border-radius:8px;background:#fff;color:#3d3d3d;padding:0 8px;font:400 12px Figtree,system-ui,sans-serif}.import-vat-page .namra-review-table td:nth-child(2)>input,.import-vat-page .namra-review-table td:nth-child(7)>select{width:100%}.import-vat-page .namra-review-table td input[type=date]{width:100%;min-width:128px;margin-top:3px}.import-vat-page .namra-review-table tr.is-excluded td{background:#faf7f3;color:#5d4a40;opacity:1}.import-vat-page .namra-review-table tr.is-excluded:hover td{background:#fffaf5}.import-vat-page .namra-amount{min-width:120px;color:#3d3d3d;font-size:12px;font-weight:600;text-align:right;white-space:nowrap}.import-vat-page .namra-date-display{display:none}.import-vat-page .namra-status{display:inline-flex;min-height:22px;align-items:center;padding:2px 8px;border:1px solid #ede3d8;border-radius:999px;background:#fdf6ee;color:#721b1a;font-size:10px;font-weight:600;white-space:nowrap}.import-vat-page .namra-status.payment{border-color:#cadb85;background:#f8faef;color:#536610}.import-vat-page .namra-status.excluded{border-color:#efc4c4;background:#fff6f4;color:#bb1b21}.import-vat-page .namra-status.needs-review{border-color:#f6c694;background:#fff8ef;color:#9a3c10}.import-vat-page .namra-status.duplicate{background:#faf7f3;color:#6b4c3b}.import-vat-page .import-vat-row-exclude{display:flex;align-items:center;gap:5px;margin-top:5px;color:#6b4c3b;font-size:10px;white-space:nowrap}.import-vat-page .import-vat-row-exclude input{width:15px;height:15px;min-height:15px;margin:0}.import-vat-page .namra-review-table [data-save-row]{height:30px;min-height:30px;padding:0 10px;border-color:#ede3d8;background:#fff;color:#721b1a;font-size:11px;font-weight:600}.import-vat-page .namra-review-table [data-save-row]:hover{border-color:#ab3619;background:#fffaf5}.import-vat-page .namra-review-modal__footer{display:flex;flex:0 0 auto;justify-content:flex-end;gap:8px;padding:10px 16px;border-top:1px solid #ede3d8;background:#fff}.import-vat-page .namra-review-modal__footer [data-source-file]{margin-right:auto}.import-vat-page .namra-review-modal__footer .portal-button{height:34px;min-height:34px;border-radius:8px;font-size:12px;font-weight:600}.import-vat-page .namra-review-modal__footer .portal-button--primary{border-color:#721b1a;background:#721b1a;color:#fff}.import-vat-page .namra-review-modal__footer .portal-button--primary:hover{border-color:#f07420;background:#f07420}
+@media(max-width:1100px){.import-vat-page .import-vat-review-dialog{width:calc(100vw - 32px)}.import-vat-page .import-vat-review-summary{grid-template-columns:repeat(3,minmax(0,1fr))}.import-vat-page .import-vat-review-toolbar{grid-template-columns:1fr 1fr}.import-vat-page .import-vat-review-search{grid-column:1/-1}}
+@media(max-width:600px){.import-vat-page .import-vat-statement-steps{grid-template-columns:repeat(3,minmax(0,1fr))}.import-vat-page .import-vat-statement-steps span{justify-content:center;padding:6px 4px;font-size:10px}.import-vat-page .import-vat-review-summary{grid-template-columns:repeat(2,minmax(0,1fr))}.import-vat-page .import-vat-review-dialog{width:calc(100vw - 20px);height:calc(100dvh - 20px);max-height:calc(100dvh - 20px);margin:10px}.import-vat-page .namra-review-modal__header{padding:12px}.import-vat-page .namra-review-modal__header h2{font-size:16px;overflow-wrap:anywhere}.import-vat-page .namra-review-modal__header p{font-size:11px}.import-vat-page .namra-review-modal__summary{padding:8px 10px}.import-vat-page .import-vat-review-summary article{min-height:54px;padding:8px}.import-vat-page .import-vat-review-toolbar{grid-template-columns:1fr}.import-vat-page .import-vat-review-search{grid-column:auto}.import-vat-page .namra-review-table,.import-vat-page .namra-review-table tbody,.import-vat-page .namra-review-table tr,.import-vat-page .namra-review-table td{display:block;width:100%;min-width:0}.import-vat-page .namra-review-table{min-width:0;padding:8px 10px;background:#fdf6ee}.import-vat-page .namra-review-table thead{display:none}.import-vat-page .namra-review-table tbody tr{margin-bottom:10px;overflow:hidden;border:1px solid #ede3d8;border-radius:10px;background:#fff}.import-vat-page .namra-review-table tbody td{display:grid;grid-template-columns:108px minmax(0,1fr);align-items:center;gap:8px;height:auto;min-height:38px;padding:7px 9px;border-bottom:1px solid #ede3d8}.import-vat-page .namra-review-table tbody td::before{content:attr(data-label);color:#721b1a;font-size:10px;font-weight:700;text-transform:uppercase}.import-vat-page .namra-review-table tbody td:last-child{border-bottom:0}.import-vat-page .namra-review-table td:nth-child(n){min-width:0}.import-vat-page .namra-review-table td input[type=date]{min-width:0;margin:3px 0 0}.import-vat-page .namra-date-display{display:block}.import-vat-page .namra-amount{text-align:left}.import-vat-page .namra-review-modal__footer{flex-wrap:wrap;padding:8px 10px}.import-vat-page .namra-review-modal__footer [data-source-file]{margin-right:0}.import-vat-page .namra-review-modal__footer .portal-button{flex:1 1 auto}.import-vat-page .import-vat-statement-dialog{width:calc(100vw - 16px);margin:8px}}
+
+/* Import VAT review overrides must outrank the shared Accounts dialog/control rules. */
+#inputVatPage.import-vat-page .accounts-dialog.import-vat-review-dialog{width:min(1480px,calc(100vw - 48px));max-width:none;height:min(900px,calc(100dvh - 40px));max-height:calc(100dvh - 40px);padding:0;overflow:hidden}
+#inputVatPage.import-vat-page .import-vat-review-toolbar input,#inputVatPage.import-vat-page .import-vat-review-toolbar select,#inputVatPage.import-vat-page .namra-review-table td input,#inputVatPage.import-vat-page .namra-review-table td select{height:32px;min-height:32px}
+@media(max-width:1100px){#inputVatPage.import-vat-page .accounts-dialog.import-vat-review-dialog{width:calc(100vw - 32px)}}
+@media(max-width:600px){#inputVatPage.import-vat-page .accounts-dialog.import-vat-review-dialog{width:calc(100vw - 20px);height:calc(100dvh - 20px);max-height:calc(100dvh - 20px);margin:10px}}
+@media(max-width:600px){#inputVatPage.import-vat-page .namra-review-modal__table-wrap{overflow-x:hidden}#inputVatPage.import-vat-page .namra-review-table,#inputVatPage.import-vat-page .namra-review-table tbody,#inputVatPage.import-vat-page .namra-review-table tr,#inputVatPage.import-vat-page .namra-review-table td{box-sizing:border-box;display:block;width:calc(100vw - 42px);min-width:0;max-width:calc(100vw - 42px)}#inputVatPage.import-vat-page .namra-review-table{table-layout:fixed}#inputVatPage.import-vat-page .namra-review-table td input,#inputVatPage.import-vat-page .namra-review-table td select{box-sizing:border-box;width:100%;min-width:0;max-width:100%}.import-vat-page .namra-review-table td label input{width:15px;min-width:15px}}
+@media(max-width:600px){#inputVatPage.import-vat-page .namra-review-modal__table-wrap{overflow-x:hidden!important}}
+
+/* Import VAT page polish requested in the owner review. */
+#inputVatPage.import-vat-page>.accounts-hero .accounts-hero-copy>p:nth-of-type(2){display:none}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button{height:34px;min-height:34px;border-width:1px;font-size:12px;font-weight:400}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button--primary{border-color:#ab3619;background:#ab3619;color:#fff}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-add]{border-color:#f07420;background:#f07420;color:#fff}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-export],#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-print]{border-color:#ab3619;background:#ab3619;color:#fff}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button--secondary:hover,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button--secondary:focus-visible{border-color:#ab3619;background:#ab3619;color:#fff}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-add]:hover,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button[data-add]:focus-visible{border-color:#f07420;background:#f07420;color:#fff}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button svg{width:15px;height:15px;flex:0 0 15px}
+#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button:hover svg,#inputVatPage.import-vat-page>.accounts-hero>.accounts-actions .portal-button:focus-visible svg{color:#fff}
+#inputVatPage.import-vat-page .accounts-breakdowns h2{font-size:14px;font-weight:600}
+#inputVatPage.import-vat-page .accounts-breakdowns .output-vat-help{font-family:Figtree,system-ui,sans-serif;font-size:10px;font-weight:500;line-height:13px;color:rgb(160 128 112)}
+#inputVatPage.import-vat-page .input-vat-month-status-copy>span{font-size:11px}
+#inputVatPage.import-vat-page .input-vat-month-status-copy strong,#inputVatPage.import-vat-page .input-vat-month-status-copy small{font-size:12px}
+#inputVatPage.import-vat-page .input-vat-month-tab>span{font-size:12px}
+#inputVatPage.import-vat-page .accounts-toolbar select[data-status]{border:1px solid rgb(171 54 25 / 24%)}
+#inputVatPage.import-vat-page .accounts-toolbar .portal-custom-select-trigger{box-sizing:border-box;width:100%;height:32px;min-height:32px;border:1px solid rgb(171 54 25 / 24%);border-radius:8px;background:#fff;color:#3d3d3d;font-size:12px;font-weight:400}
+#inputVatPage.import-vat-page .accounts-toolbar>label:nth-child(2)>span{color:#721b1a;font-size:11px;font-weight:600;text-transform:none;letter-spacing:0}
+#inputVatPage.import-vat-page .import-vat-statement-history>header .eyebrow{color:#ab3619;font-size:12px;font-weight:800;letter-spacing:1.32px;text-transform:uppercase}
+#inputVatPage.import-vat-page .import-vat-statement-history>header h2{color:#721b1a;font-size:14px;font-weight:600}
+#inputVatPage.import-vat-page .import-vat-statement-history>header p{color:rgb(160 128 112);font-size:10px}
+#inputVatPage.import-vat-page .import-vat-statement-history>header [data-refresh-history]{height:34px;min-height:34px;color:#721b1a;font-size:12px;font-weight:400}
+#inputVatPage.import-vat-page .import-vat-statement-history>header [data-refresh-history]{border-color:#721b1a;background:#721b1a;color:#fff}
+#inputVatPage.import-vat-page .import-vat-statement-history>header [data-refresh-history]:hover,#inputVatPage.import-vat-page .import-vat-statement-history>header [data-refresh-history].is-refreshing{border-color:#f07420;background:#f07420;color:#fff}
+#inputVatPage.import-vat-page .import-vat-statement-history>header [data-refresh-history] svg{width:15px;height:15px;flex:0 0 15px}
+#inputVatPage.import-vat-page .import-vat-statement-history>header [data-refresh-history].is-refreshing svg{animation:import-vat-refresh-spin .8s linear infinite;color:#fff}
+@keyframes import-vat-refresh-spin{to{transform:rotate(360deg)}}
+#inputVatPage.import-vat-page .import-vat-statement-history .accounts-table-card th,#inputVatPage.import-vat-page .import-vat-statement-history th{height:34px;padding-block:0;font-size:10px;font-weight:700;letter-spacing:.6px}
+#inputVatPage.import-vat-page .import-vat-statement-history tfoot th,#inputVatPage.import-vat-page .import-vat-statement-history tfoot td{box-sizing:border-box;height:34px;min-height:34px;padding-block:0;line-height:1.2;font-size:10px;font-weight:700;letter-spacing:.6px}
+#inputVatPage.import-vat-page .import-vat-statement-history tbody td{font-size:11px;font-weight:600}
+#inputVatPage.import-vat-page .import-vat-statement-history .status-pill{font-size:11px;font-weight:600;color:rgb(171 54 25 / 24%)}
+#inputVatPage.import-vat-page .accounts-table-card thead th{height:34px;padding-block:0;font-size:10px;font-weight:700;letter-spacing:.6px}
+#inputVatPage.import-vat-page .accounts-table-card tfoot th,#inputVatPage.import-vat-page .accounts-table-card tfoot td{box-sizing:border-box;height:34px;min-height:34px;padding-block:0;line-height:1.2;font-size:10px;font-weight:700;letter-spacing:.6px}
+#inputVatPage.import-vat-page .accounts-table-card tbody td{font-size:11px;font-weight:600}
+@media(prefers-reduced-motion:reduce){#inputVatPage.import-vat-page .import-vat-statement-history>header [data-refresh-history].is-refreshing svg{animation:none}}
+#inputVatPage.import-vat-page .import-vat-statement-dialog>form>header .eyebrow{color:#ab3619;font-size:12px;font-weight:800;letter-spacing:1.32px;text-transform:uppercase}
+#inputVatPage.import-vat-page .import-vat-statement-dialog>form>header h2{color:#721b1a;font-size:14px;font-weight:600}
+#inputVatPage.import-vat-page .import-vat-statement-dialog [name="statement_period"]{height:32px;min-height:32px;font-size:12px;font-weight:400}
+#inputVatPage.import-vat-page .import-vat-statement-dialog .import-vat-statement-steps span{height:32px;min-height:32px;box-sizing:border-box;padding:0 10px;font-weight:400}
+#inputVatPage.import-vat-page .import-vat-statement-dialog .import-vat-statement-steps b{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;flex:0 0 20px;line-height:1;text-align:center}
+#inputVatPage.import-vat-page .import-vat-statement-dialog .import-vat-statement-steps b svg{width:18px;height:18px}
+#inputVatPage.import-vat-page .import-vat-statement-dialog .import-vat-statement-drop{display:grid!important;grid-template-columns:1fr;justify-items:center;align-content:center;gap:6px;min-height:132px;text-align:center}
+#inputVatPage.import-vat-page .import-vat-statement-dialog .import-vat-statement-drop svg{width:20px;height:20px;align-self:center;justify-self:center}
+#inputVatPage.import-vat-page .import-vat-statement-dialog .import-vat-statement-drop strong,
+#inputVatPage.import-vat-page .import-vat-statement-dialog .import-vat-statement-drop>span{font-weight:400}
+#inputVatPage.import-vat-page .import-vat-statement-dialog>form>p.output-vat-help{font-family:Figtree,system-ui,sans-serif;font-size:10px;line-height:15px;color:rgb(160 128 112);font-weight:400}
+#inputVatPage.import-vat-page .import-vat-statement-dialog>form>footer .portal-button{height:34px;min-height:34px}
+#inputVatPage.import-vat-page .import-vat-statement-dialog>form>footer .portal-button--primary{height:32px;min-height:32px}
+#inputVatPage.import-vat-page .import-vat-statement-dialog>form>footer .portal-button--primary svg{width:18px;height:18px;flex:0 0 18px}

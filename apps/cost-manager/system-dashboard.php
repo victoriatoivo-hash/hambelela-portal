@@ -1,1 +1,5 @@
-<?php $_GET['module'] = 'Dashboard'; require __DIR__ . '/module-placeholder.php';
+<?php
+
+declare(strict_types=1);
+
+require __DIR__ . '/landing-cost-engine.php';

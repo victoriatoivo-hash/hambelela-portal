@@ -1,0 +1,6 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/marketing.php';marketing_require_access();
+header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store');
+try{$ctx=marketing_phase3_context($_GET);$sources=$ctx['sources'];$channels=[];foreach($ctx['channels']as$channel){$channel['source_labels']=array_map(fn($s)=>$sources[$s]??$s,$channel['sources']);$channels[]=$channel;}$top=array_map(function($row)use($sources){$row['source_label']=$sources[$row['source']]??$row['source'];return$row;},$ctx['top']);echo json_encode(['ok'=>true,'period'=>$ctx['period'],'summary'=>$ctx['summary'],'channels'=>$channels,'top'=>$top,'website'=>$ctx['website'],'attributions'=>array_map(fn($a)=>['order_number'=>$a['order_number'],'order_date'=>$a['order_date'],'customer_name'=>$a['customer_name'],'total_amount'=>(float)$a['total_amount'],'source_label'=>$a['source_label'],'campaign_name'=>$a['campaign_name'],'attribution_method'=>$a['attribution_method']],$ctx['attributions'])],JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}
+catch(Throwable$e){http_response_code(422);echo json_encode(['ok'=>false,'message'=>$e->getMessage()]);}

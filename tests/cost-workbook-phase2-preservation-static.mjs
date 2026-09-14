@@ -1,0 +1,4 @@
+import assert from 'node:assert/strict';import fs from 'node:fs';const migration=fs.readFileSync(new URL('../apps/cost-manager/cost-workbook-phase2-migration.sql',import.meta.url),'utf8');const api=fs.readFileSync(new URL('../apps/cost-manager/cw-phase2-api.php',import.meta.url),'utf8');
+for(const forbidden of [/DROP\s+TABLE/i,/TRUNCATE/i,/DELETE\s+FROM\s+cw_supplier_invoices/i,/UPDATE\s+cw_supplier_invoices/i,/UPDATE\s+cw_sync_batches/i])assert.ok(!forbidden.test(migration),`migration contains destructive marker ${forbidden}`);
+assert.ok(!/UPDATE\s+cw_supplier_invoices/i.test(api),'Phase 2 API must not modify Phase 1 invoices');assert.ok(!/UPDATE\s+cw_product_snapshots/i.test(api),'Phase 2 API must not modify snapshots');assert.ok(!/INSERT\s+INTO\s+cw_product_snapshots/i.test(api),'Phase 2 API must not replace snapshots');
+console.log('Cost Workbook Phase 2 preservation checks passed.');

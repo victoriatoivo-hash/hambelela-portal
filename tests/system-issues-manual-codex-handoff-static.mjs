@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+
+const workflow=fs.readFileSync('shared/system-issue-workflow.php','utf8');
+const endpoint=fs.readFileSync('apps/operations/system-issue-action.php','utf8');
+const copy=fs.readFileSync('apps/operations/system-issue-brief-copy.php','utf8');
+const page=fs.readFileSync('apps/operations/system-issues.php','utf8');
+const client=fs.readFileSync('assets/js/system-issue-workflow.js','utf8');
+const migration=fs.readFileSync('operations-system-issues-migration.sql','utf8');
+const webhook=fs.readFileSync('apps/operations/system-issues-webhook.php','utf8');
+const docs=fs.readFileSync('docs/system-issues-workflow.md','utf8');
+
+for(const stage of ['reported','ai_processing','needs_information','under_review','brief_ready','approved_for_codex','fix_in_progress','testing','deployment','ready_for_verification','done','reopened','deferred'])assert.match(workflow,new RegExp(`'${stage}'`));
+for(const command of ['approve_brief','mark_sent_to_codex','record_codex_result','testing_passed','record_deployment','confirm_fixed','still_not_fixed'])assert.match(workflow,new RegExp(`'${command}'`));
+assert.match(workflow,/approved_brief_id/);
+assert.match(workflow,/brief_not_copied/);
+assert.match(workflow,/system_issue_repair_attempts/);
+assert.match(endpoint,/portal_validate_authenticated_session/);
+assert.match(endpoint,/system_issue_is_owner/);
+assert.match(endpoint,/data_json|details|detailKeys/);
+assert.match(copy,/Only the immutable approved brief may be copied/);
+assert.match(copy,/brief_copied_at=COALESCE/);
+assert.match(page,/Nothing is submitted to Codex automatically/);
+assert.match(page,/Manual Codex repair workflow/);
+assert.doesNotMatch(client,/Queue status|Automation not configured|approve_repair/);
+assert.match(client,/data-workflow-field/);
+assert.match(migration,/CREATE TABLE IF NOT EXISTS system_issue_repair_attempts/);
+assert.match(webhook,/http_response_code\(410\)/);
+assert.match(docs,/does not claim jobs, create GitHub Issues or pull requests/);
+assert.match(docs,/## 18\. Core principle/);
+console.log('System Issues manual Codex handoff static checks passed.');

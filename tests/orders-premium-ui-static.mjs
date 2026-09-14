@@ -1,0 +1,11 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
+const page=read('apps/operations/orders-board.php'),css=read('assets/css/orders-essentials.css'),js=read('assets/js/orders-essentials.js'),controller=read('assets/js/orders-board.js');
+assert.match(page,/shared\/ess-sidebar.php/);assert.match(page,/shared\/ess-topbar.php/);assert.doesNotMatch(page,/shared\/sidebar.php/);
+assert.match(css,/--orders-600:#966313/);assert.match(css,/font-family:'Jost'/);assert.match(css,/width:fit-content/);assert.match(css,/height:100dvh/);assert.match(css,/prefers-reduced-motion/);
+assert.match(controller,/board-label order-data-pill/);assert.match(controller,/if \(panel\?\.classList.contains\('is-open'\)\) closePanel/);
+assert.match(js,/shell.inert/);assert.match(js,/ArrowDown/);assert.match(js,/card.append\(toolbar,filters\)/);
+assert.doesNotMatch(css, /linear-gradient|#AB3619|#F07420|#721B1A/i);
+assert.equal((page.match(/data-board-search/g)||[]).length,1);
+console.log('Orders premium UI contracts passed.');

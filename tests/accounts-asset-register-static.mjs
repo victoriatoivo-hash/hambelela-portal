@@ -1,0 +1,13 @@
+import fs from 'node:fs';import assert from 'node:assert/strict';
+const read=p=>fs.readFileSync(p,'utf8');
+const service=read('shared/accounts-assets.php'),api=read('apps/accounts/asset-register-api.php'),page=read('apps/accounts/asset-register.php'),file=read('apps/accounts/asset-register-file.php'),js=read('assets/js/asset-register.js'),css=read('assets/css/accounts-assets.css'),dashboard=read('apps/accounts/index.php'),inputJs=read('assets/js/input-vat.js');
+for(const source of [service,api,page,file])assert.match(source,/accounts_(assets_)?require_(workspace_)?access\(\)/,'every Asset Register route must enforce Accounts owner access');
+for(const table of ['accounts_assets','accounts_asset_attachments','accounts_asset_history','accounts_asset_maintenance'])assert.match(service,new RegExp(table));
+for(const field of ['asset_name','category','purchase_date','purchase_price','vat_amount','serial_number','location_name','condition_key','warranty_expiry','useful_life_months','depreciation_method','book_value','disposal_date'])assert.match(service,new RegExp(field));
+assert.match(api,/action==='maintenance'/);assert.match(api,/action==='dispose'/);assert.match(api,/asset_status='disposed'/);assert.match(api,/accounts_asset_audit/);assert.match(api,/25\*1024\*1024/);assert.match(api,/application\/pdf/);assert.match(api,/source_purchase_id/);
+assert.match(api,/action==='export'/);assert.match(api,/text\/csv/);
+assert.match(page,/Add Asset/);assert.match(page,/Asset records/);assert.match(page,/Depreciation method/);assert.match(page,/No depreciation rate is assumed/);assert.match(page,/multiple/);assert.match(page,/data-portal-custom-select/);assert.match(page,/data-source-purchase/);
+assert.match(js,/prefillPurchase/);assert.match(js,/source_purchase_id/);assert.match(js,/new FormData/);assert.match(js,/data-pending-files/);assert.match(css,/prefers-reduced-motion/);assert.match(css,/@media\(max-width:600px\)/);
+assert.match(dashboard,/accounting-app-card--asset-register/);assert.match(dashboard,/href="asset-register\.php"/);for(const removed of ['Expenses','Supplier Statements','VAT Return Preparation'])assert.doesNotMatch(dashboard,new RegExp(removed));
+assert.match(inputJs,/asset-register\.php\?source_purchase_id=/);assert.doesNotMatch(service,/DEFAULT [^,]*(15|20|25)%/i,'no depreciation rate may be guessed');
+console.log('Asset Register contracts passed.');

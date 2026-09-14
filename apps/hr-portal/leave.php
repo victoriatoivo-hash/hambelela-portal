@@ -3,74 +3,237 @@ require_once __DIR__ . '/config.php';
 requireAdmin();
 require_once __DIR__ . '/includes/email.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
+$leaveCsrfToken = $_SESSION['leave_csrf_token'] ?? bin2hex(random_bytes(32));
+$_SESSION['leave_csrf_token'] = $leaveCsrfToken;
+hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : null);
 
 // ── Actions ──────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
+    if (in_array($action, ['approve', 'reject', 'delete_leave', 'back_capture', 'adjust_balance'], true) && hrLeaveRecoveryLocked($db)) {
+        $wantsJson = strpos((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false;
+        if ($wantsJson) {
+            jsonResponse(['success' => false, 'message' => 'This leave-balance action is temporarily unavailable while the HR records are being verified.'], 423);
+        }
+        header('Location: leave.php?msg=recovery_locked');
+        exit;
+    }
+
+    if (in_array($action, ['approve', 'delete_leave', 'back_capture', 'adjust_balance'], true)) {
+        $csrf = (string)($_POST['csrf_token'] ?? '');
+        if (!hash_equals($leaveCsrfToken, $csrf)) {
+            header('Location: leave.php?msg=session_expired');
+            exit;
+        }
+    }
+
 
     if ($action === 'delete_leave') {
         $did = (int)($_POST['delete_id'] ?? 0);
         if ($did) {
-            $lr = $db->prepare("SELECT employee_id,leave_type,days,YEAR(start_date) as yr FROM leave_requests WHERE id=?");
-            $lr->execute([$did]); $lr = $lr->fetch();
-            if ($lr) {
-                $db->prepare("DELETE FROM leave_requests WHERE id=?")->execute([$did]);
-                $db->prepare("UPDATE leave_balances SET used_days=GREATEST(0,used_days-?),balance_days=balance_days+? WHERE employee_id=? AND leave_type=? AND year=?")
-                   ->execute([(float)$lr['days'],(float)$lr['days'],$lr['employee_id'],$lr['leave_type'],$lr['yr']]);
-                $msg = 'leave_deleted';
+            try {
+                $db->beginTransaction();
+                $lr = $db->prepare("SELECT id,employee_id,leave_type,status FROM leave_requests WHERE id=? FOR UPDATE");
+                $lr->execute([$did]);
+                $lr = $lr->fetch();
+                if (!$lr) {
+                    $db->rollBack();
+                    header('Location: leave.php?msg=leave_not_found');
+                    exit;
+                }
+                if ($lr['status'] === 'approved') {
+                    $db->rollBack();
+                    header('Location: leave.php?msg=approved_delete_blocked');
+                    exit;
+                }
+                $db->prepare("DELETE FROM leave_requests WHERE id=? AND status<>'approved'")->execute([$did]);
+                $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_deleted',?,?)")
+                   ->execute([(int)$user['id'], 'Non-approved leave request #' . $did . ' deleted.', (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+                $db->commit();
+                header('Location: leave.php?msg=leave_deleted');
+                exit;
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                error_log('Leave deletion failed: ' . $e->getMessage());
+                header('Location: leave.php?msg=leave_delete_failed');
+                exit;
             }
         }
     }
 
-    // Approve / Reject
-    if ($action === 'approve' || $action === 'reject') {
-        $id     = (int)($_POST['request_id'] ?? 0);
-        $status = $action === 'approve' ? 'approved' : 'rejected';
-        $reason = clean($_POST['reject_reason'] ?? '');
-        if ($id) {
-            $req = $db->prepare("SELECT * FROM leave_requests WHERE id=?");
-            $req->execute([$id]); $req = $req->fetch();
-            if ($req) {
-                $db->prepare("UPDATE leave_requests SET status=?, approved_by=?, approved_at=NOW(), reject_reason=? WHERE id=?")
-                   ->execute([$status, $user['id'], $reason, $id]);
-                // Deduct from balance if approved
-                if ($status === 'approved') {
-                    $year = date('Y', strtotime($req['start_date']));
-                    $db->prepare("UPDATE leave_balances SET used_days=used_days+? WHERE employee_id=? AND leave_type=? AND year=?")
-                       ->execute([$req['days'], $req['employee_id'], $req['leave_type'], $year]);
-                    // Notify employee in the portal and by email.
-                    $empContact = $db->prepare("SELECT u.id AS user_id, u.email AS user_email, u.name AS user_name, e.email AS employee_email, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
-                    $empContact->execute([$req['employee_id']]); $empContact = $empContact->fetch();
-                    if ($empContact && $empContact['user_id']) {
-                        $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'success')")
-                           ->execute([$empContact['user_id'],'Leave Approved','Your '.$req['leave_type'].' request for '.$req['days'].' day(s) has been approved.']);
-                    }
-                    if ($empContact) {
-                        $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
-                        $toName = $empContact['user_name'] ?: $empContact['employee_name'];
-                        if ($toEmail !== '') emailLeaveApproved($toEmail, $toName, $req['leave_type'], $req['days'], $req['start_date'], $req['end_date']);
-                    }
-                } else {
-                    // Notify rejection
-                    $empContact = $db->prepare("SELECT u.id AS user_id, u.email AS user_email, u.name AS user_name, e.email AS employee_email, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
-                    $empContact->execute([$req['employee_id']]); $empContact = $empContact->fetch();
-                    if ($empContact && $empContact['user_id']) {
-                        $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'error')")
-                           ->execute([$empContact['user_id'],'Leave Request Rejected','Your '.$req['leave_type'].' request has been rejected.'.($reason?' Reason: '.$reason:'')]);
-                    }
-                    if ($empContact) {
-                        $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
-                        $toName = $empContact['user_name'] ?: $empContact['employee_name'];
-                        if ($toEmail !== '') emailLeaveRejected($toEmail, $toName, $req['leave_type'], $reason);
-                    }
+    // Reject through the existing leave decision path, with a mandatory employee-visible reason.
+    if ($action === 'reject') {
+        $wantsJson = strpos((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false;
+        $respond = static function (array $payload, int $status = 200) use ($wantsJson): void {
+            if ($wantsJson) {
+                jsonResponse($payload, $status);
+            }
+            if (!empty($payload['success'])) {
+                header('Location: leave.php?msg=rejected');
+            } else {
+                header('Location: leave.php?msg=reject_error&error=' . rawurlencode((string)($payload['message'] ?? 'Could not reject leave request.')));
+            }
+            exit;
+        };
+
+        $id = (int)($_POST['request_id'] ?? 0);
+        $reason = trim(strip_tags((string)($_POST['reject_reason'] ?? '')));
+        $reasonLength = function_exists('mb_strlen') ? mb_strlen($reason, 'UTF-8') : strlen($reason);
+        $csrf = (string)($_POST['csrf_token'] ?? '');
+
+        if (!hash_equals($leaveCsrfToken, $csrf)) {
+            $respond(['success' => false, 'message' => 'Your session expired. Refresh the page and try again.'], 403);
+        }
+        if ($id < 1) {
+            $respond(['success' => false, 'message' => 'The leave request could not be found.'], 404);
+        }
+        if ($reason === '') {
+            $respond(['success' => false, 'message' => 'Please enter a reason for rejecting this leave request.'], 422);
+        }
+        if ($reasonLength > 1000) {
+            $respond(['success' => false, 'message' => 'The rejection reason may not exceed 1,000 characters.'], 422);
+        }
+
+        try {
+            $db->beginTransaction();
+            $reqStmt = $db->prepare("SELECT lr.*, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id WHERE lr.id=? FOR UPDATE");
+            $reqStmt->execute([$id]);
+            $req = $reqStmt->fetch();
+            if (!$req) {
+                $db->rollBack();
+                $respond(['success' => false, 'message' => 'The leave request could not be found.'], 404);
+            }
+            if ($req['status'] !== 'pending') {
+                $db->rollBack();
+                $respond(['success' => false, 'message' => 'This leave request has already been reviewed.'], 409);
+            }
+            if ((int)$req['employee_id'] === (int)($user['emp_id'] ?? 0) && !empty($user['emp_id'])) {
+                $db->rollBack();
+                $respond(['success' => false, 'message' => 'You cannot reject your own leave request.'], 403);
+            }
+
+            $update = $db->prepare("UPDATE leave_requests SET status='rejected', approved_by=?, approved_at=NOW(), reject_reason=? WHERE id=? AND status='pending'");
+            $update->execute([(int)$user['id'], $reason, $id]);
+            if ($update->rowCount() !== 1) {
+                $db->rollBack();
+                $respond(['success' => false, 'message' => 'This leave request has already been reviewed.'], 409);
+            }
+
+            $empContact = $db->prepare("SELECT u.id AS user_id, u.email AS user_email, u.name AS user_name, e.email AS employee_email, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
+            $empContact->execute([$req['employee_id']]);
+            $empContact = $empContact->fetch();
+            if ($empContact && $empContact['user_id']) {
+                $dates = date('d M Y', strtotime($req['start_date'])) . ' - ' . date('d M Y', strtotime($req['end_date']));
+                $db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'error',?)")
+                   ->execute([(int)$empContact['user_id'], 'Leave request rejected', 'Your ' . $req['leave_type'] . ' request for ' . $dates . ' was rejected. View the reason.', 'my-leave.php?leave_request=' . $id . '#leave-request-' . $id]);
+            }
+
+            $auditDescription = 'Leave request #' . $id . ' rejected for ' . $req['employee_name'] . '. Reason: ' . $reason;
+            $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_rejected',?,?)")
+               ->execute([(int)$user['id'], $auditDescription, (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+            $db->commit();
+
+            if ($empContact) {
+                $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
+                $toName = $empContact['user_name'] ?: $empContact['employee_name'];
+                if ($toEmail !== '') {
+                    emailLeaveRejected($toEmail, $toName, $req['leave_type'], $reason);
                 }
             }
+
+            $respond([
+                'success' => true,
+                'message' => 'Leave request rejected and the employee has been notified.',
+                'leave_request' => [
+                    'id' => $id,
+                    'status' => 'rejected',
+                    'rejection_reason' => $reason,
+                    'rejected_at' => date(DATE_ATOM),
+                    'rejected_by' => ['id' => (int)$user['id'], 'name' => 'HR Administration'],
+                ],
+            ]);
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log('Leave rejection failed: ' . $e->getMessage());
+            $respond(['success' => false, 'message' => 'Could not reject the leave request. Please try again.'], 500);
         }
-        header('Location: leave.php?msg='.$action.'d'); exit;
+    }
+
+    // Approve once, atomically, and synchronize usage from authoritative requests.
+    if ($action === 'approve') {
+        $id = (int)($_POST['request_id'] ?? 0);
+        if ($id < 1) {
+            header('Location: leave.php?msg=leave_not_found');
+            exit;
+        }
+        $empContact = null;
+        try {
+            $db->beginTransaction();
+            $reqStmt = $db->prepare("SELECT lr.*,e.employment_type FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id WHERE lr.id=? FOR UPDATE");
+            $reqStmt->execute([$id]);
+            $req = $reqStmt->fetch();
+            if (!$req) {
+                $db->rollBack();
+                header('Location: leave.php?msg=leave_not_found');
+                exit;
+            }
+            if ($req['status'] !== 'pending') {
+                $db->rollBack();
+                header('Location: leave.php?msg=already_reviewed');
+                exit;
+            }
+            if ($req['leave_type'] === 'Annual Leave' && hrEmployeeIsOnProbation($req)) {
+                $db->rollBack();
+                header('Location: leave.php?msg=probation_annual_blocked');
+                exit;
+            }
+
+            $update = $db->prepare("UPDATE leave_requests SET status='approved',approved_by=?,approved_at=NOW(),reject_reason='' WHERE id=? AND status='pending'");
+            $update->execute([(int)$user['id'], $id]);
+            if ($update->rowCount() !== 1) {
+                $db->rollBack();
+                header('Location: leave.php?msg=already_reviewed');
+                exit;
+            }
+
+            $year = (int)date('Y', strtotime($req['start_date']));
+            $used = hrRefreshUsedLeave($db, (int)$req['employee_id'], (string)$req['leave_type'], $year);
+            $empContactStmt = $db->prepare("SELECT u.id AS user_id,u.email AS user_email,u.name AS user_name,e.email AS employee_email,CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
+            $empContactStmt->execute([$req['employee_id']]);
+            $empContact = $empContactStmt->fetch();
+            if ($empContact && $empContact['user_id']) {
+                $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'success')")
+                   ->execute([$empContact['user_id'], 'Leave Approved', 'Your ' . $req['leave_type'] . ' request for ' . $req['days'] . ' day(s) has been approved.']);
+            }
+            $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_approved',?,?)")
+               ->execute([(int)$user['id'], 'Leave request #' . $id . ' approved once; authoritative used total is ' . number_format($used, 1) . ' day(s).', (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) {
+                $db->rollBack();
+            }
+            error_log('Leave approval failed: ' . $e->getMessage());
+            header('Location: leave.php?msg=approval_failed');
+            exit;
+        }
+
+        if ($empContact) {
+            $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
+            $toName = $empContact['user_name'] ?: $empContact['employee_name'];
+            if ($toEmail !== '') {
+                emailLeaveApproved($toEmail, $toName, $req['leave_type'], $req['days'], $req['start_date'], $req['end_date']);
+            }
+        }
+        header('Location: leave.php?msg=approved'); exit;
     }
 
     // Back-capture
@@ -81,11 +244,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $end        = $_POST['bc_end_date']   ?? '';
         $days       = (float)($_POST['bc_days'] ?? 0);
         if ($emp_id && $leave_type && $start && $end && $days > 0) {
-            $db->prepare("INSERT INTO leave_requests (employee_id,leave_type,start_date,end_date,days,status,back_capture,approved_by,approved_at) VALUES (?,?,?,?,?,'approved',1,?,NOW())")
-               ->execute([$emp_id,$leave_type,$start,$end,$days,$user['id']]);
-            $year = date('Y',strtotime($start));
-            $db->prepare("UPDATE leave_balances SET used_days=used_days+? WHERE employee_id=? AND leave_type=? AND year=?")
-               ->execute([$days,$emp_id,$leave_type,$year]);
+            try {
+                $db->beginTransaction();
+                $db->prepare("INSERT INTO leave_requests (employee_id,leave_type,start_date,end_date,days,status,back_capture,approved_by,approved_at) VALUES (?,?,?,?,?,'approved',1,?,NOW())")
+                   ->execute([$emp_id,$leave_type,$start,$end,$days,$user['id']]);
+                $requestId = (int)$db->lastInsertId();
+                $year = (int)date('Y',strtotime($start));
+                $used = hrRefreshUsedLeave($db, $emp_id, $leave_type, $year);
+                $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_back_captured',?,?)")
+                   ->execute([(int)$user['id'], 'Leave request #' . $requestId . ' back-captured; authoritative used total is ' . number_format($used, 1) . ' day(s).', (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+                $db->commit();
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                error_log('Leave back-capture failed: ' . $e->getMessage());
+                header('Location: leave.php?msg=back_capture_failed');
+                exit;
+            }
         }
         header('Location: leave.php?msg=captured'); exit;
     }
@@ -97,8 +273,34 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $new_bal    = (float)($_POST['adj_balance'] ?? 0);
         $year       = (int)($_POST['adj_year'] ?? date('Y'));
         if ($emp_id && $leave_type) {
-            $db->prepare("INSERT INTO leave_balances (employee_id,leave_type,balance_days,used_days,year) VALUES (?,?,?,0,?) ON DUPLICATE KEY UPDATE balance_days=?")
-               ->execute([$emp_id,$leave_type,$new_bal,$year,$new_bal]);
+            try {
+                $db->beginTransaction();
+                $before = $db->prepare("SELECT balance_days,used_days FROM leave_balances WHERE employee_id=? AND leave_type=? AND year=? FOR UPDATE");
+                $before->execute([$emp_id,$leave_type,$year]);
+                $before = $before->fetch();
+                $used = hrApprovedLeaveUsed($db, $emp_id, $leave_type, $year);
+                $db->prepare("INSERT INTO leave_balances (employee_id,leave_type,balance_days,used_days,year) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE balance_days=VALUES(balance_days),used_days=VALUES(used_days)")
+                   ->execute([$emp_id,$leave_type,$new_bal,$used,$year]);
+                $description = sprintf(
+                    'Leave entitlement adjusted for employee %d, %s, %d: balance %.1f to %.1f; authoritative used %.1f.',
+                    $emp_id,
+                    $leave_type,
+                    $year,
+                    $before ? (float)$before['balance_days'] : 0.0,
+                    $new_bal,
+                    $used
+                );
+                $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_balance_adjusted',?,?)")
+                   ->execute([(int)$user['id'], $description, (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
+                $db->commit();
+            } catch (Throwable $e) {
+                if ($db->inTransaction()) {
+                    $db->rollBack();
+                }
+                error_log('Leave balance adjustment failed: ' . $e->getMessage());
+                header('Location: leave.php?msg=adjustment_failed');
+                exit;
+            }
         }
         header('Location: leave.php?msg=adjusted'); exit;
     }
@@ -118,8 +320,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Data ─────────────────────────────────────────────────────
 $pending   = $db->query("SELECT lr.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.avatar_color FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id WHERE lr.status='pending' ORDER BY lr.created_at ASC")->fetchAll();
-$all       = $db->query("SELECT lr.*, CONCAT(e.first_name,' ',e.last_name) as emp_name FROM leave_requests lr JOIN employees e ON e.id=lr.employee_id ORDER BY lr.created_at DESC LIMIT 100")->fetchAll();
-$employees = $db->query("SELECT id, CONCAT(first_name,' ',last_name) as name FROM employees WHERE status='active' ORDER BY first_name")->fetchAll();
+$all       = $db->query("SELECT lr.*, CONCAT(e.first_name,' ',e.last_name) AS emp_name, u.name AS reviewer_name
+                         FROM leave_requests lr
+                         JOIN employees e ON e.id=lr.employee_id
+                         LEFT JOIN users u ON u.id=lr.approved_by
+                         ORDER BY lr.created_at DESC LIMIT 100")->fetchAll();
+$employees = $db->query("SELECT id,employment_type,start_date,CONCAT(first_name,' ',last_name) as name FROM employees WHERE status='active' ORDER BY first_name")->fetchAll();
 $pendingOT = $db->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
 
 $leaveTypes = ['Annual Leave','Sick Leave','Compassionate Leave','Maternity Leave','Unpaid Leave'];
@@ -136,11 +342,11 @@ $msg = $_GET['msg'] ?? '';
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Leave Management — Hambelela HR</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
-<link rel="stylesheet" href="includes/styles.css">
+<link rel="stylesheet" href="includes/styles.css?v=20260729-1">
 </head>
 <body>
 <?php include __DIR__ . '/includes/sidebar.php'; ?>
@@ -156,10 +362,17 @@ $msg = $_GET['msg'] ?? '';
 
   <div class="content">
     <?php if ($msg === 'approved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave request approved.</div>
-    <?php elseif ($msg === 'leave_deleted'): ?><div class="toast no-print error"><i class="fa-solid fa-trash"></i> Leave deleted, balance restored.</div>
-    <?php elseif ($msg === 'rejected'): ?><div class="toast error"><i class="fa-solid fa-xmark"></i> Leave request rejected.</div>
+    <?php elseif ($msg === 'leave_deleted'): ?><div class="toast no-print"><i class="fa-solid fa-trash"></i> Non-approved leave request deleted.</div>
+    <?php elseif ($msg === 'approved_delete_blocked'): ?><div class="toast no-print error"><i class="fa-solid fa-lock"></i> Approved leave is protected and cannot be deleted. Use an audited reversal workflow.</div>
+    <?php elseif ($msg === 'recovery_locked'): ?><div class="toast no-print error"><i class="fa-solid fa-lock"></i> This leave-balance action is temporarily unavailable while the HR records are being verified.</div>
+    <?php elseif ($msg === 'already_reviewed'): ?><div class="toast no-print error"><i class="fa-solid fa-circle-info"></i> This leave request has already been reviewed. No balance was changed.</div>
+    <?php elseif ($msg === 'session_expired'): ?><div class="toast no-print error"><i class="fa-solid fa-shield-halved"></i> Your session expired. Refresh and try again.</div>
+    <?php elseif (in_array($msg, ['approval_failed','leave_delete_failed','back_capture_failed','adjustment_failed'], true)): ?><div class="toast no-print error"><i class="fa-solid fa-triangle-exclamation"></i> The leave action failed. No partial balance change was saved.</div>
+    <?php elseif ($msg === 'rejected'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave request rejected and the employee has been notified.</div>
+    <?php elseif ($msg === 'reject_error'): ?><div class="toast error"><i class="fa-solid fa-xmark"></i> <?=htmlspecialchars((string)($_GET['error'] ?? 'Could not reject the leave request.'), ENT_QUOTES, 'UTF-8')?></div>
     <?php elseif ($msg === 'captured'): ?><div class="toast"><i class="fa-solid fa-check"></i> Past leave captured successfully.</div>
     <?php elseif ($msg === 'adjusted'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave balance adjusted.</div>
+    <?php elseif ($msg === 'probation_annual_blocked'): ?><div class="toast error"><i class="fa-solid fa-lock"></i> Annual Leave cannot be approved while the employee is on probation. The entitlement continues accruing and unlocks after probation.</div>
     <?php elseif ($msg === 'shutdown_saved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Shutdown shortfall handling saved.</div>
     <?php endif ?>
 
@@ -170,12 +383,12 @@ $msg = $_GET['msg'] ?? '';
     $nextMonth    = date('F', mktime(0,0,0,date('n')+1,1));
     ?>
     <div style="background:var(--green-pale);border:1px solid var(--green-mid);border-radius:10px;padding:14px 18px;margin-bottom:20px;display:flex;justify-content:space-between;align-items:center;font-size:13px">
-      <div><i class="fa-solid fa-circle-info" style="color:var(--green);margin-right:8px"></i><strong>Annual Leave Accrual:</strong> Employees accumulate <strong>2 days per month</strong> from 1 January. Current month (<?=date('F')?>) = <strong><?=$accrualDays?> days available</strong>.</div>
+      <div><i class="fa-solid fa-circle-info" style="color:var(--green);margin-right:8px"></i><strong>Annual Leave Accrual:</strong> Employees accumulate <strong>2 days per month</strong>. New employees accrue from their employment commencement date. Probation affects when leave may be requested, not whether entitlement accrues.</div>
       <div style="font-size:12px;color:var(--text-mid)">Next accrual: 1 <?=$nextMonth?> (+2 days)</div>
     </div>
     <!-- Stats -->
     <div class="grid-4">
-      <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-hourglass-half"></i></div><div class="stat-value"><?=count($pending)?></div><div class="stat-label">Pending Requests</div></div>
+      <div class="stat-card"><div class="stat-icon amber"><i class="fa-solid fa-hourglass-half"></i></div><div class="stat-value" id="pendingLeaveCount"><?=count($pending)?></div><div class="stat-label">Pending Requests</div></div>
       <?php
       $approved = array_filter($all, function($r) { return $r['status']==='approved'; });
       $rejected = array_filter($all, function($r) { return $r['status']==='rejected'; });
@@ -188,7 +401,7 @@ $msg = $_GET['msg'] ?? '';
 
     <!-- Pending Requests -->
     <?php if (!empty($pending)): ?>
-    <div class="card">
+    <div class="card" id="pending-requests">
       <div class="card-header">
         <div class="card-title"><i class="fa-solid fa-hourglass-half" style="color:var(--amber)"></i> Pending Requests</div>
         <span class="badge badge-amber"><?=count($pending)?> Pending</span>
@@ -220,10 +433,19 @@ $msg = $_GET['msg'] ?? '';
             <form method="POST" style="display:inline">
               <input type="hidden" name="action" value="approve">
               <input type="hidden" name="request_id" value="<?=$r['id']?>">
+              <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
               <button class="btn btn-success btn-sm"><i class="fa-solid fa-check"></i> Approve</button>
             </form>
-            <button class="btn btn-danger btn-sm" onclick="openReject(<?=$r['id']?>)"><i class="fa-solid fa-xmark"></i> Reject</button>
-            <form method="POST" style="display:inline" onsubmit="return confirm('Delete this leave permanently?')"><input type="hidden" name="action" value="delete_leave"><input type="hidden" name="delete_id" value="<?=$r['id']?>"><button type="submit" class="btn btn-danger btn-sm" title="Delete"><i class="fa-solid fa-trash"></i></button></form>
+            <button
+              type="button"
+              class="btn btn-danger btn-sm js-reject-leave"
+              data-request-id="<?=$r['id']?>"
+              data-employee="<?=htmlspecialchars($r['emp_name'], ENT_QUOTES, 'UTF-8')?>"
+              data-leave-type="<?=htmlspecialchars($r['leave_type'], ENT_QUOTES, 'UTF-8')?>"
+              data-dates="<?=date('d M Y',strtotime($r['start_date']))?> - <?=date('d M Y',strtotime($r['end_date']))?>"
+              data-days="<?=number_format((float)$r['days'],1)?>"
+            ><i class="fa-solid fa-xmark"></i> Reject</button>
+            <form method="POST" style="display:inline" onsubmit="return confirm('Delete this pending leave request?')"><input type="hidden" name="action" value="delete_leave"><input type="hidden" name="delete_id" value="<?=$r['id']?>"><input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>"><button type="submit" class="btn btn-danger btn-sm" title="Delete"><i class="fa-solid fa-trash"></i></button></form>
           </td>
         </tr>
         <?php endforeach ?>
@@ -275,12 +497,18 @@ $msg = $_GET['msg'] ?? '';
             $rem  = max(0, $tot - $used);
             $pct  = $tot > 0 ? min(100, round($used/$tot*100)) : 0;
             $col  = $rem <= 2 ? 'var(--red)' : ($rem <= 5 ? 'var(--amber)' : 'var(--green)');
+            $probationAnnual = $lt === 'Annual Leave' && hrEmployeeIsOnProbation($emp);
           ?>
           <td style="text-align:center">
+            <?php if ($probationAnnual): ?>
+            <div style="font-size:12px;font-weight:700;color:var(--amber)">Accruing</div>
+            <div style="font-size:10px;color:var(--text-mid)"><?=number_format($tot,1)?> day(s) accrued · not requestable</div>
+            <?php else: ?>
             <div style="font-size:13px;font-weight:700;color:<?=$col?>"><?=number_format($rem,1)?> <span style="font-weight:400;color:var(--text-mid);font-size:11px">/ <?=number_format($tot,1)?></span></div>
             <div style="height:3px;background:var(--border);border-radius:2px;margin-top:4px;width:60px;margin-inline:auto">
               <div style="height:3px;background:<?=$col?>;border-radius:2px;width:<?=$pct?>%"></div>
             </div>
+            <?php endif ?>
           </td>
           <?php endforeach ?>
           <?php
@@ -305,7 +533,7 @@ $msg = $_GET['msg'] ?? '';
     </div>
 
     <!-- All Leave History -->
-    <div class="card">
+    <div class="card" data-leave-history>
       <div class="card-header"><div class="card-title"><i class="fa-solid fa-list" style="color:var(--blue)"></i> Leave History</div></div>
       <?php if (empty($all)): ?>
         <div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i><div>No leave requests yet.</div></div>
@@ -321,16 +549,33 @@ $msg = $_GET['msg'] ?? '';
           <td><?=htmlspecialchars($r['leave_type'])?></td>
           <td style="font-size:12px"><?=date('d M Y',strtotime($r['start_date']))?> – <?=date('d M Y',strtotime($r['end_date']))?></td>
           <td><?=$r['days']?></td>
-          <td><span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span></td>
+          <td>
+            <div class="leave-status-cell">
+              <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
+              <?php if($r['status']==='rejected'): ?>
+              <button type="button" class="leave-reason-trigger" data-leave-reason-trigger
+                data-reason="<?=htmlspecialchars(trim((string)($r['reject_reason'] ?? '')) !== '' ? $r['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?>"
+                data-decision-date="<?=htmlspecialchars($r['approved_at'] ? date('d F Y \a\t H:i', strtotime($r['approved_at'])) : 'Not recorded', ENT_QUOTES, 'UTF-8')?>"
+                data-reviewed-by="<?=htmlspecialchars($r['reviewer_name'] ?: 'HR Administration', ENT_QUOTES, 'UTF-8')?>"
+                aria-expanded="false" aria-haspopup="dialog" aria-controls="leave-reason-popover">
+                <span>View reason</span>
+                <svg class="leave-reason-trigger__arrow" viewBox="0 0 20 20" aria-hidden="true"><path d="M5.5 7.5L10 12l4.5-4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+              <?php endif ?>
+            </div>
+          </td>
           <td><?=$r['back_capture'] ? '<span class="badge badge-gray">Back-Captured</span>' : '—'?></td>
           <td style="white-space:nowrap">
+            <?php if($r['status']!=='approved'): ?>
             <form method="POST" style="display:inline" onsubmit="return confirm('Delete this <?=strtolower($r['status'])?> leave request? This cannot be undone.')">
               <input type="hidden" name="action" value="delete_leave">
               <input type="hidden" name="delete_id" value="<?=$r['id']?>">
+              <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
               <button type="submit" class="btn btn-danger btn-sm" title="Delete">
                 <i class="fa-solid fa-trash"></i> Delete
               </button>
             </form>
+            <?php else: ?><span style="font-size:11px;color:var(--text-mid)"><i class="fa-solid fa-lock"></i> Approved record protected</span><?php endif ?>
           </td>
         </tr>
         <?php endforeach ?>
@@ -342,21 +587,35 @@ $msg = $_GET['msg'] ?? '';
 </div>
 
 <!-- REJECT MODAL -->
-<div class="overlay" id="rejectModal">
-  <div class="modal" style="max-width:440px">
-    <div class="modal-header"><div class="modal-title">Reject Leave Request</div><button class="modal-close" onclick="var m=document.getElementById('rejectModal');if(m){m.style.display='none';m.classList.remove('open');}void(0)"><i class="fa-solid fa-xmark"></i></button></div>
-    <form method="POST">
+<div class="overlay leave-rejection-overlay" id="rejectModal" role="dialog" aria-modal="true" aria-labelledby="reject-leave-title" hidden>
+  <div class="modal leave-rejection-modal">
+    <div class="modal-header">
+      <div><div class="leave-rejection-eyebrow">Leave management</div><div class="modal-title" id="reject-leave-title">Reject Leave Request</div></div>
+      <button type="button" class="modal-close" data-close-rejection-modal aria-label="Close"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <form method="POST" id="rejectLeaveForm" novalidate>
       <input type="hidden" name="action" value="reject">
       <input type="hidden" name="request_id" id="rejectId">
+      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
       <div class="modal-body">
+        <div class="leave-rejection-summary">
+          <div><span>Employee</span><strong data-rejection-employee></strong></div>
+          <div><span>Leave type</span><strong data-rejection-type></strong></div>
+          <div><span>Dates</span><strong data-rejection-dates></strong></div>
+          <div><span>Days requested</span><strong data-rejection-days></strong></div>
+        </div>
         <div class="form-group">
-          <label class="form-label">Reason for Rejection (optional)</label>
-          <textarea class="form-textarea" name="reject_reason" placeholder="Let the employee know why..."></textarea>
+          <label class="form-label" for="leaveRejectionReason">Reason for rejection <span aria-hidden="true">*</span></label>
+          <textarea class="form-textarea" id="leaveRejectionReason" name="reject_reason" rows="5" maxlength="1000" required placeholder="Explain why this leave request is being rejected."></textarea>
+          <div class="leave-rejection-field-footer">
+            <span class="leave-rejection-error" data-rejection-error role="alert"></span>
+            <span class="leave-rejection-counter"><span data-rejection-character-count>0</span>/1000</span>
+          </div>
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="var m=document.getElementById('rejectModal');if(m){m.style.display='none';m.classList.remove('open');}void(0)">Cancel</button>
-        <button type="submit" class="btn btn-danger"><i class="fa-solid fa-xmark"></i> Confirm Reject</button>
+        <button type="button" class="btn btn-secondary" data-close-rejection-modal>Cancel</button>
+        <button type="submit" class="btn btn-danger" data-confirm-leave-rejection><i class="fa-solid fa-xmark"></i> Reject Leave</button>
       </div>
     </form>
   </div>
@@ -368,6 +627,7 @@ $msg = $_GET['msg'] ?? '';
     <div class="modal-header"><div class="modal-title"><i class="fa-solid fa-clock-rotate-left"></i> Back-Capture Past Leave</div><button class="modal-close" onclick="var m=document.getElementById('backCaptureModal');if(m){m.style.display='none';m.classList.remove('open');}void(0)"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST">
       <input type="hidden" name="action" value="back_capture">
+      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
       <div class="modal-body">
         <p style="font-size:13px;color:var(--text-mid);margin-bottom:18px">Record leave that was already taken before the system was set up. This will be saved as Approved and deducted from the employee's balance.</p>
         <div class="form-grid">
@@ -403,6 +663,7 @@ $msg = $_GET['msg'] ?? '';
     <div class="modal-header"><div class="modal-title"><i class="fa-solid fa-sliders"></i> Adjust Leave Balance</div><button class="modal-close" onclick="var m=document.getElementById('adjustModal');if(m){m.style.display='none';m.classList.remove('open');}void(0)"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST">
       <input type="hidden" name="action" value="adjust_balance">
+      <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken, ENT_QUOTES, 'UTF-8')?>">
       <div class="modal-body">
         <p style="font-size:13px;color:var(--text-mid);margin-bottom:18px">Manually set a leave balance for an employee. Use this to correct balances or add carried-over days.</p>
         <div class="form-grid">
@@ -434,10 +695,103 @@ $msg = $_GET['msg'] ?? '';
 <script>
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-function openReject(id) { document.getElementById('rejectId').value = id; var m=document.getElementById('rejectModal'); if(m){m.style.display='flex';m.classList.add('open');} }
-document.querySelectorAll('.overlay').forEach(o => {
-  o.addEventListener('click', e => { if (e.target===o) o.classList.remove('open'); });
+const rejectModal = document.getElementById('rejectModal');
+const rejectForm = document.getElementById('rejectLeaveForm');
+const rejectReason = document.getElementById('leaveRejectionReason');
+let rejectingLeave = false;
+
+function setRejectModalOpen(open, trigger) {
+  if (!rejectModal || (rejectingLeave && !open)) return;
+  rejectModal.hidden = !open;
+  rejectModal.classList.toggle('open', open);
+  if (open && trigger) {
+    document.getElementById('rejectId').value = trigger.dataset.requestId || '';
+    rejectModal.querySelector('[data-rejection-employee]').textContent = trigger.dataset.employee || '—';
+    rejectModal.querySelector('[data-rejection-type]').textContent = trigger.dataset.leaveType || '—';
+    rejectModal.querySelector('[data-rejection-dates]').textContent = trigger.dataset.dates || '—';
+    rejectModal.querySelector('[data-rejection-days]').textContent = trigger.dataset.days || '—';
+    rejectReason.value = '';
+    rejectReason.setAttribute('aria-invalid', 'false');
+    rejectModal.querySelector('[data-rejection-error]').textContent = '';
+    rejectModal.querySelector('[data-rejection-character-count]').textContent = '0';
+    requestAnimationFrame(() => rejectReason.focus());
+  }
+}
+
+document.querySelectorAll('.js-reject-leave').forEach(button => button.addEventListener('click', () => setRejectModalOpen(true, button)));
+document.querySelectorAll('[data-close-rejection-modal]').forEach(button => button.addEventListener('click', () => setRejectModalOpen(false)));
+rejectReason?.addEventListener('input', () => {
+  rejectModal.querySelector('[data-rejection-character-count]').textContent = String(rejectReason.value.length);
+  if (rejectReason.value.trim()) {
+    rejectReason.setAttribute('aria-invalid', 'false');
+    rejectModal.querySelector('[data-rejection-error]').textContent = '';
+  }
 });
+rejectForm?.addEventListener('submit', async event => {
+  event.preventDefault();
+  if (rejectingLeave) return;
+  const reason = rejectReason.value.trim();
+  const error = rejectModal.querySelector('[data-rejection-error]');
+  if (!reason) {
+    rejectReason.setAttribute('aria-invalid', 'true');
+    error.textContent = 'Please enter a reason for rejecting this leave request.';
+    rejectReason.focus();
+    return;
+  }
+  rejectingLeave = true;
+  const submit = rejectForm.querySelector('[data-confirm-leave-rejection]');
+  submit.disabled = true;
+  submit.setAttribute('aria-busy', 'true');
+  const originalHtml = submit.innerHTML;
+  submit.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Rejecting…';
+  try {
+    const response = await fetch('leave.php', {method:'POST', body:new FormData(rejectForm), headers:{Accept:'application/json'}});
+    const payload = await response.json();
+    if (!response.ok || !payload.success) throw new Error(payload.message || 'Could not reject the leave request.');
+    setRejectModalOpen(false);
+    window.location.assign('leave.php?msg=rejected');
+  } catch (requestError) {
+    error.textContent = requestError.message || 'Could not reject the leave request. Please try again.';
+  } finally {
+    rejectingLeave = false;
+    submit.disabled = false;
+    submit.removeAttribute('aria-busy');
+    submit.innerHTML = originalHtml;
+  }
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && rejectModal?.classList.contains('open')) setRejectModalOpen(false);
+});
+document.querySelectorAll('.overlay').forEach(o => {
+  o.addEventListener('click', e => { if (e.target===o && o !== rejectModal) o.classList.remove('open'); });
+});
+rejectModal?.addEventListener('click', event => { if (event.target === rejectModal) setRejectModalOpen(false); });
+
+// Check for employee submissions while the owner keeps Leave Management open.
+// Reload only when the authoritative pending count changes so the existing
+// server-rendered actions, CSRF tokens and permission checks remain the source of truth.
+(function monitorPendingLeaveRequests(){
+  const countNode = document.getElementById('pendingLeaveCount');
+  if (!countNode || typeof fetch !== 'function') return;
+  const initialCount = Number(countNode.textContent.trim()) || 0;
+  let checking = false;
+  async function check(){
+    if (checking || document.hidden) return;
+    checking = true;
+    try {
+      const response = await fetch('leave-pending-count.php', {credentials:'same-origin', cache:'no-store', headers:{Accept:'application/json'}});
+      const payload = await response.json();
+      if (response.ok && payload.success && Number(payload.pending_count) !== initialCount) window.location.reload();
+    } catch (error) {
+      // Leave the current verified server-rendered state intact on a transient poll failure.
+    } finally {
+      checking = false;
+    }
+  }
+  window.setInterval(check, 30000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+})();
 </script>
+<script src="includes/leave-reason-popover.js?v=20260729-1"></script>
 </body>
 </html>

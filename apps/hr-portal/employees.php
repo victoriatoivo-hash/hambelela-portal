@@ -1,10 +1,21 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 requireAdmin();
 $user = currentUser();
 $db   = db();
 ensureLeaveShutdownSchema($db);
+hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : null);
+$hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+if (!$hasSocialSecurity) {
+    hrAddColumnSafe($db, 'employees', 'social_security_number', "VARCHAR(50) NULL AFTER tax_number");
+    $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+}
+hrEnsureMedicalAidSchemaSafe($db);
+$hasMedicalAid = hrMedicalAidAvailable($db);
+$medicalAidDefaults = hrMedicalAidDefaults();
+$medicalAidMap = hrMedicalAidMap($db);
 
 // Handle offboard
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'offboard') {
@@ -13,8 +24,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'offbo
     header('Location: employees.php?msg=offboarded'); exit;
 }
 
-$employees    = $db->query("SELECT * FROM employees ORDER BY status ASC, first_name ASC")->fetchAll();
-$totalActive  = $db->query("SELECT COUNT(*) FROM employees WHERE status='active'")->fetchColumn();
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'enable_social_security') {
+    $ok = hrAddColumnSafe($db, 'employees', 'social_security_number', "VARCHAR(50) NULL AFTER tax_number");
+    header('Location: employees.php?msg=' . ($ok ? 'social_security_enabled' : 'social_security_error')); exit;
+}
+
+$employees    = $db->query("SELECT * FROM employees WHERE LOWER(CONCAT_WS(' ', first_name, last_name, email)) NOT LIKE '%victoria%' ORDER BY status ASC, first_name ASC")->fetchAll();
+if ($hasMedicalAid) {
+    foreach ($employees as $idx => $emp) {
+        $employees[$idx] = hrApplyMedicalAidToEmployee($emp, $medicalAidMap);
+    }
+}
+$totalActive  = $db->query("SELECT COUNT(*) FROM employees WHERE status='active' AND LOWER(CONCAT_WS(' ', first_name, last_name, email)) NOT LIKE '%victoria%'")->fetchColumn();
 $pendingLeave = $db->query("SELECT COUNT(*) FROM leave_requests WHERE status='pending'")->fetchColumn();
 $pendingOT    = $db->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
 $msg = $_GET['msg'] ?? '';
@@ -27,10 +48,14 @@ if (isset($_GET['view'])) {
     $viewEmp->execute([(int)$_GET['view']]);
     $viewEmp = $viewEmp->fetch();
     if ($viewEmp) {
+        if ($hasMedicalAid) {
+            $viewEmp = hrApplyMedicalAidToEmployee($viewEmp, $medicalAidMap);
+        }
         $onboardTasks = $db->prepare("SELECT * FROM onboarding_tasks WHERE employee_id=? ORDER BY sort_order");
         $onboardTasks->execute([$viewEmp['id']]);
         $onboardTasks = $onboardTasks->fetchAll();
         $viewAnnualLeave = annualLeaveMetrics($db, (int)$viewEmp['id']);
+        $viewLeaveEntitlements = hrLeaveEntitlements($viewEmp);
     }
 }
 
@@ -40,7 +65,7 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Employees — Hambelela HR</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -59,6 +84,10 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
   <div class="content">
     <?php if ($msg === 'saved'): ?>
       <div class="toast"><i class="fa-solid fa-check"></i> Employee saved successfully.</div>
+    <?php elseif ($msg === 'social_security_enabled'): ?>
+      <div class="toast"><i class="fa-solid fa-check"></i> Social Security field enabled successfully.</div>
+    <?php elseif ($msg === 'social_security_error'): ?>
+      <div class="toast error"><i class="fa-solid fa-triangle-exclamation"></i> Social Security field could not be enabled. Please check database permissions.</div>
     <?php elseif ($msg === 'offboarded'): ?>
       <div class="toast error"><i class="fa-solid fa-user-slash"></i> Employee offboarded and marked as terminated.</div>
     <?php elseif ($msg === 'account_created'): ?>
@@ -90,6 +119,7 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
               $sc = $viewEmp['status']==='active' ? 'badge-green' : ($viewEmp['status']==='terminated' ? 'badge-red' : 'badge-amber');
               ?>
               <span class="badge <?=$sc?>"><?=ucfirst($viewEmp['status'])?></span>
+              <?php if (hrEmployeeIsOnProbation($viewEmp)): ?>&nbsp;<span class="badge badge-amber">Probation</span><?php endif ?>
               &nbsp;<span class="badge badge-gray"><?= htmlspecialchars($viewEmp['emp_number']) ?></span>
             </div>
           </div>
@@ -99,7 +129,7 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
             <?php
             $rows = [
               ['Department',       $viewEmp['department']],
-              ['Employment Type',  ucwords(str_replace('_',' ',$viewEmp['employment_type'] ?? ''))],
+              ['Employment Status', ucwords(str_replace('_',' ',$viewEmp['employment_type'] ?? ''))],
               ['Start Date',       $viewEmp['start_date'] ? date('d M Y',strtotime($viewEmp['start_date'])) : '—'],
               ['Basic Salary',     'N$ '.number_format((float)$viewEmp['basic_salary'],2)],
               ['Hourly Rate',      'N$ '.number_format((float)$viewEmp['hourly_rate'],2)],
@@ -112,6 +142,18 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
               ['Emergency Contact',$viewEmp['emergency_name'] ?: '—'],
               ['Emergency Phone',  $viewEmp['emergency_phone'] ?: '—'],
             ];
+            if ($hasSocialSecurity) {
+              array_splice($rows, 8, 0, [['Social Security No', ($viewEmp['social_security_number'] ?? '') ?: '—']]);
+            }
+            if ($hasMedicalAid) {
+              $medicalActive = !empty($viewEmp['medical_aid_active']);
+              $rows[] = ['Medical Aid Fund', $medicalActive ? (($viewEmp['medical_aid_fund'] ?? '') ?: $medicalAidDefaults['fund']) : 'Not active'];
+              if ($medicalActive) {
+                $rows[] = ['Medical Aid Employee Deduction', 'N$ '.number_format((float)($viewEmp['medical_aid_employee'] ?? $medicalAidDefaults['employee']), 2)];
+                $rows[] = ['Medical Aid Company Contribution', 'N$ '.number_format((float)($viewEmp['medical_aid_company'] ?? $medicalAidDefaults['company']), 2)];
+                $rows[] = ['Medical Aid Start Date', !empty($viewEmp['medical_aid_start_date']) ? date('d M Y', strtotime($viewEmp['medical_aid_start_date'])) : date('d M Y', strtotime($medicalAidDefaults['start_date']))];
+              }
+            }
             foreach ($rows as $r):
             ?>
             <div>
@@ -125,14 +167,20 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
           $leaveBadge = $viewAnnualLeave['status']==='red' ? 'badge-red' : ($viewAnnualLeave['status']==='amber' ? 'badge-amber' : 'badge-green');
           ?>
           <div style="margin-top:16px;padding:14px;border:1px solid var(--border);border-radius:10px;background:#fff">
+            <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid);margin-bottom:10px">Leave Entitlements</div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:14px;font-size:12px">
+              <div style="padding:10px;border-radius:8px;background:var(--green-pale)"><strong>Annual Leave</strong><div style="font-size:10.5px;color:<?=hrEmployeeIsOnProbation($viewEmp)?'var(--amber)':'var(--green)'?>;margin-top:3px"><?=htmlspecialchars($viewLeaveEntitlements['annual_leave']['label'])?></div></div>
+              <div style="padding:10px;border-radius:8px;background:var(--green-pale)"><strong>Sick Leave</strong><div style="font-size:10.5px;color:var(--green);margin-top:3px">Available</div></div>
+              <div style="padding:10px;border-radius:8px;background:var(--green-pale)"><strong>Compassionate Leave</strong><div style="font-size:10.5px;color:var(--green);margin-top:3px">Available</div></div>
+            </div>
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid)">Annual Leave Reserve</div>
-              <span class="badge <?=$leaveBadge?>"><?=ucfirst($viewAnnualLeave['status'])?></span>
+              <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;color:var(--text-mid)">Annual Leave Accrual</div>
+              <span class="badge <?=hrEmployeeIsOnProbation($viewEmp)?'badge-amber':$leaveBadge?>"><?=hrEmployeeIsOnProbation($viewEmp)?'Accruing during probation':ucfirst($viewAnnualLeave['status'])?></span>
             </div>
             <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12px">
               <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Accrued To Date</div><div style="font-weight:800;color:<?=$leaveColor?>"><?=number_format($viewAnnualLeave['current_accrued'],1)?> days</div></div>
               <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Leave Taken</div><div style="font-weight:800"><?=number_format($viewAnnualLeave['leave_taken'],1)?> days</div></div>
-              <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Available Now</div><div style="font-weight:800"><?=number_format($viewAnnualLeave['available_now'],1)?> days</div></div>
+              <div><div style="color:var(--text-mid);font-size:10px;text-transform:uppercase;font-weight:700">Available to Request</div><div style="font-weight:800"><?=hrEmployeeIsOnProbation($viewEmp)?'N/A during probation':number_format($viewAnnualLeave['available_now'],1).' days'?></div></div>
             </div>
             <div style="margin-top:10px;font-size:12px;color:var(--text-mid)">Future shutdown reserve: <?=number_format($viewAnnualLeave['projected_reserve'],1)?> day(s). Status: <?=htmlspecialchars($viewAnnualLeave['reserve_status_text'])?>.</div>
             <?php if ($viewAnnualLeave['shortfall'] > 0): ?>
@@ -276,6 +324,9 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
           <div class="form-group"><label class="form-label">Phone Number</label><input class="form-input" name="phone" id="f_phone"></div>
           <div class="form-group"><label class="form-label">ID Number</label><input class="form-input" name="id_number" id="f_id_number"></div>
           <div class="form-group"><label class="form-label">Employee Number</label><input class="form-input" name="emp_number" id="f_emp_number" placeholder="Auto-generated if blank"></div>
+          <?php if ($hasSocialSecurity): ?>
+          <div class="form-group"><label class="form-label">Social Security Number</label><input class="form-input" name="social_security_number" id="f_social_security_number"></div>
+          <?php endif ?>
 
           <div class="section-divider">Employment Details</div>
           <div class="form-group"><label class="form-label">Job Title</label><input class="form-input" name="job_title" id="f_job_title"></div>
@@ -294,6 +345,18 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
               <option value="active">Active</option><option value="inactive">Inactive</option><option value="terminated">Terminated</option>
             </select>
           </div>
+
+          <div class="section-divider">Medical Aid</div>
+          <div class="form-group"><label class="form-label">Medical Aid Active</label>
+            <select class="form-select" name="medical_aid_active" id="f_medical_aid_active">
+              <option value="0">No</option><option value="1">Yes</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Medical Aid Fund</label><input class="form-input" name="medical_aid_fund" id="f_medical_aid_fund" value="<?=htmlspecialchars($medicalAidDefaults['fund'])?>"></div>
+          <div class="form-group"><label class="form-label">Total Monthly Fund (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_total" id="f_medical_aid_total" value="<?=number_format($medicalAidDefaults['total'],2,'.','')?>"></div>
+          <div class="form-group"><label class="form-label">Company Contribution (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_company" id="f_medical_aid_company" value="<?=number_format($medicalAidDefaults['company'],2,'.','')?>"></div>
+          <div class="form-group"><label class="form-label">Employee Contribution / Deduction (N$)</label><input class="form-input" type="number" step="0.01" name="medical_aid_employee" id="f_medical_aid_employee" value="<?=number_format($medicalAidDefaults['employee'],2,'.','')?>"></div>
+          <div class="form-group"><label class="form-label">Medical Aid Start Date</label><input class="form-input" type="date" name="medical_aid_start_date" id="f_medical_aid_start_date" value="<?=htmlspecialchars($medicalAidDefaults['start_date'])?>"></div>
 
           <div class="section-divider">Banking & Tax</div>
           <div class="form-group"><label class="form-label">Bank Name</label><input class="form-input" name="bank_name" id="f_bank_name" placeholder="e.g. FNB Namibia"></div>
@@ -366,12 +429,21 @@ $colors = ['#40916C','#6D28D9','#0F766E','#D97706','#1D4ED8','#DC2626','#0369A1'
 function openAdd() {
   document.getElementById('modalTitle').textContent = 'Add Employee';
   document.getElementById('empId').value = '';
-  ['first_name','last_name','email','phone','id_number','emp_number','job_title','department','start_date','basic_salary','hourly_rate','bank_name','bank_account','tax_number','emergency_name','emergency_phone','notes'].forEach(f => {
+  ['first_name','last_name','email','phone','id_number','emp_number','job_title','department','start_date','basic_salary','hourly_rate','bank_name','bank_account','tax_number','social_security_number','emergency_name','emergency_phone','notes'].forEach(f => {
     const el = document.getElementById('f_'+f);
     if (el) el.value = '';
   });
   document.getElementById('f_employment_type').value = 'full_time';
   document.getElementById('f_status').value = 'active';
+  const medActive = document.getElementById('f_medical_aid_active');
+  if (medActive) {
+    medActive.value = '0';
+    document.getElementById('f_medical_aid_fund').value = '<?=addslashes($medicalAidDefaults['fund'])?>';
+    document.getElementById('f_medical_aid_total').value = '<?=number_format($medicalAidDefaults['total'],2,'.','')?>';
+    document.getElementById('f_medical_aid_company').value = '<?=number_format($medicalAidDefaults['company'],2,'.','')?>';
+    document.getElementById('f_medical_aid_employee').value = '<?=number_format($medicalAidDefaults['employee'],2,'.','')?>';
+    document.getElementById('f_medical_aid_start_date').value = '<?=addslashes($medicalAidDefaults['start_date'])?>';
+  }
   document.getElementById('empModal').classList.add('open');
 }
 
@@ -384,12 +456,18 @@ function editEmployee(emp) {
     'job_title':emp.job_title||'','department':emp.department||'',
     'start_date':emp.start_date||'','basic_salary':emp.basic_salary||'',
     'hourly_rate':emp.hourly_rate||'','bank_name':emp.bank_name||'',
-    'bank_account':emp.bank_account||'','tax_number':emp.tax_number||'',
+    'bank_account':emp.bank_account||'','tax_number':emp.tax_number||'','social_security_number':emp.social_security_number||'',
     'emergency_name':emp.emergency_name||'','emergency_phone':emp.emergency_phone||'',
     'notes':emp.notes||'',
     'address':emp.address||'',
     'suburb':emp.suburb||'',
-    'city':emp.city||''
+    'city':emp.city||'',
+    'medical_aid_active':String(emp.medical_aid_active||'0'),
+    'medical_aid_fund':emp.medical_aid_fund||'<?=addslashes($medicalAidDefaults['fund'])?>',
+    'medical_aid_total':emp.medical_aid_total||'<?=number_format($medicalAidDefaults['total'],2,'.','')?>',
+    'medical_aid_company':emp.medical_aid_company||'<?=number_format($medicalAidDefaults['company'],2,'.','')?>',
+    'medical_aid_employee':emp.medical_aid_employee||'<?=number_format($medicalAidDefaults['employee'],2,'.','')?>',
+    'medical_aid_start_date':emp.medical_aid_start_date||'<?=addslashes($medicalAidDefaults['start_date'])?>'
   };
   for (const [k,v] of Object.entries(map)) {
     const el = document.getElementById('f_'+k);

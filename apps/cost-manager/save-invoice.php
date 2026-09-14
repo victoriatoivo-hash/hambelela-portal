@@ -6,7 +6,7 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/save-invoice.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Invoice Saved | ' . APP_NAME;
 $activeApp = 'cost-manager';

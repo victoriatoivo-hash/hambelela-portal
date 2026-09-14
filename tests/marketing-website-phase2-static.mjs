@@ -1,0 +1,15 @@
+import fs from 'node:fs';
+import assert from 'node:assert/strict';
+const shared=fs.readFileSync('shared/marketing.php','utf8');
+const page=fs.readFileSync('apps/marketing/index.php','utf8');
+const sync=fs.readFileSync('apps/cost-manager/cw-api.php','utf8');
+const config=fs.readFileSync('shared/cost-workbook.php','utf8');
+for(const field of ['description_html','short_description_html','image_count','seo_title','meta_description'])assert.ok(shared.includes(field)&&sync.includes(field),field);
+assert.match(config,/description,short_description,images,meta_data/);
+assert.match(shared,/marketing_product_changes/);
+for(const label of ['WEBSITE PRODUCT HEALTH','Missing imagery','Missing descriptions','SEO incomplete','APPROVAL QUEUE'])assert.ok(page.includes(label),label);
+assert.match(page,/status==='approved'/);
+assert.match(page,/status==='published'&&\$owner/);
+assert.match(page,/wc_put\(\$path,\$payload\)/);
+assert.match(page,/Approve this draft before publishing it/);
+console.log('Marketing website Phase 2 static contracts passed.');

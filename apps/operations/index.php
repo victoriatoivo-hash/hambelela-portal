@@ -10,29 +10,29 @@ $pageTitle = 'Operations | ' . APP_NAME;
 $activeApp = 'operations';
 $ready = ops_database_ready();
 
-$stats = [
-    'open_orders' => $ready ? ops_count('ops_orders', "status NOT IN ('completed')") : 0,
-    'today_completed' => $ready ? ops_count('ops_orders', "DATE(completed_at) = CURDATE()") : 0,
-    'missed_tasks' => $ready ? ops_count('ops_checklist_tasks', "status = 'overdue' OR (status NOT IN ('done', 'needs_review', 'completed', 'approved') AND deadline IS NOT NULL AND deadline < NOW())") : 0,
-    'critical_errors' => $ready ? ops_count('ops_error_logs', "severity IN ('high', 'critical') AND logged_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)") : 0,
-];
-
 $sections = [
-    ['Employees & Roles', 'Create staff accounts and permission levels for owner, front desk, packers and supervisors.', 'users', 'employees.php', 'Core'],
-    ['Live Orders Board', 'Monday-style shared order table with packer assignment and lunch availability.', 'table-2', 'orders-board.php', 'Core'],
-    ['Customer Orders Report', 'Sales operations reporting, payment insights, order timing and management intelligence.', 'shopping-bag', 'orders.php', 'Core'],
+    ['Settings', 'View your login profile, update your access code and manage employee settings.', 'key-round', 'my-account.php', 'Core'],
+    ['Orders Board', 'Monday-style shared order table with packer assignment and lunch availability.', 'table-2', 'orders-board.php', 'Core'],
+    ['Orders', 'Sales operations reporting, payment insights, order timing and management intelligence.', 'shopping-bag', 'orders.php', 'Core'],
+    ['Courier', 'Upload waybill labels, notify front desk and track when labels are sent to customers.', 'truck', 'courier.php', 'Core'],
     ['Task Management', 'Assigned work, automatic cleaning tasks, daily shelf stocking and completion notes.', 'list-checks', 'checklists.php', 'Core'],
-    ['Error Logging', 'Record errors by category, severity, impact, resolution and repeat issue.', 'triangle-alert', 'errors.php', 'Core'],
-    ['Barcode Verification', 'Keyboard-input scanner screen with match/mismatch logging.', 'scan-barcode', 'barcode.php', 'Phase 3'],
-    ['Consignment Packing', 'Bulk stock breakdown, fair workload allocation and actual quantity reporting.', 'package-open', 'consignments.php', 'Phase 2'],
+    ['Errors', 'Record errors by category, severity, impact, resolution and repeat issue.', 'triangle-alert', 'errors.php', 'Core'],
+    ['Barcode', 'Keyboard-input scanner screen with match/mismatch logging.', 'scan-barcode', 'barcode.php', 'Phase 3'],
+    ['Consignments', 'Bulk stock breakdown, fair workload allocation and actual quantity reporting.', 'package-open', 'consignments.php', 'Phase 2'],
 ];
 if (user_has_role('owner_admin', 'front_desk_admin')) {
-    array_splice($sections, 3, 0, [[
+    array_splice($sections, 4, 0, [[
         'Bookkeeping',
         'Physical cash tracking for walk-ins, drivers, cash orders, cash-outs and daily closing counts.',
         'wallet-cards',
         'bookkeeping.php',
         'Core',
+    ], [
+        'Bank Statement Processor',
+        'Convert FNB Namibia PDF statements into Sage Accounting CSV imports using the uploaded Sage template headers.',
+        'file-spreadsheet',
+        'bank-statement-processor.php',
+        'Finance',
     ]]);
 }
 
@@ -43,33 +43,17 @@ include BASE_PATH . '/shared/sidebar.php';
     <section class="module-header cost-system-header">
         <div>
             <p class="eyebrow">Hambelela Organic</p>
-            <h1>Operations Management System</h1>
+            <h1>Operations Dashboard</h1>
             <p>A centralized command center for order fulfilment, employee accountability, stock packing, barcode control, errors and checklists.</p>
         </div>
         <div class="actions">
             <a class="button" href="../../index.php"><i data-lucide="arrow-left"></i> Portal</a>
             <a class="button primary" href="orders-board.php"><i data-lucide="table-2"></i> Orders board</a>
+            <a class="button" href="whatsapp.php"><i data-lucide="messages-square"></i> Meta Comms</a>
         </div>
     </section>
 
-    <?php ops_nav('index'); ?>
     <?php if (!$ready) { ops_setup_notice(); } ?>
-
-    <section class="ops-dashboard-grid" aria-label="Operations summary">
-        <article class="metric"><span>Open orders</span><strong><?= number_format($stats['open_orders']) ?></strong></article>
-        <article class="metric"><span>Completed today</span><strong><?= number_format($stats['today_completed']) ?></strong></article>
-        <article class="metric"><span>Overdue tasks</span><strong><?= number_format($stats['missed_tasks']) ?></strong></article>
-        <article class="metric"><span>High/Critical errors</span><strong><?= number_format($stats['critical_errors']) ?></strong></article>
-    </section>
-
-    <section class="system-flow">
-        <div><span>1</span><strong>Order Intake</strong><small>Capture order, items and priority</small></div>
-        <div><span>2</span><strong>Fair Assignment</strong><small>Score workload before assigning</small></div>
-        <div><span>3</span><strong>Packing</strong><small>Employee task ownership</small></div>
-        <div><span>4</span><strong>Barcode Check</strong><small>Block wrong product scans</small></div>
-        <div><span>5</span><strong>Error Log</strong><small>Record root cause and impact</small></div>
-        <div><span>6</span><strong>KPI App</strong><small>Tracked from dashboard</small></div>
-    </section>
 
     <section class="ops-card-grid" aria-label="Operations modules">
         <?php foreach ($sections as [$title, $desc, $icon, $href, $status]): ?>

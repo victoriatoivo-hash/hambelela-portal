@@ -3,6 +3,18 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/task-templates.php';
+
+function checklist_kpi_status_event(int $taskId, ?string $oldStatus, string $newStatus, ?int $actorId): void
+{
+    if ($taskId <= 0 || $newStatus === '' || $oldStatus === $newStatus) return;
+    try {
+        db()->prepare('INSERT INTO kpi_status_events (module, record_id, old_status, new_status, changed_by, changed_at) VALUES (?, ?, ?, ?, ?, UTC_TIMESTAMP())')->execute(['task', $taskId, $oldStatus, $newStatus, $actorId ?: null]);
+        ops_kpi_record_event('tasks', 'task', $taskId, 'status_changed', $oldStatus, $newStatus, $actorId);
+    } catch (Throwable $kpiError) {
+        error_log(date(DATE_ATOM) . ' checklist status: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
+    }
+}
 
 require_login();
 
@@ -11,8 +23,13 @@ $activeApp = 'operations-checklists';
 $ready = ops_database_ready();
 $message = null;
 $messageType = 'success';
-$currentEmployeeId = ops_current_employee_id();
-$canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
+$taskScope = ops_task_scope_for_current_user();
+$currentEmployeeId = $taskScope['employee_id'] ?? ops_current_employee_id();
+// Task visibility is deliberately stricter than general operations management:
+// only the actual owner role may view or administer every employee's tasks.
+$canManage = $taskScope['type'] === 'all';
+if (empty($_SESSION['task_attachment_csrf'])) $_SESSION['task_attachment_csrf'] = bin2hex(random_bytes(24));
+$taskAttachmentCsrf = (string) $_SESSION['task_attachment_csrf'];
 
 $types = [
     'opening' => 'Opening',
@@ -22,14 +39,13 @@ $types = [
     'saturday' => 'Saturday',
     'stock_refill' => 'Stock refill',
 ];
-$priorities = ['low' => 'Low', 'medium' => 'Medium', 'high' => 'High', 'top_critical' => 'Top Critical'];
-$statuses = ['not_started' => 'Not Started', 'in_progress' => 'In Progress', 'needs_review' => 'Needs Review', 'done' => 'Done'];
+$priorities = ['normal' => 'Normal', 'important' => 'Important', 'urgent' => 'Urgent'];
+$statuses = ['new' => 'New', 'in_progress' => 'In Progress', 'complete' => 'Complete'];
 $groups = [
+    'new' => 'New',
     'overdue' => 'Overdue',
-    'not_started' => 'Pending / Not Started',
     'in_progress' => 'In Progress',
-    'needs_review' => 'Needs Review',
-    'done' => 'Completed',
+    'complete' => 'Complete',
 ];
 
 function checklist_column_exists(string $column): bool
@@ -56,18 +72,21 @@ function checklist_bootstrap_schema(): void
             task_name VARCHAR(190) NOT NULL,
             assigned_employee_id INT NULL,
             deadline DATETIME NULL,
-            status VARCHAR(40) NOT NULL DEFAULT 'not_started',
+            status VARCHAR(40) NOT NULL DEFAULT 'new',
             notes TEXT,
             photo_path VARCHAR(255),
             completed_at DATETIME NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )"
     );
-    checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY status VARCHAR(40) NOT NULL DEFAULT 'not_started'");
+    checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY status VARCHAR(40) NOT NULL DEFAULT 'new'");
     checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY checklist_type VARCHAR(40) NOT NULL DEFAULT 'opening'");
     $columns = [
-        'priority' => "ALTER TABLE ops_checklist_tasks ADD COLUMN priority VARCHAR(30) NOT NULL DEFAULT 'medium' AFTER task_name",
+        'priority' => "ALTER TABLE ops_checklist_tasks ADD COLUMN priority VARCHAR(30) NOT NULL DEFAULT 'normal' AFTER task_name",
+        'task_mode' => "ALTER TABLE ops_checklist_tasks ADD COLUMN task_mode VARCHAR(20) NOT NULL DEFAULT 'one_off' AFTER task_name",
         'date_assigned' => "ALTER TABLE ops_checklist_tasks ADD COLUMN date_assigned DATETIME NULL AFTER assigned_employee_id",
+        'scheduled_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN scheduled_at DATETIME NULL AFTER date_assigned",
+        'released_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN released_at DATETIME NULL AFTER scheduled_at",
         'instructions' => "ALTER TABLE ops_checklist_tasks ADD COLUMN instructions TEXT NULL AFTER notes",
         'checklist_items' => "ALTER TABLE ops_checklist_tasks ADD COLUMN checklist_items TEXT NULL AFTER instructions",
         'checked_items' => "ALTER TABLE ops_checklist_tasks ADD COLUMN checked_items TEXT NULL AFTER checklist_items",
@@ -75,15 +94,361 @@ function checklist_bootstrap_schema(): void
         'date_completed' => "ALTER TABLE ops_checklist_tasks ADD COLUMN date_completed DATETIME NULL AFTER completed_at",
         'completed_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN completed_by INT NULL AFTER date_completed",
         'recurrence_key' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurrence_key VARCHAR(120) NULL AFTER completed_by",
+        'occurrence_fingerprint' => "ALTER TABLE ops_checklist_tasks ADD COLUMN occurrence_fingerprint CHAR(64) NULL AFTER recurrence_key",
         'recurring_rule' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurring_rule VARCHAR(80) NULL AFTER recurrence_key",
+        'recurring_template_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN recurring_template_id INT NULL AFTER recurring_rule",
+        'employee_visible' => "ALTER TABLE ops_checklist_tasks ADD COLUMN employee_visible TINYINT(1) NOT NULL DEFAULT 1 AFTER recurring_template_id",
         'created_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN created_by INT NULL AFTER recurring_rule",
+        'archived_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN archived_at DATETIME NULL AFTER created_by",
+        'archived_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN archived_by INT NULL AFTER archived_at",
+        'deleted_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN deleted_at DATETIME NULL AFTER archived_by",
+        'deleted_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN deleted_by INT NULL AFTER deleted_at",
+        'restored_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN restored_at DATETIME NULL AFTER deleted_by",
+        'restored_by' => "ALTER TABLE ops_checklist_tasks ADD COLUMN restored_by INT NULL AFTER restored_at",
         'updated_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN updated_at TIMESTAMP NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP AFTER created_at",
+        'urgent_alert_enabled' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_enabled TINYINT(1) NOT NULL DEFAULT 0 AFTER employee_visible",
+        'urgent_alert_message' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_message VARCHAR(240) NULL AFTER urgent_alert_enabled",
+        'urgent_alert_sent_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_sent_at DATETIME NULL AFTER urgent_alert_message",
+        'urgent_alert_recipients_json' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_recipients_json TEXT NULL AFTER urgent_alert_message",
+        'urgent_alert_claimed_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_claimed_at DATETIME NULL AFTER urgent_alert_sent_at",
+        'urgent_alert_last_error' => "ALTER TABLE ops_checklist_tasks ADD COLUMN urgent_alert_last_error VARCHAR(500) NULL AFTER urgent_alert_claimed_at",
+        'first_displayed_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN first_displayed_at DATETIME NULL AFTER date_assigned",
+        'first_opened_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN first_opened_at DATETIME NULL AFTER first_displayed_at",
+        'acknowledged_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN acknowledged_at DATETIME NULL AFTER first_opened_at",
+        'started_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN started_at DATETIME NULL AFTER acknowledged_at",
+        'completion_note_required' => "ALTER TABLE ops_checklist_tasks ADD COLUMN completion_note_required TINYINT(1) NOT NULL DEFAULT 1 AFTER completion_note",
+        'completion_evidence_required' => "ALTER TABLE ops_checklist_tasks ADD COLUMN completion_evidence_required TINYINT(1) NOT NULL DEFAULT 0 AFTER completion_note_required",
+        'performance_scored' => "ALTER TABLE ops_checklist_tasks ADD COLUMN performance_scored TINYINT(1) NOT NULL DEFAULT 1 AFTER completion_evidence_required",
+        'blocked_reason' => "ALTER TABLE ops_checklist_tasks ADD COLUMN blocked_reason TEXT NULL AFTER performance_scored",
+        'batch_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN batch_id VARCHAR(64) NULL AFTER blocked_reason",
+        'batch_size' => "ALTER TABLE ops_checklist_tasks ADD COLUMN batch_size INT NULL AFTER batch_id",
+        'assignment_type' => "ALTER TABLE ops_checklist_tasks ADD COLUMN assignment_type VARCHAR(20) NOT NULL DEFAULT 'specific' AFTER assigned_employee_id",
+        'floating_eligible_role' => "ALTER TABLE ops_checklist_tasks ADD COLUMN floating_eligible_role VARCHAR(40) NULL AFTER assignment_type",
+        'floating_allocation_status' => "ALTER TABLE ops_checklist_tasks ADD COLUMN floating_allocation_status VARCHAR(40) NULL AFTER floating_eligible_role",
+        'allocated_employee_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocated_employee_id INT NULL AFTER floating_allocation_status",
+        'allocated_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocated_at DATETIME NULL AFTER allocated_employee_id",
+        'allocation_method' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_method VARCHAR(40) NULL AFTER allocated_at",
+        'allocation_attempted_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_attempted_at DATETIME NULL AFTER allocation_method",
+        'allocation_decision_json' => "ALTER TABLE ops_checklist_tasks ADD COLUMN allocation_decision_json TEXT NULL AFTER allocation_attempted_at",
+        'active_correction_id' => "ALTER TABLE ops_checklist_tasks ADD COLUMN active_correction_id INT NULL AFTER allocation_decision_json",
+        'correction_round_count' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_round_count INT NOT NULL DEFAULT 0 AFTER active_correction_id",
+        'correction_required' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_required TINYINT(1) NOT NULL DEFAULT 0 AFTER correction_round_count",
+        'correction_requested_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_requested_at DATETIME NULL AFTER correction_required",
+        'correction_due_at' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_due_at DATETIME NULL AFTER correction_requested_at",
+        'correction_require_new_proof' => "ALTER TABLE ops_checklist_tasks ADD COLUMN correction_require_new_proof TINYINT(1) NOT NULL DEFAULT 0 AFTER correction_due_at",
     ];
     foreach ($columns as $column => $sql) {
         if (!checklist_column_exists($column)) checklist_try_sql($sql);
     }
-    checklist_try_sql("UPDATE ops_checklist_tasks SET status = 'not_started' WHERE status IN ('pending', 'missed')");
-    checklist_try_sql("UPDATE ops_checklist_tasks SET status = 'done' WHERE status IN ('completed', 'approved')");
+    // The statements below are one-time backfills/index creations, not ongoing invariants, so they
+    // must only run once (portal_schema_migrations is the shared one-time-migration table also used
+    // by notifications_task_reminder_migrate()) -- running unconditionally on every page load put
+    // broad UPDATEs and always-failing-after-first-run CREATE INDEX statements against
+    // ops_checklist_tasks on every request, risking lock contention with concurrent task creation.
+    checklist_try_sql("CREATE TABLE IF NOT EXISTS portal_schema_migrations (migration_key VARCHAR(190) PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $checklistMigrationKey = '2026-08-19-checklist-scheduled-task-repair-v1';
+    $checklistMigrationApplied = false;
+    try {
+        $checklistMigrationCheck = db()->prepare('SELECT 1 FROM portal_schema_migrations WHERE migration_key = ? LIMIT 1');
+        $checklistMigrationCheck->execute([$checklistMigrationKey]);
+        $checklistMigrationApplied = (bool) $checklistMigrationCheck->fetchColumn();
+    } catch (Throwable $e) {
+        $checklistMigrationApplied = false;
+    }
+    if (!$checklistMigrationApplied) {
+        checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY completion_note_required TINYINT(1) NOT NULL DEFAULT 1");
+        checklist_try_sql("ALTER TABLE ops_checklist_tasks MODIFY performance_scored TINYINT(1) NOT NULL DEFAULT 1");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET completion_note_required = 1 WHERE status NOT IN ('complete', 'completed', 'cancelled') AND deleted_at IS NULL");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET released_at = COALESCE(released_at, date_assigned, created_at) WHERE scheduled_at IS NULL AND released_at IS NULL");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET employee_visible = 0 WHERE scheduled_at IS NOT NULL AND released_at IS NULL");
+        checklist_try_sql("CREATE INDEX idx_task_scheduled_release ON ops_checklist_tasks (scheduled_at, released_at, deleted_at)");
+        checklist_try_sql("CREATE INDEX idx_task_batch ON ops_checklist_tasks (batch_id, assigned_employee_id)");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET performance_scored = 1 WHERE assigned_employee_id IS NOT NULL AND status NOT IN ('cancelled', 'deleted', 'trashed') AND deleted_at IS NULL AND archived_at IS NULL");
+        checklist_try_sql("UPDATE ops_checklist_tasks SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
+        checklist_try_sql("UPDATE ops_checklist_recurring_templates SET priority = CASE WHEN priority IN ('top_critical') THEN 'urgent' WHEN priority IN ('high') THEN 'important' ELSE 'normal' END WHERE priority NOT IN ('normal', 'important', 'urgent')");
+        try {
+            db()->prepare('INSERT IGNORE INTO portal_schema_migrations (migration_key) VALUES (?)')->execute([$checklistMigrationKey]);
+        } catch (Throwable $e) {
+            // Duplicate columns and older MySQL enum restrictions should not block the page.
+        }
+    }
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_checklist_recurring_templates (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            template_key VARCHAR(120) NULL UNIQUE,
+            task_name VARCHAR(190) NOT NULL,
+            checklist_type VARCHAR(40) NOT NULL DEFAULT 'opening',
+            priority VARCHAR(30) NOT NULL DEFAULT 'normal',
+            assigned_employee_id INT NULL,
+            assignment_type VARCHAR(20) NOT NULL DEFAULT 'specific',
+            floating_eligible_role VARCHAR(40) NULL,
+            recurring_rule VARCHAR(80) NOT NULL,
+            due_time TIME NOT NULL DEFAULT '09:00:00',
+            instructions TEXT NULL,
+            checklist_items TEXT NULL,
+            completion_evidence_required TINYINT(1) NOT NULL DEFAULT 0,
+            employee_visible TINYINT(1) NOT NULL DEFAULT 1,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            created_by INT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+        )"
+    );
+    if (!ops_column_exists('ops_checklist_recurring_templates', 'assignment_type')) checklist_try_sql("ALTER TABLE ops_checklist_recurring_templates ADD COLUMN assignment_type VARCHAR(20) NOT NULL DEFAULT 'specific' AFTER assigned_employee_id");
+    if (!ops_column_exists('ops_checklist_recurring_templates', 'floating_eligible_role')) checklist_try_sql("ALTER TABLE ops_checklist_recurring_templates ADD COLUMN floating_eligible_role VARCHAR(40) NULL AFTER assignment_type");
+    $hadRecurringStatus=ops_column_exists('ops_checklist_recurring_templates','status');
+    $recurringTemplateColumns = [
+        'status' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN status VARCHAR(24) NOT NULL DEFAULT 'active' AFTER is_active",
+        'start_date' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN start_date DATE NULL AFTER due_time",
+        'end_date' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN end_date DATE NULL AFTER start_date",
+        'next_run_at' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN next_run_at DATETIME NULL AFTER end_date",
+        'last_run_at' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN last_run_at DATETIME NULL AFTER next_run_at",
+        'last_error' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN last_error VARCHAR(500) NULL AFTER last_run_at",
+        'paused_at' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN paused_at DATETIME NULL AFTER last_error",
+        'ended_at' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN ended_at DATETIME NULL AFTER paused_at",
+        'version_no' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN version_no INT NOT NULL DEFAULT 1 AFTER ended_at",
+        'completion_evidence_required' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN completion_evidence_required TINYINT(1) NOT NULL DEFAULT 0 AFTER checklist_items",
+        'release_offset_minutes' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN release_offset_minutes INT NOT NULL DEFAULT 0 AFTER due_time",
+        'occurrence_due_time' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN occurrence_due_time TIME NULL AFTER release_offset_minutes",
+        'occurrence_due_days' => "ALTER TABLE ops_checklist_recurring_templates ADD COLUMN occurrence_due_days INT NOT NULL DEFAULT 0 AFTER occurrence_due_time",
+    ];
+    foreach ($recurringTemplateColumns as $column => $sql) {
+        if (!ops_column_exists('ops_checklist_recurring_templates', $column)) checklist_try_sql($sql);
+    }
+    if(!$hadRecurringStatus)checklist_try_sql("UPDATE ops_checklist_recurring_templates SET status = CASE WHEN is_active = 1 THEN 'active' ELSE 'ended' END");
+    $recurrenceIndexMigration='2026-08-22-recurring-occurrence-unique-v1';
+    if(!ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$recurrenceIndexMigration])){
+        try{if(!ops_rows("SHOW INDEX FROM ops_checklist_tasks WHERE Key_name='uq_checklist_recurrence_occurrence'"))db()->exec("CREATE UNIQUE INDEX uq_checklist_recurrence_occurrence ON ops_checklist_tasks (recurring_template_id, recurrence_key)");db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$recurrenceIndexMigration]);}catch(Throwable $e){/* Existing duplicate legacy keys remain visible for owner review; generation also checks under row lock. */}
+    }
+    $occurrenceFingerprintMigration='2026-08-24-recurring-occurrence-fingerprint-v1';
+    if(!ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$occurrenceFingerprintMigration])){
+        try{if(!ops_rows("SHOW INDEX FROM ops_checklist_tasks WHERE Key_name='uq_checklist_occurrence_fingerprint'"))db()->exec("CREATE UNIQUE INDEX uq_checklist_occurrence_fingerprint ON ops_checklist_tasks (occurrence_fingerprint)");db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$occurrenceFingerprintMigration]);}catch(Throwable $e){/* Legacy rows remain NULL; new recurring occurrences are protected by the canonical fingerprint. */}
+    }
+    $legacyDuplicateKpiMigration='2026-08-24-recurring-duplicate-kpi-exclusion-v1';
+    if(!ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$legacyDuplicateKpiMigration])){
+        // Preserve every historical task and completion record, but ensure a
+        // later duplicate generated for the same employee/title/date cannot
+        // award or penalise performance twice.
+        try {
+            db()->exec("UPDATE ops_checklist_tasks duplicate_occurrence
+            JOIN ops_checklist_tasks keeper_occurrence
+              ON keeper_occurrence.id < duplicate_occurrence.id
+             AND keeper_occurrence.recurring_rule IS NOT NULL AND keeper_occurrence.recurring_rule <> ''
+             AND duplicate_occurrence.recurring_rule IS NOT NULL AND duplicate_occurrence.recurring_rule <> ''
+             AND LOWER(TRIM(keeper_occurrence.task_name)) = LOWER(TRIM(duplicate_occurrence.task_name))
+             AND COALESCE(keeper_occurrence.assigned_employee_id,0) = COALESCE(duplicate_occurrence.assigned_employee_id,0)
+             AND DATE(keeper_occurrence.deadline) = DATE(duplicate_occurrence.deadline)
+             AND keeper_occurrence.deleted_at IS NULL AND duplicate_occurrence.deleted_at IS NULL
+            SET duplicate_occurrence.performance_scored = 0
+            WHERE duplicate_occurrence.performance_scored = 1");
+            db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$legacyDuplicateKpiMigration]);
+        } catch (Throwable $e) {
+            error_log('Recurring duplicate KPI repair failed: ' . $e->getMessage());
+        }
+    }
+    $legacyRecurringMigration='2026-08-22-recurring-definition-backfill-v1';
+    $legacyRecurringDone=(bool)(ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$legacyRecurringMigration]));
+    if(!$legacyRecurringDone){
+        $legacyGroups=ops_rows("SELECT task_name,recurring_rule,assigned_employee_id,COALESCE(assignment_type,'specific') assignment_type,floating_eligible_role,MAX(priority) priority,MAX(checklist_type) checklist_type,MAX(instructions) instructions,MAX(checklist_items) checklist_items,COALESCE(TIME(MIN(deadline)),'09:00:00') due_time,MIN(created_by) created_by
+            FROM ops_checklist_tasks WHERE recurring_template_id IS NULL AND recurrence_key IS NOT NULL AND recurrence_key<>'' AND recurring_rule IS NOT NULL AND recurring_rule<>''
+            GROUP BY task_name,recurring_rule,assigned_employee_id,COALESCE(assignment_type,'specific'),floating_eligible_role");
+        foreach($legacyGroups as$legacy){
+            $match=ops_rows("SELECT id FROM ops_checklist_recurring_templates WHERE task_name=? AND recurring_rule=? AND COALESCE(assigned_employee_id,0)=? AND assignment_type=? AND COALESCE(floating_eligible_role,'')=? LIMIT 1",[$legacy['task_name'],$legacy['recurring_rule'],(int)($legacy['assigned_employee_id']??0),$legacy['assignment_type'],(string)($legacy['floating_eligible_role']??'')]);
+            if($match)$parentId=(int)$match[0]['id'];else{$next=checklist_recurrence_next_run((string)$legacy['recurring_rule'],(string)$legacy['due_time']);$stmt=db()->prepare("INSERT INTO ops_checklist_recurring_templates(task_name,checklist_type,priority,assigned_employee_id,assignment_type,floating_eligible_role,recurring_rule,due_time,next_run_at,instructions,checklist_items,employee_visible,is_active,status,created_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,1,1,'active',?)");$stmt->execute([$legacy['task_name'],$legacy['checklist_type']?:'opening',$legacy['priority']?:'normal',$legacy['assigned_employee_id']?:null,$legacy['assignment_type'],$legacy['floating_eligible_role']?:null,$legacy['recurring_rule'],$legacy['due_time'],$next?$next->format('Y-m-d H:i:s'):null,$legacy['instructions'],$legacy['checklist_items'],$legacy['created_by']?:null]);$parentId=(int)db()->lastInsertId();}
+            db()->prepare("UPDATE ops_checklist_tasks SET recurring_template_id=? WHERE recurring_template_id IS NULL AND task_name=? AND recurring_rule=? AND COALESCE(assigned_employee_id,0)=? AND COALESCE(assignment_type,'specific')=? AND COALESCE(floating_eligible_role,'')=?")->execute([$parentId,$legacy['task_name'],$legacy['recurring_rule'],(int)($legacy['assigned_employee_id']??0),$legacy['assignment_type'],(string)($legacy['floating_eligible_role']??'')]);
+        }
+        db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$legacyRecurringMigration]);
+    }
+    $disabledRecurringCleanupMigration='2026-08-24-disabled-recurring-child-cleanup-v1';
+    if(!ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key=? LIMIT 1',[$disabledRecurringCleanupMigration])){
+        try {
+            $inactiveTemplates=ops_rows("SELECT id FROM ops_checklist_recurring_templates WHERE is_active=0 OR COALESCE(status,'active')<>'active'");
+            foreach($inactiveTemplates as$inactiveTemplate){
+                checklist_deactivate_recurring_occurrences((int)$inactiveTemplate['id'],0,'inactive_parent_migration');
+            }
+            db()->prepare('INSERT IGNORE INTO portal_schema_migrations(migration_key) VALUES(?)')->execute([$disabledRecurringCleanupMigration]);
+        } catch (Throwable $e) {
+            error_log('Disabled recurring occurrence cleanup failed: '.$e->getMessage());
+        }
+    }
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_checklist_attachments (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            task_id INT NOT NULL,
+            original_filename VARCHAR(255) NOT NULL,
+            stored_filename VARCHAR(255) NOT NULL,
+            mime_type VARCHAR(120) NOT NULL,
+            file_size INT UNSIGNED NOT NULL,
+            uploaded_by INT NULL,
+            uploaded_by_name VARCHAR(190) NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            removed_at DATETIME NULL,
+            removed_by INT NULL,
+            INDEX idx_task_attachment (task_id, removed_at, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+    if (!ops_column_exists('ops_checklist_attachments', 'correction_cycle_id')) checklist_try_sql("ALTER TABLE ops_checklist_attachments ADD COLUMN correction_cycle_id INT NULL AFTER task_id");
+    db()->exec(
+        "CREATE TABLE IF NOT EXISTS ops_checklist_corrections (
+            id INT AUTO_INCREMENT PRIMARY KEY,
+            task_id INT NOT NULL,
+            correction_round INT NOT NULL,
+            requested_by INT NOT NULL,
+            requested_at DATETIME NOT NULL,
+            correction_message TEXT NOT NULL,
+            correction_due_at DATETIME NOT NULL,
+            require_new_proof TINYINT(1) NOT NULL DEFAULT 0,
+            status VARCHAR(24) NOT NULL DEFAULT 'open',
+            employee_started_at DATETIME NULL,
+            employee_completed_at DATETIME NULL,
+            employee_completion_note TEXT NULL,
+            resolved_at DATETIME NULL,
+            cancelled_at DATETIME NULL,
+            cancelled_by INT NULL,
+            cancellation_reason TEXT NULL,
+            completion_snapshot_json LONGTEXT NOT NULL,
+            open_token VARCHAR(80) NULL,
+            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            UNIQUE KEY uq_task_correction_round (task_id, correction_round),
+            UNIQUE KEY uq_task_open_correction (open_token),
+            INDEX idx_task_correction_status (task_id, status, correction_due_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+    );
+    $legacyStatuses = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE status NOT IN ('new', 'in_progress', 'complete', 'cancelled')");
+    foreach ($legacyStatuses as $legacyTask) {
+        $previousStatus = strtolower(trim((string) $legacyTask['status']));
+        $nextStatus = in_array($previousStatus, ['start', 'started', 'progress'], true) ? 'in_progress'
+            : (in_array($previousStatus, ['done', 'completed', 'approved', 'needs_review'], true) ? 'complete' : 'new');
+        checklist_try_sql('UPDATE ops_checklist_tasks SET status = ' . db()->quote($nextStatus) . ' WHERE id = ' . (int) $legacyTask['id']);
+        if (ops_table_exists('ops_activity_logs')) {
+            ops_activity_log('task_status_migrated', 'checklist_task', (int) $legacyTask['id'], [
+                'description' => 'Legacy task status migrated to the three-stage workflow.',
+                'previous_status' => $previousStatus,
+                'status' => $nextStatus,
+            ]);
+        }
+    }
+}
+
+function checklist_attachment_types(): array
+{
+    return [
+        'image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp',
+        'application/pdf' => 'pdf', 'application/msword' => 'doc',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document' => 'docx',
+        'application/vnd.ms-excel' => 'xls',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' => 'xlsx',
+        'video/mp4' => 'mp4',
+    ];
+}
+
+function checklist_create_attachment_files(): array
+{
+    $field = $_FILES['task_attachments'] ?? null;
+    if (!is_array($field) || !is_array($field['name'] ?? null)) return [];
+    $files = [];
+    foreach ($field['name'] as $index => $name) {
+        $error = (int) ($field['error'][$index] ?? UPLOAD_ERR_NO_FILE);
+        if ($error === UPLOAD_ERR_NO_FILE && trim((string) $name) === '') continue;
+        $files[] = [
+            'name' => (string) $name,
+            'type' => (string) ($field['type'][$index] ?? ''),
+            'tmp_name' => (string) ($field['tmp_name'][$index] ?? ''),
+            'error' => $error,
+            'size' => (int) ($field['size'][$index] ?? 0),
+        ];
+    }
+    if (count($files) > 10) throw new RuntimeException('Attach no more than 10 files to one task.');
+    return $files;
+}
+
+function checklist_store_attachment(int $taskId, array $file, int $actorId, string $actorName, ?int $correctionCycleId = null): array
+{
+    $countRows = ops_rows('SELECT COUNT(*) AS total FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL', [$taskId]);
+    if ((int) ($countRows[0]['total'] ?? 0) >= 10) throw new RuntimeException('This task already has the maximum of 10 attachments.');
+    if ((int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))) {
+        throw new RuntimeException('Choose a valid file to upload.');
+    }
+    $size = (int) ($file['size'] ?? 0);
+    if ($size <= 0 || $size > 10 * 1024 * 1024) throw new RuntimeException('Each file must be smaller than 10 MB.');
+    $mime = (string) (new finfo(FILEINFO_MIME_TYPE))->file((string) $file['tmp_name']);
+    $allowed = checklist_attachment_types();
+    if (!isset($allowed[$mime])) throw new RuntimeException('This file type is not allowed. Upload an image, MP4 video, PDF, Word or Excel file.');
+    $original = trim(preg_replace('/[\x00-\x1F\x7F]+/', '', basename((string) ($file['name'] ?? 'attachment'))) ?? 'attachment');
+    if ($original === '') $original = 'attachment.' . $allowed[$mime];
+    $stored = 'task-' . $taskId . '-' . bin2hex(random_bytes(16)) . '.' . $allowed[$mime];
+    $uploadDir = BASE_PATH . '/uploads/checklist-attachments';
+    if (!is_dir($uploadDir) && !mkdir($uploadDir, 0775, true) && !is_dir($uploadDir)) throw new RuntimeException('File storage is unavailable.');
+    $target = $uploadDir . '/' . $stored;
+    if (!move_uploaded_file((string) $file['tmp_name'], $target)) throw new RuntimeException('The file could not be stored.');
+    try {
+        if ($correctionCycleId === null) {
+            $activeCorrection = ops_rows('SELECT active_correction_id FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            $correctionCycleId = !empty($activeCorrection[0]['active_correction_id']) ? (int) $activeCorrection[0]['active_correction_id'] : null;
+        }
+        $stmt = db()->prepare('INSERT INTO ops_checklist_attachments (task_id, correction_cycle_id, original_filename, stored_filename, mime_type, file_size, uploaded_by, uploaded_by_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        $stmt->execute([$taskId, $correctionCycleId, $original, $stored, $mime, $size, $actorId ?: null, $actorName]);
+        $attachmentId = (int) db()->lastInsertId();
+        ops_activity_log('task_attachment_uploaded', 'checklist_task', $taskId, ['attachment_id' => $attachmentId, 'filename' => $original, 'size' => $size, 'mime_type' => $mime, 'correction_cycle_id' => $correctionCycleId]);
+        return ops_rows('SELECT * FROM ops_checklist_attachments WHERE id = ? LIMIT 1', [$attachmentId])[0];
+    } catch (Throwable $uploadError) {
+        if (is_file($target)) unlink($target);
+        throw $uploadError;
+    }
+}
+
+function checklist_attachment_payload(array $row, bool $canRemove): array
+{
+    $id = (int) $row['id'];
+    return [
+        'id' => $id, 'taskId' => (int) $row['task_id'],
+        'name' => (string) $row['original_filename'], 'mime' => (string) $row['mime_type'],
+        'size' => (int) $row['file_size'], 'uploadedBy' => (string) $row['uploaded_by_name'],
+        'uploadedAt' => (string) $row['created_at'], 'canRemove' => $canRemove,
+        'viewUrl' => BASE_URL . '/apps/operations/task-attachment.php?id=' . $id . '&mode=view',
+        'downloadUrl' => BASE_URL . '/apps/operations/task-attachment.php?id=' . $id . '&mode=download',
+    ];
+}
+
+function checklist_urgent_recipient_ids(array $values, int $assignedId): array
+{
+    $ids = [];
+    foreach ($values as $value) {
+        $value = trim((string) $value);
+        if (preg_match('/^employee:(\d+)$/', $value, $match)) $ids[] = (int) $match[1];
+        elseif ($value === 'role:front_desk') $ids = array_merge($ids, notifications_role_recipients(['front_desk_admin', 'front_desk_admin_employee']));
+        elseif ($value === 'role:packers') $ids = array_merge($ids, notifications_role_recipients(['packer', 'packer_production_staff']));
+        elseif ($value === 'role:all_relevant') $ids = array_merge($ids, notifications_role_recipients(['front_desk_admin', 'front_desk_admin_employee', 'packer', 'packer_production_staff', 'supervisor_manager']));
+        elseif ($value === 'assigned' && $assignedId > 0) $ids[] = $assignedId;
+    }
+    if (ops_table_exists('ops_employees') && $ids) {
+        $ids = array_values(array_unique(array_filter(array_map('intval', $ids))));
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $valid = ops_rows("SELECT id FROM ops_employees WHERE status = 'active' AND id IN ({$marks})", $ids);
+        return array_map(static fn(array $row): int => (int) $row['id'], $valid);
+    }
+    return [];
+}
+
+function checklist_send_urgent_alert(int $taskId, array $recipientIds, bool $resend = false): ?int
+{
+    if ($taskId <= 0 || !$recipientIds) return null;
+    $taskRows = ops_rows('SELECT task_name FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+    if (!$taskRows) return null;
+    $title = (string) $taskRows[0]['task_name'];
+    $notificationId = notifications_create([
+        'title' => $title, 'message' => 'Urgent task assigned.', 'module' => 'tasks', 'priority' => 'urgent', 'sound_key' => 'urgent',
+        'related_type' => 'checklist_task', 'related_id' => $taskId,
+        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=active&task_id=' . $taskId,
+    ], $recipientIds);
+    if ($notificationId) {
+        db()->prepare('UPDATE ops_checklist_tasks SET urgent_alert_enabled = 1, urgent_alert_message = NULL, urgent_alert_sent_at = NOW() WHERE id = ?')->execute([$taskId]);
+        ops_activity_log($resend ? 'task_urgent_alert_resent' : 'task_urgent_alert_sent', 'checklist_task', $taskId, [
+            'notification_id' => $notificationId, 'recipient_ids' => $recipientIds,
+        ]);
+    }
+    return $notificationId;
 }
 
 function checklist_json_items(?string $value): array
@@ -92,6 +457,62 @@ function checklist_json_items(?string $value): array
     $decoded = json_decode($value, true);
     if (is_array($decoded)) return array_values(array_filter(array_map('strval', $decoded)));
     return array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $value) ?: [])));
+}
+
+function checklist_completion_validation(array $task, ?array $checkedOverride = null, ?string $noteOverride = null, bool $newEvidence = false): array
+{
+    $required = checklist_json_items((string) ($task['checklist_items'] ?? ''));
+    $checked = $checkedOverride ?? checklist_json_items((string) ($task['checked_items'] ?? ''));
+    $incomplete = array_values(array_diff($required, $checked));
+    if ($incomplete) {
+        $count = count($incomplete);
+        return ['valid' => false, 'code' => 'task_checklist_incomplete', 'message' => $count . ' required checklist ' . ($count === 1 ? 'item is' : 'items are') . ' incomplete.', 'incomplete_items' => $incomplete];
+    }
+    $note = $noteOverride ?? (string) ($task['completion_note'] ?? '');
+    $note = trim($note);
+    $noteLength = function_exists('mb_strlen') ? mb_strlen($note) : strlen($note);
+    if ($noteLength < 5) {
+        return ['valid' => false, 'code' => 'task_completion_note_required', 'message' => 'Enter a completion note explaining what was completed.', 'incomplete_items' => []];
+    }
+    if (!empty($task['completion_evidence_required'])) {
+        $taskId = (int) ($task['id'] ?? 0);
+        $activeCorrectionId = (int) ($task['active_correction_id'] ?? 0);
+        $evidenceSql = 'SELECT COUNT(*) AS total FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL';
+        $evidenceParams = [$taskId];
+        if ($activeCorrectionId > 0 && !empty($task['correction_require_new_proof'])) {
+            $evidenceSql .= ' AND correction_cycle_id = ? AND uploaded_by = ?';
+            $evidenceParams[] = $activeCorrectionId;
+            $evidenceParams[] = (int)($task['assigned_employee_id'] ?? 0);
+        }
+        $evidenceCount = $taskId > 0 ? (int) (ops_rows($evidenceSql, $evidenceParams)[0]['total'] ?? 0) : 0;
+        if (!$newEvidence && $evidenceCount < 1) {
+            return ['valid' => false, 'code' => 'task_completion_evidence_required', 'message' => $activeCorrectionId > 0 ? 'Upload new proof for this correction before completing the task.' : 'Upload the required proof before completing the task.', 'incomplete_items' => []];
+        }
+    }
+    return ['valid' => true, 'code' => null, 'message' => '', 'incomplete_items' => []];
+}
+
+function checklist_require_completion(array $task, ?array $checkedOverride = null, ?string $noteOverride = null, bool $newEvidence = false): void
+{
+    if (checklist_normalize_status((string) ($task['status'] ?? 'new')) !== 'complete'
+        && (checklist_normalize_status((string) ($task['status'] ?? 'new')) !== 'in_progress' || empty($task['started_at']))) {
+        throw new RuntimeException(json_encode(['valid'=>false,'code'=>'task_start_required','message'=>'Choose Start Task before completing this task. The recorded start is required to measure task time.','incomplete_items'=>[]], JSON_UNESCAPED_SLASHES));
+    }
+    $validation = checklist_completion_validation($task, $checkedOverride, $noteOverride, $newEvidence);
+    if (!$validation['valid']) throw new RuntimeException(json_encode($validation, JSON_UNESCAPED_SLASHES));
+}
+
+function checklist_require_progress_note(?string $note): string
+{
+    $note = trim((string) $note);
+    $length = function_exists('mb_strlen') ? mb_strlen($note) : strlen($note);
+    if ($length < 5) throw new RuntimeException(json_encode([
+        'valid' => false,
+        'code' => 'task_progress_note_required',
+        'message' => 'Enter a note explaining the progress or work completed.',
+        'incomplete_items' => [],
+    ], JSON_UNESCAPED_SLASHES));
+    return $note;
 }
 
 function checklist_items_from_text(string $value): string
@@ -125,10 +546,105 @@ function checklist_date_label(?string $value): string
     try { return (new DateTimeImmutable($value))->format('M j, H:i'); } catch (Throwable $e) { return $value; }
 }
 
+function checklist_schedule_date_label(?string $value): string
+{
+    if (!$value) return '-';
+    try {
+        return (new DateTimeImmutable($value, new DateTimeZone('Africa/Windhoek')))->format('D, j M Y · H:i');
+    } catch (Throwable $e) {
+        return $value;
+    }
+}
+
+function checklist_completed_date_label(?string $value): string
+{
+    if (!$value) return 'Completion time unavailable';
+    try {
+        return (new DateTimeImmutable($value, new DateTimeZone('Africa/Windhoek')))->format('j M Y · H:i');
+    } catch (Throwable $e) {
+        return $value;
+    }
+}
+
+function checklist_authoritative_deadline(?string $value): ?DateTimeImmutable
+{
+    $raw = trim((string) $value);
+    if ($raw === '') return null;
+    try {
+        $due = new DateTimeImmutable($raw, new DateTimeZone('Africa/Windhoek'));
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) || preg_match('/ 00:00(?::00)?$/', $raw)) $due = $due->setTime(17, 0);
+        return $due;
+    } catch (Throwable $e) { return null; }
+}
+
+function checklist_working_minutes(DateTimeImmutable $from, DateTimeImmutable $to): int
+{
+    if ($to <= $from) return 0;
+    static $engine = null;
+    try { if (!$engine) $engine = new \Hambelela\EPI\BusinessTimeEngine(db()); return (int) round($engine->workingMinutes($from, $to)); }
+    catch (Throwable $e) { return 0; }
+}
+
+function checklist_duration_label(int $minutes): string
+{
+    $minutes = max(0, $minutes); $days = intdiv($minutes, 540); $hours = intdiv($minutes % 540, 60); $mins = $minutes % 60; $parts = [];
+    if ($days) $parts[] = $days . ' working day' . ($days === 1 ? '' : 's');
+    if ($hours) $parts[] = $hours . ' hr' . ($hours === 1 ? '' : 's');
+    if ($mins || !$parts) $parts[] = $mins . ' min';
+    return implode(' ', $parts);
+}
+
+function checklist_elapsed_duration_label(int $seconds): string
+{
+    if ($seconds > 0 && $seconds < 60) return 'less than 1 min';
+    $minutes = intdiv(max(0, $seconds), 60); $days = intdiv($minutes, 1440); $hours = intdiv($minutes % 1440, 60); $mins = $minutes % 60; $parts = [];
+    if ($days) $parts[] = $days . ' day' . ($days === 1 ? '' : 's');
+    if ($hours) $parts[] = $hours . ' hr' . ($hours === 1 ? '' : 's');
+    if ($mins || !$parts) $parts[] = $mins . ' min';
+    return implode(' ', $parts);
+}
+
+function checklist_task_timing(array $task, ?DateTimeImmutable $now = null): array
+{
+    $timezone = new DateTimeZone('Africa/Windhoek'); $now = $now ?: new DateTimeImmutable('now', $timezone);
+    $status = checklist_normalize_status((string) ($task['status'] ?? 'new'));
+    $due = checklist_authoritative_deadline($task['deadline'] ?? null);
+    if (!empty($task['scheduled_at']) && empty($task['released_at'])) {
+        return [
+            'progress' => 0,
+            'overdue' => false,
+            'outcome' => 'Scheduled for release',
+            'active_outcome' => 'Scheduled',
+            'overdue_minutes' => 0,
+            'due_label' => $due ? $due->format('d M Y · H:i') : 'No due date',
+            'due_iso' => $due ? $due->format(DateTimeInterface::ATOM) : '',
+        ];
+    }
+    $completed = null; $started = null;
+    try { if (!empty($task['date_completed']) || !empty($task['completed_at'])) $completed = new DateTimeImmutable((string) ($task['date_completed'] ?: $task['completed_at']), $timezone); } catch (Throwable $e) {}
+    try { if (!empty($task['started_at'])) $started = new DateTimeImmutable((string) $task['started_at'], $timezone); } catch (Throwable $e) {}
+    $result = ['progress'=>$status === 'complete' ? 100 : 0, 'overdue'=>false, 'outcome'=>'', 'active_outcome'=>$due ? ($now > $due ? 'Overdue' : 'Coming up') : 'No due date', 'overdue_minutes'=>0, 'due_label'=>$due ? $due->format('d M Y · H:i') : 'No due date','due_iso'=>$due?$due->format(DateTimeInterface::ATOM):''];
+    if (!$due) { $result['outcome'] = $status === 'complete' && !$completed ? 'Completion time unavailable' : 'No due date'; return $result; }
+    if ($status === 'complete') {
+        if (!$completed) { $result['outcome'] = 'Completion time unavailable'; return $result; }
+        if ($completed <= $due) { $result['outcome'] = 'On time'; return $result; }
+        $elapsed = $completed->getTimestamp() - $due->getTimestamp(); $result['overdue'] = true; $result['overdue_minutes'] = (int) ceil($elapsed / 60); $result['outcome'] = 'Overdue by ' . checklist_elapsed_duration_label($elapsed); return $result;
+    }
+    if ($now > $due) { $elapsed=$now->getTimestamp()-$due->getTimestamp();$result['overdue'] = true; $result['overdue_minutes'] = (int)ceil($elapsed/60); $result['progress'] = $status === 'in_progress' ? 99 : 0; $result['outcome'] = 'Overdue by ' . checklist_elapsed_duration_label($elapsed); return $result; }
+    if ($status === 'in_progress' && $started) {
+        $available = checklist_working_minutes($started, $due); $used = checklist_working_minutes($started, $now);
+        $result['progress'] = $available > 0 ? max(1, min(99, (int) floor(($used / $available) * 100))) : 1;
+        $result['outcome'] = 'Due in ' . checklist_elapsed_duration_label($due->getTimestamp()-$now->getTimestamp());
+    } elseif ($status === 'new') {
+        $result['outcome'] = 'Due in ' . checklist_elapsed_duration_label($due->getTimestamp()-$now->getTimestamp());
+    }
+    return $result;
+}
+
 function checklist_days_remaining(?string $deadline, string $status): string
 {
     if (!$deadline) return 'No due date';
-    if (in_array($status, ['done', 'needs_review'], true)) return 'Completed';
+    if ($status === 'complete') return 'Completed';
     try {
         $due = new DateTimeImmutable($deadline);
         $now = new DateTimeImmutable('now');
@@ -140,141 +656,1350 @@ function checklist_days_remaining(?string $deadline, string $status): string
     return $days === 0 ? 'Due today' : $days . ' day' . ($days === 1 ? '' : 's') . ' left';
 }
 
+function checklist_due_state(?string $deadline, string $status): ?array
+{
+    if (!$deadline || $status === 'complete') return null;
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    try {
+        $due = new DateTimeImmutable(preg_match('/^\d{4}-\d{2}-\d{2}$/', trim($deadline)) ? trim($deadline) . ' 23:59:59' : $deadline, $timezone);
+        $now = new DateTimeImmutable('now', $timezone);
+    } catch (Throwable $e) {
+        return null;
+    }
+    if ($due < $now) $value = 'overdue';
+    elseif ($due->format('Y-m-d') === $now->format('Y-m-d')) $value = 'due_today';
+    else $value = 'upcoming';
+    return [
+        'value' => $value,
+        'label' => ['upcoming' => 'Upcoming', 'due_today' => 'Due Today', 'overdue' => 'Overdue'][$value],
+        'iso' => $due->format(DateTimeInterface::ATOM),
+        'title' => 'Due ' . $due->format('j F Y \a\t g:i A'),
+    ];
+}
+
+function checklist_datetime_validation_error(string $code, string $message, string $field): RuntimeException
+{
+    return new RuntimeException(json_encode(['code' => $code, 'message' => $message, 'field' => $field], JSON_UNESCAPED_SLASHES));
+}
+
+function checklist_parse_windhoek_datetime(string $raw)
+{
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    foreach (['Y-m-d H:i:s', 'Y-m-d H:i', 'Y-m-d\TH:i', 'd/m/Y h:i A'] as $format) {
+        $candidate = DateTimeImmutable::createFromFormat('!' . $format, $raw, $timezone);
+        $errors = DateTimeImmutable::getLastErrors();
+        if ($candidate && ($errors === false || ((int) $errors['warning_count'] === 0 && (int) $errors['error_count'] === 0))) return $candidate;
+    }
+    return false;
+}
+
+function checklist_create_due_at(array $request): string
+{
+    $raw = trim((string) ($request['due_at'] ?? ''));
+    if ($raw === '') throw checklist_datetime_validation_error('required_due_at', 'Select the task due date and time.', 'due_at');
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    $dueAt = checklist_parse_windhoek_datetime($raw);
+    if (!$dueAt) throw checklist_datetime_validation_error('invalid_due_at', 'Select a valid task due date and time.', 'due_at');
+    if ($dueAt <= new DateTimeImmutable('now', $timezone)) {
+        throw checklist_datetime_validation_error('past_due_at', 'This time has already passed. Select a future time.', 'due_at');
+    }
+    return $dueAt->format('Y-m-d H:i:s');
+}
+
+function checklist_instruction_text_length(string $html): int
+{
+    $text = task_instructions_plain_text($html);
+    return function_exists('mb_strlen') ? mb_strlen($text, 'UTF-8') : strlen($text);
+}
+
+function checklist_sanitize_instructions(string $html): string
+{
+    $html = trim($html);
+    if ($html === '') return '';
+    if (strlen($html) > 30000) throw new RuntimeException('Task instructions are too large. Keep them under 30 KB.');
+    $html = str_replace(["\xEF\xBF\xBD", 'Â'], '', $html);
+    $html = preg_replace('/(^|<p>|<br\s*\/?\s*>)\s*\?\s*(?=<\/p>|<br\s*\/?\s*>|$)/imu', '$1', $html) ?? $html;
+    $html = task_instructions_sanitize_html($html);
+    if (checklist_instruction_text_length($html) > 8000) throw new RuntimeException('Enter task instructions of 8,000 characters or fewer.');
+    return trim($html);
+}
+
+function checklist_render_instructions(string $value): string
+{
+    $value = str_replace(["\xEF\xBF\xBD", 'Â'], '', $value);
+    $value = preg_replace('/(^|<p>|<br\s*\/?\s*>)\s*\?\s*(?=<\/p>|<br\s*\/?\s*>|$)/imu', '$1', $value) ?? $value;
+    $value = preg_replace('/\s+\?\s*$/u', '', $value) ?? $value;
+    $html = task_instructions_render_html($value);
+    return preg_replace('/\s+\?(?=\s*<\/(?:p|li)>)/iu', '', $html) ?? $html;
+}
+
+function checklist_display_task_title(string $value): string
+{
+    $value = trim(html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    $value = preg_replace('/^\s*\?\s*/u', '', $value) ?? $value;
+    $value = preg_replace('/\s*\?\s*$/u', '', $value) ?? $value;
+    $value = preg_replace('/^\s{0,3}#{1,6}\s+/u', '', $value) ?? $value;
+    $value = preg_replace('/^(?:\*\*|__)(.*)(?:\*\*|__)$/us', '$1', $value) ?? $value;
+    $value = str_replace("\xEF\xBF\xBD", '', $value);
+    return trim($value);
+}
+
+function checklist_create_scheduled_at(array $request, string $deadline): ?string
+{
+    $taskMode = strtolower(trim((string) ($request['task_mode'] ?? '')));
+    if ($taskMode !== 'scheduled') return null;
+    $raw = trim((string) ($request['scheduled_at'] ?? ''));
+    if ($raw === '') throw new RuntimeException('Select when this task should be released.');
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    $scheduled = checklist_parse_windhoek_datetime($raw);
+    if (!$scheduled) throw new RuntimeException('Select a valid release date and time.');
+    if ($scheduled <= new DateTimeImmutable('now', $timezone)) throw new RuntimeException('The release time must be in the future.');
+    if (new DateTimeImmutable($deadline, $timezone) <= $scheduled) throw new RuntimeException('Due time must be after the task release time.');
+    return $scheduled->format('Y-m-d H:i:s');
+}
+
 function checklist_effective_status(array $task): string
 {
-    $status = (string) ($task['status'] ?? 'not_started');
-    if (in_array($status, ['done', 'needs_review'], true)) return $status;
-    if (!empty($task['deadline'])) {
-        try {
-            if (new DateTimeImmutable((string) $task['deadline']) < new DateTimeImmutable('now')) return 'overdue';
-        } catch (Throwable $e) {
-            return $status;
-        }
+    return checklist_normalize_status((string) ($task['status'] ?? 'new'));
+}
+
+function checklist_normalize_status(string $status): string
+{
+    $status = strtolower(trim($status));
+    if ($status === 'new') return 'new';
+    if (in_array($status, ['not_started', 'pending', 'missed', 'blocked', 'cancelled', 'deleted', 'trashed', ''], true)) return 'new';
+    if (in_array($status, ['start', 'started'], true)) return 'in_progress';
+    if (in_array($status, ['progress', 'in_progress'], true)) return 'in_progress';
+    if (in_array($status, ['done', 'completed', 'approved', 'needs_review', 'complete'], true)) return 'complete';
+    return 'new';
+}
+
+function checklist_requested_status(): string
+{
+    $status = strtolower(trim(ops_post_string('status', 30)));
+    if (!in_array($status, ['new', 'in_progress', 'complete'], true)) {
+        throw new RuntimeException('Choose New, In Progress, or Complete.');
     }
-    return $status ?: 'not_started';
+    return $status;
+}
+
+function checklist_custom_filter_field(string $label, string $name, array $options, string $selected): void
+{
+    static $instance = 0;
+    $instance++;
+    if (!array_key_exists($selected, $options)) $selected = (string) (array_key_first($options) ?? '');
+    $fieldId = 'task-filter-' . preg_replace('/[^a-z0-9_-]+/i', '-', $name) . '-' . $instance;
+    $menuId = $fieldId . '-menu';
+    $selectedLabel = (string) ($options[$selected] ?? '');
+    ?>
+    <div class="dtb-filter-field">
+        <label id="<?= htmlspecialchars($fieldId . '-label', ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></label>
+        <div class="portal-custom-select" data-portal-custom-select-static>
+            <input type="hidden" name="<?= htmlspecialchars($name, ENT_QUOTES, 'UTF-8') ?>" class="portal-custom-select-input" value="<?= htmlspecialchars($selected, ENT_QUOTES, 'UTF-8') ?>">
+            <button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="<?= htmlspecialchars($menuId, ENT_QUOTES, 'UTF-8') ?>" aria-labelledby="<?= htmlspecialchars($fieldId . '-label', ENT_QUOTES, 'UTF-8') ?>">
+                <span class="portal-custom-select-value"><?= htmlspecialchars($selectedLabel, ENT_QUOTES, 'UTF-8') ?></span>
+                <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="portal-custom-select-menu" id="<?= htmlspecialchars($menuId, ENT_QUOTES, 'UTF-8') ?>" role="listbox">
+                <?php foreach ($options as $value => $optionLabel): ?>
+                    <button type="button" class="portal-custom-select-option" role="option" data-value="<?= htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8') ?>" aria-selected="<?= (string) $value === $selected ? 'true' : 'false' ?>"><?= htmlspecialchars((string) $optionLabel, ENT_QUOTES, 'UTF-8') ?></button>
+                <?php endforeach; ?>
+            </div>
+        </div>
+    </div>
+    <?php
 }
 
 function checklist_insert_auto_task(int $employeeId, string $key, string $type, string $name, string $deadline, array $items, string $instructions, string $priority, string $rule): void
 {
     if (ops_rows('SELECT id FROM ops_checklist_tasks WHERE recurrence_key = ? AND assigned_employee_id = ? LIMIT 1', [$key, $employeeId])) return;
+    $instructions = task_instructions_sanitize_html($instructions);
     $stmt = db()->prepare(
         "INSERT INTO ops_checklist_tasks
-         (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, recurrence_key, recurring_rule, created_by)
-         VALUES (?, ?, ?, ?, NOW(), ?, 'not_started', ?, ?, ?, ?, ?, ?)"
+         (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, employee_visible, recurrence_key, recurring_rule, created_by)
+         VALUES (?, ?, ?, ?, NOW(), ?, 'new', ?, ?, ?, 1, 0, 1, 1, ?, ?, ?)"
     );
     $stmt->execute([$type, $name, $priority, $employeeId, $deadline, $instructions, $instructions, json_encode($items, JSON_UNESCAPED_SLASHES), $key, $rule, ops_current_employee_id()]);
 }
 
+function checklist_seed_default_recurring_templates(): void
+{
+    if (!ops_table_exists('ops_checklist_recurring_templates')) return;
+    $defaults = [
+        ['daily-stock', 'Stock up shelves before opening', 'stock_refill', 'urgent', 'daily_business_day', '08:00:00', 'Stock all shelves before opening and note any low-stock products.', checklist_shelf_template_items()],
+        ['cleaning-twice-weekly', 'Packing area cleaning', 'cleaning', 'important', 'twice_weekly', '16:30:00', 'Complete the scheduled packing-area cleaning checklist.', checklist_cleaning_template_items()],
+        ['saturday-bottle-wash', 'Saturday bottle/container washing', 'saturday', 'urgent', 'weekly_saturday', '13:00:00', 'Wash reusable bottles and containers, then reset the packing area.', ['Wash dishes/containers', 'Clean tables', 'Clean workspace', 'Organize packing area']],
+    ];
+    $stmt = db()->prepare(
+        "INSERT INTO ops_checklist_recurring_templates
+         (template_key, task_name, checklist_type, priority, recurring_rule, due_time, instructions, checklist_items, employee_visible, is_active, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, 1, ?)
+         ON DUPLICATE KEY UPDATE template_key = VALUES(template_key)"
+    );
+    foreach ($defaults as $default) {
+        $stmt->execute([...array_slice($default, 0, 7), json_encode($default[7], JSON_UNESCAPED_SLASHES), ops_current_employee_id()]);
+    }
+}
+
+function checklist_rule_runs_today(string $rule, int $dayNumber, ?string $dateKey = null): bool
+{
+    if (preg_match('/^monthly_day:(\d{1,2})$/', $rule, $match)) {
+        return (int)($dateKey ? substr($dateKey, 8, 2) : date('j')) === (int)$match[1];
+    }
+    if (preg_match('/^weekly_days:([1-7](?:,[1-7])*)$/', $rule, $match)) {
+        return in_array($dayNumber, array_map('intval', explode(',', $match[1])), true);
+    }
+    if ($rule === 'daily_business_day') return $dayNumber >= 1 && $dayNumber <= 6;
+    if ($rule === 'twice_weekly') return in_array($dayNumber, [2, 4], true);
+    if ($rule === 'weekly_saturday') return $dayNumber === 6;
+    if (preg_match('/^weekly_([1-7])$/', $rule, $match)) return $dayNumber === (int) $match[1];
+    return false;
+}
+
+/** Cancel incomplete children of a disabled recurring definition without deleting history. */
+function checklist_deactivate_recurring_occurrences(int $templateId, int $actorId, string $reason): array
+{
+    if ($templateId <= 0 || !ops_table_exists('ops_checklist_tasks')) return ['tasks' => 0, 'notifications' => 0];
+    $rows = ops_rows(
+        "SELECT id, task_name, status FROM ops_checklist_tasks
+         WHERE recurring_template_id = ? AND deleted_at IS NULL AND archived_at IS NULL
+           AND status NOT IN ('complete','completed','done','approved')",
+        [$templateId]
+    );
+    if (!$rows) return ['tasks' => 0, 'notifications' => 0];
+    $ids = array_values(array_map(static function (array $row): int { return (int) $row['id']; }, $rows));
+    $marks = implode(',', array_fill(0, count($ids), '?'));
+    $params = [$actorId ?: null];
+    foreach ($ids as $id) $params[] = $id;
+    $stmt = db()->prepare(
+        "UPDATE ops_checklist_tasks
+         SET status='cancelled', employee_visible=0, performance_scored=0,
+             urgent_alert_enabled=0, urgent_alert_claimed_at=NULL,
+             archived_at=COALESCE(archived_at,NOW()), archived_by=COALESCE(archived_by,?)
+         WHERE id IN ({$marks}) AND deleted_at IS NULL AND archived_at IS NULL
+           AND status NOT IN ('complete','completed','done','approved')"
+    );
+    $stmt->execute($params);
+    $cancelled = $stmt->rowCount();
+    $cleared = 0;
+    if (function_exists('notifications_schema_ready') && notifications_schema_ready()) {
+        $clear = db()->prepare(
+            "UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id
+             SET nr.read_at=COALESCE(nr.read_at,NOW()), nr.cleared_at=COALESCE(nr.cleared_at,NOW())
+             WHERE n.related_type='checklist_task' AND n.related_id IN ({$marks}) AND nr.cleared_at IS NULL"
+        );
+        $clear->execute($ids);
+        $cleared = $clear->rowCount();
+    }
+    foreach ($rows as $row) {
+        checklist_kpi_status_event((int) $row['id'], (string) $row['status'], 'cancelled', $actorId ?: null);
+        ops_activity_log('recurring_occurrence_cancelled', 'checklist_task', (int) $row['id'], [
+            'task_name' => (string) $row['task_name'], 'previous_status' => (string) $row['status'],
+            'status' => 'cancelled', 'recurring_template_id' => $templateId, 'reason' => $reason,
+            'historical_completed_occurrences_preserved' => true,
+        ]);
+    }
+    return ['tasks' => $cancelled, 'notifications' => $cleared];
+}
+
+function checklist_recurrence_label(string $rule): string
+{
+    if (preg_match('/^monthly_day:(\d{1,2})$/', $rule, $match)) return 'Monthly on day ' . (int)$match[1];
+    if (preg_match('/^weekly_days:([1-7](?:,[1-7])*)$/', $rule, $match)) {
+        $names = [1=>'Monday',2=>'Tuesday',3=>'Wednesday',4=>'Thursday',5=>'Friday',6=>'Saturday',7=>'Sunday'];
+        return 'Every ' . implode(', ', array_map(static function ($day) use ($names) { return $names[(int)$day]; }, explode(',', $match[1])));
+    }
+    $labels = [
+        'daily_business_day' => 'Every business day', 'twice_weekly' => 'Tuesday and Thursday',
+        'weekly_1' => 'Every Monday', 'weekly_2' => 'Every Tuesday', 'weekly_3' => 'Every Wednesday',
+        'weekly_4' => 'Every Thursday', 'weekly_5' => 'Every Friday', 'weekly_saturday' => 'Every Saturday',
+    ];
+    return $labels[$rule] ?? 'Custom recurrence';
+}
+
+function checklist_recurrence_next_run(string $rule, string $dueTime, ?string $startDate = null, ?string $endDate = null, ?DateTimeImmutable $after = null): ?DateTimeImmutable
+{
+    $zone = new DateTimeZone('Africa/Windhoek');
+    $after = ($after ?: new DateTimeImmutable('now', $zone))->setTimezone($zone);
+    $candidate = $after->setTime(0, 0)->modify($after->format('H:i:s') <= $dueTime ? '+0 days' : '+1 day');
+    if ($startDate && $candidate->format('Y-m-d') < $startDate) $candidate = new DateTimeImmutable($startDate . ' 00:00:00', $zone);
+    for ($offset = 0; $offset < 370; $offset++, $candidate = $candidate->modify('+1 day')) {
+        if ($endDate && $candidate->format('Y-m-d') > $endDate) return null;
+        if (!checklist_rule_runs_today($rule, (int) $candidate->format('N'), $candidate->format('Y-m-d'))) continue;
+        return new DateTimeImmutable($candidate->format('Y-m-d') . ' ' . $dueTime, $zone);
+    }
+    return null;
+}
+
 function checklist_seed_recurring_tasks(): void
 {
-    if (!ops_table_exists('ops_checklist_tasks') || !checklist_column_exists('recurrence_key')) return;
-    $today = new DateTimeImmutable('today');
-    $dayNumber = (int) $today->format('N');
-    if ($dayNumber > 6) return;
+    if (!ops_table_exists('ops_checklist_tasks') || !ops_table_exists('ops_checklist_recurring_templates')) return;
+    checklist_seed_default_recurring_templates();
+    $zone = new DateTimeZone('Africa/Windhoek');
+    $now = new DateTimeImmutable('now', $zone);
     $packers = ops_rows(
         "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id
          WHERE e.status = 'active' AND r.role_key IN ('packer', 'supervisor_manager')"
     );
-    $dateKey = $today->format('Y-m-d');
-    $cleaning = checklist_cleaning_template_items();
-    foreach ($packers as $packer) {
-        $id = (int) $packer['id'];
-        checklist_insert_auto_task($id, 'daily-stock-' . $dateKey . '-' . $id, 'stock_refill', 'Stock up shelves before opening', $dateKey . ' 09:00:00', checklist_shelf_template_items(), 'Stock all shelves before opening and note any low-stock products.', 'top_critical', 'daily_business_day');
-        if (in_array($dayNumber, [2, 4], true)) checklist_insert_auto_task($id, 'cleaning-twice-weekly-' . $dateKey . '-' . $id, 'cleaning', 'Packing area cleaning', $dateKey . ' 16:30:00', $cleaning, 'Complete the scheduled packing-area cleaning checklist.', 'high', 'twice_weekly');
-        if ($dayNumber === 6) checklist_insert_auto_task($id, 'saturday-bottle-wash-' . $dateKey . '-' . $id, 'saturday', 'Saturday bottle/container washing', $dateKey . ' 13:00:00', ['Wash dishes/containers', 'Clean tables', 'Clean workspace', 'Organize packing area'], 'Wash reusable bottles and containers, then reset the packing area.', 'top_critical', 'weekly_saturday');
+    $templates = ops_rows("SELECT * FROM ops_checklist_recurring_templates WHERE is_active = 1 AND COALESCE(status, 'active') = 'active'");
+    foreach ($templates as $template) {
+        $occurrenceAt = !empty($template['next_run_at'])
+            ? new DateTimeImmutable((string)$template['next_run_at'], $zone)
+            : checklist_recurrence_next_run((string)$template['recurring_rule'], (string)($template['due_time'] ?: '09:00:00'), $template['start_date'] ?? null, $template['end_date'] ?? null, $now);
+        if (!$occurrenceAt) continue;
+        $releaseAt = $occurrenceAt->modify('-' . max(0, (int)($template['release_offset_minutes'] ?? 0)) . ' minutes');
+        if ($releaseAt > $now) continue;
+        $dateKey = $occurrenceAt->format('Y-m-d');
+        $dayNumber = (int)$occurrenceAt->format('N');
+        if (!empty($template['start_date']) && $dateKey < (string) $template['start_date']) continue;
+        if (!empty($template['end_date']) && $dateKey > (string) $template['end_date']) {
+            db()->prepare("UPDATE ops_checklist_recurring_templates SET status='ended', is_active=0, ended_at=COALESCE(ended_at,NOW()), next_run_at=NULL WHERE id=?")->execute([(int)$template['id']]);
+            continue;
+        }
+        if (!checklist_rule_runs_today((string) $template['recurring_rule'], $dayNumber, $dateKey)) continue;
+        $templateAssignmentType = (string) ($template['assignment_type'] ?? 'specific') === 'floating' ? 'floating' : 'specific';
+        if($templateAssignmentType==='specific'&&!empty($template['assigned_employee_id'])&&!ops_rows("SELECT id FROM ops_employees WHERE id=? AND status='active' LIMIT 1",[(int)$template['assigned_employee_id']])){
+            db()->prepare("UPDATE ops_checklist_recurring_templates SET last_error='Assigned employee inactive.' WHERE id=?")->execute([(int)$template['id']]);
+            ops_activity_log('recurring_occurrence_failed','checklist_recurring_template',(int)$template['id'],['error'=>'Assigned employee inactive.']);continue;
+        }
+        $targets = $templateAssignmentType === 'floating' ? [['id'=>0]] : (!empty($template['assigned_employee_id']) ? [['id' => (int) $template['assigned_employee_id']]] : $packers);
+        $generatedAny=false;
+        foreach ($targets as $target) {
+            $employeeId = (int) $target['id'];
+            $key = 'template-' . (int) $template['id'] . '-' . $dateKey . '-' . ($templateAssignmentType === 'floating' ? 'floating' : $employeeId);
+            $occurrenceTarget = $templateAssignmentType === 'floating'
+                ? 'role:' . (string) ($template['floating_eligible_role'] ?? '')
+                : 'employee:' . $employeeId;
+            $normalizedOccurrenceName = strtolower(trim((string) preg_replace('/\s+/u', ' ', (string) $template['task_name'])));
+            $occurrenceFingerprint = hash('sha256', $normalizedOccurrenceName . '|' . $dateKey . '|' . $occurrenceTarget);
+            $taskDb=db();$taskDb->beginTransaction();
+            try {
+            $lock=$taskDb->prepare("SELECT status,is_active FROM ops_checklist_recurring_templates WHERE id=? FOR UPDATE");$lock->execute([(int)$template['id']]);$locked=$lock->fetch();
+            if(!$locked||($locked['status']??'active')!=='active'||(int)$locked['is_active']!==1){$taskDb->rollBack();continue;}
+            $existing=$taskDb->prepare("SELECT id FROM ops_checklist_tasks
+                WHERE occurrence_fingerprint = ? OR (
+                    recurring_rule IS NOT NULL AND recurring_rule <> ''
+                    AND LOWER(TRIM(task_name)) = LOWER(TRIM(?)) AND DATE(deadline) = ?
+                    AND COALESCE(assignment_type,'specific') = ?
+                    AND COALESCE(assigned_employee_id,0) = ?
+                    AND COALESCE(floating_eligible_role,'') = ?
+                ) LIMIT 1");
+            $existing->execute([$occurrenceFingerprint, $template['task_name'], $dateKey, $templateAssignmentType, $employeeId, $templateAssignmentType === 'floating' ? (string)($template['floating_eligible_role'] ?? '') : '']);
+            if($existing->fetchColumn()){$taskDb->rollBack();continue;}
+            $stmt = $taskDb->prepare(
+                "INSERT INTO ops_checklist_tasks
+                 (checklist_type, task_name, task_mode, priority, assigned_employee_id, assignment_type, floating_eligible_role, floating_allocation_status, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, occurrence_fingerprint, recurring_rule, recurring_template_id, employee_visible, created_by)
+                 VALUES (?, ?, 'recurring', ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, 1, ?, 1, ?, ?, ?, ?, ?, ?)"
+            );
+            $deadline = $occurrenceAt->modify('+' . max(0, (int)($template['occurrence_due_days'] ?? 0)) . ' days')->format('Y-m-d') . ' ' . (string) ($template['occurrence_due_time'] ?: $template['due_time'] ?: '17:00:00');
+            $instructions = task_instructions_sanitize_html((string) $template['instructions']);
+            $releasedAt=$now->format('Y-m-d H:i:s');
+            $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId ?: null, $templateAssignmentType, $templateAssignmentType === 'floating' ? ($template['floating_eligible_role'] ?? null) : null, $templateAssignmentType === 'floating' ? 'pending' : null, $templateAssignmentType === 'specific' ? $releasedAt : null, $releaseAt->format('Y-m-d H:i:s'), $releasedAt, $deadline, $instructions, $instructions, $template['checklist_items'], (int)($template['completion_evidence_required']??0), $key, $occurrenceFingerprint, $template['recurring_rule'], $template['id'], $templateAssignmentType === 'specific' ? 1 : 0, $template['created_by']]);
+            $occurrenceId = (int) $taskDb->lastInsertId();$taskDb->commit();$generatedAny=true;
+            }catch(Throwable $generationError){if($taskDb->inTransaction())$taskDb->rollBack();if($generationError instanceof PDOException&&(string)$generationError->getCode()==='23000')continue;db()->prepare('UPDATE ops_checklist_recurring_templates SET last_error=? WHERE id=?')->execute([substr($generationError->getMessage(),0,500),(int)$template['id']]);ops_activity_log('recurring_occurrence_failed','checklist_recurring_template',(int)$template['id'],['error'=>$generationError->getMessage()]);continue;}
+            if ($templateAssignmentType === 'floating') {
+                $allocation = task_floating_allocate($occurrenceId, 'automatic', true);
+                $allocatedId = (int) ($allocation['employee_id'] ?? 0);
+                if ($allocatedId > 0) notifications_notify_task_assigned($occurrenceId, $allocatedId, (string) $template['task_name']);
+            } elseif ($employeeId > 0) {
+                notifications_notify_task_assigned($occurrenceId, $employeeId, (string) $template['task_name']);
+            }
+        }
+        $nextRun = checklist_recurrence_next_run((string)$template['recurring_rule'], (string)($template['due_time'] ?: '09:00:00'), $template['start_date'] ?? null, $template['end_date'] ?? null, $occurrenceAt->modify('+1 second'));
+        db()->prepare('UPDATE ops_checklist_recurring_templates SET last_run_at=?, next_run_at=?, last_error=NULL WHERE id=? AND is_active=1')->execute([$occurrenceAt->format('Y-m-d H:i:s'), $nextRun ? $nextRun->format('Y-m-d H:i:s') : null, (int)$template['id']]);
+        if($generatedAny)ops_activity_log('recurring_occurrence_generated', 'checklist_recurring_template', (int)$template['id'], ['occurrence_date'=>$dateKey]);
     }
 }
 
 if ($ready) {
     checklist_bootstrap_schema();
+    checklist_template_bootstrap_schema();
+    task_release_due_scheduled_tasks();
     checklist_seed_recurring_tasks();
+}
+
+function checklist_correction_due_at(string $date, string $time): DateTimeImmutable
+{
+    $date = trim($date);
+    $time = trim($time);
+    if ($time === '' && preg_match('/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})$/', $date, $parts)) { $date = $parts[1]; $time = $parts[2]; }
+    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !preg_match('/^\d{2}:\d{2}$/', $time)) throw new RuntimeException('Choose a future date and time for this correction.');
+    $timezone = new DateTimeZone('Africa/Windhoek');
+    $due = DateTimeImmutable::createFromFormat('!Y-m-d H:i', $date . ' ' . $time, $timezone);
+    $errors = DateTimeImmutable::getLastErrors();
+    if (!$due || (is_array($errors) && (($errors['warning_count'] ?? 0) > 0 || ($errors['error_count'] ?? 0) > 0)) || $due <= new DateTimeImmutable('now', $timezone)) {
+        throw new RuntimeException('Choose a future date and time for this correction.');
+    }
+    return $due;
+}
+
+function checklist_correction_history(int $taskId): array
+{
+    if ($taskId <= 0 || !ops_table_exists('ops_checklist_corrections')) return [];
+    return ops_rows(
+        "SELECT c.*, c.correction_message AS message, requester.full_name AS requested_by_name
+         FROM ops_checklist_corrections c
+         LEFT JOIN ops_employees requester ON requester.id = c.requested_by
+         WHERE c.task_id = ? ORDER BY c.correction_round ASC, c.id ASC",
+        [$taskId]
+    );
+}
+
+function checklist_completion_snapshot(array $task): array
+{
+    $taskId = (int) ($task['id'] ?? 0);
+    $attachments = $taskId > 0 && ops_table_exists('ops_checklist_attachments')
+        ? ops_rows('SELECT id, original_filename, mime_type, file_size, uploaded_by, uploaded_by_name, created_at FROM ops_checklist_attachments WHERE task_id = ? AND removed_at IS NULL ORDER BY id', [$taskId])
+        : [];
+    return [
+        'status' => checklist_normalize_status((string) ($task['status'] ?? 'complete')),
+        'completed_at' => $task['date_completed'] ?: ($task['completed_at'] ?? null),
+        'completed_by' => !empty($task['completed_by']) ? (int) $task['completed_by'] : null,
+        'completion_note' => (string) ($task['completion_note'] ?? ''),
+        'checklist_items' => checklist_json_items((string) ($task['checklist_items'] ?? '')),
+        'checked_items' => checklist_json_items((string) ($task['checked_items'] ?? '')),
+        'attachments' => $attachments,
+        'deadline' => $task['deadline'] ?? null,
+        'started_at' => $task['started_at'] ?? null,
+        'completion_evidence_required' => !empty($task['completion_evidence_required']),
+    ];
+}
+
+function checklist_clear_previous_task_notifications(int $taskId, int $employeeId): void
+{
+    if ($taskId <= 0 || $employeeId <= 0 || !function_exists('notifications_schema_ready') || !notifications_schema_ready()) return;
+    db()->prepare(
+        "UPDATE notification_recipients nr JOIN notifications n ON n.id = nr.notification_id
+         SET nr.cleared_at = COALESCE(nr.cleared_at, NOW())
+         WHERE nr.employee_id = ? AND n.related_type = 'checklist_task' AND n.related_id = ?"
+    )->execute([$employeeId, $taskId]);
+}
+
+function checklist_sync_correction_status(array $task, string $status, string $note, int $actorId): void
+{
+    $correctionId = (int) ($task['active_correction_id'] ?? 0);
+    if ($correctionId <= 0) return;
+    if ($status === 'in_progress') {
+        $stmt = db()->prepare("UPDATE ops_checklist_corrections SET status='in_progress', employee_started_at=COALESCE(employee_started_at,NOW()) WHERE id=? AND status='open'");
+        $stmt->execute([$correctionId]);
+        if ($stmt->rowCount() > 0) ops_activity_log('task_correction_started','checklist_task',(int)$task['id'],['correction_id'=>$correctionId,'correction_round'=>(int)($task['correction_round_count']??0),'employee_id'=>$actorId,'status'=>'in_progress']);
+    }
+    if ($status === 'complete') {
+        $stmt = db()->prepare("UPDATE ops_checklist_corrections SET status='completed', employee_completed_at=NOW(), employee_completion_note=?, resolved_at=NOW(), open_token=NULL WHERE id=? AND status IN ('open','in_progress')");
+        $stmt->execute([trim($note),$correctionId]);
+        if ($stmt->rowCount() > 0) {
+            db()->prepare('UPDATE ops_checklist_tasks SET active_correction_id=NULL, correction_required=0 WHERE id=?')->execute([(int)$task['id']]);
+            $employeeName = (string)(ops_rows('SELECT full_name FROM ops_employees WHERE id=? LIMIT 1',[$actorId])[0]['full_name']??'The assigned employee');
+            $notificationId = function_exists('notifications_notify_task_correction_completed') ? notifications_notify_task_correction_completed((int)$task['id'],$correctionId,(int)($task['correction_round_count']??0),$actorId,$employeeName,(string)($task['task_name']??'task'),trim($note)) : null;
+            ops_activity_log('task_correction_completed','checklist_task',(int)$task['id'],['correction_id'=>$correctionId,'correction_round'=>(int)($task['correction_round_count']??0),'employee_id'=>$actorId,'completion_note'=>trim($note),'notification_id'=>$notificationId,'status'=>'complete']);
+        }
+    }
 }
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         $action = ops_post_string('action', 40);
+        if ($action === 'task_timing_snapshot') {
+            header('Content-Type: application/json; charset=utf-8');
+            $submittedToken=(string)($_POST['csrf_token']??'');if($submittedToken===''||!hash_equals($taskAttachmentCsrf,$submittedToken)){http_response_code(403);throw new RuntimeException('Your session token expired. Refresh the page and try again.');}
+            $ids=array_values(array_unique(array_filter(array_map('intval',explode(',',(string)($_POST['task_ids']??''))))));$ids=array_slice($ids,0,500);$rows=[];
+            if($ids){$marks=implode(',',array_fill(0,count($ids),'?'));$timingWhere=$canManage?'':" AND assigned_employee_id=? AND employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)";$timingParams=$ids;if(!$canManage)$timingParams[]=(int)($currentEmployeeId?:0);$rows=ops_rows("SELECT * FROM ops_checklist_tasks WHERE id IN ({$marks}) AND archived_at IS NULL AND deleted_at IS NULL{$timingWhere}",$timingParams);}
+            $snapshot=[];foreach($rows as$row)$snapshot[(int)$row['id']]=checklist_task_timing($row);echo json_encode(['success'=>true,'server_time'=>(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM),'tasks'=>$snapshot]);exit;
+        }
+        checklist_handle_template_action($action, $canManage, $taskAttachmentCsrf, (int) ($currentEmployeeId ?: 0));
+        if (in_array($action, ['request_task_correction', 'update_task_correction', 'cancel_task_correction'], true)) {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only the Owner/Admin may request or manage task corrections.'); }
+            $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+            if ($submittedToken === '' || !hash_equals($taskAttachmentCsrf, $submittedToken)) { http_response_code(403); throw new RuntimeException('Your session token expired. Refresh the page and try again.'); }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            if ($taskId <= 0) throw new RuntimeException('Task not found.');
+            $correctionDb = db();
+            $correctionDb->beginTransaction();
+            try {
+                $lock = $correctionDb->prepare('SELECT * FROM ops_checklist_tasks WHERE id = ? AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1 FOR UPDATE');
+                $lock->execute([$taskId]);
+                $task = $lock->fetch(PDO::FETCH_ASSOC);
+                if (!$task) throw new RuntimeException('Task not found.');
+                $activeRows = ops_rows("SELECT * FROM ops_checklist_corrections WHERE task_id = ? AND status IN ('open','in_progress') ORDER BY id DESC LIMIT 1 FOR UPDATE", [$taskId]);
+                $activeCorrection = $activeRows[0] ?? null;
+
+                if ($action === 'request_task_correction') {
+                    if (checklist_normalize_status((string) $task['status']) !== 'complete') throw new RuntimeException('Only a completed task can be reopened for correction.');
+                    if ($activeCorrection) { http_response_code(409); throw new RuntimeException('A correction is already pending for this task.'); }
+                    $messageText = trim(ops_post_string('correction_message', 5000));
+                    if ((function_exists('mb_strlen') ? mb_strlen($messageText) : strlen($messageText)) < 5) throw new RuntimeException('Explain what needs to be corrected.');
+                    $due = checklist_correction_due_at(ops_post_string('correction_due_at', 20), '');
+                    $employeeId = (int) ($task['completed_by'] ?: $task['assigned_employee_id'] ?: 0);
+                    if ($employeeId <= 0 || !ops_rows("SELECT id FROM ops_employees WHERE id = ? AND status = 'active' LIMIT 1", [$employeeId])) {
+                        $employeeId = (int) ($_POST['correction_employee_id'] ?? 0);
+                    }
+                    if ($employeeId <= 0 || !ops_rows("SELECT id FROM ops_employees WHERE id = ? AND status = 'active' LIMIT 1", [$employeeId])) throw new RuntimeException('Choose the employee who must complete this correction.');
+                    $round = (int) ($task['correction_round_count'] ?? 0) + 1;
+                    $snapshot = checklist_completion_snapshot($task);
+                    $requireProof = !empty($_POST['require_new_proof']) ? 1 : 0;
+                    $insert = $correctionDb->prepare("INSERT INTO ops_checklist_corrections (task_id, correction_round, requested_by, requested_at, correction_message, correction_due_at, require_new_proof, status, completion_snapshot_json, open_token) VALUES (?, ?, ?, NOW(), ?, ?, ?, 'open', ?, ?)");
+                    $insert->execute([$taskId, $round, $currentEmployeeId, $messageText, $due->format('Y-m-d H:i:s'), $requireProof, json_encode($snapshot, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE), 'task:' . $taskId]);
+                    $correctionId = (int) $correctionDb->lastInsertId();
+                    $newProofRule = $requireProof ? 1 : (int) ($task['completion_evidence_required'] ?? 0);
+                    $correctionDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id=?, assignment_type='specific', allocated_employee_id=NULL, floating_allocation_status=NULL, status='new', deadline=?, date_assigned=NOW(), released_at=NOW(), employee_visible=1, checked_items='[]', completion_note=NULL, completed_at=NULL, date_completed=NULL, completed_by=NULL, started_at=NULL, active_correction_id=?, correction_round_count=?, correction_required=1, correction_requested_at=NOW(), correction_due_at=?, correction_require_new_proof=?, completion_evidence_required=? WHERE id=?")
+                        ->execute([$employeeId, $due->format('Y-m-d H:i:s'), $correctionId, $round, $due->format('Y-m-d H:i:s'), $requireProof, $newProofRule, $taskId]);
+                    $support = $_FILES['correction_attachment'] ?? null;
+                    if (is_array($support) && (int) ($support['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) checklist_store_attachment($taskId, $support, $currentEmployeeId ?: 0, (string) (current_user()['name'] ?? 'Owner'), $correctionId);
+                    checklist_clear_previous_task_notifications($taskId, $employeeId);
+                    $notificationId = function_exists('notifications_notify_task_correction') ? notifications_notify_task_correction($taskId, $correctionId, $round, $employeeId, (string) $task['task_name'], $messageText, $due->format('Y-m-d H:i:s')) : null;
+                    if (!$notificationId) throw new RuntimeException('The correction could not be sent because its notification was not saved.');
+                    checklist_kpi_status_event($taskId, 'complete', 'new', $currentEmployeeId);
+                    ops_activity_log('task_correction_requested', 'checklist_task', $taskId, ['previous_status'=>'complete','status'=>'new','correction_id'=>$correctionId,'correction_round'=>$round,'employee_id'=>$employeeId,'correction_due_at'=>$due->format('Y-m-d H:i:s'),'require_new_proof'=>(bool)$requireProof,'notification_id'=>$notificationId]);
+                    ops_activity_log('task_correction_notification_sent', 'checklist_task', $taskId, ['correction_id'=>$correctionId,'correction_round'=>$round,'employee_id'=>$employeeId,'notification_id'=>$notificationId]);
+                    $correctionDb->commit();
+                    echo json_encode(['success'=>true,'message'=>'Correction sent — task moved to New.','task_id'=>$taskId,'correction_id'=>$correctionId,'correction_round'=>$round,'status'=>'new']);
+                    exit;
+                }
+
+                if (!$activeCorrection) throw new RuntimeException('There is no open correction for this task.');
+                $correctionId = (int) $activeCorrection['id'];
+                if ($action === 'update_task_correction') {
+                    $messageText = trim(ops_post_string('correction_message', 5000));
+                    if ((function_exists('mb_strlen') ? mb_strlen($messageText) : strlen($messageText)) < 5) throw new RuntimeException('Explain what needs to be corrected.');
+                    $due = checklist_correction_due_at(ops_post_string('correction_due_at', 20), '');
+                    $requireProof = !empty($_POST['require_new_proof']) ? 1 : 0;
+                    $correctionDb->prepare('UPDATE ops_checklist_corrections SET correction_message=?, correction_due_at=?, require_new_proof=? WHERE id=?')->execute([$messageText,$due->format('Y-m-d H:i:s'),$requireProof,$correctionId]);
+                    $snapshot = json_decode((string)($activeCorrection['completion_snapshot_json']??'{}'), true) ?: [];
+                    $originalProofRule = !empty($snapshot['completion_evidence_required']) ? 1 : 0;
+                    $correctionDb->prepare('UPDATE ops_checklist_tasks SET deadline=?, correction_due_at=?, correction_require_new_proof=?, completion_evidence_required=? WHERE id=?')->execute([$due->format('Y-m-d H:i:s'),$due->format('Y-m-d H:i:s'),$requireProof,$requireProof ? 1 : $originalProofRule,$taskId]);
+                    ops_activity_log('task_correction_due_date_changed','checklist_task',$taskId,['correction_id'=>$correctionId,'previous_due_at'=>$activeCorrection['correction_due_at'],'correction_due_at'=>$due->format('Y-m-d H:i:s'),'employee_started_at'=>$activeCorrection['employee_started_at']]);
+                    $correctionDb->commit();
+                    echo json_encode(['success'=>true,'message'=>'Correction request updated.','task_id'=>$taskId]); exit;
+                }
+
+                $reason = trim(ops_post_string('cancel_reason', 1000));
+                if ($reason === '') throw new RuntimeException('Enter a reason for cancelling this correction.');
+                $snapshot = json_decode((string) $activeCorrection['completion_snapshot_json'], true);
+                if (!is_array($snapshot)) throw new RuntimeException('The previous completion snapshot is unavailable.');
+                $correctionDb->prepare("UPDATE ops_checklist_corrections SET status='cancelled', cancelled_at=NOW(), cancelled_by=?, cancellation_reason=?, resolved_at=NOW(), open_token=NULL WHERE id=?")->execute([$currentEmployeeId,$reason,$correctionId]);
+                $correctionDb->prepare("UPDATE ops_checklist_tasks SET status='complete', deadline=?, checked_items=?, completion_note=?, completed_at=?, date_completed=?, completed_by=?, started_at=?, completion_evidence_required=?, active_correction_id=NULL, correction_required=0, correction_due_at=NULL, correction_require_new_proof=0 WHERE id=?")
+                    ->execute([$snapshot['deadline']??null,json_encode($snapshot['checked_items']??[],JSON_UNESCAPED_SLASHES),(string)($snapshot['completion_note']??''),$snapshot['completed_at']??null,$snapshot['completed_at']??null,$snapshot['completed_by']??null,$snapshot['started_at']??null,!empty($snapshot['completion_evidence_required'])?1:0,$taskId]);
+                checklist_clear_previous_task_notifications($taskId, (int) ($task['assigned_employee_id'] ?? 0));
+                checklist_kpi_status_event($taskId, checklist_normalize_status((string)$task['status']), 'complete', $currentEmployeeId);
+                ops_activity_log('task_correction_cancelled','checklist_task',$taskId,['correction_id'=>$correctionId,'correction_round'=>(int)$activeCorrection['correction_round'],'reason'=>$reason,'status'=>'complete']);
+                $correctionDb->commit();
+                echo json_encode(['success'=>true,'message'=>'Correction cancelled. The preserved completion is active again.','task_id'=>$taskId,'status'=>'complete']); exit;
+            } catch (Throwable $correctionError) {
+                if ($correctionDb->inTransaction()) $correctionDb->rollBack();
+                if ($correctionError instanceof PDOException && (string) $correctionError->getCode() === '23000') { http_response_code(409); throw new RuntimeException('A correction is already pending for this task.'); }
+                throw $correctionError;
+            }
+        }
+        if ($action === 'retry_floating_allocation') {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('You do not have permission to allocate Floating Tasks.'); }
+            $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+            if ($submittedToken === '' || !hash_equals($taskAttachmentCsrf, $submittedToken)) { http_response_code(403); throw new RuntimeException('Your session token expired. Refresh the page and try again.'); }
+            $floatingTaskId = (int) ($_POST['task_id'] ?? 0);
+            $allocation = task_floating_allocate($floatingTaskId, 'automatic_retry', true);
+            if (!empty($allocation['employee_id']) && empty($allocation['already_allocated'])) {
+                $floatingTaskRow = ops_rows('SELECT task_name FROM ops_checklist_tasks WHERE id=? LIMIT 1', [$floatingTaskId]);
+                notifications_notify_task_assigned($floatingTaskId, (int) $allocation['employee_id'], (string) ($floatingTaskRow[0]['task_name'] ?? 'Floating Task'));
+            }
+            echo json_encode(['success'=>true,'message'=>($allocation['status']??'')==='allocated'?'Floating Task allocated successfully.':'No active eligible employee is available yet. The task remains safely queued.','allocation'=>$allocation]);
+            exit;
+        }
+        if (in_array($action, ['task_attachment_upload', 'task_attachment_remove'], true)) {
+            header('Content-Type: application/json; charset=utf-8');
+            $submittedToken = (string) ($_POST['csrf_token'] ?? '');
+            if ($submittedToken === '' || !hash_equals($taskAttachmentCsrf, $submittedToken)) {
+                http_response_code(403);
+                throw new RuntimeException('Your session token expired. Refresh the page and try again.');
+            }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $taskRows = ops_rows('SELECT id, task_name, assigned_employee_id, status, employee_visible, scheduled_at, released_at, archived_at, deleted_at FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$taskRows) throw new RuntimeException('Task not found.');
+            $attachmentTask = $taskRows[0];
+            $isAssignedEmployee = $currentEmployeeId > 0 && (int) $attachmentTask['assigned_employee_id'] === (int) $currentEmployeeId;
+            if (!$canManage && (!$isAssignedEmployee || empty($attachmentTask['employee_visible']) || (!empty($attachmentTask['scheduled_at']) && empty($attachmentTask['released_at'])))) {
+                http_response_code(403);
+                throw new RuntimeException('You do not have permission to manage files for this task.');
+            }
+            if ($action === 'task_attachment_upload') {
+                if (!empty($attachmentTask['archived_at']) || !empty($attachmentTask['deleted_at'])) throw new RuntimeException('Archived or deleted tasks cannot accept files.');
+                if (!$canManage && checklist_normalize_status((string) $attachmentTask['status']) === 'complete') throw new RuntimeException('Completed task files are read-only.');
+                $file = $_FILES['attachment'] ?? null;
+                if (!is_array($file)) throw new RuntimeException('Choose a file to upload.');
+                $actorName = trim((string) (current_user()['name'] ?? 'Employee')) ?: 'Employee';
+                $row = checklist_store_attachment($taskId, $file, $currentEmployeeId ?: 0, $actorName);
+                echo json_encode(['success' => true, 'attachment' => checklist_attachment_payload($row, true)]);
+                exit;
+            }
+            $attachmentId = (int) ($_POST['attachment_id'] ?? 0);
+            $attachmentRows = ops_rows('SELECT * FROM ops_checklist_attachments WHERE id = ? AND task_id = ? AND removed_at IS NULL LIMIT 1', [$attachmentId, $taskId]);
+            if (!$attachmentRows) throw new RuntimeException('Attachment not found.');
+            $attachment = $attachmentRows[0];
+            $employeeMayRemove = $isAssignedEmployee && checklist_normalize_status((string) $attachmentTask['status']) !== 'complete' && (int) ($attachment['uploaded_by'] ?? 0) === (int) $currentEmployeeId;
+            if (!$canManage && !$employeeMayRemove) {
+                http_response_code(403);
+                throw new RuntimeException('You cannot remove another employee’s evidence or evidence from a completed task.');
+            }
+            db()->prepare('UPDATE ops_checklist_attachments SET removed_at = NOW(), removed_by = ? WHERE id = ? AND removed_at IS NULL')->execute([$currentEmployeeId ?: null, $attachmentId]);
+            ops_activity_log('task_attachment_removed', 'checklist_task', $taskId, ['attachment_id' => $attachmentId, 'filename' => $attachment['original_filename']]);
+            echo json_encode(['success' => true, 'attachment_id' => $attachmentId]);
+            exit;
+        }
+        if (in_array($action, ['recurring_pause','recurring_resume','recurring_end','recurring_update'], true)) {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only Owner/Admin may manage recurring task rules.'); }
+            $templateId = (int)($_POST['recurring_template_id'] ?? 0);
+            $rows = ops_rows('SELECT * FROM ops_checklist_recurring_templates WHERE id=? LIMIT 1', [$templateId]);
+            if (!$rows) throw new RuntimeException('Recurring task definition not found.');
+            $template = $rows[0];
+            if ($action === 'recurring_pause') {
+                if ((string)($template['status'] ?? '') !== 'active') throw new RuntimeException('Only an active recurring task can be paused.');
+                $pdo=db();$pdo->beginTransaction();
+                try{
+                    $pdo->prepare("UPDATE ops_checklist_recurring_templates SET status='paused',is_active=0,paused_at=NOW(),next_run_at=NULL,version_no=version_no+1 WHERE id=?")->execute([$templateId]);
+                    $cleanup=checklist_deactivate_recurring_occurrences($templateId,(int)($currentEmployeeId?:0),'recurring_schedule_paused');
+                    ops_activity_log('recurring_task_paused','checklist_recurring_template',$templateId,['task_name'=>$template['task_name'],'cancelled_incomplete_occurrences'=>$cleanup['tasks'],'cleared_notifications'=>$cleanup['notifications']]);
+                    $pdo->commit();
+                }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+                $message='Recurring task paused. Incomplete occurrences and notifications were cancelled; completed history was preserved.';
+            } elseif ($action === 'recurring_resume') {
+                if ((string)($template['status'] ?? '') !== 'paused') throw new RuntimeException('Only a paused recurring task can be resumed.');
+                $next=checklist_recurrence_next_run((string)$template['recurring_rule'],(string)$template['due_time'],$template['start_date']??null,$template['end_date']??null);
+                if (!$next) throw new RuntimeException('This recurrence has no future run within its date range. Update its end date before resuming.');
+                db()->prepare("UPDATE ops_checklist_recurring_templates SET status='active',is_active=1,paused_at=NULL,next_run_at=?,last_error=NULL,version_no=version_no+1 WHERE id=?")->execute([$next->format('Y-m-d H:i:s'),$templateId]);
+                ops_activity_log('recurring_task_resumed','checklist_recurring_template',$templateId,['task_name'=>$template['task_name'],'next_run_at'=>$next->format(DateTimeInterface::ATOM)]);
+                $message='Recurring task resumed from the next valid future schedule. Missed runs were not backfilled.';
+            } elseif ($action === 'recurring_end') {
+                if (in_array((string)($template['status']??''),['ended','cancelled'],true)) throw new RuntimeException('This recurrence has already ended.');
+                $pdo=db();$pdo->beginTransaction();
+                try{
+                    $pdo->prepare("UPDATE ops_checklist_recurring_templates SET status='ended',is_active=0,ended_at=NOW(),next_run_at=NULL,version_no=version_no+1 WHERE id=?")->execute([$templateId]);
+                    $cleanup=checklist_deactivate_recurring_occurrences($templateId,(int)($currentEmployeeId?:0),'recurring_schedule_ended');
+                    ops_activity_log('recurring_task_ended','checklist_recurring_template',$templateId,['task_name'=>$template['task_name'],'cancelled_incomplete_occurrences'=>$cleanup['tasks'],'cleared_notifications'=>$cleanup['notifications']]);
+                    $pdo->commit();
+                }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+                $message='Recurrence ended. Incomplete occurrences and notifications were cancelled; completed history was preserved.';
+            } else {
+                $expectedVersion=(int)($_POST['version_no']??0);
+                if ($expectedVersion !== (int)($template['version_no']??1)) throw new RuntimeException('This recurring task changed in another session. Refresh and review the latest rule.');
+                $taskName=ops_post_string('task_name',190); $instructions=checklist_sanitize_instructions((string)($_POST['instructions']??''));
+                $priority=ops_post_string('priority',30); $rule=ops_post_string('recurring_rule',80); $dueTime=ops_post_string('due_time',8);
+                $editDays=array_values(array_unique(array_filter(array_map('intval',(array)($_POST['repeat_weekdays']??[])),static function($day):bool{return $day>=1&&$day<=7;})));sort($editDays);
+                if($editDays)$rule='weekly_days:'.implode(',',$editDays);
+                $allowed=['daily_business_day','twice_weekly','weekly_1','weekly_2','weekly_3','weekly_4','weekly_5','weekly_saturday'];
+                if($taskName===''||checklist_instruction_text_length($instructions)===0)throw new RuntimeException('Task name and instructions are required.');
+                if(!isset($priorities[$priority])||(!in_array($rule,$allowed,true)&&!preg_match('/^(?:weekly_days:[1-7](?:,[1-7])*|monthly_day:(?:[1-9]|[12]\d|3[01]))$/',$rule))||!preg_match('/^\d{2}:\d{2}(:\d{2})?$/',$dueTime))throw new RuntimeException('Choose a valid priority, repeat rule and time.');
+                if(strlen($dueTime)===5)$dueTime.=':00';
+                $startDate=trim((string)($_POST['start_date']??''));$endDate=trim((string)($_POST['end_date']??''));
+                if($startDate!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$startDate))throw new RuntimeException('Choose a valid start date.');
+                if($endDate!==''&&!preg_match('/^\d{4}-\d{2}-\d{2}$/',$endDate))throw new RuntimeException('Choose a valid end date.');
+                if($startDate!==''&&$endDate!==''&&$endDate<$startDate)throw new RuntimeException('End date cannot be before start date.');
+                $occurrenceDueTime=ops_post_string('occurrence_due_time',8);
+                if($occurrenceDueTime==='')$occurrenceDueTime=substr((string)($template['occurrence_due_time']?:$template['due_time']?:'17:00:00'),0,8);
+                if(!preg_match('/^\d{2}:\d{2}(:\d{2})?$/',$occurrenceDueTime))throw new RuntimeException('Choose a valid recurring due time.');
+                if(strlen($occurrenceDueTime)===5)$occurrenceDueTime.=':00';
+                $occurrenceDueDays=array_key_exists('occurrence_due_days',$_POST)?max(0,min(31,(int)$_POST['occurrence_due_days'])):max(0,min(31,(int)($template['occurrence_due_days']??0)));
+                $releaseOffsetMinutes=array_key_exists('release_offset_minutes',$_POST)?max(0,min(44640,(int)$_POST['release_offset_minutes'])):max(0,min(44640,(int)($template['release_offset_minutes']??0)));
+                $next=checklist_recurrence_next_run($rule,$dueTime,$startDate?:null,$endDate?:null);
+                $stmt=db()->prepare('UPDATE ops_checklist_recurring_templates SET task_name=?,priority=?,recurring_rule=?,due_time=?,release_offset_minutes=?,occurrence_due_time=?,occurrence_due_days=?,instructions=?,start_date=?,end_date=?,next_run_at=?,version_no=version_no+1 WHERE id=? AND version_no=?');
+                $stmt->execute([$taskName,$priority,$rule,$dueTime,$releaseOffsetMinutes,$occurrenceDueTime,$occurrenceDueDays,$instructions,$startDate?:null,$endDate?:null,$next?$next->format('Y-m-d H:i:s'):null,$templateId,$expectedVersion]);
+                if($stmt->rowCount()!==1)throw new RuntimeException('This recurring task changed in another session. Refresh and try again.');
+                ops_activity_log('recurring_task_edited','checklist_recurring_template',$templateId,['task_name'=>$taskName,'applies_to'=>'future_occurrences_only']);
+                $message='Recurring rule updated for future generated tasks only.';
+            }
+            header('Location: checklists.php?task_view=recurring&recurring_saved=1');
+            exit;
+        }
+        if ($action === 'task_cancel_recurrence') {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only management can change recurring schedules.'); }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $task = ops_rows('SELECT recurring_template_id, recurring_rule, task_name FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$task) throw new RuntimeException('Task not found.');
+            $templates=!empty($task[0]['recurring_template_id'])
+                ? ops_rows('SELECT id FROM ops_checklist_recurring_templates WHERE id=?',[(int)$task[0]['recurring_template_id']])
+                : ops_rows('SELECT id FROM ops_checklist_recurring_templates WHERE recurring_rule=?',[(string)$task[0]['recurring_rule']]);
+            $pdo=db();$pdo->beginTransaction();
+            try{
+                $cancelled=0;$cleared=0;
+                foreach($templates as$templateRow){
+                    $parentId=(int)$templateRow['id'];
+                    $pdo->prepare("UPDATE ops_checklist_recurring_templates SET status='ended',is_active=0,ended_at=COALESCE(ended_at,NOW()),next_run_at=NULL,version_no=version_no+1 WHERE id=?")->execute([$parentId]);
+                    $cleanup=checklist_deactivate_recurring_occurrences($parentId,(int)($currentEmployeeId?:0),'recurrence_stopped_from_occurrence');
+                    $cancelled+=(int)$cleanup['tasks'];$cleared+=(int)$cleanup['notifications'];
+                }
+                ops_activity_log('task_recurrence_cancelled', 'checklist_task', $taskId, ['task_name' => $task[0]['task_name'],'cancelled_incomplete_occurrences'=>$cancelled,'cleared_notifications'=>$cleared,'completed_history_preserved'=>true]);
+                $pdo->commit();
+            }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
+            header('Location: checklists.php?task_view=recurring&recurrence_stopped=1');
+            exit;
+        }
+        if ($action === 'task_tools_data') {
+            header('Content-Type: application/json; charset=utf-8');
+            $scopeSql = $canManage ? '1=1' : 't.assigned_employee_id = ? AND t.employee_visible = 1 AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
+            $scopeValues = $canManage ? [] : [$currentEmployeeId ?: 0];
+            $trash = ops_rows(
+                "SELECT t.id, t.task_name, t.priority, t.status, t.deadline, e.full_name AS assigned_name,
+                    d.full_name AS deleted_by_name, t.deleted_at
+                 FROM ops_checklist_tasks t
+                 LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
+                 LEFT JOIN ops_employees d ON d.id = t.deleted_by
+                 WHERE {$scopeSql} AND t.deleted_at IS NOT NULL
+                 ORDER BY t.deleted_at DESC LIMIT 150",
+                $scopeValues
+            );
+            $archived = ops_rows(
+                "SELECT t.id, t.task_name, t.status, e.full_name AS assigned_name,
+                    a.full_name AS archived_by_name, t.archived_at
+                 FROM ops_checklist_tasks t
+                 LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
+                 LEFT JOIN ops_employees a ON a.id = t.archived_by
+                 WHERE {$scopeSql} AND t.archived_at IS NOT NULL AND t.deleted_at IS NULL
+                 ORDER BY t.archived_at DESC LIMIT 150",
+                $scopeValues
+            );
+            $activityWhere = $canManage
+                ? "al.entity_type = 'checklist_task'"
+                : "al.entity_type = 'checklist_task' AND EXISTS (SELECT 1 FROM ops_checklist_tasks st WHERE st.id = al.entity_id AND st.assigned_employee_id = ? AND st.employee_visible = 1 AND (st.scheduled_at IS NULL OR st.released_at IS NOT NULL))";
+            $activity = ops_rows(
+                "SELECT al.id, al.entity_id AS task_id, al.action, al.metadata, al.created_at,
+                    e.full_name AS employee_name, r.name AS role_name, t.task_name
+                 FROM ops_activity_logs al
+                 LEFT JOIN ops_employees e ON e.id = al.employee_id
+                 LEFT JOIN ops_roles r ON r.id = e.role_id
+                 LEFT JOIN ops_checklist_tasks t ON t.id = al.entity_id
+                 WHERE {$activityWhere}
+                 ORDER BY al.created_at DESC, al.id DESC LIMIT 250",
+                $canManage ? [] : [$currentEmployeeId ?: 0]
+            );
+            echo json_encode([
+                'success' => true,
+                'trash' => $trash,
+                'archived' => $archived,
+                'activity' => $activity,
+                'permissions' => [
+                    'can_manage' => $canManage,
+                    'can_delete_forever' => user_has_role('owner_admin'),
+                    'can_bulk' => $canManage,
+                ],
+            ]);
+            exit;
+        }
+        if (in_array($action, ['task_archive', 'task_trash', 'task_restore', 'task_delete_forever'], true)) {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!$canManage) {
+                http_response_code(403);
+                throw new RuntimeException('You do not have permission to manage this task.');
+            }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            if ($taskId <= 0) throw new RuntimeException('Choose a valid task.');
+            $before = ops_rows('SELECT id, task_name, status, archived_at, deleted_at FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$before) throw new RuntimeException('Task not found.');
+            if ($action === 'task_archive') {
+                db()->prepare('UPDATE ops_checklist_tasks SET archived_at = NOW(), archived_by = ?, deleted_at = NULL, deleted_by = NULL WHERE id = ?')->execute([$currentEmployeeId, $taskId]);
+                $event = 'task_archived';
+            } elseif ($action === 'task_trash') {
+                db()->prepare('UPDATE ops_checklist_tasks SET deleted_at = NOW(), deleted_by = ?, archived_at = NULL, archived_by = NULL WHERE id = ?')->execute([$currentEmployeeId, $taskId]);
+                $event = 'task_moved_to_trash';
+            } elseif ($action === 'task_restore') {
+                db()->prepare('UPDATE ops_checklist_tasks SET archived_at = NULL, archived_by = NULL, deleted_at = NULL, deleted_by = NULL, restored_at = NOW(), restored_by = ? WHERE id = ?')->execute([$currentEmployeeId, $taskId]);
+                $event = 'task_restored';
+            } else {
+                if (!user_has_role('owner_admin')) {
+                    http_response_code(403);
+                    throw new RuntimeException('Only the Owner/Admin can permanently delete tasks.');
+                }
+                if (empty($before[0]['deleted_at'])) throw new RuntimeException('Only tasks in Trash can be permanently deleted.');
+                ops_activity_log('task_deleted_forever', 'checklist_task', $taskId, ['task_name' => $before[0]['task_name']]);
+                db()->prepare('DELETE FROM ops_checklist_tasks WHERE id = ?')->execute([$taskId]);
+                echo json_encode(['success' => true, 'message' => 'Task permanently deleted.']);
+                exit;
+            }
+            ops_activity_log($event, 'checklist_task', $taskId, [
+                'task_name' => $before[0]['task_name'],
+                'old_value' => $before[0]['status'],
+                'new_value' => $event,
+                'description' => str_replace('_', ' ', $event),
+            ]);
+            echo json_encode(['success' => true, 'task_id' => $taskId, 'event' => $event]);
+            exit;
+        }
+        if ($action === 'release_scheduled_task') {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only the owner can release scheduled tasks.'); }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $row = ops_rows('SELECT id, task_name, assigned_employee_id, scheduled_at, released_at FROM ops_checklist_tasks WHERE id = ? AND deleted_at IS NULL LIMIT 1', [$taskId])[0] ?? null;
+            if (!$row || empty($row['scheduled_at']) || !empty($row['released_at'])) throw new RuntimeException('This scheduled task is no longer awaiting release.');
+            db()->prepare('UPDATE ops_checklist_tasks SET scheduled_at = NOW() WHERE id = ? AND released_at IS NULL')->execute([$taskId]);
+            task_release_due_scheduled_tasks();
+            if (!ops_rows('SELECT id FROM ops_checklist_tasks WHERE id = ? AND released_at IS NOT NULL LIMIT 1', [$taskId])) throw new RuntimeException('The task could not be released. Please try again.');
+            $message = 'Task released now. The employee has been notified.';
+        }
+        if ($action === 'cancel_scheduled_task') {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only the owner can cancel scheduled tasks.'); }
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $cancelStmt = db()->prepare('UPDATE ops_checklist_tasks SET deleted_at = NOW(), deleted_by = ? WHERE id = ? AND scheduled_at IS NOT NULL AND released_at IS NULL');
+            $cancelStmt->execute([$currentEmployeeId, $taskId]);
+            if ($cancelStmt->rowCount() !== 1) throw new RuntimeException('This scheduled task is no longer available to cancel.');
+            ops_activity_log('scheduled_task_cancelled', 'checklist_task', $taskId, []);
+            $message = 'Scheduled task cancelled.';
+        }
+        if ($action === 'acknowledge_task') {
+            header('Content-Type: application/json; charset=utf-8');
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
+            $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
+            $taskRows = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
+            if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
+            $previousStatus = checklist_normalize_status((string) $taskRows[0]['status']);
+            $nextStatus = $previousStatus;
+            db()->prepare("UPDATE ops_checklist_tasks SET first_displayed_at = COALESCE(first_displayed_at, NOW()), first_opened_at = COALESCE(first_opened_at, NOW()), acknowledged_at = COALESCE(acknowledged_at, NOW()), status = ? WHERE {$scope}")->execute([$nextStatus, ...$scopeParams]);
+            if ($previousStatus !== $nextStatus) checklist_kpi_status_event($taskId, $previousStatus, $nextStatus, $currentEmployeeId);
+            ops_activity_log('task_acknowledged', 'checklist_task', $taskId, ['previous_status' => $previousStatus, 'status' => $nextStatus]);
+            echo json_encode(['success' => true, 'status' => $nextStatus]);
+            exit;
+        }
+        if ($action === 'update_task_status') {
+            header('Content-Type: application/json; charset=utf-8');
+            $taskId = (int) ($_POST['task_id'] ?? 0);
+            $status = checklist_requested_status();
+            if ($taskId <= 0 || !array_key_exists($status, $statuses)) {
+                throw new RuntimeException('Choose a valid task status.');
+            }
+            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
+            $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
+            $beforeRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
+            if (!$beforeRows) throw new RuntimeException('Task was not found or is not assigned to you.');
+            $previousStatus = checklist_normalize_status((string) $beforeRows[0]['status']);
+            $progressNote = checklist_require_progress_note(ops_post_string('completion_note', 1500));
+            if (!$canManage && $previousStatus === 'complete' && $status !== 'complete') {
+                http_response_code(403);
+                throw new RuntimeException('Only management can reopen a completed task.');
+            }
+            if ($status === 'complete') {
+                $completionNote = $progressNote;
+                checklist_require_completion($beforeRows[0], null, $completionNote);
+                $set = 'status = ?, completion_note = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?)';
+                $updateParams = [$status, trim($completionNote), $currentEmployeeId];
+            } else {
+                $set = 'status = ?, completion_note = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
+                $updateParams = [$status, $progressNote];
+            }
+            if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
+            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
+            $stmt->execute([...$updateParams, ...$scopeParams]);
+            if ($stmt->rowCount() < 1 && $previousStatus !== $status) throw new RuntimeException('The task status could not be saved.');
+            checklist_sync_correction_status($beforeRows[0], $status, $progressNote, (int) ($currentEmployeeId ?: 0));
+            checklist_kpi_status_event($taskId, $previousStatus, $status, $currentEmployeeId);
+            ops_activity_log($status === 'complete' ? 'task_completed' : ($previousStatus === 'complete' ? 'task_reopened' : 'task_status_changed'), 'checklist_task', $taskId, [
+                'previous_status' => $previousStatus,
+                'status' => $status,
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+                'completion_note' => $progressNote,
+                'previous_completion_note' => $previousStatus === 'complete' ? (string) ($beforeRows[0]['completion_note'] ?? '') : null,
+            ]);
+            $afterRows = ops_rows("SELECT t.status, t.deadline, t.date_completed, t.completed_by, e.full_name AS completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id = t.completed_by WHERE t.id = ? LIMIT 1", [$taskId]);
+            $after = $afterRows[0] ?? ['status' => $status, 'deadline' => $beforeRows[0]['deadline'] ?? null];
+            $displayStatus = checklist_effective_status($after);
+            echo json_encode(['success' => true, 'task' => [
+                'id' => $taskId,
+                'status' => $status,
+                'display_status' => $displayStatus,
+                'display_label' => $groups[$displayStatus] ?? ($statuses[$displayStatus] ?? $displayStatus),
+                'date_completed' => $after['date_completed'] ?? null,
+                'completed_by' => $after['completed_by'] ?? null,
+                'completed_by_name' => $after['completed_by_name'] ?? null,
+            ]]);
+            exit;
+        }
+        if ($action === 'bulk_task_action') {
+            header('Content-Type: application/json; charset=utf-8');
+            if (!$canManage) {
+                http_response_code(403);
+                echo json_encode(['success' => false, 'message' => 'You do not have permission to manage tasks.']);
+                exit;
+            }
+            $bulkAction = ops_post_string('bulk_action', 20);
+            $taskIds = array_values(array_unique(array_filter(array_map('intval', $_POST['task_ids'] ?? []))));
+            if (!$taskIds) throw new RuntimeException('Select at least one task.');
+            $placeholders = implode(',', array_fill(0, count($taskIds), '?'));
+            if ($bulkAction === 'duplicate') {
+                $sql = "INSERT INTO ops_checklist_tasks
+                    (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, checked_items, completion_note, recurrence_key, recurring_rule, created_by)
+                    SELECT checklist_type, CONCAT(task_name, ' (Copy)'), priority, assigned_employee_id, NOW(), deadline, 'new', notes, instructions, checklist_items, NULL, NULL, NULL, NULL, ?
+                    FROM ops_checklist_tasks WHERE id IN ({$placeholders})";
+                $stmt = db()->prepare($sql);
+                $stmt->execute([$currentEmployeeId, ...$taskIds]);
+            } elseif ($bulkAction === 'status') {
+                $value = strtolower(trim(ops_post_string('value', 30)));
+                if (!array_key_exists($value, $statuses)) throw new RuntimeException('Choose a valid status.');
+                $beforeBulkStatuses = ops_rows("SELECT * FROM ops_checklist_tasks WHERE id IN ({$placeholders}) AND deleted_at IS NULL", $taskIds);
+                if (count($beforeBulkStatuses) !== count($taskIds)) throw new RuntimeException('One or more selected tasks could not be validated.');
+                if ($value === 'complete') {
+                    throw new RuntimeException('Complete tasks individually so each task has its own completion note.');
+                }
+                $bulkDb = db();
+                $bulkDb->beginTransaction();
+                try {
+                    if ($value === 'complete') {
+                        $stmt = $bulkDb->prepare("UPDATE ops_checklist_tasks SET status = ?, completed_at = COALESCE(completed_at, NOW()), date_completed = COALESCE(date_completed, NOW()), completed_by = COALESCE(completed_by, ?) WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                        $stmt->execute([$value, $currentEmployeeId, ...$taskIds]);
+                    } else {
+                        $stmt = $bulkDb->prepare("UPDATE ops_checklist_tasks SET status = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                        $stmt->execute([$value, ...$taskIds]);
+                    }
+                    $bulkDb->commit();
+                } catch (Throwable $bulkError) {
+                    if ($bulkDb->inTransaction()) $bulkDb->rollBack();
+                    throw $bulkError;
+                }
+                foreach ($beforeBulkStatuses as $beforeBulkStatus) checklist_kpi_status_event((int) $beforeBulkStatus['id'], (string) $beforeBulkStatus['status'], $value, $currentEmployeeId);
+            } elseif ($bulkAction === 'priority') {
+                $value = ops_post_string('value', 30);
+                if (!array_key_exists($value, $priorities)) throw new RuntimeException('Choose a valid priority.');
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET priority = ? WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute([$value, ...$taskIds]);
+            } elseif ($bulkAction === 'assign') {
+                $value = max(0, (int) ($_POST['value'] ?? 0));
+                $beforeAssignments = ops_rows("SELECT id, assigned_employee_id FROM ops_checklist_tasks WHERE id IN ({$placeholders}) AND deleted_at IS NULL", $taskIds);
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, date_assigned = CASE WHEN COALESCE(assigned_employee_id,0) <> ? THEN NOW() ELSE date_assigned END, employee_visible = CASE WHEN ? > 0 THEN 1 ELSE employee_visible END WHERE id IN ({$placeholders}) AND deleted_at IS NULL");
+                $stmt->execute([$value ?: null, $value, $value, ...$taskIds]);
+                foreach ($beforeAssignments as $beforeAssignment) {
+                    $previousEmployeeId = (int) ($beforeAssignment['assigned_employee_id'] ?? 0);
+                    if ($previousEmployeeId === $value) continue;
+                    ops_activity_log($value > 0 ? ($previousEmployeeId > 0 ? 'task_reassigned' : 'task_assigned') : 'task_unassigned', 'checklist_task', (int) $beforeAssignment['id'], [
+                        'previous_assigned_employee_id' => $previousEmployeeId ?: null,
+                        'assigned_employee_id' => $value ?: null,
+                        'assignment_visible' => $value > 0,
+                        'assignment_source' => 'bulk_action',
+                    ]);
+                }
+            } elseif ($bulkAction === 'archive') {
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET archived_at = NOW(), archived_by = ?, deleted_at = NULL, deleted_by = NULL WHERE id IN ({$placeholders})");
+                $stmt->execute([$currentEmployeeId, ...$taskIds]);
+            } elseif ($bulkAction === 'delete') {
+                $stmt = db()->prepare("UPDATE ops_checklist_tasks SET deleted_at = NOW(), deleted_by = ?, archived_at = NULL, archived_by = NULL WHERE id IN ({$placeholders})");
+                $stmt->execute([$currentEmployeeId, ...$taskIds]);
+            } else {
+                throw new RuntimeException('Unsupported bulk action.');
+            }
+            ops_activity_log('task_bulk_action', 'checklist_task', (int) $taskIds[0], ['bulk_action' => $bulkAction, 'task_ids' => $taskIds]);
+            echo json_encode(['success' => true, 'affected' => count($taskIds), 'task_ids' => $taskIds, 'bulk_action' => $bulkAction]);
+            exit;
+        }
         $taskId = (int) ($_POST['task_id'] ?? 0);
-        $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ?';
+        $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
         $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
 
         if ($action === 'create_task' && $canManage) {
-            $assignedId = (int) ($_POST['assigned_employee_id'] ?? 0);
-            $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
+            $taskMode = ops_post_string('task_mode', 20);
+            if (!in_array($taskMode, ['one_off', 'scheduled', 'recurring'], true)) throw new RuntimeException('Choose One-off, Scheduled, or Recurring Task.');
+            $assignmentType = ops_post_string('assignment_type', 20) === 'floating' ? 'floating' : 'specific';
+            $floatingRole = $assignmentType === 'floating' ? ops_post_string('floating_eligible_role', 40) : '';
+            if ($assignmentType === 'floating' && !task_floating_role_keys($floatingRole)) throw new RuntimeException('Choose Front Desk or Back / Packers for this Floating Task.');
+            $rawAssignmentValues = $_POST['assigned_employee_id'] ?? [];
+            $assignmentValues = is_array($rawAssignmentValues) ? $rawAssignmentValues : [$rawAssignmentValues];
+            $assignmentValues = array_values(array_unique(array_filter(array_map(static function ($value): string {
+                return trim((string) $value);
+            }, $assignmentValues), static function (string $value): bool {
+                return $value !== '';
+            })));
+            $groupValues = ['all', 'group:front_desk', 'group:back_packers'];
+            $selectedGroups = array_values(array_intersect($assignmentValues, $groupValues));
+            if ($assignmentType === 'specific' && count($selectedGroups) > 1) throw new RuntimeException('Choose one direct-assignment group at a time.');
+            if ($assignmentType === 'specific' && $selectedGroups && count($assignmentValues) > 1) throw new RuntimeException('Choose one group or individual employees, not both.');
+            $groupValue = $selectedGroups[0] ?? '';
+            $assignAll = $assignmentType === 'specific' && $groupValue === 'all';
+            $groupAssignment = $assignmentType === 'specific' && $groupValue !== '';
+            $assignedId = $assignmentType === 'floating' ? 0 : (($groupAssignment || count($assignmentValues) !== 1) ? 0 : (int) $assignmentValues[0]);
+            $eligibleEmployeeRows = [];
+            if ($groupAssignment) {
+                $roleKeys = $groupValue === 'all' ? [] : task_floating_role_keys(substr($groupValue, 6));
+                $roleSql = $roleKeys ? ' AND r.role_key IN (' . implode(',', array_fill(0, count($roleKeys), '?')) . ')' : '';
+                $eligibleEmployeeRows = ops_rows(
+                    "SELECT e.id, e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id
+                     WHERE e.status='active' AND r.role_key <> 'owner_admin'{$roleSql} ORDER BY e.full_name",
+                    $roleKeys
+                );
+            }
+            $allEligibleRows = $groupAssignment ? $eligibleEmployeeRows : ops_rows("SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key <> 'owner_admin'");
+            $eligibleIds = array_map(static function (array $row): int { return (int) $row['id']; }, $allEligibleRows);
+            if ($assignmentType === 'specific' && !$groupAssignment) {
+                foreach ($assignmentValues as $value) {
+                    $candidateId = (int) $value;
+                    if ($candidateId <= 0 || !in_array($candidateId, $eligibleIds, true)) {
+                        throw new RuntimeException('Choose only active employees for Direct Assignment.');
+                    }
+                }
+            }
+            $targetEmployeeIds = $assignmentType === 'floating' ? [0] : ($groupAssignment
+                ? array_values(array_unique($eligibleIds))
+                : array_values(array_unique(array_map('intval', $assignmentValues))));
+            $deadline = $taskMode === 'recurring' ? '' : checklist_create_due_at($_POST);
+            $scheduledAt = $taskMode === 'scheduled' ? checklist_create_scheduled_at($_POST, $deadline) : null;
             $taskName = ops_post_string('task_name', 190);
             if ($taskName === '') throw new RuntimeException('Task name is required.');
-            $stmt = db()->prepare(
+            if (!$targetEmployeeIds) throw new RuntimeException($groupAssignment ? 'There are no active employees in the selected group.' : 'Assigned employee is required.');
+            $instructions = checklist_sanitize_instructions((string) ($_POST['instructions'] ?? ''));
+            if (checklist_instruction_text_length($instructions) === 0) throw new RuntimeException('Task instructions are required.');
+            $urgentRequested = !empty($_POST['send_urgent_alert']);
+            $urgentRecipients = (!$groupAssignment && $urgentRequested) ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId) : [];
+            if ($scheduledAt === null && !$groupAssignment && count($targetEmployeeIds) === 1 && $assignmentType === 'specific' && $urgentRequested && !$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            $employeeVisible = ($scheduledAt === null && $assignmentType === 'specific') ? 1 : 0;
+            $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
+            $repeatType = $taskMode === 'recurring' ? 'recurring' : 'one_time';
+            $recurringRule = $repeatType === 'recurring' ? ops_post_string('recurring_rule', 80) : '';
+            $repeatDays = array_values(array_unique(array_filter(array_map('intval', (array)($_POST['repeat_weekdays'] ?? [])), static function ($day): bool { return $day >= 1 && $day <= 7; })));
+            sort($repeatDays);
+            if ($repeatType === 'recurring' && ops_post_string('recurrence_frequency', 20) === 'weekly') {
+                if (!$repeatDays) throw new RuntimeException('Choose at least one weekday for a weekly recurring task.');
+                $recurringRule = 'weekly_days:' . implode(',', $repeatDays);
+            }
+            if ($repeatType === 'recurring' && ops_post_string('recurrence_frequency', 20) === 'custom') {
+                if (!$repeatDays) throw new RuntimeException('Choose at least one weekday for a custom recurring task.');
+                $recurringRule = 'weekly_days:' . implode(',', $repeatDays);
+            }
+            if ($repeatType === 'recurring' && ops_post_string('recurrence_frequency', 20) === 'monthly') {
+                $monthDayRaw = trim((string) ($_POST['recurrence_month_day'] ?? ''));
+                if (!preg_match('/^(?:[1-9]|[12]\\d|3[01])$/', $monthDayRaw)) throw new RuntimeException('Choose a day of month from 1 to 31.');
+                $monthDay=(int)$monthDayRaw;
+                $recurringRule='monthly_day:'.$monthDay;
+            }
+            $allowedRecurringRules = ['', 'daily_business_day', 'twice_weekly', 'weekly_1', 'weekly_2', 'weekly_3', 'weekly_4', 'weekly_5', 'weekly_saturday'];
+            if (!in_array($recurringRule, $allowedRecurringRules, true) && !preg_match('/^(?:weekly_days:[1-7](?:,[1-7])*|monthly_day:(?:[1-9]|[12]\d|3[01]))$/', $recurringRule)) {
+                throw new RuntimeException('Choose a valid task recurrence.');
+            }
+            if ($groupAssignment && $recurringRule !== '') throw new RuntimeException('Choose individual employees for a recurring Direct Assignment.');
+            $recurrenceStartDate = ops_post_string('recurrence_start_date', 10);
+            $recurrenceEndDate = ops_post_string('recurrence_end_date', 10);
+            if ($recurringRule !== '' && $recurrenceStartDate === '') $recurrenceStartDate = date('Y-m-d');
+            foreach ([$recurrenceStartDate, $recurrenceEndDate] as $recurrenceDate) {
+                if ($recurrenceDate !== '' && !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $recurrenceDate)) throw new RuntimeException('Choose a valid recurrence date.');
+            }
+            if ($recurrenceEndDate !== '' && $recurrenceEndDate < $recurrenceStartDate) throw new RuntimeException('The recurrence end date must be on or after its start date.');
+            $urgentRecipientConfig = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
+            if ($urgentRequested && !$urgentRecipientConfig) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            $createAttachmentFiles = checklist_create_attachment_files();
+            if ($groupAssignment && $createAttachmentFiles) throw new RuntimeException('Create the direct-assignment group task first, then add shared files from the group view.');
+            $createdAttachments = [];
+            $attachmentActorName = trim((string) (current_user()['name'] ?? 'Owner')) ?: 'Owner';
+            $templateId = null;
+            $sourceTemplateId = (int) ($_POST['source_template_id'] ?? 0);
+            if ($sourceTemplateId > 0 && !checklist_template_row($sourceTemplateId)) {
+                throw new RuntimeException('The selected task template is no longer available.');
+            }
+            $taskDb = db();
+            $batchAssignment = $groupAssignment || count($targetEmployeeIds) > 1;
+            $batchId = $batchAssignment ? 'task-batch-' . date('YmdHis') . '-' . bin2hex(random_bytes(6)) : null;
+            $batchSize = count($targetEmployeeIds);
+            $createdTaskIds = [];
+            $taskDb->beginTransaction();
+            try {
+              if ($recurringRule !== '' && ops_table_exists('ops_checklist_recurring_templates')) {
+                $recurrenceTime = ops_post_string('recurrence_time', 8);
+                if (!preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $recurrenceTime)) throw new RuntimeException('Choose a valid occurrence time.');
+                $dueTime = $recurrenceTime . ':00';
+                $occurrenceDueTime = ops_post_string('recurrence_due_time', 8);
+                if (!preg_match('/^(?:[01]\\d|2[0-3]):[0-5]\\d$/', $occurrenceDueTime)) throw new RuntimeException('Choose a valid recurring due time.');
+                $occurrenceDueDays = (int) ($_POST['recurrence_due_days'] ?? 0);
+                if ($occurrenceDueDays < 0 || $occurrenceDueDays > 31) throw new RuntimeException('Choose a valid recurring due day.');
+                if ($occurrenceDueDays === 0 && $occurrenceDueTime <= $recurrenceTime) throw new RuntimeException('Recurring due time must be after the occurrence time when due the same day.');
+                $releaseOffsetMinutes = 0;
+                if (ops_post_string('recurrence_release_mode', 20) === 'earlier') {
+                    $releaseValue = (int) ($_POST['recurrence_release_value'] ?? 0);
+                    $releaseUnit = ops_post_string('recurrence_release_unit', 10);
+                    $multipliers = ['minutes'=>1, 'hours'=>60, 'days'=>1440];
+                    if ($releaseValue < 1 || !isset($multipliers[$releaseUnit])) throw new RuntimeException('Choose how long before the occurrence to release it.');
+                    $releaseOffsetMinutes = $releaseValue * $multipliers[$releaseUnit];
+                    if ($releaseOffsetMinutes > 44640) throw new RuntimeException('Recurring release can be no more than 31 days early.');
+                }
+                $initialNextRun = checklist_recurrence_next_run($recurringRule, $dueTime, $recurrenceStartDate ?: null, $recurrenceEndDate ?: null, $scheduledAt ? new DateTimeImmutable($scheduledAt) : null);
+                $templateStmt = $taskDb->prepare(
+                    "INSERT INTO ops_checklist_recurring_templates
+                     (task_name, checklist_type, priority, assigned_employee_id, assignment_type, floating_eligible_role, recurring_rule, due_time, release_offset_minutes, occurrence_due_time, occurrence_due_days, start_date, end_date, next_run_at, instructions, checklist_items, completion_evidence_required, employee_visible, is_active, status, created_by)
+                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'active', ?)"
+                );
+                $submittedPriority = ops_post_string('priority', 30);
+                $templateStmt->execute([$taskName, 'opening', array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $assignedId > 0 ? $assignedId : null, $assignmentType, $floatingRole ?: null, $recurringRule, $dueTime, $releaseOffsetMinutes, $occurrenceDueTime . ':00', $occurrenceDueDays, $recurrenceStartDate ?: null, $recurrenceEndDate ?: null, $initialNextRun ? $initialNextRun->format('Y-m-d H:i:s') : null, $instructions, checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')), $proofRequired, $employeeVisible, $currentEmployeeId]);
+                $templateId = (int) db()->lastInsertId();
+                ops_activity_log('recurring_task_created', 'checklist_recurring_template', $templateId, [
+                    'assigned_employee_id' => $assignedId > 0 ? $assignedId : null,
+                    'assignment_type' => $assignmentType,
+                    'recurring_rule' => $recurringRule,
+                    'first_occurrence_at' => $initialNextRun ? $initialNextRun->format('Y-m-d H:i:s') : null,
+                ]);
+              }
+            $stmt = $taskDb->prepare(
                 "INSERT INTO ops_checklist_tasks
-                 (checklist_type, task_name, priority, assigned_employee_id, date_assigned, deadline, status, notes, instructions, checklist_items, created_by)
-                 VALUES (?, ?, ?, ?, NOW(), ?, 'not_started', ?, ?, ?, ?)"
+                 (checklist_type, task_name, task_mode, priority, assigned_employee_id, assignment_type, floating_eligible_role, floating_allocation_status, date_assigned, scheduled_at, released_at, deadline, status, notes, instructions, checklist_items, completion_note_required, completion_evidence_required, performance_scored, recurrence_key, recurring_rule, recurring_template_id, source_template_id, employee_visible, urgent_alert_enabled, urgent_alert_recipients_json, created_by, batch_id, batch_size)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
             );
-            $stmt->execute([
-                ops_post_string('checklist_type', 30) ?: 'opening',
+            // A recurring submission creates the definition only. The seeder
+            // creates the first child occurrence on the first matching date;
+            // inserting a child here produced a false "today" occurrence even
+            // when the selected weekdays/start date said otherwise.
+            $immediateTargetEmployeeIds = $recurringRule === '' ? $targetEmployeeIds : [];
+            foreach ($immediateTargetEmployeeIds as $targetEmployeeId) {
+              $stmt->execute([
+                'opening',
                 $taskName,
-                ops_post_string('priority', 30) ?: 'medium',
-                $assignedId > 0 ? $assignedId : null,
+                $taskMode,
+                array_key_exists(ops_post_string('priority', 30), $priorities) ? ops_post_string('priority', 30) : 'normal',
+                $targetEmployeeId,
+                $assignmentType,
+                $floatingRole ?: null,
+                $assignmentType === 'floating' ? 'pending' : null,
+                ($scheduledAt === null && $assignmentType === 'specific') ? date('Y-m-d H:i:s') : null,
+                $scheduledAt,
+                $scheduledAt === null ? date('Y-m-d H:i:s') : null,
                 $deadline ?: null,
-                ops_post_string('instructions', 1500),
-                ops_post_string('instructions', 1500),
+                trim(strip_tags($instructions)),
+                $instructions,
                 checklist_items_from_text((string) ($_POST['checklist_items_text'] ?? '')),
+                1,
+                $proofRequired,
+                1,
+                $templateId ? 'template-' . $templateId . '-' . date('Y-m-d') . '-' . $targetEmployeeId : null,
+                $recurringRule ?: null,
+                $templateId,
+                $sourceTemplateId > 0 ? $sourceTemplateId : null,
+                $employeeVisible,
+                $urgentRequested ? 1 : 0,
+                $urgentRequested ? json_encode($urgentRecipientConfig) : null,
                 $currentEmployeeId,
+                $batchId,
+                $batchAssignment ? $batchSize : null,
+              ]);
+              $createdTaskId = (int) db()->lastInsertId();
+              $createdTaskIds[] = $createdTaskId;
+              $floatingAllocation = null;
+              if ($assignmentType === 'floating' && $scheduledAt === null) {
+                  $floatingAllocation = task_floating_allocate($createdTaskId, 'automatic', true);
+                  $targetEmployeeId = (int) ($floatingAllocation['employee_id'] ?? 0);
+              }
+              if ($scheduledAt !== null) {
+                  // Verify the scheduled state was genuinely persisted before we ever tell the owner
+                  // it was -- read back directly (not via ops_rows(), which swallows query errors) so
+                  // a save that silently failed to stick surfaces as a real error, not a false success.
+                  $persistedCheck = $taskDb->prepare('SELECT scheduled_at, released_at, employee_visible FROM ops_checklist_tasks WHERE id = ?');
+                  $persistedCheck->execute([$createdTaskId]);
+                  $persistedRow = $persistedCheck->fetch();
+                  if (!$persistedRow
+                      || (string) $persistedRow['scheduled_at'] !== $scheduledAt
+                      || $persistedRow['released_at'] !== null
+                      || (int) $persistedRow['employee_visible'] !== 0
+                  ) {
+                      throw new RuntimeException('The task could not be confirmed as scheduled. Nothing was saved -- please try again.');
+                  }
+              }
+              $selectedTemplateAttachments = json_decode((string) ($_POST['template_attachment_ids'] ?? '[]'), true);
+              if ($sourceTemplateId > 0 && is_array($selectedTemplateAttachments)) {
+                  checklist_copy_template_attachments_to_task($sourceTemplateId, $selectedTemplateAttachments, $createdTaskId, (int) $currentEmployeeId);
+              }
+              foreach ($createAttachmentFiles as $createAttachmentFile) {
+                  $createdAttachments[] = checklist_store_attachment($createdTaskId, $createAttachmentFile, $currentEmployeeId ?: 0, $attachmentActorName);
+              }
+              ops_activity_log($scheduledAt === null ? 'task_created' : 'task_scheduled', 'checklist_task', $createdTaskId, [
+                'assigned_employee_id' => $targetEmployeeId,
+                'assignment_type' => $assignmentType,
+                'floating_eligible_role' => $floatingRole ?: null,
+                'floating_allocation_status' => $floatingAllocation['status'] ?? ($assignmentType === 'floating' ? 'pending' : null),
+                'scheduled_at' => $scheduledAt,
+                'attachment_count' => count($createdAttachments),
+                'source_template_id' => $sourceTemplateId > 0 ? $sourceTemplateId : null,
+                'proof_required' => $proofRequired,
+                'batch_id' => $batchId,
+                'batch_size' => $batchAssignment ? $batchSize : null,
+                'popup_enabled' => $urgentRequested,
+                'popup_recipients' => $urgentRecipientConfig,
+              ]);
+              if ($scheduledAt !== null && $urgentRequested) ops_activity_log('task_popup_configured', 'checklist_task', $createdTaskId, [
+                  'recipients' => $urgentRecipientConfig, 'scheduled_at' => $scheduledAt,
+              ]);
+              if ($scheduledAt === null && $targetEmployeeId > 0 && !notifications_notify_task_assigned($createdTaskId, $targetEmployeeId, $taskName)) {
+                  throw new RuntimeException('The task assignment notification could not be saved.');
+              }
+              $immediateUrgentRecipients = $assignmentType === 'floating' && $targetEmployeeId > 0 ? checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $targetEmployeeId) : ($batchAssignment ? [$targetEmployeeId] : $urgentRecipients);
+              if ($scheduledAt === null && $urgentRequested && $targetEmployeeId > 0 && !checklist_send_urgent_alert($createdTaskId, $immediateUrgentRecipients)) {
+                  throw new RuntimeException('The task popup notification could not be saved.');
+              }
+            }
+            if ($batchAssignment && $createdTaskIds) ops_activity_log('task_group_created', 'checklist_task_batch', (int) $createdTaskIds[0], [
+                'batch_id' => $batchId, 'employee_count' => $batchSize, 'child_task_ids' => $createdTaskIds, 'scheduled_at' => $scheduledAt,
             ]);
-            ops_activity_log('task_created', 'checklist_task', (int) db()->lastInsertId(), ['assigned_employee_id' => $assignedId]);
-            $message = 'Task created and assigned.';
+            $taskDb->commit();
+            if ($recurringRule !== '') {
+                try {
+                    checklist_seed_recurring_tasks();
+                } catch (Throwable $seedAfterCreateError) {
+                    // The recurrence definition is already committed and is
+                    // the authoritative saved result. A transient generation
+                    // failure is audited by the seeder and retried safely on
+                    // the next request; never tell the owner the save failed.
+                    error_log('Recurring task post-create seed failed: ' . $seedAfterCreateError->getMessage());
+                }
+            }
+            } catch (Throwable $taskCreateError) {
+                if ($taskDb->inTransaction()) $taskDb->rollBack();
+                foreach ($createdAttachments as $createdAttachment) {
+                    $storedFilename = basename((string) ($createdAttachment['stored_filename'] ?? ''));
+                    $storedPath = BASE_PATH . '/uploads/checklist-attachments/' . $storedFilename;
+                    if ($storedFilename !== '' && is_file($storedPath)) unlink($storedPath);
+                }
+                throw $taskCreateError;
+            }
+            $message = $batchAssignment
+                ? ($scheduledAt !== null ? $batchSize . ' individual tasks scheduled for ' . checklist_date_label($scheduledAt) . '.' . ($urgentRequested ? ' Popup notifications will be sent at release.' : '') : $batchSize . ' individual employee tasks created and assigned.')
+                : ($scheduledAt !== null ? 'Task scheduled for ' . checklist_date_label($scheduledAt) . '.' . ($urgentRequested ? ' Popup notification will be sent at release.' : ' The employee cannot see it until release.') : ($createdAttachments
+                ? 'Task created with ' . count($createdAttachments) . ' file' . (count($createdAttachments) === 1 ? '' : 's') . ' and assigned.'
+                : 'Task created and assigned.'));
+            if (strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+                header('Content-Type: application/json; charset=utf-8');
+                $successMessage = $recurringRule !== ''
+                    ? ($scheduledAt !== null ? 'Recurring task scheduled.' : 'Recurring task created.')
+                    : ($scheduledAt !== null ? 'Scheduled task created.' : 'Task created.');
+                echo json_encode(['success'=>true,'message'=>$successMessage,'task_ids'=>$createdTaskIds,'recurring_template_id'=>$templateId,'scheduled'=>$scheduledAt!==null,'recurring'=>$recurringRule!=='']);
+                exit;
+            }
         }
 
         if ($action === 'admin_update_task' && $canManage) {
             $assignedId = (int) ($_POST['assigned_employee_id'] ?? 0);
             $deadline = str_replace('T', ' ', ops_post_string('deadline', 30));
-            $status = ops_post_string('status', 30) ?: 'not_started';
-            if (!array_key_exists($status, $statuses)) $status = 'not_started';
-            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, deadline = ?, priority = ?, status = ? WHERE id = ?");
-            $stmt->execute([$assignedId > 0 ? $assignedId : null, $deadline ?: null, ops_post_string('priority', 30) ?: 'medium', $status, $taskId]);
-            ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'assigned_employee_id' => $assignedId]);
+            $status = checklist_requested_status();
+            $oldRows = ops_rows('SELECT * FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$oldRows) throw new RuntimeException('Task not found.');
+            if ($status === 'complete' && checklist_normalize_status((string) ($oldRows[0]['status'] ?? '')) !== 'complete') checklist_require_completion($oldRows[0], null, '');
+            $oldStatus = (string) ($oldRows[0]['status'] ?? '');
+            $oldAssignedId = (int) ($oldRows[0]['assigned_employee_id'] ?? 0);
+            $updatedInstructions = checklist_sanitize_instructions((string) ($_POST['instructions'] ?? $oldRows[0]['instructions'] ?? $oldRows[0]['notes'] ?? ''));
+            if (checklist_instruction_text_length($updatedInstructions) === 0) throw new RuntimeException('Task instructions are required.');
+            $updatedScheduledAt = !empty($oldRows[0]['scheduled_at']) && empty($oldRows[0]['released_at'])
+                ? checklist_create_scheduled_at(['delivery_mode' => 'scheduled', 'scheduled_at' => (string) ($_POST['scheduled_at'] ?? $oldRows[0]['scheduled_at'])], $deadline)
+                : ($oldRows[0]['scheduled_at'] ?? null);
+            $taskDb = db();
+            $taskDb->beginTransaction();
+            try {
+                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET assigned_employee_id = ?, date_assigned = CASE WHEN released_at IS NOT NULL AND COALESCE(assigned_employee_id,0) <> ? THEN NOW() ELSE date_assigned END, scheduled_at = ?, deadline = ?, priority = ?, status = ?, instructions = ?, notes = ?, employee_visible = CASE WHEN scheduled_at IS NOT NULL AND released_at IS NULL THEN 0 ELSE 1 END, completion_note_required = 1, completion_evidence_required = ?, performance_scored = 1 WHERE id = ?");
+                $submittedPriority = ops_post_string('priority', 30);
+                $proofRequired = !empty($_POST['completion_evidence_required']) ? 1 : 0;
+                $stmt->execute([$assignedId > 0 ? $assignedId : null, $assignedId, $updatedScheduledAt, $deadline ?: null, array_key_exists($submittedPriority, $priorities) ? $submittedPriority : 'normal', $status, $updatedInstructions, trim(strip_tags($updatedInstructions)), $proofRequired, $taskId]);
+                checklist_kpi_status_event($taskId, $oldStatus, $status, $currentEmployeeId);
+                ops_activity_log('task_admin_updated', 'checklist_task', $taskId, ['status' => $status, 'previous_assigned_employee_id' => $oldAssignedId ?: null, 'assigned_employee_id' => $assignedId ?: null, 'proof_required' => $proofRequired]);
+                if ($assignedId !== $oldAssignedId) ops_activity_log($assignedId > 0 ? ($oldAssignedId > 0 ? 'task_reassigned' : 'task_assigned') : 'task_unassigned', 'checklist_task', $taskId, [
+                    'previous_assigned_employee_id' => $oldAssignedId ?: null,
+                    'assigned_employee_id' => $assignedId ?: null,
+                    'assignment_visible' => $assignedId > 0,
+                    'assignment_source' => 'admin_update',
+                ]);
+                if (!empty($oldRows[0]['released_at']) && $assignedId > 0 && $assignedId !== $oldAssignedId && !notifications_notify_task_assigned($taskId, $assignedId, (string) ($oldRows[0]['task_name'] ?? 'Checklist task'))) {
+                    throw new RuntimeException('The reassignment notification could not be saved.');
+                }
+                $taskDb->commit();
+            } catch (Throwable $taskUpdateError) {
+                if ($taskDb->inTransaction()) $taskDb->rollBack();
+                throw $taskUpdateError;
+            }
+            if (!empty($oldRows[0]['scheduled_at']) && empty($oldRows[0]['released_at'])) {
+                $popupEnabled = !empty($_POST['send_urgent_alert']);
+                $popupConfig = array_values(array_intersect((array) ($_POST['urgent_alert_recipients'] ?? []), ['assigned', 'role:front_desk', 'role:packers', 'role:all_relevant']));
+                if ($popupEnabled && !$popupConfig) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+                db()->prepare('UPDATE ops_checklist_tasks SET urgent_alert_enabled = ?, urgent_alert_recipients_json = ?, urgent_alert_claimed_at = NULL, urgent_alert_last_error = NULL WHERE id = ? AND released_at IS NULL')->execute([$popupEnabled ? 1 : 0, $popupEnabled ? json_encode($popupConfig) : null, $taskId]);
+                ops_activity_log('task_popup_configured', 'checklist_task', $taskId, ['enabled' => $popupEnabled, 'recipients' => $popupConfig, 'scheduled_at' => $updatedScheduledAt]);
+            } elseif (!empty($_POST['send_urgent_alert']) && empty($oldRows[0]['urgent_alert_sent_at'])) {
+                $urgentRecipients = checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? []), $assignedId);
+                if (!$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+                if (!checklist_send_urgent_alert($taskId, $urgentRecipients)) {
+                    throw new RuntimeException('The task was saved, but its urgent alert could not be sent.');
+                }
+            }
             $message = 'Task updated.';
         }
 
-        if ($action === 'update_task_progress') {
-            $status = ops_post_string('status', 30) ?: 'in_progress';
-            if (!in_array($status, ['not_started', 'in_progress', 'needs_review'], true)) $status = 'in_progress';
-            $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
-            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET status = ?, checked_items = ? WHERE {$scope}");
-            $stmt->execute([$status, json_encode($checked, JSON_UNESCAPED_SLASHES), ...$scopeParams]);
-            ops_activity_log('task_progress_updated', 'checklist_task', $taskId, ['status' => $status, 'checked_items' => $checked]);
-            $message = 'Task progress saved.';
+        if ($action === 'resend_urgent_alert') {
+            if (!$canManage) { http_response_code(403); throw new RuntimeException('Only management can resend urgent task alerts.'); }
+            $taskRows = ops_rows('SELECT assigned_employee_id FROM ops_checklist_tasks WHERE id = ? LIMIT 1', [$taskId]);
+            if (!$taskRows) throw new RuntimeException('Task not found.');
+            $assignedId = (int) ($taskRows[0]['assigned_employee_id'] ?? 0);
+            $urgentRecipients = checklist_urgent_recipient_ids((array) ($_POST['urgent_alert_recipients'] ?? ['assigned']), $assignedId);
+            if (!$urgentRecipients) throw new RuntimeException('Choose at least one valid urgent alert recipient.');
+            if (!checklist_send_urgent_alert($taskId, $urgentRecipients, true)) {
+                throw new RuntimeException('The urgent alert could not be resent.');
+            }
+            $message = 'Urgent alert resent.';
         }
 
-        if ($action === 'complete_task') {
-            $taskRows = ops_rows("SELECT checklist_items, checklist_type FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
-            if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
-            $items = checklist_json_items((string) ($taskRows[0]['checklist_items'] ?? ''));
-            $taskTypeForProof = (string) ($taskRows[0]['checklist_type'] ?? '');
+        if ($action === 'update_task_progress') {
+            $status = checklist_requested_status();
             $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
-            $note = ops_post_string('completion_note', 1500);
-            if ($items && count(array_intersect($items, $checked)) < count($items)) throw new RuntimeException('Tick every checklist item before completing this task.');
-            if ($note === '') throw new RuntimeException('Completion note is required before marking a task done.');
-            $photoPath = null;
-            if (!empty($_FILES['photo_proof']['name']) && is_uploaded_file($_FILES['photo_proof']['tmp_name'])) {
-                if (!checklist_allows_photo($taskTypeForProof)) throw new RuntimeException('Photo proof is only available for cleaning, shelf stocking and bottle/container tasks.');
-                $uploadDir = BASE_PATH . '/uploads/checklist-proofs';
-                if (!is_dir($uploadDir)) mkdir($uploadDir, 0775, true);
-                $extension = strtolower(pathinfo((string) $_FILES['photo_proof']['name'], PATHINFO_EXTENSION));
-                if (!in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'pdf'], true)) throw new RuntimeException('Photo proof must be JPG, PNG, WEBP or PDF.');
-                $fileName = 'task-' . $taskId . '-' . date('YmdHis') . '.' . $extension;
-                if (move_uploaded_file($_FILES['photo_proof']['tmp_name'], $uploadDir . '/' . $fileName)) $photoPath = 'uploads/checklist-proofs/' . $fileName;
+            $note = checklist_require_progress_note(ops_post_string('completion_note', 1500));
+            $taskDb = db();
+            $taskDb->beginTransaction();
+            try {
+                $lockStmt = $taskDb->prepare("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1 FOR UPDATE");
+                $lockStmt->execute($scopeParams);
+                $task = $lockStmt->fetch(PDO::FETCH_ASSOC);
+                if (!$task) {
+                    http_response_code(403);
+                    throw new RuntimeException('This task is not assigned to your account.');
+                }
+                $previousStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
+                if (!$canManage && $previousStatus === 'complete' && $status !== 'complete') {
+                    http_response_code(403);
+                    throw new RuntimeException('Only management can reopen a completed task.');
+                }
+                if ($status === 'complete' && $previousStatus === 'complete') {
+                    http_response_code(409);
+                    throw new RuntimeException('This task has already been completed.');
+                }
+                if ($status === 'complete') checklist_require_completion($task, $checked, $note);
+                if ($status === 'complete') {
+                    $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = NOW(), date_completed = NOW(), completed_by = ?';
+                    $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), trim($note), $currentEmployeeId];
+                } else {
+                    $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = NULL, date_completed = NULL, completed_by = NULL';
+                    $params = [$status, json_encode($checked, JSON_UNESCAPED_SLASHES), trim($note)];
+                }
+                if ($status === 'in_progress') $set .= ', started_at = COALESCE(started_at, NOW())';
+                $stmt = $taskDb->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
+                $stmt->execute([...$params, ...$scopeParams]);
+                checklist_sync_correction_status($task, $status, $note, (int) ($currentEmployeeId ?: 0));
+                ops_activity_log($status === 'complete' ? 'task_completed' : 'task_progress_updated', 'checklist_task', $taskId, [
+                    'previous_status' => $previousStatus,
+                    'status' => $status,
+                    'checked_items' => $checked,
+                    'completion_note' => trim($note),
+                    'completed_by' => $status === 'complete' ? $currentEmployeeId : null,
+                    'completed_at' => $status === 'complete' ? date('Y-m-d H:i:s') : null,
+                ]);
+                $taskDb->commit();
+            } catch (Throwable $saveError) {
+                if ($taskDb->inTransaction()) $taskDb->rollBack();
+                throw $saveError;
             }
-            $set = 'status = ?, checked_items = ?, completion_note = ?, completed_at = NOW(), date_completed = NOW(), completed_by = ?';
-            $params = ['done', json_encode($checked, JSON_UNESCAPED_SLASHES), $note, $currentEmployeeId];
-            if ($photoPath !== null) {
-                $set .= ', photo_path = ?';
-                $params[] = $photoPath;
+            checklist_kpi_status_event($taskId, $previousStatus, $status, $currentEmployeeId);
+            $savedRows = ops_rows('SELECT t.id, t.status, t.checked_items, t.completion_note, t.date_completed, t.completed_by, e.full_name AS completed_by_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id = t.completed_by WHERE t.id = ? LIMIT 1', [$taskId]);
+            $savedTask = $savedRows[0] ?? [];
+            if (strpos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(['success' => true, 'message' => $status === 'complete' ? 'Task completed and saved successfully.' : 'Task progress saved successfully.', 'task' => [
+                    'id' => $taskId,
+                    'status' => checklist_normalize_status((string) ($savedTask['status'] ?? $status)),
+                    'checked_items' => checklist_json_items((string) ($savedTask['checked_items'] ?? '')),
+                    'completion_note' => (string) ($savedTask['completion_note'] ?? ''),
+                    'completed_at' => $savedTask['date_completed'] ?? null,
+                    'completed_by' => ['id' => (int) ($savedTask['completed_by'] ?? 0), 'name' => (string) ($savedTask['completed_by_name'] ?? '')],
+                ]]);
+                exit;
             }
-            $stmt = db()->prepare("UPDATE ops_checklist_tasks SET {$set} WHERE {$scope}");
-            $stmt->execute([...$params, ...$scopeParams]);
-            ops_activity_log('task_completed', 'checklist_task', $taskId, ['checked_items' => $checked, 'note' => $note]);
-            $message = 'Task completed with note saved.';
+            $message = 'Task saved.';
         }
     } catch (Throwable $e) {
-        $message = $e->getMessage();
+        $validationPayload = json_decode($e->getMessage(), true);
+        $errorMessage = is_array($validationPayload) && !empty($validationPayload['message']) ? (string) $validationPayload['message'] : $e->getMessage();
+        if (in_array(($action ?? ''), ['create_task','acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove', 'retry_floating_allocation', 'request_task_correction', 'update_task_correction', 'cancel_task_correction'], true) && strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+            if (http_response_code() < 400) http_response_code(422);
+            echo json_encode(array_merge(['success' => false, 'message' => $errorMessage], is_array($validationPayload) ? $validationPayload : []));
+            exit;
+        }
+        $message = $errorMessage;
         $messageType = 'error';
     }
 }
@@ -285,32 +2010,127 @@ $employees = $ready ? ops_rows(
      WHERE e.status = 'active'
      ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager', 'owner_admin'), e.full_name"
 ) : [];
+$employees = ops_canonical_employee_rows($employees);
+$eligibleTaskEmployees = array_values(array_filter($employees, static fn(array $employee): bool => (string) ($employee['role_key'] ?? '') !== 'owner_admin'));
 
+$completedYearRequested = array_key_exists('completed_year', $_GET);
+$completedMonthRequested = array_key_exists('completed_month', $_GET);
 $filters = [
     'date_from' => trim((string) ($_GET['date_from'] ?? '')),
     'date_to' => trim((string) ($_GET['date_to'] ?? '')),
     'employee_id' => trim((string) ($_GET['employee_id'] ?? '')),
     'status' => trim((string) ($_GET['status'] ?? '')),
+    'overdue_only' => (string) ($_GET['overdue_only'] ?? '') === '1' ? '1' : '',
     'priority' => trim((string) ($_GET['priority'] ?? '')),
     'checklist_type' => trim((string) ($_GET['checklist_type'] ?? '')),
     'task_kind' => trim((string) ($_GET['task_kind'] ?? '')),
-    'task_view' => trim((string) ($_GET['task_view'] ?? 'recurring')),
+    'task_view' => trim((string) ($_GET['task_view'] ?? 'active')),
     'search' => trim((string) ($_GET['search'] ?? '')),
+    'completed_year' => trim((string) ($_GET['completed_year'] ?? '')),
+    'completed_month' => trim((string) ($_GET['completed_month'] ?? '')),
+    'completed_employee_id' => trim((string) ($_GET['completed_employee_id'] ?? '')),
+    'floating_role' => trim((string) ($_GET['floating_role'] ?? '')),
+    'allocation_status' => trim((string) ($_GET['allocation_status'] ?? '')),
 ];
-if (!in_array($filters['task_view'], ['recurring', 'manual', 'completed', 'history'], true)) $filters['task_view'] = 'recurring';
-if (!$canManage && $filters['task_view'] === 'history') $filters['task_view'] = 'completed';
+$filters['task_view'] = $filters['task_view'] === 'tasks' ? 'active' : $filters['task_view'];
+$requestedTaskView = $filters['task_view'];
+if ($filters['task_view'] === 'manual') $filters['task_view'] = 'active';
+if (!in_array($filters['task_view'], ['active', 'scheduled', 'completed', 'history', 'floating', 'recurring'], true)) $filters['task_view'] = 'active';
+if(!$canManage&&in_array($filters['task_view'],['scheduled','floating','recurring'],true))$filters['task_view']='active';
+$isFloatingOwnerView = $canManage && $filters['task_view'] === 'floating';
+$isScheduledOwnerView = $canManage && $filters['task_view'] === 'scheduled';
+$isRecurringOwnerView = $canManage && $filters['task_view'] === 'recurring';
+if ($filters['task_view'] === 'completed') {
+    if ($filters['completed_year'] !== '' && !preg_match('/^\d{4}$/', $filters['completed_year'])) $filters['completed_year'] = '';
+    if (!preg_match('/^\d{4}-\d{2}$/', $filters['completed_month'])) $filters['completed_month'] = '';
+    if ($filters['completed_employee_id'] !== 'all' && !preg_match('/^\d+$/', $filters['completed_employee_id'])) $filters['completed_employee_id'] = '';
+    if (!$completedYearRequested && $filters['completed_year'] === '') $filters['completed_year'] = date('Y');
+    if (!$completedMonthRequested && $filters['completed_month'] === '') $filters['completed_month'] = date('Y-m');
+}
+
+$completedYearOptions = [];
+$completedMonthOptions = [];
+$recurringDefinitions = [];
+$recurringSummary = ['active'=>0,'paused'=>0,'next_24_hours'=>0,'attention'=>0];
+if ($ready && $isRecurringOwnerView && ops_table_exists('ops_checklist_recurring_templates')) {
+    $recurringSearch=trim((string)($_GET['recurring_search']??''));
+    $recurringStatus=trim((string)($_GET['recurring_status']??''));
+    $recurringWhere=['1=1'];$recurringParams=[];
+    if($recurringSearch!==''){$recurringWhere[]='rt.task_name LIKE ?';$recurringParams[]='%'.$recurringSearch.'%';}
+    if(in_array($recurringStatus,['active','paused','ended','cancelled'],true)){$recurringWhere[]='rt.status=?';$recurringParams[]=$recurringStatus;}
+    $recurringDefinitions=ops_rows("SELECT rt.*,e.full_name AS assigned_name,e.status AS assigned_employee_status,creator.full_name AS created_by_name,
+        COUNT(t.id) AS generated_count,MAX(COALESCE(t.date_assigned,t.created_at)) AS generated_last_at
+        FROM ops_checklist_recurring_templates rt
+        LEFT JOIN ops_employees e ON e.id=rt.assigned_employee_id
+        LEFT JOIN ops_employees creator ON creator.id=rt.created_by
+        LEFT JOIN ops_checklist_tasks t ON t.recurring_template_id=rt.id
+        WHERE ".implode(' AND ',$recurringWhere)."
+        GROUP BY rt.id ORDER BY CASE rt.status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END,COALESCE(rt.next_run_at,'9999-12-31'),rt.task_name",$recurringParams);
+    foreach($recurringDefinitions as &$definition){
+        if(empty($definition['next_run_at'])&&($definition['status']??'active')==='active'){
+            $next=checklist_recurrence_next_run((string)$definition['recurring_rule'],(string)($definition['due_time']?:'09:00:00'),$definition['start_date']??null,$definition['end_date']??null);
+            $definition['next_run_at']=$next?$next->format('Y-m-d H:i:s'):null;
+        }
+        $status=(string)($definition['status']??'active');if(isset($recurringSummary[$status]))$recurringSummary[$status]++;
+        if($status==='active'&&!empty($definition['next_run_at'])&&strtotime((string)$definition['next_run_at'])<=time()+86400)$recurringSummary['next_24_hours']++;
+        $inactiveAssignee=($definition['assignment_type']??'specific')==='specific'&&!empty($definition['assigned_employee_id'])&&($definition['assigned_employee_status']??'')!=='active';
+        $missed=$status==='active'&&!empty($definition['next_run_at'])&&strtotime((string)$definition['next_run_at'])<time()-300;
+        $definition['needs_attention']=$inactiveAssignee||$missed||!empty($definition['last_error']);if($definition['needs_attention'])$recurringSummary['attention']++;
+    }unset($definition);
+}
+if ($ready && $filters['task_view'] === 'completed') {
+    $completedScopeWhere = ["t.status = 'complete'", 't.archived_at IS NULL', 't.deleted_at IS NULL'];
+    $completedScopeParams = [];
+    if (!$canManage) {
+        $completedScopeWhere[] = 't.assigned_employee_id = ?';
+        $completedScopeParams[] = $currentEmployeeId ?: 0;
+        $completedScopeWhere[] = 't.employee_visible = 1';
+        $completedScopeWhere[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
+    }
+    $completedScopeSql = implode(' AND ', $completedScopeWhere);
+    foreach (ops_rows("SELECT DISTINCT YEAR(COALESCE(t.date_completed, t.completed_at, t.created_at)) AS completed_year FROM ops_checklist_tasks t WHERE {$completedScopeSql} ORDER BY completed_year DESC", $completedScopeParams) as $completedYearRow) {
+        $year = (string) ($completedYearRow['completed_year'] ?? '');
+        if (preg_match('/^\d{4}$/', $year)) $completedYearOptions[$year] = $year;
+    }
+    if ($filters['completed_year'] !== '') $completedYearOptions[$filters['completed_year']] = $filters['completed_year'];
+    krsort($completedYearOptions);
+    $completedMonthWhere = $completedScopeSql;
+    $completedMonthParams = $completedScopeParams;
+    if ($filters['completed_year'] !== '') {
+        $completedMonthWhere .= ' AND YEAR(COALESCE(t.date_completed, t.completed_at, t.created_at)) = ?';
+        $completedMonthParams[] = (int) $filters['completed_year'];
+    }
+    foreach (ops_rows("SELECT DISTINCT DATE_FORMAT(COALESCE(t.date_completed, t.completed_at, t.created_at), '%Y-%m') AS completed_month FROM ops_checklist_tasks t WHERE {$completedMonthWhere} ORDER BY completed_month DESC", $completedMonthParams) as $completedMonthRow) {
+        $month = (string) ($completedMonthRow['completed_month'] ?? '');
+        if (!preg_match('/^\d{4}-\d{2}$/', $month)) continue;
+        try { $completedMonthOptions[$month] = (new DateTimeImmutable($month . '-01'))->format('F Y'); } catch (Throwable $e) { $completedMonthOptions[$month] = $month; }
+    }
+}
 
 $where = [];
 $params = [];
+$where[] = 't.archived_at IS NULL';
+$where[] = 't.deleted_at IS NULL';
 if (!$canManage) {
     $where[] = 't.assigned_employee_id = ?';
     $params[] = $currentEmployeeId ?: 0;
+    $where[] = 't.employee_visible = 1';
+    $where[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
 }
-if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
+if ($filters['task_view'] === 'recurring' && $canManage) $where[] = '1=0';
+elseif ($filters['task_view'] === 'scheduled' && $canManage) $where[] = 't.scheduled_at IS NOT NULL AND t.released_at IS NULL';
+elseif ($isFloatingOwnerView) $where[] = "t.assignment_type = 'floating'";
+elseif ($canManage) $where[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
+if ($isFloatingOwnerView && task_floating_role_keys($filters['floating_role'])) { $where[]='t.floating_eligible_role=?'; $params[]=$filters['floating_role']; }
+if ($isFloatingOwnerView && in_array($filters['allocation_status'], ['pending','allocated','waiting_eligible_employee'], true)) { $where[]='t.floating_allocation_status=?'; $params[]=$filters['allocation_status']; }
+// A scheduled task has no assignment date until it is released. The Scheduled
+// queue is deliberately independent of active-task filters so a retained Due
+// Today, overdue, status, or date filter cannot hide a saved future task.
+if (!$isScheduledOwnerView && $filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $where[] = 'DATE(COALESCE(t.date_assigned, t.created_at)) >= ?';
     $params[] = $filters['date_from'];
 }
-if ($filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
+if (!$isScheduledOwnerView && $filters['date_to'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_to'])) {
     $where[] = 'DATE(COALESCE(t.date_assigned, t.created_at)) <= ?';
     $params[] = $filters['date_to'];
 }
@@ -326,33 +2146,50 @@ if (array_key_exists($filters['checklist_type'], $types)) {
     $where[] = 't.checklist_type = ?';
     $params[] = $filters['checklist_type'];
 }
-if ($filters['task_kind'] === 'recurring') {
+if ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'recurring') {
     $where[] = "t.recurrence_key IS NOT NULL AND t.recurrence_key <> ''";
-} elseif ($filters['task_kind'] === 'manual') {
+} elseif ($filters['task_view'] !== 'active' && $filters['task_kind'] === 'manual') {
     $where[] = "(t.recurrence_key IS NULL OR t.recurrence_key = '')";
 }
-if ($filters['task_view'] === 'recurring') {
-    $where[] = "t.recurrence_key IS NOT NULL AND t.recurrence_key <> '' AND t.status NOT IN ('done', 'needs_review')";
-} elseif ($filters['task_view'] === 'manual') {
-    $where[] = "(t.recurrence_key IS NULL OR t.recurrence_key = '') AND t.status NOT IN ('done', 'needs_review')";
+if ($filters['task_view'] === 'active') {
+    $where[] = "t.status <> 'complete'";
 } elseif (in_array($filters['task_view'], ['completed', 'history'], true)) {
-    $where[] = "t.status IN ('done', 'needs_review')";
+    $where[] = "t.status = 'complete'";
+}
+if ($filters['task_view'] === 'completed') {
+    $completedAtSql = 'COALESCE(t.date_completed, t.completed_at, t.created_at)';
+    if ($filters['completed_year'] !== '') {
+        $where[] = "YEAR({$completedAtSql}) = ?";
+        $params[] = (int) $filters['completed_year'];
+    }
+    if ($filters['completed_month'] !== '') {
+        $where[] = "DATE_FORMAT({$completedAtSql}, '%Y-%m') = ?";
+        $params[] = $filters['completed_month'];
+    }
 }
 if ($filters['search'] !== '') {
     $where[] = '(t.task_name LIKE ? OR t.notes LIKE ? OR t.instructions LIKE ? OR t.completion_note LIKE ?)';
     array_push($params, '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%');
 }
-if ($filters['status'] !== '') {
-    if ($filters['status'] === 'overdue') {
-        $where[] = "t.status NOT IN ('done', 'needs_review') AND t.deadline IS NOT NULL AND t.deadline < NOW()";
-    } elseif ($filters['status'] === 'completed') {
-        $where[] = "t.status IN ('done', 'needs_review')";
+if (!$isScheduledOwnerView && $filters['overdue_only'] === '1') {
+    $where[] = "t.status <> 'complete' AND t.deadline IS NOT NULL AND t.deadline < NOW()";
+}
+if (!$isScheduledOwnerView && $filters['status'] !== '') {
+    if ($filters['status'] === 'completed') {
+        $where[] = "t.status = 'complete'";
     } elseif (array_key_exists($filters['status'], $statuses)) {
         $where[] = 't.status = ?';
-        $params[] = $filters['status'];
+        $params[] = checklist_normalize_status($filters['status']);
     }
 }
 $whereSql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
+$taskOrderSql = $filters['task_view'] === 'scheduled'
+    ? 't.scheduled_at ASC, t.id ASC'
+    : ($filters['task_view'] === 'completed'
+        ? "CASE WHEN COALESCE(t.date_completed,t.completed_at) IS NULL THEN 1 ELSE 0 END ASC, COALESCE(t.date_completed,t.completed_at,t.created_at) DESC, t.id DESC"
+        : ($filters['task_view'] === 'floating'
+            ? "CASE t.floating_allocation_status WHEN 'waiting_eligible_employee' THEN 0 WHEN 'pending' THEN 1 ELSE 2 END, COALESCE(t.allocated_at,t.scheduled_at,t.created_at) DESC"
+            : "CASE WHEN t.status = 'complete' THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC"));
 
 $tasks = $ready ? ops_rows(
     "SELECT t.*, e.full_name AS assigned_name, cb.full_name AS completed_by_name
@@ -360,16 +2197,59 @@ $tasks = $ready ? ops_rows(
      LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
      LEFT JOIN ops_employees cb ON cb.id = t.completed_by
      {$whereSql}
-     ORDER BY CASE WHEN t.status IN ('done', 'needs_review') THEN 2 ELSE 1 END, COALESCE(t.deadline, t.created_at) ASC, t.created_at DESC
+     ORDER BY {$taskOrderSql}
      LIMIT 500",
     $params
 ) : [];
+$manualTasks = array_values(array_filter($tasks, static fn (array $task): bool => checklist_task_kind($task) === 'manual'));
+$recurringTasks = array_values(array_filter($tasks, static fn (array $task): bool => checklist_task_kind($task) === 'recurring'));
+$completedEmployeeGroups = [];
+if ($filters['task_view'] === 'completed') {
+    foreach ($employees as $employee) $completedEmployeeGroups['employee:' . (int) $employee['id']] = ['id'=>(int)$employee['id'],'name'=>(string)$employee['full_name'],'tasks'=>[], 'months'=>[]];
+    foreach ($tasks as $completedTask) {
+        $employeeId = (int) ($completedTask['assigned_employee_id'] ?? 0); $key = $employeeId > 0 ? 'employee:' . $employeeId : 'unassigned';
+        if (!isset($completedEmployeeGroups[$key])) $completedEmployeeGroups[$key] = ['id'=>$employeeId ?: null,'name'=>$employeeId > 0 ? ((string)($completedTask['assigned_name'] ?? '') ?: 'Former employee #' . $employeeId) : 'Unassigned Historical Tasks','tasks'=>[], 'months'=>[]];
+        $completedEmployeeGroups[$key]['tasks'][] = $completedTask;
+        $completedAt = (string) ($completedTask['date_completed'] ?: $completedTask['completed_at'] ?: $completedTask['created_at'] ?: '');
+        try {
+            $completedDate = new DateTimeImmutable($completedAt, new DateTimeZone('Africa/Windhoek'));
+            $monthKey = $completedDate->format('Y-m');
+            $monthLabel = $completedDate->format('F Y');
+        } catch (Throwable $e) {
+            $monthKey = 'unknown';
+            $monthLabel = 'Completion time unavailable';
+        }
+        if (!isset($completedEmployeeGroups[$key]['months'][$monthKey])) $completedEmployeeGroups[$key]['months'][$monthKey] = ['label' => $monthLabel, 'tasks' => []];
+        $completedEmployeeGroups[$key]['months'][$monthKey]['tasks'][] = $completedTask;
+    }
+    foreach ($completedEmployeeGroups as &$completedEmployeeGroup) krsort($completedEmployeeGroup['months']);
+    unset($completedEmployeeGroup);
+}
+$selectedCompletedEmployeeId = 'all';
+$selectedCompletedEmployeeGroup = null;
+if ($filters['task_view'] === 'completed') {
+    if ($filters['completed_employee_id'] === 'all') {
+        $selectedCompletedEmployeeId = 'all';
+    } elseif ($filters['completed_employee_id'] !== '' && isset($completedEmployeeGroups['employee:' . (int) $filters['completed_employee_id']])) {
+        $selectedCompletedEmployeeId = (string) (int) $filters['completed_employee_id'];
+    } else {
+        foreach ($completedEmployeeGroups as $completedEmployeeGroup) {
+            if (!empty($completedEmployeeGroup['tasks']) && !empty($completedEmployeeGroup['id'])) {
+                $selectedCompletedEmployeeId = (string) (int) $completedEmployeeGroup['id'];
+                break;
+            }
+        }
+    }
+    if ($selectedCompletedEmployeeId !== 'all') $selectedCompletedEmployeeGroup = $completedEmployeeGroups['employee:' . (int) $selectedCompletedEmployeeId] ?? null;
+}
 
-$historyWhere = ["t.status IN ('done', 'needs_review')"];
+$historyWhere = ["t.status = 'complete'", 't.archived_at IS NULL', 't.deleted_at IS NULL'];
 $historyParams = [];
 if (!$canManage) {
     $historyWhere[] = 't.assigned_employee_id = ?';
     $historyParams[] = $currentEmployeeId ?: 0;
+    $historyWhere[] = 't.employee_visible = 1';
+    $historyWhere[] = '(t.scheduled_at IS NULL OR t.released_at IS NOT NULL)';
 }
 if ($filters['date_from'] !== '' && preg_match('/^\d{4}-\d{2}-\d{2}$/', $filters['date_from'])) {
     $historyWhere[] = 'DATE(COALESCE(t.date_completed, t.completed_at, t.date_assigned, t.created_at)) >= ?';
@@ -401,7 +2281,7 @@ if ($filters['search'] !== '') {
     array_push($historyParams, '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%');
 }
 $historyWhereSql = 'WHERE ' . implode(' AND ', $historyWhere);
-$historyTasks = ($ready && $canManage) ? ops_rows(
+$historyTasks = $ready ? ops_rows(
     "SELECT t.*, e.full_name AS assigned_name, cb.full_name AS completed_by_name
      FROM ops_checklist_tasks t
      LEFT JOIN ops_employees e ON e.id = t.assigned_employee_id
@@ -411,21 +2291,48 @@ $historyTasks = ($ready && $canManage) ? ops_rows(
      LIMIT 120",
     $historyParams
 ) : [];
+$attachmentsByTask = [];
+$correctionsByTask = [];
+$visibleTaskIds = array_values(array_unique(array_filter(array_map(static fn (array $task): int => (int) $task['id'], array_merge($tasks, $historyTasks)))));
+if ($visibleTaskIds && ops_table_exists('ops_checklist_attachments')) {
+    $attachmentMarks = implode(',', array_fill(0, count($visibleTaskIds), '?'));
+    $attachmentRows = ops_rows("SELECT * FROM ops_checklist_attachments WHERE removed_at IS NULL AND task_id IN ({$attachmentMarks}) ORDER BY created_at DESC, id DESC", $visibleTaskIds);
+    foreach ($attachmentRows as $attachmentRow) $attachmentsByTask[(int) $attachmentRow['task_id']][] = $attachmentRow;
+}
+if ($visibleTaskIds && ops_table_exists('ops_checklist_corrections')) {
+    $correctionMarks = implode(',', array_fill(0, count($visibleTaskIds), '?'));
+    $correctionRows = ops_rows("SELECT c.*, c.correction_message AS message, requester.full_name AS requested_by_name FROM ops_checklist_corrections c LEFT JOIN ops_employees requester ON requester.id=c.requested_by WHERE c.task_id IN ({$correctionMarks}) ORDER BY c.task_id,c.correction_round,c.id", $visibleTaskIds);
+    foreach ($correctionRows as $correctionRow) $correctionsByTask[(int)$correctionRow['task_id']][] = $correctionRow;
+}
 
-$tasksByGroup = array_fill_keys(array_keys($groups), []);
+$tasksByGroup = array_fill_keys(array_keys($statuses), []);
 foreach ($tasks as $task) {
-    $tasksByGroup[checklist_effective_status($task)][] = $task;
+    $effectiveStatus = checklist_effective_status($task);
+    if (!isset($tasksByGroup[$effectiveStatus])) $effectiveStatus = 'new';
+    $tasksByGroup[$effectiveStatus][] = $task;
 }
-$metrics = ['total' => count($tasks), 'overdue' => count($tasksByGroup['overdue']), 'pending' => count($tasksByGroup['not_started']), 'in_progress' => count($tasksByGroup['in_progress']), 'needs_review' => count($tasksByGroup['needs_review']), 'completed_today' => 0, 'due_today' => 0, 'missed_recurring' => 0];
+$scheduledCount = ($ready && $canManage) ? (int) (ops_rows("SELECT COUNT(*) AS total FROM ops_checklist_tasks WHERE scheduled_at IS NOT NULL AND released_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL")[0]['total'] ?? 0) : 0;
+$metrics = ['total' => 0, 'scheduled' => $scheduledCount, 'new' => 0, 'overdue' => 0, 'in_progress' => 0, 'completed_today' => 0, 'completed_month' => 0, 'due_today' => 0, 'missed_recurring' => 0];
 foreach ($tasks as $task) {
-    if ((string) ($task['status'] ?? '') === 'done' && !empty($task['date_completed']) && substr((string) $task['date_completed'], 0, 10) === date('Y-m-d')) $metrics['completed_today']++;
-    if (!empty($task['deadline']) && substr((string) $task['deadline'], 0, 10) === date('Y-m-d') && !in_array((string) ($task['status'] ?? ''), ['done', 'needs_review'], true)) $metrics['due_today']++;
-    if (checklist_task_kind($task) === 'recurring' && checklist_effective_status($task) === 'overdue') $metrics['missed_recurring']++;
+    if (!empty($task['scheduled_at']) && empty($task['released_at'])) continue;
+    $metrics['total']++;
+    $savedStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
+    if ($savedStatus === 'new') $metrics['new']++;
+    if ($savedStatus === 'in_progress') $metrics['in_progress']++;
+    if ($savedStatus === 'complete' && !empty($task['date_completed']) && substr((string) $task['date_completed'], 0, 10) === date('Y-m-d')) $metrics['completed_today']++;
+    if (!empty($task['deadline']) && substr((string) $task['deadline'], 0, 10) === date('Y-m-d') && $savedStatus !== 'complete') $metrics['due_today']++;
+    $isOverdue = $savedStatus !== 'complete' && !empty($task['deadline']) && strtotime((string) $task['deadline']) < time();
+    if ($isOverdue) $metrics['overdue']++;
+    if (checklist_task_kind($task) === 'recurring' && $isOverdue) $metrics['missed_recurring']++;
 }
-$completedCount = count($tasksByGroup['done']) + count($tasksByGroup['needs_review']);
+foreach ($historyTasks as $task) {
+    $completedDate = (string) ($task['date_completed'] ?: $task['completed_at']);
+    if ($completedDate !== '' && substr($completedDate, 0, 7) === date('Y-m')) $metrics['completed_month']++;
+}
+$completedCount = count($tasksByGroup['complete']);
 $metrics['compliance'] = $metrics['total'] > 0 ? (int) round(($completedCount / max(1, $metrics['total'])) * 100) : 0;
-$metrics['active'] = max(0, $metrics['total'] - count($tasksByGroup['done']));
-$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '';
+$metrics['active'] = $metrics['new'] + $metrics['in_progress'];
+$filtersAreActive = $filters['date_from'] !== '' || $filters['date_to'] !== '' || $filters['employee_id'] !== '' || $filters['status'] !== '' || $filters['overdue_only'] !== '' || $filters['priority'] !== '' || $filters['checklist_type'] !== '' || $filters['task_kind'] !== '' || $filters['search'] !== '' || ($filters['task_view'] === 'completed' && ($filters['completed_month'] !== '' || $filters['completed_year'] !== '' || $filters['completed_employee_id'] !== ''));
 
 $activityByTask = [];
 if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')) {
@@ -443,69 +2350,91 @@ if ($ready && ($tasks || $historyTasks) && ops_table_exists('ops_activity_logs')
     foreach ($activityRows as $row) $activityByTask[(int) $row['entity_id']][] = $row;
 }
 
+$isCompletedPartialRequest = $filters['task_view'] === 'completed'
+    && (string) ($_GET['completed_partial'] ?? '') === '1'
+    && strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+if ($isCompletedPartialRequest) {
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-store, private');
+    include __DIR__ . '/partials/checklist-completed-tasks.php';
+    exit;
+}
+if ($ready && $canManage && (int)($_GET['recurring_occurrences']??0)>0) {
+    $parentId=(int)$_GET['recurring_occurrences'];
+    header('Content-Type: application/json; charset=utf-8');header('Cache-Control: no-store, private');
+    $rows=ops_rows("SELECT t.id,t.deadline,t.status,t.date_completed,t.completed_at,t.created_at,e.full_name AS assigned_name
+        FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id=t.assigned_employee_id
+        WHERE t.recurring_template_id=? AND t.deleted_at IS NULL ORDER BY COALESCE(t.deadline,t.created_at) DESC LIMIT 100",[$parentId]);
+    echo json_encode(['success'=>true,'occurrences'=>$rows],JSON_UNESCAPED_SLASHES);exit;
+}
+
+$isEssDashboard = true;
+$pageUsesPortalSidebar = false;
+require_once BASE_PATH . '/shared/ess-navigation.php';
+$essShellApps = ess_shell_apps();
+$essActiveModule = 'Task Management';
+$essHeadingPartial = BASE_PATH . '/shared/ess-task-heading.php';
+$extraStylesheets[] = ['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')];
+$extraStylesheets[] = ['path'=>'assets/css/task-essentials.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-essentials.css')];
 include BASE_PATH . '/shared/header.php';
-include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/ess-sidebar.php';
 ?>
-<main class="workspace module">
-    <section class="module-header">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/task-correction.css?v=<?= filemtime(BASE_PATH . '/assets/css/task-correction.css') ?>">
+<main id="ess-main" class="workspace ess-dashboard-main digital-task-page ess-task-page" tabindex="-1" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>" data-can-manage="<?= $canManage ? '1' : '0' ?>">
+    <?php include BASE_PATH . '/shared/ess-topbar.php'; ?>
+    <header class="dtb-page-header task-page-header">
         <div>
-            <p class="eyebrow">Task Management</p>
-            <h1><?= $canManage ? 'Digital Task Board' : 'My Tasks' ?></h1>
-            <p><?= $canManage ? 'Grouped task status, recurring responsibilities, history and completion proof.' : 'Your assigned work with checklist ticks and completion notes.' ?></p>
+            <div class="task-title-row"><span class="task-page-icon"><i data-lucide="list-checks" aria-hidden="true"></i></span><div><h1 class="dtb-page-title task-page-title">Task Management</h1><p class="task-page-subtitle">Create, assign and track work across your team.</p></div></div>
         </div>
-        <?php if ($canManage): ?>
-            <button class="button primary" type="button" data-task-create-open><i data-lucide="plus"></i> New Task</button>
-        <?php endif; ?>
-    </section>
-    <?php ops_nav('checklists'); ?>
+        <div class="dtb-page-actions task-header-actions">
+            <?php if ($canManage): ?>
+                <button class="dtb-btn dtb-btn-primary" type="button" data-task-create-open data-task-create-kind="manual"><i data-lucide="plus"></i> New Task</button>
+            <?php endif; ?>
+            <button class="task-tools-trigger task-tools-button" type="button" data-task-tools-open data-task-action="tools" aria-controls="task-tools-panel" aria-expanded="false"><i data-lucide="wrench"></i><span>Task Tools</span></button>
+        </div>
+    </header>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
 
-    <?php if ($canManage): ?>
-        <section class="ops-dashboard-grid task-metric-grid">
-            <article class="metric task-metric-card danger"><i data-lucide="alert-triangle"></i><span>Overdue Tasks</span><strong><?= number_format($metrics['overdue']) ?></strong><small>Needs action</small></article>
-            <article class="metric task-metric-card amber"><i data-lucide="hourglass"></i><span>Pending Tasks</span><strong><?= number_format($metrics['pending']) ?></strong><small>Not started</small></article>
-            <article class="metric task-metric-card blue"><i data-lucide="clock-3"></i><span>In Progress</span><strong><?= number_format($metrics['in_progress']) ?></strong><small>Being worked on</small></article>
-            <article class="metric task-metric-card purple"><i data-lucide="message-square-warning"></i><span>Needs Review</span><strong><?= number_format($metrics['needs_review']) ?></strong><small>Awaiting check</small></article>
-            <article class="metric task-metric-card green"><i data-lucide="check-circle-2"></i><span>Completed Today</span><strong><?= number_format($metrics['completed_today']) ?></strong><small>Finished today</small></article>
-            <article class="metric task-metric-card teal"><i data-lucide="list-checks"></i><span>Total Active Tasks</span><strong><?= number_format($metrics['active']) ?></strong><small>Open workload</small></article>
-        </section>
-    <?php else: ?>
-        <section class="ops-dashboard-grid task-metric-grid employee-task-metrics">
-            <article class="metric task-metric-card teal"><i data-lucide="clipboard-list"></i><span>My Tasks</span><strong><?= number_format($metrics['active']) ?></strong><small>Assigned to you</small></article>
-            <article class="metric task-metric-card purple"><i data-lucide="calendar-clock"></i><span>Due Today</span><strong><?= number_format($metrics['due_today']) ?></strong><small>Before close</small></article>
-            <article class="metric task-metric-card danger"><i data-lucide="alert-triangle"></i><span>Overdue</span><strong><?= number_format($metrics['overdue']) ?></strong><small>Needs action</small></article>
-            <article class="metric task-metric-card blue"><i data-lucide="clock-3"></i><span>In Progress</span><strong><?= number_format($metrics['in_progress']) ?></strong><small>Being worked on</small></article>
-        </section>
-    <?php endif; ?>
+    <section class="dtb-stats-grid task-dashboard-widgets task-kpi-grid<?= !$canManage ? ' task-kpi-grid--employee' : '' ?>">
+        <a class="dtb-stat-card" data-stat="new" href="checklists.php?task_view=active&amp;status=new"><span class="dtb-stat-icon"><i data-lucide="sparkles"></i></span><div><p class="dtb-stat-label">New</p><strong class="dtb-stat-value"><?= number_format($metrics['new']) ?></strong></div></a>
+        <a class="dtb-stat-card" data-stat="due-today" href="checklists.php?task_view=active&amp;date_from=<?= date('Y-m-d') ?>&amp;date_to=<?= date('Y-m-d') ?>"><span class="dtb-stat-icon"><i data-lucide="calendar-clock"></i></span><div><p class="dtb-stat-label">Due Today</p><strong class="dtb-stat-value"><?= number_format($metrics['due_today']) ?></strong></div></a>
+        <article class="dtb-stat-card" data-stat="in-progress"><span class="dtb-stat-icon"><i data-lucide="clock-3"></i></span><div><p class="dtb-stat-label">In Progress</p><strong class="dtb-stat-value"><?= number_format($metrics['in_progress']) ?></strong></div></article>
+        <a class="dtb-stat-card" data-stat="overdue" href="checklists.php?task_view=active&amp;overdue_only=1"><span class="dtb-stat-icon"><i data-lucide="alert-triangle"></i></span><div><p class="dtb-stat-label">Overdue</p><strong class="dtb-stat-value"><?= number_format($metrics['overdue']) ?></strong></div></a>
+        <a class="dtb-stat-card" data-stat="complete" href="checklists.php?task_view=completed"><span class="dtb-stat-icon"><i data-lucide="check-circle-2"></i></span><div><p class="dtb-stat-label">Completed This Month</p><strong class="dtb-stat-value"><?= number_format($metrics['completed_month']) ?></strong></div></a>
+        <?php if ($canManage): ?><a class="dtb-stat-card" data-stat="scheduled" href="checklists.php?task_view=scheduled"><span class="dtb-stat-icon"><i data-lucide="calendar-clock"></i></span><div><p class="dtb-stat-label">Scheduled</p><strong class="dtb-stat-value"><?= number_format($metrics['scheduled']) ?></strong></div></a><?php endif; ?>
+    </section>
 
-    <nav class="task-tabs" aria-label="Task views">
+    <nav class="task-section-tabs task-board-navigation" role="tablist" aria-label="Task views" data-task-view-tabs>
         <?php
-        $tabLabels = ['recurring' => 'Recurring Tasks', 'manual' => 'Manual Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
+        $tabLabels = $canManage ? ['tasks' => 'Tasks', 'scheduled' => 'Scheduled', 'floating' => 'Floating Tasks', 'recurring' => 'Recurring Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'] : ['tasks' => 'Tasks', 'completed' => 'Completed Tasks', 'history' => 'Task History'];
+        $tabIcons = ['tasks' => 'clipboard-list', 'scheduled' => 'calendar-clock', 'floating' => 'users-round', 'recurring' => 'repeat-2', 'completed' => 'check-circle-2', 'history' => 'history'];
         foreach ($tabLabels as $tabKey => $tabLabel):
-            if ($tabKey === 'history' && !$canManage) continue;
-            $tabQuery = array_merge($_GET, ['task_view' => $tabKey]);
-            $tabUrl = 'checklists.php?' . http_build_query($tabQuery);
+            $tabActive = ($tabKey === 'tasks' ? 'active' : $tabKey) === $filters['task_view'];
         ?>
-            <a class="task-tab <?= $filters['task_view'] === $tabKey ? 'active' : '' ?>" href="<?= htmlspecialchars($tabUrl, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></a>
+            <button type="button" class="task-section-tab<?= $tabActive ? ' is-active' : '' ?>" data-task-view="<?= htmlspecialchars($tabKey, ENT_QUOTES, 'UTF-8') ?>" role="tab" aria-selected="<?= $tabActive ? 'true' : 'false' ?>" tabindex="<?= $tabActive ? '0' : '-1' ?>"><span class="task-section-tab__icon" aria-hidden="true"><i data-lucide="<?= htmlspecialchars($tabIcons[$tabKey], ENT_QUOTES, 'UTF-8') ?>"></i></span><span><?= htmlspecialchars($tabLabel, ENT_QUOTES, 'UTF-8') ?></span></button>
         <?php endforeach; ?>
     </nav>
 
-    <details class="panel task-filter-panel" <?= $filtersAreActive ? 'open' : '' ?>>
-        <summary><span><i data-lucide="sliders-horizontal"></i> Filters</span><strong><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
-        <form method="get">
+    <details class="dtb-filter-card" data-portal-view-filter <?= $filtersAreActive ? 'open' : '' ?>>
+        <summary class="dtb-filter-header"><span class="dtb-filter-heading"><i data-lucide="sliders-horizontal"></i> Filters</span><strong class="dtb-filter-state"><?= $filtersAreActive ? 'Active' : 'Collapsed' ?></strong></summary>
+        <form method="get" class="dtb-filter-body">
             <input type="hidden" name="task_view" value="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>">
-            <div class="form-grid compact task-filter-grid">
-                <label>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
+            <?php if ($filters['task_view'] === 'completed'): ?><input type="hidden" name="completed_employee_id" value="<?= htmlspecialchars($selectedCompletedEmployeeId, ENT_QUOTES, 'UTF-8') ?>" data-completed-employee-filter><?php endif; ?>
+            <div class="dtb-filter-grid">
+                <div class="dtb-filter-field"><label for="task-date-from-display">Date from</label><div class="portal-date-field" data-portal-date-field><input type="text" id="task-date-from-display" class="portal-date-input" data-submit-target="#task-date-from-value" placeholder="dd/mm/yyyy" autocomplete="off"><input type="hidden" id="task-date-from-value" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Date From calendar"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div></div>
+                <div class="dtb-filter-field"><label for="task-date-to-display">Date to</label><div class="portal-date-field" data-portal-date-field><input type="text" id="task-date-to-display" class="portal-date-input" data-submit-target="#task-date-to-value" placeholder="dd/mm/yyyy" autocomplete="off"><input type="hidden" id="task-date-to-value" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Date To calendar"><i data-lucide="calendar-days" aria-hidden="true"></i></button></div></div>
+                <?php checklist_custom_filter_field('Status', 'status', ['' => 'All statuses', 'new' => 'New', 'in_progress' => 'In Progress', 'complete' => 'Complete'], $filters['status']); ?>
                 <?php if ($canManage): ?>
-                    <label>Person<select name="employee_id"><option value="">All people</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (string) $employee['id'] === $filters['employee_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
+                    <?php checklist_custom_filter_field('Priority', 'priority', ['' => 'All priorities'] + $priorities, $filters['priority']); ?>
+                    <?php if ($filters['task_view'] !== 'completed'): ?>
+                        <?php $employeeFilterOptions = ['' => 'All people']; foreach ($employees as $employee) $employeeFilterOptions[(string) $employee['id']] = (string) $employee['full_name']; ?>
+                        <?php checklist_custom_filter_field('Person', 'employee_id', $employeeFilterOptions, $filters['employee_id']); ?>
+                    <?php endif; ?>
                 <?php endif; ?>
-                <label>Status<select name="status"><option value="">All statuses</option><?php ops_select_options(['overdue' => 'Overdue', 'not_started' => 'Pending / Not Started', 'in_progress' => 'In Progress', 'needs_review' => 'Needs Review', 'completed' => 'Completed'], $filters['status']); ?></select></label>
-                <?php if ($canManage): ?>
-                    <label>Priority<select name="priority"><option value="">All priorities</option><?php ops_select_options($priorities, $filters['priority']); ?></select></label>
-                    <label>Task type<select name="checklist_type"><option value="">All types</option><?php ops_select_options($types, $filters['checklist_type']); ?></select></label>
-                    <label>Task kind<select name="task_kind"><?php ops_select_options(['' => 'All tasks', 'recurring' => 'Recurring tasks', 'manual' => 'Custom/manual tasks'], $filters['task_kind']); ?></select></label>
+                <?php if ($isFloatingOwnerView): ?>
+                    <?php checklist_custom_filter_field('Eligible team', 'floating_role', [''=>'All teams','front_desk'=>'Front Desk','back_packers'=>'Back / Packers'], $filters['floating_role']); ?>
+                    <?php checklist_custom_filter_field('Allocation', 'allocation_status', [''=>'All allocation states','allocated'=>'Allocated','waiting_eligible_employee'=>'Waiting','pending'=>'Pending release'], $filters['allocation_status']); ?>
                 <?php endif; ?>
                 <label class="span-2">Search<input name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search task name, notes or completion note"></label>
             </div>
@@ -513,133 +2442,167 @@ include BASE_PATH . '/shared/sidebar.php';
         </form>
     </details>
 
+    <aside class="packing-tools-panel task-tools-panel" id="task-tools-panel" data-task-tools-panel aria-hidden="true">
+        <header class="packing-tools-panel-header">
+            <div><p class="packing-tools-kicker">Task Management</p><h2 class="packing-tools-title">Task tools</h2><p class="packing-tools-subtitle">Review deleted tasks, restore archived tasks and track task activity.</p></div>
+            <button type="button" class="packing-tools-close" data-task-tools-close aria-label="Close Task tools"><i data-lucide="x"></i></button>
+        </header>
+        <nav class="task-tools-tabs portal-tools-tabs" role="tablist" aria-label="Task tools">
+            <button type="button" class="portal-tools-tab is-active" role="tab" aria-selected="true" data-task-tools-tab="trash"><i data-lucide="trash-2" aria-hidden="true"></i><span>Trash</span></button>
+            <button type="button" class="portal-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
+            <button type="button" class="portal-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="archived"><i data-lucide="archive" aria-hidden="true"></i><span>Archived</span></button>
+            <?php if ($canManage): ?><button type="button" class="portal-tools-tab" role="tab" aria-selected="false" data-task-tools-tab="bulk"><i data-lucide="list-checks" aria-hidden="true"></i><span>Bulk actions</span></button><?php endif; ?>
+        </nav>
+        <div class="packing-tools-body task-tools-body" data-task-tools-body><div class="task-tools-loading">Loading Task tools…</div></div>
+    </aside>
+    <div class="panel-backdrop task-tools-backdrop" data-task-tools-backdrop hidden></div>
+
     <?php if ($canManage): ?>
-        <aside class="task-create-panel" data-task-create-panel aria-hidden="true">
-        <form class="ops-form checklist-create-form" method="post">
-            <input type="hidden" name="action" value="create_task">
-            <div class="task-detail-head">
-                <button type="button" data-task-create-close aria-label="Close create task"><i data-lucide="x"></i></button>
-                <div><span class="status task-kind-manual">Manual task</span><h2>Create task</h2></div>
-            </div>
-            <div class="form-grid compact">
-                <label>Task type<select name="checklist_type"><?php ops_select_options($types); ?></select></label>
-                <label>Assigned person<select name="assigned_employee_id"><option value="">Unassigned</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
-                <label>Priority<select name="priority"><?php ops_select_options($priorities, 'medium'); ?></select></label>
-                <label>Due date<input type="datetime-local" name="deadline"></label>
-                <label class="span-2">Task name<input name="task_name" required placeholder="Clean packing table"></label>
-            </div>
-            <label>Task instructions<textarea name="instructions"></textarea></label>
-            <label>Required checklist items<textarea name="checklist_items_text" placeholder="One item per line"></textarea></label>
-            <div class="ops-form-actions"><button class="button primary" type="submit">Assign task</button></div>
-        </form>
-        <section class="task-template-card">
-            <h3>Reusable cleaning template</h3>
-            <p>Weekly cleaning tasks use this checklist automatically.</p>
-            <ul><?php foreach (checklist_cleaning_template_items() as $templateItem): ?><li><?= htmlspecialchars($templateItem, ENT_QUOTES, 'UTF-8') ?></li><?php endforeach; ?></ul>
-        </section>
-        </aside>
-    <?php endif; ?>
-
-    <?php if ($filters['task_view'] !== 'history'): ?>
-    <section class="task-board">
-        <?php foreach ($groups as $groupKey => $groupLabel): ?>
-            <?php $groupTasks = $tasksByGroup[$groupKey] ?? []; ?>
-            <details class="task-board-group group-<?= htmlspecialchars($groupKey, ENT_QUOTES, 'UTF-8') ?>" <?= $groupKey !== 'done' ? 'open' : '' ?>>
-                <summary><span><?= htmlspecialchars($groupLabel, ENT_QUOTES, 'UTF-8') ?></span><strong><?= number_format(count($groupTasks)) ?></strong></summary>
-                <div class="task-board-head">
-                    <span>Task</span><span>Assigned</span><span>Priority</span><span>Due</span><span>Days</span><span>Status</span>
-                </div>
-                <?php foreach ($groupTasks as $task): ?>
-                    <?php
-                    $effective = checklist_effective_status($task);
-                    $inlineItems = checklist_json_items((string) ($task['checklist_items'] ?? ''));
-                    $inlineChecked = checklist_json_items((string) ($task['checked_items'] ?? ''));
-                    $progressTotal = max(1, count($inlineItems));
-                    $progressDone = $inlineItems ? count(array_intersect($inlineItems, $inlineChecked)) : 0;
-                    $progressPercent = $inlineItems ? (int) round(($progressDone / $progressTotal) * 100) : 0;
-                    ?>
-                    <details class="task-card-row group-<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>">
-                        <summary class="task-board-row">
-                            <strong><span class="task-chevron">&gt;</span><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></strong>
-                            <span><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                            <span><?= htmlspecialchars($priorities[(string) ($task['priority'] ?? 'medium')] ?? 'Medium', ENT_QUOTES, 'UTF-8') ?></span>
-                            <span><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></span>
-                            <span><?= htmlspecialchars(checklist_days_remaining((string) ($task['deadline'] ?? ''), $effective), ENT_QUOTES, 'UTF-8') ?></span>
-                            <em class="status task-status-<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></em>
-                        </summary>
-                        <div class="task-inline-detail">
-                            <div class="task-inline-main">
-                                <div class="task-kind-line">
-                                    <span class="task-kind-pill task-kind-<?= checklist_task_kind($task) ?>"><i data-lucide="<?= checklist_task_kind($task) === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= checklist_task_kind($task) === 'recurring' ? 'Recurring' : 'Manual' ?></span>
-                                    <span><?= htmlspecialchars($types[(string) $task['checklist_type']] ?? (string) $task['checklist_type'], ENT_QUOTES, 'UTF-8') ?></span>
-                                </div>
-                                <div class="task-inline-meta">
-                                    <span><i data-lucide="user-round"></i><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                                    <span><i data-lucide="calendar-clock"></i><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></span>
-                                    <span><i data-lucide="paperclip"></i><?= !empty($task['photo_path']) ? 'File attached' : 'No files' ?></span>
-                                    <span><i data-lucide="history"></i><?= number_format(count($activityByTask[(int) $task['id']] ?? [])) ?> history events</span>
-                                </div>
-                                <p><?= nl2br(htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: 'No instructions added.'), ENT_QUOTES, 'UTF-8')) ?></p>
-                                <div class="task-progress"><span style="width: <?= $progressPercent ?>%"></span></div>
-                                <small><?= $progressDone ?> of <?= count($inlineItems) ?> checklist items complete</small>
-                            </div>
-                            <form method="post" enctype="multipart/form-data" class="task-inline-form">
-                                <input type="hidden" name="task_id" value="<?= (int) $task['id'] ?>">
-                                <div class="task-checkbox-list">
-                                    <?php foreach ($inlineItems as $item): ?>
-                                        <label><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= in_array($item, $inlineChecked, true) ? 'checked' : '' ?>><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></label>
-                                    <?php endforeach; ?>
-                                    <?php if (!$inlineItems): ?><p>No checklist items added.</p><?php endif; ?>
-                                </div>
-                                <?php if (!in_array($effective, ['done', 'needs_review'], true)): ?>
-                                    <label>Status<select name="status"><?php ops_select_options(['not_started' => 'Not Started', 'in_progress' => 'In Progress', 'needs_review' => 'Needs Review'], (string) ($task['status'] ?? 'not_started')); ?></select></label>
-                                    <label>Completion note<textarea name="completion_note" required placeholder="Write what was done before marking Done."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></label>
-                                    <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?><label>Photo proof optional<input type="file" name="photo_proof" accept="image/*,.pdf"></label><?php endif; ?>
-                                    <div class="task-card-actions">
-                                        <button class="button" type="submit" name="action" value="update_task_progress" formnovalidate>Save Progress</button>
-                                        <button class="button primary" type="submit" name="action" value="complete_task">Mark Complete</button>
-                                        <button class="button" type="button" data-task-open="<?= (int) $task['id'] ?>">Open Details</button>
-                                    </div>
-                                <?php else: ?>
-                                    <div class="task-complete-note"><strong>Completion note</strong><p><?= nl2br(htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></div>
-                                    <button class="button" type="button" data-task-open="<?= (int) $task['id'] ?>">Open Details</button>
-                                <?php endif; ?>
-                            </form>
+        <aside class="task-create-panel create-task-panel" data-task-create-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Create task">
+            <header class="create-task-header task-create-heading">
+                <button class="create-task-close" type="button" data-task-create-close aria-label="Close create task"><i data-lucide="x"></i></button>
+                <div class="task-create-heading__copy"><span class="create-task-type-badge" data-task-mode-badge>One-off task</span><h2 class="create-task-title">Create task</h2></div>
+                <button type="button" class="task-import-trigger" data-task-import-open aria-label="Import Task"><i data-lucide="clipboard-plus" aria-hidden="true"></i><span>Import Task</span></button>
+            </header>
+            <div class="create-task-body task-create-shell">
+                <form class="task-create-form checklist-create-form" method="post" enctype="multipart/form-data" data-task-create-form novalidate>
+                    <input type="hidden" name="action" value="create_task">
+                    <input type="hidden" name="source_template_id" value="" data-source-template-id>
+                    <input type="hidden" name="template_attachment_ids" value="[]" data-template-attachment-ids>
+                    <div class="task-create-form__body">
+                      <section class="task-template-toolbar" aria-label="Task Templates">
+                        <div class="task-template-toolbar__heading"><span class="task-template-toolbar__label">Task Templates</span><span class="task-template-toolbar__loaded" data-loaded-template-label hidden></span></div>
+                        <div class="task-template-toolbar__actions"><button type="button" class="task-template-button" data-template-load-open>Load Template</button><button type="button" class="task-template-button" data-template-save>Save as Template</button><button type="button" class="task-template-button" data-template-manage>Manage Templates</button></div>
+                      </section>
+                      <fieldset class="task-mode-control"><legend class="task-form-label">Task type</legend><div class="task-mode-segments" role="radiogroup" aria-label="Task type"><label><input type="radio" name="task_mode" value="one_off" checked><span>One-off Task</span></label><label><input type="radio" name="task_mode" value="scheduled"><span>Scheduled Task</span></label><label><input type="radio" name="task_mode" value="recurring"><span>Recurring Task</span></label></div></fieldset>
+                      <section class="task-form-section"><div class="task-form-grid">
+                        <label class="task-form-field task-form-field--full"><span class="task-form-label">Task name <span aria-hidden="true">*</span></span><input id="create-task-name" name="task_name" maxlength="120" required placeholder="What needs to be done?" autocomplete="off"></label>
+                        <fieldset class="task-form-field task-form-field--full task-assignment-type"><legend class="task-form-label">Assignment</legend><div class="task-assignment-segments"><label><input type="radio" name="assignment_type" value="specific" checked><span>Specific Employee</span></label><label><input type="radio" name="assignment_type" value="floating"><span>Floating Task</span></label></div></fieldset>
+                        <div class="task-form-grid__row task-form-grid__row--assignment">
+                          <div data-specific-assignment><label class="task-form-field"><span class="task-form-label">Assign to *</span><select id="create-task-assignee" name="assigned_employee_id[]" multiple required size="6" data-task-assignee><optgroup label="Groups"><option value="all">All Employees</option><option value="group:front_desk">Front Desk Employees</option><option value="group:back_packers">Packers / Back Employees</option></optgroup><optgroup label="Individual employees"><?php foreach ($eligibleTaskEmployees as $employee): ?><option value="<?= (int) $employee['id'] ?>"><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></optgroup></select><small>Choose a group or one or more employees.</small><small class="task-all-employees-note" data-all-employees-note hidden>Each employee will receive and complete an individual task.</small></label></div>
+                          <div data-floating-assignment hidden><label class="task-form-field"><span class="task-form-label">Eligible role / team *</span><select name="floating_eligible_role" data-portal-custom-select disabled><option value="" disabled selected>Choose eligible role/team</option><option value="front_desk">Front Desk</option><option value="back_packers">Packers / Back</option></select><small>Automatically assigned by active workload and fair rotation.</small></label></div>
                         </div>
-                    </details>
-                <?php endforeach; ?>
-                <?php if (!$groupTasks): ?><p class="task-empty">No tasks in this section.</p><?php endif; ?>
-            </details>
-        <?php endforeach; ?>
-    </section>
+                        <section class="task-timing-section task-timing-section--one-off task-form-field--full" data-task-mode-section="one_off"><h3>Due</h3><div class="task-form-field task-datetime-field"><label class="task-form-label" for="create-task-due-display">Due date and time <span class="required-marker" aria-hidden="true">*</span></label><div class="portal-date-field" data-portal-date-field><input id="create-task-due-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-due-at" data-task-due-trigger placeholder="Select due date and time" autocomplete="off" aria-describedby="create-task-due-error"><input id="create-task-due-at" type="hidden" name="due_at" data-task-due-value data-portal-date-required-message="Select the task due date and time." required><button type="button" class="portal-date-trigger" aria-label="Open due date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><div class="task-due-presets" aria-label="Suggested deadlines"><span>Suggested:</span><button type="button" data-task-due-preset="today">Today by 5 PM</button><button type="button" data-task-due-preset="tomorrow">Tomorrow by 5 PM</button></div><span id="create-task-due-error" class="task-form-error" data-task-due-error aria-live="polite"></span><p class="task-due-summary" data-task-due-summary aria-live="polite"></p></div></section>
+                        <section class="task-timing-section task-timing-section--scheduled task-form-field--full" data-task-mode-section="scheduled" hidden><h3>Release and due</h3><input type="hidden" name="delivery_mode" value="now" data-task-delivery-value><div class="task-timing-grid"><div class="task-form-field task-datetime-field" data-task-schedule-field><label class="task-form-label" for="create-task-schedule-display">Release date and time *</label><div class="portal-date-field" data-portal-date-field><input id="create-task-schedule-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-scheduled-at" placeholder="Select release date and time" autocomplete="off"><input id="create-task-scheduled-at" type="hidden" name="scheduled_at" data-task-scheduled-value disabled><button type="button" class="portal-date-trigger" aria-label="Open release date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div><small>The employee cannot see the task before this Windhoek time.</small></div><div class="task-form-field task-datetime-field"><label class="task-form-label" for="create-task-scheduled-due-display">Due date and time *</label><div class="portal-date-field" data-portal-date-field><input id="create-task-scheduled-due-display" type="text" class="portal-date-input task-datetime-trigger is-empty" data-enable-time="true" data-submit-target="#create-task-scheduled-due-at" placeholder="Select due date and time" autocomplete="off"><input id="create-task-scheduled-due-at" type="hidden" data-task-scheduled-due-value disabled><button type="button" class="portal-date-trigger" aria-label="Open scheduled due date and time picker"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div></div><span class="task-form-error" data-task-schedule-error aria-live="polite"></span></section>
+                        <fieldset class="task-form-field task-priority-field"><legend class="task-form-label">Priority *</legend><div class="task-priority-options" role="radiogroup" aria-label="Priority"><label><input type="radio" name="priority" value="normal" checked><span>Normal</span></label><label><input type="radio" name="priority" value="important"><span>Important</span></label><label><input type="radio" name="priority" value="urgent"><span>Urgent</span></label></div></fieldset>
+                        <div class="task-form-field task-form-field--full task-rich-editor" data-task-rich-editor><span class="task-form-label">Instructions *</span><div class="task-rich-editor__toolbar" role="toolbar" aria-label="Instruction formatting"><button type="button" data-rich-command="bold" aria-label="Bold"><strong>B</strong></button><button type="button" data-rich-command="italic" aria-label="Italic"><em>I</em></button><button type="button" data-rich-command="underline" aria-label="Underline"><u>U</u></button><button type="button" data-rich-command="insertUnorderedList" aria-label="Bulleted list">• List</button><button type="button" data-rich-command="insertOrderedList" aria-label="Numbered list">1. List</button><button type="button" data-rich-command="undo" aria-label="Undo">↶</button><button type="button" data-rich-command="redo" aria-label="Redo">↷</button><button type="button" data-rich-expand aria-label="Expand instructions"><i data-lucide="maximize-2" aria-hidden="true"></i><span>Expand</span></button></div><div id="create-task-instructions-editor" class="task-rich-editor__surface" contenteditable="true" role="textbox" aria-multiline="true" data-placeholder="Explain what must be done and what the finished result should look like."></div><textarea id="create-task-instructions" name="instructions" required hidden></textarea></div>
+                        <label class="task-urgent-toggle"><input type="checkbox" name="completion_evidence_required" value="1"><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Proof required</strong><small>The assigned employee must upload proof before this task can count as proof-compliant.</small></span></label>
+                      </div></section>
+                      <section class="task-form-section task-checklist-builder" data-task-checklist-builder><span class="task-form-label">Required checklist</span><div class="task-checklist-add"><input type="text" data-task-checklist-input placeholder="Enter a checklist item"><button type="button" data-task-checklist-add>Add</button></div><p class="task-checklist-warning" data-task-checklist-warning hidden></p><ol data-task-checklist-list></ol><input id="create-task-items" type="hidden" name="checklist_items_text"><small>All checklist items must be completed before the task can be marked complete.</small></section>
+                      <section class="task-form-section task-create-attachments" data-task-create-attachments>
+                        <div class="task-create-attachments__heading"><div><span class="task-form-label">Files for the employee</span><p>Attach the posts, images, videos or documents the employee needs to complete this task.</p></div><button type="button" class="task-files__add" data-select-create-task-files><i data-lucide="paperclip" aria-hidden="true"></i><span>Choose files</span></button></div>
+                        <input type="file" name="task_attachments[]" multiple hidden data-create-task-file-input accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.mp4">
+                        <p class="task-files__error" data-create-task-files-error hidden></p>
+                        <div class="task-template-attachment-list" data-loaded-template-attachments></div>
+                        <div class="task-create-attachments__list" data-create-task-files-list></div>
+                        <p class="task-create-attachments__empty" data-create-task-files-empty>No files selected. You can add up to 10 files, 10 MB each.</p>
+                      </section>
+                      <section class="task-form-options">
+                        <section class="task-form-option task-repeat-card task-timing-section" data-task-mode-section="recurring" hidden><h3>Recurrence</h3><input type="hidden" name="repeat_type" value="one_time" data-task-repeat-value><div class="task-option-details task-repeat-details" data-task-repeat-options><label class="task-form-field"><span class="task-form-label">Frequency</span><select name="recurrence_frequency" data-task-recurrence-select disabled><option value="daily_business_day">Daily</option><option value="custom" selected>Custom weekdays</option><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label><fieldset class="task-repeat-weekdays" data-task-weekdays><legend class="task-form-label">Repeat on *</legend><?php foreach([1=>'Mon',2=>'Tue',3=>'Wed',4=>'Thu',5=>'Fri',6=>'Sat',7=>'Sun'] as $day=>$label):?><label><input type="checkbox" name="repeat_weekdays[]" value="<?=$day?>" disabled><span><?=$label?></span></label><?php endforeach;?></fieldset><label class="task-form-field" data-task-month-day hidden><span class="task-form-label">Day of month *</span><input type="number" name="recurrence_month_day" min="1" max="31" value="1" disabled></label><div class="task-repeat-dates"><label class="task-form-field"><span class="task-form-label">Start date *</span><input type="date" name="recurrence_start_date" value="<?=date('Y-m-d')?>" disabled></label><label class="task-form-field"><span class="task-form-label">Optional end date</span><input type="date" name="recurrence_end_date" disabled></label><label class="task-form-field"><span class="task-form-label">Occurrence time *</span><input type="time" name="recurrence_time" value="08:00" disabled></label></div><div class="task-recurring-rule-grid"><label class="task-form-field"><span class="task-form-label">Release</span><select name="recurrence_release_mode" disabled><option value="at_occurrence">At occurrence time</option><option value="earlier">Earlier</option></select></label><label class="task-form-field" data-recurrence-release-offset hidden><span class="task-form-label">Release before</span><span class="task-inline-fields"><input type="number" name="recurrence_release_value" min="1" value="1" disabled><select name="recurrence_release_unit" disabled><option value="minutes">Minutes</option><option value="hours">Hours</option><option value="days">Days</option></select></span></label><label class="task-form-field"><span class="task-form-label">Due time *</span><input type="time" name="recurrence_due_time" value="16:30" disabled></label><label class="task-form-field"><span class="task-form-label">Due day</span><select name="recurrence_due_days" disabled><option value="0">Same day</option><option value="1">1 day after occurrence</option><option value="2">2 days after occurrence</option><option value="3">3 days after occurrence</option><option value="7">7 days after occurrence</option></select></label></div></div><p class="task-repeat-summary" data-task-repeat-summary>Choose a recurrence rule.</p><input type="hidden" name="recurring_rule" value="" data-task-recurrence-default></section>
+                        <section class="task-form-option task-urgent-control" data-urgent-control>
+                            <label class="task-option-toggle task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span>Send popup notification</span></label>
+                            <div class="task-urgent-options" data-urgent-options hidden>
+                                <span class="task-field-label">Notify</span>
+                                <div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned" checked> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk"> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers"> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant"> All relevant employees</label></div>
+                                <small data-task-popup-helper>The popup uses this task's name, instructions, due date, checklist and assignment details automatically.</small>
+                            </div>
+                        </section>
+                      </section>
+                    </div>
+                    <div class="task-timing-validation-summary" data-task-timing-errors hidden role="alert" aria-live="polite"></div>
+                    <footer class="task-create-form__footer"><button type="button" class="task-form-cancel" data-task-create-close>Cancel</button><button class="task-form-submit btn-assign-task" type="submit">Assign Task</button></footer>
+                </form>
+            </div>
+            <div class="task-template-dialog" data-task-template-dialog hidden role="dialog" aria-modal="true" aria-labelledby="task-template-dialog-title">
+              <div class="task-template-dialog__backdrop" data-template-dialog-close></div>
+              <section class="task-template-dialog__card"><header><div><span>Task Templates</span><h3 id="task-template-dialog-title" data-template-dialog-title>Load Template</h3></div><button type="button" data-template-dialog-close aria-label="Close template library">×</button></header><label class="task-template-search"><span>Search templates</span><input type="search" data-template-search placeholder="Search saved templates"></label><div class="task-template-list" data-template-list></div><p class="task-template-message" data-template-message hidden></p></section>
+            </div>
+        </aside>
+        <div class="task-import-modal" data-task-import-modal hidden aria-hidden="true" role="dialog" aria-modal="true" aria-labelledby="task-import-title">
+            <div class="task-import-modal__backdrop" data-task-import-close></div>
+            <section class="task-import-modal__card">
+                <header class="task-import-modal__header"><div><span>Import Task</span><h2 id="task-import-title">Paste a formatted task</h2></div><button type="button" data-task-import-close aria-label="Close Import Task"><i data-lucide="x" aria-hidden="true"></i></button></header>
+                <div class="task-import-modal__body">
+                    <p>Paste a task prepared in ChatGPT. The title, instructions and checklist will be loaded into the current task form for review.</p>
+                    <label class="task-import-label" for="task-import-content">Task content</label>
+                    <textarea id="task-import-content" class="task-import-modal__textarea" data-task-import-content placeholder="Task Title&#10;&#10;Please organise the Raspberry Leaf tea pouches...&#10;&#10;What to do:&#10;&#10;1. Remove all pouches...&#10;2. Clean the box...&#10;&#10;Quick check before completing:&#10;&#10;[ ] Box cleaned&#10;[ ] Pouches packed upright&#10;[ ] Area left neat"></textarea>
+                    <p class="task-import-error" data-task-import-error role="alert" hidden></p>
+                    <div class="task-import-confirm" data-task-import-confirm hidden><strong>Replace current task content?</strong><p>Importing will replace the current title, instructions and checklist.</p><div><button type="button" data-task-import-keep>Cancel</button><button type="button" data-task-import-replace>Replace &amp; Load</button></div></div>
+                </div>
+                <footer class="task-import-modal__footer"><button type="button" class="task-import-cancel" data-task-import-close>Cancel</button><button type="button" class="task-import-load" data-task-import-load>Load Task</button></footer>
+            </section>
+        </div>
     <?php endif; ?>
 
-    <?php if ($canManage && $filters['task_view'] === 'history'): ?>
-        <section class="panel task-history-panel">
-            <div class="section-row">
-                <h2>Task history</h2>
-                <span class="status"><?= number_format(count($historyTasks)) ?> completed/review rows</span>
-            </div>
-            <div class="task-history-table">
-                <div class="task-history-head">
-                    <span>Task</span><span>Employee</span><span>Assigned</span><span>Due</span><span>Completed</span><span>Checklist</span><span>Status changes</span>
+    <div class="task-status-popup" data-task-status-popup hidden role="menu">
+        <?php foreach ($statuses as $statusKey => $statusLabel): ?><button type="button" data-status-key="<?= htmlspecialchars($statusKey, ENT_QUOTES, 'UTF-8') ?>" role="menuitem"><?= htmlspecialchars($statusLabel, ENT_QUOTES, 'UTF-8') ?></button><?php endforeach; ?>
+    </div>
+
+    <div class="task-view-content" data-task-view-content>
+    <?php if (in_array($filters['task_view'], ['active', 'scheduled'], true)): ?>
+    <div class="task-management-page" data-task-management-sections>
+        <?php $taskDisplaySections = $filters['task_view'] === 'scheduled'
+            ? ['scheduled' => ['title' => 'Scheduled Tasks', 'description' => 'Private tasks awaiting their release time. Edit, release now, or cancel before employees can see them.', 'tasks' => $tasks]]
+            : [
+                'manual' => ['title' => 'Manual Tasks', 'description' => 'Tasks created and assigned manually.', 'tasks' => $manualTasks],
+                'recurring' => ['title' => 'Recurring Tasks', 'description' => 'Released recurring tasks currently assigned and ready to complete.', 'tasks' => $recurringTasks],
+            ]; ?>
+        <?php foreach ($taskDisplaySections as $sectionKey => $section): ?>
+            <section class="task-section task-section--<?= $sectionKey ?>" id="<?= $sectionKey ?>Tasks" aria-labelledby="<?= $sectionKey ?>TasksHeading">
+                <header class="task-section__header" data-task-section-header>
+                    <div><h2 id="<?= $sectionKey ?>TasksHeading"><?= $section['title'] ?></h2><p><?= $section['description'] ?></p></div>
+                    <div class="task-section__actions">
+                        <?php if ($canManage && $sectionKey === 'recurring'): ?><button class="dtb-btn task-section__add" type="button" data-task-create-open data-task-create-kind="recurring"><i data-lucide="plus"></i> Add Recurring Task</button><?php endif; ?>
+                        <button type="button" class="task-section__toggle" aria-expanded="true" aria-controls="<?= $sectionKey ?>TasksContent" aria-label="Collapse <?= htmlspecialchars($section['title'], ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="chevron-down" aria-hidden="true"></i></button>
+                    </div>
+                </header>
+                <div class="task-section__content" id="<?= $sectionKey ?>TasksContent">
+                    <?php $displayTasks = $section['tasks']; $displayTaskKind = $sectionKey; $emptyTaskMessage = $sectionKey === 'scheduled' ? 'No scheduled tasks. Tasks scheduled for a future date/time will appear here.' : ($canManage ? 'No ' . strtolower($section['title']) . ' match these filters.' : 'No ' . strtolower($section['title']) . ' are currently assigned to you.'); include __DIR__ . '/partials/checklist-task-table.php'; ?>
                 </div>
+            </section>
+        <?php endforeach; ?>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($filters['task_view'] === 'completed'): ?>
+    <?php include __DIR__ . '/partials/checklist-completed-tasks.php'; ?>
+    <?php endif; ?>
+
+    <?php if ($filters['task_view'] === 'floating' && $canManage): ?>
+        <?php include __DIR__ . '/partials/checklist-floating-tasks.php'; ?>
+    <?php endif; ?>
+
+    <?php if ($filters['task_view'] === 'recurring' && $canManage): ?>
+        <?php include __DIR__ . '/partials/checklist-recurring-tasks.php'; ?>
+    <?php endif; ?>
+
+    <div class="dtb-bulk-action-bar" data-task-bulk-bar hidden>
+        <div class="dtb-bulk-summary"><span class="dtb-bulk-count" data-task-bulk-count>0</span><span data-task-bulk-label>tasks selected</span></div>
+        <button type="button" class="dtb-bulk-action" data-task-bulk-action="duplicate"><i data-lucide="copy" aria-hidden="true"></i><span>Duplicate</span></button>
+        <button type="button" class="dtb-bulk-action" data-task-bulk-action="export"><i data-lucide="upload" aria-hidden="true"></i><span>Export</span></button>
+        <button type="button" class="dtb-bulk-action" data-task-bulk-action="archive"><i data-lucide="archive" aria-hidden="true"></i><span>Archive</span></button>
+        <button type="button" class="dtb-bulk-action dtb-bulk-action--danger" data-task-bulk-action="delete"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete</span></button>
+        <button type="button" class="dtb-bulk-close" data-task-bulk-close aria-label="Clear task selection"><i data-lucide="x" aria-hidden="true"></i></button>
+    </div>
+
+    <?php if ($filters['task_view'] === 'history'): ?>
+        <section class="dtb-history-section">
+            <header class="dtb-status-header"><h2 class="dtb-status-title">Task history</h2><span class="dtb-history-count"><?= number_format(count($historyTasks)) ?> completed rows</span></header>
+            <div class="dtb-table-wrap">
+            <table class="dtb-history-table">
+                <colgroup><col class="dtb-history-task"><col class="dtb-history-employee"><col class="dtb-history-date"><col class="dtb-history-date"><col class="dtb-history-date"><col class="dtb-history-small"><col class="dtb-history-small"></colgroup>
+                <thead><tr><th>Task</th><th>Employee</th><th>Assigned</th><th>Due</th><th>Completed</th><th>Checklist</th><th>Status changes</th></tr></thead>
+                <tbody>
                 <?php foreach (array_slice($historyTasks, 0, 120) as $historyTask): ?>
                     <?php
                     $historyItems = checklist_json_items((string) ($historyTask['checklist_items'] ?? ''));
                     $historyChecked = checklist_json_items((string) ($historyTask['checked_items'] ?? ''));
                     ?>
-                    <button class="task-history-row" type="button" data-task-open="<?= (int) $historyTask['id'] ?>">
-                        <strong><?= htmlspecialchars((string) $historyTask['task_name'], ENT_QUOTES, 'UTF-8') ?><small><?= htmlspecialchars((string) ($historyTask['completion_note'] ?? 'No completion note'), ENT_QUOTES, 'UTF-8') ?></small></strong>
-                        <span><?= htmlspecialchars((string) ($historyTask['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></span>
-                        <span><?= checklist_date_label((string) ($historyTask['date_assigned'] ?: $historyTask['created_at'])) ?></span>
-                        <span><?= checklist_date_label((string) ($historyTask['deadline'] ?? '')) ?></span>
-                        <span><?= checklist_date_label((string) ($historyTask['date_completed'] ?: $historyTask['completed_at'])) ?></span>
-                        <span><?= count($historyChecked) ?>/<?= count($historyItems) ?></span>
-                        <span><?= number_format(count($activityByTask[(int) $historyTask['id']] ?? [])) ?> events</span>
-                    </button>
+                    <tr class="dtb-history-row" data-task-open="<?= (int) $historyTask['id'] ?>" tabindex="0"><td><span class="dtb-task-name"><?= htmlspecialchars((string) $historyTask['task_name'], ENT_QUOTES, 'UTF-8') ?></span><small><?= htmlspecialchars((string) ($historyTask['completion_note'] ?? 'No completion note'), ENT_QUOTES, 'UTF-8') ?></small></td><td><?= htmlspecialchars((string) ($historyTask['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></td><td><?= checklist_date_label((string) ($historyTask['date_assigned'] ?: $historyTask['created_at'])) ?></td><td><?= checklist_date_label((string) ($historyTask['deadline'] ?? '')) ?></td><td><?= checklist_date_label((string) ($historyTask['date_completed'] ?: $historyTask['completed_at'])) ?></td><td><?= count($historyChecked) ?>/<?= count($historyItems) ?></td><td><?= number_format(count($activityByTask[(int) $historyTask['id']] ?? [])) ?> events</td></tr>
                 <?php endforeach; ?>
-                <?php if (!$historyTasks): ?><p class="task-empty">No completed task history matches these filters yet.</p><?php endif; ?>
+                <?php if (!$historyTasks): ?><tr class="dtb-empty-row"><td colspan="7">No completed task history matches these filters yet.</td></tr><?php endif; ?>
+                </tbody>
+            </table>
             </div>
         </section>
     <?php endif; ?>
@@ -654,92 +2617,2242 @@ include BASE_PATH . '/shared/sidebar.php';
         $items = checklist_json_items((string) ($task['checklist_items'] ?? ''));
         $checked = checklist_json_items((string) ($task['checked_items'] ?? ''));
         $panelId = (int) $task['id'];
-        $deadlineValue = $task['deadline'] ? str_replace(' ', 'T', substr((string) $task['deadline'], 0, 16)) : '';
+        $deadlineValue = $task['deadline'] ? substr((string) $task['deadline'], 0, 16) : '';
+        $scheduledValue = $task['scheduled_at'] ? substr((string) $task['scheduled_at'], 0, 16) : '';
+        $taskKind = checklist_task_kind($task);
+        $statusClass = str_replace('_', '-', $effective);
+        $panelTiming = checklist_task_timing($task);
+        $panelSavedStatus = checklist_normalize_status((string)($task['status']??'new'));
+        $panelDueState = ['value'=>$panelTiming['overdue']?'overdue':($panelSavedStatus==='complete'?'complete':'upcoming'),'label'=>$panelSavedStatus==='complete'?$panelTiming['outcome']:$panelTiming['active_outcome']];
+        $panelCorrections = $correctionsByTask[$panelId] ?? [];
+        $activeCorrection = null;
+        foreach ($panelCorrections as $panelCorrection) if ((int)($panelCorrection['id']??0)===(int)($task['active_correction_id']??0)) { $activeCorrection=$panelCorrection; break; }
         ?>
-        <aside class="task-detail-panel" data-task-panel="<?= $panelId ?>" aria-hidden="true">
-            <div class="task-detail-head">
-                <button type="button" data-task-close aria-label="Close task details"><i data-lucide="x"></i></button>
-                <div><span class="status task-status-<?= htmlspecialchars($effective, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></span> <span class="task-kind-pill task-kind-<?= checklist_task_kind($task) ?>"><i data-lucide="<?= checklist_task_kind($task) === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= checklist_task_kind($task) === 'recurring' ? 'Recurring' : 'Manual' ?></span><h2><?= htmlspecialchars((string) $task['task_name'], ENT_QUOTES, 'UTF-8') ?></h2></div>
-            </div>
-            <div class="task-detail-grid">
-                <div><span>Assigned</span><strong><?= htmlspecialchars((string) ($task['assigned_name'] ?? 'Unassigned'), ENT_QUOTES, 'UTF-8') ?></strong></div>
-                <div><span>Due</span><strong><?= checklist_date_label((string) ($task['deadline'] ?? '')) ?></strong></div>
-                <div><span>Date assigned</span><strong><?= checklist_date_label((string) ($task['date_assigned'] ?: $task['created_at'])) ?></strong></div>
-                <div><span>Date completed</span><strong><?= checklist_date_label((string) ($task['date_completed'] ?: $task['completed_at'])) ?></strong></div>
-                <div><span>Completed by</span><strong><?= htmlspecialchars((string) ($task['completed_by_name'] ?? '-'), ENT_QUOTES, 'UTF-8') ?></strong></div>
-                <div><span>Type</span><strong><?= htmlspecialchars($types[(string) $task['checklist_type']] ?? (string) $task['checklist_type'], ENT_QUOTES, 'UTF-8') ?></strong></div>
-            </div>
-
-            <?php if ($canManage): ?>
-                <form method="post" class="task-admin-edit">
-                    <input type="hidden" name="action" value="admin_update_task">
-                    <input type="hidden" name="task_id" value="<?= $panelId ?>">
-                    <label>Assigned person<select name="assigned_employee_id"><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (int) ($task['assigned_employee_id'] ?? 0) === (int) $employee['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label>
-                    <label>Status<select name="status"><?php ops_select_options($statuses, (string) ($task['status'] ?? 'not_started')); ?></select></label>
-                    <label>Priority<select name="priority"><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'medium')); ?></select></label>
-                    <label>Due date<input type="datetime-local" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"></label>
-                    <button class="button small" type="submit">Save assignment</button>
-                </form>
-            <?php endif; ?>
-
-            <section><h3>Instructions</h3><p><?= nl2br(htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: 'No instructions added.'), ENT_QUOTES, 'UTF-8')) ?></p></section>
-
-            <form method="post" enctype="multipart/form-data" class="ops-form task-complete-form">
-                <input type="hidden" name="task_id" value="<?= $panelId ?>">
-                <h3>Checklist items</h3>
-                <div class="task-checkbox-list">
-                    <?php foreach ($items as $item): ?>
-                        <label><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= in_array($item, $checked, true) ? 'checked' : '' ?>><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></label>
-                    <?php endforeach; ?>
-                    <?php if (!$items): ?><p>No checklist items added.</p><?php endif; ?>
-                </div>
-                <?php if (!in_array($effective, ['done', 'needs_review'], true)): ?>
-                    <label>Status<select name="status"><?php ops_select_options(['not_started' => 'Not Started', 'in_progress' => 'In Progress', 'needs_review' => 'Needs Review'], (string) ($task['status'] ?? 'not_started')); ?></select></label>
-                    <label>Completion note<textarea name="completion_note" required placeholder="Write what was done before marking Done."><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea></label>
-                    <?php if (checklist_allows_photo((string) $task['checklist_type'])): ?><label>Photo proof optional<input type="file" name="photo_proof" accept="image/*,.pdf"></label><?php endif; ?>
-                    <div class="task-card-actions">
-                        <button class="button" type="submit" name="action" value="update_task_progress" formnovalidate>Save progress</button>
-                        <button class="button primary" type="submit" name="action" value="complete_task">Mark Done</button>
+        <aside class="task-detail-panel task-details-panel task-detail-view" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
+            <header class="task-details-header">
+                <button type="button" class="task-details-close" data-task-close aria-label="Close task details"><i data-lucide="x"></i></button>
+                <div class="task-details-heading">
+                    <div class="task-details-badges">
+                        <span class="task-details-badge task-details-badge--status task-details-badge--<?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></span>
+                        <span class="task-details-badge task-details-badge--<?= $taskKind === 'recurring' ? 'recurring' : 'manual' ?>"><i data-lucide="<?= $taskKind === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= $taskKind === 'recurring' ? 'Recurring' : 'Manual' ?></span>
+                        <?php if ($panelDueState): ?><span class="task-details-badge task-details-badge--deadline task-details-badge--<?= htmlspecialchars(str_replace('_', '-', $panelDueState['value']), ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="clock-3"></i><?= htmlspecialchars($panelDueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
                     </div>
-                <?php else: ?>
-                    <div class="task-complete-note"><strong>Completion note</strong><p><?= nl2br(htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8')) ?></p></div>
-                <?php endif; ?>
-            </form>
+                    <h2 class="task-details-title"><?= htmlspecialchars(checklist_display_task_title((string) $task['task_name']), ENT_QUOTES, 'UTF-8') ?></h2>
+                    <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><p class="task-scheduled-notice"><strong>Scheduled</strong> · releases <?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?> · hidden from employee</p><?php endif; ?>
+                </div>
+                <?php if ($canManage): ?><button type="button" class="task-details-template-action" data-save-task-template="<?= $panelId ?>"><i data-lucide="copy-plus" aria-hidden="true"></i><span>Save as template</span></button><?php endif; ?>
+            </header>
 
-            <?php if (!empty($task['photo_path'])): ?><section><h3>Files / proof</h3><a class="button small" href="<?= BASE_URL . '/' . htmlspecialchars((string) $task['photo_path'], ENT_QUOTES, 'UTF-8') ?>" target="_blank">Open proof</a></section><?php endif; ?>
-            <section><h3>Task history</h3><div class="activity-log">
-                <?php foreach (($activityByTask[$panelId] ?? []) as $activity): ?>
-                    <div class="activity-line"><strong><?= htmlspecialchars((string) $activity['action'], ENT_QUOTES, 'UTF-8') ?></strong><span><?= htmlspecialchars((string) ($activity['employee_name'] ?? 'System'), ENT_QUOTES, 'UTF-8') ?> - <?= htmlspecialchars((string) $activity['created_at'], ENT_QUOTES, 'UTF-8') ?></span></div>
-                <?php endforeach; ?>
-                <?php if (empty($activityByTask[$panelId])): ?><p>No activity history yet.</p><?php endif; ?>
-            </div></section>
+            <div class="task-details-body" id="task-details-<?= $panelId ?>">
+                <?php if ($activeCorrection): ?><section class="task-correction-banner"><div class="task-correction-banner__icon"><i data-lucide="rotate-ccw" aria-hidden="true"></i></div><div><span>Correction required · Round <?= (int)$activeCorrection['correction_round'] ?></span><h3><?= htmlspecialchars((string)$activeCorrection['message'],ENT_QUOTES,'UTF-8') ?></h3><p>Due <?= htmlspecialchars(checklist_date_label((string)$activeCorrection['correction_due_at']),ENT_QUOTES,'UTF-8') ?><?= !empty($activeCorrection['require_new_proof'])?' · New proof required':'' ?></p><?php if(!$canManage):?><small>When finished, describe the correction in the Correction completion note below, then submit it.</small><?php endif;?></div></section><?php endif; ?>
+                <?php if ($canManage && $panelSavedStatus==='complete' && !$activeCorrection): ?><form method="post" enctype="multipart/form-data" class="task-details-section task-correction-card" data-task-correction-form><input type="hidden" name="action" value="request_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><header class="task-correction-card__heading"><span><i data-lucide="rotate-ccw" aria-hidden="true"></i></span><div><h3>Request correction</h3><p>Reopen this completed task for the assigned employee. The original completion remains in its audit history.</p></div></header><label>What needs correcting<textarea name="correction_message" required minlength="5" maxlength="1000"></textarea></label><label>Correction due date and time<input type="datetime-local" name="correction_due_at" required></label><label class="task-correction-check"><input type="checkbox" name="require_new_proof" value="1"> Require new proof for this correction</label><label class="task-correction-file"><span>Supporting file (optional)</span><input type="file" name="correction_attachment" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx"></label><p data-task-correction-error hidden></p><button class="task-btn task-btn--primary" type="submit"><i data-lucide="send" aria-hidden="true"></i><span>Request correction</span></button></form><?php endif; ?>
+                <?php if ($canManage && $activeCorrection): ?><section class="task-details-section task-correction-card task-correction-card--edit"><form method="post" data-task-correction-form><input type="hidden" name="action" value="update_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><header class="task-correction-card__heading"><span><i data-lucide="message-square-pen" aria-hidden="true"></i></span><div><h3>Edit correction request</h3><p>Update the instructions or deadline sent to the assigned employee.</p></div></header><label>Correction message<textarea name="correction_message" required minlength="5"><?= htmlspecialchars((string)$activeCorrection['message'],ENT_QUOTES,'UTF-8') ?></textarea></label><div class="task-correction-card__options"><label>Correction due date and time<input type="datetime-local" name="correction_due_at" value="<?= htmlspecialchars(substr((string)$activeCorrection['correction_due_at'],0,16),ENT_QUOTES,'UTF-8') ?>" required></label><label class="task-correction-proof-toggle"><input type="checkbox" name="require_new_proof" value="1" <?= !empty($activeCorrection['require_new_proof'])?'checked':'' ?>><span class="task-correction-proof-toggle__track"><span></span></span><span class="task-correction-proof-toggle__copy"><strong>Require new proof</strong><small>Employee must upload fresh evidence.</small></span></label></div><p data-task-correction-error hidden></p><div class="task-correction-actions"><button class="task-btn task-btn--primary task-correction-save" type="submit"><i data-lucide="save" aria-hidden="true"></i><span>Save correction</span></button></div></form><details class="task-correction-cancel"><summary><i data-lucide="circle-x" aria-hidden="true"></i><span>Cancel this correction</span><i data-lucide="chevron-down" aria-hidden="true"></i></summary><form method="post" data-task-correction-form data-correction-cancel><input type="hidden" name="action" value="cancel_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><label>Cancellation reason<textarea name="cancel_reason" required minlength="5" placeholder="Explain why this correction is being cancelled."></textarea></label><p data-task-correction-error hidden></p><div class="task-correction-actions"><button class="task-btn task-btn--danger" type="submit"><span>Confirm cancellation</span></button></div></form></details></section><?php endif; ?>
+                <?php if ($panelCorrections): ?><details class="task-details-section task-correction-history"><summary>Correction history · <?= count($panelCorrections) ?> round<?= count($panelCorrections)===1?'':'s' ?></summary><?php foreach ($panelCorrections as $cycle): $snapshot=json_decode((string)($cycle['completion_snapshot_json']??'{}'),true)?:[]; ?><article><strong>Round <?= (int)$cycle['correction_round'] ?> · <?= htmlspecialchars(ucfirst((string)$cycle['status']),ENT_QUOTES,'UTF-8') ?></strong><p><?= htmlspecialchars((string)$cycle['message'],ENT_QUOTES,'UTF-8') ?></p><?php if(trim((string)($cycle['employee_completion_note']??''))!==''):?><div class="task-correction-history__response"><span>Employee correction note</span><p><?= htmlspecialchars((string)$cycle['employee_completion_note'],ENT_QUOTES,'UTF-8') ?></p></div><?php endif;?><small>Previous completion: <?= htmlspecialchars(checklist_date_label((string)($snapshot['completed_at']??'')),ENT_QUOTES,'UTF-8') ?> · <?= htmlspecialchars((string)($snapshot['completion_note']??'No note'),ENT_QUOTES,'UTF-8') ?></small></article><?php endforeach; ?></details><?php endif; ?>
+                <?php if ($canManage): ?>
+                    <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><section class="task-details-section task-scheduled-actions"><div><h3 class="task-section-title">Scheduled release</h3><p>This task remains private until <strong><?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?></strong>.</p></div><div class="task-scheduled-actions__buttons"><form method="post"><input type="hidden" name="action" value="release_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-schedule-button task-schedule-button--primary" type="submit"><i data-lucide="play" aria-hidden="true"></i><span>Release Now</span></button></form><form method="post" onsubmit="return confirm('Cancel this scheduled task?');"><input type="hidden" name="action" value="cancel_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-schedule-button task-schedule-button--secondary" type="submit">Cancel scheduled task</button></form></div></section><?php endif; ?>
+                    <form method="post" class="task-details-section task-edit-card">
+                        <input type="hidden" name="action" value="admin_update_task">
+                        <input type="hidden" name="task_id" value="<?= $panelId ?>">
+                        <h3 class="task-section-title">Assignment</h3>
+                        <div class="task-edit-grid">
+                            <div class="task-field"><label for="task-assignee-<?= $panelId ?>">Assigned person</label><select id="task-assignee-<?= $panelId ?>" name="assigned_employee_id" data-portal-custom-select><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (int) ($task['assigned_employee_id'] ?? 0) === (int) $employee['id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></div>
+                            <div class="task-field"><label for="task-admin-status-<?= $panelId ?>">Status</label><select id="task-admin-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div>
+                            <div class="task-field"><label for="task-priority-<?= $panelId ?>">Priority</label><select id="task-priority-<?= $panelId ?>" name="priority" data-portal-custom-select><?php ops_select_options($priorities, (string) ($task['priority'] ?? 'normal')); ?></select></div>
+                            <div class="task-field"><label for="task-deadline-display-<?= $panelId ?>">Due date</label><div class="portal-date-field" data-portal-date-field><input id="task-deadline-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-deadline-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-deadline-<?= $panelId ?>" type="hidden" name="deadline" value="<?= htmlspecialchars($deadlineValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open Due Date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div>
+                            <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><div class="task-field"><label for="task-scheduled-display-<?= $panelId ?>">Release date</label><div class="portal-date-field" data-portal-date-field><input id="task-scheduled-display-<?= $panelId ?>" type="text" class="portal-date-input" data-enable-time="true" data-submit-target="#task-scheduled-<?= $panelId ?>" placeholder="dd/mm/yyyy --:--" autocomplete="off"><input id="task-scheduled-<?= $panelId ?>" type="hidden" name="scheduled_at" value="<?= htmlspecialchars($scheduledValue, ENT_QUOTES, 'UTF-8') ?>"><button type="button" class="portal-date-trigger" aria-label="Open release date calendar"><i data-lucide="calendar-clock" aria-hidden="true"></i></button></div></div><?php endif; ?>
+                        </div>
+                        <div class="task-rich-editor task-rich-editor--edit" data-task-edit-rich="<?= $panelId ?>"><span class="task-form-label">Instructions *</span><div class="task-rich-editor__toolbar" role="toolbar" aria-label="Instruction formatting"><button type="button" data-edit-rich-command="bold"><strong>B</strong></button><button type="button" data-edit-rich-command="italic"><em>I</em></button><button type="button" data-edit-rich-command="insertUnorderedList">• List</button><button type="button" data-edit-rich-command="insertOrderedList">1. List</button><button type="button" data-edit-rich-expand><i data-lucide="maximize-2"></i><span>Expand</span></button></div><div class="task-rich-editor__surface" contenteditable="true" role="textbox" aria-multiline="true" data-edit-rich-surface><?= checklist_render_instructions((string) ($task['instructions'] ?: $task['notes'] ?: '')) ?></div><textarea name="instructions" required hidden data-edit-rich-input><?= htmlspecialchars((string) ($task['instructions'] ?: $task['notes'] ?: ''), ENT_QUOTES, 'UTF-8') ?></textarea></div>
+                        <label class="task-urgent-toggle"><input type="checkbox" name="completion_evidence_required" value="1" <?= !empty($task['completion_evidence_required']) ? 'checked' : '' ?>><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Proof required</strong><small>Optional uploads remain evidence only and do not earn bonus points.</small></span></label>
+                        <section class="task-urgent-control" data-urgent-control>
+                            <?php $savedUrgentRecipients = json_decode((string) ($task['urgent_alert_recipients_json'] ?? '[]'), true); $savedUrgentRecipients = is_array($savedUrgentRecipients) ? $savedUrgentRecipients : ['assigned']; ?>
+                            <?php if (empty($task['urgent_alert_sent_at'])): ?>
+                                <label class="task-urgent-toggle"><input type="checkbox" name="send_urgent_alert" value="1" data-urgent-toggle <?= !empty($task['urgent_alert_enabled']) ? 'checked' : '' ?>><span class="task-urgent-toggle__track" aria-hidden="true"><span class="task-urgent-toggle__thumb"></span></span><span class="task-urgent-toggle__copy"><strong>Send urgent alert</strong><small><?= !empty($task['scheduled_at']) && empty($task['released_at']) ? 'Popup notification will be sent when this task is released.' : 'Notify employees after this task update saves.' ?></small></span></label>
+                            <?php else: ?><div class="task-urgent-sent"><strong>Urgent alert sent</strong><small><?= htmlspecialchars(checklist_date_label((string) $task['urgent_alert_sent_at']), ENT_QUOTES, 'UTF-8') ?></small></div><?php endif; ?>
+                            <div class="task-urgent-options" data-urgent-options <?= empty($task['urgent_alert_enabled']) ? 'hidden' : '' ?>><span class="task-field-label">Notify</span><div class="task-urgent-recipients"><label><input type="checkbox" name="urgent_alert_recipients[]" value="assigned" <?= in_array('assigned', $savedUrgentRecipients, true) ? 'checked' : '' ?>> Assigned employee</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:front_desk" <?= in_array('role:front_desk', $savedUrgentRecipients, true) ? 'checked' : '' ?>> Front desk</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:packers" <?= in_array('role:packers', $savedUrgentRecipients, true) ? 'checked' : '' ?>> Packers</label><label><input type="checkbox" name="urgent_alert_recipients[]" value="role:all_relevant" <?= in_array('role:all_relevant', $savedUrgentRecipients, true) ? 'checked' : '' ?>> All relevant employees</label></div><small>The popup uses the saved task details automatically.</small></div>
+                            <?php if (!empty($task['urgent_alert_sent_at'])): ?><button class="task-btn task-btn--secondary" type="submit" name="action" value="resend_urgent_alert" data-resend-urgent>Resend urgent alert</button><?php endif; ?>
+                        </section>
+                        <div class="task-edit-actions"><button class="task-btn task-btn--primary" type="submit">Save assignment</button></div>
+                    </form>
+                    <?php if ($taskKind === 'recurring'): ?><form method="post" class="task-recurrence-stop-form"><input type="hidden" name="action" value="task_cancel_recurrence"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-btn task-btn--danger" type="submit">Stop future recurrence</button><small>The current task stays available; no new copies will be created.</small></form><?php endif; ?>
+                <?php endif; ?>
+
+                <section class="task-details-section task-content-card">
+                    <h3 class="task-content-heading task-instructions__heading">Instructions</h3>
+                    <?php $instructionValue = (string) ($task['instructions'] ?: $task['notes'] ?: ''); ?>
+                    <div class="task-content-text task-instructions-rendered<?= checklist_instruction_text_length($instructionValue) > 400 ? ' is-collapsed' : '' ?>" data-readonly-instructions><?= checklist_render_instructions($instructionValue) ?></div>
+                    <?php if (checklist_instruction_text_length($instructionValue) > 400): ?><button type="button" class="task-instructions-read-more" data-instructions-read-more aria-expanded="false">View full instructions</button><?php endif; ?>
+                </section>
+
+                <form method="post" enctype="multipart/form-data" class="task-details-section task-details-progress-form" data-task-progress-form data-task-id="<?= $panelId ?>">
+                    <input type="hidden" name="task_id" value="<?= $panelId ?>">
+                    <div class="task-completion-error" data-task-completion-error role="alert" hidden><strong>This task cannot be completed yet.</strong><span data-task-completion-error-message></span></div>
+                    <section class="task-content-card">
+                    <h3 class="task-content-heading task-checklist__heading" id="task-checklist-<?= $panelId ?>">Checklist items</h3>
+                        <div class="task-checklist">
+                            <?php foreach ($items as $item): ?>
+                                <?php $itemComplete = in_array($item, $checked, true); ?>
+                                <label class="task-checklist-item<?= $itemComplete ? ' is-complete' : '' ?>" data-required-checklist-item><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= $itemComplete ? 'checked' : '' ?>><span class="task-checklist-label"><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></span><small>Required</small></label>
+                            <?php endforeach; ?>
+                            <?php if (!$items): ?><p class="task-history-empty">No checklist items added.</p><?php endif; ?>
+                        </div>
+                    </section>
+
+                    <?php if ($effective !== 'complete'): ?>
+                        <section class="task-details-section task-progress-card">
+                            <h3 class="task-section-title task-progress__heading"><?= $activeCorrection?'Correction response':'Progress Update' ?></h3>
+                            <?php if ($canManage): ?><div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div><?php else: ?><input type="hidden" name="status" value="complete"><?php endif; ?>
+                            <div class="task-field<?= $activeCorrection?' task-correction-response-field':'' ?>" id="task-notes-<?= $panelId ?>"><label class="task-progress-label" for="task-progress-note-<?= $panelId ?>"><?= $activeCorrection?'Correction completion note':'Completion note' ?> <span class="required-marker" aria-hidden="true">*</span></label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" required minlength="5" aria-required="true" maxlength="1000" data-completion-note placeholder="<?= $activeCorrection?'Explain exactly what you corrected.':'Explain what was completed.' ?>"><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea><p class="task-progress-note-error" data-task-note-error role="alert" hidden>Enter a completion note before saving.</p></div>
+                            <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress" data-save-task><?= $canManage ? 'Save progress' : 'Save Task' ?></button></div>
+                        </section>
+                    <?php else: ?>
+                        <section class="task-details-section task-content-card"><h3 class="task-content-heading">Completion note</h3><p class="task-content-text"><?= htmlspecialchars((string) ($task['completion_note'] ?? 'No completion note added.'), ENT_QUOTES, 'UTF-8') ?></p></section>
+                    <?php endif; ?>
+                </form>
+
+                <?php
+                $panelAttachments = $attachmentsByTask[$panelId] ?? [];
+                $taskIsComplete = checklist_normalize_status((string) ($task['status'] ?? 'pending')) === 'complete';
+                $taskAcceptsFiles = empty($task['archived_at']) && empty($task['deleted_at']) && ($canManage || !$taskIsComplete);
+                ?>
+                <section class="task-details-section task-files" data-task-files data-task-id="<?= $panelId ?>" data-csrf-token="<?= htmlspecialchars($taskAttachmentCsrf, ENT_QUOTES, 'UTF-8') ?>">
+                    <div class="task-files__heading"><div><h3>Files / proof</h3><p>Upload a photo, document or other proof of work.</p></div><?php if ($taskAcceptsFiles): ?><button type="button" class="task-files__add" data-add-task-file><i data-lucide="paperclip" aria-hidden="true"></i><span>Add photo or file</span></button><?php endif; ?></div>
+                    <?php if ($taskAcceptsFiles): ?><input type="file" data-task-file-input multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.mp4"><?php endif; ?>
+                    <p class="task-files__error" data-task-files-error hidden></p>
+                    <div class="task-files__list" data-task-file-list>
+                        <?php foreach ($panelAttachments as $attachment): ?>
+                            <?php $canRemoveAttachment = $canManage || (!$taskIsComplete && (int) ($attachment['uploaded_by'] ?? 0) === (int) $currentEmployeeId); $attachmentPayload = checklist_attachment_payload($attachment, $canRemoveAttachment); ?>
+                            <article class="task-file" data-task-attachment-id="<?= (int) $attachment['id'] ?>"><a class="task-file__thumbnail" href="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><?php if (strpos((string) $attachment['mime_type'], 'image/') === 0): ?><img src="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" alt=""><?php else: ?><i data-lucide="file-text" aria-hidden="true"></i><?php endif; ?></a><div class="task-file__information"><div class="task-file__name"><?= htmlspecialchars((string) $attachment['original_filename'], ENT_QUOTES, 'UTF-8') ?></div><div class="task-file__meta"><?= number_format(((int) $attachment['file_size']) / 1024, 1) ?> KB · <?= htmlspecialchars((string) $attachment['uploaded_by_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(checklist_date_label((string) $attachment['created_at']), ENT_QUOTES, 'UTF-8') ?></div></div><div class="task-file__actions"><a class="task-file__action" href="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">View</a><a class="task-file__action" href="<?= htmlspecialchars($attachmentPayload['downloadUrl'], ENT_QUOTES, 'UTF-8') ?>">Download</a><?php if ($canRemoveAttachment): ?><button type="button" class="task-file__action" data-remove-task-file>Remove</button><?php endif; ?></div></article>
+                        <?php endforeach; ?>
+                        <?php if (!$panelAttachments && !empty($task['photo_path'])): ?><article class="task-file task-file--legacy"><span class="task-file__thumbnail"><i data-lucide="image" aria-hidden="true"></i></span><div class="task-file__information"><div class="task-file__name">Legacy photo proof</div><div class="task-file__meta">Previously uploaded evidence</div></div><div class="task-file__actions"><a class="task-file__action" href="<?= BASE_URL ?>/apps/operations/task-proof.php?task_id=<?= $panelId ?>" target="_blank" rel="noopener">View</a></div></article><?php endif; ?>
+                    </div>
+                    <p class="task-files__empty" data-task-files-empty <?= ($panelAttachments || !empty($task['photo_path'])) ? 'hidden' : '' ?>>No files uploaded yet.</p>
+                </section>
+            </div>
         </aside>
     <?php endforeach; ?>
+    <section class="task-instructions-modal" data-task-instructions-modal hidden role="dialog" aria-modal="true" aria-labelledby="task-instructions-modal-title"><div class="task-instructions-modal__backdrop" data-rich-cancel></div><div class="task-instructions-modal__panel"><header><div><span>Task instructions</span><h2 id="task-instructions-modal-title">Edit instructions</h2></div><button type="button" data-rich-cancel aria-label="Close expanded instructions"><i data-lucide="x"></i></button></header><div class="task-rich-editor__toolbar" role="toolbar" aria-label="Expanded instruction formatting"><button type="button" data-rich-modal-command="bold"><strong>B</strong></button><button type="button" data-rich-modal-command="italic"><em>I</em></button><button type="button" data-rich-modal-command="underline"><u>U</u></button><button type="button" data-rich-modal-command="insertUnorderedList">• List</button><button type="button" data-rich-modal-command="insertOrderedList">1. List</button><button type="button" data-rich-modal-command="undo">↶</button><button type="button" data-rich-modal-command="redo">↷</button></div><div class="task-instructions-modal__body"><div class="task-rich-editor__surface task-rich-editor__surface--expanded" contenteditable="true" role="textbox" aria-multiline="true" data-rich-expanded-surface></div></div><footer><button type="button" class="task-form-cancel" data-rich-cancel>Cancel</button><button type="button" class="task-form-submit" data-rich-save>Save Instructions</button></footer></div></section>
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
+    <div class="task-complete-confirm" data-task-complete-confirm role="dialog" aria-modal="true" aria-labelledby="task-complete-confirm-title" hidden>
+        <div class="task-complete-confirm__backdrop"></div>
+        <section><h2 id="task-complete-confirm-title">Complete this task?</h2><p data-task-complete-confirm-copy>All required checklist items are complete. Completion will be recorded under your name and time.</p><div><button type="button" data-task-complete-cancel>Cancel</button><button type="button" data-task-complete-accept>Complete Task</button></div></section>
+    </div>
+    <div class="task-action-menu" data-task-action-menu role="menu" hidden>
+        <button type="button" class="task-action-menu__item" data-task-trash-action="restore" role="menuitem"><i data-lucide="history" aria-hidden="true"></i><span>Restore</span></button>
+        <button type="button" class="task-action-menu__item task-action-menu__item--danger" data-task-trash-action="delete-permanently" role="menuitem"><i data-lucide="trash-2" aria-hidden="true"></i><span>Delete permanently</span></button>
+    </div>
+    <div class="task-trash-confirm" data-task-trash-confirm role="dialog" aria-modal="true" aria-labelledby="task-trash-confirm-title" hidden>
+        <div class="task-trash-confirm__backdrop"></div>
+        <section><h2 id="task-trash-confirm-title">Delete this task permanently?</h2><p>This task and its stored history will be permanently deleted. This action cannot be undone.</p><div><button type="button" data-task-trash-cancel>Cancel</button><button type="button" class="task-trash-confirm__delete" data-task-trash-accept>Delete permanently</button></div></section>
+    </div>
 </main>
 <script>
+function initialiseTaskUrgentControls(root = document) {
+  root.querySelectorAll('[data-urgent-control]:not([data-urgent-initialised])').forEach((control) => {
+    control.dataset.urgentInitialised = 'true';
+    const toggle = control.querySelector('[data-urgent-toggle]');
+    const options = control.querySelector('[data-urgent-options]');
+    if (toggle && options) {
+      const sync = () => { options.hidden = !toggle.checked; };
+      toggle.addEventListener('change', sync);
+      sync();
+    }
+  });
+}
+initialiseTaskUrgentControls();
+
+function initialiseTaskInstructionsLayer() {
+  const modal = document.querySelector('[data-task-instructions-modal]');
+  if (!modal || modal.dataset.layerReady === 'true') return window.taskInstructionsLayer || null;
+  modal.dataset.layerReady = 'true';
+  document.body.appendChild(modal);
+  let returnFocus = null;
+  const parentPanels = () => [...document.querySelectorAll('[data-task-create-panel].open, .task-detail-panel.open')];
+  const setParentsInactive = (inactive) => parentPanels().forEach((panel) => {
+    panel.inert = inactive;
+    panel.classList.toggle('is-child-modal-open', inactive);
+  });
+  const focusable = () => [...modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), textarea:not([disabled]), select:not([disabled]), [contenteditable="true"], [tabindex]:not([tabindex="-1"])')]
+    .filter((element) => !element.hidden && element.getClientRects().length);
+  const close = (restoreFocus = true) => {
+    if (modal.hidden) return;
+    modal.hidden = true;
+    document.body.classList.remove('task-instructions-expanded');
+    setParentsInactive(false);
+    const target = returnFocus;
+    returnFocus = null;
+    if (restoreFocus) window.requestAnimationFrame(() => target?.isConnected && target.focus());
+  };
+  const open = (trigger) => {
+    returnFocus = trigger || document.activeElement;
+    setParentsInactive(true);
+    modal.hidden = false;
+    document.body.classList.add('task-instructions-expanded');
+    window.requestAnimationFrame(() => modal.querySelector('[data-rich-expanded-surface]')?.focus());
+  };
+  modal.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      close();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const items = focusable();
+    if (!items.length) { event.preventDefault(); return; }
+    const first = items[0], last = items[items.length - 1];
+    if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+    else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+  }, true);
+  window.taskInstructionsLayer = { modal, open, close };
+  return window.taskInstructionsLayer;
+}
+const taskInstructionsLayer = initialiseTaskInstructionsLayer();
+
+function initialiseTaskCreateForm() {
+  const form = document.querySelector('[data-task-create-form]');
+  if (!form || form.dataset.initialised === 'true') return;
+  form.dataset.initialised = 'true';
+  const createPanel = form.closest('[data-task-create-panel]');
+  const dueAtInput = form.querySelector('[data-task-due-value]');
+  const dueTrigger = form.querySelector('[data-task-due-trigger]');
+  const dueError = form.querySelector('[data-task-due-error]');
+  const dueSummary = form.querySelector('[data-task-due-summary]');
+  const scheduleField = form.querySelector('[data-task-schedule-field]');
+  const scheduledAtInput = form.querySelector('[data-task-scheduled-value]');
+  const scheduledDueInput = form.querySelector('[data-task-scheduled-due-value]');
+  const taskModeInputs = [...form.querySelectorAll('[name="task_mode"]')];
+  const modeSections = [...form.querySelectorAll('[data-task-mode-section]')];
+  const repeatOptions = form.querySelector('[data-task-repeat-options]');
+  const recurrenceSelect = form.querySelector('[data-task-recurrence-select]');
+  const recurrenceValue = form.querySelector('[data-task-recurrence-default]');
+  const recurrenceWeekdays = [...form.querySelectorAll('[name="repeat_weekdays[]"]')];
+  const recurrenceSummary = form.querySelector('[data-task-repeat-summary]');
+  const timingErrors = form.querySelector('[data-task-timing-errors]');
+  const checklistInput = form.querySelector('[data-task-checklist-input]');
+  const checklistList = form.querySelector('[data-task-checklist-list]');
+  const checklistValue = form.querySelector('[name="checklist_items_text"]');
+  const checklistWarning = form.querySelector('[data-task-checklist-warning]');
+  const attachmentInput = form.querySelector('[data-create-task-file-input]');
+  const attachmentSelect = form.querySelector('[data-select-create-task-files]');
+  const attachmentList = form.querySelector('[data-create-task-files-list]');
+  const attachmentEmpty = form.querySelector('[data-create-task-files-empty]');
+  const attachmentError = form.querySelector('[data-create-task-files-error]');
+  const assignee = form.querySelector('[data-task-assignee]');
+  const assignmentTypeInputs = [...form.querySelectorAll('[name="assignment_type"]')];
+  const specificAssignment = form.querySelector('[data-specific-assignment]');
+  const floatingAssignment = form.querySelector('[data-floating-assignment]');
+  const floatingRole = form.querySelector('[name="floating_eligible_role"]');
+  const allEmployeesNote = form.querySelector('[data-all-employees-note]');
+  const instructionInput = form.querySelector('[name="instructions"]');
+  const instructionEditor = form.querySelector('[data-task-rich-editor] .task-rich-editor__surface');
+  const instructionModal = document.querySelector('[data-task-instructions-modal]');
+  const expandedEditor = instructionModal?.querySelector('[data-rich-expanded-surface]');
+  const acceptedAttachmentTypes = ['image/jpeg','image/png','image/webp','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','video/mp4'];
+  const acceptedAttachmentExtensions = ['jpg','jpeg','png','webp','pdf','doc','docx','xls','xlsx','mp4'];
+  let selectedAttachments = [];
+  let saving = false;
+
+  const cleanEditorHtml = (html) => {
+    const template = document.createElement('template'); template.innerHTML = String(html || '');
+    template.content.querySelectorAll('script,style,iframe,object,embed,form,input,button').forEach((node) => node.remove());
+    template.content.querySelectorAll('*').forEach((node) => {
+      if (!['P','BR','STRONG','B','EM','I','U','UL','OL','LI'].includes(node.tagName)) node.replaceWith(...node.childNodes);
+      else [...node.attributes].forEach((attribute) => node.removeAttribute(attribute.name));
+    });
+    return template.innerHTML.trim();
+  };
+  const syncInstructions = () => { instructionInput.value = cleanEditorHtml(instructionEditor.innerHTML); };
+  const setInstructionHtml = (value) => { instructionEditor.innerHTML = cleanEditorHtml(value); syncInstructions(); };
+  instructionEditor.addEventListener('input', syncInstructions);
+  instructionEditor.addEventListener('paste', (event) => { event.preventDefault(); const html=event.clipboardData?.getData('text/html'); const text=event.clipboardData?.getData('text/plain') || ''; document.execCommand('insertHTML', false, cleanEditorHtml(html || text.replace(/\n/g,'<br>'))); syncInstructions(); });
+  form.querySelectorAll('[data-rich-command]').forEach((button) => button.addEventListener('click', () => { instructionEditor.focus(); document.execCommand(button.dataset.richCommand, false); syncInstructions(); }));
+  const createExpandButton = form.querySelector('[data-rich-expand]');
+  createExpandButton?.addEventListener('click', () => { instructionModal.dataset.richTarget='create'; expandedEditor.innerHTML=instructionEditor.innerHTML; taskInstructionsLayer?.open(createExpandButton); });
+  instructionModal?.querySelectorAll('[data-rich-cancel]').forEach((button) => button.addEventListener('click', () => taskInstructionsLayer?.close()));
+  instructionModal?.querySelector('[data-rich-save]')?.addEventListener('click', () => { if (instructionModal.dataset.richTarget !== 'create') return; setInstructionHtml(expandedEditor.innerHTML); taskInstructionsLayer?.close(); });
+  instructionModal?.querySelectorAll('[data-rich-modal-command]').forEach((button) => button.addEventListener('click', () => { expandedEditor.focus(); document.execCommand(button.dataset.richModalCommand, false); }));
+  const selectedAssigneeValues = () => assignee ? [...assignee.selectedOptions].map((option) => option.value) : [];
+  const assigneeMenu = assignee ? (() => {
+    const wrapper = document.createElement('div'); wrapper.className = 'task-assignee-picker';
+    const trigger = document.createElement('button'); trigger.type = 'button'; trigger.className = 'task-assignee-picker__trigger'; trigger.setAttribute('aria-haspopup', 'listbox'); trigger.setAttribute('aria-expanded', 'false');
+    const menu = document.createElement('div'); menu.className = 'task-assignee-picker__menu'; menu.hidden = true; menu.setAttribute('role', 'listbox'); menu.setAttribute('aria-multiselectable', 'true');
+    const render = () => {
+      const values = selectedAssigneeValues();
+      trigger.innerHTML = '';
+      if (!values.length) { trigger.textContent = 'Choose employee(s) or group'; }
+      else values.forEach((value) => { const option = [...assignee.options].find((item) => item.value === value); if (!option) return; const chip = document.createElement('span'); chip.className = 'task-assignee-chip'; chip.textContent = option.textContent; const remove = document.createElement('button'); remove.type = 'button'; remove.textContent = '×'; remove.setAttribute('aria-label', 'Remove ' + option.textContent); remove.addEventListener('click', (event) => { event.stopPropagation(); option.selected = false; assignee.dispatchEvent(new Event('change', {bubbles:true})); }); chip.appendChild(remove); trigger.appendChild(chip); });
+      trigger.setAttribute('aria-expanded', String(!menu.hidden));
+      menu.querySelectorAll('input[data-assignee-option]').forEach((input) => { input.checked = values.includes(input.value); });
+    };
+    [...assignee.children].forEach((group) => {
+      if (group.tagName !== 'OPTGROUP') return;
+      const heading = document.createElement('div'); heading.className = 'task-assignee-picker__heading'; heading.textContent = group.label; menu.appendChild(heading);
+      Array.from(group.querySelectorAll('option')).forEach((option) => { const label = document.createElement('label'); label.className = 'task-assignee-picker__option'; const input = document.createElement('input'); input.type = 'checkbox'; input.value = option.value; input.dataset.assigneeOption = 'true'; input.addEventListener('change', () => { option.selected = input.checked; assignee.dispatchEvent(new Event('change', {bubbles:true})); render(); }); label.append(input, document.createTextNode(option.textContent)); menu.appendChild(label); });
+    });
+    trigger.addEventListener('click', () => { menu.hidden = !menu.hidden; render(); });
+    document.addEventListener('click', (event) => { if (!wrapper.contains(event.target)) { menu.hidden = true; render(); } });
+    assignee.addEventListener('change', render); assignee.classList.add('task-assignee-picker__native');
+    assignee.parentNode.insertBefore(wrapper, assignee); wrapper.append(trigger, menu, assignee); render(); return {menu, trigger, render};
+  })() : null;
+  assignee?.addEventListener('change', () => {
+    const values = selectedAssigneeValues();
+    const isGroupValue = (value) => value === 'all' || value.indexOf('group:') === 0;
+    const hasGroup = values.some(isGroupValue);
+    if (hasGroup && values.length > 1) {
+      const keep = values.find(isGroupValue);
+      [...assignee.options].forEach((option) => { option.selected = option.value === keep; });
+    } else if (!hasGroup) {
+      [...assignee.options].filter((option) => isGroupValue(option.value)).forEach((option) => { option.selected = false; });
+    }
+    const current = selectedAssigneeValues();
+    if (allEmployeesNote) allEmployeesNote.hidden = !current.some(isGroupValue);
+    assigneeMenu?.render();
+  });
+  const syncAssignmentType = () => {
+    const floating = form.querySelector('[name="assignment_type"]:checked')?.value === 'floating';
+    if (specificAssignment) specificAssignment.hidden = floating;
+    if (floatingAssignment) floatingAssignment.hidden = !floating;
+    if (assignee) {
+      assignee.required = !floating;
+      assignee.disabled = floating;
+      if (floating) { [...assignee.options].forEach((option) => { option.selected = false; }); assignee.dispatchEvent(new Event('change', { bubbles: true })); }
+    }
+    if (floatingRole) {
+      floatingRole.required = floating;
+      floatingRole.disabled = !floating;
+      if (!floating) floatingRole.value = '';
+    }
+  };
+
+  const parsePortalDateTime = (value) => {
+    const match=String(value||'').trim().match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?$/);
+    if(!match)return null;
+    const [year,month,day,hour,minute]=match.slice(1,6).map(Number),second=match[6]===undefined?0:Number(match[6]);
+    if(month<1||month>12||day<1||day>new Date(Date.UTC(year,month,0)).getUTCDate()||hour>23||minute>59||second>59)return null;
+    // Namibia is UTC+02:00 year-round; construct the instant explicitly instead of asking Safari to parse a string.
+    return new Date(Date.UTC(year,month-1,day,hour-2,minute,second));
+  };
+  const currentTaskMode = () => form.querySelector('[name="task_mode"]:checked')?.value || 'one_off';
+  const parseDueAt = () => parsePortalDateTime(currentTaskMode() === 'scheduled' ? scheduledDueInput.value : dueAtInput.value);
+  const formatDueTime = (due) => new Intl.DateTimeFormat('en-NA', { hour:'2-digit', minute:'2-digit', hour12:true, timeZone:'Africa/Windhoek' }).format(due).replace(/^0/, '').toUpperCase();
+  const padTaskDatePart = (value) => String(value).padStart(2, '0');
+  const applySuggestedDue = (dayOffset) => {
+    const due = new Date();
+    due.setDate(due.getDate() + dayOffset);
+    due.setHours(17, 0, 0, 0);
+    const stored = `${due.getFullYear()}-${padTaskDatePart(due.getMonth()+1)}-${padTaskDatePart(due.getDate())} 17:00`;
+    dueAtInput.value = stored;
+    dueTrigger.value = `${padTaskDatePart(due.getDate())}/${padTaskDatePart(due.getMonth()+1)}/${due.getFullYear()} 05:00 PM`;
+    dueAtInput.dispatchEvent(new Event('input', {bubbles:true}));
+    dueAtInput.dispatchEvent(new Event('change', {bubbles:true}));
+  };
+  const syncDueAt = () => {
+    const due = parseDueAt();
+    dueTrigger.classList.toggle('is-empty', !due);
+    if (!due || Number.isNaN(due.getTime())) { dueSummary.textContent = ''; return; }
+    const now = new Date();
+    const tomorrow = new Date(now); tomorrow.setDate(now.getDate() + 1);
+    const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    const day = sameDay(due, now) ? 'today' : sameDay(due, tomorrow) ? 'tomorrow' : new Intl.DateTimeFormat('en-NA', { weekday:'long', day:'numeric', month:'long', timeZone:'Africa/Windhoek' }).format(due);
+    dueSummary.textContent = `Due ${day} at ${formatDueTime(due)}`;
+  };
+  const validateDueAt = () => {
+    if (currentTaskMode() === 'recurring') { dueError.textContent=''; dueTrigger.setCustomValidity(''); return true; }
+    const due = parseDueAt();
+    let message = '';
+    if (!due) message = 'Select the task due date and time.';
+    else if (Number.isNaN(due.getTime())) message = 'Select a valid task due date and time.';
+    else if (due <= new Date()) message = 'This time has already passed. Select a future time.';
+    dueError.textContent = message;
+    dueTrigger.classList.toggle('is-invalid', !!message);
+    dueTrigger.setAttribute('aria-invalid', message ? 'true' : 'false');
+    dueTrigger.setCustomValidity(message);
+    return !message;
+  };
+  dueAtInput.addEventListener('input', () => { syncDueAt(); validateDueAt(); });
+  dueAtInput.addEventListener('change', () => { syncDueAt(); validateDueAt(); });
+  scheduledDueInput.addEventListener('input', () => { syncDueAt(); validateDueAt(); });
+  scheduledDueInput.addEventListener('change', () => { syncDueAt(); validateDueAt(); });
+  form.querySelectorAll('[data-task-due-preset]').forEach((button) => button.addEventListener('click', () => applySuggestedDue(button.dataset.taskDuePreset === 'tomorrow' ? 1 : 0)));
+  const popupToggle = form.querySelector('[data-urgent-toggle]');
+  const popupHelper = form.querySelector('[data-task-popup-helper]');
+  let renderedTaskMode = currentTaskMode();
+  const clearDateControl = (valueField, displaySelector) => {
+    if (valueField) { valueField.value=''; valueField.setCustomValidity?.(''); valueField.removeAttribute('aria-invalid'); }
+    const display=form.querySelector(displaySelector);if(display){display.value='';display.setCustomValidity?.('');display.classList.remove('is-invalid');display.removeAttribute('aria-invalid');}
+  };
+  const setTaskMode = (mode, clearInactive = false) => {
+    const scheduled = mode === 'scheduled', recurring = mode === 'recurring';
+    if(clearInactive&&mode!==renderedTaskMode){
+      if(!scheduled){clearDateControl(scheduledAtInput,'#create-task-schedule-display');clearDateControl(scheduledDueInput,'#create-task-scheduled-due-display');}
+      if(mode!=='one_off')clearDateControl(dueAtInput,'#create-task-due-display');
+      if(!recurring){
+        recurrenceWeekdays.forEach((input)=>{input.checked=false;});
+        form.querySelector('[name="recurrence_end_date"]').value='';
+        form.querySelector('[name="recurrence_release_mode"]').value='at_occurrence';
+      }
+      if(timingErrors){timingErrors.hidden=true;timingErrors.replaceChildren();}
+      dueError.textContent='';form.querySelector('[data-task-schedule-error]').textContent='';
+    }
+    modeSections.forEach((section) => { section.hidden = section.dataset.taskModeSection !== mode; });
+    const modeBadge=document.querySelector('[data-task-mode-badge]');
+    if(modeBadge)modeBadge.textContent=({one_off:'One-off task',scheduled:'Scheduled task',recurring:'Recurring task'})[mode];
+    form.querySelector('[data-task-delivery-value]').value = scheduled ? 'scheduled' : 'now';
+    form.querySelector('[data-task-repeat-value]').value = recurring ? 'recurring' : 'one_time';
+    dueAtInput.disabled = mode !== 'one_off';
+    dueAtInput.required = mode === 'one_off';
+    scheduledAtInput.disabled = !scheduled;
+    scheduledAtInput.required = scheduled;
+    scheduledDueInput.disabled = !scheduled;
+    scheduledDueInput.required = scheduled;
+    if (popupHelper) popupHelper.textContent = scheduled && popupToggle?.checked
+      ? 'Popup notification will be sent when this task is released.'
+      : 'The popup uses this task\'s name, instructions, due date, checklist and assignment details automatically.';
+    renderedTaskMode=mode;
+  };
+
+  const renderRecurringFields = () => {
+    const recurring = currentTaskMode() === 'recurring';
+    const frequency = recurrenceSelect.value;
+    const days = recurrenceWeekdays.filter((input) => input.checked).map((input) => Number(input.value)).sort((a,b) => a-b);
+    const usesDays=frequency==='weekly'||frequency==='custom';
+    form.querySelector('[data-task-weekdays]').hidden = !recurring || !usesDays;
+    const monthDayInput=form.querySelector('[name="recurrence_month_day"]');
+    const recurrenceTimeInput=form.querySelector('[name="recurrence_time"]');
+    const recurrenceStartInput=form.querySelector('[name="recurrence_start_date"]');
+    const monthDay=Math.max(1,Math.min(31,Number(monthDayInput?.value)||1));
+    const usesMonthDay=recurring&&frequency==='monthly';
+    form.querySelector('[data-task-month-day]').hidden=!usesMonthDay;
+    monthDayInput.disabled=!usesMonthDay;
+    monthDayInput.required=usesMonthDay;
+    recurrenceTimeInput.required=recurring;
+    recurrenceStartInput.required=recurring;
+    recurrenceSelect.disabled=!recurring;
+    recurrenceTimeInput.disabled=!recurring;
+    recurrenceStartInput.disabled=!recurring;
+    form.querySelector('[name="recurrence_end_date"]').disabled=!recurring;
+    form.querySelector('[name="recurrence_release_mode"]').disabled=!recurring;
+    form.querySelector('[name="recurrence_due_time"]').disabled=!recurring;
+    form.querySelector('[name="recurrence_due_time"]').required=recurring;
+    form.querySelector('[name="recurrence_due_days"]').disabled=!recurring;
+    const releaseEarlier=recurring&&form.querySelector('[name="recurrence_release_mode"]').value==='earlier';
+    form.querySelector('[data-recurrence-release-offset]').hidden=!releaseEarlier;
+    form.querySelector('[name="recurrence_release_value"]').disabled=!releaseEarlier;
+    form.querySelector('[name="recurrence_release_unit"]').disabled=!releaseEarlier;
+    recurrenceWeekdays.forEach((input)=>{input.disabled=!recurring||!usesDays;});
+    recurrenceValue.value = !recurring ? '' : (usesDays ? (days.length ? `weekly_days:${days.join(',')}` : '') : (frequency==='monthly'?`monthly_day:${monthDay}`:frequency));
+    recurrenceWeekdays.forEach((input) => input.closest('label')?.querySelector('span')?.setAttribute('aria-pressed', input.checked ? 'true' : 'false'));
+    if (recurrenceSummary) {
+      const names=['','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday','Sunday'];
+      const time=form.querySelector('[name="recurrence_time"]')?.value || '08:00';
+      const release=releaseEarlier?`${form.querySelector('[name="recurrence_release_value"]').value || 1} ${form.querySelector('[name="recurrence_release_unit"]').value} before`:'at occurrence time';
+      const dueTime=form.querySelector('[name="recurrence_due_time"]').value||'16:30',dueDays=Number(form.querySelector('[name="recurrence_due_days"]').value||0);
+      const base=usesDays&&days.length?`Repeats every ${days.map((day)=>names[day]).join(', ')} at ${time}`:frequency==='monthly'?`Repeats monthly on day ${monthDay} at ${time}`:(frequency==='daily_business_day'?`Repeats daily at ${time}`:'Choose one or more weekdays');
+      const start=form.querySelector('[name="recurrence_start_date"]')?.value||'';
+      const first=firstRecurringOccurrence(start,time,frequency,days,monthDay,releaseEarlier);
+      const firstText=first?` First occurrence: ${new Intl.DateTimeFormat('en-NA',{weekday:'long',day:'numeric',month:'long',year:'numeric',hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Africa/Windhoek'}).format(first)}.`:'';
+      recurrenceSummary.textContent=`${base}.${firstText} Releases ${release}; due ${dueDays?`${dueDays} day${dueDays===1?'':'s'} later`:'the same day'} at ${dueTime}.`;
+    }
+  };
+  function firstRecurringOccurrence(start,time,frequency,days,monthDay,releaseEarlier){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(start)||!/^\d{2}:\d{2}$/.test(time))return null;
+    const [year,month,day]=start.split('-').map(Number),[hour,minute]=time.split(':').map(Number);
+    let candidate=new Date(Date.UTC(year,month-1,day,hour-2,minute));
+    const releaseMinutes=releaseEarlier?(Number(form.querySelector('[name="recurrence_release_value"]').value||0)*({minutes:1,hours:60,days:1440}[form.querySelector('[name="recurrence_release_unit"]').value]||0)):0;
+    const valid=(date)=>{const jsDay=date.getUTCDay()||7;if(frequency==='daily_business_day')return jsDay<=5;if(frequency==='monthly')return date.getUTCDate()===monthDay;return days.includes(jsDay);};
+    for(let guard=0;guard<370;guard++){if(valid(candidate)&&candidate.getTime()-releaseMinutes*60000>Date.now())return candidate;candidate=new Date(candidate.getTime()+86400000);if(frequency==='monthly'&&candidate.getUTCDate()===1)candidate.setUTCDate(Math.min(monthDay,new Date(Date.UTC(candidate.getUTCFullYear(),candidate.getUTCMonth()+1,0)).getUTCDate()));}
+    return null;
+  }
+  const renderTaskFormState = (clearInactive = false) => { syncAssignmentType(); setTaskMode(currentTaskMode(),clearInactive); renderRecurringFields(); };
+  assignmentTypeInputs.forEach((input) => input.addEventListener('change', renderTaskFormState));
+  taskModeInputs.forEach((input)=>input.addEventListener('change',()=>{window.PortalDatePicker?.cleanup?.(form,{restoreFocus:false,removePopup:true});renderTaskFormState(true);}));
+  recurrenceSelect.addEventListener('change', renderTaskFormState);
+  recurrenceWeekdays.forEach((input)=>input.addEventListener('change',renderTaskFormState));
+  form.querySelector('[name="recurrence_time"]')?.addEventListener('input',renderTaskFormState);
+  form.querySelector('[name="recurrence_month_day"]')?.addEventListener('input',renderTaskFormState);
+  form.querySelector('[name="recurrence_release_mode"]')?.addEventListener('change',renderTaskFormState);
+  form.querySelector('[name="recurrence_release_value"]')?.addEventListener('input',renderTaskFormState);
+  form.querySelector('[name="recurrence_release_unit"]')?.addEventListener('change',renderTaskFormState);
+  form.querySelector('[name="recurrence_due_time"]')?.addEventListener('input',renderTaskFormState);
+  form.querySelector('[name="recurrence_due_days"]')?.addEventListener('change',renderTaskFormState);
+  popupToggle?.addEventListener('change', renderTaskFormState);
+  renderTaskFormState();
+
+  const showTimingErrors = (errors) => {
+    if(!timingErrors)return errors.length===0;
+    timingErrors.replaceChildren();timingErrors.hidden=errors.length===0;
+    if(errors.length){const heading=document.createElement('strong');heading.textContent=`Please correct ${errors.length} ${errors.length===1?'item':'items'} before creating this task:`;const list=document.createElement('ul');errors.forEach(({message})=>{const item=document.createElement('li');item.textContent=message;list.appendChild(item);});timingErrors.append(heading,list);}
+    return errors.length===0;
+  };
+  const validateActiveTiming = () => {
+    const mode=currentTaskMode(),errors=[];
+    if(mode==='one_off'){if(!validateDueAt())errors.push({field:'due_at',message:dueError.textContent});}
+    if(mode==='scheduled'){
+      const release=parsePortalDateTime(scheduledAtInput.value),due=parsePortalDateTime(scheduledDueInput.value);
+      if(!release)errors.push({field:'scheduled_at',message:'Choose a valid release date and time.'});else if(release<=new Date())errors.push({field:'scheduled_at',message:'The release time must be in the future.'});
+      if(!due)errors.push({field:'due_at',message:'Choose a valid due date and time.'});else if(release&&due<=release)errors.push({field:'due_at',message:'Due time must be after the task release time.'});
+    }
+    if(mode==='recurring'){
+      const frequency=recurrenceSelect.value,start=form.querySelector('[name="recurrence_start_date"]').value,end=form.querySelector('[name="recurrence_end_date"]').value,time=form.querySelector('[name="recurrence_time"]').value,dueTime=form.querySelector('[name="recurrence_due_time"]').value,dueDays=Number(form.querySelector('[name="recurrence_due_days"]').value||0);
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(start))errors.push({field:'recurrence_start_date',message:'Choose a valid recurrence start date.'});
+      if(end&&(!/^\d{4}-\d{2}-\d{2}$/.test(end)||end<start))errors.push({field:'recurrence_end_date',message:'The recurrence end date must be on or after its start date.'});
+      if(['weekly','custom'].includes(frequency)&&!recurrenceWeekdays.some((input)=>input.checked))errors.push({field:'repeat_weekdays',message:'Choose at least one repeat day.'});
+      if(frequency==='monthly'&&!/^(?:[1-9]|[12]\d|3[01])$/.test(form.querySelector('[name="recurrence_month_day"]').value))errors.push({field:'recurrence_month_day',message:'Choose a day of month from 1 to 31.'});
+      if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(time))errors.push({field:'recurrence_time',message:'Choose a valid occurrence time.'});
+      if(!/^(?:[01]\d|2[0-3]):[0-5]\d$/.test(dueTime))errors.push({field:'recurrence_due_time',message:'Choose a valid recurring due time.'});else if(dueDays===0&&dueTime<=time)errors.push({field:'recurrence_due_time',message:'Recurring due time must be after the occurrence time when due the same day.'});
+      if(form.querySelector('[name="recurrence_release_mode"]').value==='earlier'&&Number(form.querySelector('[name="recurrence_release_value"]').value||0)<1)errors.push({field:'recurrence_release_value',message:'Choose how long before the occurrence to release it.'});
+    }
+    return showTimingErrors(errors);
+  };
+
+  const syncChecklist = () => { checklistValue.value = [...checklistList.querySelectorAll('input')].map((input) => input.value.trim()).filter(Boolean).join('\n'); };
+  const addChecklistItem = (label) => {
+    label = String(label || '').trim();
+    if (!label) return;
+    const duplicate = [...checklistList.querySelectorAll('input')].some((input) => input.value.trim().toLowerCase() === label.toLowerCase());
+    if (duplicate) { checklistWarning.textContent = 'That checklist item has already been added.'; checklistWarning.hidden = false; return; }
+    checklistWarning.hidden = true;
+    const item = document.createElement('li');
+    item.innerHTML = '<span class="task-checklist-drag" aria-hidden="true">☰</span><input type="text" maxlength="190"><button type="button" data-checklist-up aria-label="Move item up">↑</button><button type="button" data-checklist-down aria-label="Move item down">↓</button><button type="button" data-checklist-remove aria-label="Remove checklist item">×</button>';
+    item.querySelector('input').value = label;
+    checklistList.appendChild(item); checklistInput.value = ''; syncChecklist();
+  };
+  form.querySelector('[data-task-checklist-add]').addEventListener('click', () => addChecklistItem(checklistInput.value));
+  checklistInput.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); addChecklistItem(checklistInput.value); } });
+  checklistList.addEventListener('input', syncChecklist);
+  checklistList.addEventListener('click', (event) => {
+    const item = event.target.closest('li'); if (!item) return;
+    if (event.target.closest('[data-checklist-remove]')) item.remove();
+    if (event.target.closest('[data-checklist-up]') && item.previousElementSibling) checklistList.insertBefore(item, item.previousElementSibling);
+    if (event.target.closest('[data-checklist-down]') && item.nextElementSibling) checklistList.insertBefore(item.nextElementSibling, item);
+    syncChecklist();
+  });
+
+  const templateDialog = document.querySelector('[data-task-template-dialog]');
+  const templateList = templateDialog?.querySelector('[data-template-list]');
+  const templateMessage = templateDialog?.querySelector('[data-template-message]');
+  const templateSearch = templateDialog?.querySelector('[data-template-search]');
+  const loadedLabel = form.querySelector('[data-loaded-template-label]');
+  const sourceTemplateId = form.querySelector('[data-source-template-id]');
+  const templateAttachmentIds = form.querySelector('[data-template-attachment-ids]');
+  const loadedAttachments = form.querySelector('[data-loaded-template-attachments]');
+  const csrfToken = <?= json_encode($taskAttachmentCsrf) ?>;
+  let templateMode = 'load';
+  const templateApi = async (action, values = {}) => {
+    const body = values instanceof FormData ? values : new FormData();
+    if (!(values instanceof FormData)) Object.entries(values).forEach(([key, value]) => body.append(key, value));
+    body.set('action', action); body.set('csrf_token', csrfToken);
+    const response = await fetch(`${window.location.pathname}${window.location.search}`, {method:'POST', body, headers:{'X-Requested-With':'XMLHttpRequest'}});
+    const result = await response.json().catch(() => ({success:false,message:'The template response was invalid.'}));
+    if (!response.ok || result.success !== true) { const error = new Error(result.message || 'Unable to complete the template action.'); error.code = result.code; error.status = response.status; throw error; }
+    return result;
+  };
+
+  const syncAttachmentInput = () => {
+    const transfer = new DataTransfer();
+    selectedAttachments.forEach((file) => transfer.items.add(file));
+    attachmentInput.files = transfer.files;
+  };
+  const renderAttachments = () => {
+    attachmentList.replaceChildren(...selectedAttachments.map((file, index) => {
+      const row = document.createElement('article');
+      row.className = 'task-create-file';
+      const icon = document.createElement('span');
+      icon.className = 'task-create-file__icon';
+      icon.innerHTML = `<i data-lucide="${file.type === 'video/mp4' ? 'video' : (file.type.startsWith('image/') ? 'image' : 'file-text')}" aria-hidden="true"></i>`;
+      const information = document.createElement('span');
+      information.className = 'task-create-file__information';
+      const name = document.createElement('strong');
+      name.textContent = file.name;
+      const size = document.createElement('small');
+      size.textContent = file.size >= 1048576 ? `${(file.size / 1048576).toFixed(1)} MB` : `${Math.max(0.1, file.size / 1024).toFixed(1)} KB`;
+      information.append(name, size);
+      const remove = document.createElement('button');
+      remove.type = 'button';
+      remove.dataset.removeCreateTaskFile = String(index);
+      remove.setAttribute('aria-label', `Remove ${file.name}`);
+      remove.innerHTML = '<i data-lucide="x" aria-hidden="true"></i>';
+      row.append(icon, information, remove);
+      return row;
+    }));
+    attachmentEmpty.hidden = selectedAttachments.length > 0;
+    window.lucide?.createIcons?.({ strokeWidth:2 });
+  };
+  const showAttachmentError = (message = '') => {
+    attachmentError.textContent = message;
+    attachmentError.hidden = !message;
+  };
+  attachmentSelect?.addEventListener('click', () => attachmentInput?.click());
+  attachmentInput?.addEventListener('change', () => {
+    showAttachmentError('');
+    const additions = [...(attachmentInput.files || [])];
+    const rejected = [];
+    let limitReached = false;
+    additions.forEach((file) => {
+      const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+      if ((!acceptedAttachmentTypes.includes(file.type) && !acceptedAttachmentExtensions.includes(extension)) || file.size <= 0 || file.size > 10 * 1024 * 1024) {
+        rejected.push(file.name);
+        return;
+      }
+      const duplicate = selectedAttachments.some((selected) => selected.name === file.name && selected.size === file.size && selected.lastModified === file.lastModified);
+      if (!duplicate && selectedAttachments.length < 10) selectedAttachments.push(file);
+      else if (!duplicate) limitReached = true;
+    });
+    if (limitReached) showAttachmentError('You can attach no more than 10 files.');
+    else if (rejected.length) showAttachmentError(`${rejected.join(', ')}: use an approved file smaller than 10 MB.`);
+    syncAttachmentInput();
+    renderAttachments();
+  });
+  attachmentList?.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-remove-create-task-file]');
+    if (!remove) return;
+    selectedAttachments.splice(Number(remove.dataset.removeCreateTaskFile), 1);
+    syncAttachmentInput();
+    renderAttachments();
+    showAttachmentError('');
+  });
+
+  const focusSafeTaskControl = (preferredView = '') => {
+    window.requestAnimationFrame(() => {
+      const preferred = preferredView ? document.querySelector(`[data-task-view="${CSS.escape(preferredView)}"]`) : null;
+      const target = preferred || document.querySelector('[data-task-view].is-active') || document.querySelector('[data-task-create-open]');
+      target?.focus({ preventScroll: true });
+    });
+  };
+  const cleanupTaskCreateTransientState = ({ reset = false, closePanel = false, focusView = '' } = {}) => {
+    window.PortalDatePicker?.cleanup?.(form, { restoreFocus: false, removePopup: true });
+    document.querySelectorAll('.portal-custom-select.is-open').forEach((select) => {
+      select.classList.remove('is-open');
+      select.querySelector('.portal-custom-select-trigger')?.setAttribute('aria-expanded', 'false');
+    });
+    if (assigneeMenu) {
+      assigneeMenu.menu.hidden = true;
+      assigneeMenu.trigger.setAttribute('aria-expanded', 'false');
+    }
+    taskInstructionsLayer?.close(false);
+    if (templateDialog) templateDialog.hidden = true;
+    document.body.classList.remove('task-instructions-expanded');
+    if (reset) {
+      form.reset();
+      setInstructionHtml('');
+      checklistList.replaceChildren();
+      syncChecklist();
+      selectedAttachments = [];
+      syncAttachmentInput();
+      renderAttachments();
+      showAttachmentError('');
+      clearLoadedTemplate(false);
+      form.querySelectorAll('.task-form-error').forEach((message) => { message.textContent = ''; });
+      form.querySelectorAll('[aria-invalid="true"]').forEach((field) => field.removeAttribute('aria-invalid'));
+      renderTaskFormState();
+      syncDueAt();
+    }
+    if (closePanel && createPanel) {
+      createPanel.classList.remove('open');
+      createPanel.setAttribute('aria-hidden', 'true');
+      const backdrop = document.querySelector('.task-panel-backdrop');
+      if (!document.querySelector('.task-detail-panel.open') && backdrop) backdrop.hidden = true;
+      if (!document.querySelector('.task-detail-panel.open')) document.body.classList.remove('task-panel-open', 'portal-panel-open');
+    }
+    if (focusView || closePanel) focusSafeTaskControl(focusView);
+  };
+  window.taskCreateLifecycle = { cleanup: cleanupTaskCreateTransientState, focusSafe: focusSafeTaskControl };
+
+  const formHasWork = () => !!(form.querySelector('[name="task_name"]').value.trim() || form.querySelector('[name="instructions"]').value.trim() || checklistList.children.length || selectedAssigneeValues().length || dueAtInput.value || attachmentInput?.files?.length);
+  const setNativeValue = (selector, value) => { if (selector === '[name="instructions"]') { setInstructionHtml(value ?? ''); return; } const field = form.querySelector(selector); if (!field) return; if (field.multiple) { [...field.options].forEach((option) => { option.selected = String(option.value) === String(value ?? ''); }); } else field.value = value ?? ''; field.dispatchEvent(new Event('change', {bubbles:true})); };
+  const syncLoadedAttachmentIds = () => { templateAttachmentIds.value = JSON.stringify([...loadedAttachments.querySelectorAll('[data-template-attachment-id]')].map((row) => Number(row.dataset.templateAttachmentId))); };
+  const clearLoadedTemplate = (blankForm = false) => {
+    sourceTemplateId.value = ''; templateAttachmentIds.value = '[]'; loadedAttachments.innerHTML = '';
+    loadedLabel.hidden = true; loadedLabel.textContent = '';
+    if (blankForm) { form.reset(); setInstructionHtml(''); checklistList.innerHTML = ''; dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncChecklist(); renderTaskFormState(); syncDueAt(); form.querySelectorAll('select').forEach((field) => field.dispatchEvent(new Event('change', {bubbles:true}))); }
+  };
+  const loadTemplate = async (id) => {
+    if (formHasWork() && !await window.TaskTemplateUI.confirm('Load template?\n\nLoading this template will replace the information currently entered in the New Task form.')) return;
+    window.PortalDatePicker?.cleanup?.(form, { restoreFocus: false, removePopup: true });
+    const {template} = await templateApi('task_template_get', {template_id:id});
+    clearLoadedTemplate(true);
+    setNativeValue('[name="task_name"]', template.task_name); setNativeValue('[name="instructions"]', template.instructions);
+    setNativeValue('[name="assigned_employee_id"]', template.assigned_employee_id || '');
+    const priority = form.querySelector(`[name="priority"][value="${CSS.escape(template.priority || 'normal')}"]`); if (priority) priority.checked = true;
+    checklistList.innerHTML = ''; (template.checklist_items || []).forEach(addChecklistItem);
+    const templateModeValue=template.task_mode==='recurring'?'recurring':(template.task_mode==='scheduled'?'scheduled':'one_off');
+    const templateModeInput=form.querySelector(`[name="task_mode"][value="${templateModeValue}"]`);if(templateModeInput)templateModeInput.checked=true;
+    const templateAssignment=form.querySelector(`[name="assignment_type"][value="${template.assignment_type==='floating'?'floating':'specific'}"]`);if(templateAssignment)templateAssignment.checked=true;
+    setNativeValue('[name="floating_eligible_role"]',template.floating_eligible_role||'');
+    recurrenceWeekdays.forEach((input)=>{input.checked=false;});
+    if (template.recurring_rule?.startsWith('weekly_days:')) {
+      recurrenceSelect.value='custom';
+      const selectedDays=template.recurring_rule.slice(12).split(',');
+      recurrenceWeekdays.forEach((input)=>{input.checked=selectedDays.includes(input.value);});
+    } else if (template.recurring_rule?.startsWith('monthly_day:')) {
+      recurrenceSelect.value='monthly';
+      const monthInput=form.querySelector('[name="recurrence_month_day"]'); if(monthInput) monthInput.value=template.recurring_rule.slice(12);
+    } else if (template.recurring_rule) recurrenceSelect.value=template.recurring_rule;
+    setNativeValue('[name="recurrence_time"]',template.recurrence_time||'08:00');
+    setNativeValue('[name="recurrence_start_date"]',template.recurrence_start_date||'');
+    setNativeValue('[name="recurrence_end_date"]',template.recurrence_end_date||'');
+    setNativeValue('[name="recurrence_due_time"]',template.recurrence_due_time||'16:30');
+    setNativeValue('[name="recurrence_due_days"]',String(template.recurrence_due_days||0));
+    const releaseMinutes=Number(template.recurrence_release_minutes||0),releaseMode=form.querySelector('[name="recurrence_release_mode"]');if(releaseMode)releaseMode.value=releaseMinutes>0?'earlier':'at_occurrence';
+    if(releaseMinutes>0){const releaseUnit=releaseMinutes%1440===0?'days':(releaseMinutes%60===0?'hours':'minutes');setNativeValue('[name="recurrence_release_unit"]',releaseUnit);setNativeValue('[name="recurrence_release_value"]',String(releaseMinutes/(releaseUnit==='days'?1440:releaseUnit==='hours'?60:1)));}
+    renderTaskFormState();
+    const urgent = form.querySelector('[data-urgent-toggle]'); if (urgent) { urgent.checked = !!template.urgent_alert_enabled; urgent.dispatchEvent(new Event('change', {bubbles:true})); }
+    form.querySelectorAll('[name="urgent_alert_recipients[]"]').forEach((input) => { input.checked = (template.urgent_recipients || []).includes(input.value); });
+    dueAtInput.value = ''; const dueDisplay = form.querySelector('[data-task-due-trigger]'); if (dueDisplay) dueDisplay.value = ''; syncDueAt();
+    sourceTemplateId.value = String(template.id); loadedLabel.hidden = false; loadedLabel.textContent = `Template loaded: ${template.template_name}`;
+    (template.attachments || []).forEach((attachment) => { const row = document.createElement('div'); row.className = 'task-template-attachment'; row.dataset.templateAttachmentId = String(attachment.id); const name = document.createElement('span'); name.textContent = attachment.name; const remove = document.createElement('button'); remove.type='button'; remove.textContent='Remove'; remove.addEventListener('click', async () => { if (templateMode === 'manage' && await window.TaskTemplateUI.confirm(`Remove attachment?\n\nRemove “${attachment.name}” from the reusable template? Existing tasks will not be changed.`)) { try { await templateApi('task_template_attachment_delete',{template_id:template.id,attachment_id:attachment.id}); } catch(error) { await window.TaskTemplateUI.alert(error.message); return; } } row.remove(); syncLoadedAttachmentIds(); }); row.append(name, remove); loadedAttachments.appendChild(row); });
+    syncLoadedAttachmentIds(); templateDialog.hidden = true;
+    if (template.employee_unavailable) await window.TaskTemplateUI.alert('Employee unavailable\n\nThe employee previously saved with this template is no longer available. Please select another employee.');
+    form.scrollIntoView({behavior:'smooth', block:'start'});
+  };
+  const renderTemplates = async () => {
+    templateMessage.hidden=true;
+    templateList.setAttribute('aria-busy','true');
+    templateList.innerHTML = '<div class="task-template-skeleton" role="status" aria-label="Loading templates"><div></div><div></div><div></div></div>';
+    try {
+      const {templates} = await templateApi('task_template_list', {search:templateSearch?.value || ''});
+      templateList.textContent = '';
+      if (!templates.length) { templateList.innerHTML='<div class="task-template-empty"><i data-lucide="files" aria-hidden="true"></i><strong></strong><p>Save a task as a template to reuse it later.</p></div>';templateList.querySelector('strong').textContent=templateSearch.value.trim()?'No templates match this search.':'No templates found';window.lucide?.createIcons();return; }
+      templates.forEach((template) => {
+        const row = document.createElement('article'); row.className='task-template-row'; row.dataset.templateId=template.id;
+        const content=document.createElement('div'); content.className='task-template-row__content'; const name=document.createElement('h4'); name.className='task-template-row__name'; name.textContent=template.template_name;
+        const meta=document.createElement('p'); meta.className='task-template-row__meta'; const updated = new Date(String(template.updated_at).replace(' ', 'T')); meta.textContent=`${template.assigned_name ? `Assigned to: ${template.assigned_name} · ` : ''}${template.checklist_count} checklist items · ${template.task_mode === 'recurring' ? 'Recurring' : 'Manual'} · Updated: ${Number.isNaN(updated.getTime()) ? template.updated_at : updated.toLocaleDateString('en-NA', {dateStyle:'medium'})}`;
+        const actions=document.createElement('div'); actions.className='task-template-row__actions';
+        const load=document.createElement('button'); load.type='button'; load.className='task-template-button'; load.textContent=templateMode === 'manage' ? 'Edit / Load' : 'Load'; load.addEventListener('click', () => loadTemplate(template.id).catch((error) => window.TaskTemplateUI.alert(error.message)));
+        actions.appendChild(load);
+        if (templateMode === 'manage') [['Rename','rename'],['Duplicate','duplicate'],['Delete','delete']].forEach(([label, action]) => { const button=document.createElement('button'); button.type='button'; button.className='task-template-row__menu'; button.textContent=label; button.addEventListener('click', async () => { try { if (action === 'rename') { const value=await window.TaskTemplateUI.prompt('Rename template', template.template_name); if (!value) return; await templateApi('task_template_rename',{template_id:template.id,template_name:value}); } if (action === 'duplicate') { const value=await window.TaskTemplateUI.prompt('Duplicate template', `${template.template_name} Copy`); if (!value) return; await templateApi('task_template_duplicate',{template_id:template.id,template_name:value}); } if (action === 'delete') { if (!await window.TaskTemplateUI.confirm(`Delete template?\n\nRemove “${template.template_name}”? This removes the saved template. Existing tasks created from it will not be changed.`)) return; await templateApi('task_template_delete',{template_id:template.id}); } await renderTemplates(); } catch(error) { await window.TaskTemplateUI.alert(error.message); } }); actions.appendChild(button); });
+        content.append(name,meta); row.append(content,actions); templateList.appendChild(row);
+      });
+    } catch(error) { templateList.textContent=''; templateMessage.textContent=error.message; templateMessage.hidden=false; }
+    finally { templateList.setAttribute('aria-busy','false'); }
+  };
+  const openTemplateDialog = (mode) => { templateMode=mode; templateDialog.hidden=false; templateDialog.querySelector('[data-template-dialog-title]').textContent=mode==='manage'?'Manage Templates':'Load Template'; templateSearch.value=''; templateMessage.hidden=true; renderTemplates(); templateSearch.focus(); };
+  form.querySelector('[data-template-load-open]')?.addEventListener('click', () => openTemplateDialog('load'));
+  form.querySelector('[data-template-manage]')?.addEventListener('click', () => openTemplateDialog('manage'));
+  templateDialog?.querySelectorAll('[data-template-dialog-close]').forEach((button) => button.addEventListener('click', () => { templateDialog.hidden=true; }));
+  let templateSearchTimer; templateSearch?.addEventListener('input', () => { clearTimeout(templateSearchTimer); templateSearchTimer=setTimeout(renderTemplates,180); });
+  form.querySelector('[data-template-save]')?.addEventListener('click', async () => {
+    syncInstructions(); syncChecklist(); renderRecurringFields();
+    const name=await window.TaskTemplateUI.prompt('Save as Template\n\nSave this task setup for reuse.', loadedLabel.hidden ? '' : loadedLabel.textContent.replace('Template loaded: ','')); if (!name) return;
+    const data=new FormData(form); data.set('template_name',name); data.set('save_assignee',await window.TaskTemplateUI.confirm('Save assignment?\n\nSave the currently selected employee in this template?')?'1':'');
+    const files=form.querySelector('[data-task-create-attachments]')?.files || []; data.set('include_attachments',files.length && await window.TaskTemplateUI.confirm('Include attachments?\n\nInclude the current owner attachments in this template?')?'1':'');
+    try { const result=await templateApi('task_template_save',data); loadedLabel.hidden=false; loadedLabel.textContent=`Template loaded: ${result.template.template_name}`; sourceTemplateId.value=String(result.template.id); await window.TaskTemplateUI.alert(result.message); }
+    catch(error) { if (error.code === 'duplicate_name') { const update=sourceTemplateId.value && await window.TaskTemplateUI.confirm('A template with this name already exists.\n\nContinue: Update the currently loaded template.\nCancel: Save as a copy.'); if (update) { data.set('template_id',sourceTemplateId.value); try { const result=await templateApi('task_template_save',data); await window.TaskTemplateUI.alert(result.message); } catch(nextError){await window.TaskTemplateUI.alert(nextError.message);} } else { const copy=await window.TaskTemplateUI.prompt('Save as Copy', `${name} Copy`); if(copy){data.set('template_name',copy); try{const result=await templateApi('task_template_save',data); await window.TaskTemplateUI.alert(result.message);}catch(nextError){await window.TaskTemplateUI.alert(nextError.message);}} } } else await window.TaskTemplateUI.alert(error.message); }
+  });
+  loadedLabel?.addEventListener('click', async () => { if (await window.TaskTemplateUI.confirm('Clear loaded template?\n\nClear the loaded template and reset the New Task form?')) clearLoadedTemplate(true); });
+  document.addEventListener('click', async (event) => {
+    const button=event.target.closest('[data-save-task-template]'); if (!button) return;
+    const name=await window.TaskTemplateUI.prompt('Save as Template\n\nSave this task setup for reuse.'); if (!name) return;
+    const include=await window.TaskTemplateUI.confirm('Include owner-uploaded attachments from this task?\n\nEmployee completion attachments are never included.');
+    try { const result=await templateApi('task_template_from_task',{task_id:button.dataset.saveTaskTemplate,template_name:name,save_assignee:'1',include_attachments:include?'1':''}); await window.TaskTemplateUI.alert(result.message); } catch(error){await window.TaskTemplateUI.alert(error.message);}
+  });
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    syncInstructions(); syncDueAt(); syncChecklist(); renderRecurringFields();
+    if(!validateActiveTiming()){timingErrors?.scrollIntoView({behavior:'smooth',block:'nearest'});return;}
+    if (currentTaskMode()==='scheduled') { dueAtInput.disabled=false;dueAtInput.value=scheduledDueInput.value; }
+    const required = [...form.querySelectorAll('[required]')];
+    const invalid = required.find((field) => !String(field.value || '').trim());
+    if (invalid) { event.preventDefault(); invalid.setAttribute('aria-invalid', 'true'); (invalid === instructionInput ? instructionEditor : invalid).focus(); return; }
+    if (assignee?.value === 'all') {
+      const employeeCount = Number(assignee.dataset.allEmployeeCount || 0);
+      if (!window.confirm(`Assign this task to all ${employeeCount} active employees?`)) { event.preventDefault(); return; }
+    }
+    if (saving) return;
+    saving = true;
+    const submit = form.querySelector('[type="submit"]'), originalLabel=submit.textContent; submit.disabled = true; submit.textContent = 'Creating…';
+    let taskWasCreated=false;
+    try {
+      const requestUrl=new URL(window.location.pathname+window.location.search,window.location.origin).href;
+      const requestData=new FormData(form);
+      const response=await fetch(requestUrl,{method:'POST',body:requestData,credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const responseText=await response.text();
+      let result; try{result=JSON.parse(responseText);}catch(parseError){console.error('Create Task returned invalid JSON',{status:response.status,responseText,parseError});throw new Error('The task could not be created because the server response was invalid.');}
+      if(!response.ok||result.success!==true){
+        if(result.field==='due_at'){
+          dueError.textContent=result.message||'Select a valid task due date and time.';
+          dueTrigger.classList.add('is-invalid');
+          dueTrigger.setAttribute('aria-invalid','true');
+          dueTrigger.setCustomValidity(dueError.textContent);
+          dueTrigger.focus();
+        }
+        const requestError=new Error(result.message||'The task could not be created.');requestError.field=result.field||'';throw requestError;
+      }
+      taskWasCreated=true;
+      taskViewCache.clear();
+      const root=document.querySelector('.digital-task-page'),content=root?.querySelector('[data-task-view-content]');
+      const view=result.recurring?'recurring':(result.scheduled?'scheduled':'tasks');
+      cleanupTaskCreateTransientState({ closePanel: true });
+      try{if(root&&content)await openTaskView(view,{root,content,force:true,historyMethod:'replaceState'});}catch(refreshError){console.error('Task created but view refresh failed',refreshError);window.setTimeout(()=>window.location.reload(),150);}
+      cleanupTaskCreateTransientState({ reset: true });
+      focusSafeTaskControl(view);
+      if(window.portalToast?.success)window.portalToast.success(result.message);else window.alert(result.message);
+    } catch(error) {
+      console.error('Create Task failed',error);
+      if(!taskWasCreated&&error?.field!=='due_at')showTimingErrors([{field:error?.field||'form',message:error instanceof Error&&error.message&&!/expected pattern/i.test(error.message)?error.message:'The task could not be created. Please check the dates and assignment, then try again.'}]);
+    } finally { saving=false;submit.disabled=false;submit.textContent=originalLabel; }
+  });
+}
+initialiseTaskCreateForm();
+document.querySelectorAll('[data-task-edit-rich]').forEach((editorBlock) => {
+  const surface=editorBlock.querySelector('[data-edit-rich-surface]'), input=editorBlock.querySelector('[data-edit-rich-input]');
+  const modal=document.querySelector('[data-task-instructions-modal]'), expanded=modal?.querySelector('[data-rich-expanded-surface]');
+  const sync=()=>{input.value=surface.innerHTML.trim();}; surface.addEventListener('input',sync);
+  editorBlock.querySelectorAll('[data-edit-rich-command]').forEach((button)=>button.addEventListener('click',()=>{surface.focus();document.execCommand(button.dataset.editRichCommand,false);sync();}));
+  const editExpandButton=editorBlock.querySelector('[data-edit-rich-expand]');
+  editExpandButton?.addEventListener('click',()=>{modal.dataset.richTarget=`edit:${editorBlock.dataset.taskEditRich}`;expanded.innerHTML=surface.innerHTML;taskInstructionsLayer?.open(editExpandButton);});
+  modal?.querySelector('[data-rich-save]')?.addEventListener('click',()=>{if(modal.dataset.richTarget!==`edit:${editorBlock.dataset.taskEditRich}`)return;surface.innerHTML=expanded.innerHTML;sync();taskInstructionsLayer?.close();});
+  editorBlock.closest('form')?.addEventListener('submit',sync);
+});
+document.querySelectorAll('[data-instructions-read-more]').forEach((button) => button.addEventListener('click', () => {
+  const instructions = button.previousElementSibling;
+  const expanded = button.getAttribute('aria-expanded') === 'true';
+  instructions?.classList.toggle('is-collapsed', expanded);
+  button.setAttribute('aria-expanded', expanded ? 'false' : 'true');
+  button.textContent = expanded ? 'View full instructions' : 'Collapse instructions';
+}));
+document.querySelectorAll('[data-resend-urgent]').forEach((button) => button.addEventListener('click', (event) => {
+  if (!window.confirm('Send this urgent task alert again to employees who have not completed the task?')) event.preventDefault();
+}));
+document.querySelectorAll('.checklist-create-form, .task-edit-card').forEach((form) => form.addEventListener('submit', (event) => {
+  window.setTimeout(() => { if (event.defaultPrevented) return; form.querySelectorAll('button[type="submit"]').forEach((button) => { button.disabled = true; }); }, 0);
+}));
+
+function initializePortalCustomSelects(root = document) {
+  const wireCustomSelect = (customSelect, valueControl, optionButtons, getSelectedIndex, setValue) => {
+    if (customSelect.dataset.customSelectReady === 'true') return;
+    customSelect.dataset.customSelectReady = 'true';
+
+    const trigger = customSelect.querySelector('.portal-custom-select-trigger');
+    const valueLabel = customSelect.querySelector('.portal-custom-select-value');
+    const syncSelection = () => {
+      const selectedIndex = Math.max(0, getSelectedIndex());
+      valueLabel.textContent = optionButtons[selectedIndex]?.textContent || '';
+      optionButtons.forEach((button, index) => {
+        button.setAttribute('aria-selected', index === selectedIndex ? 'true' : 'false');
+        button.classList.toggle('is-active', index === selectedIndex);
+      });
+    };
+    const setOpen = (open) => {
+      document.querySelectorAll('.portal-custom-select.is-open').forEach((other) => {
+        if (other !== customSelect) {
+          other.classList.remove('is-open');
+          other.querySelector('.portal-custom-select-trigger')?.setAttribute('aria-expanded', 'false');
+        }
+      });
+      customSelect.classList.toggle('is-open', open);
+      trigger.setAttribute('aria-expanded', open ? 'true' : 'false');
+      if (open) optionButtons[Math.max(0, getSelectedIndex())]?.focus();
+    };
+    const chooseOption = (button) => {
+      setValue(button.dataset.value || '');
+      valueControl.dispatchEvent(new Event('change', { bubbles: true }));
+      syncSelection();
+      setOpen(false);
+      trigger.focus();
+    };
+
+    trigger.addEventListener('click', () => setOpen(!customSelect.classList.contains('is-open')));
+    trigger.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') {
+        setOpen(false);
+        return;
+      }
+      if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      setOpen(true);
+      const targetIndex = event.key === 'End' || event.key === 'ArrowUp' ? optionButtons.length - 1 : 0;
+      optionButtons[targetIndex]?.focus();
+    });
+    optionButtons.forEach((button, index) => {
+      button.addEventListener('click', () => chooseOption(button));
+      button.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' || event.key === 'Tab') {
+          setOpen(false);
+          if (event.key === 'Escape') { event.preventDefault(); trigger.focus(); }
+          return;
+        }
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          chooseOption(button);
+          return;
+        }
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const nextIndex = event.key === 'Home' ? 0 : event.key === 'End' ? optionButtons.length - 1 : event.key === 'ArrowDown' ? Math.min(optionButtons.length - 1, index + 1) : Math.max(0, index - 1);
+        optionButtons[nextIndex]?.focus();
+      });
+    });
+    valueControl.addEventListener('change', syncSelection);
+    syncSelection();
+  };
+
+  root.querySelectorAll('select[data-portal-custom-select]:not([data-custom-select-ready])').forEach((nativeSelect, selectIndex) => {
+    nativeSelect.dataset.customSelectReady = 'true';
+    nativeSelect.classList.add('portal-custom-select-native');
+
+    const customSelect = document.createElement('div');
+    customSelect.className = 'portal-custom-select';
+    const menuId = `portal-custom-select-${selectIndex}-${Math.random().toString(36).slice(2, 8)}`;
+    customSelect.innerHTML = `
+      <button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${menuId}">
+        <span class="portal-custom-select-value"></span>
+        <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <div class="portal-custom-select-menu" id="${menuId}" role="listbox"></div>`;
+    nativeSelect.insertAdjacentElement('afterend', customSelect);
+
+    const menu = customSelect.querySelector('.portal-custom-select-menu');
+    const optionButtons = Array.from(nativeSelect.options).map((option, optionIndex) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'portal-custom-select-option';
+      button.role = 'option';
+      button.dataset.value = option.value;
+      button.dataset.optionIndex = String(optionIndex);
+      button.textContent = option.textContent;
+      button.disabled = option.disabled;
+      menu.appendChild(button);
+      return button;
+    });
+    wireCustomSelect(customSelect, nativeSelect, optionButtons, () => nativeSelect.selectedIndex, (value) => { nativeSelect.value = value; });
+  });
+
+  root.querySelectorAll('.portal-custom-select[data-portal-custom-select-static]:not([data-custom-select-ready])').forEach((customSelect) => {
+    const hiddenInput = customSelect.querySelector('.portal-custom-select-input');
+    const optionButtons = Array.from(customSelect.querySelectorAll('.portal-custom-select-option'));
+    wireCustomSelect(
+      customSelect,
+      hiddenInput,
+      optionButtons,
+      () => Math.max(0, optionButtons.findIndex((button) => button.dataset.value === hiddenInput.value)),
+      (value) => { hiddenInput.value = value; }
+    );
+  });
+}
+
+const taskFilterCard = document.querySelector('.dtb-filter-card');
+if (taskFilterCard) initializePortalCustomSelects(taskFilterCard);
+const createTaskPanel = document.querySelector('[data-task-create-panel]');
+if (createTaskPanel) initializePortalCustomSelects(createTaskPanel);
+
+document.addEventListener('change', (event) => {
+  if (event.target.matches('.task-checklist-item input[type="checkbox"]')) {
+    event.target.closest('.task-checklist-item')?.classList.toggle('is-complete', event.target.checked);
+  }
+});
+
+function initialiseTaskAttachments(root = document) {
+  root.querySelectorAll('[data-task-files]:not([data-attachments-initialised])').forEach((section) => {
+    section.dataset.attachmentsInitialised = 'true';
+    const input = section.querySelector('[data-task-file-input]');
+    const addButton = section.querySelector('[data-add-task-file]');
+    const list = section.querySelector('[data-task-file-list]');
+    const empty = section.querySelector('[data-task-files-empty]');
+    const errorNode = section.querySelector('[data-task-files-error]');
+    const taskId = section.dataset.taskId;
+    const csrfToken = section.dataset.csrfToken;
+    let uploading = false;
+    const allowedTypes = ['image/jpeg','image/png','image/webp','application/pdf','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','video/mp4'];
+    const escape = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+    const showError = (message = '') => { if (!errorNode) return; errorNode.textContent = message; errorNode.hidden = !message; };
+    const formatSize = (bytes) => bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(0.1, bytes / 1024).toFixed(1)} KB`;
+    const formatDate = (value) => { const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? value : date.toLocaleString('en-NA', {timeZone:'Africa/Windhoek',dateStyle:'medium',timeStyle:'short'}); };
+    const attachmentMarkup = (file) => `<article class="task-file" data-task-attachment-id="${Number(file.id)}"><a class="task-file__thumbnail" href="${escape(file.viewUrl)}" target="_blank" rel="noopener">${String(file.mime).startsWith('image/') ? `<img src="${escape(file.viewUrl)}" alt="">` : '<i data-lucide="file-text" aria-hidden="true"></i>'}</a><div class="task-file__information"><div class="task-file__name">${escape(file.name)}</div><div class="task-file__meta">${escape(formatSize(Number(file.size)))} · ${escape(file.uploadedBy)} · ${escape(formatDate(file.uploadedAt))}</div></div><div class="task-file__actions"><a class="task-file__action" href="${escape(file.viewUrl)}" target="_blank" rel="noopener">View</a><a class="task-file__action" href="${escape(file.downloadUrl)}">Download</a>${file.canRemove ? '<button type="button" class="task-file__action" data-remove-task-file>Remove</button>' : ''}</div></article>`;
+    addButton?.addEventListener('click', () => input?.click());
+    input?.addEventListener('change', async () => {
+      if (uploading) return;
+      const files = [...(input.files || [])];
+      input.value = '';
+      if (!files.length) return;
+      uploading = true;
+      if (addButton) addButton.disabled = true;
+      showError('');
+      try {
+        for (const file of files) {
+          if (!allowedTypes.includes(file.type) || file.size > 10 * 1024 * 1024) { showError(`${file.name}: use an approved image, MP4 video, PDF, Word or Excel file smaller than 10 MB.`); continue; }
+          const pending = document.createElement('article');
+          pending.className = 'task-file is-uploading';
+          pending.innerHTML = `<div class="task-file__information"><div class="task-file__name">${escape(file.name)}</div><div class="task-file__meta">Uploading…</div></div>`;
+          list?.prepend(pending);
+          try {
+            const data = new FormData();
+            data.append('action', 'task_attachment_upload'); data.append('task_id', taskId); data.append('csrf_token', csrfToken); data.append('attachment', file, file.name);
+            const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+            const result = await response.json();
+            if (!response.ok || result.success !== true) throw new Error(result.message || 'Upload failed.');
+            pending.outerHTML = attachmentMarkup(result.attachment);
+            if (empty) empty.hidden = true;
+            if (window.lucide) window.lucide.createIcons({strokeWidth:2});
+          } catch (error) { pending.remove(); showError(`${file.name}: ${error.message || 'Upload failed.'}`); }
+        }
+      } finally {
+        uploading = false;
+        if (addButton) addButton.disabled = false;
+      }
+    });
+    section.addEventListener('click', async (event) => {
+      const remove = event.target.closest('[data-remove-task-file]');
+      if (!remove) return;
+      const row = remove.closest('[data-task-attachment-id]');
+      if (!row || !window.confirm('Remove this task attachment? This action will be recorded.')) return;
+      remove.disabled = true;
+      try {
+        const data = new FormData();
+        data.append('action', 'task_attachment_remove'); data.append('task_id', taskId); data.append('attachment_id', row.dataset.taskAttachmentId); data.append('csrf_token', csrfToken);
+        const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to remove this attachment.');
+        row.remove();
+        if (empty && !list?.querySelector('[data-task-attachment-id], .task-file--legacy')) empty.hidden = false;
+      } catch (error) { showError(error.message); remove.disabled = false; }
+    });
+  });
+}
+
+const taskToolsEsc = (value) => String(value ?? '').replace(/[&<>"']/g, (character) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]));
+let taskUndoTimer = 0;
+function showTaskUndo(taskIds, label = 'Task updated') {
+  document.querySelector('[data-task-undo-toast]')?.remove();
+  const toast = document.createElement('div');
+  toast.className = 'task-undo-toast';
+  toast.dataset.taskUndoToast = 'true';
+  toast.innerHTML = `<span>${taskToolsEsc(label)}</span><button type="button">Undo</button>`;
+  document.body.appendChild(toast);
+  toast.querySelector('button').addEventListener('click', async () => {
+    toast.querySelector('button').disabled = true;
+    try {
+      for (const taskId of taskIds) {
+        const form = new FormData();
+        form.append('action', 'task_restore');
+        form.append('task_id', taskId);
+        const response = await fetch(document.URL, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to undo task action.');
+      }
+      toast.remove();
+      document.dispatchEvent(new CustomEvent('task-tools:refresh-board'));
+    } catch (error) { window.alert(error.message); toast.querySelector('button').disabled = false; }
+  });
+  window.clearTimeout(taskUndoTimer);
+  taskUndoTimer = window.setTimeout(() => toast.remove(), 8000);
+}
+
+function initialiseTaskTools() {
+  const panel = document.querySelector('[data-task-tools-panel]');
+  const backdrop = document.querySelector('[data-task-tools-backdrop]');
+  const body = document.querySelector('[data-task-tools-body]');
+  const trigger = document.querySelector('[data-task-tools-open]');
+  if (!panel || !backdrop || !body || !trigger || panel.dataset.initialised === 'true') return;
+  panel.dataset.initialised = 'true';
+  let tab = 'trash';
+  let data = null;
+  let returnFocus = null;
+  let scrollY = 0;
+  const actionMenu = document.querySelector('[data-task-action-menu]');
+  const trashConfirm = document.querySelector('[data-task-trash-confirm]');
+  if (actionMenu && actionMenu.parentElement !== document.body) document.body.appendChild(actionMenu);
+  if (trashConfirm && trashConfirm.parentElement !== document.body) document.body.appendChild(trashConfirm);
+  let actionTrigger = null;
+  let actionTaskId = null;
+
+  const selectedTaskIds = () => [...document.querySelectorAll('.dtb-task-row .dtb-task-check:checked')]
+    .map((input) => input.closest('[data-task-row]')?.dataset.taskId).filter(Boolean);
+  const formatDate = (value) => {
+    if (!value) return '—';
+    const date = new Date(String(value).replace(' ', 'T'));
+    return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString([], { dateStyle:'medium', timeStyle:'short' });
+  };
+  const post = async (action, values = {}) => {
+    const form = new FormData();
+    form.append('action', action);
+    Object.entries(values).forEach(([key, value]) => {
+      if (Array.isArray(value)) value.forEach((item) => form.append(`${key}[]`, item));
+      else form.append(key, value);
+    });
+    const response = await fetch(document.URL, { method:'POST', body:form, credentials:'same-origin', headers:{ Accept:'application/json' } });
+    const result = await response.json();
+    if (!response.ok || result.success !== true) throw new Error(result.message || 'Task tools action failed.');
+    return result;
+  };
+  const refreshBoard = async () => {
+    const y = window.scrollY;
+    const response = await fetch(document.URL, { credentials:'same-origin', headers:{ Accept:'text/html' }, cache:'no-store' });
+    const html = await response.text();
+    const parsed = new DOMParser().parseFromString(html, 'text/html');
+    const replacements = [
+      ['.dtb-stats-grid', '.dtb-stats-grid'],
+      ['[data-task-board]', '[data-task-board]'],
+      ['[data-task-bulk-bar]', '[data-task-bulk-bar]'],
+    ];
+    replacements.forEach(([currentSelector, nextSelector]) => {
+      const current = document.querySelector(currentSelector);
+      const next = parsed.querySelector(nextSelector);
+      if (current && next) current.replaceWith(next);
+    });
+    document.querySelector('[data-task-bulk-bar]')?.setAttribute('hidden', '');
+    initialiseTaskBulkSelection();
+    initialiseTaskStatusWorkflow();
+    initialiseTaskColumnResizing();
+    window.taskDueStateController?.refresh();
+    if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+    window.scrollTo({ top:y, behavior:'instant' });
+  };
+  const render = () => {
+    if (actionMenu) actionMenu.hidden = true;
+    actionTrigger?.setAttribute('aria-expanded', 'false');
+    actionTrigger = null;
+    actionTaskId = null;
+    panel.querySelectorAll('[data-task-tools-tab]').forEach((button) => {
+      const active = button.dataset.taskToolsTab === tab;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-selected', active ? 'true' : 'false');
+    });
+    if (!data) { body.innerHTML = '<div class="task-tools-loading">Loading Task tools…</div>'; return; }
+    if (tab === 'trash') {
+      const rows = data.trash || [];
+      body.innerHTML = rows.length ? `<div class="task-tools-card-list" data-task-trash-list><div class="task-trash-table__heading"><span>Task</span><span class="task-trash-table__action-heading">Action</span></div>${rows.map((row) => `<article class="task-tools-card" data-task-trash-row data-task-id="${taskToolsEsc(row.id)}"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.priority || 'normal')} · ${taskToolsEsc(row.status || 'new')}</span><span>Due ${taskToolsEsc(formatDate(row.deadline))}</span><small>Deleted by ${taskToolsEsc(row.deleted_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.deleted_at))}</small></div><div class="task-trash-table__action-cell">${data.permissions.can_manage ? `<button type="button" class="task-action-menu__trigger" data-task-action-trigger data-task-id="${taskToolsEsc(row.id)}" aria-label="Actions for ${taskToolsEsc(row.task_name)}" aria-haspopup="menu" aria-expanded="false"><i data-lucide="ellipsis" aria-hidden="true"></i></button>` : ''}</div></article>`).join('')}<div class="task-trash-table__count" data-task-trash-count>${rows.length} task${rows.length === 1 ? '' : 's'} in Trash</div></div>` : '<div class="task-tools-empty"><i data-lucide="trash-2"></i><strong>Trash is empty</strong><span>Deleted tasks will appear here.</span></div>';
+    } else if (tab === 'archived') {
+      const rows = data.archived || [];
+      body.innerHTML = rows.length ? `<div class="task-tools-card-list">${rows.map((row) => `<article class="task-tools-card"><div class="task-tools-card-copy"><strong>${taskToolsEsc(row.task_name)}</strong><span>${taskToolsEsc(row.assigned_name || 'Unassigned')} · ${taskToolsEsc(row.status || 'pending')}</span><small>Archived by ${taskToolsEsc(row.archived_by_name || 'Unknown')} · ${taskToolsEsc(formatDate(row.archived_at))}</small></div><div class="packing-trash-actions">${data.permissions.can_manage ? `<button type="button" class="packing-trash-action packing-trash-action--restore" data-task-tools-action="restore" data-task-id="${taskToolsEsc(row.id)}"><span>Restore</span></button>` : ''}<button type="button" class="pk-btn pk-btn--secondary" data-task-open="${taskToolsEsc(row.id)}">Open task</button></div></article>`).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="archive"></i><strong>No archived tasks</strong><span>Archived tasks will appear here.</span></div>';
+    } else if (tab === 'activity') {
+      const rows = data.activity || [];
+      body.innerHTML = rows.length ? `<div class="task-tools-timeline">${rows.map((row) => { let meta={}; try { meta=typeof row.metadata==='string'?JSON.parse(row.metadata):row.metadata||{}; } catch (_) {} return `<article class="portal-activity-item"><span class="portal-activity-icon"><i data-lucide="history"></i></span><div class="portal-activity-content"><h4 class="portal-activity-title">${taskToolsEsc(String(row.action || '').replaceAll('_', ' '))}</h4><time class="portal-activity-time">${taskToolsEsc(formatDate(row.created_at))}</time><p class="portal-activity-description">${taskToolsEsc(meta.description || row.task_name || `Task #${row.task_id}`)}</p>${meta.old_value || meta.new_value ? `<div class="portal-activity-change"><div><span>Previous</span><strong>${taskToolsEsc(meta.old_value || '—')}</strong></div><div><span>New</span><strong>${taskToolsEsc(meta.new_value || '—')}</strong></div></div>` : ''}<div class="task-tools-actor">${taskToolsEsc(row.employee_name || 'System')} · ${taskToolsEsc(row.role_name || 'Portal')}</div></div></article>`; }).join('')}</div>` : '<div class="task-tools-empty"><i data-lucide="history"></i><strong>No activity recorded yet.</strong></div>';
+    } else {
+      const count = selectedTaskIds().length;
+      body.innerHTML = `<section class="task-tools-bulk"><h3>Selected tasks</h3><p>${count ? `${count} task${count === 1 ? '' : 's'} selected.` : 'No tasks selected.'}</p><div class="task-tools-bulk-grid"><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="status">Change Status</button><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="priority">Change Priority</button><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="assign">Assign employee</button><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="archive">Archive selected</button><button class="pk-btn pk-btn--danger" data-task-tools-bulk="delete">Move selected to Trash</button><button class="pk-btn pk-btn--secondary" data-task-tools-bulk="export">Export selected</button></div></section>`;
+    }
+    if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+  };
+  const load = async () => { data = await post('task_tools_data'); render(); };
+  const open = async () => {
+    returnFocus = document.activeElement;
+    scrollY = window.scrollY;
+    trigger.classList.add('is-active');
+    trigger.setAttribute('aria-expanded', 'true');
+    panel.classList.add('open', 'is-open');
+    panel.setAttribute('aria-hidden', 'false');
+    backdrop.hidden = false;
+    backdrop.classList.add('is-open');
+    try { await load(); } catch (error) { body.innerHTML = `<div class="task-tools-empty"><strong>${taskToolsEsc(error.message)}</strong></div>`; }
+  };
+  const close = () => {
+    trigger.classList.remove('is-active');
+    trigger.setAttribute('aria-expanded', 'false');
+    panel.classList.remove('open', 'is-open');
+    panel.setAttribute('aria-hidden', 'true');
+    backdrop.classList.remove('is-open');
+    window.setTimeout(() => { backdrop.hidden = true; }, 180);
+    window.scrollTo({ top:scrollY, behavior:'instant' });
+    returnFocus?.focus?.({ preventScroll:true });
+  };
+  const closeActionMenu = (restoreFocus = false) => {
+    if (!actionMenu) return;
+    actionMenu.hidden = true;
+    actionMenu.style.removeProperty('visibility');
+    actionMenu.style.removeProperty('left');
+    actionMenu.style.removeProperty('top');
+    actionMenu.removeAttribute('data-task-id');
+    actionTrigger?.setAttribute('aria-expanded', 'false');
+    if (restoreFocus && actionTrigger?.isConnected) actionTrigger.focus({ preventScroll:true });
+    actionTrigger = null;
+    actionTaskId = null;
+  };
+  const positionActionMenu = (selectedTrigger) => {
+    if (!actionMenu) return;
+    actionMenu.style.visibility = 'hidden';
+    actionMenu.hidden = false;
+    const triggerRect = selectedTrigger.getBoundingClientRect();
+    const menuRect = actionMenu.getBoundingClientRect();
+    const left = Math.max(8, Math.min(window.innerWidth - menuRect.width - 8, triggerRect.right - menuRect.width));
+    const below = triggerRect.bottom + 6;
+    const top = below + menuRect.height <= window.innerHeight - 8 ? below : Math.max(8, triggerRect.top - menuRect.height - 6);
+    actionMenu.style.left = `${Math.round(left)}px`;
+    actionMenu.style.top = `${Math.round(top)}px`;
+    actionMenu.style.visibility = '';
+  };
+  const showTaskActionToast = (message, danger = false) => {
+    document.querySelector('[data-task-action-toast]')?.remove();
+    const toast = document.createElement('div');
+    toast.className = `task-action-toast${danger ? ' task-action-toast--danger' : ''}`;
+    toast.dataset.taskActionToast = 'true';
+    toast.setAttribute('role', 'status');
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    window.setTimeout(() => toast.remove(), 4200);
+  };
+  const confirmPermanentDelete = () => new Promise((resolve) => {
+    if (!trashConfirm) { resolve(false); return; }
+    trashConfirm.hidden = false;
+    document.body.classList.add('task-confirm-open');
+    const accept = trashConfirm.querySelector('[data-task-trash-accept]');
+    const cancel = trashConfirm.querySelector('[data-task-trash-cancel]');
+    const finish = (confirmed) => {
+      trashConfirm.hidden = true;
+      document.body.classList.remove('task-confirm-open');
+      accept.removeEventListener('click', onAccept);
+      cancel.removeEventListener('click', onCancel);
+      resolve(confirmed);
+    };
+    const onAccept = () => finish(true);
+    const onCancel = () => finish(false);
+    accept.addEventListener('click', onAccept);
+    cancel.addEventListener('click', onCancel);
+    cancel.focus({ preventScroll:true });
+  });
+  document.addEventListener('click', async (event) => {
+    const selectedTrigger = event.target.closest('[data-task-action-trigger]');
+    if (selectedTrigger && panel.contains(selectedTrigger)) {
+      event.preventDefault();
+      if (actionTrigger === selectedTrigger && !actionMenu.hidden) { closeActionMenu(true); return; }
+      closeActionMenu();
+      actionTrigger = selectedTrigger;
+      actionTaskId = selectedTrigger.dataset.taskId;
+      actionMenu.dataset.taskId = actionTaskId;
+      selectedTrigger.setAttribute('aria-expanded', 'true');
+      actionMenu.querySelector('[data-task-trash-action="delete-permanently"]').hidden = !data?.permissions?.can_delete_forever;
+      positionActionMenu(selectedTrigger);
+      if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+      actionMenu.querySelector('[data-task-trash-action]:not([hidden])')?.focus({ preventScroll:true });
+      return;
+    }
+    const menuItem = event.target.closest('[data-task-trash-action]');
+    if (menuItem && actionMenu?.contains(menuItem)) {
+      event.preventDefault();
+      const action = menuItem.dataset.taskTrashAction;
+      const taskId = actionTaskId;
+      if (!taskId || menuItem.disabled) return;
+      if (action === 'delete-permanently' && !await confirmPermanentDelete()) { closeActionMenu(true); return; }
+      menuItem.disabled = true;
+      try {
+        await post(action === 'restore' ? 'task_restore' : 'task_delete_forever', { task_id:taskId });
+        data.trash = (data.trash || []).filter((row) => String(row.id) !== String(taskId));
+        closeActionMenu();
+        render();
+        if (action === 'restore') await refreshBoard();
+        showTaskActionToast(action === 'restore' ? 'Task restored successfully.' : 'Task deleted permanently.');
+      } catch (error) {
+        showTaskActionToast(error.message || 'The task could not be updated.', true);
+        menuItem.disabled = false;
+      }
+      return;
+    }
+    if (!event.target.closest('[data-task-action-menu]')) closeActionMenu();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && actionMenu && !actionMenu.hidden) { event.preventDefault(); closeActionMenu(true); }
+  });
+  panel.addEventListener('scroll', () => closeActionMenu(), { passive:true, capture:true });
+  window.addEventListener('resize', () => closeActionMenu());
+  trigger.addEventListener('click', open);
+  document.addEventListener('task-tools:refresh-board', async () => {
+    await refreshBoard();
+    if (panel.classList.contains('is-open')) await load();
+  });
+  backdrop.addEventListener('click', close);
+  panel.querySelector('[data-task-tools-close]')?.addEventListener('click', close);
+  panel.addEventListener('click', async (event) => {
+    const tabButton = event.target.closest('[data-task-tools-tab]');
+    if (tabButton) { tab = tabButton.dataset.taskToolsTab; render(); return; }
+    const actionButton = event.target.closest('[data-task-tools-action]');
+    if (actionButton) {
+      const action = actionButton.dataset.taskToolsAction;
+      if (action === 'delete_forever' && window.prompt('Type DELETE to permanently delete this task.') !== 'DELETE') return;
+      actionButton.disabled = true;
+      try {
+        await post(action === 'restore' ? 'task_restore' : 'task_delete_forever', { task_id:actionButton.dataset.taskId });
+        await Promise.all([load(), refreshBoard()]);
+      } catch (error) { window.alert(error.message); actionButton.disabled = false; }
+      return;
+    }
+    const bulk = event.target.closest('[data-task-tools-bulk]');
+    if (bulk) {
+      const ids = selectedTaskIds();
+      if (!ids.length) return;
+      if (bulk.dataset.taskToolsBulk === 'export') {
+        document.querySelector('[data-task-bulk-action="export"]')?.click();
+        return;
+      }
+      let action = bulk.dataset.taskToolsBulk;
+      let value = '';
+      if (action === 'status') value = window.prompt('Status: new, in_progress, or complete', 'new') || '';
+      if (action === 'priority') value = window.prompt('Priority: normal, important, or urgent', 'normal') || '';
+      if (action === 'assign') value = window.prompt('Employee ID (leave 0 for unassigned)', '0') || '0';
+      bulk.disabled = true;
+      try {
+        await post('bulk_task_action', { bulk_action:action, task_ids:ids, value });
+        if (['archive', 'delete'].includes(action)) showTaskUndo(ids, action === 'archive' ? 'Tasks archived' : 'Tasks moved to Trash');
+        await Promise.all([load(), refreshBoard()]);
+      }
+      catch (error) { window.alert(error.message); bulk.disabled = false; }
+    }
+  });
+}
+
+function initialiseTaskBulkSelection() {
+  const bar = document.querySelector('[data-task-bulk-bar]');
+  if (!bar || bar.dataset.initialised === 'true') return;
+  bar.dataset.initialised = 'true';
+  const rowChecks = [...document.querySelectorAll('.dtb-task-row .dtb-task-check')];
+  const allChecks = [...document.querySelectorAll('.dtb-task-check-all')];
+  const count = bar.querySelector('[data-task-bulk-count]');
+  const label = bar.querySelector('[data-task-bulk-label]');
+
+  const selectedRows = () => rowChecks.filter((check) => check.checked).map((check) => check.closest('[data-task-row]')).filter(Boolean);
+  const update = () => {
+    const rows = selectedRows();
+    rowChecks.forEach((check) => check.closest('[data-task-row]')?.classList.toggle('is-selected', check.checked));
+    allChecks.forEach((check) => {
+      const sectionChecks = [...check.closest('table').querySelectorAll('tbody .dtb-task-check')];
+      const checked = sectionChecks.filter((item) => item.checked).length;
+      check.checked = sectionChecks.length > 0 && checked === sectionChecks.length;
+      check.indeterminate = checked > 0 && checked < sectionChecks.length;
+    });
+    count.textContent = String(rows.length);
+    label.textContent = rows.length === 1 ? 'task selected' : 'tasks selected';
+    bar.hidden = rows.length === 0;
+  };
+  const clear = () => {
+    rowChecks.forEach((check) => { check.checked = false; });
+    update();
+  };
+
+  rowChecks.forEach((check) => check.addEventListener('change', update));
+  allChecks.forEach((check) => check.addEventListener('change', () => {
+    check.closest('table').querySelectorAll('tbody .dtb-task-check').forEach((item) => { item.checked = check.checked; });
+    update();
+  }));
+  bar.querySelector('[data-task-bulk-close]')?.addEventListener('click', clear);
+  bar.addEventListener('click', async (event) => {
+    const actionButton = event.target.closest('[data-task-bulk-action]');
+    if (!actionButton || actionButton.disabled) return;
+    const rows = selectedRows();
+    if (!rows.length) return;
+    const action = actionButton.dataset.taskBulkAction;
+    if (action === 'export') {
+      const csv = [['Task', 'Assigned', 'Priority', 'Status'], ...rows.map((row) => [row.dataset.taskName, row.dataset.taskAssigned, row.dataset.taskPriority, row.dataset.taskStatus])]
+        .map((values) => values.map((value) => `"${String(value || '').replaceAll('"', '""')}"`).join(','))
+        .join('\r\n');
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+      link.download = `task-selection-${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+      return;
+    }
+    if (action === 'delete' && !await window.TaskBulkUI.confirmDelete(rows.length)) return;
+    const formData = new FormData();
+    formData.append('action', 'bulk_task_action');
+    formData.append('bulk_action', action);
+    rows.forEach((row) => formData.append('task_ids[]', row.dataset.taskId));
+    actionButton.disabled = true;
+    bar.classList.add('is-saving');
+    try {
+      const response = await fetch(document.URL, { method: 'POST', body: formData, credentials: 'same-origin', headers: { Accept: 'application/json' } });
+      const result = await response.json();
+      if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to update selected tasks.');
+      rows.forEach((row) => row.remove());
+      if (['archive', 'delete'].includes(action)) showTaskUndo(rows.map((row) => row.dataset.taskId), action === 'archive' ? 'Tasks archived' : 'Tasks moved to Trash');
+      clear();
+      document.querySelector('[data-task-tools-panel].is-open [data-task-tools-tab].is-active')?.click();
+    } catch (error) {
+      window.alert(error.message || 'Unable to update selected tasks.');
+      actionButton.disabled = false;
+      bar.classList.remove('is-saving');
+    }
+  });
+  update();
+}
+
+function showTaskCompletionError(taskId, message, incompleteItems = []) {
+  const panel = document.querySelector(`[data-task-panel="${String(taskId).replace(/[^0-9]/g, '')}"]`);
+  if (!panel) return;
+  window.openTaskPanel?.(taskId);
+  const box = panel.querySelector('[data-task-completion-error]');
+  const copy = box?.querySelector('[data-task-completion-error-message]');
+  if (copy) copy.textContent = message || 'Complete every required item before finishing this task.';
+  if (box) box.hidden = false;
+  const incomplete = new Set(incompleteItems.map(String));
+  panel.querySelectorAll('[data-required-checklist-item]').forEach((label) => {
+    const input = label.querySelector('input');
+    const blocked = incomplete.size ? incomplete.has(input?.value || '') : !input?.checked;
+    label.classList.toggle('is-incomplete', blocked);
+  });
+  const note = panel.querySelector('[name="completion_note"]');
+  const noteError = panel.querySelector('[data-task-note-error]');
+  const noteInvalid = !incomplete.size && validateTaskProgressNote(note?.value).valid === false;
+  if (noteError) noteError.hidden = !noteInvalid;
+  if (note) note.setAttribute('aria-invalid', noteInvalid ? 'true' : 'false');
+  const first = panel.querySelector('[data-required-checklist-item].is-incomplete') || (noteInvalid ? note : box);
+  first?.scrollIntoView({ behavior:'smooth', block:'center' });
+  if (noteInvalid) note?.focus();
+}
+
+function validateTaskProgressNote(value) {
+  const note = String(value || '').trim();
+  if (note.length < 5) return { valid:false, message:'Enter a note explaining the progress or work completed.' };
+  return { valid:true, value:note };
+}
+
+function validateTaskProgressForm(form) {
+  const status = form.querySelector('[name="status"]')?.value;
+  const noteValidation = validateTaskProgressNote(form.querySelector('[name="completion_note"]')?.value);
+  if (!noteValidation.valid) return { valid:false, incomplete:[], message:noteValidation.message };
+  if (status !== 'complete') return { valid:true, incomplete:[], note:noteValidation.value };
+  const incomplete = [...form.querySelectorAll('[data-required-checklist-item] input:not(:checked)')].map((input) => input.value);
+  if (incomplete.length) return { valid:false, incomplete, message:`${incomplete.length} required checklist ${incomplete.length === 1 ? 'item is' : 'items are'} incomplete.` };
+  return { valid:true, incomplete:[], note:noteValidation.value };
+}
+
+function confirmTaskCompletion(requiredCount) {
+  const dialog = document.querySelector('[data-task-complete-confirm]');
+  if (!dialog) return Promise.resolve(false);
+  const copy = dialog.querySelector('[data-task-complete-confirm-copy]');
+  if (copy) copy.textContent = `All ${requiredCount} required checklist ${requiredCount === 1 ? 'item is' : 'items are'} complete. Completion will be recorded under your name and time.`;
+  dialog.hidden = false;
+  document.body.classList.add('task-confirm-open');
+  return new Promise((resolve) => {
+    const finish = (accepted) => {
+      dialog.hidden = true;
+      document.body.classList.remove('task-confirm-open');
+      accept.removeEventListener('click', onAccept);
+      cancel.removeEventListener('click', onCancel);
+      resolve(accepted);
+    };
+    const accept = dialog.querySelector('[data-task-complete-accept]');
+    const cancel = dialog.querySelector('[data-task-complete-cancel]');
+    const onAccept = () => finish(true);
+    const onCancel = () => finish(false);
+    accept.addEventListener('click', onAccept);
+    cancel.addEventListener('click', onCancel);
+    cancel.focus();
+  });
+}
+
+function initialiseTaskCompletionEnforcement() {
+  document.querySelectorAll('[data-task-progress-form]').forEach((form) => {
+    if (form.dataset.completionEnforced === 'true') return;
+    form.dataset.completionEnforced = 'true';
+    form.addEventListener('change', (event) => {
+      const item = event.target.closest('[data-required-checklist-item]');
+      if (item) item.classList.toggle('is-complete', event.target.checked);
+    });
+    form.querySelector('[name="completion_note"]')?.addEventListener('input', (event) => {
+      const validation = validateTaskProgressNote(event.target.value);
+      event.target.setAttribute('aria-invalid', validation.valid ? 'false' : 'true');
+      const noteError = form.querySelector('[data-task-note-error]');
+      if (noteError) noteError.hidden = validation.valid;
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const validation = validateTaskProgressForm(form);
+      if (!validation.valid) {
+        showTaskCompletionError(form.dataset.taskId, validation.message, validation.incomplete);
+        return;
+      }
+      if (form.querySelector('[name="status"]')?.value === 'complete' && form.dataset.completionConfirmed !== 'true') {
+        const requiredCount = form.querySelectorAll('[data-required-checklist-item]').length;
+        if (!await confirmTaskCompletion(requiredCount)) return;
+        form.dataset.completionConfirmed = 'true';
+      }
+      const submit = event.submitter || form.querySelector('[type="submit"]');
+      if (form.dataset.submitting === 'true' || submit?.disabled) return;
+      form.dataset.submitting = 'true';
+      const originalLabel = submit?.textContent || 'Save Task';
+      let completedSuccessfully = false;
+      if (submit) { submit.disabled = true; submit.setAttribute('aria-busy', 'true'); submit.textContent = 'Saving…'; }
+      try {
+        const data = new FormData(form);
+        data.set('action', 'update_task_progress');
+        const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to save task progress.');
+        const savedTask = result.task || {};
+        const note = form.querySelector('[name="completion_note"]');
+        if (note) note.setAttribute('aria-invalid', 'false');
+        const noteError = form.querySelector('[data-task-note-error]');
+        if (noteError) noteError.hidden = true;
+        const completionError = form.querySelector('[data-task-completion-error]');
+        if (completionError) completionError.hidden = true;
+        form.dataset.completionConfirmed = 'false';
+        window.showPortalToast?.({ title:'Task Management', message:result.message || 'Task completed and saved successfully.', type:'success' });
+        if (savedTask.status === 'complete') {
+          completedSuccessfully = true;
+          const row = document.querySelector(`[data-task-row][data-task-id="${form.dataset.taskId}"]`);
+          row?.classList.add('is-completing');
+          window.setTimeout(() => row?.remove(), 360);
+          form.querySelectorAll('input, textarea, select').forEach((field) => { field.disabled = true; });
+          if (submit) { submit.textContent = 'Completed'; submit.disabled = true; }
+          const page = document.querySelector('.digital-task-page');
+          const previousStatus = row?.dataset.savedStatus === 'in_progress' ? 'in-progress' : 'new';
+          const previousValue = document.querySelector(`[data-stat="${previousStatus}"] .dtb-stat-value`);
+          if (previousValue) previousValue.textContent = String(Math.max(0, Number(previousValue.textContent.replace(/,/g, '')) - 1));
+          const completedValue = document.querySelector('[data-stat="complete"] .dtb-stat-value');
+          if (completedValue) completedValue.textContent = String(Number(completedValue.textContent.replace(/,/g, '')) + 1);
+          if (page) page.dataset.lastCompletedTask = String(savedTask.id || form.dataset.taskId);
+        } else if (submit) {
+          submit.textContent = 'Saved';
+          window.setTimeout(() => { submit.textContent = originalLabel; }, 1400);
+        }
+      } catch (error) {
+        showTaskCompletionError(form.dataset.taskId, error.message, []);
+      } finally {
+        form.dataset.submitting = 'false';
+        if (submit) { submit.removeAttribute('aria-busy'); if (!completedSuccessfully) submit.disabled = false; if (submit.textContent === 'Saving…') submit.textContent = originalLabel; }
+      }
+    });
+  });
+}
+
+async function acknowledgeTaskOpen(taskId, panel) {
+  if (!panel || panel.dataset.taskAcknowledged === 'true') return;
+  if (document.querySelector('.digital-task-page')?.dataset.canManage === '1') return;
+  const row = document.querySelector(`[data-task-row][data-task-id="${taskId}"]`);
+  if (row?.dataset.savedStatus !== 'new') return;
+  panel.dataset.taskAcknowledged = 'true';
+  const data = new FormData();
+  data.append('action', 'acknowledge_task');
+  data.append('task_id', taskId);
+  try {
+    const response = await fetch(document.URL, { method:'POST', body:data, credentials:'same-origin', headers:{Accept:'application/json'} });
+    const result = await response.json();
+    if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to acknowledge task.');
+    if (row) row.dataset.savedStatus = result.status;
+  } catch (error) {
+    panel.dataset.taskAcknowledged = 'false';
+    console.warn('Task acknowledgement could not be saved', error);
+  }
+}
+
+function promptTaskStart(taskId, panel) {
+  const row = document.querySelector(`[data-task-row][data-task-id="${taskId}"]`);
+  if (!panel || row?.dataset.savedStatus !== 'new' || panel.querySelector('[data-start-prompt]')) return;
+  const prompt = document.createElement('section');
+  prompt.dataset.startPrompt = 'true';
+  prompt.className = 'task-start-prompt';
+  prompt.innerHTML = '<div class="task-start-prompt__icon"><i data-lucide="timer" aria-hidden="true"></i></div><div class="task-start-prompt__copy"><strong>Are you starting this task now?</strong><p>Start Task records your start time. Read Only lets you review without starting the clock.</p><div class="task-start-prompt__actions"><button type="button" class="task-modern-button task-modern-button--primary" data-start-now><i data-lucide="play" aria-hidden="true"></i><span>Start Task</span></button><button type="button" class="task-modern-button task-modern-button--secondary" data-read-only><i data-lucide="eye" aria-hidden="true"></i><span>Read Only</span></button></div><p role="status" data-start-message></p></div>';
+  window.lucide?.createIcons?.();
+  panel.prepend(prompt);
+  prompt.querySelector('[data-read-only]').onclick = () => prompt.remove();
+  prompt.querySelector('[data-start-now]').onclick = async (event) => {
+    event.currentTarget.disabled = true;
+    const body = new FormData();
+    body.set('action', 'update_task_status'); body.set('task_id', taskId);
+    body.set('status', 'in_progress');
+    const existingNote = panel.querySelector('[name="completion_note"]')?.value?.trim();
+    body.set('completion_note', existingNote && existingNote.length >= 5 ? existingNote : 'Started work using Start Task.');
+    try {
+      const response = await fetch(document.URL, {method:'POST',body,credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message || 'Unable to start task.');
+      location.reload();
+    } catch (error) {
+      prompt.querySelector('[data-start-message]').textContent = error.message;
+      prompt.querySelector('[data-start-now]').disabled = false;
+    }
+  };
+}
+
+function initialiseTaskStatusWorkflow() {
+  const popup = document.querySelector('[data-task-status-popup]');
+  const page = document.querySelector('.digital-task-page');
+  if (!popup || popup.dataset.initialised === 'true') return;
+  popup.dataset.initialised = 'true';
+  let activeTrigger = null;
+
+  const close = () => {
+    popup.hidden = true;
+    activeTrigger?.setAttribute('aria-expanded', 'false');
+    activeTrigger = null;
+  };
+  const position = (trigger) => {
+    const rect = trigger.getBoundingClientRect();
+    const width = 170;
+    popup.style.left = `${Math.max(8, Math.min(window.innerWidth - width - 8, rect.left))}px`;
+    popup.style.top = `${Math.min(window.innerHeight - 130, rect.bottom + 5)}px`;
+  };
+  const updateWidget = (name, delta) => {
+    const value = document.querySelector(`[data-stat="${name}"] .dtb-stat-value`);
+    if (value) value.textContent = String(Math.max(0, Number(value.textContent.replace(/,/g, '')) + delta));
+  };
+
+  document.addEventListener('click', async (event) => {
+    const trigger = event.target.closest('[data-task-status-trigger]');
+    if (trigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (activeTrigger === trigger && !popup.hidden) { close(); return; }
+      activeTrigger?.setAttribute('aria-expanded', 'false');
+      activeTrigger = trigger;
+      trigger.setAttribute('aria-expanded', 'true');
+      position(trigger);
+      popup.hidden = false;
+      return;
+    }
+    const option = event.target.closest('[data-status-key]');
+    if (option && activeTrigger) {
+      const row = activeTrigger.closest('[data-task-row]');
+      const previousSaved = row?.dataset.savedStatus || 'new';
+      const previousDisplay = row?.dataset.displayStatus || previousSaved;
+      const nextStatus = option.dataset.statusKey;
+      if (!row || !['new', 'in_progress', 'complete'].includes(nextStatus)) return;
+      const completionForm = document.querySelector(`[data-task-progress-form][data-task-id="${row.dataset.taskId}"]`);
+      let progressNote = '';
+      if (nextStatus === 'complete') {
+        const validation = completionForm ? validateTaskProgressForm(completionForm) : { valid:true, incomplete:[] };
+        if (!validation.valid) {
+          close();
+          showTaskCompletionError(row.dataset.taskId, validation.message, validation.incomplete);
+          return;
+        }
+        const requiredCount = completionForm?.querySelectorAll('[data-required-checklist-item]').length || 0;
+        if (!await confirmTaskCompletion(requiredCount)) { close(); return; }
+        progressNote = validation.note || '';
+      } else {
+        const enteredNote = window.prompt('Enter a note explaining the progress or work completed:');
+        if (enteredNote === null) { close(); return; }
+        const noteValidation = validateTaskProgressNote(enteredNote);
+        if (!noteValidation.valid) { window.alert(noteValidation.message); close(); return; }
+        progressNote = noteValidation.value;
+      }
+      const triggerForSave = activeTrigger;
+      close();
+      triggerForSave.disabled = true;
+      row.classList.add('is-saving');
+      try {
+        const formData = new FormData();
+        formData.append('action', 'update_task_status');
+        formData.append('task_id', row.dataset.taskId);
+        formData.append('status', nextStatus);
+        formData.append('completion_note', progressNote);
+        const response = await fetch(document.URL, { method:'POST', body:formData, credentials:'same-origin', headers:{ Accept:'application/json' } });
+        const result = await response.json();
+        if (!response.ok || result.success !== true) {
+          const saveError = new Error(result.message || 'Unable to save status.');
+          saveError.payload = result;
+          throw saveError;
+        }
+        const task = result.task;
+        row.dataset.savedStatus = task.status;
+        row.dataset.displayStatus = task.display_status;
+        row.dataset.taskStatus = task.display_label;
+        triggerForSave.dataset.status = String(task.display_status).replaceAll('_', '-');
+        triggerForSave.textContent = task.display_label;
+        window.taskDueStateController?.refresh();
+        const completedCell = row.querySelector('[data-task-completed]');
+        if (completedCell) completedCell.textContent = task.date_completed ? task.date_completed.replace(' ', ' · ').slice(0, 16) : '—';
+        if (previousSaved !== task.status) {
+          updateWidget(previousSaved === 'in_progress' ? 'in-progress' : previousSaved, -1);
+          updateWidget(task.status === 'in_progress' ? 'in-progress' : task.status, 1);
+          if (previousSaved === 'complete' || task.status === 'complete') updateWidget('active', task.status === 'complete' ? -1 : 1);
+        }
+        if (previousDisplay === 'overdue' && task.display_status !== 'overdue') updateWidget('overdue', -1);
+        if (previousDisplay !== 'overdue' && task.display_status === 'overdue') updateWidget('overdue', 1);
+        if (task.status === 'complete' && !['completed', 'history'].includes(page?.dataset.taskView || '')) {
+          row.classList.add('is-completing');
+          window.setTimeout(() => row.remove(), 360);
+        }
+      } catch (error) {
+        if (nextStatus === 'complete') showTaskCompletionError(row.dataset.taskId, error.message, error.payload?.incomplete_items || []);
+        else window.alert(error.message || 'Unable to save task status.');
+      } finally {
+        triggerForSave.disabled = false;
+        row.classList.remove('is-saving');
+      }
+      return;
+    }
+    if (!event.target.closest('[data-task-status-popup]')) close();
+  });
+  window.addEventListener('resize', close);
+  document.addEventListener('scroll', close, true);
+}
+
+function initialiseTaskColumnResizing() {
+  document.querySelectorAll('.task-board-table').forEach((table) => {
+    if (table.dataset.resizable === 'true') return;
+    table.dataset.resizable = 'true';
+    const columns = [...table.querySelectorAll('colgroup col')];
+    const headers = [...table.querySelectorAll('thead th')];
+    const kind = table.closest('[data-task-kind]')?.dataset.taskKind || document.querySelector('.digital-task-page')?.dataset.taskView || 'default';
+    const storageKey = `task_board_column_widths_${kind}`;
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}'); } catch (_) { saved = {}; }
+    columns.forEach((column, index) => {
+      if (saved[index]) column.style.width = `${saved[index]}px`;
+      const header = headers[index];
+      if (!header || index === 0) return;
+      const handle = document.createElement('span');
+      handle.className = 'task-column-resizer';
+      handle.setAttribute('aria-hidden', 'true');
+      header.appendChild(handle);
+      handle.addEventListener('pointerdown', (event) => {
+        event.preventDefault();
+        const startX = event.clientX;
+        const startWidth = header.getBoundingClientRect().width;
+        handle.setPointerCapture(event.pointerId);
+        const move = (moveEvent) => { column.style.width = `${Math.max(70, Math.round(startWidth + moveEvent.clientX - startX))}px`; };
+        const up = () => {
+          handle.removeEventListener('pointermove', move);
+          const widths = {};
+          columns.forEach((item, itemIndex) => { widths[itemIndex] = Math.round(item.getBoundingClientRect().width); });
+          localStorage.setItem(storageKey, JSON.stringify(widths));
+        };
+        handle.addEventListener('pointermove', move);
+        handle.addEventListener('pointerup', up, { once:true });
+      });
+    });
+  });
+}
+
+function initialiseTaskOverdueFilter() {
+  const checkbox = document.querySelector('[data-task-overdue-only]');
+  const form = checkbox?.closest('form');
+  if (!checkbox || !form || checkbox.dataset.initialised === 'true') return;
+  checkbox.dataset.initialised = 'true';
+
+  checkbox.addEventListener('change', () => {
+    checkbox.disabled = true;
+    form.requestSubmit();
+  });
+}
+
+function initialiseTaskDueStates() {
+  const root = document.querySelector('.digital-task-page');
+  if (!root || window.taskDueStateController) return;
+  const TASK_TIMEZONE = 'Africa/Windhoek';
+  const labels = { upcoming:'Upcoming', due_today:'Due Today', overdue:'Overdue' };
+  const timingCsrfToken = <?= json_encode($taskAttachmentCsrf) ?>;
+  let timer = null, lastTimingSync = 0, timingRequest = null, timingVersion = 0;
+  const dateKey = (date) => new Intl.DateTimeFormat('en-CA', {
+    timeZone:TASK_TIMEZONE, year:'numeric', month:'2-digit', day:'2-digit'
+  }).formatToParts(date).filter((part) => part.type !== 'literal').map((part) => part.value).join('-');
+  const countdownLabel = (milliseconds) => {
+    const totalSeconds=Math.max(0,Math.floor(Math.abs(milliseconds)/1000));
+    const days=Math.floor(totalSeconds/86400),hours=Math.floor((totalSeconds%86400)/3600),minutes=Math.floor((totalSeconds%3600)/60),seconds=totalSeconds%60;
+    return `${days}d ${String(hours).padStart(2,'0')}h ${String(minutes).padStart(2,'0')}m ${String(seconds).padStart(2,'0')}s`;
+  };
+  const updateCountdown = (countdown, now) => {
+    const row=countdown.closest('[data-task-row]'),value=countdown.querySelector('[data-task-countdown-value]');
+    if (!value) return;
+    if (row?.dataset.savedStatus==='complete') { value.textContent='Completed'; countdown.classList.add('is-complete'); return; }
+    const due=new Date(countdown.dataset.taskDueAt||'');
+    if (Number.isNaN(due.getTime())) { value.textContent='No due date'; return; }
+    const overdue=now.getTime()>due.getTime();
+    countdown.classList.toggle('is-overdue',overdue);
+    value.textContent=`${overdue?'Overdue ':'Due in '}${countdownLabel(due.getTime()-now.getTime())}`;
+  };
+  const update = (indicator, now) => {
+    const row = indicator.closest('[data-task-row]');
+    if (row?.dataset.savedStatus === 'complete') return null;
+    if (false) {
+      indicator.replaceWith(document.createTextNode('—'));
+      return null;
+    }
+    const due = new Date(indicator.dataset.taskDueAt || '');
+    if (Number.isNaN(due.getTime())) return null;
+    const value = due.getTime() < now.getTime() ? 'overdue' : (dateKey(due) === dateKey(now) ? 'due_today' : 'upcoming');
+    if (row) row.dataset.deadlineState = value;
+    indicator.classList.remove('task-due-state--upcoming', 'task-due-state--due-today', 'task-due-state--overdue');
+    indicator.classList.add(`task-due-state--${value.replace('_', '-')}`);
+    indicator.textContent = labels[value];
+    return due.getTime() > now.getTime() ? due.getTime() - now.getTime() : null;
+  };
+  const syncTimings = async () => {
+    if (document.hidden || timingRequest || Date.now() - lastTimingSync < 59000) return timingRequest;
+    const rows=[...root.querySelectorAll('[data-task-row]')],ids=rows.map(row=>row.dataset.taskId).filter(Boolean);if(!ids.length)return;lastTimingSync=Date.now();
+    const body=new FormData();body.set('action','task_timing_snapshot');body.set('csrf_token',timingCsrfToken);body.set('task_ids',ids.join(','));
+    const version=++timingVersion;
+    timingRequest=(async()=>{try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(version!==timingVersion||!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const countdown=row.querySelector('[data-task-countdown]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(countdown){countdown.classList.toggle('is-overdue',Boolean(timing.overdue));if(timing.due_iso)countdown.dataset.taskDueAt=timing.due_iso;}if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}finally{timingRequest=null}})();
+    return timingRequest;
+  };
+  const refresh = () => {
+    if (timer) window.clearTimeout(timer);
+    const now = new Date();
+    const waits = [...root.querySelectorAll('[data-task-due-state][data-task-due-at]')].map((indicator) => update(indicator, now)).filter((wait) => wait !== null);
+    root.querySelectorAll('[data-task-countdown]').forEach((countdown)=>updateCountdown(countdown,now));
+    const nextDelay = 1000;
+    syncTimings();
+    timer = window.setTimeout(refresh, nextDelay);
+  };
+  window.taskDueStateController = { refresh };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
+  window.addEventListener('online', refresh);
+  refresh();
+}
+initialiseTaskDueStates();
+
+function initialiseTaskSections() {
+  const page = document.querySelector('.digital-task-page');
+  if (!page || page.dataset.sectionsInitialised === 'true') return;
+  page.dataset.sectionsInitialised = 'true';
+  document.addEventListener('click', (event) => {
+    const header = event.target.closest('[data-task-section-header]');
+    if (!header || event.target.closest('[data-task-create-open]')) return;
+    const toggle = header.querySelector('.task-section__toggle');
+    if (!toggle) return;
+    const content = document.getElementById(toggle.getAttribute('aria-controls'));
+    if (!content) return;
+    const expanded = toggle.getAttribute('aria-expanded') === 'true';
+    toggle.setAttribute('aria-expanded', String(!expanded));
+    header.closest('.task-section')?.classList.toggle('is-collapsed', expanded);
+    content.hidden = expanded;
+    const sectionName = header.querySelector('h2')?.textContent?.trim() || 'section';
+    toggle.setAttribute('aria-label', `${expanded ? 'Expand' : 'Collapse'} ${sectionName}`);
+  });
+  const requestedView = page.dataset.requestedTaskView;
+  const recurringHash = ['#recurring-tasks', '#recurringTasks'].includes(window.location.hash);
+  if (requestedView === 'recurring' || recurringHash) {
+    window.requestAnimationFrame(() => document.getElementById('recurringTasks')?.scrollIntoView({ block:'start' }));
+  }
+}
+
+let completedTaskWorkspaceRequest = null;
+let completedTaskWorkspaceSequence = 0;
+let completedTaskHistoryInitialised = false;
+
+function initialiseCompletedTaskWorkspace() {
+  const root = document.querySelector('[data-completed-task-navigation]');
+  if (!root || root.dataset.workspaceInitialised === 'true') return;
+  root.dataset.workspaceInitialised = 'true';
+  const stateFromRoot = (node) => ({
+    employeeId: node.dataset.completedEmployeeId || 'all',
+    year: node.dataset.completedYear || '',
+    month: node.dataset.completedMonth || ''
+  });
+  let state = stateFromRoot(root);
+  const status = root.querySelector('[data-completed-update-status]');
+  const setStatus = (message = '', error = false) => {
+    if (!status) return;
+    status.hidden = message === '';
+    status.classList.toggle('is-error', error);
+    status.textContent = message;
+  };
+  const reflectState = (nextState) => {
+    root.querySelectorAll('.completed-employee-nav__item, .completed-month-nav a').forEach((link) => {
+      const url = new URL(link.href, window.location.origin);
+      const employeeMatches = url.searchParams.get('completed_employee_id') === nextState.employeeId;
+      const monthMatches = url.searchParams.get('completed_month') === nextState.month;
+      const active = link.closest('.completed-employee-nav') ? employeeMatches : monthMatches;
+      link.classList.toggle('is-active', active);
+      if (active) link.setAttribute('aria-current', 'page'); else link.removeAttribute('aria-current');
+    });
+  };
+  const updateFilterState = (nextState) => {
+    const form = document.querySelector('form.dtb-filter-body');
+    if (!form) return;
+    const employee = form.querySelector('[data-completed-employee-filter]');
+    if (employee) employee.value = nextState.employeeId;
+  };
+  const requestWorkspace = async (targetUrl, { pushHistory = true } = {}) => {
+    const url = new URL(targetUrl, window.location.origin);
+    url.searchParams.set('task_view', 'completed');
+    const nextState = {
+      employeeId: url.searchParams.get('completed_employee_id') || 'all',
+      year: url.searchParams.get('completed_year') || '',
+      month: url.searchParams.get('completed_month') || ''
+    };
+    state = nextState;
+    reflectState(state);
+    updateFilterState(state);
+    root.classList.add('is-updating');
+    setStatus('Updating completed tasks…');
+    completedTaskWorkspaceRequest?.abort();
+    const request = new AbortController();
+    completedTaskWorkspaceRequest = request;
+    const sequence = ++completedTaskWorkspaceSequence;
+    const requestUrl = new URL(url);
+    requestUrl.searchParams.set('completed_partial', '1');
+    try {
+      const response = await fetch(requestUrl, { credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' }, signal: request.signal, cache: 'no-store' });
+      if (!response.ok) throw new Error('Could not update completed tasks.');
+      const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
+      const nextRoot = parsed.querySelector('[data-completed-task-navigation]');
+      if (!nextRoot) throw new Error('Could not update completed tasks.');
+      if (sequence !== completedTaskWorkspaceSequence || completedTaskWorkspaceRequest !== request) return;
+      if (pushHistory) history.pushState({ completedTasks: true }, '', `${url.pathname}${url.search}${url.hash}`);
+      root.replaceWith(nextRoot);
+      completedTaskWorkspaceRequest = null;
+      initialiseCompletedTaskWorkspace();
+      initialiseTaskBulkSelection();
+      initialiseTaskStatusWorkflow();
+      initialiseTaskColumnResizing();
+      window.taskDueStateController?.refresh?.();
+      window.lucide?.createIcons?.();
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+      if (sequence !== completedTaskWorkspaceSequence) return;
+      root.classList.remove('is-updating');
+      if (status) {
+        status.hidden = false;
+        status.classList.add('is-error');
+        status.innerHTML = 'Could not update completed tasks. <button type="button" data-completed-retry>Retry</button>';
+      }
+    } finally {
+      if (completedTaskWorkspaceRequest === request) completedTaskWorkspaceRequest = null;
+    }
+  };
+  window.completedTaskWorkspaceController = { requestWorkspace };
+  root.addEventListener('click', (event) => {
+    const link = event.target.closest('.completed-employee-nav__item, .completed-month-nav a, .completed-year-nav a');
+    if (!link || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || link.target === '_blank') return;
+    event.preventDefault();
+    requestWorkspace(link.href);
+  });
+  root.addEventListener('click', (event) => {
+    if (!event.target.closest('[data-completed-retry]')) return;
+    const url = new URL(window.location.href);
+    requestWorkspace(url, { pushHistory: false });
+  });
+  if (!completedTaskHistoryInitialised) {
+    completedTaskHistoryInitialised = true;
+    window.addEventListener('popstate', () => {
+      if (document.querySelector('.digital-task-page')?.dataset.taskView !== 'completed') return;
+      window.completedTaskWorkspaceController?.requestWorkspace(window.location.href, { pushHistory: false });
+    });
+  }
+  const filterForm = document.querySelector('form.dtb-filter-body');
+  if (filterForm && filterForm.dataset.completedWorkspaceInitialised !== 'true') {
+    filterForm.dataset.completedWorkspaceInitialised = 'true';
+    const submitFilter = () => {
+      if (filterForm.querySelector('[name="task_view"]')?.value !== 'completed') return;
+      const url = new URL(window.location.href);
+      const formData = new FormData(filterForm);
+      formData.forEach((value, key) => url.searchParams.set(key, String(value)));
+      const currentState = stateFromRoot(document.querySelector('[data-completed-task-navigation]'));
+      url.searchParams.set('completed_employee_id', currentState.employeeId);
+      url.searchParams.set('completed_year', currentState.year);
+      url.searchParams.set('completed_month', currentState.month);
+      requestWorkspace(url);
+    };
+    filterForm.addEventListener('submit', (event) => { if (filterForm.querySelector('[name="task_view"]')?.value === 'completed') { event.preventDefault(); submitFilter(); } });
+    const search = filterForm.querySelector('[name="search"]');
+    let searchTimer = null;
+    search?.addEventListener('input', () => {
+      if (filterForm.querySelector('[name="task_view"]')?.value !== 'completed') return;
+      window.clearTimeout(searchTimer);
+      searchTimer = window.setTimeout(submitFilter, 250);
+    });
+    filterForm.addEventListener('change', (event) => {
+      if (event.target === search || filterForm.querySelector('[name="task_view"]')?.value !== 'completed') return;
+      submitFilter();
+    });
+  }
+}
+
+let taskViewRequest = null;
+let taskViewRequestVersion = 0;
+const taskViewCache = new Map();
+const taskViewCacheTtl = 20000;
+
+function taskViewRequestUrl(view) {
+  const url = new URL(document.URL);
+  url.searchParams.set('task_view', view);
+  url.searchParams.delete('verify');
+  if (view !== 'completed') ['completed_partial','completed_employee_id','completed_year','completed_month'].forEach((name) => url.searchParams.delete(name));
+  if (view === 'scheduled') ['date_from','date_to','overdue_only','status'].forEach((name) => url.searchParams.delete(name));
+  return url;
+}
+
+function initialiseTaskCorrections(root = document) {
+  root.querySelectorAll('[data-task-correction-form]:not([data-correction-initialised])').forEach((form) => {
+    form.dataset.correctionInitialised = 'true';
+    const correctionFile = form.querySelector('.task-correction-file input[type="file"]');
+    if (correctionFile) {
+      correctionFile.hidden = true;
+      const picker = document.createElement('button');
+      picker.type = 'button'; picker.className = 'task-correction-file__button';
+      picker.innerHTML = '<i data-lucide="paperclip" aria-hidden="true"></i><span>Add supporting file</span>';
+      const filename = document.createElement('small');
+      filename.className = 'task-correction-file__name'; filename.textContent = 'No file selected';
+      correctionFile.after(picker, filename);
+      picker.addEventListener('click', () => correctionFile.click());
+      correctionFile.addEventListener('change', () => { filename.textContent = correctionFile.files?.[0]?.name || 'No file selected'; });
+    }
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (form.dataset.submitting === 'true') return;
+      if (form.matches('[data-correction-cancel]') && !window.confirm('Cancel this correction and restore the preserved completion?')) return;
+      const button = form.querySelector('button[type="submit"]');
+      const errorNode = form.querySelector('[data-task-correction-error]');
+      form.dataset.submitting = 'true'; if (button) button.disabled = true;
+      if (errorNode) { errorNode.hidden = true; errorNode.textContent = ''; }
+      try {
+        const data = new FormData(form);
+        const panel = form.closest('[data-task-panel]');
+        const csrf = panel?.querySelector('[data-task-files]')?.dataset.csrfToken || '';
+        data.set('csrf_token', csrf);
+        const response = await fetch(document.URL, {method:'POST', body:data, credentials:'same-origin', headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+        const result = await response.json();
+        if (!response.ok || result.success !== true) throw new Error(result.message || 'The correction could not be saved.');
+        panel?.querySelector('[data-task-close]')?.click();
+        invalidateTaskViewCache();
+        const nextView = result.status === 'complete' ? 'completed' : 'tasks';
+        const taskRoot=document.querySelector('.digital-task-page'); const content=taskRoot?.querySelector('[data-task-view-content]');
+        if (taskRoot && content) await openTaskView(nextView,{root:taskRoot,content,force:true});
+      } catch (error) {
+        if (errorNode) { errorNode.hidden = false; errorNode.textContent = error.message; }
+        else window.alert(error.message);
+      } finally { form.dataset.submitting = 'false'; if (button) button.disabled = false; }
+    });
+  });
+}
+
+function taskViewMarkup(responseText, view) {
+  const parsed = new DOMParser().parseFromString(responseText, 'text/html');
+  const nextContent = parsed.querySelector('[data-task-view-content]');
+  if (!nextContent) throw new Error(`Unable to render ${view}`);
+  return nextContent.innerHTML;
+}
+
+function invalidateTaskViewCache(...views) {
+  if (!views.length) taskViewCache.clear();
+  else views.forEach((view) => {
+    for (const key of taskViewCache.keys()) if (key.startsWith(`${view}|`)) taskViewCache.delete(key);
+  });
+}
+window.invalidateTaskViewCache = invalidateTaskViewCache;
+
+function initialiseFloatingTaskView(root = document) {
+  const view = root.querySelector?.('[data-floating-task-view]') || (root.matches?.('[data-floating-task-view]') ? root : null);
+  if (!view || view.dataset.initialised === 'true') return;
+  view.dataset.initialised = 'true';
+  view.addEventListener('click', async (event) => {
+    const button = event.target.closest('[data-floating-retry]');
+    if (!button || button.disabled) return;
+    const feedback = view.querySelector('[data-floating-feedback]');
+    button.disabled = true; button.textContent = 'Checking…';
+    const body = new FormData(); body.set('action','retry_floating_allocation'); body.set('task_id',button.dataset.floatingRetry); body.set('csrf_token',view.dataset.csrfToken || '');
+    try {
+      const response = await fetch(window.location.href,{method:'POST',body,headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+      const result = await response.json();
+      if (!response.ok || result.success !== true) throw new Error(result.message || 'Allocation could not be retried.');
+      feedback.hidden=false; feedback.classList.remove('is-error'); feedback.textContent=result.message;
+      invalidateTaskViewCache('floating','tasks','scheduled','completed');
+      const tab=document.querySelector('[data-task-view="floating"]');
+      const taskRoot=document.querySelector('.digital-task-page'); const content=taskRoot?.querySelector('[data-task-view-content]');
+      if (tab && taskRoot && content) { taskRoot.dataset.activeTaskView=''; await openTaskView('floating',{root:taskRoot,content,selectedTab:tab}); }
+    } catch (error) {
+      feedback.hidden=false; feedback.classList.add('is-error'); feedback.textContent=error.message;
+      button.disabled=false; button.textContent='Retry allocation';
+    }
+  });
+}
+
+function updateTaskViewTabs(root, activeView) {
+  root.querySelectorAll('[data-task-view-tabs] [data-task-view]').forEach((tab) => {
+    const active = tab.dataset.taskView === activeView;
+    tab.classList.toggle('is-active', active);
+    tab.setAttribute('aria-selected', String(active));
+    tab.tabIndex = active ? 0 : -1;
+  });
+  root.dataset.activeTaskView = activeView;
+}
+
+function initialiseLoadedTaskView(content) {
+  initialiseTaskUrgentControls(content);
+  initialiseTaskAttachments(content);
+  initialiseTaskBulkSelection();
+  initialiseTaskCompletionEnforcement();
+  initialiseTaskColumnResizing();
+  initialiseCompletedTaskWorkspace();
+  initialiseFloatingTaskView(content);
+  initialiseRecurringTaskView(content);
+  initialiseTaskCorrections(content);
+  initializePortalCustomSelects(content);
+  window.taskDueStateController?.refresh?.();
+  window.lucide?.createIcons?.();
+}
+
+async function openTaskView(view, context) {
+  const { root, content } = context;
+  const allowed = ['tasks','scheduled','floating','recurring','completed','history'];
+  if (!allowed.includes(view) || (root.dataset.activeTaskView === view && !context.force)) return;
+  const previousView = root.dataset.renderedTaskView || 'tasks';
+  const requestUrl = taskViewRequestUrl(view);
+  const cacheKey = `${view}|${requestUrl.searchParams.toString()}`;
+  const cached = taskViewCache.get(cacheKey);
+  const requestVersion = ++taskViewRequestVersion;
+  taskViewRequest?.abort();
+  updateTaskViewTabs(root, view);
+
+  const applyMarkup = (markup) => {
+    if (requestVersion !== taskViewRequestVersion) return false;
+    content.innerHTML = markup;
+    const backendView = view === 'tasks' ? 'active' : view;
+    root.dataset.taskView = backendView;
+    root.dataset.requestedTaskView = view;
+    root.dataset.renderedTaskView = view;
+    const filterViewInput = document.querySelector('form.dtb-filter-body input[name="task_view"]');
+    if (filterViewInput) filterViewInput.value = backendView;
+    initialiseLoadedTaskView(content);
+    return true;
+  };
+
+  if (cached) applyMarkup(cached.markup);
+  else {
+    content.innerHTML = `<div class="task-view-local-loader" role="status"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66"/></svg><span>Loading ${view === 'tasks' ? 'tasks' : view + ' tasks'}…</span></div>`;
+  }
+  const historyUrl = taskViewRequestUrl(view);
+  const historyMethod = context.historyMethod || 'pushState';
+  history[historyMethod]({taskView:view},'',`${historyUrl.pathname}${historyUrl.search}${historyUrl.hash}`);
+  if (cached && Date.now() - cached.savedAt < taskViewCacheTtl && !context.force) {
+    content.removeAttribute('aria-busy');
+    taskViewRequest = null;
+    return;
+  }
+
+  const request = new AbortController();
+  taskViewRequest = request;
+  content.setAttribute('aria-busy','true');
+  try {
+    const started = performance.now();
+    const response = await fetch(requestUrl, {method:'GET',credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'},signal:request.signal,cache:'no-store'});
+    if (!response.ok) throw new Error(`Unable to load ${view}`);
+    const markup = taskViewMarkup(await response.text(), view);
+    taskViewCache.set(cacheKey,{markup,savedAt:Date.now(),duration:Math.round(performance.now()-started)});
+    applyMarkup(markup);
+  } catch (error) {
+    if (error.name !== 'AbortError' && requestVersion === taskViewRequestVersion) {
+      if (!cached) content.innerHTML = '<div class="task-view-load-error" role="alert">This task view could not be loaded. Please try again.</div>';
+      updateTaskViewTabs(root,cached ? view : previousView);
+    }
+  } finally {
+    if (requestVersion === taskViewRequestVersion) content.removeAttribute('aria-busy');
+    if (taskViewRequest === request) taskViewRequest = null;
+  }
+}
+
+function initialiseRecurringTaskView(root = document) {
+  const view=root.querySelector?.('[data-recurring-task-view]')||(root.matches?.('[data-recurring-task-view]')?root:null);
+  if(!view||view.dataset.initialised==='true')return;view.dataset.initialised='true';
+  view.querySelectorAll('form[data-confirm]').forEach(form=>form.addEventListener('submit',event=>{if(!window.confirm(form.dataset.confirm||'Continue?'))event.preventDefault();}));
+  view.querySelectorAll('[data-recurring-edit]').forEach(button=>button.addEventListener('click',()=>view.querySelector(`[data-recurring-edit-dialog="${button.dataset.recurringEdit}"]`)?.showModal()));
+  view.querySelectorAll('[data-recurring-edit-close]').forEach(button=>button.addEventListener('click',()=>button.closest('dialog')?.close()));
+  view.querySelectorAll('[data-recurring-occurrences]').forEach(button=>button.addEventListener('click',async()=>{
+    const id=button.dataset.recurringOccurrences,row=view.querySelector(`[data-recurring-occurrences-row="${id}"]`),target=row?.querySelector('[data-recurring-occurrences-content]');if(!row||!target)return;
+    if(!row.hidden){row.hidden=true;return;}row.hidden=false;if(row.dataset.loaded==='true')return;
+    try{const url=new URL(location.href);url.searchParams.set('recurring_occurrences',id);const response=await fetch(url,{credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'},cache:'no-store'});const result=await response.json();if(!response.ok||!result.success)throw new Error('Unable to load generated tasks.');
+      const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+      target.innerHTML=result.occurrences.length?`<div class="recurring-generated-list"><table><thead><tr><th>Task ID</th><th>Due</th><th>Assigned To</th><th>Status</th><th>Completed</th></tr></thead><tbody>${result.occurrences.map(item=>`<tr><td>#${Number(item.id)}</td><td>${esc(item.deadline||item.created_at||'—')}</td><td>${esc(item.assigned_name||'Unassigned')}</td><td>${esc(item.status)}</td><td>${esc(item.date_completed||item.completed_at||'—')}</td></tr>`).join('')}</tbody></table></div>`:'<p>No generated occurrences yet.</p>';row.dataset.loaded='true';
+    }catch(error){target.textContent=error.message||'Unable to load generated tasks.';}
+  }));
+}
+
+function initialiseTaskViewTabs(taskRoot = document.querySelector('.digital-task-page')) {
+  const tabs = taskRoot?.querySelector('[data-task-view-tabs]');
+  const content = taskRoot?.querySelector('[data-task-view-content]');
+  if (!tabs || !content || tabs.dataset.initialised === 'true') return;
+  tabs.dataset.initialised = 'true';
+  const initialView = tabs.querySelector('[data-task-view].is-active')?.dataset.taskView || 'tasks';
+  updateTaskViewTabs(taskRoot, initialView);
+  taskRoot.dataset.renderedTaskView = initialView;
+  const initialUrl = taskViewRequestUrl(initialView);
+  taskViewCache.set(`${initialView}|${initialUrl.searchParams.toString()}`, {markup:content.innerHTML,savedAt:Date.now(),duration:0});
+  tabs.addEventListener('click', async (event) => {
+    const selectedTab = event.target.closest('[data-task-view]');
+    if (!selectedTab || selectedTab.disabled) return;
+    event.preventDefault();
+    event.stopPropagation();
+    window.taskCreateLifecycle?.cleanup?.({ closePanel: true });
+    await openTaskView(selectedTab.dataset.taskView, { root: taskRoot, content, selectedTab });
+  });
+  window.addEventListener('popstate', () => {
+    const view = new URL(window.location.href).searchParams.get('task_view') || 'tasks';
+    const normalised = view === 'active' ? 'tasks' : view;
+    if (normalised !== taskRoot.dataset.activeTaskView) openTaskView(normalised,{root:taskRoot,content,force:true,historyMethod:'replaceState'});
+  });
+  const prefetch = async (view) => {
+    const url = taskViewRequestUrl(view), key = `${view}|${url.searchParams.toString()}`;
+    if (taskViewCache.has(key)) return;
+    try {
+      const response = await fetch(url,{credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest','X-Task-Prefetch':'1'},cache:'no-store'});
+      if (!response.ok) return;
+      taskViewCache.set(key,{markup:taskViewMarkup(await response.text(),view),savedAt:Date.now(),duration:0});
+    } catch (_) { /* A normal click can retry. */ }
+  };
+  const prefetchViews = () => ['scheduled','floating','recurring','completed'].filter((view) => view !== initialView).forEach((view,index) => window.setTimeout(() => prefetch(view),index*180));
+  if ('requestIdleCallback' in window) window.requestIdleCallback(prefetchViews,{timeout:1800}); else window.setTimeout(prefetchViews,600);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('submit',(event)=>{if((event.target.getAttribute('method')||'get').toLowerCase()==='post')invalidateTaskViewCache();},{capture:true});
+  initialiseTaskViewTabs();
+  initialiseTaskDueStates();
+  initialiseTaskAttachments();
+  initialiseTaskCorrections();
+  const requestedTaskId = new URL(document.URL).searchParams.get('task_id');
+  if (requestedTaskId) window.setTimeout(() => document.querySelector(`[data-task-open="${CSS.escape(requestedTaskId)}"]`)?.click(), 0);
+  initialiseTaskTools();
+  initialiseTaskBulkSelection();
+  initialiseTaskStatusWorkflow();
+  initialiseTaskCompletionEnforcement();
+  initialiseTaskColumnResizing();
+  initialiseTaskOverdueFilter();
+  initialiseTaskSections();
+  initialiseCompletedTaskWorkspace();
+  initialiseFloatingTaskView();
+  initialiseRecurringTaskView();
+  initialiseTaskDueStates();
+});
+
 document.addEventListener('click', (event) => {
+  const viewButton = event.target.closest('.task-view-btn');
+  if (viewButton) {
+    viewButton.classList.remove('is-clicked');
+    void viewButton.offsetWidth;
+    viewButton.classList.add('is-clicked');
+    window.setTimeout(() => viewButton.classList.remove('is-clicked'), 450);
+  }
+
+  if (!event.target.closest('.portal-custom-select')) {
+    document.querySelectorAll('.portal-custom-select.is-open').forEach((select) => {
+      select.classList.remove('is-open');
+      select.querySelector('.portal-custom-select-trigger')?.setAttribute('aria-expanded', 'false');
+    });
+  }
   const open = event.target.closest('[data-task-open]');
   const close = event.target.closest('[data-task-close]');
   const createOpen = event.target.closest('[data-task-create-open]');
   const createClose = event.target.closest('[data-task-create-close]');
   if (open) {
-    document.querySelectorAll('.task-detail-panel.open').forEach((panel) => panel.classList.remove('open'));
+    document.querySelectorAll('.task-detail-panel.open').forEach((panel) => {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
     const panel = document.querySelector(`[data-task-panel="${open.dataset.taskOpen}"]`);
-    if (panel) panel.classList.add('open');
+    if (panel) {
+      // Keep fixed details outside scrollable/mobile table ancestors.
+      document.body.appendChild(panel);
+      initializePortalCustomSelects(panel);
+      initialiseTaskAttachments(panel);
+      acknowledgeTaskOpen(open.dataset.taskOpen, panel).then(() => promptTaskStart(open.dataset.taskOpen, panel));
+      panel.classList.add('open');
+      panel.setAttribute('aria-hidden', 'false');
+    }
     const backdrop = document.querySelector('.task-panel-backdrop');
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('task-panel-open');
   }
   if (createOpen) {
     const panel = document.querySelector('[data-task-create-panel]');
-    if (panel) panel.classList.add('open');
+    const currentView=new URLSearchParams(location.search).get('task_view');
+    const createKind=createOpen.dataset.taskCreateKind==='recurring'?'recurring':(currentView==='scheduled'?'scheduled':'one_off');
+    const mode=panel?.querySelector(`[name="task_mode"][value="${createKind}"]`);
+    if(mode){mode.checked=true;mode.dispatchEvent(new Event('change',{bubbles:true}));}
+    if (panel) {
+      panel.classList.add('open');
+      panel.setAttribute('aria-hidden', 'false');
+    }
     const backdrop = document.querySelector('.task-panel-backdrop');
     if (backdrop) backdrop.hidden = false;
     document.body.classList.add('task-panel-open');
   }
   if (close) {
-    document.querySelectorAll('.task-detail-panel.open').forEach((panel) => panel.classList.remove('open'));
+    document.querySelectorAll('.task-detail-panel.open').forEach((panel) => {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    });
     const backdrop = document.querySelector('.task-panel-backdrop');
     const createPanel = document.querySelector('[data-task-create-panel]');
     if (!createPanel || !createPanel.classList.contains('open')) {
@@ -748,8 +4861,12 @@ document.addEventListener('click', (event) => {
     }
   }
   if (createClose) {
+    window.taskCreateLifecycle?.cleanup?.({ closePanel: true });
     const panel = document.querySelector('[data-task-create-panel]');
-    if (panel) panel.classList.remove('open');
+    if (panel) {
+      panel.classList.remove('open');
+      panel.setAttribute('aria-hidden', 'true');
+    }
     const backdrop = document.querySelector('.task-panel-backdrop');
     const detailOpen = document.querySelector('.task-detail-panel.open');
     if (!detailOpen && backdrop) {
@@ -760,11 +4877,70 @@ document.addEventListener('click', (event) => {
 });
 
 document.addEventListener('keydown', (event) => {
+  const historyRow = event.target.closest('.dtb-history-row[data-task-open]');
+  if (historyRow && (event.key === 'Enter' || event.key === ' ')) {
+    event.preventDefault();
+    historyRow.click();
+    return;
+  }
   if (event.key !== 'Escape') return;
-  document.querySelectorAll('.task-detail-panel.open, .task-create-panel.open').forEach((panel) => panel.classList.remove('open'));
+  window.taskCreateLifecycle?.cleanup?.({ closePanel: true });
+  document.querySelectorAll('.task-detail-panel.open, .task-create-panel.open').forEach((panel) => {
+    panel.classList.remove('open');
+    panel.setAttribute('aria-hidden', 'true');
+  });
   const backdrop = document.querySelector('.task-panel-backdrop');
   if (backdrop) backdrop.hidden = true;
   document.body.classList.remove('task-panel-open');
 });
+
+window.openTaskPanel = function (taskId) {
+  const panel = document.querySelector(`[data-task-panel="${String(taskId).replace(/[^0-9]/g, '')}"]`);
+  if (!panel) return false;
+  initializePortalCustomSelects(panel);
+  initialiseTaskAttachments(panel);
+  acknowledgeTaskOpen(taskId, panel);
+  panel.classList.add('open');
+  panel.setAttribute('aria-hidden', 'false');
+  const backdrop = document.querySelector('.task-panel-backdrop');
+  if (backdrop) backdrop.hidden = false;
+  document.body.classList.add('task-panel-open');
+  return true;
+};
+window.addEventListener('portal:task-update', async (event) => {
+  const notification = event.detail || {};
+  const taskId = Number(notification.related_id || 0);
+  const page = document.querySelector('.digital-task-page[data-task-view="active"]');
+  if (!page || taskId <= 0 || document.querySelector(`[data-task-row][data-task-id="${taskId}"]`)) return;
+  try {
+    const url = new URL('/apps/operations/checklists.php', window.location.origin);
+    url.searchParams.set('task_view', 'active');
+    url.searchParams.set('task_id', String(taskId));
+    const response = await fetch(url, { credentials:'same-origin', cache:'no-store', headers:{Accept:'text/html'} });
+    if (!response.ok) return;
+    const parsed = new DOMParser().parseFromString(await response.text(), 'text/html');
+    const nextRow = parsed.querySelector(`[data-task-row][data-task-id="${taskId}"]`);
+    const nextPanel = parsed.querySelector(`[data-task-panel="${taskId}"]`);
+    if (!nextRow || nextRow.closest('[data-task-kind]')?.dataset.taskKind !== 'manual') return;
+    const tbody = document.querySelector('[data-task-kind="manual"] tbody');
+    tbody?.querySelector('.dtb-empty-row')?.remove();
+    tbody?.appendChild(nextRow);
+    window.taskDueStateController?.refresh();
+    if (nextPanel && !document.querySelector(`[data-task-panel="${taskId}"]`)) document.querySelector('.task-panel-backdrop')?.before(nextPanel);
+    ['active', 'new'].forEach((name) => { const value = document.querySelector(`[data-stat="${name}"] .dtb-stat-value`); if (value) value.textContent = String(Number(value.textContent.replace(/,/g, '')) + 1); });
+    initialiseTaskBulkSelection();
+    initialiseTaskColumnResizing();
+    if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
+  } catch (error) { console.warn('Task update could not be added to the current view', error); }
+});
+const initialTaskId = new URLSearchParams(window.location.search).get('task_id');
+if (initialTaskId) window.openTaskPanel(initialTaskId);
 </script>
+<?php if ($canManage): ?><script src="<?= BASE_URL ?>/assets/js/task-import.js?v=<?= rawurlencode((string) @filemtime(BASE_PATH . '/assets/js/task-import.js')) ?>"></script><?php endif; ?>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH.'/assets/js/ess-dashboard.js') ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/task-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-essentials.js') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
+
+
+

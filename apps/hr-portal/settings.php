@@ -4,7 +4,11 @@ requireAdmin();
 $user = currentUser();
 $db   = db();
 require_once __DIR__ . '/includes/leave-reserve.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
+require_once __DIR__ . '/includes/employment-letter.php';
 ensureLeaveShutdownSchema($db);
+$settingsCsrfToken = $_SESSION['hr_settings_csrf_token'] ?? bin2hex(random_bytes(32));
+$_SESSION['hr_settings_csrf_token'] = $settingsCsrfToken;
 
 function getSetting($key, $default='') {
     global $db;
@@ -43,40 +47,48 @@ if ($hcount == 0) {
     foreach ($defaults as $h) $ins->execute([$h[0],$h[1],$yr]);
 }
 
-$msg = '';
+$msg = clean($_GET['msg'] ?? '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
+    if (in_array($action, ['run_leave_accrual', 'renew_leave', 'save_leave'], true)) {
+        $csrf = (string)($_POST['csrf_token'] ?? '');
+        if (!hash_equals($settingsCsrfToken, $csrf)) {
+            header('Location: settings.php?tab=accrual&msg=session_expired');
+            exit;
+        }
+    }
+
     if ($action === 'save_company') {
         foreach (['company_name','company_reg','company_address','company_city','company_country','company_phone','company_email','company_vat','company_bank'] as $f)
             saveSetting($f, clean($_POST[$f] ?? ''));
+        foreach (array_keys(employmentLetterDefaults()) as $f)
+            saveSetting($f, trim((string)($_POST[$f] ?? '')));
         $msg = 'company_saved';
     }
 
 
     if ($action === 'run_leave_accrual') {
         date_default_timezone_set('Africa/Windhoek');
-        $accrualYear  = (int)date('Y');
-        $accrualMonth = (int)date('n');
-        $accrued      = min($accrualMonth * 2, 24);
-        $empList      = $db->query("SELECT id FROM employees WHERE status='active'")->fetchAll();
-        foreach ($empList as $emp) {
-            $uq = $db->prepare("SELECT COALESCE(SUM(days),0) FROM leave_requests WHERE employee_id=? AND YEAR(start_date)=? AND status='approved' AND leave_type='Annual Leave'");
-            $uq->execute([$emp['id'], $accrualYear]);
-            $used = (float)$uq->fetchColumn();
-            $db->prepare("DELETE FROM leave_balances WHERE employee_id=? AND leave_type='Annual Leave' AND year=?")->execute([$emp['id'], $accrualYear]);
-            $db->prepare("INSERT INTO leave_balances (employee_id,leave_type,balance_days,used_days,year) VALUES (?,'Annual Leave',?,?,?)")->execute([$emp['id'], $accrued, $used, $accrualYear]);
+        if (hrLeaveRecoveryLocked($db)) {
+            $msg = 'recovery_locked';
+        } else {
+            try {
+                $result = hrSyncAnnualLeaveAccrual($db, (int)date('Y'), (int)date('n'), 'manual_accrual', (int)$user['id']);
+                saveSetting('last_accrual_run', date('Y-m-d H:i:s'));
+                saveSetting('last_accrual_days', $result['accrued_days']);
+                saveSetting('last_accrual_count', $result['employee_count']);
+                $msg = $result['periods_applied'] > 0 ? 'accrual_done' : 'accrual_already_applied';
+            } catch (Throwable $e) {
+                error_log('Manual leave accrual failed: ' . $e->getMessage());
+                $msg = 'accrual_failed';
+            }
         }
-        try { $db->prepare("INSERT INTO audit_log (action,description) VALUES ('leave_accrual',?)")->execute(["Accrual: $accrued days — ".date('F Y')]); } catch(Exception $e) {}
-        saveSetting('last_accrual_run', date('Y-m-d H:i:s'));
-        saveSetting('last_accrual_days', $accrued);
-        saveSetting('last_accrual_count', count($empList));
-        $msg = 'accrual_done';
     }
 
     if ($action === 'save_leave') {
-        foreach (['leave_annual_days','leave_sick_days','leave_family_days','leave_compassionate_days','leave_renewal_date','leave_carry_over','leave_require_certificate_days','shutdown_reserve_days','shutdown_start_md','shutdown_end_md','shutdown_allow_borrow'] as $f)
+        foreach (['leave_accrual_rate','leave_accrual_day','leave_sick_days','leave_sick_cycle_months','leave_compassionate_days','leave_maternity_weeks','leave_carry_over','leave_require_certificate_days','shutdown_reserve_days','shutdown_start_md','shutdown_end_md','shutdown_allow_borrow'] as $f)
             saveSetting($f, clean($_POST[$f] ?? ''));
         $msg = 'leave_saved';
     }
@@ -154,26 +166,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'renew_leave') {
-        $year = (int)date('Y');
-        $employees = $db->query("SELECT id FROM employees WHERE status='active'")->fetchAll();
-        $annual = (int)getSetting('leave_annual_days', 20);
-        $sick   = (int)getSetting('leave_sick_days',   10);
-        $family = (int)getSetting('leave_family_days',  3);
-        $comp   = (int)getSetting('leave_compassionate_days', 3);
-        $types  = [['Annual Leave',$annual],['Sick Leave',$sick],['Family Responsibility',$family],['Compassionate Leave',$comp],['Unpaid Leave',0]];
-        foreach ($employees as $emp) {
-            foreach ($types as $lt) {
-                $db->prepare("INSERT INTO leave_balances (employee_id,leave_type,balance_days,used_days,year) VALUES (?,?,?,0,?) ON DUPLICATE KEY UPDATE balance_days=?,used_days=0")
-                   ->execute([$emp['id'],$lt[0],$lt[1],$year,$lt[1]]);
-            }
-        }
-        $msg = 'leave_renewed';
+        $msg = 'leave_renewal_disabled';
     }
 }
 
 // Load settings
 $co = [];
 foreach (['company_name','company_reg','company_address','company_city','company_country','company_phone','company_email','company_vat','company_bank'] as $k) $co[$k]=getSetting($k);
+$letterSettings = employmentLetterSettings($db);
 
 $holidays = $db->query("SELECT * FROM public_holidays ORDER BY hdate ASC")->fetchAll();
 $empUsers = $db->query("SELECT u.id,u.name,u.email,e.job_title FROM users u LEFT JOIN employees e ON e.id=u.employee_id WHERE u.role='employee' ORDER BY u.name")->fetchAll();
@@ -192,7 +192,7 @@ $activeTab    = $_GET['tab'] ?? 'company';
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Settings — Hambelela HR</title>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
@@ -240,6 +240,12 @@ $activeTab    = $_GET['tab'] ?? 'company';
     'emp_password_reset'=>['✓ Employee password reset.', 'green'],
     'system_saved'    => ['✓ System preferences saved.', 'green'],
     'leave_renewed'   => ['✓ Leave balances renewed for all employees.', 'green'],
+    'leave_renewal_disabled' => ['Yearly balance reset is disabled to protect employee records.', 'error'],
+    'recovery_locked' => ['This leave-balance action is temporarily unavailable while HR records are being verified.', 'error'],
+    'session_expired' => ['Your session expired. Refresh the page and try again.', 'error'],
+    'accrual_done'    => ['✓ Annual leave accrual was synchronized safely.', 'green'],
+    'accrual_already_applied' => ['Annual leave accrual for this month was already recorded. No duplicate accrual was added.', 'green'],
+    'accrual_failed'  => ['Leave accrual could not be completed. No balance changes were committed.', 'error'],
     'wrong_password'  => ['✗ Current password is incorrect.', 'error'],
     'password_mismatch'=>['✗ New passwords do not match.', 'error'],
     'password_short'  => ['✗ Password must be at least 8 characters.', 'error'],
@@ -297,6 +303,20 @@ $activeTab    = $_GET['tab'] ?? 'company';
             <div class="form-group"><label class="form-label">Email</label><input class="form-input" name="company_email" value="<?=htmlspecialchars($co['company_email'])?>"></div>
             <div class="form-group"><label class="form-label">VAT Number</label><input class="form-input" name="company_vat" value="<?=htmlspecialchars($co['company_vat'])?>"></div>
             <div class="form-group full"><label class="form-label">Bank Details (shown on payslips)</label><input class="form-input" name="company_bank" value="<?=htmlspecialchars($co['company_bank'])?>" placeholder="e.g. FNB Namibia — Acc: 62xxxxxxx"></div>
+
+            <div class="section-divider">Employment Confirmation Letter</div>
+            <div class="form-group"><label class="form-label">Legal Company Name</label><input class="form-input" name="letter_company_legal_name" value="<?=htmlspecialchars($letterSettings['letter_company_legal_name'])?>"></div>
+            <div class="form-group"><label class="form-label">Trading Name</label><input class="form-input" name="letter_company_trading_name" value="<?=htmlspecialchars($letterSettings['letter_company_trading_name'])?>"></div>
+            <div class="form-group"><label class="form-label">Registration Number</label><input class="form-input" name="letter_company_reg" value="<?=htmlspecialchars($letterSettings['letter_company_reg'])?>"></div>
+            <div class="form-group"><label class="form-label">Telephone Number</label><input class="form-input" name="letter_phone" value="<?=htmlspecialchars($letterSettings['letter_phone'])?>"></div>
+            <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" name="letter_email" value="<?=htmlspecialchars($letterSettings['letter_email'])?>"></div>
+            <div class="form-group"><label class="form-label">Website</label><input class="form-input" name="letter_website" value="<?=htmlspecialchars($letterSettings['letter_website'])?>"></div>
+            <div class="form-group full"><label class="form-label">Physical Address</label><input class="form-input" name="letter_physical_address" value="<?=htmlspecialchars($letterSettings['letter_physical_address'])?>"></div>
+            <div class="form-group"><label class="form-label">Signatory Name</label><input class="form-input" name="letter_signatory_name" value="<?=htmlspecialchars($letterSettings['letter_signatory_name'])?>"></div>
+            <div class="form-group full">
+              <label class="form-label">Default Responsibilities</label>
+              <textarea class="form-input" name="letter_default_responsibilities" rows="3"><?=htmlspecialchars($letterSettings['letter_default_responsibilities'])?></textarea>
+            </div>
           </div>
           <div style="margin-top:18px;text-align:right"><button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Company Information</button></div>
         </div>
@@ -316,6 +336,7 @@ $activeTab    = $_GET['tab'] ?? 'company';
       <div class="card-header"><div class="card-title"><i class="fa-solid fa-calendar-check" style="color:var(--green)"></i> Leave Policy Settings</div></div>
       <form method="POST">
         <input type="hidden" name="action" value="save_leave">
+        <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($settingsCsrfToken, ENT_QUOTES, 'UTF-8')?>">
         <div style="padding:20px">
           <div class="form-grid">
 
@@ -365,12 +386,9 @@ $activeTab    = $_GET['tab'] ?? 'company';
 
           </div>
           <div style="margin-top:18px;display:flex;gap:10px;justify-content:space-between;align-items:center">
-            <a href="accrue-leave.php?key=HamOrg2026" target="_blank" class="btn btn-secondary"><i class="fa-solid fa-rotate"></i> Run Monthly Accrual Now</a>
+            <span class="form-help">Monthly accrual runs through the authenticated server task.</span>
             <div style="display:flex;gap:10px">
-              <form method="POST" style="display:inline" onsubmit="return confirm('Reset ALL employee leave balances to current policy values?')">
-                <input type="hidden" name="action" value="renew_leave">
-                <button type="submit" class="btn btn-amber"><i class="fa-solid fa-calendar-rotate"></i> Renew All Year Balances</button>
-              </form>
+              <button type="button" class="btn btn-amber" disabled title="Disabled to protect existing employee leave records"><i class="fa-solid fa-lock"></i> Yearly Reset Disabled</button>
               <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Save Leave Policy</button>
             </div>
           </div>
@@ -643,8 +661,12 @@ $activeTab    = $_GET['tab'] ?? 'company';
           </div>
         </div>
         <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:12px 16px;margin-bottom:20px;font-size:13px;color:#92400e"><i class="fa-solid fa-circle-info"></i> <strong>How it works:</strong> Sets every active employee Annual Leave to <strong><?= $expectedDays ?> days</strong>. Used days preserved. Run on the <strong>1st of each month</strong>.</div>
-        <?php if ($msg === 'accrual_done'): ?><div class="toast" style="margin-bottom:16px"><i class="fa-solid fa-check"></i> Leave accrual complete.</div><?php endif ?>
-        <form method="POST" onsubmit="return confirm('Run leave accrual now?')"><input type="hidden" name="action" value="run_leave_accrual"><button type="submit" class="btn btn-primary" style="font-size:15px;padding:12px 28px"><i class="fa-solid fa-rotate"></i> Run Leave Accrual for <?= $thisMonth ?></button></form>
+        <?php if ($msg === 'accrual_done'): ?><div class="toast" style="margin-bottom:16px"><i class="fa-solid fa-check"></i> Leave accrual completed once for this month.</div>
+        <?php elseif ($msg === 'accrual_already_applied'): ?><div class="toast" style="margin-bottom:16px"><i class="fa-solid fa-circle-info"></i> This month's accrual was already applied. No balance was added twice.</div>
+        <?php elseif ($msg === 'recovery_locked'): ?><div class="toast error" style="margin-bottom:16px"><i class="fa-solid fa-lock"></i> This leave-balance action is temporarily unavailable while the HR records are being verified.</div>
+        <?php elseif ($msg === 'accrual_failed'): ?><div class="toast error" style="margin-bottom:16px"><i class="fa-solid fa-triangle-exclamation"></i> Leave accrual could not be completed. No partial update was saved.</div>
+        <?php elseif ($msg === 'session_expired'): ?><div class="toast error" style="margin-bottom:16px"><i class="fa-solid fa-shield-halved"></i> Your session expired. Refresh and try again.</div><?php endif ?>
+        <form method="POST" onsubmit="return confirm('Run leave accrual now?')"><input type="hidden" name="action" value="run_leave_accrual"><input type="hidden" name="csrf_token" value="<?=htmlspecialchars($settingsCsrfToken, ENT_QUOTES, 'UTF-8')?>"><button type="submit" class="btn btn-primary" style="font-size:15px;padding:12px 28px"><i class="fa-solid fa-rotate"></i> Run Leave Accrual for <?= $thisMonth ?></button></form>
       </div>
     </div>
 

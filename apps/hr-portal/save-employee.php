@@ -1,9 +1,16 @@
 <?php
 require_once __DIR__ . '/config.php';
+require_once __DIR__ . '/includes/leave-balance-service.php';
 requireAdmin();
 
 $db     = db();
+$hrActor = currentUser();
 $emp_id = (int)($_POST['emp_id'] ?? 0);
+$hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
+hrEnsureMedicalAidSchemaSafe($db);
+$hasMedicalAid = hrMedicalAidAvailable($db);
+$hasMedicalAidColumns = hrHasEmployeeMedicalAidColumns($db);
+$medicalAidDefaults = hrMedicalAidDefaults();
 
 $fields = [
     'first_name'      => clean($_POST['first_name'] ?? ''),
@@ -30,6 +37,36 @@ $fields = [
     'notes'           => clean($_POST['notes']           ?? ''),
 ];
 
+if ($hasSocialSecurity) {
+    $fields['social_security_number'] = clean($_POST['social_security_number'] ?? '');
+}
+if ($hasMedicalAidColumns) {
+    $medicalAidActive = (int)(($_POST['medical_aid_active'] ?? '0') === '1');
+    $medicalAidTotal = (float)($_POST['medical_aid_total'] ?? $medicalAidDefaults['total']);
+    $medicalAidCompany = (float)($_POST['medical_aid_company'] ?? 0);
+    $medicalAidEmployee = (float)($_POST['medical_aid_employee'] ?? 0);
+    if ($medicalAidTotal <= 0) $medicalAidTotal = (float)$medicalAidDefaults['total'];
+    if ($medicalAidActive && $medicalAidCompany <= 0) $medicalAidCompany = round($medicalAidTotal * 0.40, 2);
+    if ($medicalAidActive && $medicalAidEmployee <= 0) $medicalAidEmployee = round($medicalAidTotal * 0.60, 2);
+    if (!$medicalAidActive) {
+        $medicalAidCompany = $medicalAidCompany > 0 ? $medicalAidCompany : (float)$medicalAidDefaults['company'];
+        $medicalAidEmployee = $medicalAidEmployee > 0 ? $medicalAidEmployee : (float)$medicalAidDefaults['employee'];
+    }
+    $medicalAidStartDate = clean($_POST['medical_aid_start_date'] ?? $medicalAidDefaults['start_date']);
+    if ($medicalAidStartDate === '') $medicalAidStartDate = $medicalAidDefaults['start_date'];
+    $_POST['medical_aid_total'] = (string)$medicalAidTotal;
+    $_POST['medical_aid_company'] = (string)$medicalAidCompany;
+    $_POST['medical_aid_employee'] = (string)$medicalAidEmployee;
+    $_POST['medical_aid_start_date'] = $medicalAidStartDate;
+
+    $fields['medical_aid_active'] = $medicalAidActive;
+    $fields['medical_aid_fund'] = clean($_POST['medical_aid_fund'] ?? $medicalAidDefaults['fund']);
+    $fields['medical_aid_total'] = $medicalAidTotal;
+    $fields['medical_aid_company'] = $medicalAidCompany;
+    $fields['medical_aid_employee'] = $medicalAidEmployee;
+    $fields['medical_aid_start_date'] = $medicalAidStartDate;
+}
+
 if (!$fields['first_name'] || !$fields['last_name']) {
     header('Location: employees.php?msg=error'); exit;
 }
@@ -40,12 +77,14 @@ if (!$fields['emp_number']) {
 }
 
 if ($emp_id > 0) {
+    $socialSql = $hasSocialSecurity ? "social_security_number=:social_security_number, " : "";
+    $medicalSql = $hasMedicalAidColumns ? "medical_aid_active=:medical_aid_active, medical_aid_fund=:medical_aid_fund, medical_aid_total=:medical_aid_total, medical_aid_company=:medical_aid_company, medical_aid_employee=:medical_aid_employee, medical_aid_start_date=:medical_aid_start_date, " : "";
     $sql = "UPDATE employees SET
         first_name=:first_name, last_name=:last_name, email=:email, phone=:phone,
         id_number=:id_number, emp_number=:emp_number, job_title=:job_title,
         department=:department, employment_type=:employment_type, start_date=:start_date,
         basic_salary=:basic_salary, hourly_rate=:hourly_rate, bank_name=:bank_name,
-        bank_account=:bank_account, tax_number=:tax_number, status=:status,
+        bank_account=:bank_account, tax_number=:tax_number, {$socialSql}{$medicalSql}status=:status,
         emergency_name=:emergency_name, emergency_phone=:emergency_phone,
         address=:address, suburb=:suburb, city=:city, notes=:notes
         WHERE id=:id";
@@ -53,6 +92,9 @@ if ($emp_id > 0) {
     foreach ($fields as $k => $v) $params[':'.$k] = $v;
     $params[':id'] = $emp_id;
     $db->prepare($sql)->execute($params);
+    if ($hasMedicalAid) {
+        hrSaveMedicalAidMembership($db, $emp_id, $_POST);
+    }
 } else {
     $cols = implode(',', array_keys($fields));
     $phs  = ':'.implode(',:', array_keys($fields));
@@ -60,14 +102,22 @@ if ($emp_id > 0) {
     foreach ($fields as $k => $v) $params[':'.$k] = $v;
     $db->prepare("INSERT INTO employees ($cols) VALUES ($phs)")->execute($params);
     $emp_id = (int)$db->lastInsertId();
+    if ($hasMedicalAid) {
+        hrSaveMedicalAidMembership($db, $emp_id, $_POST);
+    }
 
     // ── Namibia Labour Act leave entitlements ──
     $year = (int)date('Y');
     $month = (int)date('n');
 
-    // Annual Leave: accrue 2 days per month from Jan 1
-    // Start with days already accrued this year (month × 2, max 24)
-    $annualAccrued = min($month * 2, 24);
+    // Annual leave follows the configured annual rate from the employee's
+    // actual commencement date. Probation controls when it may be requested,
+    // not whether the legal entitlement accrues.
+    $annualAccrued = hrAnnualAccruedForEmployee($db, [
+        'id' => $emp_id,
+        'employment_type' => $fields['employment_type'],
+        'start_date' => $fields['start_date'],
+    ], $year, $month);
 
     $leaveTypes = [
         // [type, balance, cycle_months]
@@ -103,6 +153,10 @@ if ($emp_id > 0) {
     $obStmt = $db->prepare("INSERT INTO onboarding_tasks (employee_id,task,sort_order) VALUES (?,?,?)");
     foreach ($tasks as $i => $task) $obStmt->execute([$emp_id, $task, $i]);
 }
+
+// Correct any pre-existing probation balance generated by the former
+// calendar-month shortcut. Approved usage and audit history are preserved.
+hrReconcileProbationAnnualLeave($db, isset($hrActor['id']) ? (int)$hrActor['id'] : null);
 
 header('Location: employees.php?msg=saved');
 exit;

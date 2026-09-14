@@ -1,0 +1,1353 @@
+:root {
+  --portal-page-max: 1920px;
+  --portal-page-gutter: clamp(12px, 1.5vw, 24px);
+  --portal-section-gap: clamp(10px, 1.2vw, 18px);
+  --portal-card-padding: clamp(12px, 1.25vw, 18px);
+  --portal-row-height: 35px;
+  --portal-button-height: 32px;
+  --portal-sidebar-open: 236px;
+  --portal-sidebar-compact: 78px;
+  --portal-header-height: 60px;
+  --portal-border: #ede3d8;
+  --portal-surface: #ffffff;
+  --portal-soft: #fdf6ee;
+  --portal-text: #1a1a1a;
+  --portal-text-mid: #6b4c3b;
+  --portal-text-light: #a08070;
+  --portal-orange-red: #ab3619;
+  --portal-burgundy: #721b1a;
+  --portal-amber: #f07420;
+  --portal-olive: #a8ca19;
+  --portal-shadow: 0 10px 26px rgba(114, 27, 26, .06);
+}
+
+@media (max-width: 640px) {
+  .ledger-page.bk-wrap .stat-grid[aria-label="Cash ledger summary"] > .stat-card {
+    min-height: 82px !important;
+    padding: 10px 11px !important;
+  }
+
+  .ledger-page.bk-wrap .stat-grid[aria-label="Cash ledger summary"] .stat-value {
+    font-size: 12px !important;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+
+body,
+input,
+select,
+textarea,
+button {
+  font-family: Figtree, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea,
+button,
+.portal-grid > *,
+.portal-flex > * {
+  min-width: 0;
+  max-width: 100%;
+}
+
+html body .shell:has(.portal-sidebar) {
+  width: 100%;
+  max-width: none;
+  min-height: 100vh;
+  padding-left: var(--portal-sidebar-open) !important;
+  background: var(--portal-surface);
+  transition: padding-left .22s ease;
+}
+
+html body .shell:has(.portal-sidebar.collapsed),
+html body.sidebar-collapsed .shell:has(.portal-sidebar) {
+  padding-left: var(--portal-sidebar-compact) !important;
+}
+
+html body .portal-sidebar {
+  width: var(--portal-sidebar-open) !important;
+  min-width: var(--portal-sidebar-open) !important;
+}
+
+html body .portal-sidebar.collapsed,
+html body.sidebar-collapsed .portal-sidebar {
+  width: var(--portal-sidebar-compact) !important;
+  min-width: var(--portal-sidebar-compact) !important;
+}
+
+.shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
+.shell:has(.portal-sidebar) > main.ledger-page,
+.shell:has(.portal-sidebar) > .workspace:not(.digital-task-page),
+.shell:has(.portal-sidebar) > .ledger-page {
+  width: 100%;
+  max-width: var(--portal-page-max) !important;
+  min-width: 0;
+  margin: 0 auto !important;
+  padding: var(--portal-page-gutter) !important;
+}
+
+.portal-page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  min-width: 0;
+}
+
+.portal-page-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.portal-table-scroll {
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: auto;
+}
+
+.portal-data-grid {
+  width: max-content;
+  min-width: 100%;
+}
+
+.portal-sidebar-backdrop,
+.portal-mobile-nav-toggle {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  body.portal-mobile-nav-open {
+    overflow: hidden;
+  }
+
+  html body .shell:has(.portal-sidebar),
+  html body .shell:has(.portal-sidebar.collapsed),
+  html body.sidebar-collapsed .shell:has(.portal-sidebar) {
+    display: block;
+    padding-left: 0 !important;
+  }
+
+  html body .portal-sidebar,
+  html body .portal-sidebar.collapsed,
+  html body.sidebar-collapsed .portal-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 30000;
+    width: min(var(--portal-sidebar-open), calc(100vw - 54px)) !important;
+    min-width: 0 !important;
+    height: 100dvh;
+    min-height: 100dvh;
+    transform: translateX(-100%);
+    transition: transform .22s ease;
+  }
+
+  .portal-sidebar.mobile-open {
+    transform: translateX(0);
+  }
+
+  .portal-sidebar.collapsed .ps-nav-label,
+  .portal-sidebar.collapsed .ps-logo-text,
+  .portal-sidebar.collapsed .ps-user-info,
+  .portal-sidebar.collapsed .ps-nav-badge,
+  .portal-sidebar.collapsed .ps-toggle-switch {
+    width: auto;
+    opacity: 1;
+    overflow: visible;
+    pointer-events: auto;
+  }
+
+  .portal-sidebar.collapsed .ps-nav-item,
+  .portal-sidebar.collapsed .ps-user {
+    justify-content: flex-start;
+  }
+
+  .portal-sidebar-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 29990;
+    border: 0;
+    background: rgba(26, 26, 26, .28);
+    backdrop-filter: blur(1px);
+    cursor: pointer;
+  }
+
+  body.portal-mobile-nav-open .portal-sidebar-backdrop {
+    display: block;
+  }
+
+  .portal-mobile-nav-toggle {
+    position: fixed;
+    top: max(12px, env(safe-area-inset-top));
+    left: max(12px, env(safe-area-inset-left));
+    z-index: 29980;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--portal-border);
+    border-radius: 10px;
+    background: var(--portal-surface);
+    color: var(--portal-orange-red);
+    box-shadow: var(--portal-shadow);
+    cursor: pointer;
+  }
+
+  body.portal-mobile-nav-open .portal-mobile-nav-toggle {
+    visibility: hidden;
+  }
+
+  .shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
+  .shell:has(.portal-sidebar) > main.workspace.digital-task-page,
+  .shell:has(.portal-sidebar) > main.ledger-page,
+  .shell:has(.portal-sidebar) > .workspace:not(.digital-task-page),
+  .shell:has(.portal-sidebar) > .workspace.digital-task-page,
+  .shell:has(.portal-sidebar) > .ledger-page {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    padding-top: calc(var(--portal-page-gutter) + 48px) !important;
+  }
+
+  .module-header,
+  .monday-board-head,
+  .work-board-head,
+  .dtb-page-header,
+  .ledger-top,
+  .courier-wrap .module-header,
+  .whatsapp-hero,
+  .cost-system-header {
+    align-items: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 10px !important;
+  }
+
+  .module-header > div:first-child,
+  .monday-board-head > div:first-child,
+  .work-board-head > div:first-child,
+  .dtb-page-header > div:first-child,
+  .ledger-top > div:first-child {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .module-header h1,
+  .monday-board-head h1,
+  .work-board-head h1,
+  .dtb-page-title,
+  .ledger-top h1 {
+    overflow-wrap: anywhere;
+  }
+
+  .module-header-actions,
+  .monday-board-head-actions,
+  .packing-header-actions,
+  .dtb-page-actions,
+  .ledger-top-actions,
+  .courier-page-actions,
+  .error-page-actions {
+    width: 100%;
+    max-width: 100%;
+    justify-content: flex-start !important;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .module-header-actions::-webkit-scrollbar,
+  .monday-board-head-actions::-webkit-scrollbar,
+  .packing-header-actions::-webkit-scrollbar,
+  .dtb-page-actions::-webkit-scrollbar,
+  .ledger-top-actions::-webkit-scrollbar,
+  .courier-page-actions::-webkit-scrollbar,
+  .error-page-actions::-webkit-scrollbar {
+    display: none;
+  }
+
+  .portal-table-scroll,
+  .table-scroll,
+  .dtb-table-wrap,
+  .courier-table-wrap,
+  .courier-table-shell,
+  .bk-table-wrap,
+  .orders-table-scroll,
+  .packing-group-table-wrap,
+  .invoice-review-table-wrap,
+  .kpi-table-wrap,
+  .report-table-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow-x: auto !important;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .orders-tools-panel,
+  .packing-tools-panel,
+  .task-tools-panel,
+  .courier-tools-panel,
+  .task-details-panel,
+  .order-panel,
+  .packing-item-panel,
+  .bk-drawer,
+  [class*="detail-panel"],
+  [class*="details-panel"] {
+    width: min(100vw, 560px) !important;
+    max-width: 100vw !important;
+  }
+
+  .portal-panel-tabs,
+  .portal-view-bar,
+  .dtb-tabs,
+  .kpi-health-tabs,
+  .kpi-employee-tabs {
+    max-width: 100%;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    flex-wrap: nowrap !important;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 700px) {
+  :root {
+    --portal-page-gutter: 12px;
+    --portal-section-gap: 10px;
+    --portal-card-padding: 12px;
+  }
+
+  .portal-page-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .portal-page-header-actions {
+    justify-content: flex-start;
+  }
+
+  .portal-header-status {
+    gap: 5px !important;
+  }
+
+  .portal-header-clock,
+  .portal-online-widget,
+  .portal-header-notifications {
+    min-height: 34px !important;
+  }
+
+  .portal-header-clock span {
+    display: none;
+  }
+
+  .portal-header-clock {
+    min-width: 62px !important;
+    padding-inline: 7px !important;
+  }
+
+  .portal-online-widget {
+    padding-inline: 7px !important;
+  }
+
+  .portal-online-count {
+    font-size: 10px !important;
+  }
+
+  .portal-online-avatars {
+    display: none !important;
+  }
+
+  .portal-header-notifications {
+    width: 34px !important;
+    min-width: 34px !important;
+  }
+
+  .work-metric-grid,
+  .metric-grid,
+  .orders-stat-grid,
+  .packing-stats,
+  .packing-page-v2 .packing-stats,
+  .dtb-stats-grid,
+  .task-metric-grid,
+  .error-stats-grid,
+  .notification-stats-grid,
+  .courier-wrap .stat-cards,
+  .bk-summary-grid,
+  .kpi-health-grid,
+  .kpi-employee-summary,
+  .kpi-employee-metrics {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    overflow: visible !important;
+  }
+
+  .work-metric-grid > *,
+  .metric-grid > *,
+  .orders-stat-grid > *,
+  .packing-stats > *,
+  .dtb-stats-grid > *,
+  .task-metric-grid > *,
+  .error-stats-grid > *,
+  .notification-stats-grid > *,
+  .courier-wrap .stat-cards > *,
+  .bk-summary-grid > *,
+  .kpi-health-grid > *,
+  .kpi-employee-summary > *,
+  .kpi-employee-metrics > * {
+    min-width: 0 !important;
+    width: auto !important;
+  }
+
+  .upload-form,
+  .error-filter-grid,
+  .dtb-filter-grid,
+  .packing-filter-grid,
+  .bk-filter-grid,
+  .settings-grid,
+  .whatsapp-workspace-grid,
+  .kpi-health-columns,
+  .kpi-chart-grid,
+  .packing-list-page .packing-item-form-grid,
+  .packing-list-page .packing-item-form-grid--two {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .span-2,
+  .span-3,
+  [class*="span-full"] {
+    grid-column: 1 / -1 !important;
+  }
+
+  .portal-view-bar__popover {
+    position: fixed !important;
+    right: 10px !important;
+    left: 10px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: min(72dvh, 560px) !important;
+    overflow-y: auto !important;
+  }
+
+  .portal-view-bar button,
+  .portal-view-bar a,
+  .portal-page-header-actions button,
+  .portal-page-header-actions a,
+  .module-header-actions button,
+  .module-header-actions a {
+    flex: 0 0 auto;
+  }
+
+  .portal-modal,
+  .modal-card,
+  .dialog-card,
+  [class$="-modal"] {
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 20px) !important;
+  }
+
+  .portal-modal-overlay,
+  .modal-overlay,
+  [class$="-modal-overlay"] {
+    padding: 10px !important;
+  }
+}
+
+@media (max-width: 430px) {
+  .shell:has(.portal-sidebar) > main.workspace:not(.digital-task-page),
+  .shell:has(.portal-sidebar) > main.workspace.digital-task-page,
+  .shell:has(.portal-sidebar) > main.ledger-page,
+  .shell:has(.portal-sidebar) > .workspace,
+  .shell:has(.portal-sidebar) > .ledger-page {
+    padding-right: 10px !important;
+    padding-left: 10px !important;
+  }
+
+  .module-header h1,
+  .monday-board-head h1,
+  .work-board-head h1,
+  .dtb-page-title,
+  .ledger-top h1 {
+    font-size: clamp(17px, 5.2vw, 21px) !important;
+  }
+
+  .module-header p,
+  .work-board-subtitle,
+  .page-subtitle,
+  .ledger-subtitle {
+    font-size: 10px !important;
+    line-height: 1.45 !important;
+  }
+
+  .work-metric-grid > *,
+  .metric-grid > *,
+  .orders-stat-grid > *,
+  .packing-stats > *,
+  .dtb-stats-grid > *,
+  .task-metric-grid > *,
+  .error-stats-grid > *,
+  .notification-stats-grid > *,
+  .courier-wrap .stat-cards > *,
+  .bk-summary-grid > *,
+  .kpi-health-grid > *,
+  .kpi-employee-summary > *,
+  .kpi-employee-metrics > * {
+    min-height: 64px !important;
+    padding: 10px !important;
+  }
+
+  .portal-mobile-nav-toggle {
+    top: max(10px, env(safe-area-inset-top));
+    left: max(10px, env(safe-area-inset-left));
+    width: 38px;
+    height: 38px;
+  }
+
+  .orders-tools-panel,
+  .packing-tools-panel,
+  .task-tools-panel,
+  .courier-tools-panel,
+  .task-details-panel,
+  .order-panel,
+  .packing-item-panel,
+  .bk-drawer,
+  [class*="detail-panel"],
+  [class*="details-panel"] {
+    inset: 0 !important;
+    width: 100vw !important;
+    max-width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+
+  .portal-panel-tabs {
+    gap: 16px !important;
+    padding-inline: 12px !important;
+  }
+
+  .portal-panel-tab,
+  .portal-panel-tabs > button {
+    min-height: 40px !important;
+    font-size: 11px !important;
+  }
+
+  .portal-view-bar__search:focus-within,
+  .portal-view-bar__search.is-open {
+    width: min(190px, calc(100vw - 44px)) !important;
+    min-width: min(190px, calc(100vw - 44px)) !important;
+  }
+}
+
+/*
+ * Final phone contract. This stylesheet is deliberately loaded after every
+ * page-level style block so fixed desktop widths cannot cancel mobile access.
+ */
+@media (max-width: 900px) {
+  html,
+  body,
+  .shell,
+  .shell > main,
+  main.workspace,
+  main.ledger-page,
+  .ob-wrap,
+  .packing-list-page,
+  .digital-task-page,
+  .courier-wrap,
+  .error-log-page,
+  .bk-wrap {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .shell,
+  .shell:has(.portal-sidebar) {
+    grid-template-columns: minmax(0, 1fr) !important;
+    margin: 0 !important;
+    padding-left: 0 !important;
+    overflow-x: hidden !important;
+  }
+
+  .shell > main,
+  .shell:has(.portal-sidebar) > main,
+  main.workspace,
+  main.ledger-page {
+    margin: 0 !important;
+    padding-right: 12px !important;
+    padding-left: 12px !important;
+    overflow: visible !important;
+  }
+
+  .portal-header-with-status {
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-wrap: wrap !important;
+  }
+
+  .portal-header-with-status > .portal-header-status {
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    overflow-x: auto !important;
+  }
+
+  .portal-view-bar {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin: 10px 0 !important;
+    padding: 3px 4px !important;
+  }
+
+  .portal-view-bar__button,
+  .portal-view-bar__search,
+  .portal-view-bar__page-action {
+    min-height: 32px !important;
+    padding-inline: 8px !important;
+    font-size: 11px !important;
+  }
+
+  .orders-board-scroll,
+  .orders-board-v2,
+  .monday-board-scroll,
+  .packing-groups,
+  .packing-group-table-wrap,
+  .dtb-table-wrap,
+  .courier-table-scroll,
+  .courier-table-wrap,
+  .bk-table-wrap,
+  .ledger-table-wrap,
+  .error-table-wrap,
+  .orders-table-scroll,
+  .data-table-wrap,
+  [class*="table-scroll"],
+  [class*="table-wrap"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .orders-board-v2 .monday-group-shell,
+  .packing-group-table,
+  .dtb-table,
+  .courier-table-shell,
+  .bk-ledger-grid,
+  .ledger-grid,
+  table.data-table {
+    max-width: none !important;
+  }
+
+  .section-card,
+  .courier-section,
+  .packing-group,
+  .dtb-status-section,
+  .error-section,
+  .bk-card,
+  .ledger-card {
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .orders-tools-panel,
+  .orders-details-panel,
+  .order-panel,
+  .packing-tools-panel,
+  .packing-item-panel,
+  .invoice-upload-modal,
+  .task-tools-panel,
+  .task-detail-panel,
+  .task-details-panel,
+  .task-create-panel,
+  .error-log-panel,
+  .error-detail-panel,
+  .courier-tools-panel,
+  .bk-drawer {
+    right: 0 !important;
+    left: auto !important;
+    width: min(100vw, 560px) !important;
+    max-width: 100vw !important;
+  }
+}
+
+@media (max-width: 600px) {
+  .module-header,
+  .monday-board-head,
+  .work-board-head,
+  .dtb-page-header,
+  .ledger-top,
+  .courier-wrap .module-header,
+  .error-log-header {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    width: 100% !important;
+  }
+
+  .portal-header-with-status > .portal-header-status {
+    justify-content: flex-start !important;
+  }
+
+  .module-header h1,
+  .monday-board-head h1,
+  .work-board-head h1,
+  .dtb-page-title,
+  .ledger-top h1,
+  .courier-wrap h1 {
+    font-size: 18px !important;
+  }
+
+  .section-card,
+  .courier-section,
+  .packing-group,
+  .dtb-status-section,
+  .error-section,
+  .bk-card,
+  .ledger-card {
+    padding: 12px !important;
+    border-radius: 12px !important;
+  }
+
+  .courier-wrap .stat-cards,
+  .packing-stats,
+  .dtb-stats-grid,
+  .error-stats-grid,
+  .bk-summary-grid,
+  .stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .courier-wrap .stat-card,
+  .packing-stats > *,
+  .dtb-stat-card,
+  .error-stats-grid > *,
+  .bk-summary-grid > *,
+  .stat-grid > * {
+    min-width: 0 !important;
+    min-height: 60px !important;
+    height: auto !important;
+    padding: 9px !important;
+  }
+
+  .upload-form,
+  .packing-filter-grid,
+  .dtb-filter-grid,
+  .error-filter-grid,
+  .bk-filter-grid,
+  .orders-filter-grid,
+  .packing-item-form-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .portal-view-bar {
+    gap: 0 !important;
+  }
+
+  .portal-view-bar__button span,
+  .portal-view-bar__page-action span {
+    font-size: 10px !important;
+  }
+
+  .orders-tools-panel,
+  .orders-details-panel,
+  .order-panel,
+  .packing-tools-panel,
+  .packing-item-panel,
+  .invoice-upload-modal,
+  .task-tools-panel,
+  .task-detail-panel,
+  .task-details-panel,
+  .task-create-panel,
+  .error-log-panel,
+  .error-detail-panel,
+  .courier-tools-panel,
+  .bk-drawer {
+    inset: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .01ms !important;
+  }
+}
+
+/*
+ * Live-page mobile contract.
+ *
+ * Keep this block at the end of the final responsive asset. The operations
+ * pages pre-date the shared responsive shell and use different names for
+ * their real scrolling surfaces. Target those exact surfaces here so a wide
+ * board/table scrolls locally instead of making the whole portal wider than
+ * the phone viewport.
+ */
+@media (max-width: 900px) {
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: clip !important;
+  }
+
+  body > .shell,
+  body > .shell > main,
+  .orders-page,
+  .packing-list-page,
+  .bk-wrap,
+  .digital-task-page,
+  .courier-wrap,
+  .error-log-page,
+  .cor-wrap,
+  .kpi-health-page {
+    min-width: 0 !important;
+    max-width: 100% !important;
+  }
+
+  /* Exact live board and table containers. */
+  .orders-page .ops-board-scroll,
+  .orders-page .orders-grid-scroll,
+  .packing-list-page .packing-board-shell,
+  .packing-list-page .packing-list-grid,
+  .bk-wrap .ledger-board,
+  .digital-task-page .dtb-table-wrap,
+  .courier-wrap .courier-table-scroll,
+  .error-log-page .error-board-table-wrap,
+  .cor-wrap .cor-table-wrap,
+  .kpi-health-page .table-scroll,
+  .kpi-health-page .kpi-attendance-calendar {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    scroll-behavior: smooth;
+    scrollbar-width: thin;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .bk-wrap .ledger-board-inner,
+  .digital-task-page .dtb-board-table,
+  .digital-task-page .dtb-history-table,
+  .error-log-page .error-board-table,
+  .cor-wrap .cor-products-table,
+  .cor-wrap .cor-table,
+  .kpi-health-page .data-table {
+    width: max-content !important;
+    max-width: none !important;
+  }
+
+  .portal-view-bar,
+  .packing-list-page .packing-toolbar,
+  .orders-page .orders-tools-bar,
+  .cor-wrap .cor-tabs-wrap,
+  .kpi-health-page .kpi-health-tabs {
+    display: flex !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .portal-view-bar::-webkit-scrollbar,
+  .packing-list-page .packing-toolbar::-webkit-scrollbar,
+  .orders-page .orders-tools-bar::-webkit-scrollbar,
+  .cor-wrap .cor-tabs-wrap::-webkit-scrollbar,
+  .kpi-health-page .kpi-health-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .portal-view-bar > *,
+  .packing-list-page .packing-toolbar > *,
+  .orders-page .orders-tools-bar > *,
+  .cor-wrap .cor-tabs-wrap > *,
+  .kpi-health-page .kpi-health-tabs > * {
+    flex: 0 0 auto !important;
+  }
+
+  .orders-page .monday-board-top,
+  .packing-list-page .packing-page-shell,
+  .packing-list-page .packing-board-shell,
+  .bk-wrap .bk-page-layout,
+  .digital-task-page .dtb-page-shell,
+  .courier-wrap .courier-hub,
+  .error-log-page .error-board-section,
+  .cor-wrap .cor-tab-content,
+  .kpi-health-page .kpi-health-panel {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    margin-inline: 0 !important;
+  }
+
+  .orders-more-panel,
+  .orders-tools-panel,
+  .order-panel,
+  .packing-tools-panel,
+  .packing-item-panel,
+  .task-tools-panel,
+  .task-details-panel,
+  .task-create-panel,
+  .courier-tools-panel,
+  .error-log-panel,
+  .error-detail-panel,
+  .bk-drawer {
+    position: fixed !important;
+    top: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    left: auto !important;
+    width: min(100%, 560px) !important;
+    max-width: 100% !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  .orders-more-panel > :last-child,
+  .orders-tools-panel > :last-child,
+  .order-panel .order-panel-body,
+  .packing-tools-panel > :last-child,
+  .packing-item-panel > :last-child,
+  .task-tools-panel > :last-child,
+  .task-details-panel > :last-child,
+  .task-create-panel > :last-child,
+  .courier-tools-panel > :last-child,
+  .error-log-panel > :last-child,
+  .error-detail-panel > :last-child,
+  .bk-drawer .bk-drawer-body {
+    max-width: 100% !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@media (max-width: 600px) {
+  :root {
+    --portal-page-gutter: 10px;
+    --portal-card-padding: 10px;
+    --portal-section-gap: 8px;
+    --portal-button-height: 30px;
+  }
+
+  body {
+    font-size: 12px;
+  }
+
+  .shell:has(.portal-sidebar) > main,
+  .shell:has(.portal-sidebar) > main.workspace,
+  .shell:has(.portal-sidebar) > main.ledger-page {
+    padding: 58px 10px 14px !important;
+  }
+
+  .portal-header-with-status > .portal-header-status {
+    width: auto !important;
+    max-width: calc(100% - 48px) !important;
+    min-height: 32px !important;
+    margin: 0 0 0 auto !important;
+    justify-content: flex-end !important;
+    gap: 5px !important;
+    overflow: visible !important;
+  }
+
+  .portal-header-clock {
+    min-width: 56px !important;
+  }
+
+  .portal-header-clock span,
+  .portal-online-avatars {
+    display: none !important;
+  }
+
+  .portal-online-widget {
+    min-height: 30px !important;
+    padding: 0 7px !important;
+  }
+
+  .portal-header-notifications {
+    width: 30px !important;
+    min-width: 30px !important;
+    height: 30px !important;
+  }
+
+  .work-metric-grid,
+  .orders-stat-grid,
+  .packing-stats,
+  .dtb-stats-grid,
+  .error-stats-grid,
+  .courier-wrap .stat-cards,
+  .bk-wrap .stat-grid,
+  .cor-wrap .cor-summary-stat-grid,
+  .kpi-health-grid,
+  .kpi-employee-summary,
+  .kpi-employee-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 7px !important;
+  }
+
+  .work-metric-grid > *,
+  .orders-stat-grid > *,
+  .packing-stats > *,
+  .dtb-stats-grid > *,
+  .error-stats-grid > *,
+  .courier-wrap .stat-cards > *,
+  .bk-wrap .stat-grid > *,
+  .cor-wrap .cor-summary-stat-grid > *,
+  .kpi-health-grid > * {
+    min-width: 0 !important;
+    min-height: 58px !important;
+    padding: 9px !important;
+  }
+
+  .module-header,
+  .monday-board-head,
+  .packing-header,
+  .ledger-top,
+  .dtb-page-header,
+  .error-log-header,
+  .courier-wrap .module-header {
+    margin-bottom: 10px !important;
+  }
+
+  .module-header h1,
+  .monday-board-head h1,
+  .packing-header h1,
+  .ledger-top h1,
+  .dtb-page-title,
+  .error-log-header h1,
+  .courier-wrap .module-header h1 {
+    font-size: 17px !important;
+    line-height: 1.2 !important;
+  }
+
+  button,
+  .button,
+  [class*="btn"] {
+    min-height: 30px;
+  }
+
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    width: 100% !important;
+    max-width: 100% !important;
+    font-size: 16px !important; /* Prevent iOS form zoom. */
+  }
+
+  .upload-form,
+  .invoice-form-grid,
+  .packing-item-form-grid,
+  .dtb-filter-grid,
+  .error-filter-grid,
+  .bk-filter-grid,
+  .orders-filter-grid,
+  .cor-filter-grid,
+  .form-grid,
+  .form-grid.compact,
+  .kpi-health-columns,
+  .kpi-chart-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .portal-view-bar,
+  .packing-list-page .packing-toolbar,
+  .orders-page .orders-tools-bar {
+    margin-block: 8px !important;
+    padding: 3px !important;
+    gap: 1px !important;
+  }
+
+  .portal-view-bar__button,
+  .portal-view-bar__page-action,
+  .portal-view-bar__search {
+    min-height: 30px !important;
+    padding-inline: 7px !important;
+    font-size: 10px !important;
+  }
+
+  .portal-view-bar__button svg,
+  .portal-view-bar__page-action svg,
+  .portal-view-bar__search svg {
+    width: 14px !important;
+    height: 14px !important;
+  }
+
+  .portal-view-bar__popover,
+  .portal-online-popover {
+    position: fixed !important;
+    top: 58px !important;
+    right: 8px !important;
+    left: 8px !important;
+    width: auto !important;
+    max-width: none !important;
+    max-height: calc(100dvh - 70px) !important;
+    overflow-y: auto !important;
+  }
+
+  .orders-more-panel,
+  .orders-tools-panel,
+  .order-panel,
+  .packing-tools-panel,
+  .packing-item-panel,
+  .task-tools-panel,
+  .task-details-panel,
+  .task-create-panel,
+  .courier-tools-panel,
+  .error-log-panel,
+  .error-detail-panel,
+  .bk-drawer {
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    border-radius: 0 !important;
+  }
+}
+
+@media (max-width: 360px) {
+  .work-metric-grid,
+  .orders-stat-grid,
+  .packing-stats,
+  .dtb-stats-grid,
+  .error-stats-grid,
+  .courier-wrap .stat-cards,
+  .bk-wrap .stat-grid,
+  .cor-wrap .cor-summary-stat-grid,
+  .kpi-health-grid,
+  .kpi-employee-summary,
+  .kpi-employee-metrics {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+/* Keep the shared status controls in one ordered row at every breakpoint. */
+@media (max-width: 768px) {
+  .portal-header-with-status > .portal-header-status { overflow: visible !important; }
+  .portal-header-status > .portal-header-actions { display:flex !important;width:auto !important;max-width:100% !important;margin-left:auto !important;padding-right:8px !important;align-items:center !important;justify-content:flex-end !important;gap:5px !important;overflow:visible !important; }
+  .portal-header-actions .portal-online-staff__count { display:none !important; }
+  .portal-header-actions .portal-online-avatars { display:flex !important; }
+  .portal-header-actions .portal-online-staff { min-height:30px !important;padding-inline:4px !important; }
+  .portal-header-actions .portal-header-clock { min-width:78px !important; }
+  .portal-header-actions .portal-header-clock span { display:block !important;font-size:9px !important; }
+  .portal-header-actions .portal-header-clock strong { font-size:10px !important; }
+  .portal-header-actions .portal-notification-button { width:30px !important;min-width:30px !important;height:30px !important; }
+}
+
+/* Portal-wide responsive shell: keep navigation and content on one breakpoint.
+   The desktop hide is duplicated inline in shared/sidebar.php as a fail-safe. */
+.portal-mobile-header,.portal-sidebar-backdrop{display:none}
+@media(max-width:1023px){
+  html,body{width:100%;max-width:100%;margin:0}body{overflow-x:clip}
+  html body .shell:has(.portal-sidebar),html body .shell:has(.portal-sidebar.collapsed),html body.sidebar-collapsed .shell:has(.portal-sidebar){display:block;width:100%;max-width:100%;min-height:100dvh;padding-left:0!important;transform:none!important}
+  html body .portal-sidebar,html body .portal-sidebar.collapsed,html body.sidebar-collapsed .portal-sidebar{position:fixed!important;z-index:1300;inset:0 auto 0 0!important;display:flex;flex-direction:column;width:min(84vw,280px)!important;min-width:0!important;max-width:280px!important;height:100dvh;min-height:100dvh;margin:0!important;padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;background:#fff;border-right:2px solid #721b1a;visibility:hidden;pointer-events:none;transform:translate3d(-105%,0,0)!important;box-shadow:14px 0 32px rgba(26,26,26,.22);transition:transform 220ms ease,visibility 220ms ease}
+  html body .portal-sidebar.is-mobile-open{visibility:visible;pointer-events:auto;transform:translate3d(0,0,0)!important}
+  body.portal-mobile-sidebar-open{overflow:hidden;touch-action:none}
+  .portal-sidebar-backdrop{position:fixed;z-index:1290;inset:0;display:block;width:100%;height:100%;padding:0;border:0;visibility:hidden;opacity:0;pointer-events:none;background:rgba(26,26,26,.44);transition:opacity 180ms ease,visibility 180ms ease}
+  .portal-sidebar-backdrop.is-visible{visibility:visible;opacity:1;pointer-events:auto}
+  .portal-mobile-header{position:sticky;z-index:1050;top:0;display:grid;grid-template-columns:40px minmax(0,1fr) auto;align-items:center;width:100%;min-height:52px;padding:max(6px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 6px max(10px,env(safe-area-inset-left));background:#fff;border-bottom:1px solid #ede3d8;box-shadow:0 3px 10px rgba(114,27,26,.06)}
+  .portal-mobile-nav-toggle{position:static!important;display:inline-flex!important;width:38px!important;height:38px!important;padding:0!important;align-items:center;justify-content:center;color:#721b1a;background:#fdf6ee;border:1px solid #ede3d8;border-radius:8px;cursor:pointer}
+  .portal-mobile-nav-toggle svg{width:17px;height:17px}
+  .portal-mobile-page-title{min-width:0;margin:0;padding:0 8px;overflow:hidden;color:#1a1a1a;font-size:14px;font-weight:700;line-height:1.2;text-overflow:ellipsis;white-space:nowrap}
+  .portal-mobile-header-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px}.portal-mobile-notifications{position:relative;display:grid;width:38px;height:38px;place-items:center;color:var(--portal-burgundy)}.portal-mobile-notification-count{position:absolute;top:0;right:0;min-width:15px;height:15px;padding:0 3px;border-radius:999px;background:var(--portal-orange-red);color:#fff;font-size:8px;line-height:15px;text-align:center}.portal-mobile-notification-count.is-hidden{display:none}.portal-mobile-user{display:grid;width:30px;height:30px;place-items:center;border-radius:50%;background:var(--portal-orange-red);color:#fff;font-size:11px;font-weight:700;text-decoration:none}
+  .portal-sidebar-mobile-heading{position:sticky;z-index:2;top:0;min-height:58px;padding:8px 12px;background:#fff;border-bottom:1px solid #ede3d8}
+  .portal-sidebar .ps-collapse-btn{display:none!important}
+  .shell:has(.portal-sidebar)>main,.shell:has(.portal-sidebar)>main.workspace,.shell:has(.portal-sidebar)>main.ledger-page,.shell:has(.portal-sidebar)>.workspace,.shell:has(.portal-sidebar)>.ledger-page{width:100%!important;max-width:100%!important;min-width:0!important;margin-left:0!important;padding-left:0!important;transform:none!important}
+  .portal-page-header,.module-header,.monday-board-head,.packing-header,.ledger-top,.dtb-page-header,.error-log-header{min-width:0;max-width:100%}
+  .packing-list-page,.packing-page-shell,.packing-date-groups,.packing-date-group,.packing-month-group,.packing-month-content,.packing-group-table-wrap{width:100%;max-width:100%;min-width:0}
+  .packing-list-page .packing-month-scroll{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+  .packing-list-page .packing-month-scroll table{width:max-content;min-width:100%}
+}
+@media(max-width:480px){html body .portal-sidebar,html body .portal-sidebar.collapsed,html body.sidebar-collapsed .portal-sidebar{width:min(82vw,270px)!important}}
+@media(prefers-reduced-motion:reduce){.portal-sidebar,.portal-sidebar-backdrop{transition:none!important}}
+@media(max-width:767px){
+  .portal-view-bar,.portal-toolbar,.portal-filter-toolbar,.work-filter-bar,.orders-tools-bar{width:100%;max-width:100%;min-width:0;flex-wrap:wrap}
+  .portal-table-toolbar__controls,.portal-toolbar-actions,.work-filter-actions{min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-inline:contain}
+  .portal-table-scroll,.packing-month-scroll,.orders-board-scroll,.ledger-table-wrap,.courier-table-wrap,.dtb-table-wrap,.error-table-wrap{width:100%;max-width:100%;min-width:0;overflow-x:auto;overscroll-behavior-inline:contain;-webkit-overflow-scrolling:touch}
+  .portal-table-scroll>table,.packing-month-scroll table,.orders-board-scroll table,.ledger-table-wrap table,.courier-table-wrap table,.dtb-table-wrap table,.error-table-wrap table{width:max-content;min-width:100%}
+  .portal-detail-panel,.orders-tools-panel,.orders-details-panel,.order-panel,.packing-tools-panel,.packing-item-panel,.task-tools-panel,.task-details-panel,.task-create-panel,.courier-tools-panel,.error-log-panel,.error-detail-panel,.bk-drawer{inset:0!important;width:100%!important;height:100dvh!important;max-height:100dvh!important;border-radius:0!important}
+  .portal-form-grid,.packing-item-form-grid,.bk-form-grid,.error-log-form,.courier-form-grid{grid-template-columns:minmax(0,1fr)!important}
+}
+
+/* Mobile-only affordances for real local scrollers. JavaScript applies the
+   state only when the content is actually wider than its container. */
+@media (max-width: 900px) {
+  [data-portal-scroll-hint="true"] {
+    position: relative;
+  }
+
+  [data-portal-scroll-hint="true"].portal-has-horizontal-scroll:not(.portal-scroll-hint-seen)::after {
+    content: "Swipe to view more \2192";
+    position: sticky;
+    right: 8px;
+    bottom: 8px;
+    float: right;
+    z-index: 8;
+    width: max-content;
+    max-width: calc(100% - 16px);
+    margin: -32px 8px 8px auto;
+    padding: 6px 9px;
+    border: 1px solid rgba(114, 27, 26, .14);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, .94);
+    color: var(--portal-burgundy);
+    box-shadow: 0 5px 14px rgba(54, 29, 18, .10);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    pointer-events: none;
+  }
+
+  #system-issues-page .sil-mobile-back {
+    display: inline-flex;
+    min-height: 40px;
+    align-items: center;
+    gap: 7px;
+    margin: 10px 12px 0;
+    color: var(--portal-burgundy);
+    font-size: 12px;
+    font-weight: 700;
+    text-decoration: none;
+  }
+
+  #system-issues-page .sil-mobile-back svg {
+    width: 16px;
+    height: 16px;
+  }
+}
+
+@media (min-width: 981px) {
+  #system-issues-page .sil-mobile-back {
+    display: none;
+  }
+}
+
+@media (max-width: 980px) {
+  #system-issues-page.has-selected-issue .system-issues-list {
+    display: none;
+  }
+
+  #system-issues-page.has-selected-issue .system-issue-detail {
+    order: initial;
+    width: 100%;
+  }
+
+  #system-issues-page .system-issue-detail,
+  #system-issues-page .system-issues-list {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  #system-issues-page .sil-ai-brief,
+  #system-issues-page .sil-ai-brief p,
+  #system-issues-page .system-issue-controls code,
+  #system-issues-page .system-issue-timeline p {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 600px) {
+  #system-issues-page .system-issues-hero {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  #system-issues-page .system-issues-hero h1 {
+    font-size: 22px;
+  }
+
+  #system-issues-page .system-issues-hero .button {
+    width: 100%;
+    min-height: 44px;
+    justify-content: center;
+  }
+
+  #system-issues-page .system-issue-row {
+    min-height: 64px;
+    padding: 12px;
+  }
+
+  #system-issues-page .system-issue-row strong {
+    white-space: normal;
+  }
+
+  #system-issues-page .system-issue-dialog {
+    width: 100vw;
+    max-width: 100vw;
+    height: 100dvh;
+    max-height: 100dvh;
+    margin: 0;
+    border-radius: 0;
+  }
+
+  #system-issues-page .system-issue-dialog form {
+    min-height: 100%;
+    padding: 14px;
+  }
+
+  #system-issues-page .system-issue-dialog textarea {
+    min-height: 110px;
+  }
+
+  #system-issues-page .system-issue-dialog footer {
+    position: sticky;
+    bottom: -14px;
+    z-index: 2;
+    margin: auto -14px -14px;
+    padding: 10px 14px max(10px, env(safe-area-inset-bottom));
+    background: #fff;
+    border-top: 1px solid var(--portal-border);
+  }
+
+  #system-issues-page .system-issue-dialog footer .button {
+    min-height: 44px;
+    flex: 1;
+  }
+}

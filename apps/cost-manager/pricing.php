@@ -6,9 +6,10 @@ require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
 require_once BASE_PATH . '/shared/costing.php';
+require_once BASE_PATH . '/shared/woocommerce.php';
 require_once BASE_PATH . '/shared/engines/pricing-engine.php';
 
-require_login();
+require_role('owner_admin');
 
 $pageTitle = 'Pricing Planner | ' . APP_NAME;
 $activeApp = 'cost-manager';
@@ -22,6 +23,34 @@ $channels = [
     ['key' => 'wholesale', 'label' => 'Wholesale', 'margin' => max(0, min(95, (float) ($_GET['wholesale_margin'] ?? 25)))],
 ];
 
+function pricing_fetch_current_woo_prices(array $wooIds): array
+{
+    $wooIds = array_values(array_unique(array_filter(array_map('intval', $wooIds))));
+    if (!$wooIds || !wc_configured()) {
+        return [];
+    }
+
+    $prices = [];
+    foreach (array_chunk($wooIds, 100) as $chunk) {
+        try {
+            foreach (wc_get('products', [
+                'include' => implode(',', $chunk),
+                'per_page' => count($chunk),
+            ]) as $product) {
+                $id = (int) ($product['id'] ?? 0);
+                $price = (float) ($product['price'] ?? 0);
+                if ($id > 0 && $price > 0) {
+                    $prices[(string) $id] = $price;
+                }
+            }
+        } catch (Throwable $e) {
+            continue;
+        }
+    }
+
+    return $prices;
+}
+
 try {
     $pdo = db();
     $stmt = $pdo->query(
@@ -33,16 +62,24 @@ try {
          ORDER BY fp.name'
     );
 
-    foreach ($stmt->fetchAll() as $row) {
+    $productRows = $stmt->fetchAll();
+    $currentWooPrices = pricing_fetch_current_woo_prices(array_map(static fn (array $row): int => (int) ($row['woo_product_id'] ?? 0), $productRows));
+
+    foreach ($productRows as $row) {
         $unitCogs = product_unit_cogs($pdo, $row);
-        $currentPrice = (float) ($row['selling_price'] ?? 0);
-        $currentMargin = $currentPrice > 0 ? (($currentPrice - $unitCogs) / $currentPrice) * 100 : 0;
+        $wooProductId = (string) ($row['woo_product_id'] ?? '');
+        $currentPriceInclVat = ($currentWooPrices[$wooProductId] ?? 0) > 0
+            ? (float) $currentWooPrices[$wooProductId]
+            : (float) ($row['selling_price'] ?? 0);
+        $currentPriceExVat = $currentPriceInclVat > 0 ? $currentPriceInclVat / (1 + ($vatRate / 100)) : 0.0;
+        $currentMargin = $currentPriceExVat > 0 ? (($currentPriceExVat - $unitCogs) / $currentPriceExVat) * 100 : 0;
         $products[] = [
             'id' => (int) $row['product_id'],
             'name' => (string) $row['name'],
             'sku' => (string) ($row['sku'] ?? ''),
             'type' => (string) $row['costing_type'],
-            'current_price' => $currentPrice,
+            'current_price_incl_vat' => $currentPriceInclVat,
+            'current_price_ex_vat' => $currentPriceExVat,
             'current_margin' => $currentMargin,
             'unit_cogs' => $unitCogs,
         ];
@@ -105,7 +142,10 @@ include BASE_PATH . '/shared/sidebar.php';
                         </td>
                         <td><span class="status"><?= htmlspecialchars($product['type'], ENT_QUOTES, 'UTF-8') ?></span></td>
                         <td>N$ <?= number_format((float) $product['unit_cogs'], 2) ?></td>
-                        <td>N$ <?= number_format((float) $product['current_price'], 2) ?></td>
+                        <td>
+                            <strong>N$ <?= number_format((float) $product['current_price_incl_vat'], 2) ?></strong>
+                            <br><small>N$ <?= number_format((float) $product['current_price_ex_vat'], 2) ?> excl.</small>
+                        </td>
                         <td><?= number_format((float) $product['current_margin'], 1) ?>%</td>
                         <?php foreach ($channels as $channel): ?>
                             <?php
