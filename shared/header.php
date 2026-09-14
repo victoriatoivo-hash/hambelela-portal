@@ -104,6 +104,10 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
         <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= htmlspecialchars($presenceJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php endif; ?>
     <?php if ($ownerPwaEnabled): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/owner-pwa.css?v=<?= is_file(BASE_PATH . '/assets/css/owner-pwa.css') ? (string) filemtime(BASE_PATH . '/assets/css/owner-pwa.css') : '1' ?>"><script defer src="<?= BASE_URL ?>/assets/js/owner-pwa.js?v=<?= is_file(BASE_PATH . '/assets/js/owner-pwa.js') ? (string) filemtime(BASE_PATH . '/assets/js/owner-pwa.js') : '1' ?>"></script><?php endif; ?>
+    <?php if (($activeApp ?? '') === 'operations-checklists'): ?>
+    <!-- Task markup is enhanced after parsing; hold first paint until its presentation is ready. -->
+    <script defer blocking="render" src="<?= BASE_URL ?>/assets/js/task-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-essentials.js') ?>"></script>
+    <?php endif; ?>
 </head>
 <body<?= !empty($isEssDashboard) ? ' class="ess-dashboard"' : '' ?>>
 <div class="shell<?= !empty($isEssDashboard) ? ' ess-dashboard-shell' : '' ?>">

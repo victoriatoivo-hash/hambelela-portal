@@ -4,14 +4,19 @@
  const board=page.querySelector('#packingListViewport');
  const sizeBoard=()=>{
   if(!board)return;
-  page.style.setProperty('--packing-visible-board-width',`${board.clientWidth}px`);
+  const visibleWidth=`${board.clientWidth}px`;
   // Measure each visible table: a collapsed first group has zero-width cells,
   // and its fallback offset must not leave a gap in another group's header.
-  board.querySelectorAll('.packing-board-table').forEach(table=>{
+  const measurements=[...board.querySelectorAll('.packing-board-table')].map(table=>{
    const selectWidth=table.querySelector('th[data-column-key="select"]')?.getBoundingClientRect().width;
    const itemWidth=table.querySelector('th[data-column-key="item"]')?.getBoundingClientRect().width;
-   if(selectWidth>0)table.style.setProperty('--packing-fixed-select-width',`${selectWidth}px`);
-   if(itemWidth>0)table.style.setProperty('--packing-fixed-item-width',`${itemWidth}px`);
+   return {table,selectWidth,itemWidth};
+  });
+  const setSize=(element,key,value)=>{if(element.style.getPropertyValue(key)!==value)element.style.setProperty(key,value);};
+  setSize(page,'--packing-visible-board-width',visibleWidth);
+  measurements.forEach(({table,selectWidth,itemWidth})=>{
+   if(selectWidth>0)setSize(table,'--packing-fixed-select-width',`${selectWidth}px`);
+   if(itemWidth>0)setSize(table,'--packing-fixed-item-width',`${itemWidth}px`);
   });
  };
  if(board){board.setAttribute('data-portal-horizontal-scroll-source','');board.tabIndex=0;new ResizeObserver(sizeBoard).observe(board);board.addEventListener('scroll',()=>board.classList.toggle('is-scrolled-x',board.scrollLeft>0),{passive:true});}

@@ -1994,7 +1994,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     } catch (Throwable $e) {
         $validationPayload = json_decode($e->getMessage(), true);
         $errorMessage = is_array($validationPayload) && !empty($validationPayload['message']) ? (string) $validationPayload['message'] : $e->getMessage();
-        if (in_array(($action ?? ''), ['create_task','acknowledge_task', 'update_task_status', 'update_task_progress', 'bulk_task_action', 'task_tools_data', 'task_archive', 'task_trash', 'task_restore', 'task_delete_forever', 'task_cancel_recurrence', 'task_attachment_upload', 'task_attachment_remove', 'retry_floating_allocation', 'request_task_correction', 'update_task_correction', 'cancel_task_correction'], true) && strtolower((string)($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest') {
+        $expectsJson = stripos((string) ($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false
+            || strtolower((string) ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '')) === 'xmlhttprequest';
+        if ($expectsJson) {
+            header('Content-Type: application/json; charset=utf-8');
+            header('Cache-Control: no-store, private');
             if (http_response_code() < 400) http_response_code(422);
             echo json_encode(array_merge(['success' => false, 'message' => $errorMessage], is_array($validationPayload) ? $validationPayload : []));
             exit;
@@ -2376,10 +2380,12 @@ $essActiveModule = 'Task Management';
 $essHeadingPartial = BASE_PATH . '/shared/ess-task-heading.php';
 $extraStylesheets[] = ['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')];
 $extraStylesheets[] = ['path'=>'assets/css/task-essentials.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-essentials.css')];
+$extraStylesheets[] = ['path'=>'assets/css/task-correction.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-correction.css')];
+$extraStylesheets[] = ['path'=>'assets/css/portal-view-bar.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/portal-view-bar.css').'-interactive8'];
+$portalViewBarCssLoadedInHead = true;
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/ess-sidebar.php';
 ?>
-<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/task-correction.css?v=<?= filemtime(BASE_PATH . '/assets/css/task-correction.css') ?>">
 <main id="ess-main" class="workspace ess-dashboard-main digital-task-page ess-task-page" tabindex="-1" data-task-view="<?= htmlspecialchars($filters['task_view'], ENT_QUOTES, 'UTF-8') ?>" data-requested-task-view="<?= htmlspecialchars($requestedTaskView, ENT_QUOTES, 'UTF-8') ?>" data-can-manage="<?= $canManage ? '1' : '0' ?>">
     <?php include BASE_PATH . '/shared/ess-topbar.php'; ?>
     <header class="dtb-page-header task-page-header">
@@ -4065,7 +4071,10 @@ function initialiseTaskCompletionEnforcement() {
       try {
         const data = new FormData(form);
         data.set('action', 'update_task_progress');
-        const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json'}});
+        const response = await fetch(document.URL, {method:'POST',body:data,credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
+        if (response.redirected) throw new Error('Your session has expired. Sign in again, then retry saving your progress.');
+        const contentType = response.headers.get('Content-Type') || '';
+        if (!contentType.toLowerCase().includes('application/json')) throw new Error('The server could not return a task response. Your entries are still here; please retry saving.');
         const result = await response.json();
         if (!response.ok || result.success !== true) throw new Error(result.message || 'Unable to save task progress.');
         const savedTask = result.task || {};
@@ -4939,7 +4948,6 @@ if (initialTaskId) window.openTaskPanel(initialTaskId);
 <?php if ($canManage): ?><script src="<?= BASE_URL ?>/assets/js/task-import.js?v=<?= rawurlencode((string) @filemtime(BASE_PATH . '/assets/js/task-import.js')) ?>"></script><?php endif; ?>
 <?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
 <script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH.'/assets/js/ess-dashboard.js') ?>"></script>
-<script defer src="<?= BASE_URL ?>/assets/js/task-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-essentials.js') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
 
 

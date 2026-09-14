@@ -1267,8 +1267,8 @@ document.addEventListener('click', (event) => {
     frame = 0;
     const source = chooseSource();
     if (!source || panelIsOpen()) {
-      mirror.hidden = true;
-      document.body.classList.remove('portal-sticky-horizontal-scroll-active');
+      if (!mirror.hidden) mirror.hidden = true;
+      if (document.body.classList.contains('portal-sticky-horizontal-scroll-active')) document.body.classList.remove('portal-sticky-horizontal-scroll-active');
       return;
     }
 
@@ -1288,8 +1288,8 @@ document.addEventListener('click', (event) => {
     mirror.style.setProperty('--portal-sticky-scroll-bottom', `${bottom}px`);
     mirrorInner.style.width = `${Math.ceil(Math.max(source.scrollWidth, source.clientWidth))}px`;
     if (!syncing) syncMirrorFromSource(source);
-    mirror.hidden = false;
-    document.body.classList.add('portal-sticky-horizontal-scroll-active');
+    if (mirror.hidden) mirror.hidden = false;
+    if (!document.body.classList.contains('portal-sticky-horizontal-scroll-active')) document.body.classList.add('portal-sticky-horizontal-scroll-active');
   };
 
   const requestUpdate = () => {
@@ -1370,8 +1370,10 @@ document.addEventListener('click', (event) => {
   window.addEventListener('scroll', requestUpdate, { passive: true, capture: true });
 
   const mutationObserver = new MutationObserver((mutations) => {
-    if (mutations.some((mutation) => mutation.type === 'childList')) discover();
-    else requestUpdate();
+    // Ignore our own mirror changes and text-only updates to avoid a feedback loop.
+    const relevant = mutations.filter(m => m.target !== mirror && !mirror.contains(m.target));
+    if (relevant.some(m => m.type === 'childList' && [...m.addedNodes, ...m.removedNodes].some(n => n.nodeType === 1))) discover();
+    else if (relevant.some(m => m.type === 'attributes')) requestUpdate();
   });
   mutationObserver.observe(document.body, {
     childList: true,
