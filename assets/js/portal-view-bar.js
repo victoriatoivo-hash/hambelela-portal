@@ -529,6 +529,8 @@
     if (quickSearch && search) {
       searchLabel.dataset.searchBound = 'true';
       quickSearch.value = search.value;
+      // Packing owns source-data filtering and pagination; do not also hide DOM rows.
+      if (type === 'packing') quickSearch.setAttribute('data-packing-search', '');
       const trigger = searchLabel.querySelector('[data-search-trigger]');
       const openSearch = () => {
         searchLabel.classList.add('is-open');
@@ -540,13 +542,14 @@
       quickSearch.addEventListener('input', () => {
         window.clearTimeout(searchTimer);
         searchLabel.classList.toggle('has-value', Boolean(quickSearch.value));
-        searchTimer = window.setTimeout(() => filterVisibleRows(surfaces, quickSearch.value), 180);
+        if (type !== 'packing') searchTimer = window.setTimeout(() => filterVisibleRows(surfaces, quickSearch.value), 180);
       });
       searchLabel.querySelector('[data-search-clear]')?.addEventListener('click', () => {
         quickSearch.value = '';
         search.value = '';
         searchLabel.classList.remove('has-value');
-        filterVisibleRows(surfaces, '');
+        if (type === 'packing') quickSearch.dispatchEvent(new Event('input', { bubbles: true }));
+        else filterVisibleRows(surfaces, '');
         openSearch();
       });
       quickSearch.addEventListener('keydown', (event) => {
@@ -554,7 +557,8 @@
           event.preventDefault();
           quickSearch.value = '';
           search.value = '';
-          filterVisibleRows(surfaces, '');
+          if (type === 'packing') quickSearch.dispatchEvent(new Event('input', { bubbles: true }));
+          else filterVisibleRows(surfaces, '');
           searchLabel.classList.remove('is-open');
           searchLabel.classList.remove('has-value');
           trigger?.setAttribute('aria-expanded', 'false');
@@ -580,10 +584,7 @@
         active.formAnchor = formAnchor;
         popover.classList.add('portal-data-filter-popup');
         form.classList.add('portal-data-filter-grid');
-        if (type === 'packing') {
-          popover.classList.add('orders-compact-filter-popup');
-          form.classList.add('orders-filter-panel');
-        }
+        if (type === 'packing') form.classList.add('packing-filter-grid');
         if (type === 'packing') popover.classList.add('packing-filter-popup');
         if (type === 'bookkeeping') popover.classList.add('book-filter-popover','ess-bookkeeping-page');
         positionPopover(popover, button);

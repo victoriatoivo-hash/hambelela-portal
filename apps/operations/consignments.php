@@ -33,23 +33,33 @@ $extraStylesheets[] = [
     'version' => $packingCssVersion,
 ];
 
+$isEssDashboard = true;
+$pageUsesPortalSidebar = false;
+require_once BASE_PATH . '/shared/ess-navigation.php';
+$essShellApps = ess_shell_apps();
+$essActiveModule = 'Packing List';
+$essHeadingPartial = BASE_PATH . '/shared/ess-packing-heading.php';
+array_unshift($extraStylesheets, ['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')]);
+$extraStylesheets[] = ['path'=>'assets/css/packing-essentials.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/packing-essentials.css')];
 include BASE_PATH . '/shared/header.php';
-include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/ess-sidebar.php';
 ?>
-<main class="workspace module ops-board-page packing-list-page packing-page-v2" data-board-theme="light">
+<main id="ess-main" class="workspace ess-dashboard-main ops-board-page packing-list-page packing-page-v2 ess-packing-page" data-board-theme="light">
+    <?php include BASE_PATH . '/shared/ess-topbar.php'; ?>
     <section class="monday-board-top packing-page-shell">
         <div class="monday-board-head work-board-head packing-header">
-            <div>
-                <h1>Hambelela Packing <i data-lucide="chevron-down"></i></h1>
+            <div class="packing-heading"><span class="packing-page-icon"><i data-lucide="package"></i></span><div>
+                <h1 class="packing-page-title">Hambelela Packing</h1>
+                <p class="packing-page-subtitle">Manage, assign and track product packing workloads.</p>
                 <p class="packing-load-state" data-packing-count>Loading packing list...</p>
-            </div>
-            <div class="monday-board-head-actions packing-header-actions" data-portal-header-status-target>
+            </div></div>
+            <div class="monday-board-head-actions packing-header-actions">
                 <?php if ($canViewPackingTools): ?><button type="button" class="packing-tools-button" data-open-packing-tools><i data-lucide="wrench"></i><span>Packing tools</span></button><?php endif; ?>
                 <button type="button" class="invite-btn packing-btn packing-btn-secondary" data-packing-export><i data-lucide="download"></i> Export Excel</button>
             </div>
         </div>
 
-        <section class="work-metric-grid packing-metric-grid packing-stats" aria-label="Packing summary">
+        <section class="packing-kpi-grid" aria-label="Packing summary">
             <article class="work-metric-card packing-stat-card pk-total">
                 <span class="metric-icon"><i data-lucide="package-open"></i></span>
                 <div><span class="metric-title">Total Items</span><strong data-packing-metric="total">0</strong></div>
@@ -103,6 +113,22 @@ include BASE_PATH . '/shared/sidebar.php';
                     <option value="high">High</option>
                     <option value="medium">Medium</option>
                     <option value="low">Low</option>
+                </select>
+            </label>
+            <label>Website Status
+                <select data-packing-filter="website" data-portal-custom-select>
+                    <option value="">All website statuses</option>
+                    <option value="updated">Updated</option>
+                    <option value="pending">Not updated</option>
+                    <option value="needs_update">Completed — needs website update</option>
+                </select>
+            </label>
+            <label>Sort
+                <select data-packing-filter="sort" data-portal-custom-select>
+                    <option value="">Default order</option>
+                    <option value="name">Item name A–Z</option>
+                    <option value="newest">Newest loaded first</option>
+                    <option value="oldest">Oldest loaded first</option>
                 </select>
             </label>
             <label>Person
@@ -163,10 +189,12 @@ include BASE_PATH . '/shared/sidebar.php';
             </div>
         </header>
         <nav class="packing-item-tabs portal-panel-tabs" role="tablist" aria-label="Packing item sections">
+            <button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="overview"><i data-lucide="package"></i> Overview</button>
             <?php if ($canViewWebsiteUpdate): ?><button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="website"><i data-lucide="globe-2"></i> Website</button><?php endif; ?>
             <button class="packing-item-tab active is-active" type="button" role="tab" aria-selected="true" data-packing-panel-tab="details"><i data-lucide="layout-list"></i> Details</button>
             <button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="files"><i data-lucide="paperclip"></i> Files</button>
         </nav>
+        <section class="updates-tab-panel packing-item-panel-body" data-packing-panel-name="overview"><div data-packing-overview></div></section>
         <section class="updates-tab-panel packing-item-panel-body active" data-packing-panel-name="details">
             <section class="packing-item-section packing-item-notes-section">
                 <div class="packing-item-section-header">
@@ -280,6 +308,8 @@ include BASE_PATH . '/shared/sidebar.php';
     </aside>
     <?php endif; ?>
 </main>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH.'/assets/js/ess-dashboard.js') ?>"></script>
 <script>
 window.HambelelaPacking = {
   dataUrl: 'packing-list-data.php',
@@ -291,4 +321,5 @@ window.HambelelaPacking = {
 </script>
 <script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/packing-list.js?v=<?= htmlspecialchars($packingJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+<script defer src="<?= BASE_URL ?>/assets/js/packing-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/packing-essentials.js') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

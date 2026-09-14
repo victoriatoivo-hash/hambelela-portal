@@ -6,8 +6,8 @@ const css = readFileSync(new URL('../assets/css/packing-board.css', import.meta.
 
 assert.match(
     page,
-    /class="monday-board-head-actions packing-header-actions"\s+data-portal-header-status-target>[\s\S]*?data-open-packing-tools[\s\S]*?data-packing-export/,
-    'Packing actions must be the status mount target, ordered Tools then Export.',
+    /class="monday-board-head-actions packing-header-actions">[\s\S]*?data-open-packing-tools[\s\S]*?data-packing-export/,
+    'Packing actions remain ordered Tools then Export; global status belongs to the shared topbar.',
 );
 
 assert.match(

@@ -87,7 +87,7 @@
   let previousTaskIds = new Set();
   let customColumns = [];
   const selected = new Set();
-  const state = { search: '', priority: '', status: '', person: '', groupBy: 'month', date: '' };
+  const state = { search: '', priority: '', status: '', person: '', website: '', sort: '', groupBy: 'month', date: '', page: 1, pageSize: 25 };
 
   let priorities = [
     ['top_critical', 'Top Critical', '#721B1A'],
@@ -255,10 +255,7 @@
             if (column.key === 'select') {
               return `<th class="${esc(column.className)} packing-grid-cell--select" data-column-key="${esc(column.key)}">
                 <input class="packing-selection-input packing-selection-input--all" type="checkbox" tabindex="-1" aria-hidden="true">
-                <button type="button" class="packing-checkbox-control" role="checkbox" aria-checked="false" data-packing-select-all aria-label="Select all ${esc(groupName)} items">
-                  <svg class="packing-checkbox-tick" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.2 5.7 10 11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  <span class="packing-checkbox-minus" aria-hidden="true"></span>
-                </button>
+                <input type="checkbox" class="packing-checkbox-control" aria-checked="false" data-packing-select-all aria-label="Select all ${esc(groupName)} items">
               </th>`;
             }
             if (column.key === 'add') {
@@ -787,15 +784,9 @@
   }
 
   function animateBoardRows() {
-    [...body.querySelectorAll('tr[data-task-id]')].slice(0, 80).forEach((row, index) => {
-      row.style.opacity = '0';
-      row.style.transform = 'translateY(8px)';
-      row.style.transition = 'opacity 200ms ease, transform 200ms ease';
-      window.setTimeout(() => {
-        row.style.opacity = '1';
-        row.style.transform = 'translateY(0)';
-      }, index * 18);
-    });
+    // Search and editing must not replay staggered timers or move table rows.
+    if (hasRenderedOnce || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    body.querySelectorAll('[data-packing-month-group]').forEach(group => group.classList.add('packing-initial-reveal'));
   }
 
   function animateMetricCards() {
@@ -812,9 +803,16 @@
   function updateFilterBadge() {
     const bar = document.querySelector('.packing-filter-bar');
     if (!bar) return;
-    const count = [state.date, state.priority, state.status, state.person, state.search].filter((value) => String(value || '') !== '').length;
+    const count = [state.date, state.priority, state.status, state.person, state.website].filter((value) => String(value || '') !== '').length;
     bar.classList.toggle('has-active-filters', count > 0);
     bar.dataset.filterCount = String(count);
+    const toolbar = document.querySelector('main.ess-packing-page .portal-filter-toolbar');
+    if (!toolbar) return;
+    let chips = toolbar.querySelector('[data-packing-filter-chips]');
+    if (!chips) { chips = document.createElement('div'); chips.dataset.packingFilterChips = ''; chips.className = 'packing-filter-chips'; toolbar.append(chips); }
+    const labels = {date:state.date, priority:labelText(priorities,state.priority), status:labelText(statuses,state.status), person:state.person==='__mine'?'My items':state.person==='__unassigned'?'Unassigned':packers.find(p=>String(p.id)===state.person)?.full_name || 'Selected person', website:state.website==='needs_update'?'Needs website update':state.website==='updated'?'Website updated':'Website not updated'};
+    chips.innerHTML = ['date','priority','status','person','website'].filter(key=>state[key]).map(key=>`<button type="button" data-packing-remove-filter="${key}" aria-label="Remove ${esc(labels[key])} filter">${esc(labels[key])}<span aria-hidden="true">×</span></button>`).join('');
+    chips.hidden = count === 0;
   }
 
   function ensureMobileList() {
@@ -1453,7 +1451,6 @@
             <span>${esc(item.name)}</span>
             <strong>${esc(formatDraftPhysical(physicalTotals.get(item.key) || { weightGrams: 0, volumeMl: 0, units: 0 }))}</strong>
             <small>Physical workload</small>
-            <small>Weighted workload: ${item.workload.toFixed(1)} points</small>
             <small>${item.rows} row${item.rows === 1 ? '' : 's'} assigned${item.manualRows ? ` &middot; ${item.manualRows} manual` : ''}</small>
             <span class="draft-weighted-total">Weighted workload <button type="button" class="draft-info" aria-label="Weighted workload formula" title="Weighted workload = (package count ÷ 20, minimum 1 + the largest of weight ÷ 5kg, volume ÷ 5L, or units ÷ 50 + 1.5 handling points + 0.5 per additional pack size, capped at 2) × priority: Low 0.8, Medium 1.0, High 1.3, Top Critical 1.6. Actual kg, L and units are shown separately.">i</button> <b>${item.workload.toFixed(1)} points</b></span>
           </div>
@@ -1525,8 +1522,8 @@
       invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
         const state = receivedQuantityState(row);
         const statusClass = `is-${state.status}`;
-        return `<tr data-draft-index="${index}" class="${state.valid ? '' : 'has-draft-warning'} ${statusClass}">
-          <td><input data-draft-field="item_name" value="${esc(row.item_name || '')}"></td>
+        return `<tr data-draft-index="${index}" class="packing-received-row ${state.valid ? '' : 'has-draft-warning'} ${statusClass}">
+          <td><input data-draft-field="item_name" aria-label="Item name" value="${esc(row.item_name || '')}"></td>
           <td><input data-draft-field="received_weight" value="${esc(String(row.received_weight || '').match(/\d+(?:\.\d+)?/)?.[0] || '')}" inputmode="decimal" aria-label="Received quantity"></td>
           <td><select data-draft-field="unit" required>${unitOptions}</select></td>
           <td><strong>${state.valid ? formatPhysical(state.received.dimension, state.received.base) : '—'}</strong></td>
@@ -1642,15 +1639,18 @@
   }
 
   function visibleTasks() {
-    const search = state.search.toLowerCase();
+    const search = state.search.trim().toLowerCase();
     return tasks.filter((task) => {
       if (state.date && monthKey(task.date_loaded) !== state.date) return false;
       if (state.priority && normalize(task.priority) !== normalize(state.priority)) return false;
       if (state.status && normalize(task.packing_status) !== normalize(state.status)) return false;
+      if (state.website === 'updated' && Number(task.packing_website_confirmed || 0) !== 1) return false;
+      if (state.website === 'pending' && Number(task.packing_website_confirmed || 0) === 1) return false;
+      if (state.website === 'needs_update' && (Number(task.packing_website_confirmed || 0) === 1 || !packingStatusIsCompleted(task.packing_status))) return false;
       if (state.person === '__mine' && String(task.assigned_employee_id || '') !== String(currentUser.id || '')) return false;
       if (state.person === '__unassigned' && Number(task.assigned_employee_id || 0) !== 0) return false;
       if (state.person && !['__mine', '__unassigned'].includes(state.person) && String(task.assigned_employee_id || '') !== String(state.person)) return false;
-      const haystack = [task.item_name, task.received_weight, task.quantity_planned, task.quantity_packed, task.assigned_name, task.packer_notes].join(' ').toLowerCase();
+      const haystack = [task.item_name, task.received_weight, task.quantity_planned, task.quantity_packed, task.assigned_name, task.packer_notes, task.notes, labelText(statuses, task.packing_status), labelText(priorities, task.priority)].join(' ').toLowerCase();
       return !search || haystack.includes(search);
     });
   }
@@ -1834,7 +1834,7 @@
     `;
   }
 
-  const groupAccentPalette = ['#BB1B21', '#F07420', '#A8CA19', '#AB3619', '#721B1A'];
+  const groupAccentPalette = ['#24796F'];
 
   function renderGroupV2(key, rows, index = 0) {
     const groupSummary = summary(rows);
@@ -1855,9 +1855,7 @@
         <tr data-task-id="${esc(task.id)}" class="packing-board-row board-row ${!previousTaskIds.has(String(task.id)) && hasRenderedOnce ? 'row-new' : ''} ${selected.has(String(task.id)) ? 'is-selected' : ''}">
           <td class="check-cell col-checkbox packing-grid-cell--select" data-column-key="select">
             <input class="packing-selection-input" type="checkbox" name="selected_items[]" value="${esc(task.id)}" data-packing-row-select="${esc(task.id)}" tabindex="-1" aria-hidden="true" ${selected.has(String(task.id)) ? 'checked' : ''}>
-            <button type="button" class="packing-checkbox-control" role="checkbox" aria-checked="${selected.has(String(task.id)) ? 'true' : 'false'}" data-packing-row-checkbox="${esc(task.id)}" aria-label="Select this packing item">
-              <svg class="packing-checkbox-tick" viewBox="0 0 14 14" aria-hidden="true"><path d="M3 7.2 5.7 10 11 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
+            <input type="checkbox" class="packing-checkbox-control" aria-checked="${selected.has(String(task.id)) ? 'true' : 'false'}" data-packing-row-checkbox="${esc(task.id)}" aria-label="Select this packing item" ${selected.has(String(task.id)) ? 'checked' : ''}>
           </td>
           <td class="task-cell col-item" data-column-key="item">${renderItemCell(task)}</td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
@@ -1903,6 +1901,7 @@
             <i class="packing-month-chevron" data-lucide="chevron-down"></i>
           </button>
           <strong class="packing-month-open-title packing-section-title">${esc(groupLabel(key))}${unreadBadge}</strong>
+          <span class="packing-period-meta"><span>${rows.length} items</span><span>${groupSummary.packing} packing</span><span>${groupSummary.done} done</span><span>${groupSummary.notStarted} pending</span></span>
         </div>
         <button type="button" class="packing-date-header packing-month-header packing-month-summary packing-month-closed-summary" data-packing-collapse aria-label="Expand ${esc(groupLabel(key))}" aria-expanded="false">
           <div class="packing-date-cell packing-date-cell--toggle packing-month-toggle-cell packing-month-summary-toggle">
@@ -1958,10 +1957,17 @@
 
   function render() {
     const visible = visibleTasks();
+    if (state.sort === 'name') visible.sort((a,b) => String(a.item_name || '').localeCompare(String(b.item_name || '')));
+    if (state.sort === 'oldest') visible.sort((a,b) => String(a.date_loaded || '').localeCompare(String(b.date_loaded || '')));
+    if (state.sort === 'newest') visible.sort((a,b) => String(b.date_loaded || '').localeCompare(String(a.date_loaded || '')));
+    const pages = Math.max(1, Math.ceil(visible.length / state.pageSize));
+    state.page = Math.max(1, Math.min(state.page, pages));
+    const pageRows = visible.slice((state.page - 1) * state.pageSize, state.page * state.pageSize);
+    renderPagination(visible.length, pages);
     const knownIds = new Set(tasks.map((task) => String(task.id)));
     [...selected].forEach((id) => { if (!knownIds.has(id)) selected.delete(id); });
     if (!visible.length) {
-      const hasFilters = Boolean(state.date || state.priority || state.status || state.person || state.search);
+      const hasFilters = Boolean(state.date || state.priority || state.status || state.person || state.website || state.search);
       const message = tasks.length
         ? 'No packing items match the current filters.'
         : 'No packing rows exist in the database yet. Use New item or Upload invoice to create the packing list.';
@@ -1980,14 +1986,14 @@
       if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
       return;
     }
-    const groups = visible.reduce((memo, task) => {
+    const groups = pageRows.reduce((memo, task) => {
       const key = groupKey(task);
       if (!memo[key]) memo[key] = [];
       memo[key].push(task);
       return memo;
     }, {});
     body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key, index) => renderGroupV2(key, groups[key], index)).join('');
-    renderMobileCards(visible);
+    renderMobileCards(pageRows);
     setCount(`${visible.length} showing of ${tasks.length} packing item${tasks.length === 1 ? '' : 's'}`);
     updateMetrics(visible);
     updateFilterBadge();
@@ -2001,6 +2007,19 @@
     hasRenderedOnce = true;
   }
 
+  function renderPagination(total, pages) {
+    let nav = document.querySelector('[data-packing-pagination]');
+    if (!nav) {
+      nav = document.createElement('nav');
+      nav.dataset.packingPagination = '';
+      nav.className = 'packing-pagination';
+      nav.setAttribute('aria-label', 'Packing item pages');
+      body.closest('#packingListViewport').after(nav);
+    }
+    nav.innerHTML = `<span role="status">Showing ${total ? (state.page - 1) * state.pageSize + 1 : 0}–${Math.min(state.page * state.pageSize, total)} of ${total}</span><div><button type="button" data-packing-page="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''} aria-label="Previous page">‹</button><span>Page ${state.page} of ${pages}</span><button type="button" data-packing-page="${state.page + 1}" ${state.page === pages ? 'disabled' : ''} aria-label="Next page">›</button><label>Rows per page <select data-packing-page-size data-portal-custom-select>${[25,50,100].map(n=>`<option value="${n}" ${state.pageSize===n?'selected':''}>${n}</option>`).join('')}</select></label></div>`;
+    window.PortalCustomSelect?.initialise(nav);
+  }
+
   function updateSelection() {
     const visibleIds = visibleTasks().map((task) => String(task.id));
     document.querySelectorAll('[data-packing-select-all]').forEach((button) => {
@@ -2012,6 +2031,7 @@
       const all = scopedIds.length > 0 && selectedInScope === scopedIds.length;
       const mixed = selectedInScope > 0 && selectedInScope < scopedIds.length;
       button.setAttribute('aria-checked', mixed ? 'mixed' : all ? 'true' : 'false');
+      if (button instanceof HTMLInputElement) { button.checked = all; button.indeterminate = mixed; }
       button.disabled = scopedIds.length === 0;
       const input = button.closest('.packing-grid-cell--select')?.querySelector('.packing-selection-input--all');
       if (input) { input.checked = all; input.indeterminate = mixed; }
@@ -2020,7 +2040,9 @@
     document.querySelectorAll('[data-packing-row-select]').forEach((input) => {
       input.checked = selected.has(String(input.dataset.packingRowSelect));
       input.closest('tr')?.classList.toggle('is-selected', input.checked);
-      input.closest('.packing-grid-cell--select')?.querySelector('[data-packing-row-checkbox]')?.setAttribute('aria-checked', input.checked ? 'true' : 'false');
+      const control = input.closest('.packing-grid-cell--select')?.querySelector('[data-packing-row-checkbox]');
+      control?.setAttribute('aria-checked', input.checked ? 'true' : 'false');
+      if (control instanceof HTMLInputElement) control.checked = input.checked;
     });
     updateBulkActionBar();
   }
@@ -2555,7 +2577,7 @@
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
     panelNotes.value = currentTask.packer_notes || '';
     const canEditOwn = canEditTask(currentTask);
-    const defaultPanelTab = preferredTab || (currentUser.can_view_front_website ? 'website' : 'details');
+    const defaultPanelTab = preferredTab || (isFrontDeskAdmin() ? 'website' : 'overview');
     panelNotes.disabled = !canEditOwn;
     document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
     document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => {
@@ -2566,6 +2588,14 @@
     });
     document.querySelectorAll('[data-packing-panel-name]').forEach((section) => section.classList.toggle('active', section.dataset.packingPanelName === defaultPanelTab));
     const infoCard = (label, value) => `<article class="packing-item-info-card"><span class="packing-item-info-label">${esc(label)}</span><span class="packing-item-info-value">${esc(value || 'Not entered')}</span></article>`;
+    const overview = panel.querySelector('[data-packing-overview]');
+    if (overview) overview.innerHTML = `<section class="packing-item-section"><h2 class="packing-item-section-title">Packing overview</h2><div class="packing-item-info-grid">${[
+      ['Item',currentTask.item_name],['Priority',labelText(priorities,currentTask.priority)],
+      ['Quantity required',currentTask.quantity_planned],['Quantity packed',currentTask.quantity_packed],
+      ['Person responsible',currentTask.assigned_name || 'Unassigned'],['Packing status',labelText(statuses,currentTask.packing_status)],
+      ['Date loaded',formatDate(currentTask.date_loaded)],['Date completed',currentTask.date_completed ? formatDate(currentTask.date_completed) : 'Not complete'],
+      ['Website status',Number(currentTask.packing_website_confirmed || 0) === 1 ? 'Updated' : 'Not updated'],['Notes',currentTask.packer_notes || 'No notes']
+    ].map(([label,value])=>infoCard(label,value)).join('')}</div></section>`;
     const editableInfoCard = (field, label, value, allowed) => `<div class="packing-item-info-card${allowed ? ' packing-item-info-card--editable' : ''}" data-packing-info-field="${esc(field)}" role="button" tabindex="${allowed ? '0' : '-1'}" aria-disabled="${allowed ? 'false' : 'true'}" aria-label="${allowed ? `Edit ${esc(label.toLowerCase())}` : esc(label)}"><span class="packing-item-info-label">${esc(label)}</span><span class="packing-item-info-value">${esc(value || 'Not entered')}</span>${allowed ? '<span class="packing-item-info-edit-icon" aria-hidden="true">&#9998;</span>' : ''}</div>`;
     const calculatedWorkload = Number(currentTask.workload_points || 0);
     const hasWorkloadOverride = currentTask.workload_points_override !== null && currentTask.workload_points_override !== '' && currentTask.workload_points_override !== undefined;
@@ -2577,7 +2607,7 @@
       <section class="packing-item-section"><h2 class="packing-item-section-title">Packing information</h2><div class="packing-item-info-grid">
         ${editableInfoCard('item_name', 'Item', currentTask.item_name, Boolean(currentUser.can_manage))}${editableInfoCard('received_weight', 'Received', currentTask.received_weight, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_planned', 'Quantity to pack', currentTask.quantity_planned, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_packed', 'Quantity packed', currentTask.quantity_packed, canEditOwn)}
       </div></section>
-      <section class="packing-item-section"><h2 class="packing-item-section-title">Assignment and status</h2><div class="packing-item-form-grid">
+      <section class="packing-item-section"><h2 class="packing-item-section-title">Assignment and status</h2><div class="packing-item-form-grid packing-assignment-grid">
         <div class="packing-item-field"><label>Assigned</label><div class="packing-item-control">${renderPerson(currentTask)}</div></div>
         <div class="packing-item-field"><label>Packing status</label><div class="packing-item-control">${renderPackingStatus(currentTask, canEditOwn)}</div></div>
         <div class="packing-item-field"><label>Website Complete</label><div class="packing-item-control">${renderCheck(currentTask, 'packing_website_confirmed', canEditOwn)}</div></div>
@@ -2590,7 +2620,12 @@
       </div></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Performance</h2><div class="packing-item-info-grid">
         ${infoCard('Time taken', duration(currentTask.date_started || currentTask.date_loaded, currentTask.date_completed) || 'Not complete')}${infoCard('Effective workload', effectiveWorkload.toFixed(2))}${infoCard('Calculated workload', calculatedWorkload.toFixed(2))}${infoCard('Workload evidence', workloadEvidence)}
-      </div>${currentUser.role_key === 'owner_admin' ? `<div class="packing-workload-override" data-packing-workload-override><label>Owner workload override <input type="number" min="0" step="0.01" data-workload-override-points value="${hasWorkloadOverride ? esc(currentTask.workload_points_override) : ''}" placeholder="Leave blank to clear"></label><label>Reason <input maxlength="500" data-workload-override-reason value="${esc(currentTask.workload_override_reason || '')}" required></label><button type="button" class="pk-btn pk-btn--secondary" data-save-workload-override>Save workload override</button><span role="alert" data-workload-override-error></span></div>` : ''}</section>`;
+      </div>${currentUser.role_key === 'owner_admin' ? `<div class="packing-workload-override" data-packing-workload-override>
+        <div class="packing-override-heading"><strong>Owner workload override</strong><p>Adjust workload points only. Physical quantities stay unchanged.</p></div>
+        <label>Workload points<input type="number" min="0" step="0.01" data-workload-override-points value="${hasWorkloadOverride ? esc(currentTask.workload_points_override) : ''}" placeholder="Optional"><small>Leave blank to remove the override.</small></label>
+        <label>Reason<textarea maxlength="500" data-workload-override-reason required placeholder="Explain the adjustment">${esc(currentTask.workload_override_reason || '')}</textarea></label>
+        <button type="button" class="pk-btn pk-btn--primary" data-save-workload-override>Save workload override</button><span role="alert" data-workload-override-error></span>
+      </div>` : ''}</section>`;
     if (currentUser.can_view_front_website) {
       renderWebsiteConfirmation(currentTask);
     }
@@ -4028,6 +4063,7 @@
       }
       if (expandNote) { expandNote.closest('.notes-cell')?.classList.toggle('is-expanded'); return; }
       if (collapse) {
+        document.querySelectorAll('[data-packing-summary-bar]').forEach(hidePackingSummaryTooltip);
         const group = collapse.closest('.packing-date-group');
         if (group) {
           const isCollapsed = group.classList.toggle('is-collapsed');
@@ -4085,16 +4121,21 @@
     }
     const filter = event.target.closest('[data-packing-filter]');
     if (filter) {
+      state.page = 1;
+      if (filter.dataset.packingFilter === 'website') state.website = filter.value;
+      if (filter.dataset.packingFilter === 'sort') state.sort = filter.value;
       if (filter.dataset.packingFilter === 'priority') state.priority = filter.value;
       if (filter.dataset.packingFilter === 'status') state.status = filter.value;
       if (filter.dataset.packingFilter === 'person') state.person = filter.value;
       render();
     }
     if (event.target.closest('[data-packing-group-select]')) {
+      state.page = 1;
       state.groupBy = event.target.value || 'month';
       render();
     }
     if (event.target.closest('[data-packing-date]')) {
+      state.page = 1;
       state.date = event.target.value || '';
       render();
     }
@@ -4143,14 +4184,56 @@
   });
 
   let packingSearchTimer = 0;
+  const applyPackingSearch = query => {
+    window.clearTimeout(packingSearchTimer);
+    document.querySelectorAll('[data-packing-search]').forEach(input => { input.value = query; });
+    state.search = query;
+    state.page = 1;
+    render();
+  };
+  document.addEventListener('keydown', event => {
+    if (event.key !== 'Enter' || !event.target.matches('[data-packing-search]')) return;
+    event.preventDefault();
+    applyPackingSearch(event.target.value);
+  });
+  document.addEventListener('click', event => {
+    const remove = event.target.closest('[data-packing-remove-filter]');
+    if (remove) {
+      const key = remove.dataset.packingRemoveFilter;
+      if (!['date','priority','status','person','website'].includes(key)) return;
+      state[key] = ''; state.page = 1;
+      document.querySelectorAll(key==='date'?'[data-packing-date]':`[data-packing-filter="${key}"]`).forEach(control=>{control.value='';control.dispatchEvent(new Event('change',{bubbles:true}));});
+      render(); return;
+    }
+    const button = event.target.closest('[data-packing-page]');
+    if (!button || button.disabled) return;
+    state.page = Number(button.dataset.packingPage) || 1;
+    render();
+  });
+  document.addEventListener('change', event => {
+    if (!event.target.matches('[data-packing-page-size]')) return;
+    state.pageSize = [25,50,100].includes(Number(event.target.value)) ? Number(event.target.value) : 25;
+    state.page = 1;
+    render();
+  });
+  document.addEventListener('packing:clear-filters', () => {
+    window.clearTimeout(packingSearchTimer);
+    state.search = ''; state.date = ''; state.priority = ''; state.status = ''; state.person = ''; state.website = ''; state.sort = ''; state.page = 1;
+    document.querySelectorAll('[data-packing-search],[data-packing-date],[data-packing-filter],.portal-toolbar-search input').forEach(input => { input.value = ''; });
+    document.querySelectorAll('.portal-toolbar-search').forEach(el => el.classList.remove('has-value'));
+    render();
+  });
   document.addEventListener('input', (event) => {
     const search = event.target.closest('[data-packing-search]');
     if (search) {
       window.clearTimeout(packingSearchTimer);
+      // Keep the toolbar and original filter control in agreement. Filtering
+      // must use the data set, not a second pass over already paginated rows.
+      const query = search.value;
+      document.querySelectorAll('[data-packing-search]').forEach(input => { input.value = query; });
       packingSearchTimer = window.setTimeout(() => {
-        state.search = search.value;
-        render();
-      }, 180);
+        applyPackingSearch(query);
+      }, 200);
     }
     const dateInput = event.target.closest('[data-packing-date]');
     if (dateInput) {
