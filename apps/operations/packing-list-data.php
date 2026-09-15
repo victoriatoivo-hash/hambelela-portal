@@ -175,8 +175,7 @@ $tasks = ops_rows(
      LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
      {$websiteWorkflowJoins}
      {$where}
-     ORDER BY pt.date_loaded DESC, FIELD(pt.priority, 'top_critical', 'high', 'medium', 'low'), pt.id DESC
-     LIMIT 500",
+     ORDER BY pt.date_loaded DESC, FIELD(pt.priority, 'top_critical', 'high', 'medium', 'low'), pt.id DESC",
     $params
 );
 
