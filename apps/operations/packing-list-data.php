@@ -49,7 +49,7 @@ $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
 $currentEmployeeId = ops_current_employee_id();
 $currentRoleKey = current_role_key();
-$canViewAllPackingItems = in_array($currentRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canViewAllPackingItems = in_array($currentRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'marketing_sales'], true);
 $canViewAssignedPackingItems = in_array($currentRoleKey, ['packer', 'packer_production_staff'], true);
 if (!$canViewAllPackingItems && !$canViewAssignedPackingItems) {
     http_response_code(403);
