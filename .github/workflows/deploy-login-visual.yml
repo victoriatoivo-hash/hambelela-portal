@@ -17,8 +17,8 @@ jobs:
       - name: Validate pinned presentation-only release
         run: |
           python3 scripts/deploy-login-visual.py --dry-run
-          git show 9fe4919a2a7600e1b3ca8215e14e8989ae222685:login.php | php -l
-      - name: Back up and publish six approved files
+          git show 1bb16fd50dfb074c700944ec46d6489ce1e909f8:login.php | php -l
+      - name: Back up and publish approved image path correction
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

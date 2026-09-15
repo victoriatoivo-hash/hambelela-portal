@@ -1,8 +1,8 @@
 """Pinned six-file login presentation release; verify baseline, back up, rollback."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
-SHA = '9fe4919a2a7600e1b3ca8215e14e8989ae222685'
-BASE = '1a62b7f56a62ea0d451d4dbfda10241cd86727b5'
-FILES = ['assets/css/login-olive.css', 'assets/fonts/jost-regular.ttf', 'assets/fonts/jost-bold.ttf', 'assets/images/login-botanical.png', 'assets/images/login-wordmark.jpg', 'login.php']
+SHA = '1bb16fd50dfb074c700944ec46d6489ce1e909f8'
+BASE = 'b663a89b0fe2fe21b949499e3381dea3d88a7b0b'
+FILES = ['assets/login-botanical.png', 'assets/login-wordmark.jpg', 'login.php']
 def git(*args): return subprocess.check_output(['git', *args])
 def blob(ref, path): return git('show', ref + ':' + path)
 def read(ftp, path):
@@ -20,7 +20,7 @@ assert set(git('diff-tree','--no-commit-id','--name-only','-r',SHA).decode().spl
 expected = {p:blob(SHA,p) for p in FILES}
 assert blob(BASE,'login.php').split(b'<!doctype html>')[0] == expected['login.php'].split(b'<!doctype html>')[0], 'Authentication logic changed'
 if '--deploy' not in sys.argv:
-    print('PASS: six presentation files only; authentication prefix unchanged'); sys.exit(0)
+    print('PASS: pinned presentation files only; authentication prefix unchanged'); sys.exit(0)
 ftp = ftplib.FTP(os.environ['FTP_SERVER'], timeout=45)
 ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD'])
 try:
@@ -51,5 +51,5 @@ try:
             else: write(ftp,p,old[p])
         report('rolled-back'); raise
     report('verified',hashes={p:hashlib.sha256(data).hexdigest() for p,data in expected.items()})
-    print('VERIFIED: six login presentation files deployed; backup preserved')
+    print('VERIFIED: pinned login presentation files deployed; backup preserved')
 finally: ftp.quit()
