@@ -1,0 +1,40 @@
+name: Deploy Marketing order assignee
+on:
+  workflow_dispatch:
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+      - name: Validate isolated files
+        run: |
+          git fetch origin codex/orders-marketing-assignee
+          test "$(git rev-parse FETCH_HEAD)" = '8cc3a3e39098a0f6370a0cb9c8a9975f467c41da'
+          python3 scripts/deploy-order-assignee.py --dry-run 8cc3a3e39098a0f6370a0cb9c8a9975f467c41da
+          git show FETCH_HEAD:apps/operations/orders-board-data.php | php -l
+          git show FETCH_HEAD:apps/operations/orders-board-action.php | php -l
+      - name: Back up and deploy only order assignee files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-order-assignee.py --deploy 8cc3a3e39098a0f6370a0cb9c8a9975f467c41da
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: order-assignee-backup-${{ github.run_id }}
+          path: |
+            order-assignee-deployment-backup.zip
+            order-assignee-deployment-report.json
+          if-no-files-found: warn
