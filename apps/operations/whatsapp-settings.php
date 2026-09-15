@@ -78,10 +78,12 @@ $logs = $ready && ops_table_exists('ops_whatsapp_webhook_logs') ? ops_rows(
      LIMIT 30"
 ) : [];
 
+require_once BASE_PATH . '/shared/settings-shell.php';
 include BASE_PATH . '/shared/header.php';
-include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/ess-sidebar.php';
 ?>
-<main class="workspace module whatsapp-module">
+<main id="ess-main" class="workspace ess-dashboard-main module whatsapp-module settings-detail">
+    <a class="settings-back" href="<?=BASE_URL?>/settings.php"><i data-lucide="arrow-left"></i>All settings</a>
     <section class="module-header cost-system-header whatsapp-hero">
         <div>
             <p class="eyebrow">Admin Settings</p>
@@ -171,4 +173,4 @@ include BASE_PATH . '/shared/sidebar.php';
         </div>
     </section>
 </main>
-<?php include BASE_PATH . '/shared/footer.php'; ?>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?><script defer src="<?=BASE_URL?>/assets/js/ess-dashboard.js?v=<?=filemtime(BASE_PATH.'/assets/js/ess-dashboard.js')?>"></script><?php include BASE_PATH . '/shared/footer.php'; ?>

@@ -27,7 +27,7 @@
   });
   const search = document.querySelector('[data-ess-search]');
   const cards = [...document.querySelectorAll('[data-ess-module]')];
-  search.addEventListener('input', () => {
+  search?.addEventListener('input', () => {
     if (!cards.length) return;
     const query = search.value.trim().toLocaleLowerCase();
     let count = 0;
@@ -38,7 +38,7 @@
     document.querySelector('[data-ess-search-empty]').hidden = count !== 0;
     document.querySelector('[data-ess-search-status]').textContent = `${count} module${count === 1 ? '' : 's'} found`;
   });
-  if (!cards.length) {
+  if (search && !cards.length) {
     search.setAttribute('aria-label', 'Find a portal module (press Enter to open)');
     search.removeAttribute('aria-controls');
     search.addEventListener('keydown', event => {
@@ -50,7 +50,7 @@
   }
   document.addEventListener('keydown', event => {
     if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.closest('input,textarea,select,[contenteditable="true"]')) {
-      event.preventDefault(); search.focus();
+      if (search) { event.preventDefault(); search.focus(); }
     }
   });
   const more = document.querySelector('[data-ess-more]');

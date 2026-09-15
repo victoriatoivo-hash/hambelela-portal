@@ -1,0 +1,49 @@
+/* Admin settings only: olive shell, slate-blue detail accents. */
+.settings-detail.settings-wrap,.settings-detail.whatsapp-module{
+ --s-olive:#667653;--s-amber:#52667b;--s-orange-red:#52667b;--s-red:#b43e40;
+ --s-burgundy:#263746;--s-cream:#f8f7f2;--s-surface:#fff;--s-border:#dfe4e5;
+ --s-text:#24312e;--s-text-mid:#52616b;--s-text-light:#6b7982;
+ background:#f8f7f2;color:var(--s-text);font-family:Jost,sans-serif;min-width:0;
+}
+.ess-dashboard .shell:has(>.settings-detail){grid-template-columns:var(--sidebar-width) minmax(0,1fr)!important}
+.settings-detail :is(button,input,select,textarea){font-family:Jost,sans-serif!important;font-size:13px}
+.settings-detail h1{color:#263746!important;font:500 30px/1.2 Jost,sans-serif!important}
+.settings-detail .page-eyebrow{color:#667653!important;letter-spacing:.13em}
+.settings-detail .module-header{border:0;background:linear-gradient(115deg,#eef1e9,#edf1f5);padding:22px!important;border-radius:14px;margin-bottom:16px!important}
+.settings-detail .settings-back{display:inline-flex;align-items:center;gap:8px;color:#52667b;text-decoration:none;font-size:13px;margin:0 0 18px}.settings-back svg{width:16px;height:16px}
+.settings-detail .settings-layout{grid-template-columns:190px minmax(0,1fr);gap:22px}
+.settings-detail .settings-nav{border:1px solid #dfe4e5;box-shadow:none;border-radius:14px;padding:8px;background:#fff}
+.settings-detail .settings-nav-item{min-height:40px;font-weight:400;border-radius:8px;transition:background .18s,color .18s}
+.settings-detail .settings-nav-item:hover{background:#edf1f5;color:#3e5166}
+.settings-detail .settings-nav-item.active{background:#52667b;color:#fff;font-weight:500}
+.settings-detail :is(.settings-card,.panel,.work-metric){background:#fff;border:1px solid #dfe4e5;border-radius:14px;padding:22px;box-shadow:0 5px 22px #26374606}
+.settings-detail .settings-card{border-top:3px solid #b6c0ca;margin-bottom:18px}
+.settings-detail :is(h2,h3){color:#344b60!important;font-family:Jost,sans-serif;font-weight:500}
+.settings-detail h2{font-size:16px}.settings-detail .whatsapp-hero::after{background:#b6c0ca}.settings-detail .whatsapp-api-strip>div{background:#edf1f5;border-color:#dfe4e5}.settings-detail .status{background:#edf1e7;color:#526641}.settings-detail .whatsapp-settings-help{background:#edf1f5;border-color:#dfe4e5}
+.settings-detail :is(.card-sub,.page-subtitle,.field-help,.toggle-sub){color:#66737d}
+.settings-detail .form-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.settings-detail .form-group{min-width:0}.settings-detail label{font-weight:500;font-size:11px;letter-spacing:.025em}
+.settings-detail :is(input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,textarea){width:100%;min-height:38px;border:1px solid #dce2e6;border-radius:8px;background:#fff;color:#263746;padding:8px 11px;box-sizing:border-box}
+.settings-detail :is(input[readonly],input:disabled,select:disabled){background:#f1f3f4;color:#697680;opacity:1}
+.settings-detail :is(input,select,textarea):focus{outline:0;border-color:#52667b;box-shadow:0 0 0 3px #52667b20}
+.settings-detail :is(.btn-primary,.btn-secondary){min-height:38px;height:auto;padding:9px 15px;border-radius:8px;font-weight:500;white-space:normal;line-height:1.35;transition:background .18s,transform .18s}
+.settings-detail .btn-primary{background:#52667b!important;border-color:#52667b!important;color:white!important}
+.settings-detail .btn-primary:hover{background:#3f5266!important;transform:translateY(-1px)}
+.settings-detail .button.primary{background:#52667b!important;border-color:#52667b!important;color:white!important;border-radius:8px;font:500 13px Jost,sans-serif}.settings-detail .button.primary:hover{background:#3f5266!important}
+.settings-detail .btn-secondary{background:#f5f7f2!important;border:1px solid #cbd4c3!important;color:#465636!important}
+.settings-detail .btn-secondary:hover{background:#e6ecdf!important}.settings-detail button:active{transform:none!important}
+.settings-detail .toggle-switch{width:38px;height:22px;flex-shrink:0}.settings-detail .toggle-slider{background:#d7dce0}.settings-detail input:checked+.toggle-slider{background:#667653!important}
+.settings-detail .toggle-row{padding:14px 0;border-color:#e6e9ea;gap:18px}.settings-detail .toggle-label{color:#344b60}
+.settings-detail .settings-session-row strong{color:#526641;background:#edf1e7;border-radius:20px;padding:4px 9px;font-size:11px}
+.settings-detail .settings-note{background:#edf1f5;color:#52667b;border:1px solid #dce3e9;border-radius:10px;padding:14px;line-height:1.6}
+.settings-detail .settings-unavailable{border:0;padding:0;margin:0;min-width:0}.settings-detail button:disabled{opacity:.5;cursor:not-allowed;transform:none!important}
+.settings-detail .settings-table-wrap{overflow:auto;border:1px solid #dfe4e5;border-radius:10px}.settings-detail :is(table,.settings-table){font:400 12px Jost,sans-serif}
+.settings-detail :is(th,.settings-table th){background:#edf1f5;color:#52667b;border-color:#dfe4e5;font-weight:500}.settings-detail td{border-color:#e5e9eb}
+.settings-detail :focus-visible{outline:2px solid #52667b;outline-offset:3px}
+.settings-detail .settings-section.active{animation:settings-reveal .2s ease}
+body.ess-dashboard .temporary-code-dialog{font-family:Jost,sans-serif;border-color:#dfe4e5;border-radius:14px;color:#263746}
+body.ess-dashboard .temporary-code-dialog :is(h2,.temporary-code-value){color:#52667b!important}
+@keyframes settings-reveal{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+@media(max-width:900px){.settings-detail .settings-layout{grid-template-columns:1fr}.settings-detail .settings-nav{position:static;display:flex;flex-wrap:wrap;gap:4px}.settings-detail .settings-nav-item{width:auto;flex:1 1 130px}.settings-detail .settings-nav-divider{display:none}}
+@media(max-width:700px){.ess-dashboard .shell:has(>.settings-detail){grid-template-columns:1fr!important}.settings-detail{grid-column:1!important}.settings-detail .form-row{grid-template-columns:1fr}.settings-detail :is(.settings-card,.panel){padding:16px}.settings-detail h1{font-size:25px!important}}
+@media(prefers-reduced-motion:reduce){.settings-detail *{animation:none!important;transition:none!important}}

@@ -8,8 +8,9 @@ require_once BASE_PATH . '/shared/login-security.php';
 require_once BASE_PATH . '/shared/workplace-access.php';
 
 require_login();
+if (current_role_key() !== 'owner_admin') { http_response_code(403); exit('Owner access required.'); }
 
-$pageTitle = 'My Account | ' . APP_NAME;
+$pageTitle = 'Account & Portal Settings | ' . APP_NAME;
 $activeApp = 'operations';
 $ready = ops_database_ready();
 $message = null;
@@ -451,12 +452,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($isCreateEmployeeAjax) {
         $field = null;
         $lowerMessage = strtolower((string) $message);
-        if (str_contains($lowerMessage, 'confirm')) $field = 'confirm_login_code';
-        elseif (str_contains($lowerMessage, 'access code')) $field = 'login_code';
-        elseif (str_contains($lowerMessage, 'email')) $field = 'email';
-        elseif (str_contains($lowerMessage, 'full name')) $field = 'full_name';
-        elseif (str_contains($lowerMessage, 'role')) $field = 'role';
-        elseif (str_contains($lowerMessage, 'status')) $field = 'status';
+        if (strpos($lowerMessage, 'confirm') !== false) $field = 'confirm_login_code';
+        elseif (strpos($lowerMessage, 'access code') !== false) $field = 'login_code';
+        elseif (strpos($lowerMessage, 'email') !== false) $field = 'email';
+        elseif (strpos($lowerMessage, 'full name') !== false) $field = 'full_name';
+        elseif (strpos($lowerMessage, 'role') !== false) $field = 'role';
+        elseif (strpos($lowerMessage, 'status') !== false) $field = 'status';
         header('Content-Type: application/json; charset=utf-8');
         http_response_code($messageType === 'success' ? 201 : 422);
         echo json_encode(['success' => $messageType === 'success', 'message' => $message, 'field' => $field, 'employee_id' => $createdEmployeeId ?: null, 'role' => $createdRoleKey ?: null], JSON_UNESCAPED_SLASHES);
@@ -567,23 +568,25 @@ if ($ready && $canManagePortal) {
     }
 }
 
+require_once BASE_PATH . '/shared/settings-shell.php';
 include BASE_PATH . '/shared/header.php';
-include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/ess-sidebar.php';
 $accountName = (string) ($employee['full_name'] ?? ($_SESSION['user_name'] ?? 'My account'));
 $accountRole = (string) ($employee['role_name'] ?? ($_SESSION['user_role'] ?? 'Portal user'));
 $accountEmail = (string) ($employee['email'] ?? ($_SESSION['user_email'] ?? ''));
 $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''));
 ?>
-<main class="workspace module settings-wrap">
+<main id="ess-main" class="workspace ess-dashboard-main module settings-wrap settings-detail">
     <section class="module-header">
         <div>
             <p class="page-eyebrow">Settings</p>
-            <h1>My Account</h1>
+            <h1>Account & Portal Settings</h1>
             <p class="page-subtitle">Manage your profile, security, notifications and portal preferences.</p>
         </div>
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
+    <a class="settings-back" href="<?= BASE_URL ?>/settings.php"><i data-lucide="arrow-left"></i>All settings</a>
 
     <div class="settings-layout">
         <nav class="settings-nav" aria-label="Settings sections">
@@ -751,6 +754,8 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                 <div class="settings-card">
                     <h2>Display Preferences</h2>
                     <p class="card-sub">Personalise how the portal looks for you.</p>
+                    <p class="settings-note">These display preferences do not yet support saving. The options below are a preview only.</p>
+                    <fieldset disabled class="settings-unavailable">
                     <div class="toggle-row">
                         <div><div class="toggle-label">Compact table rows</div><div class="toggle-sub">Show more rows on screen at once</div></div>
                         <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
@@ -764,6 +769,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                         <label class="toggle-switch"><input type="checkbox"><span class="toggle-slider"></span></label>
                     </div>
                     <div class="btn-row"><button class="btn-secondary" type="button">Save preferences</button></div>
+                    </fieldset>
                 </div>
             </div>
 
@@ -1004,6 +1010,8 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                     <div class="settings-card">
                         <h2>Portal Settings</h2>
                         <p class="card-sub">System-wide settings. Visible to Owner/Admin only.</p>
+                        <p class="settings-note">Saving these general portal options is not implemented yet. Existing performance controls above remain available.</p>
+                        <fieldset disabled class="settings-unavailable">
                         <div class="form-row">
                             <div class="form-group"><label>Shop closing time</label><input type="time" value="17:00"></div>
                             <div class="form-group"><label>Waybill same-day cutoff</label><input type="time" value="16:30"></div>
@@ -1013,6 +1021,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                             <div class="form-group"><label>Portal name</label><input type="text" value="Hambelela Organic Operations"></div>
                         </div>
                         <div class="btn-row"><button class="btn-secondary" type="button">Save portal settings</button></div>
+                        </fieldset>
                     </div>
                 <?php else: ?>
                     <div class="settings-card">
@@ -1349,4 +1358,4 @@ if (initialSettingsSection) {
     });
 }
 </script>
-<?php include BASE_PATH . '/shared/footer.php'; ?>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?><script defer src="<?=BASE_URL?>/assets/js/ess-dashboard.js?v=<?=filemtime(BASE_PATH.'/assets/js/ess-dashboard.js')?>"></script><?php include BASE_PATH . '/shared/footer.php'; ?>

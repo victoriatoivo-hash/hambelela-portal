@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+// Settings is a utility destination, not a business-module child.
+function ess_can_access_settings(): bool { return current_role_key() === 'owner_admin'; }
+
 // Owner-dashboard navigation only. Destinations mirror the existing module launchers.
 function ess_navigation_children(string $name): array
 {
@@ -23,7 +26,7 @@ function ess_navigation_children(string $name): array
             'budget-planning.php'=>'Budgeting', 'bank-statement-processor.php'=>'Bank Statement Processor',
             'consignments.php'=>'Packing List', 'courier.php'=>'Courier Waybills',
             'checklists.php'=>'Task Management', 'errors.php'=>'Error Log', 'barcode.php'=>'Barcode',
-            'whatsapp.php'=>'Meta Comms', 'my-account.php'=>'Settings',
+            'whatsapp.php'=>'Meta Comms',
         ]],
         'Employee Performance' => ['operations', [
             'reports.php?tab=business-health'=>'Business Health', 'reports.php?tab=employees'=>'Employees',

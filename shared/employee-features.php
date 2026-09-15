@@ -174,10 +174,16 @@ function enforce_employee_feature_for_current_request(): void
     if (!is_employee_session()) {
         return;
     }
+    // Legacy account links lead to the personal profile, never owner Settings.
+    $accountPath = strtolower(str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '')));
+    if (substr($accountPath, -strlen('/apps/operations/my-account.php')) === '/apps/operations/my-account.php' && ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') {
+        header('Location: '.BASE_URL.'/profile.php');
+        exit;
+    }
     if (normalise_portal_role(current_role_key()) === 'accountant') {
         $path = strtolower(str_replace('\\', '/', (string) ($_SERVER['SCRIPT_NAME'] ?? '')));
         $allowed = [
-            '/index.php', '/change-access-code.php', '/notifications.php', '/notifications-api.php', '/api/notifications.php',
+            '/index.php', '/profile.php', '/change-access-code.php', '/notifications.php', '/notifications-api.php', '/api/notifications.php',
             '/api/notifications-feed.php', '/apps/operations/portal-presence.php',
             '/apps/accounts/index.php', '/apps/accounts/input-vat.php', '/apps/accounts/input-vat-live.php',
             '/apps/accounts/input-vat-api.php', '/apps/accounts/input-vat-file.php',
