@@ -443,3 +443,25 @@ body.ess-dashboard #packing-panel :is([data-save-workload-override],[data-packin
 @media(max-width:1400px){body.ess-dashboard .ess-packing-page.ess-packing-page .packing-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:900px){body.ess-dashboard .ess-packing-page.ess-packing-page .packing-header{align-items:flex-start;flex-direction:column}body.ess-dashboard .ess-packing-page.ess-packing-page .packing-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){body.ess-dashboard .ess-packing-page.ess-packing-page .packing-kpi-grid{grid-template-columns:1fr}body.ess-dashboard .ess-packing-page.ess-packing-page .packing-period-meta{gap:6px;font-size:9px}body.ess-dashboard .ess-packing-page.ess-packing-page .packing-month-summary-priority{display:none}body.ess-dashboard .ess-packing-page.ess-packing-page .packing-page-title{font-size:26px}}
+
+/* Final, editable whole-row allocation review. No new quantity-splitting model. */
+body.ess-dashboard #packing-invoice-modal .packing-distribution-review{font:400 12px/1.45 'Jost',sans-serif;color:#283129}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-review .invoice-section-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-review [data-reset-auto-distribution]{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:34px;white-space:nowrap}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin:12px 0}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-card{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border:1px solid #C4DBD8;border-radius:9px;background:#fff}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-card span{font:500 11px/1.3 'Jost',sans-serif;color:#53634F}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-card strong{font:500 18px/1.2 'Jost',sans-serif;color:#174B46}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-card small{font:400 11px/1.3 'Jost',sans-serif;color:#697363}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-table{min-width:760px}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-table :is(th,td){padding:8px 10px;height:42px;font:400 12px/1.3 'Jost',sans-serif}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-table th{font-weight:500;color:#174B46;background:#F1F7F6}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-table td strong{font-weight:400}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-table select{width:100%;min-height:34px;padding:0 9px;border:1px solid #C4DBD8;border-radius:7px;background:#fff;color:#174B46;font:400 12px/1.3 'Jost',sans-serif}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-table select:is(:hover,:focus){border-color:#24796F;background:#F1F7F6}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-status{display:inline-flex;align-items:center;min-height:24px;padding:2px 7px;border-radius:6px;font:400 11px/1.3 'Jost',sans-serif;white-space:nowrap}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-status.is-balanced{background:#EAF4ED;color:#276446}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-status.is-under{background:#FFF3E3;color:#8B5B13}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-status.is-over{background:#FBE9E7;color:#A13B32}
+body.ess-dashboard #packing-invoice-modal .packing-distribution-help{margin:10px 0 0;color:#697363;font:400 11px/1.4 'Jost',sans-serif}
+@media(max-width:700px){body.ess-dashboard #packing-invoice-modal .packing-distribution-review .invoice-section-header{align-items:flex-start;flex-direction:column}body.ess-dashboard #packing-invoice-modal .packing-distribution-review .invoice-review-table-wrap{border:0;overflow:visible;background:transparent}body.ess-dashboard #packing-invoice-modal .packing-distribution-table{display:block;min-width:0}body.ess-dashboard #packing-invoice-modal .packing-distribution-table thead{display:none}body.ess-dashboard #packing-invoice-modal .packing-distribution-table tbody{display:grid;gap:8px}body.ess-dashboard #packing-invoice-modal .packing-distribution-table tr{display:grid;gap:5px;padding:10px;border:1px solid #C4DBD8;border-radius:9px;background:#fff}body.ess-dashboard #packing-invoice-modal .packing-distribution-table td{display:flex;align-items:center;justify-content:space-between;gap:12px;height:auto;padding:3px 0;border:0;text-align:right}body.ess-dashboard #packing-invoice-modal .packing-distribution-table td::before{content:attr(data-label);color:#53634F;text-align:left}body.ess-dashboard #packing-invoice-modal .packing-distribution-table td select{max-width:170px}}
