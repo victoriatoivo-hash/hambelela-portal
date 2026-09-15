@@ -63,7 +63,9 @@ def deploy(sha):
         existing = {path: read_remote(ftp, path) for path in DEPLOY_FILES}
         conflicts = []
         for path in DEPLOY_FILES:
-            baseline = blob(BASELINE, path)
+            # This file already received Marketing visibility in a separate verified release.
+            baseline_revision = 'c5d1e1e1' if path == 'apps/operations/packing-list-data.php' else BASELINE
+            baseline = blob(baseline_revision, path)
             if existing[path] != baseline and existing[path] != expected[path]:
                 conflicts.append({"path": path, "server_sha256": digest(existing[path]), "baseline_sha256": digest(baseline)})
         if conflicts:
