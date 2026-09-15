@@ -13,6 +13,36 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  deploy-settings:
+    if: inputs.approved_sha == '7fa04c0848a428889c7d5f82f745789e07024ed6'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate isolated Settings release
+        run: |
+          git fetch origin codex/account-response-compatibility
+          git fetch origin codex/settings-only-release
+          test "$(git rev-parse FETCH_HEAD)" = '7fa04c0848a428889c7d5f82f745789e07024ed6'
+          python3 scripts/deploy-settings-release.py --dry-run 7fa04c0848a428889c7d5f82f745789e07024ed6
+      - name: Back up and deploy Settings only
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-settings-release.py --deploy 7fa04c0848a428889c7d5f82f745789e07024ed6
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: settings-release-${{ github.run_id }}
+          path: |
+            settings-release-backup.zip
+            settings-release-report.json
+          if-no-files-found: warn
   deploy-profile-popup:
     if: inputs.approved_sha == '4998ed767fc569514162961210c939d2a7b98af0'
     runs-on: ubuntu-latest
