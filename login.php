@@ -337,8 +337,8 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
 </head>
 <body class="login-page">
     <aside class="login-brand" aria-label="Hambelela Organic">
-        <img class="login-brand-image" src="<?= BASE_URL ?>/assets/images/login-botanical.png" alt="" fetchpriority="high">
-        <div class="login-brand-heading"><img class="login-wordmark" src="<?= BASE_URL ?>/assets/images/login-wordmark.jpg" alt="Hambelela Organic"><p class="login-brand-kicker">Business Portal</p></div>
+        <img class="login-brand-image" src="<?= BASE_URL ?>/assets/login-botanical.png" alt="" fetchpriority="high">
+        <div class="login-brand-heading"><img class="login-wordmark" src="<?= BASE_URL ?>/assets/login-wordmark.jpg" alt="Hambelela Organic"><p class="login-brand-kicker">Business Portal</p></div>
         <div class="login-editorial"><h2>Good people<br>make great<br>things happen.</h2><p>A single portal for our people, operations and growth. Secure. Connected. Hambelela.</p></div>
         <p class="login-brand-footer">People · Purpose · Progress</p>
     </aside>
