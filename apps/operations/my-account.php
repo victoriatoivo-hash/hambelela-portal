@@ -451,12 +451,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($isCreateEmployeeAjax) {
         $field = null;
         $lowerMessage = strtolower((string) $message);
-        if (str_contains($lowerMessage, 'confirm')) $field = 'confirm_login_code';
-        elseif (str_contains($lowerMessage, 'access code')) $field = 'login_code';
-        elseif (str_contains($lowerMessage, 'email')) $field = 'email';
-        elseif (str_contains($lowerMessage, 'full name')) $field = 'full_name';
-        elseif (str_contains($lowerMessage, 'role')) $field = 'role';
-        elseif (str_contains($lowerMessage, 'status')) $field = 'status';
+        if (strpos($lowerMessage, 'confirm') !== false) $field = 'confirm_login_code';
+        elseif (strpos($lowerMessage, 'access code') !== false) $field = 'login_code';
+        elseif (strpos($lowerMessage, 'email') !== false) $field = 'email';
+        elseif (strpos($lowerMessage, 'full name') !== false) $field = 'full_name';
+        elseif (strpos($lowerMessage, 'role') !== false) $field = 'role';
+        elseif (strpos($lowerMessage, 'status') !== false) $field = 'status';
         header('Content-Type: application/json; charset=utf-8');
         http_response_code($messageType === 'success' ? 201 : 422);
         echo json_encode(['success' => $messageType === 'success', 'message' => $message, 'field' => $field, 'employee_id' => $createdEmployeeId ?: null, 'role' => $createdRoleKey ?: null], JSON_UNESCAPED_SLASHES);
