@@ -1,0 +1,41 @@
+name: Deploy account response compatibility fix
+on:
+  workflow_dispatch:
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+      - name: Verify isolated fix on PHP 7.4
+        run: |
+          git fetch origin codex/account-response-compatibility
+          test "$(git rev-parse FETCH_HEAD)" = 'e16a34434b6d14454d2eb0d30c44ca9d44151cb7'
+          python3 scripts/deploy-account-response.py --dry-run e16a34434b6d14454d2eb0d30c44ca9d44151cb7
+          git worktree add /tmp/account-check e16a34434b6d14454d2eb0d30c44ca9d44151cb7
+          php -l /tmp/account-check/apps/operations/my-account.php
+          php /tmp/account-check/tests/account-response-compatibility.php
+      - name: Back up and deploy only the account page
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-account-response.py --deploy e16a34434b6d14454d2eb0d30c44ca9d44151cb7
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: account-response-backup-${{ github.run_id }}
+          path: |
+            account-response-deployment-backup.zip
+            account-response-deployment-report.json
+          if-no-files-found: warn
