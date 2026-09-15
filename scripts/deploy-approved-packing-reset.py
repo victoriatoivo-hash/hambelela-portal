@@ -10,9 +10,9 @@ import subprocess
 import sys
 import zipfile
 
-APPROVED = "fe4dc270ac8042351062b4b98cf6061eab5c2459"
-BASELINE = "f70def1dab5f5d45da01f74cca749809f84aae94"
-COMMIT_FILES = ("assets/js/packing-list.js", "tests/packing-upload-reset.cjs")
+APPROVED = "afcc671e9fd3f3165138b9bef71f55cf7453ca81"
+BASELINE = "fe4dc270ac8042351062b4b98cf6061eab5c2459"
+COMMIT_FILES = ("assets/js/packing-list.js", "tests/packing-review-click.cjs")
 DEPLOY_FILES = COMMIT_FILES[:1]  # Only the upload controller is published.
 
 
