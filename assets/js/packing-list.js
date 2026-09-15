@@ -3853,6 +3853,10 @@
         return;
       }
       if (reviewDistributionButton && reviewDistributionButton.type === 'button') {
+        // Cancel this click's default action BEFORE changing the button to submit.
+        // Otherwise the browser submits immediately after opening the review.
+        event.preventDefault();
+        event.stopPropagation();
         openDistributionReview();
         return;
       }
