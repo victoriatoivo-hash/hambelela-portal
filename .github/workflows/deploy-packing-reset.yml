@@ -23,6 +23,7 @@ jobs:
           test "$(git rev-parse FETCH_HEAD)" = 'fe4dc270ac8042351062b4b98cf6061eab5c2459'
           python3 scripts/deploy-approved-packing-reset.py --dry-run fe4dc270ac8042351062b4b98cf6061eab5c2459
           git worktree add /tmp/packing-reset-check fe4dc270ac8042351062b4b98cf6061eab5c2459
+          cd /tmp/packing-reset-check
           node --check /tmp/packing-reset-check/assets/js/packing-list.js
           node /tmp/packing-reset-check/tests/packing-upload-reset.cjs
           node /tmp/packing-reset-check/tests/packing-manual-distribution-static.mjs
