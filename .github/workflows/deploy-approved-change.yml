@@ -94,8 +94,8 @@ jobs:
           fetch-depth: 0
       - name: Validate exact Marketing view release
         run: |
-          git fetch origin codex/marketing-front-views
           git fetch origin c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d
+          git fetch origin codex/marketing-front-views
           test "$(git rev-parse FETCH_HEAD)" = 'c5d1e1e1fbfe2db738e8a1480120e1f59e72a09a'
           python3 scripts/deploy-marketing-front-views.py --dry-run c5d1e1e1fbfe2db738e8a1480120e1f59e72a09a
       - name: Back up and deploy five approved files
