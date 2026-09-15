@@ -101,6 +101,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <?php if ($showPortalHeaderStatus): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/urgent-task-alert.css?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/css/urgent-task-alert.css'), ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= htmlspecialchars($responsiveAssetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-header-account.css?v=<?= htmlspecialchars($headerAccountCssVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <link rel="stylesheet" href="<?=BASE_URL?>/assets/css/profile-menu.css?v=<?=filemtime(BASE_PATH.'/assets/css/profile-menu.css')?>">
     <?php foreach (($extraStylesheets ?? []) as $stylesheet): ?>
         <?php
             $stylesheetPath = (string) ($stylesheet['path'] ?? '');
