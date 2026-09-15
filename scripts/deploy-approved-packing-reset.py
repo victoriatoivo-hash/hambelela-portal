@@ -10,10 +10,10 @@ import subprocess
 import sys
 import zipfile
 
-APPROVED = "f8621efd6ef37418746cf480e37ac886cb6d467d"
-BASELINE = "afcc671e9fd3f3165138b9bef71f55cf7453ca81"
-COMMIT_FILES = ("assets/js/packing-list.js", "apps/operations/consignments.php", "apps/operations/packing-list-data.php", "tests/packing-single-page.cjs")
-DEPLOY_FILES = COMMIT_FILES[:3]  # Only Packing list runtime files are published.
+APPROVED = "4e5d4ef656deef249cd6aa0d6419b8fa193d86b0"
+BASELINE = "c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d"
+COMMIT_FILES = ("assets/js/packing-list.js",)
+DEPLOY_FILES = COMMIT_FILES[:1]  # Only the Packing controller is published.
 
 
 def git(*args):
