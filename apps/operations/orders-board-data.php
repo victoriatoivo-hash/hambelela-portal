@@ -314,8 +314,8 @@ if ($hasTotalAmount) {
 
 $hasPackingAssignable = ops_ensure_packing_assignable_column();
 $packingEligibilityWhere = $hasPackingAssignable
-    ? "(e.packing_assignable = 1 OR r.role_key = 'front_desk_admin')"
-    : "r.role_key IN ('packer', 'supervisor_manager', 'front_desk_admin')";
+    ? "(e.packing_assignable = 1 OR r.role_key IN ('front_desk_admin', 'marketing_sales'))"
+    : "r.role_key IN ('packer', 'supervisor_manager', 'front_desk_admin', 'marketing_sales')";
 $packers = ops_rows(
     "SELECT e.id, e.full_name, r.role_key, r.name AS role_name, COALESCE(ea.availability_status, 'available') AS availability_status,
         ea.unavailable_until, ea.note
