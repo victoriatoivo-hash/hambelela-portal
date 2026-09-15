@@ -6,5 +6,9 @@
 <script defer src="<?= BASE_URL ?>/assets/js/portal-view-bar.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-view-bar.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-view-bar.js') : (string) time() ?>-interactive7"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/portal-responsive.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-responsive.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-responsive.js') : (string) time() ?>"></script>
 </div>
+<?php if (!empty($employeeSidebarUpgrade)): ?>
+<?php include __DIR__ . '/ess-mobile-navigation.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH . '/assets/js/ess-dashboard.js') ?>"></script>
+<?php endif; ?>
 </body>
 </html>

@@ -29,3 +29,7 @@
 .marketing-execution-workspace .marketing-calendar-day{border:1px solid #eadce7;border-radius:10px;padding:14px;min-width:0;background:#fff}
 .marketing-execution-workspace .marketing-calendar-day h3{font:500 13px Jost,sans-serif;color:#A23D8A}
 .marketing-execution-workspace .marketing-calendar-day a{display:flex;gap:8px;justify-content:space-between;padding:10px 0;border-top:1px solid #f0e7ee;color:#343a31;text-decoration:none}
+.marketing-app-page-tile{position:relative}
+.marketing-upcoming>a{display:grid;gap:6px;padding:12px 0;color:inherit;text-decoration:none;border-bottom:1px solid #e8eadf}
+.ess-dashboard .shell.ess-dashboard-shell:has(> .ess-marketing-page){grid-template-columns:var(--sidebar-width) minmax(0,1fr)!important}
+@media(max-width:700px){.ess-dashboard .shell.ess-dashboard-shell:has(> .ess-marketing-page){grid-template-columns:minmax(0,1fr)!important}.ess-dashboard .shell.ess-dashboard-shell>.ess-marketing-page{grid-column:1}}

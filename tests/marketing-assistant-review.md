@@ -1,5 +1,18 @@
 # Marketing & Sales Assistant — local implementation review
 
+## Design-preservation correction (latest local update)
+
+The earlier implementation was saved as commit 30cbf6f1. Its push was interrupted; no deployment occurred. The following corrections remain uncommitted/local:
+
+- Restored existing Marketing hero artwork, grouped Apps page tiles, shared application headers and agenda presentation, replacing the simplified employee presentation.
+- Kept employee-only data, channel completion and badge calculations; owner-only creation/reporting controls remain excluded.
+- Kept the requested olive sidebar and corrected its content-grid clearance.
+- Reused existing page CSS rather than the execution-form layout overrides for the employee landing pages.
+- New execution forms remain necessary for the requested channel workflow. Owner page content was not redesigned by this correction.
+- 41 workflow fixture checks and 35 HTTP checks pass. Full authenticated MySQL and cross-module visual checks remain outstanding. Nothing pushed or deployed in this correction.
+
+The original audit below describes the earlier local implementation and its test limitations; its no-commit statement predates the subsequently authorized local commit.
+
 TASK: Marketing & Sales Assistant role restrictions and employee portal fixes.
 
 Status: implemented locally and fixture-tested; not a live-release certification.

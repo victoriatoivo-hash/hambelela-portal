@@ -20,6 +20,7 @@ function fixture_source(string $file): string {
  $source=preg_replace("~require_once\s+(?:dirname\(__DIR__,2\)\.'/config.php'|BASE_PATH\.'/shared/marketing.php'|__DIR__\s*\.\s*'/auth.php'|__DIR__\s*\.\s*'/notifications.php');~",'',$source);
  $source=str_replace("include BASE_PATH.'/shared/header.php';", "eval('?>'.fixture_source(BASE_PATH.'/shared/header.php'));",$source);
  $source=str_replace("__DIR__.'/employee-calendar.php'", "BASE_PATH.'/apps/marketing/employee-calendar.php'",$source);
+ $source=str_replace("__DIR__.'/app-shell.php'", "BASE_PATH.'/apps/marketing/app-shell.php'",$source);
  return $source;
 }
 if ($path==='/guard') {

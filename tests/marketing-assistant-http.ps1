@@ -25,4 +25,6 @@ Test-FixtureResponse '/apps/marketing/execution.php?id=2&role=owner' 200
 Test-FixtureResponse '/apps/marketing/product-work.php?id=1' 200
 Test-FixtureResponse '/apps/marketing/product-work.php?id=2' 404
 Test-FixtureResponse '/apps/marketing/product-work.php?id=1' 200 @{csrf='fixture-only-token';id='1';proposed_name='Prepared product';submit_review='1'} 'Sent to the owner'
+Test-FixtureResponse '/apps/marketing/index.php?view=apps' 200 $null 'marketing-app-page-tile'
+Test-FixtureResponse '/apps/marketing/index.php?view=calendar' 200 $null 'marketing-agenda'
 Write-Output "$taskChecks local HTTP fixture checks passed."

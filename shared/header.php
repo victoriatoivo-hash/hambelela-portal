@@ -33,6 +33,24 @@ $portalJsVersion = is_file(BASE_PATH . '/assets/js/portal.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/portal.js')
     : $assetVersion;
 $headerUser = current_user();
+$employeeSidebarUpgrade = empty($isEssDashboard)
+    && empty($hidePortalSidebar)
+    && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') === false
+    && in_array((string) ($headerUser['role_key'] ?? ''), ['packer', 'packer_production_staff', 'front_desk_admin', 'front_desk_admin_employee', 'marketing_sales'], true);
+if ($employeeSidebarUpgrade) {
+    require_once __DIR__ . '/ess-navigation.php';
+    $isEssDashboard = true;
+    $pageUsesPortalSidebar = false;
+    $essShellApps = ess_shell_apps();
+    $essActiveModule = '';
+    $sidebarRequestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+    foreach ($essShellApps as $sidebarApp) {
+        if ((string) parse_url($sidebarApp['href'], PHP_URL_PATH) === $sidebarRequestPath) $essActiveModule = $sidebarApp['name'];
+    }
+    foreach (['ess-dashboard', 'employee-sidebar'] as $sidebarStyle) {
+        $extraStylesheets[] = ['path' => 'assets/css/' . $sidebarStyle . '.css', 'version' => (string) filemtime(BASE_PATH . '/assets/css/' . $sidebarStyle . '.css')];
+    }
+}
 $ownerPwaEnabled = (string) ($headerUser['role_key'] ?? 'guest') === 'owner_admin';
 $showPortalHeaderStatus = (string) ($headerUser['role_key'] ?? 'guest') !== 'guest';
 $pageUsesPortalSidebar = (bool) ($pageUsesPortalSidebar ?? true);

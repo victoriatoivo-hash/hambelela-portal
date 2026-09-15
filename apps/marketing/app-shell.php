@@ -1,5 +1,5 @@
 <?php
-if (!defined('BASE_PATH') || empty($owner)) { http_response_code(403); exit; }
+if (!defined('BASE_PATH') || !isset($owner) || (!$owner && !marketing_employee_view_allowed($view))) { http_response_code(403); exit; }
 // Presentation only: keep the existing scoped records, permissions and handlers.
 $marketingApps=[
 'tasks'=>['Content Tasks','Manage briefs, ownership and approval.','list-checks','Create Content'],
@@ -18,7 +18,7 @@ if(isset($marketingApps[$view])):$app=$marketingApps[$view];?>
 <header class="marketing-app-shell">
  <span class="marketing-shell-icon"><i data-lucide="<?=$app[2]?>"></i></span>
  <div><p>MARKETING</p><h1><?=$app[0]?></h1><span><?=$app[1]?></span></div>
- <button type="button" class="marketing-btn-primary" data-open-form><i data-lucide="plus"></i><?=$app[3]?></button>
+ <?php if($owner):?><button type="button" class="marketing-btn-primary" data-open-form><i data-lucide="plus"></i><?=$app[3]?></button><?php endif;?>
 </header>
 <?php if(!in_array($view,['performance','library'],true)):?>
 <div class="marketing-app-summary">

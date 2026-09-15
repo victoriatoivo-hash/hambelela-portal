@@ -1,0 +1,7 @@
+/* Loaded only for employee pages moving from the legacy sidebar to Essentials. */
+.ess-dashboard .shell.ess-dashboard-shell{grid-template-columns:var(--sidebar-width) minmax(0,1fr)!important}
+.ess-dashboard .shell.ess-dashboard-shell>.workspace{grid-column:2;min-width:0;max-width:100%;width:100%;margin:0;box-sizing:border-box}
+@media(max-width:700px){
+ .ess-dashboard .shell.ess-dashboard-shell{grid-template-columns:minmax(0,1fr)!important}
+ .ess-dashboard .shell.ess-dashboard-shell>.workspace{grid-column:1;padding-bottom:calc(90px + env(safe-area-inset-bottom))}
+}
