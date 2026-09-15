@@ -49,6 +49,39 @@ jobs:
             notifications-deployment-backup.zip
             notifications-deployment-report.json
           if-no-files-found: warn
+  deploy-marketing:
+    if: inputs.approved_sha == '64704817531c2a7fe2747aa53e525c856a3e3dce'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch and validate approved Marketing and employee sidebar release
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: |
+          git fetch origin codex/marketing-assistant-cleanup
+          test "$(git rev-parse FETCH_HEAD)" = "$APPROVED_SHA"
+          python3 scripts/deploy-approved-marketing.py --dry-run "$APPROVED_SHA"
+      - name: Back up and deploy exact approved files
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-approved-marketing.py --deploy "$APPROVED_SHA"
+      - name: Preserve Marketing backup and verification report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketing-deployment-backup-${{ github.run_id }}
+          path: |
+            marketing-deployment-backup.zip
+            marketing-deployment-report.json
+          if-no-files-found: warn
   deploy-packing:
     if: inputs.approved_sha == 'f70def1dab5f5d45da01f74cca749809f84aae94'
     runs-on: ubuntu-latest
