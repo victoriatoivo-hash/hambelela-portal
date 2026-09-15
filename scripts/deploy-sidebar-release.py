@@ -6,7 +6,7 @@ import pathlib
 spec = importlib.util.spec_from_file_location('engine', pathlib.Path(__file__).with_name('deploy-settings-release.py'))
 engine = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(engine)
-engine.APPROVED = '192514b38073f2164a1f3244d104748d74f0eba6'
+engine.APPROVED = '2733fcf5b1d86e82cce00a8b4f6c59b76a9eb55e'
 engine.BASELINE = '7fa04c0848a428889c7d5f82f745789e07024ed6'
 engine.COMMIT_FILES = [
     'apps/hr-portal/includes/emp-sidebar.php',
@@ -20,7 +20,7 @@ engine.COMMIT_FILES = [
     'shared/notifications.php',
 ]
 engine.DEPLOY_FILES = engine.COMMIT_FILES[:]
-engine.baseline_blob = lambda path: engine.blob(engine.BASELINE, path)
+engine.baseline_blob = lambda path: engine.blob('57e6e4e06db896647d5fb4844598d5616cc66a54' if path == 'shared/notifications.php' else engine.BASELINE, path)
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
