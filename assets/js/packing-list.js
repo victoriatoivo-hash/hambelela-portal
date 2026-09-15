@@ -59,6 +59,11 @@
   let packingDraftMode = 'invoice';
   let invoiceImportId = '';
   const invoiceCorrectionStorageKey = 'hambelelaPackingInvoiceCorrectionsV1';
+  let invoiceCorrectionDraft = null;
+  let invoiceExtractionController = null;
+  let invoiceExtractionVersion = 0;
+  // Upload previews are page-local; discard drafts left by older versions.
+  try { localStorage.removeItem(invoiceCorrectionStorageKey); } catch (_) { /* storage may be unavailable */ }
   let invoiceAutoRedistribute = true;
   let distributionReviewOpen = false;
   let autoDistributionSnapshot = [];
@@ -1136,16 +1141,16 @@
   }
 
   function saveInvoiceCorrectionDraft() {
-    try {
-      if (!invoiceDraftRows.length) localStorage.removeItem(invoiceCorrectionStorageKey);
-      else localStorage.setItem(invoiceCorrectionStorageKey, JSON.stringify({ importId: invoiceImportId, autoRedistribute: invoiceAutoRedistribute, autoAssignments: autoDistributionSnapshot, rows: invoiceDraftRows, savedAt: new Date().toISOString() }));
-    } catch (_) { /* storage is a convenience; validation remains authoritative */ }
+    if (packingDraftMode === 'manual') return;
+    invoiceCorrectionDraft = invoiceDraftRows.length
+      ? JSON.parse(JSON.stringify({ importId: invoiceImportId, autoRedistribute: invoiceAutoRedistribute, autoAssignments: autoDistributionSnapshot, rows: invoiceDraftRows }))
+      : null;
   }
 
   function restoreInvoiceCorrectionDraft() {
     if (invoiceDraftRows.length) return false;
     try {
-      const saved = JSON.parse(localStorage.getItem(invoiceCorrectionStorageKey) || 'null');
+      const saved = invoiceCorrectionDraft;
       if (!saved || !Array.isArray(saved.rows) || !saved.rows.length) return false;
       invoiceDraftRows = saved.rows;
       invoiceImportId = String(saved.importId || '');
@@ -2070,6 +2075,34 @@
     animateBoardRows();
     previousTaskIds = new Set(tasks.map((task) => String(task.id)));
     hasRenderedOnce = true;
+  }
+
+  function clearPackingUploadDraft() {
+    invoiceExtractionVersion += 1;
+    invoiceExtractionController?.abort();
+    invoiceExtractionController = null;
+    invoiceDraftRows = [];
+    manualDraftRows = [];
+    invoiceCorrectionDraft = null;
+    invoiceImportId = '';
+    autoDistributionSnapshot = [];
+    distributionReviewOpen = false;
+    invoiceAutoRedistribute = true;
+    try { localStorage.removeItem(invoiceCorrectionStorageKey); } catch (_) { /* storage may be unavailable */ }
+    invoiceModal?.querySelector('[data-invoice-draft-form]')?.reset();
+    const file = invoiceModal?.querySelector('[name="invoice_file"]');
+    if (file) file.value = '';
+    const name = invoiceModal?.querySelector('[data-invoice-file-name]');
+    if (name) name.textContent = 'No PDF selected';
+    const remove = invoiceModal?.querySelector('[data-remove-invoice-file]');
+    if (remove) remove.hidden = true;
+    const extract = document.querySelector('[data-extract-invoice]');
+    extract?.classList.remove('is-loading');
+    if (extract) extract.disabled = false;
+    setPackingDraftMode('invoice');
+    renderInvoiceDraft();
+    setInvoiceProgress(false);
+    setInvoiceStep('upload');
   }
 
   function renderPagination(total, pages) {
@@ -3167,6 +3200,10 @@
 
   async function extractInvoiceDraft(form) {
     const button = document.querySelector('[data-extract-invoice]');
+    invoiceExtractionController?.abort();
+    const controller = new AbortController();
+    invoiceExtractionController = controller;
+    const version = ++invoiceExtractionVersion;
     try {
       button?.classList.add('is-loading');
       if (button) button.disabled = true;
@@ -3175,8 +3212,9 @@
       setInvoiceStatus('Extracting invoice items... please wait.');
       const formData = new FormData(form);
       formData.set('action', 'extract_invoice');
-      const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
+      const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal });
       const data = await readJson(response);
+      if (version !== invoiceExtractionVersion) return;
       invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, unit: row.unit || detectedUnit(row.received_weight), priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto', quantity_confirmed: false, pack_parts: quantityPlanParts(row.quantity_planned || '') }));
       autoDistributionSnapshot = [];
       distributionReviewOpen = false;
@@ -3190,12 +3228,16 @@
       setInvoiceProgress(true, 'Extraction complete', `${invoiceDraftRows.length} draft row${invoiceDraftRows.length === 1 ? '' : 's'} ready for review.`, 'success');
       setInvoiceStatus(`${data.message} Confirm each received quantity and unit. Packing instructions follow after redistribution.`);
     } catch (error) {
+      if (version !== invoiceExtractionVersion || error.name === 'AbortError') return;
       setInvoiceStep('extract', 'error');
       setInvoiceProgress(true, 'Extraction failed', error.message || 'Could not extract this invoice. You can still use the manual fallback.', 'error');
       setInvoiceStatus(error.message || 'Invoice extraction failed.');
     } finally {
-      button?.classList.remove('is-loading');
-      if (button) button.disabled = false;
+      if (version === invoiceExtractionVersion) {
+        invoiceExtractionController = null;
+        button?.classList.remove('is-loading');
+        if (button) button.disabled = false;
+      }
     }
   }
 
@@ -3260,12 +3302,7 @@
       setInvoiceProgress(true, manualMode ? 'Packing items created' : 'Invoice loaded', `${submittedCount} of ${submittedCount} items loaded successfully.`, 'success');
       setInvoiceStatus(`${submittedCount} of ${submittedCount} items loaded successfully.`);
       await refresh();
-      invoiceDraftRows = [];
-      autoDistributionSnapshot = [];
-      distributionReviewOpen = false;
-      if (manualMode) manualDraftRows = [];
-      invoiceImportId = '';
-      if (!manualMode) saveInvoiceCorrectionDraft();
+      clearPackingUploadDraft();
       invoiceModal.hidden = true;
       setInvoiceStep('upload');
       setCount(result.message || 'Packing rows created and synced.');
@@ -3758,8 +3795,8 @@
         return;
       }
       if (closeModal) {
-        if (packingDraftMode === 'manual') manualDraftRows = invoiceDraftRows.map((row) => ({ ...row }));
-        else saveInvoiceCorrectionDraft();
+        clearPackingUploadDraft();
+        createModal?.querySelector('form')?.reset();
         createModal.hidden = true;
         invoiceModal.hidden = true;
         lastPackingModalTrigger?.focus({ preventScroll: true });
@@ -4526,6 +4563,7 @@
   });
 
   const storedTheme = localStorage.getItem('hambelelaPackingTheme');
+  clearPackingUploadDraft();
   if (storedTheme) page.dataset.boardTheme = storedTheme;
   updateFilterBadge();
   animateMetricCards();
