@@ -2648,8 +2648,8 @@ try {
     if ($action === 'confirm_frontdesk_website_update') {
         $taskId = (int) ($_POST['task_id'] ?? 0);
         $employeeId = ops_current_employee_id();
-        if (!user_has_role('front_desk_admin', 'front_desk_admin_employee')) {
-            throw new RuntimeException('Only an authenticated Front Desk employee may confirm this website update.');
+        if (!user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'marketing_sales')) {
+            throw new RuntimeException('Only admin, Front Desk or Marketing employees may confirm this website update.');
         }
         if ($taskId <= 0 || !$employeeId) {
             throw new RuntimeException('The packing item or authenticated employee could not be identified.');
@@ -2661,7 +2661,7 @@ try {
         $confirmedAt = (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
         $itemRows = ops_rows('SELECT item_name FROM ops_packing_tasks WHERE id = ? LIMIT 1', [$taskId]);
         $itemName = (string) ($itemRows[0]['item_name'] ?? 'Packing item');
-        $stmt = db()->prepare('UPDATE ops_packing_tasks SET frontdesk_website_updated = 1, frontdesk_website_updated_at = ?, frontdesk_website_updated_by = ?, updated_at = ? WHERE id = ? AND frontdesk_website_updated = 0');
+        $stmt = db()->prepare('UPDATE ops_packing_tasks SET frontdesk_website_updated = 1, frontdesk_website_updated_at = ?, frontdesk_website_updated_by = ?, updated_at = ? WHERE id = ? AND COALESCE(frontdesk_website_updated, 0) = 0');
         $stmt->execute([$confirmedAt, $employeeId, $confirmedAt, $taskId]);
         if ($stmt->rowCount() !== 1) {
             http_response_code(409);

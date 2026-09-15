@@ -16,7 +16,7 @@ $migrationReady = $ready
     && ops_column_exists('ops_packing_tasks', 'packing_website_confirmed')
     && ops_column_exists('ops_packing_tasks', 'date_started');
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-$canViewWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
+$canViewWebsiteUpdate = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'marketing_sales');
 $canViewPackingTools = true;
 $packingJsVersion = is_file(BASE_PATH . '/assets/js/packing-list.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/packing-list.js') . '-people3'
@@ -185,8 +185,8 @@ include BASE_PATH . '/shared/ess-sidebar.php';
             </div>
         </header>
         <nav class="packing-item-tabs portal-panel-tabs" role="tablist" aria-label="Packing item sections">
+            <?php if ($canViewWebsiteUpdate): ?><button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="website"><i data-lucide="globe-2"></i> Website Update</button><?php endif; ?>
             <button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="overview"><i data-lucide="package"></i> Overview</button>
-            <?php if ($canViewWebsiteUpdate): ?><button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="website"><i data-lucide="globe-2"></i> Website</button><?php endif; ?>
             <button class="packing-item-tab active is-active" type="button" role="tab" aria-selected="true" data-packing-panel-tab="details"><i data-lucide="layout-list"></i> Details</button>
             <button class="packing-item-tab" type="button" role="tab" aria-selected="false" data-packing-panel-tab="files"><i data-lucide="paperclip"></i> Files</button>
         </nav>

@@ -557,8 +557,8 @@ function notifications_notify_packing_loaded(int $taskId): ?int
     if (!$recipients) return null;
 
     return notifications_create([
-        'title' => 'New Packing List item loaded',
-        'message' => (string) ($task['item_name'] ?? 'A packing item') . ' was loaded and may require a website update.',
+        'title' => 'Website update required — new packing item',
+        'message' => (string) ($task['item_name'] ?? 'A packing item') . ' was loaded. Update the website, then open this item and tick Website updated.',
         'module' => 'packing',
         'priority' => 'normal',
         'related_type' => 'packing_loaded',

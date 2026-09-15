@@ -546,7 +546,7 @@
       websiteSection.innerHTML = '<h2 class="packing-item-section-title">Front-desk website update</h2><p class="packing-item-section-subtitle">Update the live product information, then confirm here. This is separate from the packing-list checkbox.</p><label class="packing-panel-website-toggle packing-website-control" data-packing-website-control><input type="checkbox" data-packing-panel-website><span>Website updated</span><span data-packing-website-confirmed hidden>Confirmed</span></label><dl class="packing-panel-website-audit"><div><dt>Updated</dt><dd data-packing-website-updated-at></dd></div><div><dt>Updated by</dt><dd data-packing-website-updated-by></dd></div></dl>';
     }
     const activeTab = panel.querySelector('[data-packing-panel-tab].is-active')?.dataset.packingPanelTab;
-    const destination = panel.querySelector(`[data-packing-panel-name="${activeTab === 'website' ? 'website' : 'overview'}"]`);
+    const destination = panel.querySelector('[data-packing-panel-name="website"]');
     destination?.append(websiteSection);
     websiteSection.hidden = false;
     const title = websiteSection.querySelector('h2');
@@ -2749,7 +2749,7 @@
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
     panelNotes.value = currentTask.packer_notes || '';
     const canEditOwn = canEditTask(currentTask);
-    const defaultPanelTab = preferredTab || 'overview';
+    const defaultPanelTab = preferredTab || (currentUser.can_view_front_website ? 'website' : 'overview');
     panelNotes.disabled = !canEditOwn;
     document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
     document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => {
