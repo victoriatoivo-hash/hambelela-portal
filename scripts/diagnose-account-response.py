@@ -18,6 +18,12 @@ try:
             relevant = [line for line in lines if ('my-account.php' in line or 'access_secret' in line) and ('Fatal' in line or 'Warning' in line or 'Error' in line)]
             # Emit only fixed labels and counts, never log text or user data.
             print(path, 'matching error count:', len(relevant))
+            # Names come only from repository code, not arbitrary log content.
+            known_functions = set(re.findall(r'\b([a-zA-Z_][a-zA-Z_0-9]*)\s*\(', local.decode('utf-8', 'replace')))
+            for name in sorted(known_functions):
+                count = sum(('undefined function ' + name + '(').lower() in line.lower() for line in relevant)
+                if count:
+                    print('undefined_repository_function', name, count)
             for label, pattern in {
                 'undefined_function': 'undefined function',
                 'type_error': 'TypeError',
