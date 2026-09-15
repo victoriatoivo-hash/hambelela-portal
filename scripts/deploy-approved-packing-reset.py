@@ -10,8 +10,8 @@ import subprocess
 import sys
 import zipfile
 
-APPROVED = "c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d"
-BASELINE = "7442c304c0329796819119faabe498873b6ac709"
+APPROVED = "4e5d4ef656deef249cd6aa0d6419b8fa193d86b0"
+BASELINE = "c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d"
 COMMIT_FILES = ("assets/js/packing-list.js",)
 DEPLOY_FILES = COMMIT_FILES[:1]  # Only the Packing controller is published.
 

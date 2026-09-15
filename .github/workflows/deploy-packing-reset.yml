@@ -19,10 +19,10 @@ jobs:
           fetch-depth: 0
       - name: Validate isolated fix and run regression checks
         run: |
-          git fetch origin codex/packing-compact-cards
-          test "$(git rev-parse FETCH_HEAD)" = 'c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d'
-          python3 scripts/deploy-approved-packing-reset.py --dry-run c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d
-          git worktree add /tmp/packing-reset-check c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d
+          git fetch origin codex/packing-horizontal-cards
+          test "$(git rev-parse FETCH_HEAD)" = '4e5d4ef656deef249cd6aa0d6419b8fa193d86b0'
+          python3 scripts/deploy-approved-packing-reset.py --dry-run 4e5d4ef656deef249cd6aa0d6419b8fa193d86b0
+          git worktree add /tmp/packing-reset-check 4e5d4ef656deef249cd6aa0d6419b8fa193d86b0
           cd /tmp/packing-reset-check
           node --check /tmp/packing-reset-check/assets/js/packing-list.js
           node /tmp/packing-reset-check/tests/packing-upload-reset.cjs
@@ -37,7 +37,7 @@ jobs:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-        run: python3 scripts/deploy-approved-packing-reset.py --deploy c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d
+        run: python3 scripts/deploy-approved-packing-reset.py --deploy 4e5d4ef656deef249cd6aa0d6419b8fa193d86b0
       - name: Preserve backup and verification report
         if: always()
         uses: actions/upload-artifact@v4
