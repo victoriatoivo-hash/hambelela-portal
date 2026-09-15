@@ -13,6 +13,35 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  deploy-profile-popup:
+    if: inputs.approved_sha == '4998ed767fc569514162961210c939d2a7b98af0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate five-file profile popover release
+        run: |
+          git fetch origin codex/profile-popup-only
+          test "$(git rev-parse FETCH_HEAD)" = '4998ed767fc569514162961210c939d2a7b98af0'
+          python3 scripts/deploy-profile-popup.py --dry-run 4998ed767fc569514162961210c939d2a7b98af0
+      - name: Back up and deploy popover only
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-profile-popup.py --deploy 4998ed767fc569514162961210c939d2a7b98af0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: profile-popup-${{ github.run_id }}
+          path: |
+            profile-popup-backup.zip
+            profile-popup-report.json
+          if-no-files-found: warn
   deploy:
     if: inputs.approved_sha == '039dfc6e2957394254eb1f7287126e3db47f9bb7'
     runs-on: ubuntu-latest
