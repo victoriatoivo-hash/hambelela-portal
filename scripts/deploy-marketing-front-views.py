@@ -1,6 +1,6 @@
 """Pinned Marketing/sidebar delta release. Refuses unknown live file contents."""
 import argparse, ftplib, hashlib, io, json, os, subprocess, sys, zipfile
-APPROVED = "b84b4e494b77a5cd5e1aac25e4458804d0635076"
+APPROVED = "c5d1e1e1fbfe2db738e8a1480120e1f59e72a09a"
 BASELINE = "64704817531c2a7fe2747aa53e525c856a3e3dce"
 COMMIT_FILES = ["apps/operations/packing-list-data.php","index.php","shared/auth.php","shared/employee-features.php","shared/ess-navigation.php","tests/marketing-front-views.php"]
 DEPLOY_FILES = [p for p in COMMIT_FILES if not p.startswith("tests/")]
@@ -9,6 +9,7 @@ def blob(ref,p):
     result=subprocess.run(["git","show",ref+":"+p],stdout=subprocess.PIPE,stderr=subprocess.PIPE)
     if result.returncode: return None
     return result.stdout
+def baseline_blob(p): return blob("c95cdd5cdfc4c6184dd734cc3ce255f1f62ee94d" if p=="apps/operations/packing-list-data.php" else BASELINE,p)
 def digest(data): return hashlib.sha256(data).hexdigest() if data is not None else None
 def same(a,b): return a==b or (a is not None and b is not None and a.replace(b"\r\n",b"\n")==b.replace(b"\r\n",b"\n"))
 def report(state,**extra):
@@ -40,7 +41,7 @@ def deploy(sha):
     ftp.login(os.environ["FTP_USERNAME"],os.environ["FTP_PASSWORD"])
     try:
         before={p:read(ftp,p) for p in DEPLOY_FILES}
-        conflicts=[dict(path=p,server=digest(before[p]),base=digest(blob(BASELINE,p))) for p in DEPLOY_FILES if not same(before[p],blob(BASELINE,p)) and not same(before[p],wanted[p])]
+        conflicts=[dict(path=p,server=digest(before[p]),base=digest(baseline_blob(p))) for p in DEPLOY_FILES if not same(before[p],baseline_blob(p)) and not same(before[p],wanted[p])]
         if conflicts:
             report("blocked-baseline-mismatch",conflicts=conflicts)
             raise RuntimeError("Unknown live files; no uploads performed: "+str([c["path"] for c in conflicts]))
