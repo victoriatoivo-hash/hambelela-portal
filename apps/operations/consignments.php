@@ -88,11 +88,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
 
         <section class="work-filter-bar packing-filter-bar packing-toolbar" data-portal-view-filter aria-label="Packing filters" hidden style="display:none!important">
             <label>Date Range
-                <div class="portal-date-field" data-portal-date-field>
-                    <input class="portal-date-input" type="text" placeholder="All months" autocomplete="off" data-month-mode="true" data-submit-target="#packing-date-value">
-                    <input id="packing-date-value" data-packing-date type="hidden" value="">
-                    <button type="button" class="portal-date-trigger" aria-label="Open month picker"><i data-lucide="calendar-days"></i></button>
-                </div>
+                <select id="packing-date-value" data-packing-date data-portal-custom-select aria-label="Packing month or year"><option value="">Loading periods…</option></select>
             </label>
             <label>Status
                 <select data-packing-filter="status" data-portal-custom-select>

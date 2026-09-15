@@ -97,7 +97,9 @@
   let previousTaskIds = new Set();
   let customColumns = [];
   const selected = new Set();
-  const state = { search: '', priority: '', status: '', person: '', website: '', sort: '', groupBy: 'month', date: '', page: 1, pageSize: 25 };
+  const monthParts = new Intl.DateTimeFormat('en', { timeZone: 'Africa/Windhoek', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
+  const currentMonth = `${monthParts.find(part => part.type === 'year').value}-${monthParts.find(part => part.type === 'month').value}`;
+  const state = { search: '', priority: '', status: '', person: '', website: '', sort: '', groupBy: 'month', date: currentMonth, page: 1, pageSize: 25 };
 
   let priorities = [
     ['top_critical', 'Top Critical', '#721B1A'],
@@ -1711,7 +1713,7 @@
   function visibleTasks() {
     const search = state.search.trim().toLowerCase();
     return tasks.filter((task) => {
-      if (state.date && monthKey(task.date_loaded) !== state.date) return false;
+      if (state.date && !String(task.date_loaded || '').startsWith(state.date)) return false;
       if (state.priority && normalize(task.priority) !== normalize(state.priority)) return false;
       if (state.status && normalize(task.packing_status) !== normalize(state.status)) return false;
       if (state.website === 'updated' && Number(task.packing_website_confirmed || 0) !== 1) return false;
@@ -2030,10 +2032,8 @@
     if (state.sort === 'name') visible.sort((a,b) => String(a.item_name || '').localeCompare(String(b.item_name || '')));
     if (state.sort === 'oldest') visible.sort((a,b) => String(a.date_loaded || '').localeCompare(String(b.date_loaded || '')));
     if (state.sort === 'newest') visible.sort((a,b) => String(b.date_loaded || '').localeCompare(String(a.date_loaded || '')));
-    const pages = Math.max(1, Math.ceil(visible.length / state.pageSize));
-    state.page = Math.max(1, Math.min(state.page, pages));
-    const pageRows = visible.slice((state.page - 1) * state.pageSize, state.page * state.pageSize);
-    renderPagination(visible.length, pages);
+    const pageRows = visible;
+    renderPagination(visible.length);
     const knownIds = new Set(tasks.map((task) => String(task.id)));
     [...selected].forEach((id) => { if (!knownIds.has(id)) selected.delete(id); });
     if (!visible.length) {
@@ -2114,7 +2114,7 @@
       nav.setAttribute('aria-label', 'Packing item pages');
       body.closest('#packingListViewport').after(nav);
     }
-    nav.innerHTML = `<span role="status">Showing ${total ? (state.page - 1) * state.pageSize + 1 : 0}–${Math.min(state.page * state.pageSize, total)} of ${total}</span><div><button type="button" data-packing-page="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''} aria-label="Previous page">‹</button><span>Page ${state.page} of ${pages}</span><button type="button" data-packing-page="${state.page + 1}" ${state.page === pages ? 'disabled' : ''} aria-label="Next page">›</button><label>Rows per page <select data-packing-page-size data-portal-custom-select>${[25,50,100].map(n=>`<option value="${n}" ${state.pageSize===n?'selected':''}>${n}</option>`).join('')}</select></label></div>`;
+    nav.innerHTML = `<span role="status">Showing all ${total} matching items on one page</span>`;
     window.PortalCustomSelect?.initialise(nav);
   }
 
@@ -2167,6 +2167,12 @@
       loadedData = data;
       if (requestVersion !== packingRefreshVersion) return null;
       tasks = data.tasks || [];
+      const periodControl = document.querySelector('select[data-packing-date]');
+      if (periodControl) {
+        const years = [...new Set([currentMonth.slice(0, 4), ...tasks.map(task => String(task.date_loaded || '').slice(0, 4)).filter(year => /^\d{4}$/.test(year))])].sort().reverse();
+        periodControl.innerHTML = '<option value="">All dates</option>' + years.map(year => `<optgroup label="${year}"><option value="${year}">Full year ${year}</option>${Array.from({length:12}, (_, index) => { const value = `${year}-${String(index + 1).padStart(2, '0')}`; return `<option value="${value}">${new Date(Number(year), index, 1).toLocaleDateString('en-GB', {month:'long', year:'numeric'})}</option>`; }).join('')}</optgroup>`).join('');
+        periodControl.value = state.date;
+      }
       if (Array.isArray(data.priorityLabels) && data.priorityLabels.length) {
         priorities = data.priorityLabels.map((item) => [String(item.key), String(item.label), String(item.color), String(item.textColor || readablePriorityTextColour(item.color))]);
       }
