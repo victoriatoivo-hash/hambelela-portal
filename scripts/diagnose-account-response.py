@@ -8,7 +8,6 @@ try:
     live = data.getvalue()
     local = subprocess.check_output(['git', 'show', 'HEAD:' + path])
     print('Account page matches repository:', live == local)
-    print('Live code SHA256:', hashlib.sha256(live).hexdigest())
     for path in ['apps/operations/error_log', 'error_log']:
         try:
             ftp.voidcmd('TYPE I')
@@ -17,10 +16,20 @@ try:
             ftp.retrbinary('RETR ' + path, output.write, rest=max(0, (size or 0)-65536) or None)
             lines = output.getvalue().decode('utf-8', 'replace').splitlines()
             relevant = [line for line in lines if ('my-account.php' in line or 'access_secret' in line) and ('Fatal' in line or 'Warning' in line or 'Error' in line)]
-            print(path, 'matching errors:')
-            for line in relevant[-12:]:
-                line = re.sub(r'[\w.+-]+@[\w.-]+', '[email]', line)
-                print(line[:1200])
+            # Emit only fixed labels and counts, never log text or user data.
+            print(path, 'matching error count:', len(relevant))
+            for label, pattern in {
+                'undefined_function': 'undefined function',
+                'type_error': 'TypeError',
+                'database_error': 'SQLSTATE',
+                'headers_already_sent': 'headers already sent',
+                'undefined_variable': 'Undefined variable',
+                'missing_column': 'Unknown column',
+                'unbuffered_query': 'unbuffered',
+                'missing_table': "doesn't exist",
+                'parse_error': 'syntax error',
+            }.items():
+                print(label, sum(pattern.lower() in line.lower() for line in relevant))
         except ftplib.error_perm:
             print(path, 'unavailable')
 finally:
