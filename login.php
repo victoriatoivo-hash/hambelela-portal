@@ -327,26 +327,29 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#721b1a">
+    <meta name="theme-color" content="#344126">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Hambelela">
     <link rel="apple-touch-icon" sizes="180x180" href="<?= BASE_URL ?>/assets/pwa/hambelela-180.png?v=1">
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
-    <style>.login-notice{margin:18px 0 0;padding:12px 14px;border:1px dashed rgba(171,54,25,.28);border-radius:11px;background:rgba(240,116,32,.04);color:var(--login-text-mid);font-size:12px;line-height:1.45;font-weight:400}@media(max-width:600px){body.login-page{padding:max(18px,env(safe-area-inset-top)) max(14px,env(safe-area-inset-right)) max(18px,env(safe-area-inset-bottom)) max(14px,env(safe-area-inset-left))}.login-card{width:100%;max-width:440px}.login-form input,.portal-custom-select-trigger,.login-submit{min-height:48px}.login-submit{margin-bottom:max(0px,env(safe-area-inset-bottom))}}</style>
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/login-olive.css?v=<?=filemtime(BASE_PATH.'/assets/css/login-olive.css')?>">
 </head>
 <body class="login-page">
+    <aside class="login-brand" aria-label="Hambelela Organic">
+        <img class="login-brand-image" src="<?= BASE_URL ?>/assets/images/login-botanical.png" alt="" fetchpriority="high">
+        <div class="login-brand-heading"><img class="login-wordmark" src="<?= BASE_URL ?>/assets/images/login-wordmark.jpg" alt="Hambelela Organic"><p class="login-brand-kicker">Business Portal</p></div>
+        <div class="login-editorial"><h2>Good people<br>make great<br>things happen.</h2><p>A single portal for our people, operations and growth. Secure. Connected. Hambelela.</p></div>
+        <p class="login-brand-footer">People · Purpose · Progress</p>
+    </aside>
+    <section class="login-access" aria-label="Secure staff sign in">
+    <p class="login-location">Hambelela Organic<span>Namibia</span></p>
     <main class="login-card">
         <header class="login-header">
             <p class="login-eyebrow">Hambelela Business Portal</p>
             <h1 class="login-title">Sign in</h1>
             <p class="login-subtitle">Choose your staff profile and enter your private access code.</p>
         </header>
-        <?php if ($error): ?><p class="login-alert" role="alert"><?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?></p><?php endif; ?>
         <form method="post" class="login-form" id="login-form">
             <?php if (!$opsLoginReady): ?>
                 <p class="login-notice">Employee login is temporarily unavailable. Contact an administrator.</p>
@@ -356,12 +359,13 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
                 <div class="portal-custom-select" data-login-select>
                     <input id="identity" type="hidden" name="identity" required>
                     <button type="button" class="portal-custom-select-trigger" aria-haspopup="listbox" aria-expanded="false" aria-labelledby="identity-label">
+                        <svg class="login-field-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3.5"/><path d="M5 21v-3a7 7 0 0 1 14 0v3"/></svg>
                         <span class="portal-custom-select-value">Choose your name</span>
                         <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>
                     <div class="portal-custom-select-menu" role="listbox" tabindex="-1">
                         <?php foreach ($loginEmployees as $employee): ?>
-                            <button type="button" class="portal-custom-select-option" role="option" data-value="db:<?= (int) $employee['id'] ?>" aria-selected="false"><?= htmlspecialchars($employee['full_name'], ENT_QUOTES, 'UTF-8') ?></button>
+                            <button type="button" class="portal-custom-select-option" role="option" data-profile-key="<?=hash('sha256', 'login-profile:' . (int) $employee['id'])?>" data-value="db:<?= (int) $employee['id'] ?>" aria-selected="false"><span class="login-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr(trim($employee['full_name']), 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><span class="login-option-name"><?= htmlspecialchars($employee['full_name'], ENT_QUOTES, 'UTF-8') ?></span><span class="login-option-check" aria-hidden="true">✓</span></button>
                         <?php endforeach; ?>
                     </div>
                 </div>
@@ -369,16 +373,21 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
             <div class="login-field">
                 <label for="code">Access code</label>
                 <div class="login-code-wrap">
-                    <input id="code" name="code" type="password" inputmode="numeric" pattern="(?:[0-9]{4}|[0-9]{6,10})" minlength="4" maxlength="10" autocomplete="current-password" required>
+                    <svg class="login-field-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10" width="14" height="11" rx="2"/><path d="M8 10V6a4 4 0 0 1 8 0v4M12 14v3"/></svg>
+                    <input id="code" name="code" type="password" maxlength="256" autocomplete="current-password" placeholder="Enter your access code" required>
                     <button type="button" class="login-code-toggle" aria-label="Show access code" aria-pressed="false">
                         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12Z" fill="none" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
                     </button>
                 </div>
             </div>
-            <button type="submit" class="login-submit">Continue</button>
+            <div class="login-remember"><label><input type="checkbox" id="remember-profile" aria-describedby="remember-profile-help"><span>Remember me</span></label><small id="remember-profile-help">Remembers your profile only, never your access code.</small></div>
+            <?php if ($error): ?><p class="login-alert" role="alert"><span aria-hidden="true">!</span>Unable to sign in. Check your details and try again.</p><?php endif; ?>
+            <button type="submit" class="login-submit"><span>Continue</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
         </form>
-        <footer class="login-footer">Hambelela Business Portal<br>Authorised staff access only.</footer>
+        <footer class="login-footer"><span>Hambelela Business Portal<br>Authorised staff access only.</span><span class="login-secure-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></svg>Secure access</span></footer>
     </main>
+    <p class="login-footnote">“Sustainable growth starts with<br>the right people.”</p>
+    </section>
 <script>
 (() => {
   const select = document.querySelector('[data-login-select]');
@@ -387,6 +396,15 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
   const identity = select.querySelector('input[name="identity"]');
   const options = Array.from(select.querySelectorAll('.portal-custom-select-option'));
   const code = document.getElementById('code');
+  const remember = document.getElementById('remember-profile');
+  const rememberKey = 'hambelela.login.remembered-profile.v1';
+  const persistProfile = () => {
+    try {
+      const selected = options.find(option => option.getAttribute('aria-selected') === 'true');
+      if (remember.checked && selected) localStorage.setItem(rememberKey, selected.dataset.profileKey);
+      else localStorage.removeItem(rememberKey);
+    } catch { /* Storage may be disabled. Sign-in must continue to work. */ }
+  };
   const toggle = document.querySelector('.login-code-toggle');
   let activeIndex = -1;
 
@@ -400,17 +418,26 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
     select.classList.remove('is-open');
     trigger.setAttribute('aria-expanded', 'false');
   };
-  const choose = (option) => {
+  const choose = (option, focus = true) => {
     options.forEach((item) => item.setAttribute('aria-selected', item === option ? 'true' : 'false'));
     identity.value = option.dataset.value || '';
-    valueLabel.textContent = option.textContent || '';
+    valueLabel.textContent = option.querySelector('.login-option-name').textContent || '';
     code.value = '';
     code.type = 'password';
     toggle.setAttribute('aria-pressed', 'false');
     toggle.setAttribute('aria-label', 'Show access code');
     closeMenu();
-    trigger.focus();
+    persistProfile();
+    if (focus) trigger.focus();
   };
+
+  remember.addEventListener('change', persistProfile);
+  try {
+    const saved = localStorage.getItem(rememberKey);
+    const selected = options.find(option => option.dataset.profileKey === saved);
+    if (selected) { remember.checked = true; choose(selected, false); }
+    else if (saved) localStorage.removeItem(rememberKey);
+  } catch { /* Remembering is optional, never required for sign-in. */ }
 
   trigger.addEventListener('click', () => select.classList.contains('is-open') ? closeMenu() : openMenu());
   options.forEach((option, index) => {
@@ -434,9 +461,22 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
     code.focus();
   });
   document.getElementById('login-form').addEventListener('submit', (event) => {
-    if (identity.value) return;
+    if (identity.value) {
+      const button = event.currentTarget.querySelector('[type="submit"]');
+      if (button.disabled) { event.preventDefault(); return; }
+      button.disabled = true;
+      button.setAttribute('aria-busy', 'true');
+      button.querySelector('span').textContent = 'Signing in…';
+      return;
+    }
     event.preventDefault();
     openMenu();
+  });
+  window.addEventListener('pageshow', () => {
+    const button = document.querySelector('.login-submit');
+    button.disabled = false; button.removeAttribute('aria-busy');
+    button.querySelector('span').textContent = 'Continue';
+    code.value = ''; code.type = 'password';
   });
 })();
 </script>
