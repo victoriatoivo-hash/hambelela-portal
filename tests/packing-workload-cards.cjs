@@ -3,7 +3,7 @@ const source=fs.readFileSync(path.join(__dirname,'../assets/js/packing-list.js')
 const ctx=vm.createContext({normalize:value=>String(value).trim().toLowerCase(),packingStatusIsCompleted: status=>status==='done'});
 vm.runInContext(source.slice(source.indexOf('  function parsePackUnit('),source.indexOf('  function setInvoiceStep(')),ctx);
 vm.runInContext(source.slice(source.indexOf('  function workloadQuantity('),source.indexOf('  function renderPackerWorkloadCards(')),ctx);
-const people=[{id:1,full_name:'A'},{id:2,full_name:'B'}];
+const people=[{id:1,full_name:'A',role_key:'packer'},{id:2,full_name:'B',role_key:'packer'},{id:3,full_name:'Secilia',role_key:'front_desk_admin'}];
 const rows=[{assigned_employee_id:1,quantity_planned:'500g(4), 1kg(2)',packing_status:'pending'}, {assigned_employee_id:1,quantity_planned:'250ml(4)',quantity_packed:'250ml(3)',packing_status:'done'}, {assigned_employee_id:2,quantity_planned:'8 pieces',packing_status:'pending'}];
 let groups=ctx.packerWorkloadTotals(rows,people);
 assert.equal(groups[0].remaining.weight,4000);
@@ -16,5 +16,9 @@ assert.equal(groups[1].remaining.weight,4000);
 assert.equal(groups[0].completed.volume,750);
 assert.equal(ctx.workloadQuantity('25').unknown,true);
 assert.equal(ctx.workloadQuantity('500g(4)').unknown,false);
+rows.push({assigned_employee_id:3,quantity_planned:'100kg',packing_status:'pending'}, {assigned_employee_id:999,quantity_planned:'100kg',packing_status:'pending'});
+groups=ctx.packerWorkloadTotals(rows,people);
+assert.equal(groups.length,2);
+assert.equal(groups.reduce((sum,group)=>sum+group.assigned.weight,0),4000);
 assert(source.includes("currentUser.role_key !== 'owner_admin'"));
 console.log('PASS: separate units, package multiplication, completed output, reassignment and unknown quantities.');

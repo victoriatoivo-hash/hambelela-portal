@@ -449,14 +449,14 @@
 
   function packerWorkloadTotals(rows, people) {
     const empty = () => ({weight:0, volume:0, count:0, unknown:0});
-    const groups = new Map(people.map(person => [String(person.id), {name:person.full_name, assigned:empty(), remaining:empty(), completed:empty(), rows:0}]));
+    const groups = new Map(people.filter(person => person.role_key === 'packer').map(person => [String(person.id), {name:person.full_name, assigned:empty(), remaining:empty(), completed:empty(), rows:0}]));
     function add(target, quantity) {
       for (const key of ['weight','volume','count']) target[key] += quantity[key];
       if (quantity.unknown) target.unknown++;
     }
     for (const row of rows) {
       const key = String(row.assigned_employee_id || '');
-      if (!groups.has(key)) groups.set(key, {name:row.assigned_name || 'Unassigned', assigned:empty(), remaining:empty(), completed:empty(), rows:0});
+      if (!groups.has(key)) continue;
       const group = groups.get(key);
       const planned = workloadQuantity(row.quantity_planned);
       group.rows++;
