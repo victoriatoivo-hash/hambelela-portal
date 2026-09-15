@@ -538,6 +538,21 @@
   }
 
   function renderWebsiteConfirmation(task) {
+    if (!currentUser.can_view_front_website) return;
+    let websiteSection = panel.querySelector('.packing-item-website-section');
+    if (!websiteSection) {
+      websiteSection = document.createElement('section');
+      websiteSection.className = 'packing-item-section packing-item-website-section';
+      websiteSection.innerHTML = '<h2 class="packing-item-section-title">Front-desk website update</h2><p class="packing-item-section-subtitle">Update the live product information, then confirm here. This is separate from the packing-list checkbox.</p><label class="packing-panel-website-toggle packing-website-control" data-packing-website-control><input type="checkbox" data-packing-panel-website><span>Website updated</span><span data-packing-website-confirmed hidden>Confirmed</span></label><dl class="packing-panel-website-audit"><div><dt>Updated</dt><dd data-packing-website-updated-at></dd></div><div><dt>Updated by</dt><dd data-packing-website-updated-by></dd></div></dl>';
+    }
+    const activeTab = panel.querySelector('[data-packing-panel-tab].is-active')?.dataset.packingPanelTab;
+    const destination = panel.querySelector(`[data-packing-panel-name="${activeTab === 'website' ? 'website' : 'overview'}"]`);
+    destination?.append(websiteSection);
+    websiteSection.hidden = false;
+    const title = websiteSection.querySelector('h2');
+    if (title) title.textContent = 'Front-desk website update';
+    const description = websiteSection.querySelector('.packing-item-section-subtitle');
+    if (description) description.textContent = 'Update the live website, then confirm here. Separate from the packing checkbox; original saved confirmation dates are retained for performance tracking.';
     const audit = task?.frontdesk_website || {};
     const confirmed = Boolean(audit.updated);
     const websiteToggle = panel.querySelector('[data-packing-panel-website]');
@@ -2734,7 +2749,7 @@
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
     panelNotes.value = currentTask.packer_notes || '';
     const canEditOwn = canEditTask(currentTask);
-    const defaultPanelTab = preferredTab || (isFrontDeskAdmin() ? 'website' : 'overview');
+    const defaultPanelTab = preferredTab || 'overview';
     panelNotes.disabled = !canEditOwn;
     document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
     document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => {
@@ -4241,6 +4256,7 @@
         tab.classList.add('active', 'is-active');
         tab.setAttribute('aria-selected', 'true');
         document.querySelector(`[data-packing-panel-name="${tab.dataset.packingPanelTab}"]`)?.classList.add('active');
+        if (currentTask && currentUser.can_view_front_website) renderWebsiteConfirmation(currentTask);
         if (currentTask && tab.dataset.packingPanelTab === 'details') markPackingItemUpdatesRead(currentTask.id, ['note_added']);
         if (currentTask && tab.dataset.packingPanelTab === 'files') markPackingItemUpdatesRead(currentTask.id, ['file_uploaded']);
         return;
