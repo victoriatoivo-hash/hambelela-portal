@@ -1,299 +1,138 @@
 (() => {
-  const page = document.querySelector('[data-notifications-page]');
-  if (!page) return;
-
-  const root = page.querySelector('[data-notifications-root]');
-  const feedEndpoint = page.dataset.feedEndpoint;
-  const actionEndpoint = page.dataset.actionEndpoint;
-  const markAllButton = page.querySelector('[data-page-mark-all-read]');
-  const clearAllButton = page.querySelector('[data-page-clear-all]');
-  let currentData = { summary: {}, notifications: [] };
-  let loadRequest = null;
-  let loadVersion = 0;
-  let refreshTimer = null;
-
-  const element = (tag, className, text) => {
-    const node = document.createElement(tag);
-    if (className) node.className = className;
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
-
-  const categoryFor = (moduleName) => {
-    const module = String(moduleName || '').toLowerCase();
-    if (module.includes('order')) return 'orders';
-    if (module.includes('pack')) return 'packing';
-    if (module.includes('task')) return 'tasks';
-    if (module.includes('book') || module.includes('cash')) return 'bookkeeping';
-    if (module.includes('error')) return 'errors';
-    if (module.includes('hr')) return 'hr';
-    return 'system';
-  };
-
-  const iconFor = (category) => ({ orders: 'shopping-bag', packing: 'package', tasks: 'list-checks', errors: 'triangle-alert', hr: 'file-signature' }[category] || 'bell');
-  const isActionRequired = (item) => !item.read_at && ['urgent', 'critical', 'important', 'high'].includes(String(item.priority || '').toLowerCase());
-  const isToday = (value) => String(value || '').slice(0, 10) === new Date().toISOString().slice(0, 10);
-
-  async function fetchData() {
-    if (!feedEndpoint) throw new Error('Notifications feed is not configured.');
-    const response = await fetch(feedEndpoint, { credentials: 'same-origin', headers: { Accept: 'application/json' } });
-    const contentType = response.headers.get('content-type') || '';
-    const body = await response.text();
-    if (!contentType.includes('application/json')) throw new Error(`The notification service returned an invalid response (${response.status}).`);
-    let payload;
-    try { payload = JSON.parse(body); } catch (_) { throw new Error('The notification service returned invalid JSON.'); }
-    if (!response.ok || payload.success !== true) throw new Error(payload.message || 'Unable to load notifications.');
-    return payload.data || { summary: {}, notifications: [] };
-  }
-
-  async function postAction(action, ids = '') {
-    if (!actionEndpoint) throw new Error('Notification actions are not configured.');
-    const response = await fetch(actionEndpoint, {
-      method: 'POST', credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' },
-      body: new URLSearchParams({ action, ids })
-    });
-    const body = await response.text();
-    let payload;
-    try { payload = JSON.parse(body); } catch (_) { throw new Error(`The server returned an invalid response (${response.status}).`); }
-    if (!response.ok || payload.ok === false) throw new Error(payload.message || 'Notification action failed.');
-    return payload;
-  }
-
-  function createStats(summary) {
-    const grid = element('section', 'notification-stats-grid');
-    [['unread','bell','Unread'],['action_required','circle-alert','Action required'],['today','calendar-days','Today'],['packing','package','Packing'],['tasks','list-checks','Tasks'],['errors','triangle-alert','Errors']].forEach(([key, icon, label]) => {
-      const card = element('article', 'notification-stat-card'); card.dataset.stat = key === 'action_required' ? 'action' : key;
-      const iconBox = element('div', 'notification-stat-icon'); const iconNode = element('i'); iconNode.dataset.lucide = icon; iconBox.append(iconNode);
-      const content = element('div'); content.append(element('p', 'notification-stat-label', label), element('p', 'notification-stat-value', String(summary[key] || 0)));
-      card.append(iconBox, content); grid.append(card);
-    });
-    return grid;
-  }
-
-  function createFilters() {
-    const card = element('section', 'notification-filter-card is-collapsed');
-    card.dataset.portalViewFilter = '';
-    const header = element('button', 'notification-filter-header'); header.type = 'button'; header.dataset.notificationFilterToggle = ''; header.setAttribute('aria-expanded', 'false');
-    const title = element('span', 'notification-filter-title'); const icon = element('i'); icon.dataset.lucide = 'sliders-horizontal'; title.append(icon, document.createTextNode('Filters'));
-    header.append(title, element('span', 'notification-filter-state', 'Collapsed'));
-    const form = element('form', 'notification-filter-body');
-    const grid = element('div', 'notification-filter-grid');
-    const definitions = [['state','Task state',['All','Urgent','Due Today','Overdue','Read']],['category','Category',['All categories','Orders','Packing','Tasks','Bookkeeping','Errors','System']],['search','Search',null]];
-    definitions.forEach(([name, label, options]) => {
-      const field = element('div', 'notification-filter-field'); field.append(element('label', '', label));
-      if (options) { const select = element('select'); select.name = name; select.dataset.portalCustomSelect = ''; options.forEach((text, index) => { const option = element('option', '', text); option.value = index ? text.toLowerCase().replace(' categories','').replace(' priorities','') : ''; select.append(option); }); field.append(select); }
-      else { const input = element('input'); input.type = 'search'; input.name = name; input.placeholder = 'Search notifications...'; field.append(input); }
-      grid.append(field);
-    });
-    const actions = element('div', 'notification-filter-actions'); const clear = element('button', 'nt-btn nt-btn--secondary', 'Clear'); clear.type = 'reset'; const apply = element('button', 'nt-btn nt-btn--primary', 'Apply filters'); apply.type = 'submit'; actions.append(clear, apply);
-    form.append(grid, actions); card.append(header, form);
-    form.addEventListener('submit', (event) => { event.preventDefault(); renderGroups(filteredNotifications(new FormData(form))); });
-    form.addEventListener('reset', () => setTimeout(() => { form.querySelectorAll('select').forEach((select) => select.dispatchEvent(new Event('change', { bubbles: true }))); renderGroups(currentData.notifications); }, 0));
-    return card;
-  }
-
-  function filteredNotifications(formData) {
-    const state = String(formData.get('state') || '').replace(' ', '_'); const category = String(formData.get('category') || ''); const search = String(formData.get('search') || '').toLowerCase().trim();
-    return currentData.notifications.filter((item) => {
-      const itemRead = Boolean(item.read_at); const itemCategory = categoryFor(item.module); const itemPriority = String(item.priority || 'normal').toLowerCase(); const deadlineState = String(item.deadline_state || 'normal'); const haystack = `${item.title || ''} ${item.message || ''} ${item.module || ''}`.toLowerCase();
-      const stateMatches = !state || (state === 'read' ? itemRead : state === 'urgent' ? itemPriority === 'urgent' : deadlineState === state);
-      return stateMatches && (!category || itemCategory === category) && (!search || haystack.includes(search));
-    });
-  }
-
-  function createRow(item) {
-    const row = element('article', `notification-row ${item.read_at ? 'is-read' : 'is-unread'}`); row.dataset.notificationRow = ''; row.dataset.notificationId = String(item.id || ''); row.dataset.category = categoryFor(item.module); row.dataset.deadlineState = String(item.deadline_state || 'normal'); row.dataset.targetUrl = String(item.action_link || '');
-    row.append(element('span', 'notification-row-indicator'));
-    const iconBox = element('span', 'notification-row-icon'); const icon = element('i'); icon.dataset.lucide = iconFor(row.dataset.category); iconBox.append(icon); row.append(iconBox);
-    const content = element('span', 'notification-row-content'); const heading = element('span', 'notification-row-heading'); heading.append(element('strong', 'notification-row-title', item.title || 'Notification'), element('time', 'notification-row-time', formatTime(item.created_at)));
-    content.append(heading, element('span', 'notification-row-message', item.message || ''), element('span', 'notification-row-meta', `${item.module || 'system'}${item.created_at ? ` · ${formatDate(item.created_at)}` : ''}`)); row.append(content);
-    const actions = element('span', 'notification-row-actions'); if (item.action_link) { const actionLabel = item.related_type === 'error_instruction' ? 'View Instruction' : 'View'; const view = element('button', 'notification-row-btn', actionLabel); view.type = 'button'; view.dataset.openNotification = ''; actions.append(view); } if (!item.read_at) { const read = iconButton('check', 'Mark as read'); read.dataset.notificationTick = ''; read.dataset.notificationId = String(item.id || ''); read.setAttribute('aria-pressed', 'false'); actions.append(read); } const archive = iconButton('archive', 'Archive'); archive.dataset.pageArchive = ''; actions.append(archive); row.append(actions);
-    return row;
-  }
-
-  function iconButton(iconName, label) { const button = element('button', 'notification-icon-btn'); button.type = 'button'; button.setAttribute('aria-label', label); const icon = element('i'); icon.dataset.lucide = iconName; button.append(icon); return button; }
-  function formatTime(value) { const date = new Date(String(value || '').replace(' ', 'T')); return Number.isNaN(date.valueOf()) ? '' : date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
-  function formatDate(value) { const date = new Date(String(value || '').replace(' ', 'T')); return Number.isNaN(date.valueOf()) ? '' : date.toLocaleDateString([], { day: 'numeric', month: 'long', year: 'numeric' }); }
-
-  function renderGroups(items) {
-    const existing = root.querySelector('.notification-groups'); if (existing) existing.remove();
-    const groupsNode = element('div', 'notification-groups');
-    const groups = [
-      ['action-required','Action required','Notifications needing attention', items.filter(isActionRequired)],
-      ['today','Today','New portal activity today', items.filter((item) => !isActionRequired(item) && !item.read_at && isToday(item.created_at))],
-      ['earlier','Earlier','Unread notifications from previous days', items.filter((item) => !isActionRequired(item) && !item.read_at && !isToday(item.created_at))],
-      ['read','Read','Notifications already reviewed', items.filter((item) => Boolean(item.read_at))]
-    ];
-    groups.forEach(([key, title, description, groupItems]) => {
-      const group = element('section', 'notification-group'); group.dataset.group = key;
-      const header = element('button', 'notification-group-header'); header.type = 'button'; header.setAttribute('aria-expanded', 'true'); const labels = element('span'); labels.append(element('span', 'notification-group-title', title), element('span', 'notification-group-description', description)); const right = element('span', 'notification-group-header-right'); const chevron = element('i', 'notification-group-chevron'); chevron.dataset.lucide = 'chevron-down'; right.append(chevron, element('span', 'notification-group-count', String(groupItems.length))); header.append(labels, right);
-      const body = element('div', 'notification-group-body'); const list = element('div', 'notification-list'); if (!groupItems.length) { const empty = element('div', 'notification-empty-state'); const emptyIcon = element('i'); emptyIcon.dataset.lucide = 'bell-off'; const copy = element('div'); copy.append(element('strong', '', 'No notifications'), element('span', '', 'New alerts will appear in this section.')); empty.append(emptyIcon, copy); list.append(empty); } else groupItems.forEach((item) => list.append(createRow(item))); body.append(list); group.append(header, body); groupsNode.append(group);
-    });
-    root.append(groupsNode); refreshIcons();
-  }
-
-  function renderPage(data) {
-    currentData = { summary: data.summary || {}, notifications: Array.isArray(data.notifications) ? data.notifications : [] };
-    root.replaceChildren(createStats(currentData.summary), createFilters());
-    if (typeof window.initialisePortalCustomSelects === 'function') window.initialisePortalCustomSelects(root);
-    renderGroups(currentData.notifications);
-    markAllButton.disabled = !currentData.notifications.some((item) => !item.read_at); clearAllButton.disabled = !currentData.notifications.length; syncBadges(); refreshIcons();
-  }
-
-  function renderError(message) {
-    const box = element('div', 'notifications-error'); const copy = element('div'); copy.append(element('strong', '', 'Notifications could not be loaded'), element('p', '', message || 'Please try again.')); const retry = element('button', 'nt-btn nt-btn--secondary', 'Retry'); retry.type = 'button'; retry.dataset.retryNotifications = ''; box.append(copy, retry); root.replaceChildren(box);
-  }
-
-  function refreshIcons() { if (window.lucide?.createIcons) window.lucide.createIcons(); }
-  function syncBadges() { const count = currentData.notifications.filter((item) => !item.read_at).length; document.querySelectorAll('[data-notification-count]').forEach((badge) => { badge.textContent = count > 99 ? '99+' : String(count); badge.classList.toggle('is-hidden', count < 1); }); }
-
-  function setStatValue(key, value) {
-    const card = root.querySelector(`[data-stat="${key}"] .notification-stat-value`);
-    if (card) card.textContent = String(Math.max(0, Number(value) || 0));
-  }
-
-  function updateGroupCountsAfterRead(row) {
-    const sourceGroup = row.closest('.notification-group');
-    const sourceCount = sourceGroup?.querySelector('.notification-group-count');
-    if (sourceCount) sourceCount.textContent = String(Math.max(0, Number(sourceCount.textContent) - 1));
-    const readCount = root.querySelector('.notification-group[data-group="read"] .notification-group-count');
-    if (readCount) readCount.textContent = String((Number(readCount.textContent) || 0) + 1);
-  }
-
-  function applyReadState(row, tick, active) {
-    tick.setAttribute('aria-pressed', String(active));
-    tick.classList.toggle('is-active', active);
-    row.classList.toggle('is-read', active);
-    row.classList.toggle('is-unread', !active);
-  }
-
-  async function handleNotificationTick(tick) {
-    if (tick.disabled) return;
-    const row = tick.closest('[data-notification-row]');
-    const id = tick.dataset.notificationId;
-    const item = currentData.notifications.find((entry) => String(entry.id) === String(id));
-    if (!row || !id || !item || item.read_at) return;
-    const wasActionRequired = isActionRequired(item);
-
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-    tick.disabled = true;
-    tick.classList.add('is-saving');
-    applyReadState(row, tick, true);
-
-    try {
-      const payload = await postAction('mark_read', id);
-      item.read_at = new Date().toISOString();
-      const unread = Number.isFinite(Number(payload.unread_count)) ? Number(payload.unread_count) : currentData.notifications.filter((entry) => !entry.read_at).length;
-      currentData.summary.unread = unread;
-      if (wasActionRequired) currentData.summary.action_required = Math.max(0, Number(currentData.summary.action_required || 0) - 1);
-      setStatValue('unread', unread);
-      setStatValue('action', currentData.summary.action_required || 0);
-      updateGroupCountsAfterRead(row);
-      syncBadges();
-      markAllButton.disabled = unread < 1;
-      tick.classList.add('is-saved');
-      window.setTimeout(() => tick.classList.remove('is-saved'), 500);
-    } catch (error) {
-      applyReadState(row, tick, false);
-      window.dispatchEvent(new CustomEvent('portal:toast', { detail: { title: 'Notification not updated', message: error.message || 'Please try again.' } }));
-    } finally {
-      tick.disabled = false;
-      tick.classList.remove('is-saving');
-      window.requestAnimationFrame(() => {
-        window.scrollTo(scrollX, scrollY);
-        tick.focus({ preventScroll: true });
-      });
-    }
-  }
-
-  async function handleMarkAllRead() {
-    if (markAllButton.disabled) return;
-    const scrollX = window.scrollX;
-    const scrollY = window.scrollY;
-    markAllButton.disabled = true;
-    markAllButton.classList.add('is-saving');
-    try {
-      await postAction('mark_read');
-      const savedAt = new Date().toISOString();
-      currentData.notifications.forEach((item) => { if (!item.read_at) item.read_at = savedAt; });
-      currentData.summary.unread = 0;
-      currentData.summary.action_required = 0;
-      root.querySelectorAll('[data-notification-row].is-unread').forEach((row) => {
-        const tick = row.querySelector('[data-notification-tick]');
-        row.classList.remove('is-unread');
-        row.classList.add('is-read');
-        if (tick) { tick.setAttribute('aria-pressed', 'true'); tick.classList.add('is-active'); }
-      });
-      setStatValue('unread', 0);
-      setStatValue('action', 0);
-      ['action-required', 'today', 'earlier'].forEach((key) => {
-        const count = root.querySelector(`.notification-group[data-group="${key}"] .notification-group-count`);
-        if (count) count.textContent = '0';
-      });
-      const readCount = root.querySelector('.notification-group[data-group="read"] .notification-group-count');
-      if (readCount) readCount.textContent = String(currentData.notifications.length);
-      syncBadges();
-    } catch (error) {
-      markAllButton.disabled = false;
-      window.dispatchEvent(new CustomEvent('portal:toast', { detail: { title: 'Notifications not updated', message: error.message || 'Please try again.' } }));
-    } finally {
-      markAllButton.classList.remove('is-saving');
-      window.requestAnimationFrame(() => window.scrollTo(scrollX, scrollY));
-    }
-  }
-
-  function filterState() {
-    const form = root.querySelector('.notification-filter-body');
-    return form ? Object.fromEntries(new FormData(form).entries()) : {};
-  }
-  function restoreFilterState(state) {
-    const form = root.querySelector('.notification-filter-body');
-    if (!form) return;
-    Object.entries(state || {}).forEach(([name, value]) => { if (form.elements[name]) form.elements[name].value = value; });
-    renderGroups(filteredNotifications(new FormData(form)));
-  }
-  async function load({ background = false } = {}) {
-    if (loadRequest) return loadRequest;
-    if (background && document.hidden) return null;
-    const version = ++loadVersion;
-    const savedFilters = filterState();
-    if (!background) { root.replaceChildren(element('div', 'notifications-loading', 'Loading notifications...')); markAllButton.disabled = true; clearAllButton.disabled = true; }
-    loadRequest = (async () => {
-      try {
-        const data = await fetchData();
-        if (version !== loadVersion) return null;
-        renderPage(data);
-        restoreFilterState(savedFilters);
-        return data;
-      } catch (error) {
-        if (!background) { console.error('Unable to initialise Notifications:', error); renderError(error.message); }
-        return null;
-      }
-    })();
-    try { return await loadRequest; } finally { loadRequest = null; }
-  }
-  function scheduleRefresh(delay = 30000) {
-    if (refreshTimer) clearTimeout(refreshTimer);
-    refreshTimer = setTimeout(async () => { await load({ background: true }); scheduleRefresh(document.hidden ? 120000 : 30000); }, delay);
-  }
-  async function runAction(action) { markAllButton.disabled = true; clearAllButton.disabled = true; try { await action(); await load(); } catch (error) { renderError(error.message); } }
-
-  page.addEventListener('click', (event) => {
-    const filterToggle = event.target.closest('[data-notification-filter-toggle]'); if (filterToggle) { const card = filterToggle.closest('.notification-filter-card'); const collapsed = card.classList.toggle('is-collapsed'); filterToggle.setAttribute('aria-expanded', String(!collapsed)); filterToggle.querySelector('.notification-filter-state').textContent = collapsed ? 'Collapsed' : 'Expanded'; return; }
-    const groupHeader = event.target.closest('.notification-group-header'); if (groupHeader) { const group = groupHeader.closest('.notification-group'); const collapsed = group.classList.toggle('is-collapsed'); groupHeader.setAttribute('aria-expanded', String(!collapsed)); return; }
-    if (event.target.closest('[data-retry-notifications]')) { load(); return; }
-    if (event.target.closest('[data-page-mark-all-read]')) { event.preventDefault(); handleMarkAllRead(); return; }
-    if (event.target.closest('[data-page-clear-all]')) { if (window.confirm('Archive all notifications?')) runAction(() => postAction('clear')); return; }
-    const row = event.target.closest('.notification-row'); if (!row) return; const id = row.dataset.notificationId;
-    const tick = event.target.closest('[data-notification-tick]'); if (tick) { event.preventDefault(); event.stopPropagation(); handleNotificationTick(tick); return; }
-    if (event.target.closest('[data-page-archive]')) { runAction(() => postAction('clear', id)); return; }
-    if (event.target.closest('[data-open-notification]')) { const open = async () => { if (row.classList.contains('is-unread')) await postAction('mark_read', id); if (row.dataset.targetUrl) window.location.href = row.dataset.targetUrl; }; runAction(open); }
-  });
-
-  load();
-  scheduleRefresh();
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) load({ background: true }); });
-  window.addEventListener('online', () => load({ background: true }));
+'use strict';
+const page=document.querySelector('[data-notifications-page]');if(!page)return;
+const UI=window.PortalNotificationUI,root=page.querySelector('[data-notifications-root]');
+const markAll=page.querySelector('[data-page-mark-all-read]'),clearAll=page.querySelector('[data-page-clear-all]');
+const el=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls||'';if(text!==undefined)n.textContent=text;return n;};
+const button=(text,action,id)=>{const b=el('button','nt-btn',text);b.type='button';b.dataset.action=action;if(id)b.dataset.id=id;return b;};
+let data={notifications:[],summary:{}},request=null,timer=null,searchTimer=null;
+const state={category:'',type:'',status:'',period:'',search:'',from:'',to:''},collapsed=new Set(['week','older']);
+const categories=['all','orders','packing','tasks','marketing','accounts','system'];
+let feed,cards,rail,filters,status;
+const parseDate=value=>new Date(String(value||'').replace(' ','T'));
+const day=value=>{const d=value instanceof Date?value:parseDate(value);return Number.isNaN(d.valueOf())?'':[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');};
+const time=value=>{const d=parseDate(value);return Number.isNaN(d.valueOf())?'':d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});};
+const actionRequired=item=>!item.read_at&&['urgent','critical','important','high'].includes(String(item.priority||'').toLowerCase());
+const stamp=item=>{const d=parseDate(item.created_at);return Number.isNaN(d.valueOf())?0:d.valueOf();};
+const items=()=>[...data.notifications].sort((a,b)=>stamp(b)-stamp(a));
+const iconTile=category=>{const n=el('span','nt-source-icon');n.innerHTML=UI.icon(category);return n;};
+const filtered=()=>items().filter(item=>{
+ const category=UI.source(item),read=Boolean(item.read_at),date=day(item.created_at);
+ const text=[item.title,item.message,item.module,item.id,item.related_id,item.assigned_name,item.employee_name].join(' ').toLowerCase();
+ if(state.category&&category!==state.category)return false;
+ if(state.type&&String(item.related_type||'')!==state.type)return false;
+ if(state.search&&!text.includes(state.search.toLowerCase().trim()))return false;
+ if(state.status==='unread'&&read||state.status==='read'&&!read||state.status==='action'&&!actionRequired(item))return false;
+ if(state.status==='assignments'&&!/assign/i.test(String(item.related_type||'')))return false;
+ if(state.status==='approvals'&&!/approv|review/i.test(String(item.related_type||'')))return false;
+ if(state.period==='today'&&date!==day(new Date()))return false;
+ if(['7','30'].includes(state.period)){const start=new Date();start.setHours(0,0,0,0);start.setDate(start.getDate()-Number(state.period)+1);if(stamp(item)<start.valueOf())return false;}
+ if(state.period==='custom'&&((state.from&&date<state.from)||(state.to&&date>state.to)))return false;
+ return true;
+});
+function makeSelect(name,label,options){
+ const select=el('select');select.name=name;select.setAttribute('aria-label',label);options.forEach(([value,text])=>select.add(new Option(text,value)));select.value=state[name]||'';filters.append(select);UI.enhanceSelect(select);return select;
+}
+function skeleton(){root.innerHTML='<div class="nt-skeleton" aria-label="Loading notifications">'+Array.from({length:5},()=>'<div><span></span><p></p><small></small></div>').join('')+'</div>';}
+function build(){
+ root.replaceChildren();
+ cards=el('section','ess-notifications__categories');cards.setAttribute('aria-label','Notification sections');root.append(cards);
+ filters=el('form','ess-notifications__filters');filters.setAttribute('aria-label','Search and filter notifications');
+ const search=el('label','ess-notifications__search');search.innerHTML=UI.icon('search');const input=el('input');input.name='search';input.type='search';input.placeholder='Search notifications…';input.setAttribute('aria-label','Search notifications');input.value=state.search;search.append(input);filters.append(search);
+ makeSelect('category','Section',[['','All sections'],...Object.entries(UI.labels).filter(([k])=>k!=='all')]);
+ makeSelect('type','Type',[['','All types'],...[...new Set(data.notifications.map(i=>i.related_type).filter(Boolean))].map(t=>[t,t.replaceAll('_',' ')])]);
+ makeSelect('status','Status',[['','All status'],['unread','Unread'],['read','Read'],['action','Action required'],...(data.notifications.some(i=>/assign/i.test(i.related_type||''))?[['assignments','Assignments']]:[]),...(data.notifications.some(i=>/approv|review/i.test(i.related_type||''))?[['approvals','Approvals']]:[])]);
+ makeSelect('period','Date range',[['','Any date'],['today','Today'],['7','Last 7 days'],['30','Last 30 days'],['custom','Custom dates']]);
+ const reset=button('Clear filters','reset');reset.innerHTML=UI.icon('close')+'Clear filters';filters.append(reset);
+ const dates=el('div','nt-date-range');dates.hidden=state.period!=='custom';
+ for(const name of ['from','to']){const label=el('label','',name==='from'?'From':'To');const date=el('input');date.name=name;date.type='date';date.value=state[name];label.append(date);dates.append(label);}filters.append(dates);
+ filters.addEventListener('submit',e=>e.preventDefault());
+ filters.addEventListener('input',event=>{if(event.target.name!=='search')return;state.search=event.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(renderFeed,200);});
+ filters.addEventListener('change',event=>{if(!(event.target.name in state))return;state[event.target.name]=event.target.value;dates.hidden=state.period!=='custom';renderFeed();renderCards();});
+ root.append(filters);
+ const layout=el('div','ess-notifications__layout');feed=el('div','nt-feed');rail=el('aside','ess-notifications__rail');rail.setAttribute('aria-label','Notification insights');layout.append(feed,rail);root.append(layout);
+ status=el('p','nt-status');status.setAttribute('role','status');root.append(status);
+ window.PortalDatePicker?.initialise(filters);
+ renderCards();renderFeed();renderRail();sync();
+}
+function renderCards(){
+ cards.replaceChildren();categories.forEach(category=>{const b=button('','category');b.dataset.category=category;b.className='ess-notifications__category';b.dataset.source=category;b.setAttribute('aria-pressed',String((state.category||'all')===category));const copy=el('span');copy.append(el('span','nt-category-label',UI.labels[category]),el('strong','nt-category-count',String(category==='all'?data.notifications.length:data.notifications.filter(i=>UI.source(i)===category).length)));b.append(iconTile(category),copy);cards.append(b);});
+}
+function row(item){
+ const category=UI.source(item),n=el('article','ess-notifications__row '+(item.read_at?'is-read':'is-unread'));n.dataset.source=category;n.dataset.notificationId=item.id;
+ const copy=el('div','nt-row-copy');copy.append(el('strong','nt-row-title',item.title||'Notification'),el('span','nt-row-description',item.message||''));if(actionRequired(item))copy.append(el('small','nt-action-required','Action required'));
+ const timestamp=el('time','nt-row-time',time(item.created_at));timestamp.dateTime=String(item.created_at||'');timestamp.title=String(item.created_at||'');
+ n.append(iconTile(category),copy,timestamp,el('span','nt-source-pill',UI.labels[category]));
+ if(item.action_link)n.append(button('View','view',item.id));else n.append(el('span'));
+ const more=el('details','nt-row-more');const summary=el('summary');summary.setAttribute('aria-label','Notification actions');summary.innerHTML=UI.icon('more');const actions=el('div','nt-row-actions');if(!item.read_at)actions.append(button('Mark read','read',item.id));actions.append(button('Archive','archive',item.id));more.append(summary,actions);n.append(more);return n;
+}
+function renderFeed(){
+ const list=filtered(),today=new Date(),yesterday=new Date();yesterday.setDate(today.getDate()-1);const week=new Date(today);week.setHours(0,0,0,0);week.setDate(today.getDate()-((today.getDay()+6)%7));
+ const groupFor=item=>day(item.created_at)===day(today)?'today':day(item.created_at)===day(yesterday)?'yesterday':stamp(item)>=week.valueOf()?'week':'older';
+ feed.replaceChildren();
+ if(!list.length){const empty=el('div','nt-empty');empty.innerHTML=UI.icon('all');empty.append(el('h2','',data.notifications.length?'No matching notifications':"You’re all caught up."),el('p','',data.notifications.length?'Try changing your search or clearing filters.':'No new notifications need your attention.'));feed.append(empty);return;}
+ for(const [key,title]of [['today','Today'],['yesterday','Yesterday'],['week','This Week'],['older','Older']]){
+ const rows=list.filter(i=>groupFor(i)===key);if(!rows.length)continue;
+ const section=el('section','ess-notifications__group');const head=button('','group');head.className='ess-notifications__group-header';head.dataset.group=key;head.setAttribute('aria-expanded',String(!collapsed.has(key)));const copy=el('span');copy.append(el('strong','',title));if(key==='today'||key==='yesterday')copy.append(el('small','',(key==='today'?today:yesterday).toLocaleDateString([],{weekday:'long',day:'numeric',month:'long',year:'numeric'})));head.append(copy,el('span','',rows.length+' notifications '+(collapsed.has(key)?'+':'−')));
+ const body=el('div','nt-group-body');body.hidden=collapsed.has(key);rows.forEach(item=>body.append(row(item)));section.append(head,body);feed.append(section);
+ }
+}
+function renderRail(){
+ rail.replaceChildren();const list=items(),latest=list.find(actionRequired)||list[0];
+ if(latest){const category=UI.source(latest),spot=el('section','ess-notifications__spotlight');spot.dataset.source=category;spot.append(iconTile(category),el('small','','Latest notification'),el('h2','',latest.title||'Notification'),el('p','',latest.message||''),el('time','',time(latest.created_at)));const actions=el('div','nt-rail-actions');if(latest.action_link)actions.append(button('View '+UI.labels[category],'view',latest.id));actions.append(button('Archive','archive',latest.id));spot.append(actions);rail.append(spot);}
+ const editorial=el('section','nt-editorial');editorial.innerHTML=UI.icon('leaf');editorial.append(el('h2','','Never miss\nwhat matters.'),el('p','','Stay in sync across your business.'));rail.append(editorial);
+ if(document.querySelector('[data-notification-sound-settings]')){const prefs=button('','preferences');prefs.className='nt-preferences';prefs.innerHTML=UI.icon('all')+'<span><strong>Notification Preferences</strong><small>Manage sounds and desktop alerts.</small></span><span>→</span>';rail.append(prefs);}
+ const quick=el('section','nt-rail-card');quick.append(el('h2','','Quick Filters'));
+ const defs=[['unread','Unread',i=>!i.read_at],['action','Action required',actionRequired]];
+ if(list.some(i=>/assign/i.test(i.related_type||'')))defs.push(['assignments','Assignments',i=>/assign/i.test(i.related_type||'')]);
+ if(list.some(i=>/approv|review/i.test(i.related_type||'')))defs.push(['approvals','Approvals',i=>/approv|review/i.test(i.related_type||'')]);
+ defs.forEach(([key,label,test])=>{const b=button(label,'quick');b.dataset.filter=key;b.append(el('span','',String(list.filter(test).length)));quick.append(b);});rail.append(quick);
+ const timeline=el('section','nt-rail-card');timeline.append(el('h2','','Recent Activity Timeline'));list.slice(0,6).forEach(item=>{const n=el('div','nt-timeline-item');n.dataset.source=UI.source(item);n.append(el('time','',time(item.created_at)),el('strong','',item.title||'Notification'),el('small','',UI.labels[UI.source(item)]));timeline.append(n);});if(!list.length)timeline.append(el('p','','No recent activity.'));rail.append(timeline);
+}
+function sync(payload){
+ const count=Number(payload?.unread_count??data.summary.unread??data.notifications.filter(i=>!i.read_at).length);data.summary.unread=count;
+ document.querySelectorAll('[data-notification-count]').forEach(b=>{b.textContent=count>99?'99+':String(count);b.classList.toggle('is-hidden',count<1);});
+ document.querySelector('[data-notification-button]')?.setAttribute('aria-label','Notifications, '+count+' unread');
+ const badge=document.querySelector('[data-notification-preview-count]');if(badge)badge.textContent=count+' unread';
+ markAll.disabled=count<1;clearAll.disabled=!data.notifications.length;
+}
+async function post(action,ids=''){
+ if(page.dataset.preview==='true')throw new Error('Local preview only — no notification records were changed.');
+ const response=await fetch(page.dataset.actionEndpoint,{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded',Accept:'application/json'},body:new URLSearchParams({action,ids})});let payload;try{payload=await response.json();}catch{throw new Error('The server returned an invalid notification response.');}if(!response.ok||payload.ok===false)throw new Error(payload.message||'Notification action failed.');return payload;
+}
+function confirmClear(){return new Promise(resolve=>{
+ const dialog=el('dialog','nt-confirm');dialog.innerHTML='<form method="dialog"><h2>Clear notifications?</h2><p>This archives all notifications from your notification list, including older items not currently shown. It does not delete the underlying records or affect other employees.</p><div><button value="cancel" class="nt-btn">Cancel</button><button value="clear" class="nt-btn nt-danger">Clear Notifications</button></div></form>';page.append(dialog);dialog.addEventListener('close',()=>{const ok=dialog.returnValue==='clear';dialog.remove();clearAll.focus();resolve(ok);},{once:true});dialog.showModal();
+});}
+page.addEventListener('click',async event=>{
+ const b=event.target.closest('[data-action],[data-page-mark-all-read],[data-page-clear-all]');if(!b)return;
+ const action=b.dataset.action||(b.hasAttribute('data-page-mark-all-read')?'readAll':'clearAll');
+ if(action==='group'){collapsed.has(b.dataset.group)?collapsed.delete(b.dataset.group):collapsed.add(b.dataset.group);renderFeed();feed.querySelector('[data-group="'+b.dataset.group+'"]')?.focus();return;}
+ if(action==='category'){state.category=b.dataset.category==='all'?'':b.dataset.category;const select=filters.querySelector('[name=category]');select.value=state.category;select.dispatchEvent(new Event('change',{bubbles:true}));return;}
+ if(action==='quick'){state.status=b.dataset.filter;const select=filters.querySelector('[name=status]');if([...select.options].some(o=>o.value===state.status)){select.value=state.status;select.dispatchEvent(new Event('change',{bubbles:true}));}else renderFeed();return;}
+ if(action==='reset'){Object.keys(state).forEach(k=>state[k]='');build();return;}
+ if(action==='preferences'){document.querySelector('[data-notification-button]')?.focus();document.querySelector('[data-notification-sound-settings] input')?.focus();return;}
+ if(action==='retry'){load();return;}
+ if(action==='clearAll'&&!await confirmClear())return;
+ const item=data.notifications.find(i=>String(i.id)===b.dataset.id);b.disabled=true;
+ try{
+ if(action==='read'||action==='readAll'){const result=await post('mark_read',action==='read'?b.dataset.id:'');data.notifications.forEach(i=>{if(action==='readAll'||i===item)i.read_at=new Date().toISOString();});sync(result);}
+ if(action==='archive'||action==='clearAll'){const result=await post('clear',action==='archive'?b.dataset.id:'');data.notifications=action==='clearAll'?[]:data.notifications.filter(i=>i!==item);sync(result);}
+ if(action==='view'&&item?.action_link){if(!item.read_at)await post('mark_read',item.id);location.assign(UI.href(item.action_link));return;}
+ renderCards();renderFeed();renderRail();status.textContent='Notifications updated.';
+ }catch(error){status.textContent=error.message;}finally{b.disabled=false;}
+});
+page.addEventListener('keydown',event=>{if(event.key==='Escape'){const menu=event.target.closest('.nt-row-more');if(menu){menu.open=false;menu.querySelector('summary').focus();}}});
+document.addEventListener('click',event=>page.querySelectorAll('.nt-row-more[open]').forEach(menu=>{if(!menu.contains(event.target))menu.open=false;}));
+async function load(background=false){
+ if(request||background&&document.hidden)return;
+ if(!background)skeleton();
+ request=(async()=>{try{
+ if(page.dataset.preview==='true')data=JSON.parse(document.querySelector('[data-notification-fixtures]').textContent);
+ else{const response=await fetch(page.dataset.feedEndpoint,{credentials:'same-origin',headers:{Accept:'application/json'}});let payload;try{payload=await response.json();}catch{throw new Error('The notification service returned an invalid response.');}if(!response.ok||!payload.success)throw new Error(payload.message||'Unable to load notifications.');data=payload.data;}
+ if(!feed||!root.contains(feed))build();else{renderCards();renderFeed();renderRail();sync();}
+ }catch(error){if(!background){root.replaceChildren(el('h2','','Unable to load notifications'),el('p','',error.message),button('Try again','retry'));}}})();
+ try{await request;}finally{request=null;}
+}
+function schedule(){timer=setTimeout(async()=>{await load(true);schedule();},document.hidden?120000:30000);}
+load();if(page.dataset.preview!=='true'){schedule();document.addEventListener('visibilitychange',()=>{if(!document.hidden)load(true);});window.addEventListener('online',()=>load(true));}
 })();

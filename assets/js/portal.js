@@ -659,6 +659,16 @@ window.addEventListener('DOMContentLoaded', () => {
       return container;
     };
 
+    const notificationToastQueue = [];
+    let visibleNotificationToasts = 0;
+    const drainNotificationToasts = () => {
+      const limit = window.matchMedia('(max-width:600px)').matches ? 2 : 3;
+      while (notificationToastQueue.length && visibleNotificationToasts < limit) {
+        visibleNotificationToasts++;
+        showPortalToast(notificationToastQueue.shift());
+      }
+    };
+    const queuePortalToast = notification => { notificationToastQueue.push(notification); drainNotificationToasts(); };
     const showPortalToast = async (notification) => {
       const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
       const isLoanAgreement = String(notification.related_type || '').startsWith('loan_agreement_');
@@ -667,18 +677,20 @@ window.addEventListener('DOMContentLoaded', () => {
         const claimResponse = await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(notification.id)})});
         claimed = Boolean((await claimResponse.json()).claimed);
       } catch (_) { claimed = false; }
-      if (!claimed) return;
+      if (!claimed) { visibleNotificationToasts--; drainNotificationToasts(); return; }
       const container = ensureToastContainer();
       const toast = document.createElement('div');
       toast.className = 'portal-toast';
+      const notificationSource = window.PortalNotificationUI?.source(notification) || 'system';
+      toast.dataset.source = notificationSource;
       const state = notification.deadline_state && notification.deadline_state !== 'normal' ? notification.deadline_state : (notification.priority === 'urgent' ? 'urgent' : 'normal');
       const stateLabel = isLoanAgreement ? 'Loan Agreement' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
-      const stateIcon = isLoanAgreement ? '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="M6 3h9l3 3v15H6zM14 3v4h4M9 12h6M9 16h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>' : (({due_today:'◷', overdue:'⚠', upcoming:'◷', urgent:'!', normal:'✓'})[state] || '•');
+      const stateIcon = window.PortalNotificationUI?.icon('check') || '';
       if (isLoanAgreement) toast.classList.add('portal-notification--hr');
       toast.dataset.deadlineState = state;
       toast.setAttribute('role', state === 'urgent' ? 'alert' : 'status');
       toast.setAttribute('aria-live', state === 'urgent' ? 'assertive' : 'polite');
-      toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">×</button>
+      toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">${window.PortalNotificationUI?.icon('close') || '×'}</button><span class="nt-source-icon" aria-hidden="true">${window.PortalNotificationUI?.icon(notificationSource) || ''}</span>
         <span class="portal-notification__status"><span aria-hidden="true">${stateIcon}</span> ${escapeHtml(stateLabel)}</span>
         <p class="portal-toast-title">${escapeHtml(notification.title || 'New notification')}</p>
         <p class="portal-toast-message">${escapeHtml(notification.message || '')}</p>
@@ -688,9 +700,12 @@ window.addEventListener('DOMContentLoaded', () => {
       if (isLoanAgreement) toast.insertAdjacentHTML('beforeend', `<div class="portal-toast-actions"><button type="button" class="portal-toast-hr-action" data-toast-loan>${notification.related_type === 'loan_agreement_owner_signature' ? 'Review &amp; Sign' : (notification.related_type === 'loan_agreement_completed' ? 'View Agreement' : 'Review Agreement')}</button></div>`);
       const markState = (state) => fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:`notification_${state}`, notification_id:String(notification.id)}) }).catch(() => {});
 
+      let toastClosed = false;
       const close = () => {
+        if (toastClosed) return;
+        toastClosed = true;
         toast.classList.add('is-leaving');
-        window.setTimeout(() => toast.remove(), 220);
+        window.setTimeout(() => { toast.remove(); visibleNotificationToasts--; drainNotificationToasts(); }, 180);
       };
 
       toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { if (!isLoanAgreement) markState('dismissed'); close(); });
@@ -790,7 +805,7 @@ window.addEventListener('DOMContentLoaded', () => {
           .forEach((notification) => {
             const id = Number(notification.id || 0);
             if (id > lastSeenLatestId) {
-              showPortalToast(notification);
+              queuePortalToast(notification);
               lastSeenLatestId = id;
             }
           });
