@@ -2011,8 +2011,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 $employees = $ready ? ops_rows(
     "SELECT e.id, e.full_name, r.role_key
      FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id
-     WHERE e.status = 'active'
-     ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager', 'owner_admin'), e.full_name"
+     WHERE e.status = 'active'" . ($canManage ? '' : ' AND e.id = ?') . "
+     ORDER BY FIELD(r.role_key, 'packer', 'front_desk_admin', 'supervisor_manager', 'owner_admin'), e.full_name",
+    $canManage ? [] : [$currentEmployeeId ?: 0]
 ) : [];
 $employees = ops_canonical_employee_rows($employees);
 $eligibleTaskEmployees = array_values(array_filter($employees, static fn(array $employee): bool => (string) ($employee['role_key'] ?? '') !== 'owner_admin'));
@@ -2036,6 +2037,10 @@ $filters = [
     'floating_role' => trim((string) ($_GET['floating_role'] ?? '')),
     'allocation_status' => trim((string) ($_GET['allocation_status'] ?? '')),
 ];
+if (!$canManage) {
+    $filters['employee_id'] = '';
+    $filters['completed_employee_id'] = (string) ($currentEmployeeId ?: 0);
+}
 $filters['task_view'] = $filters['task_view'] === 'tasks' ? 'active' : $filters['task_view'];
 $requestedTaskView = $filters['task_view'];
 if ($filters['task_view'] === 'manual') $filters['task_view'] = 'active';
@@ -2448,7 +2453,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
         </form>
     </details>
 
-    <aside class="packing-tools-panel task-tools-panel" id="task-tools-panel" data-task-tools-panel aria-hidden="true">
+    <aside class="packing-tools-panel task-tools-panel ess-task-popover" id="task-tools-panel" data-task-tools-panel aria-hidden="true">
         <header class="packing-tools-panel-header">
             <div><p class="packing-tools-kicker">Task Management</p><h2 class="packing-tools-title">Task tools</h2><p class="packing-tools-subtitle">Review deleted tasks, restore archived tasks and track task activity.</p></div>
             <button type="button" class="packing-tools-close" data-task-tools-close aria-label="Close Task tools"><i data-lucide="x"></i></button>

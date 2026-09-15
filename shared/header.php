@@ -149,7 +149,8 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                 <form class="portal-notification-preview__settings notification-sound-settings" data-notification-sound-settings>
                     <div class="notification-sound-settings__toggles">
                         <label class="notification-sound-toggle" for="notification-sounds-enabled">
-                            <span>Sounds</span>
+                            <svg class="notification-sound-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg>
+                            <span>Notification sound</span><span class="notification-sound-state" aria-hidden="true"><span class="sound-on">On</span><span class="sound-off">Off</span></span>
                             <input type="checkbox" id="notification-sounds-enabled" name="sound_enabled" value="1" aria-label="Enable notification sounds" <?= !empty($headerNotificationPreferences['sound_enabled']) ? 'checked' : '' ?>>
                         </label>
                         <label class="notification-sound-toggle" for="desktop-notifications-enabled">

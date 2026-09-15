@@ -1,0 +1,31 @@
+.marketing-execution-workspace{--execution-accent:#A23D8A;display:flex;flex-direction:column;gap:20px;font-family:"Jost",sans-serif}
+.marketing-execution-workspace :is(button,input,select,textarea){font:inherit}
+.marketing-execution-workspace .marketing-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+.marketing-execution-workspace .marketing-panel{padding:22px}
+.marketing-execution-workspace :is(form,label){min-width:0}
+.marketing-execution-workspace label{display:flex;flex-direction:column;gap:6px;margin-block:10px;color:#41493a}
+.marketing-execution-workspace :is(input:not([type=checkbox]):not([type=hidden]),textarea,select){box-sizing:border-box;width:100%;border:1px solid #e0d9df;background:#fff;border-radius:8px;min-height:38px;padding:8px 10px;color:#30392c}
+.marketing-execution-workspace textarea{min-height:84px;resize:vertical}
+.marketing-execution-workspace :is(input,textarea,select):focus-visible{outline:2px solid #A23D8A;outline-offset:2px}
+.marketing-execution-workspace input[type=checkbox],.marketing-channel-picker input[type=checkbox]{width:18px;height:18px;accent-color:#A23D8A;flex:none}
+.marketing-execution-workspace .marketing-execution-checks{display:flex;flex-wrap:wrap;gap:24px}
+.marketing-execution-workspace .marketing-execution-checks label,.marketing-channel-chip{display:inline-flex;align-items:center;flex-direction:row;gap:8px}
+.marketing-execution-channel{border:1px solid #eadce7;border-radius:12px;margin:18px 0;padding:16px;background:#fdfafd}
+.marketing-execution-channel legend{font-weight:500;padding:0 6px;color:#A23D8A}
+.marketing-execution-form progress{width:100%;height:8px;accent-color:#A23D8A}
+.marketing-instruction-copy{white-space:pre-wrap;overflow-wrap:anywhere}
+.marketing-execution-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+.marketing-execution-meta dt{font-size:11px;text-transform:uppercase;color:#737969}.marketing-execution-meta dd{margin:4px 0;overflow-wrap:anywhere}
+.marketing-execution-assets{display:flex;gap:10px;flex-wrap:wrap}.marketing-execution-assets a{white-space:normal}
+.marketing-execution-upload{display:flex;gap:16px;align-items:center;flex-wrap:wrap}
+.marketing-app-tile{position:relative}.marketing-app-count{position:absolute;right:9px;bottom:9px;min-width:22px;height:22px;display:inline-flex;align-items:center;justify-content:center;padding:0 6px;border-radius:999px;background:#A23D8A;color:#fff;font:500 9px "Jost",sans-serif;box-shadow:0 3px 8px #A23D8A2e}
+.marketing-channel-picker{border:1px solid #eadce7;border-radius:10px;padding:12px}.marketing-channel-chip{border:1px solid #eadce7;border-radius:8px;padding:8px;background:#fcf7fb}.marketing-channel-chip:has(input:checked){border-color:#A23D8A;background:#f5e9f2}.marketing-channel-instruction{margin-bottom:12px}
+@media(max-width:640px){.marketing-execution-workspace .marketing-panel{padding:14px}.marketing-execution-workspace .marketing-form-grid{grid-template-columns:1fr}.marketing-execution-workspace .marketing-hero-actions{flex-wrap:wrap}}
+@media(max-width:640px){.marketing-execution-workspace .marketing-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.marketing-execution-workspace .marketing-local-nav{padding-right:0}
+.marketing-execution-workspace select.portal-custom-select-native{width:1px!important;height:1px!important;min-height:0!important;min-width:0!important;padding:0!important;clip-path:inset(50%);overflow:hidden}
+.marketing-execution-workspace fieldset{min-inline-size:0}
+.marketing-execution-workspace .marketing-channel-chip{display:inline-flex;flex-direction:row}
+.marketing-execution-workspace .marketing-calendar-day{border:1px solid #eadce7;border-radius:10px;padding:14px;min-width:0;background:#fff}
+.marketing-execution-workspace .marketing-calendar-day h3{font:500 13px Jost,sans-serif;color:#A23D8A}
+.marketing-execution-workspace .marketing-calendar-day a{display:flex;gap:8px;justify-content:space-between;padding:10px 0;border-top:1px solid #f0e7ee;color:#343a31;text-decoration:none}

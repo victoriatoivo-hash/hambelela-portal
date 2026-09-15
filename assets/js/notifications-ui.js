@@ -34,5 +34,26 @@ const enhanceSelect=select=>{
  select.addEventListener('change',sync);select.form?.addEventListener('reset',()=>setTimeout(sync,0));sync();
 };
 window.PortalNotificationUI={source,labels,icon,escape,href,enhanceSelect};
+// Keep only this anchored popover inside the content shell. Do not offset modals.
+const notificationControl=document.querySelector('.portal-notification-control');
+const notificationPanel=notificationControl?.querySelector('.portal-notification-preview');
+if(notificationPanel){
+ const positionSoundPanel=()=>{
+  if(!notificationControl.classList.contains('is-preview-open'))return;
+  notificationPanel.style.translate='none';
+  const viewportWidth=document.documentElement.clientWidth;
+  const sidebar=document.querySelector('.ess-sidebar'),side=sidebar?.getBoundingClientRect();
+  const leftLimit=side&&getComputedStyle(sidebar).display!=='none'&&side.left>=0&&side.width<innerWidth/2?side.right+12:12;
+  notificationPanel.style.maxWidth=Math.max(0,viewportWidth-leftLimit-12)+'px';
+  const rect=notificationPanel.getBoundingClientRect();
+  const shift=Math.max(leftLimit-rect.left,Math.min(0,viewportWidth-12-rect.right));
+  notificationPanel.style.translate=shift+'px 0';
+  notificationPanel.style.maxHeight=Math.max(120,Math.min(520,innerHeight-rect.top-12))+'px';
+ };
+ new MutationObserver(positionSoundPanel).observe(notificationControl,{attributes:true,attributeFilter:['class']});
+ new MutationObserver(positionSoundPanel).observe(document.body,{attributes:true,attributeFilter:['class']});
+ addEventListener('resize',positionSoundPanel);
+ addEventListener('scroll',positionSoundPanel,{passive:true});
+}
 document.querySelectorAll('[data-notification-module]').forEach(row=>{const category=source({module:row.dataset.notificationModule,related_type:row.dataset.notificationRelated});row.dataset.source=category;const tile=row.querySelector('.portal-notification-preview__indicator');if(tile){tile.className='nt-source-icon';tile.innerHTML=icon(category);}});
 })();

@@ -5,8 +5,10 @@ require_once BASE_PATH.'/shared/marketing.php';
 marketing_require_access();
 
 $id=(int)($_GET['id']??0);
-$q=db()->prepare('SELECT v.*,w.assigned_employee_id FROM marketing_item_versions v JOIN marketing_work_items w ON w.id=v.item_id WHERE v.id=? AND w.cancelled_at IS NULL');
-$q->execute([$id]);
+$params=[$id];$fileScope='';
+if(!marketing_is_owner()){$fileScope=' AND w.assigned_employee_id=?';$params[]=marketing_employee_id();}
+$q=db()->prepare('SELECT v.*,w.assigned_employee_id FROM marketing_item_versions v JOIN marketing_work_items w ON w.id=v.item_id WHERE v.id=? AND w.cancelled_at IS NULL'.$fileScope);
+$q->execute($params);
 $file=$q->fetch();
 if(!$file||(!marketing_is_owner()&&(int)$file['assigned_employee_id']!==marketing_employee_id())){http_response_code(404);exit('File not found.');}
 $path=BASE_PATH.'/uploads/marketing/'.basename((string)$file['stored_name']);

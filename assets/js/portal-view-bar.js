@@ -60,6 +60,7 @@
     closePopover();
     const popover = document.createElement('div');
     popover.className = 'portal-view-bar__popover';
+    if (button.closest('.ess-task-page')) popover.classList.add('ess-task-popover');
     popover.setAttribute('role', 'dialog');
     popover.setAttribute('aria-label', button.textContent.trim() || button.getAttribute('aria-label') || 'View options');
     popover.innerHTML = html;

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+if (!defined('BASE_PATH') || empty($owner)) { http_response_code(403); exit; }
 $summary=$phase3['summary'];$period=$phase3['period'];$sources=$phase3['sources'];
 $metricSources=array_values(array_unique(array_map(fn($m)=>(string)$m['source_type'],$phase3['metrics'])));
 $metricSourceLabel=$metricSources?implode(' + ',array_map(fn($s)=>$sources[$s]??ucwords(str_replace('_',' ',$s)),$metricSources)):'Not connected';

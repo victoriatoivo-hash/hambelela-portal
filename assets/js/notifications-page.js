@@ -110,7 +110,7 @@ page.addEventListener('click',async event=>{
  if(action==='category'){state.category=b.dataset.category==='all'?'':b.dataset.category;const select=filters.querySelector('[name=category]');select.value=state.category;select.dispatchEvent(new Event('change',{bubbles:true}));return;}
  if(action==='quick'){state.status=b.dataset.filter;const select=filters.querySelector('[name=status]');if([...select.options].some(o=>o.value===state.status)){select.value=state.status;select.dispatchEvent(new Event('change',{bubbles:true}));}else renderFeed();return;}
  if(action==='reset'){Object.keys(state).forEach(k=>state[k]='');build();return;}
- if(action==='preferences'){document.querySelector('[data-notification-button]')?.focus();document.querySelector('[data-notification-sound-settings] input')?.focus();return;}
+ if(action==='preferences'){const bell=document.querySelector('[data-notification-button]');if(bell?.getAttribute('aria-expanded')!=='true')bell?.click();document.querySelector('[data-notification-sound-settings] input')?.focus();return;}
  if(action==='retry'){load();return;}
  if(action==='clearAll'&&!await confirmClear())return;
  const item=data.notifications.find(i=>String(i.id)===b.dataset.id);b.disabled=true;

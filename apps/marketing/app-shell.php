@@ -1,4 +1,5 @@
 <?php
+if (!defined('BASE_PATH') || empty($owner)) { http_response_code(403); exit; }
 // Presentation only: keep the existing scoped records, permissions and handlers.
 $marketingApps=[
 'tasks'=>['Content Tasks','Manage briefs, ownership and approval.','list-checks','Create Content'],

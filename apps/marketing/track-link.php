@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__,2).'/config.php';
 require_once BASE_PATH.'/shared/marketing.php';
 marketing_require_access();
+marketing_require_owner();
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 
