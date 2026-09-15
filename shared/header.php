@@ -36,7 +36,8 @@ $headerUser = current_user();
 $employeeSidebarUpgrade = empty($isEssDashboard)
     && empty($hidePortalSidebar)
     && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') === false
-    && in_array((string) ($headerUser['role_key'] ?? ''), ['packer', 'packer_production_staff', 'front_desk_admin', 'front_desk_admin_employee', 'marketing_sales'], true);
+    && !empty($headerUser)
+    && (string) ($headerUser['role_key'] ?? 'guest') !== 'guest';
 if ($employeeSidebarUpgrade) {
     require_once __DIR__ . '/ess-navigation.php';
     $isEssDashboard = true;

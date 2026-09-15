@@ -637,6 +637,7 @@ function notifications_sidebar_module_keys(): array
 {
     return [
         'orders' => 'Orders',
+        'marketing' => 'Marketing',
         'bookkeeping' => 'Bookkeeping',
         'packing_list' => 'Packing List',
         'courier_waybills' => 'Courier Waybills',
@@ -652,6 +653,7 @@ function notifications_sidebar_module_map(): array
 {
     return [
         'orders' => 'orders',
+        'marketing' => 'marketing',
         'bookkeeping' => 'bookkeeping',
         'packing' => 'packing_list',
         'packing_list' => 'packing_list',

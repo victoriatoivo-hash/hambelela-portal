@@ -748,6 +748,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const sidebarModuleLabels = {orders:'Orders',bookkeeping:'Bookkeeping',packing_list:'Packing List',courier_waybills:'Courier Waybills',hr_portal:'HR Portal',inventory:'Inventory',task_management:'Task Management',error_log:'Error Log',system_issues:'System Issues Log'};
     const updateSidebarModuleBadges = (counts = {}) => {
+      sidebarModuleLabels.marketing = 'Marketing';
       document.querySelectorAll('[data-sidebar-notification-badge]').forEach((badge) => {
         const moduleKey = badge.dataset.sidebarNotificationBadge;
         if (!Object.prototype.hasOwnProperty.call(sidebarModuleLabels, moduleKey)) return;
