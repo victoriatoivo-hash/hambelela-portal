@@ -413,6 +413,7 @@
   }
 
   function updateMetrics(source = tasks) {
+    renderPackerWorkloadCards(source);
     const total = source.length;
     const done = source.filter((task) => packingStatusIsCompleted(task.packing_status)).length;
     const packing = source.filter((task) => normalize(task.packing_status) === 'packing').length;
@@ -430,6 +431,58 @@
   function setUndo(changes) {
     lastUndo = changes && changes.length ? changes : null;
     if (undoButton) undoButton.disabled = !lastUndo;
+  }
+
+  function workloadQuantity(value) {
+    const totals = { weight: 0, volume: 0, count: 0, unknown: false };
+    const text = String(value || '').trim();
+    const pattern = /(\d+(?:\.\d+)?)\s*(kilograms?|kgs?|grams?|g|millilitres?|ml|litres?|liters?|lt|l|pieces?|pcs?|units?)\b\s*(?:\(\s*(\d+)\s*\)|[x*]\s*(\d+))?/gi;
+    const remainder = text.replace(pattern, (_, amount, unitName, bracketCount, timesCount) => {
+      const unit = parsePackUnit(unitName);
+      if (!unit) return _;
+      totals[unit.dimension] += Number(amount) * unit.factor * Number(bracketCount ?? timesCount ?? 1);
+      return '';
+    }).replace(/[\s,+;]+/g, '');
+    totals.unknown = !text || Boolean(remainder);
+    return totals;
+  }
+
+  function packerWorkloadTotals(rows, people) {
+    const empty = () => ({weight:0, volume:0, count:0, unknown:0});
+    const groups = new Map(people.map(person => [String(person.id), {name:person.full_name, assigned:empty(), remaining:empty(), completed:empty(), rows:0}]));
+    function add(target, quantity) {
+      for (const key of ['weight','volume','count']) target[key] += quantity[key];
+      if (quantity.unknown) target.unknown++;
+    }
+    for (const row of rows) {
+      const key = String(row.assigned_employee_id || '');
+      if (!groups.has(key)) groups.set(key, {name:row.assigned_name || 'Unassigned', assigned:empty(), remaining:empty(), completed:empty(), rows:0});
+      const group = groups.get(key);
+      const planned = workloadQuantity(row.quantity_planned);
+      group.rows++;
+      add(group.assigned, planned);
+      if (packingStatusIsCompleted(row.packing_status)) add(group.completed, workloadQuantity(row.quantity_packed));
+      else add(group.remaining, planned);
+    }
+    return [...groups.values()];
+  }
+
+  function renderPackerWorkloadCards(rows) {
+    let panel = document.querySelector('[data-packer-workload-cards]');
+    if (currentUser.role_key !== 'owner_admin') { if (panel) panel.hidden = true; return; }
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.dataset.packerWorkloadCards = '';
+      panel.className = 'packing-owner-workloads';
+      panel.setAttribute('aria-label', 'Packer workload');
+      document.getElementById('packingListViewport')?.before(panel);
+      const style = document.createElement('style');
+      style.textContent = '.packing-owner-workloads{margin:16px 0;color:#34433c;font:12px Jost,sans-serif}.packing-owner-workloads>p{margin:6px 0 12px;color:#68756a}.packing-owner-workload-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px}.packing-owner-workloads article{border:1px solid #dfe5d8;border-left:3px solid #728159;border-radius:12px;background:#fff;padding:14px;transition:box-shadow .18s}.packing-owner-workloads article:hover{box-shadow:0 4px 14px #34433c12}.packing-owner-workloads h3{font-size:13px;margin:0 0 8px;font-weight:500}.packing-owner-workloads dl{margin:0}.packing-owner-workloads dl>div{padding:8px 0;border-top:1px solid #edf0e8}.packing-owner-workloads dt{color:#697560;margin-bottom:3px}.packing-owner-workloads dd{margin:0;font-variant-numeric:tabular-nums}.packing-owner-workloads small{display:block;color:#936320;margin-top:4px}';
+      document.head.append(style);
+    }
+    panel.hidden = false;
+    const format = total => `${(total.weight/1000).toLocaleString(undefined,{maximumFractionDigits:3})} kg · ${(total.volume/1000).toLocaleString(undefined,{maximumFractionDigits:3})} L · ${total.count.toLocaleString()} pieces${total.unknown ? `<small>${total.unknown} row(s) have missing or unclear quantities; totals are partial.</small>` : ''}`;
+    panel.innerHTML = `<strong>Packer workload</strong><p>Current filters · Remaining shows planned quantities on unfinished rows. Completed uses recorded packed quantities on completed rows, grouped by current assignee—not a historical performance score.</p><div class="packing-owner-workload-grid">${packerWorkloadTotals(rows, packers).map(group => `<article><h3>${esc(group.name)} · ${group.rows} items</h3><dl><div><dt>Assigned plan</dt><dd>${format(group.assigned)}</dd></div><div><dt>Still to pack (unfinished rows)</dt><dd>${format(group.remaining)}</dd></div><div><dt>Completed output</dt><dd>${format(group.completed)}</dd></div></dl></article>`).join('')}</div>`;
   }
 
   function selectedIdsFor(taskId) {
