@@ -946,15 +946,20 @@ if ($ready && $errors && ops_table_exists('ops_activity_logs')) {
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main class="workspace module error-log-page" id="error-task-details">
-    <section class="error-log-header">
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/error-log-workspace.css?v=<?= filemtime(BASE_PATH.'/assets/css/error-log-workspace.css') ?>">
+<main class="workspace module ess-error-log" id="error-task-details">
+    <section class="error-log-header ess-error-log__header">
         <div>
             <p class="error-log-kicker">Operations</p>
             <h1 class="error-log-title">Error Log</h1>
+            <p class="ess-error-log__subtitle">Track, manage and resolve operational errors and incidents.</p>
         </div>
         <div class="error-log-header-actions" data-portal-header-status-target>
+            <button class="button" type="button" data-error-export><i data-lucide="download"></i> Export CSV</button>
             <button class="button primary error-log-btn-primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
         </div>
+        <p class="ess-error-log__editorial">Resolve today.<br><em>Improve tomorrow.</em></p>
+        <i class="ess-error-log__hero-art" data-lucide="sprout" aria-hidden="true"></i>
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
@@ -988,33 +993,38 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
     <?php endif; ?>
 
-    <details class="error-filter-card" data-portal-view-filter <?= $filtersAreActive ? 'open' : '' ?>>
-        <summary class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i><span>Filters<small><?= $activeFilterCount ? $activeFilterCount . ' filter' . ($activeFilterCount === 1 ? '' : 's') . ' active' : 'No additional filters active' ?></small></span></span><strong data-error-filter-summary><?= $activeFilterCount ? (string) $activeFilterCount : 'Clear' ?></strong></summary>
+    <section class="error-filter-card ess-error-log__filters">
+        <div class="error-filter-header"><span><i data-lucide="sliders-horizontal"></i><span>Filter incidents<small><?= $activeFilterCount ? $activeFilterCount . ' filter' . ($activeFilterCount === 1 ? '' : 's') . ' active' : 'Selected month' ?></small></span></span><button type="button" class="button" data-error-more-filters aria-expanded="false">More filters</button></div>
         <form class="error-filter-body" method="get" data-error-filter-form>
             <div class="error-filter-grid">
                 <label class="span-2">Search<input type="search" name="search" value="<?= htmlspecialchars($filters['search'], ENT_QUOTES, 'UTF-8') ?>" placeholder="Search errors, descriptions, categories or orders"></label>
-                <label>Date period<select name="date_mode" data-portal-custom-select data-error-date-mode><?php ops_select_options(['month'=>'Selected Month','custom'=>'Custom Date Range'],$filters['date_mode']);?></select></label>
+                <label>Date period<select name="date_mode" data-error-custom-select data-error-date-mode><?php ops_select_options(['month'=>'Selected Month','custom'=>'Custom Date Range'],$filters['date_mode']);?></select></label>
                 <label data-error-month-field <?= $filters['date_mode'] === 'custom' ? 'hidden' : '' ?>>Month<input type="month" name="month" value="<?= htmlspecialchars($filters['month'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label data-error-custom-date <?= $filters['date_mode'] === 'month' ? 'hidden' : '' ?>>Date from<input type="date" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES, 'UTF-8') ?>"></label>
                 <label data-error-custom-date <?= $filters['date_mode'] === 'month' ? 'hidden' : '' ?>>Date to<input type="date" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES, 'UTF-8') ?>"></label>
-                <label>Date field<select name="date_basis" data-portal-custom-select><?php ops_select_options(['logged'=>'Date Logged','occurred'=>'Date Error Occurred'],$filters['date_basis']);?></select><small>Africa/Windhoek boundaries</small></label>
-                <label>Sort<select name="sort" data-portal-custom-select><?php ops_select_options(['occurred_newest'=>'Error Occurred — Newest','occurred_oldest'=>'Error Occurred — Oldest','logged_newest'=>'Date Logged — Newest','logged_oldest'=>'Date Logged — Oldest','financial_highest'=>'Financial Impact — Highest','financial_lowest'=>'Financial Impact — Lowest'],$filters['sort']);?></select></label>
-                <label>Severity<select name="severity" data-portal-custom-select><option value="">All severity</option><?php ops_select_options($severityLabels, $filters['severity']); ?></select></label>
-                <label>Category<select name="category" data-portal-custom-select><option value="">All categories</option><?php ops_select_options($errorCategories, $filters['category']); ?></select></label>
-                <?php if ($showFullErrorLog): ?><label>Person involved<select name="employee_id" data-portal-custom-select><option value="">All people</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (string) $employee['id'] === $filters['employee_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label><?php endif; ?>
-                <label>Logged for<select name="logged_for" data-portal-custom-select><?php ops_select_options([''=>'All','employee'=>'Employee','delivery_driver'=>'Delivery Driver','business'=>'Business Error'],$filters['logged_for']); ?></select></label>
-                <label>Financial impact<select name="financial_impact_filter" data-portal-custom-select><?php ops_select_options([''=>'All','yes'=>'Has financial impact','no'=>'No financial impact'],$filters['financial_impact_filter']); ?></select></label>
-                <label>Repeat error<select name="repeat_issue" data-portal-custom-select><?php ops_select_options(['' => 'All', '1' => 'Yes', '0' => 'No'], $filters['repeat_issue']); ?></select></label>
-                <label>Customer impacted<select name="customer_impacted" data-portal-custom-select><?php ops_select_options(['' => 'All', '1' => 'Yes', '0' => 'No'], $filters['customer_impacted']); ?></select></label>
+                <label>Date field<select name="date_basis" data-error-custom-select><?php ops_select_options(['logged'=>'Date Logged','occurred'=>'Date Error Occurred'],$filters['date_basis']);?></select><small>Africa/Windhoek boundaries</small></label>
+                <label>Sort<select name="sort" data-error-custom-select><?php ops_select_options(['occurred_newest'=>'Error Occurred — Newest','occurred_oldest'=>'Error Occurred — Oldest','logged_newest'=>'Date Logged — Newest','logged_oldest'=>'Date Logged — Oldest','financial_highest'=>'Financial Impact — Highest','financial_lowest'=>'Financial Impact — Lowest'],$filters['sort']);?></select></label>
+                <label>Severity<select name="severity" data-error-custom-select><option value="">All severity</option><?php ops_select_options($severityLabels, $filters['severity']); ?></select></label>
+                <label>Category<select name="category" data-error-custom-select><option value="">All categories</option><?php ops_select_options($errorCategories, $filters['category']); ?></select></label>
+                <?php if ($showFullErrorLog): ?><label>Person involved<select name="employee_id" data-error-custom-select><option value="">All people</option><?php foreach ($employees as $employee): ?><option value="<?= (int) $employee['id'] ?>" <?= (string) $employee['id'] === $filters['employee_id'] ? 'selected' : '' ?>><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></option><?php endforeach; ?></select></label><?php endif; ?>
+                <label>Logged for<select name="logged_for" data-error-custom-select><?php ops_select_options([''=>'All','employee'=>'Employee','delivery_driver'=>'Delivery Driver','business'=>'Business Error'],$filters['logged_for']); ?></select></label>
+                <label>Financial impact<select name="financial_impact_filter" data-error-custom-select><?php ops_select_options([''=>'All','yes'=>'Has financial impact','no'=>'No financial impact'],$filters['financial_impact_filter']); ?></select></label>
+                <label>Repeat error<select name="repeat_issue" data-error-custom-select><?php ops_select_options(['' => 'All', '1' => 'Yes', '0' => 'No'], $filters['repeat_issue']); ?></select></label>
+                <label>Customer impacted<select name="customer_impacted" data-error-custom-select><?php ops_select_options(['' => 'All', '1' => 'Yes', '0' => 'No'], $filters['customer_impacted']); ?></select></label>
                 <label>Order ID<input name="order_reference" value="<?= htmlspecialchars($filters['order_reference'], ENT_QUOTES, 'UTF-8') ?>" placeholder="#33863 or WEB-33780"></label>
-                <label>Resolution status<select name="status" data-portal-custom-select><option value="">All statuses</option><?php ops_select_options($statusLabels, $filters['status']); ?></select></label>
+                <label>Resolution status<select name="status" data-error-custom-select><option value="">All statuses</option><?php ops_select_options($statusLabels, $filters['status']); ?></select></label>
             </div>
             <p class="error-filter-feedback" data-error-filter-feedback role="status" aria-live="polite"></p>
             <div class="ops-form-actions error-filter-actions"><button class="button" type="button" data-error-filter-clear>Clear All</button><button class="button primary" type="submit">Apply Filters</button></div>
         </form>
-    </details>
+    </section>
 
-    <div data-error-results>
+    <nav class="ess-error-log__tabs" aria-label="Quick incident filters">
+        <?php foreach (['all'=>'All','open'=>'Not Resolved','resolved'=>'Resolved','critical'=>'Critical','high'=>'High','medium'=>'Medium','low'=>'Low','repeat'=>'Repeat'] as $tabValue=>$tabLabel): ?><button type="button" data-error-quick="<?= $tabValue ?>" aria-pressed="false"><?= $tabLabel ?></button><?php endforeach; ?>
+    </nav>
+
+    <div class="ess-error-log__layout">
+    <div data-error-results class="ess-error-log__tables">
     <div class="error-filter-chips-shell" data-error-filter-chips-shell>
     <?php if ($activeFilterChips): ?>
         <nav class="error-filter-chips" aria-label="Active Error Log filters">
@@ -1119,12 +1129,24 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
     <?php endforeach; ?>
     </div>
+    <?php if ($showFullErrorLog): ?>
+    <aside class="ess-error-log__insights" data-error-insights aria-label="Error insights">
+        <div class="ess-error-log__insight"><p class="ess-error-log__eyebrow">ERROR INSIGHTS</p><h2>Severity distribution</h2><p class="ess-error-log__muted">For the selected view</p>
+        <?php foreach ($severityLabels as $key=>$label): ?><div class="ess-error-log__bar-row"><span><?= htmlspecialchars($label,ENT_QUOTES,'UTF-8') ?></span><strong><?= (int)$metrics[$key] ?></strong><meter min="0" max="<?= max(1,(int)$metrics['month_total']) ?>" value="<?= (int)$metrics[$key] ?>" class="severity-<?= $key ?>"><?= (int)$metrics[$key] ?></meter></div><?php endforeach; ?>
+        <p class="ess-error-log__muted">Resolved is a separate status: <?= (int)$metrics['resolved'] ?> resolved.</p></div>
+        <div class="ess-error-log__insight"><h2>Top error categories</h2><?php foreach (array_slice($categoryCounts,0,5,true) as $key=>$count): ?><div class="ess-error-log__bar-row"><span><?= htmlspecialchars($errorCategories[$key]??$key,ENT_QUOTES,'UTF-8') ?></span><strong><?= (int)$count ?></strong><meter min="0" max="<?= max(1,(int)$metrics['month_total']) ?>" value="<?= (int)$count ?>"><?= (int)$count ?></meter></div><?php endforeach; ?><?php if (!$categoryCounts): ?><p>No categories in this view.</p><?php endif; ?></div>
+        <div class="ess-error-log__insight ess-error-log__insight--sage"><h2>Operational health</h2><dl><div><dt>Unresolved</dt><dd><?= (int)$metrics['month_total']-(int)$metrics['resolved'] ?></dd></div><div><dt>Flagged repeat errors</dt><dd><?= (int)$metrics['repeat'] ?></dd></div></dl><p class="ess-error-log__muted">Repeat counts use the recorded repeat flag, not assumptions based on category.</p><p class="ess-error-log__muted">Resolution deadlines and average resolution time are not available in this view.</p></div>
+        <div class="ess-error-log__insight ess-error-log__support"><i data-lucide="sprout"></i><h2>Better processes.<br>Fewer repeat mistakes.</h2><p>Record what happened, identify the impact, and leave clear instructions for the next step.</p></div>
+    </aside>
+    <?php endif; ?>
+    </div>
 
     <aside class="error-log-panel incident-modal" data-error-modal-panel aria-hidden="true" role="dialog" aria-modal="true" aria-label="Log error">
             <div class="error-log-panel-head incident-header">
                 <div>
-                    <span class="error-panel-kicker">Incident report</span>
-                    <h2>Log Error</h2>
+                    <span class="error-panel-kicker">Log new error</span>
+                    <h2>Report an error</h2>
+                    <p>Record operational mistakes accurately so they can be resolved and prevented.</p>
                 </div>
                 <button class="panel-close-button" type="button" data-error-modal-close aria-label="Close log error"><i data-lucide="x"></i></button>
             </div>
@@ -1171,9 +1193,9 @@ include BASE_PATH . '/shared/sidebar.php';
                         <div class="incident-choice-control incident-choice-control--severity" data-incident-choice="severity">
                             <?php foreach ($severityLabels as $value => $label): ?>
                                 <?php [$choiceColour, $choiceText] = $severityChoiceColours[$value]; ?>
-                                <label class="incident-choice" style="--choice-color:<?= $choiceColour ?>;--choice-text:<?= $choiceText ?>">
+                                <label class="incident-choice ess-severity-choice severity-<?= htmlspecialchars($value,ENT_QUOTES,'UTF-8') ?>">
                                     <input class="incident-choice__input" type="radio" name="severity" value="<?= htmlspecialchars($value, ENT_QUOTES, 'UTF-8') ?>" aria-label="<?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?>" required>
-                                    <span class="incident-choice__content"><span class="incident-choice__indicator" aria-hidden="true"></span><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><span class="incident-choice__check" aria-hidden="true">&#10003;</span></span>
+                                    <span class="incident-choice__content"><i data-lucide="<?= $value==='low'?'info':'triangle-alert' ?>"></i><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><span class="incident-choice__check" aria-hidden="true">&#10003;</span><small><?= ['critical'=>'Immediate attention','high'=>'Needs attention soon','medium'=>'Monitor and resolve','low'=>'Minor issue'][$value] ?></small><span class="ess-severity-scale" aria-hidden="true"><?php for($scale=1;$scale<=5;$scale++): ?><b class="<?= $scale<=['critical'=>5,'high'=>4,'medium'=>3,'low'=>1][$value]?'is-active':'' ?>"></b><?php endfor; ?></span></span>
                                 </label>
                             <?php endforeach; ?>
                         </div>
@@ -1250,7 +1272,7 @@ include BASE_PATH . '/shared/sidebar.php';
                     </div>
                 </section>
 
-                <div class="ops-form-actions error-panel-actions incident-footer"><button class="button incident-btn-secondary" type="button" data-error-modal-close>Cancel</button><button class="button primary incident-btn-primary" type="submit">Save Issue</button></div>
+                <div class="ops-form-actions error-panel-actions incident-footer"><button class="button incident-btn-secondary" type="button" data-error-modal-close>Cancel</button><button class="button primary incident-btn-primary" type="submit">Log Error</button></div>
             </form>
     </aside>
 
@@ -1294,12 +1316,12 @@ include BASE_PATH . '/shared/sidebar.php';
         $latestInstruction = $ownerInstructions ? $ownerInstructions[count($ownerInstructions) - 1] : [];
         $latestInstructionId = (int) ($latestInstruction['id'] ?? 0);
         ?>
-        <aside class="error-detail-panel incident-details-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true">
+        <aside class="error-detail-panel incident-details-panel" data-error-panel="<?= $errorId ?>" aria-hidden="true" role="dialog" aria-modal="true" aria-label="Error details">
             <script type="application/json" id="incident-edit-data-<?= $errorId ?>"><?= json_encode($editData, JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?></script>
             <div class="incident-details-header">
                 <div>
                     <span class="incident-details-severity" data-severity="<?= htmlspecialchars(strtolower($severity), ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($severityLabels[$severity] ?? $severity, ENT_QUOTES, 'UTF-8') ?></span>
-                    <p class="incident-details-eyebrow">Incident detail</p>
+                    <p class="incident-details-eyebrow">Error details · ERR-<?= str_pad((string)$errorId,5,'0',STR_PAD_LEFT) ?></p>
                     <h2 class="incident-details-title"><?= htmlspecialchars((string) ($error['error_title'] ?: ($errorCategories[(string) $error['category']] ?? $error['category'])), ENT_QUOTES, 'UTF-8') ?></h2>
                 </div>
                 <button class="incident-details-close" type="button" data-error-close aria-label="Close error details"><i data-lucide="x"></i></button>
@@ -1454,6 +1476,9 @@ function replaceErrorFilterResults(nextDocument) {
   const currentMetrics = document.querySelector('[data-error-filter-metrics]');
   const nextMetrics = nextDocument.querySelector('[data-error-filter-metrics]');
   if (currentMetrics && nextMetrics) currentMetrics.innerHTML = nextMetrics.innerHTML;
+  const currentInsights = document.querySelector('[data-error-insights]');
+  const nextInsights = nextDocument.querySelector('[data-error-insights]');
+  if (currentInsights && nextInsights) currentInsights.innerHTML = nextInsights.innerHTML;
   const currentChips = document.querySelector('[data-error-filter-chips-shell]');
   const nextChips = nextDocument.querySelector('[data-error-filter-chips-shell]');
   if (currentChips && nextChips) currentChips.innerHTML = nextChips.innerHTML;
@@ -1470,6 +1495,7 @@ function replaceErrorFilterResults(nextDocument) {
   });
   document.querySelector('[data-error-filter-failure]')?.remove();
   bindErrorFilterChips();
+  document.dispatchEvent(new Event('error-workspace-refreshed'));
   window.lucide?.createIcons({ attrs: { 'aria-hidden': 'true' }, strokeWidth: 1.7 });
 }
 
@@ -1803,10 +1829,10 @@ function openIncidentForm(mode = 'create', data = {}) {
 
   actionInput.value = mode === 'edit' ? 'update_error' : 'create_error';
   incidentIdInput.value = mode === 'edit' ? String(data.id || '') : '';
-  if (headerTitle) headerTitle.textContent = mode === 'edit' ? 'Edit Error' : 'Log Error';
+  if (headerTitle) headerTitle.textContent = mode === 'edit' ? 'Edit error' : 'Report an error';
   if (submitButton) {
     submitButton.disabled = false;
-    submitButton.textContent = mode === 'edit' ? 'Update Error' : 'Save Issue';
+    submitButton.textContent = mode === 'edit' ? 'Save changes' : 'Log Error';
   }
 
   setIncidentCategoryValue(mode === 'edit' ? (data.category || '') : '', mode === 'edit' ? (data.other_category || '') : '');
@@ -2342,7 +2368,7 @@ document.getElementById('logErrorForm')?.addEventListener('submit', async functi
     this.dataset.saving = '0';
     if (saveButton) {
       saveButton.disabled = false;
-      saveButton.textContent = saveButton.dataset.originalText || 'Save Issue';
+      saveButton.textContent = saveButton.dataset.originalText || 'Log Error';
     }
   }
 });
@@ -2378,4 +2404,5 @@ document.addEventListener('keydown', (event) => {
   document.body.classList.remove('error-panel-open');
 });
 </script>
+<script defer src="<?= BASE_URL ?>/assets/js/error-log-workspace.js?v=<?= filemtime(BASE_PATH.'/assets/js/error-log-workspace.js') ?>"></script>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
