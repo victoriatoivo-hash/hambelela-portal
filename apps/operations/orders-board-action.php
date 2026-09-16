@@ -1371,17 +1371,6 @@ try {
         $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_POST['date'] ?? '')) ? (string) $_POST['date'] : null;
         $force = (string) ($_POST['force'] ?? '') === '1';
         $result = ops_board_run_guarded_sync($date, $force);
-        if ((int) ($result['imported'] ?? 0) > 0) {
-            notifications_create_for_roles([
-                'title' => 'New website orders synced',
-                'message' => (int) $result['imported'] . ' new order(s) were imported from the website.',
-                'module' => 'operations',
-                'priority' => 'normal',
-                'related_type' => 'order_sync',
-                'related_id' => null,
-                'action_link' => BASE_URL . '/apps/operations/orders-board.php',
-            ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
-        }
         echo json_encode([
             'ok' => true,
             'message' => 'Website orders synced.',
@@ -1403,18 +1392,7 @@ try {
             'source' => 'orders_board_status',
             'status' => $status,
         ]);
-        if ($status === 'completed') {
-            $order = notifications_order_summary($orderId);
-            notifications_create_for_roles([
-                'title' => 'Order completed',
-                'message' => ((string) ($order['order_number'] ?? ('Order #' . $orderId))) . ' was marked complete.',
-                'module' => 'operations',
-                'priority' => 'info',
-                'related_type' => 'order',
-                'related_id' => $orderId,
-                'action_link' => BASE_URL . '/apps/operations/orders-board.php?order_id=' . $orderId,
-            ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
-        } elseif ($status === 'correction_required') {
+        if ($status === 'correction_required') {
             $order = notifications_order_summary($orderId);
             notifications_create([
                 'title' => 'Order needs correction',
@@ -1816,18 +1794,6 @@ try {
             }
             ops_activity_log($value === 'completed' ? 'order_completed' : 'status_changed', 'order', $orderId, ['field'=>'status','old_value'=>$oldKpiStatus,'new_value'=>$value,'changed_by'=>current_user()['name']??'Unknown']);
             ops_log_order_stage_event($orderId, $value, ['source'=>'orders_board_field','status'=>$value]);
-            if ($value === 'completed') {
-                $order = notifications_order_summary($orderId);
-                notifications_create_for_roles([
-                    'title' => 'Order completed',
-                    'message' => ((string) ($order['order_number'] ?? ('Order #' . $orderId))) . ' was marked complete.',
-                    'module' => 'operations',
-                    'priority' => 'info',
-                    'related_type' => 'order',
-                    'related_id' => $orderId,
-                    'action_link' => BASE_URL . '/apps/operations/orders-board.php?order_id=' . $orderId,
-                ], ['owner_admin', 'front_desk_admin', 'supervisor_manager']);
-            }
             $previousOrder['assigned_packer_id'] = $lockedPackerId;
         } elseif ($field === 'payment_status') {
             $submittedCsrf = (string) ($_POST['csrf_token'] ?? '');
