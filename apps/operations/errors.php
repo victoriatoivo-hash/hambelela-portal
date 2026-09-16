@@ -950,16 +950,14 @@ include BASE_PATH . '/shared/sidebar.php';
 <main class="workspace module ess-error-log" id="error-task-details">
     <section class="error-log-header ess-error-log__header">
         <div>
-            <p class="error-log-kicker">Operations</p>
+            <span class="error-page-icon"><i data-lucide="clipboard-x" aria-hidden="true"></i></span>
             <h1 class="error-log-title">Error Log</h1>
             <p class="ess-error-log__subtitle">Track, manage and resolve operational errors and incidents.</p>
         </div>
         <div class="error-log-header-actions" data-portal-header-status-target>
-            <button class="button" type="button" data-error-export><i data-lucide="download"></i> Export CSV</button>
             <button class="button primary error-log-btn-primary" type="button" data-error-modal-open><i data-lucide="plus"></i> Log Error</button>
+            <button class="button" type="button" data-error-export><i data-lucide="download"></i> Export CSV</button>
         </div>
-        <p class="ess-error-log__editorial">Resolve today.<br><em>Improve tomorrow.</em></p>
-        <i class="ess-error-log__hero-art" data-lucide="sprout" aria-hidden="true"></i>
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
     <?php ops_flash($message, $messageType); ?>
@@ -1034,8 +1032,8 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php endif; ?>
     </div>
 
-    <?php foreach (['open' => 'Not Resolved Errors', 'resolved' => 'Resolved Errors'] as $sectionStatus => $sectionTitle): ?>
-    <?php $sectionErrors = $errorsByResolution[$sectionStatus] ?? []; ?>
+    <?php foreach (['all' => 'Operational errors'] as $sectionStatus => $sectionTitle): ?>
+    <?php $sectionErrors = $errors; ?>
     <section class="error-board-section error-section-<?= htmlspecialchars($sectionStatus, ENT_QUOTES, 'UTF-8') ?>">
         <div class="error-board-section-header">
             <h2 class="error-board-section-title"><?= htmlspecialchars($sectionTitle, ENT_QUOTES, 'UTF-8') ?></h2>
@@ -1291,6 +1289,8 @@ include BASE_PATH . '/shared/sidebar.php';
         $storedCategory = (string) ($error['category'] ?? '');
         $editData = [
             'id' => $errorId,
+            'logged_at' => (string)(($error['created_at']??null)?:($error['logged_at']??'')),
+            'resolved_at' => (string)($error['resolved_at']??''),
             'error_title' => (string) ($error['error_title'] ?? ''),
             'occurred_at' => error_occurrence_input((string)($error['occurred_at']??'')) ?: ((string)($error['occurred_on']??'') !== '' ? (string)$error['occurred_on'].'T00:00' : ''),
             'order_reference' => (string) ($error['order_reference'] ?? ''),
@@ -1482,7 +1482,7 @@ function replaceErrorFilterResults(nextDocument) {
   const currentChips = document.querySelector('[data-error-filter-chips-shell]');
   const nextChips = nextDocument.querySelector('[data-error-filter-chips-shell]');
   if (currentChips && nextChips) currentChips.innerHTML = nextChips.innerHTML;
-  ['open', 'resolved'].forEach((status) => {
+  ['all'].forEach((status) => {
     const currentSection = document.querySelector(`.error-section-${status}`);
     const nextSection = nextDocument.querySelector(`.error-section-${status}`);
     if (!currentSection || !nextSection) return;
