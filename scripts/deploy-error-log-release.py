@@ -1,7 +1,7 @@
 """Pinned three-file Error Log presentation release; verify baseline, back up, rollback."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
-SHA = 'b2b91a43281d83a00c1f398e32805242083bc96d'
-BASE = 'e148edaf378023bab6032c46f2dd9d7439e0170d'
+SHA = '10829b1e5843c3a0a21e5c0677232b5cb761249e'
+BASE = 'fc2925a7261f558280e2ef5d346fcf7d2894e3fb'
 FILES = ['assets/css/error-log-workspace.css', 'assets/js/error-log-workspace.js', 'apps/operations/errors.php']
 def git(*args): return subprocess.check_output(['git', *args])
 def blob(ref, path): return git('show', ref + ':' + path)
@@ -26,7 +26,7 @@ ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD'])
 try:
     old = {p:read(ftp,p) for p in FILES}
     for p in FILES:
-        baseline = blob(BASE,p) if p=='apps/operations/errors.php' else None
+        baseline = blob(BASE,p)
         if old[p] != baseline and old[p] != expected[p]:
             report('blocked-baseline-mismatch', path=p)
             raise RuntimeError('Live baseline differs: '+p)
