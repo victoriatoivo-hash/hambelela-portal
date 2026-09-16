@@ -220,14 +220,48 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $epiTestResult = $verifier->run((int) $employee['id'], (string) $employee['full_name']);
                 $message = 'Controlled EPI verification completed. All records are marked TEST DATA and excluded from scoring.';
             }
-        } elseif (in_array($action, ['reset_code', 'delete_employee', 'save_hr_link', 'save_employee', 'save_packing_eligibility'], true)) {
+        } elseif (in_array($action, ['reset_code', 'delete_employee', 'save_hr_link', 'save_employee', 'save_packing_eligibility', 'change_employee_role'], true)) {
             if (!$canManagePortal) {
                 throw new RuntimeException('Only Owner/Admin can manage employee accounts.');
             }
 
             $activeSettingsSection = 'employees';
 
-            if ($action === 'save_packing_eligibility') {
+            if ($action === 'change_employee_role') {
+                $employeeId = (int) ($_POST['employee_id'] ?? 0);
+                if ($employeeId <= 0) {
+                    throw new RuntimeException('Choose an employee account.');
+                }
+                $roleKey = strtolower(ops_post_string('role', 60));
+                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales'];
+                if (!in_array($roleKey, $allowedRoleKeys, true)) {
+                    throw new RuntimeException('Choose a valid role.');
+                }
+                $roleRows = ops_rows('SELECT id FROM ops_roles WHERE role_key = ? LIMIT 1', [$roleKey]);
+                $roleId = (int) ($roleRows[0]['id'] ?? 0);
+                if ($roleId <= 0) {
+                    throw new RuntimeException('The selected role is not configured.');
+                }
+                $targetRows = ops_rows(
+                    'SELECT e.id, r.role_key FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? LIMIT 1',
+                    [$employeeId]
+                );
+                $targetEmployee = $targetRows[0] ?? null;
+                if (!$targetEmployee) {
+                    throw new RuntimeException('The selected employee account could not be found.');
+                }
+                if ((string) $targetEmployee['role_key'] === $roleKey) {
+                    $message = 'That employee already has this role.';
+                } else {
+                    db()->prepare('UPDATE ops_employees SET role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$roleId, $employeeId]);
+                    record_security_event('employee_role_changed', $employeeId, [
+                        'performed_by' => (int) $employee['id'],
+                        'previous_role' => $targetEmployee['role_key'],
+                        'new_role' => $roleKey,
+                    ]);
+                    $message = 'Employee role updated.';
+                }
+            } elseif ($action === 'save_packing_eligibility') {
                 if (!ops_ensure_packing_auto_assignable_column()) {
                     throw new RuntimeException('Packing assignment eligibility is not available yet.');
                 }
@@ -841,7 +875,18 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                     <tr>
                                         <td><?= htmlspecialchars($managedEmployee['full_name'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars((string) $managedEmployee['email'], ENT_QUOTES, 'UTF-8') ?></td>
-                                        <td><?= htmlspecialchars($managedEmployee['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td>
+                                            <form method="post" class="settings-inline-action">
+                                                <input type="hidden" name="action" value="change_employee_role">
+                                                <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
+                                                <select name="role" aria-label="Change role for <?= htmlspecialchars($managedEmployee['full_name'], ENT_QUOTES, 'UTF-8') ?>">
+                                                    <?php foreach ($employeeRoles as $role): ?>
+                                                        <option value="<?= htmlspecialchars($role['role_key'], ENT_QUOTES, 'UTF-8') ?>" <?= (string) $managedEmployee['role_key'] === (string) $role['role_key'] ? 'selected' : '' ?>><?= htmlspecialchars($role['name'], ENT_QUOTES, 'UTF-8') ?></option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                                <button class="btn-secondary" type="submit">Save role</button>
+                                            </form>
+                                        </td>
                                         <td>
                                             <?php if ($hr): ?>
                                                 <span class="settings-pill is-linked">linked</span>

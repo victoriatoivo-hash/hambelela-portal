@@ -25,4 +25,17 @@ assert.match(features,/'marketing_sales' => \['dashboard','marketing','orders','
 assert.match(features,/!isset\(\$permissions\[\$roleKey\]\)[\s\S]+in_array\(\$featureKey, \$employeeModules, true\)/);
 assert.match(dashboard,/dashboardFeatures/);
 for(const role of ['front_desk_admin','accountant','packer','supervisor_manager'])assert.ok(settings.includes(`'${role}'`),role);
+
+// An employee's role could previously only be set at account creation, with no way to change an
+// existing employee onto the marketing_sales role (or any other role) afterward -- so an employee
+// created before that role existed, or under the wrong role, had no self-service fix. change_employee_role
+// lets the Owner reassign an existing employee's role (reusing the same allowed-role validation as
+// account creation), which is what actually grants bookkeeping (and every other marketing_sales
+// permission) to an already-existing employee.
+assert.match(settings,/in_array\(\$action, \['reset_code', 'delete_employee', 'save_hr_link', 'save_employee', 'save_packing_eligibility', 'change_employee_role'\], true\)/);
+assert.match(settings,/if \(\$action === 'change_employee_role'\)/);
+assert.match(settings,/UPDATE ops_employees SET role_id = \?, updated_at = CURRENT_TIMESTAMP WHERE id = \?/);
+assert.match(settings,/record_security_event\('employee_role_changed', \$employeeId,/);
+assert.match(settings,/value="change_employee_role"/);
+assert.match(settings,/Save role/);
 console.log('Marketing account creation and access contracts passed.');
