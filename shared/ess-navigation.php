@@ -84,7 +84,7 @@ function ess_shell_apps(): array
     }
     $apps = [];
     foreach ($items as [$name,$icon,$route,$feature]) {
-        if (current_role_key() === 'marketing_sales' && !in_array($feature, ['marketing','orders','packing_list','task_management','courier','notifications','system_issues','hr'], true)) continue;
+        if (current_role_key() === 'marketing_sales' && !in_array($feature, ['marketing','orders','packing_list','task_management','bookkeeping','courier','notifications','system_issues','hr'], true)) continue;
         if (current_role_key() !== 'owner_admin' && !portal_user_can_access_feature($feature)) continue;
         $apps[] = ['name'=>$name,'icon'=>$icon,'href'=>BASE_URL.$route];
     }
