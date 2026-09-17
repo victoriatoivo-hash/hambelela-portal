@@ -1,15 +1,29 @@
 name: Diagnose Bookkeeping access (read only)
+# Read-only: downloads live portal code over FTP (no uploads, deletes or secret files),
+# simulates the permission code locally, and makes one unauthenticated GET request.
+# Triggered by pushes to this diagnostic branch only; never runs a deployment.
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - codex/diagnose-bookkeeping-live-state
+    paths:
+      - .github/workflows/diagnose-bookkeeping-access.yml
+      - scripts/diagnose-bookkeeping-access.py
+      - scripts/diagnose-bookkeeping-access.php
 jobs:
   inspect:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Compare live Bookkeeping/marketing_sales files against repository HEAD
+        with:
+          fetch-depth: 0
+      - name: Fetch release branches for provenance matching
+        run: git fetch --quiet origin '+refs/heads/*:refs/remotes/origin/*'
+      - name: Compare live Bookkeeping access code and simulate permissions
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
