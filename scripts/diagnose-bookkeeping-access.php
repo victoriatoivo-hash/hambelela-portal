@@ -1,5 +1,6 @@
 <?php
 // Read-only simulation of the LIVE permission code downloaded by diagnose-bookkeeping-access.py.
+// Post-deploy re-check for 17e65ea7 (Marketing Bookkeeping visibility).
 // Runs only in CI against temporary copies; touches no server, database or session.
 declare(strict_types=1);
 
