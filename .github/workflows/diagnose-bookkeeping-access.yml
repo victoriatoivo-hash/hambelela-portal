@@ -11,7 +11,22 @@ on:
       - .github/workflows/diagnose-bookkeeping-access.yml
       - scripts/diagnose-bookkeeping-access.py
       - scripts/diagnose-bookkeeping-access.php
+      - scripts/deploy-marketing-bookkeeping-visibility.py
 jobs:
+  verify-fix:
+    # Validation only (--dry-run): no secrets, no FTP, no uploads.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch approved fix and baselines
+        run: git fetch --quiet origin '+refs/heads/*:refs/remotes/origin/*'
+      - name: Dry-run the two-file Marketing Bookkeeping visibility release
+        run: python3 scripts/deploy-marketing-bookkeeping-visibility.py --dry-run 17e65ea768616207931ac96bc616536307f379b5
   inspect:
     runs-on: ubuntu-latest
     timeout-minutes: 10
