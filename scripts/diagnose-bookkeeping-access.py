@@ -14,6 +14,11 @@ FILES = [
     "index.php", "apps/operations/bookkeeping.php", "apps/operations/operations.php",
     "apps/marketing/index.php", "shared/marketing.php", "apps/operations/my-account.php",
     "profile.php", "login.php",
+    # Orders actor attribution / Packed By audit (read only)
+    "apps/operations/orders-board.php", "apps/operations/orders-board-action.php",
+    "apps/operations/orders-board-data.php", "apps/operations/order-attribution-service.php",
+    "assets/js/orders-board.js", "assets/js/orders-essentials.js",
+    "assets/css/orders-board.css", "assets/css/orders-essentials.css",
 ]
 
 
