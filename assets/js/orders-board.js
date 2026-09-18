@@ -2334,7 +2334,9 @@
   function ensurePersonPopup() {
     if (personPopup?.isConnected) return personPopup;
     personPopup = document.createElement('div');
-    personPopup.className = 'packing-person-popup orders-person-popup';
+    // Carry the module namespace from creation: the popup is portaled to <body>, and without
+    // this class its fixed-position styles only arrive later, after it was measured.
+    personPopup.className = 'ess-orders-page packing-person-popup orders-person-popup';
     personPopup.dataset.ordersPersonPopup = '';
     personPopup.setAttribute('aria-hidden', 'true');
     personPopup.innerHTML = `<div class="packing-person-search-wrap"><i data-lucide="search" class="packing-person-search-icon"></i><input type="search" class="packing-person-search" data-orders-person-search placeholder="Search people" autocomplete="off" aria-label="Search people"></div><div class="packing-person-options" data-orders-person-options role="listbox"></div><div class="packing-person-popup-divider"></div><button type="button" class="packing-person-utility" data-edit-order-people><span class="packing-person-utility-icon"><i data-lucide="pencil"></i></span><span>Edit people</span></button>`;
@@ -2400,10 +2402,14 @@
 
   function positionPersonPopup() {
     if (!personPopup || !personPopupTrigger) return;
+    if (!personPopupTrigger.isConnected) { closePersonPopup(); return; }
     const rect = personPopupTrigger.getBoundingClientRect();
     const popupRect = personPopup.getBoundingClientRect();
-    const padding = 10, gap = 7;
-    const left = Math.max(padding, Math.min(rect.left + rect.width / 2 - popupRect.width / 2, window.innerWidth - popupRect.width - padding));
+    const padding = 10, gap = 6;
+    // Anchor under the trigger's left edge; align to its right edge when that would overflow.
+    let left = rect.left;
+    if (left + popupRect.width > window.innerWidth - padding) left = rect.right - popupRect.width;
+    left = Math.max(padding, Math.min(left, window.innerWidth - popupRect.width - padding));
     let top = rect.bottom + gap;
     if (top + popupRect.height > window.innerHeight - padding) top = rect.top - popupRect.height - gap;
     personPopup.style.left = `${Math.round(left)}px`;

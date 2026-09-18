@@ -369,11 +369,11 @@ $responseData = $incremental
     ];
 
 $ordersPermissions = [
-    'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
+    'can_edit_packed_by' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff', 'marketing_sales'], true),
     'can_edit_paid' => ops_can_update_order_paid_status(),
     'can_edit_payment' => ops_can_update_order_payment_method(),
     'can_manage_people' => $roleKey === 'owner_admin',
-    'can_manage_packer_assignment' => in_array($roleKey, ['owner_admin','front_desk_admin','front_desk_admin_employee','supervisor_manager','packer','packer_production_staff'], true),
+    'can_manage_packer_assignment' => in_array($roleKey, ['owner_admin','front_desk_admin','front_desk_admin_employee','supervisor_manager','packer','packer_production_staff','marketing_sales'], true),
     'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true),
     'can_move_to_trash' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
     'can_delete' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
