@@ -4,12 +4,12 @@ declare(strict_types=1);
 if (getenv('MOBILE_TEST_ENV') !== '1') return;
 if (!in_array((string) ($_SERVER['REMOTE_ADDR'] ?? ''), ['127.0.0.1', '::1'], true)) { http_response_code(403); exit('test_loopback_only'); }
 $identity = (string) (getenv('MOBILE_TEST_IDENTITY') ?: 'logged_out');
-$users = ['owner' => 901, 'front' => 902, 'marketing' => 903, 'packer' => 904];
+$users = ['owner' => [901, 'owner_admin'], 'front' => [902, 'front_desk_admin'], 'marketing' => [903, 'marketing_sales'], 'packer' => [904, 'packer']];
 if (!isset($users[$identity])) return;
 if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-$id = $users[$identity];
+[$id, $roleKey] = $users[$identity];
 $now = new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek'));
-$_SESSION['user'] = ['id' => $id, 'name' => 'Synthetic ' . ucfirst($identity), 'role_key' => ''];
+$_SESSION['user'] = ['id' => $id, 'name' => 'Synthetic ' . ucfirst($identity), 'role_key' => $roleKey];
 $_SESSION['authenticated_at'] = $now->format(DATE_ATOM);
 $_SESSION['absolute_expires_at'] = time() + 3600;
 $_SESSION['last_activity_at'] = $now->format(DATE_ATOM);

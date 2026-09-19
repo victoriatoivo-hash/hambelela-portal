@@ -24,6 +24,7 @@ for (const [name, path] of Object.entries(pages)) {
     page.on('console', (message) => { if (message.type() === 'error') errors.push('console: ' + message.text()); });
     page.on('response', (response) => { if (response.status() >= 400) errors.push(response.status() + ' ' + response.url()); });
     await page.goto(base + path, {waitUntil: 'networkidle'});
+    await page.getByRole('button', {name: 'Not now'}).click({timeout: 1500}).catch(() => {});
     await page.waitForTimeout(900);
     const metrics = await page.evaluate(() => {
       const vw = document.documentElement.clientWidth;

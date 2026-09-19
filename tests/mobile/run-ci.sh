@@ -23,5 +23,6 @@ for path in apps/operations/orders-board.php apps/operations/orders-board-data.p
 done
 php tests/mobile/seed.php
 
+for path in "apps/operations/orders-board-data.php?date=all" apps/operations/packing-list-data.php; do echo "---- $path"; curl -s "http://127.0.0.1:8821/$path" | head -c 600; echo; done
 node tests/mobile/visual.mjs
 echo "---- PHP errors (owner) ----"; tail -n 40 /tmp/php-owner.log 2>/dev/null || true
