@@ -24,6 +24,6 @@ done
 php tests/mobile/seed.php
 
 for path in "apps/operations/orders-board-data.php?date=all" apps/operations/packing-list-data.php; do echo "---- $path"; curl -s "http://127.0.0.1:8821/$path" | head -c 600; echo; done
-$MYSQL -e "SELECT * FROM ops_orders LIMIT 2G SELECT COUNT(*) orders FROM ops_orders; SHOW COLUMNS FROM ops_orders LIKE '%date%'; SELECT * FROM ops_packing_tasks LIMIT 1G" 2>&1 | head -120 || true
+$MYSQL --vertical -e "SELECT * FROM ops_orders LIMIT 1; SELECT COUNT(*) orders FROM ops_orders; SELECT * FROM ops_packing_tasks LIMIT 1" 2>&1 | head -150 || true
 node tests/mobile/visual.mjs
 echo "---- PHP errors (owner) ----"; tail -n 40 /tmp/php-owner.log 2>/dev/null || true
