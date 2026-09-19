@@ -19,6 +19,13 @@ FILES = [
     "apps/operations/orders-board-data.php", "apps/operations/order-attribution-service.php",
     "assets/js/orders-board.js", "assets/js/orders-essentials.js",
     "assets/css/orders-board.css", "assets/css/orders-essentials.css",
+    # Mobile usability audit (read only)
+    "apps/operations/consignments.php", "apps/operations/packing-list-data.php", "assets/js/packing-list.js",
+    "assets/js/packing-essentials.js", "assets/css/packing-board.css", "assets/css/packing-essentials.css",
+    "apps/operations/checklists.php", "assets/css/task-essentials.css", "assets/css/task-correction.css",
+    "assets/js/task-import.js", "assets/css/bookkeeping-essentials.css", "assets/js/bookkeeping-essentials.js",
+    "assets/css/ess-dashboard.css", "assets/js/ess-dashboard.js", "assets/css/portal-column-resize.css",
+    "assets/js/portal-column-resize.js", "assets/css/portal-view-bar.css",
 ]
 
 
