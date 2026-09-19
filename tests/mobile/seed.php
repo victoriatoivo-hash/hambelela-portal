@@ -20,6 +20,15 @@ function seed(PDO $pdo, string $table, array $values): int
             default => '',
         };
     }
+    foreach ($cols as $col) {
+        $type = (string) $col['Type'];
+        if (!str_starts_with(strtolower($type), 'enum(') || !isset($values[$col['Field']])) continue;
+        $allowed = str_getcsv(substr($type, 5, -1), ',', "'");
+        if (!in_array((string) $values[$col['Field']], $allowed, true)) {
+            fwrite(STDERR, "seed: {$table}.{$col['Field']}={$values[$col['Field']]} not in enum, using {$allowed[0]}\n");
+            $values[$col['Field']] = $allowed[0];
+        }
+    }
     $known = array_column($cols, 'Field');
     $values = array_intersect_key($values, array_flip($known));
     $sql = 'INSERT INTO `' . $table . '` (`' . implode('`,`', array_keys($values)) . '`) VALUES (' . implode(',', array_fill(0, count($values), '?')) . ')';
@@ -38,7 +47,7 @@ foreach ($people as $id => [$name, $role]) {
 if (($argv[1] ?? '') === 'people') exit("seeded people\n");
 
 // Orders: three date groups, mixed modes/payments/statuses, one very long customer + address.
-$statuses = ['pending', 'in_progress', 'completed', 'processing', 'completed', 'pending', 'in_progress', 'completed'];
+$statuses = ['new_order', 'in_progress', 'completed', 'ready_for_collection', 'completed', 'new_order', 'in_progress', 'ready_for_courier'];
 $payments = ['cash', 'card', 'eft', 'cash', 'card', 'eft', 'cash', 'card'];
 $types = ['collection', 'delivery', 'courier', 'collection', 'walk_in', 'delivery', 'courier', 'collection'];
 for ($i = 0; $i < 8; $i++) {
