@@ -4,6 +4,7 @@ declare(strict_types=1);
 if (getenv('MOBILE_TEST_ENV') !== '1') exit("MOBILE_TEST_ENV not set\n");
 $pdo = new PDO('mysql:host=127.0.0.1;port=3306;dbname=' . getenv('HAMBELELA_DB_NAME') . ';charset=utf8mb4',
     getenv('HAMBELELA_DB_USER'), getenv('HAMBELELA_DB_PASS'), [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]);
+$pdo->exec("SET SESSION sql_mode = ''"); // synthetic fixtures: coerce rather than fail on schema drift
 
 // Insert a row, filling any NOT NULL column without a default so fixtures survive schema drift.
 function seed(PDO $pdo, string $table, array $values): int
@@ -58,7 +59,7 @@ for ($i = 0; $i < 8; $i++) {
         'customer_contact' => '+264 81 000 00' . $i,
         'payment_method' => $payments[$i], 'order_type' => $types[$i], 'fulfilment_mode' => $types[$i],
         'status' => $statuses[$i], 'payment_status' => $i % 3 === 0 ? 'unpaid' : 'paid',
-        'total_amount' => 150 + $i * 87.5, 'priority' => 'normal', 'complexity' => 'standard',
+        'total_amount' => 150 + $i * 87.5, 'priority' => 'normal',
         'assigned_packer_id' => $i % 2 === 0 ? 904 : ($i === 3 ? 902 : null),
         'notes' => $i === 1 ? 'Shipping: Plot 1234, Extremely Long Street Name Extension, Windhoek North, Khomas Region, Namibia — deliver after 14:00.' : null,
         'created_at' => $day . ' 09:' . str_pad((string) (10 + $i), 2, '0', STR_PAD_LEFT) . ':00',
