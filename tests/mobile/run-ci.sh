@@ -16,7 +16,7 @@ for spec in owner:8821 front:8822 marketing:8823 packer:8824; do
 done
 for port in 8821 8822 8823 8824; do for i in {1..40}; do curl -s -o /dev/null "http://127.0.0.1:$port/login.php" && break; sleep .25; done; done
 
-php tests/mobile/seed.php || true   # employees/roles first so warm-up requests authenticate
+php tests/mobile/seed.php people   # employees/roles first so warm-up requests authenticate
 # Warm-up requests let each page create its lazily-managed tables and columns.
 for path in apps/operations/orders-board.php apps/operations/orders-board-data.php apps/operations/bookkeeping.php apps/operations/consignments.php apps/operations/packing-list-data.php apps/operations/checklists.php; do
   curl -s -o /dev/null -w "warm-up $path %{http_code}\n" "http://127.0.0.1:8821/$path"
