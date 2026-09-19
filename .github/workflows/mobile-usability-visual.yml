@@ -1,0 +1,46 @@
+name: Mobile usability visual check
+# Synthetic-data visual harness for the mobile work on this branch only. No secrets, no deployment.
+on:
+  push:
+    branches:
+      - codex/mobile-usability
+jobs:
+  visual:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_DATABASE: mobile_test
+          MARIADB_USER: mobile_test
+          MARIADB_PASSWORD: mobile_test_password
+          MARIADB_ROOT_PASSWORD: mobile_root_test_password
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Install Playwright Chromium
+        run: npm install --no-save playwright@1.47.2 && npx playwright install --with-deps chromium
+      - name: Build synthetic database, serve portal, capture screenshots
+        run: bash tests/mobile/run-ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mobile-screenshots-${{ github.run_id }}
+          path: artifacts/mobile
+          if-no-files-found: warn
