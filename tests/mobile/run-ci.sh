@@ -10,6 +10,8 @@ MYSQL="mysql -h127.0.0.1 -umobile_test -pmobile_test_password mobile_test"
 $MYSQL --force < operations-migration.sql 2>/dev/null || true
 for file in $(ls *migration*.sql | grep -v '^operations-migration.sql$'); do $MYSQL --force < "$file" >/dev/null 2>&1 || true; done
 
+$MYSQL --force < tests/mobile/schema-topup.sql || true
+
 for spec in owner:8821 front:8822 marketing:8823 packer:8824; do
   role=${spec%%:*}; port=${spec##*:}
   MOBILE_TEST_IDENTITY=$role php -d auto_prepend_file="$PWD/tests/mobile/bootstrap.php" -d display_errors=0 -d log_errors=1 -d error_log="/tmp/php-$role.log" -S 127.0.0.1:$port -t "$PWD" >"/tmp/server-$role.log" 2>&1 &
