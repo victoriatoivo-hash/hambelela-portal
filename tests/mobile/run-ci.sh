@@ -25,7 +25,7 @@ for path in apps/operations/orders-board.php apps/operations/orders-board-data.p
 done
 php tests/mobile/seed.php
 
-for path in "apps/operations/orders-board-data.php?date=all" apps/operations/packing-list-data.php; do echo "---- $path"; curl -s "http://127.0.0.1:8821/$path" | head -c 600; echo; done
+for path in "apps/operations/orders-board-data.php?date=all" apps/operations/packing-list-data.php; do echo "---- $path"; curl -s "http://127.0.0.1:8821/$path" | head -c 600 || true; echo; done
 $MYSQL --vertical -e "SELECT * FROM ops_orders LIMIT 1; SELECT COUNT(*) orders FROM ops_orders; SELECT * FROM ops_packing_tasks LIMIT 1" 2>&1 | head -150 || true
 node tests/mobile/visual.mjs
 echo "---- PHP schema gaps ----"; grep -h -o -E "Unknown column [^ ]+ in [^ ]+|Table [^ ]+ doesn.t exist" /tmp/php-*.log 2>/dev/null | sort | uniq -c | sort -rn | head -40 || true
