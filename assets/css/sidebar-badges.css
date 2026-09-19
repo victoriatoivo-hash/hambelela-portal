@@ -1,0 +1,9 @@
+/* Counts belong to the signed-in recipient, not every employee's workload. */
+.ess-sidebar a{position:relative}
+.ess-sidebar .ess-unread-badge{display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 auto;min-width:21px;height:21px;padding:0 5px;margin-left:auto;border-radius:12px;background:#e9bb65;color:#26331f;font:600 11px/1 Jost,sans-serif;box-shadow:0 0 0 2px #344126;animation:ess-unread-nudge 3s ease-in-out 3}
+.ess-sidebar .ess-unread-badge[hidden],.ess-sidebar .ess-unread-badge.is-hidden{display:none!important}
+.ess-sidebar .ess-unread-badge.is-new{animation:ess-unread-new .6s ease-in-out 3}
+.ess-sidebar-collapsed .ess-sidebar .ess-unread-badge{position:absolute;right:0;top:0;min-width:17px;height:17px;font-size:10px;padding:0 3px}
+@keyframes ess-unread-nudge{0%,75%,100%{transform:translateY(0)}82%{transform:translateY(-3px)}90%{transform:translateY(1px)}}
+@keyframes ess-unread-new{50%{transform:scale(1.14)}}
+@media(prefers-reduced-motion:reduce){.ess-sidebar .ess-unread-badge{animation:none!important}}

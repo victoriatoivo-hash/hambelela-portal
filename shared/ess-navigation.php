@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+// Settings is a utility destination, not a business-module child.
+function ess_can_access_settings(): bool { return current_role_key() === 'owner_admin'; }
+
 // Owner-dashboard navigation only. Destinations mirror the existing module launchers.
 function ess_navigation_children(string $name): array
 {
@@ -23,7 +26,7 @@ function ess_navigation_children(string $name): array
             'budget-planning.php'=>'Budgeting', 'bank-statement-processor.php'=>'Bank Statement Processor',
             'consignments.php'=>'Packing List', 'courier.php'=>'Courier Waybills',
             'checklists.php'=>'Task Management', 'errors.php'=>'Error Log', 'barcode.php'=>'Barcode',
-            'whatsapp.php'=>'Meta Comms', 'my-account.php'=>'Settings',
+            'whatsapp.php'=>'Meta Comms',
         ]],
         'Employee Performance' => ['operations', [
             'reports.php?tab=business-health'=>'Business Health', 'reports.php?tab=employees'=>'Employees',
@@ -54,6 +57,7 @@ function ess_shell_apps(): array
         ['HR Portal','shield-check','/apps/hr-portal/portal-login.php','hr'],
         ['Employee Performance','chart-no-axes-combined','/apps/operations/reports.php','kpi_dashboard'],
         ['Packing List','package-open','/apps/operations/consignments.php','packing_list'],
+        ['Task Management','list-checks','/apps/operations/checklists.php','task_management'],
         ['Courier','truck','/apps/operations/courier.php','courier'],
         ['Accounts','landmark','/apps/accounts/index.php','accounts'],
         ['Marketing','megaphone','/apps/marketing/index.php','marketing'],
@@ -80,10 +84,26 @@ function ess_shell_apps(): array
     }
     $apps = [];
     foreach ($items as [$name,$icon,$route,$feature]) {
+        if (current_role_key() === 'marketing_sales' && !in_array($feature, ['marketing','orders','packing_list','task_management','bookkeeping','courier','notifications','system_issues','hr'], true)) continue;
         if (current_role_key() !== 'owner_admin' && !portal_user_can_access_feature($feature)) continue;
         $apps[] = ['name'=>$name,'icon'=>$icon,'href'=>BASE_URL.$route];
     }
     return $apps;
+}
+
+function ess_navigation_badge(string $label): string
+{
+    static $counts = null;
+    if ($counts === null) {
+        $counts = function_exists('notifications_sidebar_counts_for_current_user')
+            ? notifications_sidebar_counts_for_current_user() : [];
+    }
+    $keys = ['Orders'=>'orders','Orders Board'=>'orders','Bookkeeping'=>'bookkeeping','Packing List'=>'packing_list','Courier'=>'courier_waybills','Courier Waybills'=>'courier_waybills','HR Portal'=>'hr_portal','Inventory'=>'inventory','Task Management'=>'task_management','Error Log'=>'error_log','System Issues Log'=>'system_issues'];
+    $keys['Marketing'] = 'marketing';
+    if (!isset($keys[$label])) return '';
+    $key = $keys[$label];
+    $count = max(0, (int) ($counts[$key] ?? 0));
+    return '<span class="ess-unread-badge'.($count ? '' : ' is-hidden').'" data-sidebar-notification-badge="'.$key.'" data-count="'.$count.'"'.($count ? '' : ' hidden').' aria-label="'.$count.' unread '.htmlspecialchars($label, ENT_QUOTES, 'UTF-8').' notifications">'.($count ? ($count > 99 ? '99+' : $count) : '').'</span>';
 }
 
 function ess_render_navigation(array $apps, string $active = 'Dashboard'): void
@@ -96,10 +116,10 @@ function ess_render_navigation(array $apps, string $active = 'Dashboard'): void
             $id = 'ess-subnav-'.(++$groupId);
             echo '<div class="ess-nav-group"><div class="ess-nav-row"><a class="ess-nav-item" href="'.$escape($app['href']).'" aria-label="'.$escape($app['name']).'" title="'.$escape($app['name']).'"><i data-lucide="'.$escape($app['icon']).'" aria-hidden="true"></i><span>'.$escape($app['name']).'</span></a><button type="button" class="ess-subnav-toggle" data-ess-subnav-toggle aria-expanded="false" aria-controls="'.$id.'" aria-label="Toggle '.$escape($app['name']).' submenu" title="Toggle '.$escape($app['name']).' submenu"><i class="ess-nav-chevron" data-lucide="chevron-down" aria-hidden="true"></i></button></div><div class="ess-subnav" id="'.$id.'" hidden>';
             echo '<a href="'.$escape($app['href']).'">'.$escape($app['name']).' overview</a>';
-            foreach ($children as $child) echo '<a href="'.$escape($child['href']).'">'.$escape($child['label']).'</a>';
+            foreach ($children as $child) echo '<a href="'.$escape($child['href']).'">'.$escape($child['label']).ess_navigation_badge($child['label']).'</a>';
             echo '</div></div>';
         } else {
-            echo '<a class="ess-nav-item'.($active === $app['name'] ? ' is-active' : '').'" '.($active === $app['name'] ? 'aria-current="page" ' : '').'href="'.$escape($app['href']).'" aria-label="'.$escape($app['name']).'" title="'.$escape($app['name']).'"><i data-lucide="'.$escape($app['icon']).'" aria-hidden="true"></i><span>'.$escape($app['name']).'</span></a>';
+            echo '<a class="ess-nav-item'.($active === $app['name'] ? ' is-active' : '').'" '.($active === $app['name'] ? 'aria-current="page" ' : '').'href="'.$escape($app['href']).'" aria-label="'.$escape($app['name']).'" title="'.$escape($app['name']).'"><i data-lucide="'.$escape($app['icon']).'" aria-hidden="true"></i><span>'.$escape($app['name']).'</span>'.ess_navigation_badge($app['name']).'</a>';
         }
     }
 }

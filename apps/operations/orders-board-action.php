@@ -236,7 +236,7 @@ function ops_board_current_packing_employee(): ?array
 
 function ops_board_can_manage_packer_assignment(): bool
 {
-    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
+    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff', 'marketing_sales');
 }
 
 function ops_board_log_automatic_packer_assignment(int $orderId, array $packer, string $targetStatus): void
@@ -1644,7 +1644,7 @@ try {
                 $previousOrder = array_merge($previousOrder, $lockedOrder);
             $packerId = $value === '' ? null : (int) $value;
             if ($packerId) {
-                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key IN ('packer','packer_production_staff','front_desk_admin','front_desk_admin_employee'))" : "r.role_key IN ('packer','packer_production_staff','supervisor_manager','front_desk_admin','front_desk_admin_employee')";
+                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key IN ('packer','packer_production_staff','front_desk_admin','front_desk_admin_employee','marketing_sales'))" : "r.role_key IN ('packer','packer_production_staff','supervisor_manager','front_desk_admin','front_desk_admin_employee','marketing_sales')";
                 $eligible = ops_rows(
                     "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? AND e.status = 'active' AND {$eligibilityWhere} LIMIT 1",
                     [$packerId]
@@ -2034,7 +2034,7 @@ try {
             $value = $value === '' ? null : (int) $value;
             if ($value) {
                 $hasPackingAssignable = ops_ensure_packing_assignable_column();
-                $eligibilityWhere = $hasPackingAssignable ? 'e.packing_assignable = 1' : "r.role_key IN ('packer', 'supervisor_manager')";
+                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key = 'marketing_sales')" : "r.role_key IN ('packer', 'supervisor_manager', 'marketing_sales')";
                 $eligible = ops_rows(
                     "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? AND e.status = 'active' AND {$eligibilityWhere} LIMIT 1",
                     [$value]

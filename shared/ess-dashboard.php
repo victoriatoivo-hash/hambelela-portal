@@ -20,7 +20,7 @@ $essQuickLinks = [
 ];
 if ($roleKey !== 'owner_admin') {
     // Use exactly the current profile's already-filtered dashboard destinations.
-    $essShellApps = $apps;
+    $essShellApps = ess_shell_apps();
     $essAllowedPaths = array_column($apps, 'href');
     $essQuickLinks = array_values(array_filter($essQuickLinks, static fn(array $link): bool =>
         $link[1] === '/apps/operations/my-account.php' || in_array(BASE_URL.$link[1], $essAllowedPaths, true)));
@@ -39,6 +39,7 @@ if ($roleKey !== 'owner_admin') {
         <a class="ess-module-card" data-ess-module data-ess-accent="<?= $essEscape($app['name']) ?>" data-search="<?= $essEscape($app['name'] . ' ' . $app['desc']) ?>" href="<?= $essEscape($app['href']) ?>" style="--ess-order:<?= (int) $index ?>" aria-label="<?= $essEscape($app['name'] . ' — ' . $app['desc']) ?>">
             <span class="ess-module-icon"><i data-lucide="<?= $essEscape($app['icon']) ?>" aria-hidden="true"></i></span>
             <h3><?= $essEscape($app['name']) ?></h3><p><?= $essEscape($app['desc']) ?></p>
+            <?php if ($app['name'] === 'Marketing' && !empty($dashboardMarketingAssigned)): ?><span class="ess-module-badge" aria-label="<?= (int)$dashboardMarketingAssigned ?> assigned Marketing items"><?= (int)$dashboardMarketingAssigned ?></span><?php endif; ?>
             <?php if ($app['name'] === 'Tasks' && !empty($dashboardTaskCount)): ?><span class="ess-module-badge" aria-label="<?= (int)$dashboardTaskCount ?> incomplete tasks"><?= $dashboardTaskCount > 99 ? '99+' : (int)$dashboardTaskCount ?></span><?php endif; ?>
             <?php if ($app['name'] === 'Packing List'): ?><span class="ess-module-badge<?= $dashboardPackingUnread > 0 ? '' : ' is-hidden' ?>" data-packing-unread-badge<?= $dashboardPackingUnread > 0 ? '' : ' hidden' ?> aria-label="<?= $dashboardPackingUnread ?> unread Packing List items"><?= $dashboardPackingUnread > 99 ? '99+' : $dashboardPackingUnread ?></span><?php endif; ?>
             <?php if ($app['name'] === 'System Issues Log' && !empty($app['badge'])): ?><span class="ess-module-badge<?= !empty($app['needs_information']) ? ' ess-needs-information' : '' ?>" aria-label="<?= (int) $app['badge'] ?> open system issues<?= !empty($app['needs_information']) ? ', information requested' : '' ?>"><?= (int) $app['badge'] > 99 ? '99+' : (int) $app['badge'] ?></span><?php endif; ?>

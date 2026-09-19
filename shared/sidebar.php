@@ -12,6 +12,12 @@ if (!empty($hidePortalSidebar) || $isFrontDashboard || $isHrPortal) {
     return;
 }
 
+// These employee pages render only the shared olive sidebar, never both versions.
+if (!empty($employeeSidebarUpgrade)) {
+    include __DIR__ . '/ess-sidebar.php';
+    return;
+}
+
 if (!function_exists('notifications_summary_for_current_user')) {
     $notificationsPath = __DIR__ . '/notifications.php';
     if (is_file($notificationsPath)) {
