@@ -66,7 +66,7 @@
                 </label>
             </div>
             <label class="field-label filter-search-row">Search
-                <input type="search" name="search" placeholder="Search courier waybills">
+                <input type="search" name="search" value="<?= wb_e((string) ($_GET['search'] ?? '')) ?>" placeholder="Search courier, customer or any linked order">
             </label>
             <div class="filter-actions-row">
                 <button class="btn-primary filter-apply-button" type="submit"><i data-lucide="check"></i> Apply filters</button>
@@ -110,7 +110,7 @@
                 <div class="card-head courier-section-header history-summary">
                     <div>
                         <h2 class="card-title">Sent History</h2>
-                        <p class="card-sub">Waybills marked sent from <?= wb_e($historyDateFrom) ?> to <?= wb_e($historyDateTo) ?>.</p>
+                        <p class="card-sub"><?= trim((string) ($_GET['search'] ?? '')) !== '' ? 'Search results across all sent dates.' : 'Waybills marked sent from ' . wb_e($historyDateFrom) . ' to ' . wb_e($historyDateTo) . '.' ?></p>
                     </div>
                 </div>
                 <div class="courier-table-scroll courier-table-wrap">

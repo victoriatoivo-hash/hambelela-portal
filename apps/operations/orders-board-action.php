@@ -236,7 +236,7 @@ function ops_board_current_packing_employee(): ?array
 
 function ops_board_can_manage_packer_assignment(): bool
 {
-    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
+    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff', 'marketing_sales');
 }
 
 function ops_board_log_automatic_packer_assignment(int $orderId, array $packer, string $targetStatus): void
@@ -1623,6 +1623,7 @@ try {
         $previousOrder = $previousRows[0];
 
         if ($field === 'assigned_packer_id') {
+            $assignmentStartedAt = microtime(true);
             $user = current_user();
             $canManageAssignment = ops_board_can_manage_packer_assignment();
             $currentPackingEmployee = ops_board_current_packing_employee();
@@ -1644,7 +1645,7 @@ try {
                 $previousOrder = array_merge($previousOrder, $lockedOrder);
             $packerId = $value === '' ? null : (int) $value;
             if ($packerId) {
-                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key IN ('packer','packer_production_staff','front_desk_admin','front_desk_admin_employee'))" : "r.role_key IN ('packer','packer_production_staff','supervisor_manager','front_desk_admin','front_desk_admin_employee')";
+                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key IN ('packer','packer_production_staff','front_desk_admin','front_desk_admin_employee','marketing_sales'))" : "r.role_key IN ('packer','packer_production_staff','supervisor_manager','front_desk_admin','front_desk_admin_employee','marketing_sales')";
                 $eligible = ops_rows(
                     "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? AND e.status = 'active' AND {$eligibilityWhere} LIMIT 1",
                     [$packerId]
@@ -1723,9 +1724,12 @@ try {
             ops_log_order_stage_event($orderId, $activityAction, $activityMetadata, ops_current_employee_id() ?: null);
             ops_activity_log($isCompletedCorrection ? 'packer_attribution_corrected' : ($packerId ? 'packed_by_changed' : 'packed_by_cleared'), 'order', $orderId, $activityMetadata);
             if ($isCompletedCorrection) {
-                ops_kpi_record_event('orders', 'order', $orderId, 'packer_attribution_corrected', $previousPackerName, $packerName, $packerId, $activityMetadata);
+                // The selected packer is the subject of this correction, not its actor.
+                ops_kpi_record_event('orders', 'order', $orderId, 'packer_attribution_corrected', $previousPackerName, $packerName, ops_current_employee_id() ?: null, $activityMetadata);
             }
+            $assignmentNotificationStartedAt = microtime(true);
             notifications_notify_order_assigned($orderId, $packerId);
+            $assignmentNotificationMs = (microtime(true) - $assignmentNotificationStartedAt) * 1000;
             if (!$previousPackerId && $packerId && !in_array((string) ($previousOrder['status'] ?? ''), ['in_progress', 'completed'], true)) {
                 ops_record_timely_packer_assignment($orderId, $packerId, ops_current_employee_id());
             }
@@ -1736,6 +1740,8 @@ try {
                 }
                 throw $e;
             }
+            header('Server-Timing: packed-by;dur=' . number_format((microtime(true) - $assignmentStartedAt) * 1000, 1, '.', '')
+                . ', packed-by-notification;dur=' . number_format($assignmentNotificationMs, 1, '.', ''));
             echo json_encode([
                 'ok' => true,
                 'success' => true,
@@ -2034,7 +2040,7 @@ try {
             $value = $value === '' ? null : (int) $value;
             if ($value) {
                 $hasPackingAssignable = ops_ensure_packing_assignable_column();
-                $eligibilityWhere = $hasPackingAssignable ? 'e.packing_assignable = 1' : "r.role_key IN ('packer', 'supervisor_manager')";
+                $eligibilityWhere = $hasPackingAssignable ? "(e.packing_assignable = 1 OR r.role_key = 'marketing_sales')" : "r.role_key IN ('packer', 'supervisor_manager', 'marketing_sales')";
                 $eligible = ops_rows(
                     "SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? AND e.status = 'active' AND {$eligibilityWhere} LIMIT 1",
                     [$value]

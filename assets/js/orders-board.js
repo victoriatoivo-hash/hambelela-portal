@@ -1139,6 +1139,7 @@
       updateWorkMetrics(visibleOrders());
     }
     if (field === 'status') playCompleteConfettiForChanges(changes, value);
+    if (window.matchMedia('(max-width: 767px)').matches) renderMobileCards(visibleOrders());
   }
 
   async function undoLastChange() {
@@ -1923,7 +1924,9 @@
       list = document.createElement('div');
       list.id = 'orders-board-cards';
       list.className = 'board-card-list';
-      document.querySelector('.ops-board-shell')?.appendChild(list);
+      const desktopList = document.querySelector('.orders-date-groups');
+      if (desktopList) desktopList.after(list);
+      else page.appendChild(list);
     }
     return list;
   }
@@ -1932,18 +1935,20 @@
     const list = ensureMobileList();
     list.innerHTML = orders.map((order) => `
       <article class="board-mobile-card" data-mobile-order-id="${esc(order.id)}">
-        <header>
-          <strong>${esc(formatOrderInvoiceReference(order.order_number))} ${esc(order.customer_name)}</strong>
+        <header class="board-mobile-card__top">
+          <strong>${esc(formatOrderInvoiceReference(order.order_number))} · ${esc(order.customer_name || 'Customer not recorded')}</strong>
           ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
         </header>
-        <div class="board-card-meta">
-          <span>${prettyDate(orderDisplayDateTime(order))}</span>
-          <span>${esc(findText(modeLabels, order.order_type || 'collection'))}</span>
-          <span>${esc(money(order.total_amount))}</span>
-          <span>${esc(order.payment_method || 'Cash')}</span>
-          <span>${order.payment_status === 'paid' ? 'Paid' : 'Unpaid'}</span>
-          <span>Packed by: ${esc(order.packer_name || 'Unassigned')}</span>
+        <div class="board-mobile-card__grid">
+          <div><span class="orders-mobile-label">Date</span><span class="orders-mobile-value">${esc(prettyDate(orderDisplayDateTime(order)))}</span></div>
+          <div><span class="orders-mobile-label">Mode</span>${renderLabelCell(order, 'order_type', order.order_type || 'collection', modeLabels, 'mode-label')}</div>
+          <div><span class="orders-mobile-label">Amount</span><span class="orders-mobile-value">${esc(money(order.total_amount))}</span></div>
+          <div><span class="orders-mobile-label">Payment</span>${renderPaymentBadge(order)}</div>
+          <div><span class="orders-mobile-label">Paid</span><span class="orders-mobile-value">${order.payment_status === 'paid' ? 'Paid ✓' : 'Unpaid'}</span></div>
+          <div><span class="orders-mobile-label">Shipping</span><span class="orders-mobile-value">${esc(order.dispatch_courier ? `${order.dispatch_courier}${order.dispatch_box_count ? ` · ${order.dispatch_box_count} box${Number(order.dispatch_box_count) === 1 ? '' : 'es'}` : ''}` : findText(modeLabels, order.order_type || 'collection'))}</span></div>
         </div>
+        <div class="board-mobile-card__packer"><span class="orders-mobile-label">Packed By</span>${renderPackerCell(order)}</div>
+        <div class="board-mobile-card__actions"><button type="button" data-order-panel-open data-order-id="${esc(order.id)}">View Order</button><button type="button" class="orders-task-menu-trigger" data-order-row-menu data-order-id="${esc(order.id)}" aria-label="More order actions" aria-haspopup="menu" aria-expanded="false"><span></span><span></span><span></span></button></div>
       </article>
     `).join('');
   }
@@ -2332,16 +2337,20 @@
   }
 
   function ensurePersonPopup() {
-    if (personPopup?.isConnected) return personPopup;
-    personPopup = document.createElement('div');
-    personPopup.className = 'packing-person-popup orders-person-popup';
+    if (personPopup?.isConnected && personPopup.querySelector('[data-orders-person-search]')) return personPopup;
+    const isNew = !personPopup?.isConnected;
+    if (isNew) personPopup = document.createElement('div');
+    // Carry the module namespace from creation: the popup is portaled to <body>, and without
+    // this class its fixed-position styles only arrive later, after it was measured.
+    personPopup.className = 'ess-orders-page packing-person-popup orders-person-popup';
     personPopup.dataset.ordersPersonPopup = '';
     personPopup.setAttribute('aria-hidden', 'true');
-    personPopup.innerHTML = `<div class="packing-person-search-wrap"><i data-lucide="search" class="packing-person-search-icon"></i><input type="search" class="packing-person-search" data-orders-person-search placeholder="Search people" autocomplete="off" aria-label="Search people"></div><div class="packing-person-options" data-orders-person-options role="listbox"></div><div class="packing-person-popup-divider"></div><button type="button" class="packing-person-utility" data-edit-order-people><span class="packing-person-utility-icon"><i data-lucide="pencil"></i></span><span>Edit people</span></button>`;
-    document.body.appendChild(personPopup);
-    if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
-    personPopup.querySelector('[data-orders-person-search]')?.addEventListener('input', (event) => renderPersonOptions(event.target.value));
-    personPopup.addEventListener('keydown', (event) => {
+    personPopup.innerHTML = `<div class="packing-person-search-wrap"><svg class="packing-person-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="m20 20-4-4"></path></svg><input type="search" class="packing-person-search" data-orders-person-search placeholder="Search people" autocomplete="off" aria-label="Search people"></div><div class="packing-person-options" data-orders-person-options role="listbox"></div><div class="packing-person-popup-divider"></div><button type="button" class="packing-person-utility" data-edit-order-people><span class="packing-person-utility-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m16 4 4 4-12 12H4v-4z"></path></svg></span><span>Edit people</span></button>`;
+    if (isNew) document.body.appendChild(personPopup);
+    if (isNew) personPopup.addEventListener('input', (event) => {
+      if (event.target.matches('[data-orders-person-search]')) renderPersonOptions(event.target.value);
+    });
+    if (isNew) personPopup.addEventListener('keydown', (event) => {
       const options = [...personPopup.querySelectorAll('.packing-person-option:not([hidden])')];
       if (event.key === 'Escape') { event.preventDefault(); closePersonPopup(true); return; }
       if (!['ArrowDown', 'ArrowUp', 'Enter'].includes(event.key) || !options.length) return;
@@ -2400,10 +2409,14 @@
 
   function positionPersonPopup() {
     if (!personPopup || !personPopupTrigger) return;
+    if (!personPopupTrigger.isConnected) { closePersonPopup(); return; }
     const rect = personPopupTrigger.getBoundingClientRect();
     const popupRect = personPopup.getBoundingClientRect();
-    const padding = 10, gap = 7;
-    const left = Math.max(padding, Math.min(rect.left + rect.width / 2 - popupRect.width / 2, window.innerWidth - popupRect.width - padding));
+    const padding = 10, gap = 6;
+    // Anchor under the trigger's left edge; align to its right edge when that would overflow.
+    let left = rect.left;
+    if (left + popupRect.width > window.innerWidth - padding) left = rect.right - popupRect.width;
+    left = Math.max(padding, Math.min(left, window.innerWidth - popupRect.width - padding));
     let top = rect.bottom + gap;
     if (top + popupRect.height > window.innerHeight - padding) top = rect.top - popupRect.height - gap;
     personPopup.style.left = `${Math.round(left)}px`;
@@ -2411,6 +2424,7 @@
   }
 
   function openPersonPopup(trigger) {
+    const openedAt = performance.now();
     if (personPopup?.classList.contains('is-open') && personPopupTrigger === trigger) { closePersonPopup(); return; }
     closeLabelMenu();
     const popup = ensurePersonPopup();
@@ -2426,6 +2440,7 @@
     popup.classList.add('is-open');
     popup.setAttribute('aria-hidden', 'false');
     positionPersonPopup();
+    try { performance.measure('orders-packed-by-picker-open', { start: openedAt, end: performance.now() }); } catch (_) {}
     window.requestAnimationFrame(() => search.focus({ preventScroll: true }));
   }
 
@@ -2438,24 +2453,35 @@
     trigger?.closest('[data-orders-person-component]')?.classList.remove('is-open', 'is-saving');
     personPopupTrigger = null;
     personPopupOrderId = '';
-    personPopup.remove();
-    personPopup = null;
     if (restoreFocus) trigger?.focus({ preventScroll: true });
   }
 
-  function setPackerUpdateState(orderId, saving) {
+  function setPackerUpdateState(orderId, saving, result = '') {
     const id = String(orderId || '');
     if (!id) return;
     if (saving) packerUpdatesInProgress.add(id);
     else packerUpdatesInProgress.delete(id);
-    const row = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(id)}"]`);
-    row?.classList.toggle('is-saving-packer', saving);
-    const trigger = row?.querySelector('[data-orders-person-trigger]');
-    if (trigger) {
-      trigger.disabled = saving;
-      if (saving) trigger.setAttribute('aria-busy', 'true');
-      else trigger.removeAttribute('aria-busy');
-    }
+    const targets = [body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(id)}"]`),
+      document.querySelector(`.board-mobile-card[data-mobile-order-id="${selectorEsc(id)}"]`)];
+    targets.filter(Boolean).forEach((target) => {
+      target.classList.toggle('is-saving-packer', saving);
+      const trigger = target.querySelector('[data-orders-person-trigger]');
+      if (trigger) {
+        trigger.disabled = saving;
+        if (saving) trigger.setAttribute('aria-busy', 'true');
+        else trigger.removeAttribute('aria-busy');
+      }
+      const component = target.querySelector('[data-orders-person-component]');
+      if (!component) return;
+      let feedback = component.querySelector('.orders-packer-feedback');
+      if (!feedback) {
+        feedback = document.createElement('small');
+        feedback.className = 'orders-packer-feedback';
+        feedback.setAttribute('role', 'status');
+        component.appendChild(feedback);
+      }
+      feedback.textContent = saving ? 'Saving…' : result;
+    });
   }
 
   function renderPaidCell(order) {
@@ -3129,10 +3155,6 @@
 
   function openToolbar(anchor, type) {
     if (!toolbarPopover) return;
-    if (type === 'filter' && page.classList.contains('ess-orders-page')) {
-      ordersFilterPanel?.querySelector('button')?.focus();
-      return;
-    }
     if (toolbarTrigger === anchor && !toolbarPopover.hidden) {
       closeToolbar();
       anchor.focus({ preventScroll: true });
@@ -3147,15 +3169,27 @@
     toolbarPopover.classList.toggle('portal-view-bar__popover', sharedPopup);
     toolbarPopover.classList.toggle('packing-filter-popup', type === 'filter');
     toolbarPopover.classList.toggle('orders-compact-filter-popup', type === 'filter');
+    const mobileFilter = type === 'filter' && window.matchMedia('(max-width: 767px)').matches;
+    toolbarPopover.classList.toggle('orders-mobile-filter-sheet', mobileFilter);
     toolbarPopover.setAttribute('role', sharedPopup ? 'dialog' : 'menu');
     toolbarPopover.setAttribute('aria-label', type === 'person' ? 'Person' : type === 'filter' ? 'Filter orders' : `${type} options`);
     toolbarPopover.style.transform = '';
     if (type === 'filter' && ordersFilterPanel) {
       toolbarPopover.replaceChildren();
+      if (mobileFilter) {
+        const heading = document.createElement('header');
+        heading.className = 'orders-mobile-filter-sheet__header';
+        heading.innerHTML = '<strong>Filter orders</strong><button type="button" data-orders-mobile-filter-close aria-label="Close filters">×</button>';
+        toolbarPopover.append(heading);
+      }
       ordersFilterPanel.hidden = false;
       ordersFilterPanel.classList.add('packing-filter-grid', 'is-in-view-popover');
       toolbarPopover.append(ordersFilterPanel);
-      positionOrdersFilterPopup();
+      if (mobileFilter) {
+        toolbarPopover.style.removeProperty('left');
+        toolbarPopover.style.removeProperty('top');
+        toolbarPopover.style.removeProperty('width');
+      } else positionOrdersFilterPopup();
     } else {
       toolbarPopover.style.left = `${Math.min(rect.left, window.innerWidth - 360)}px`;
       toolbarPopover.style.top = `${rect.bottom + 8}px`;
@@ -3167,6 +3201,7 @@
 
   function positionOrdersFilterPopup() {
     if (!toolbarTrigger || !toolbarPopover || toolbarPopover.hidden || !toolbarPopover.classList.contains('orders-compact-filter-popup')) return;
+    if (toolbarPopover.classList.contains('orders-mobile-filter-sheet')) return;
     const rect = toolbarTrigger.getBoundingClientRect();
     const edgeGap = 12;
     const popupGap = 6;
@@ -3199,7 +3234,7 @@
       toolbarPopover.classList.remove('orders-row-actions-menu');
       toolbarPopover.classList.remove('portal-row-actions__menu');
       toolbarPopover.classList.remove('portal-view-bar__popover');
-      toolbarPopover.classList.remove('packing-filter-popup', 'orders-compact-filter-popup');
+      toolbarPopover.classList.remove('packing-filter-popup', 'orders-compact-filter-popup', 'orders-mobile-filter-sheet');
       toolbarPopover.removeAttribute('role');
       toolbarPopover.removeAttribute('aria-label');
       delete toolbarPopover.dataset.orderMenuTriggerId;
@@ -3877,6 +3912,10 @@
       if (label === 'Status') return renderLabelCell(currentOrder, 'status', currentOrder.status || 'new_order', statusLabels, 'status-label');
       if (label === 'Mode') return renderLabelCell(currentOrder, 'order_type', currentOrder.order_type || 'collection', modeLabels, 'mode-label');
       if (label === 'Method') return renderPaymentBadge(currentOrder);
+      if (label === 'Waybill upload' && currentOrder.dispatch_waybill_batch_id) {
+        const batch = encodeURIComponent(String(currentOrder.dispatch_waybill_batch_id));
+        return `<a class="orders-waybill-download" href="courier.php?action=waybill_download_zip&amp;batch_id=${batch}"><i data-lucide="download" aria-hidden="true"></i>Download waybill</a>`;
+      }
       return esc(value || 'Not set');
     };
     const sectionIcons = {'Order summary':'clipboard-list',Customer:'user-round',Fulfilment:'package-check',Payment:'wallet'};
@@ -4764,6 +4803,11 @@
     const filterOption = event.target.closest('[data-orders-filter-option]');
 
     try {
+      if (event.target.closest('[data-orders-mobile-filter-close]')) {
+        event.preventDefault();
+        closeToolbar();
+        return;
+      }
       if (retryOrders) {
         event.preventDefault();
         await refresh(retryOrders).catch(showError);
@@ -4828,15 +4872,21 @@
           showCompletedPackerCorrection(orderId, employeeId);
           return;
         }
+        const saveStartedAt = performance.now();
         setPackerUpdateState(orderId, true);
+        let saveResult = '';
         try {
           await updateRichLabelValue(orderId, 'assigned_packer_id', employeeId);
           if (syncState) syncState.textContent = 'Packed By updated.';
           closePersonPopup();
+          saveResult = 'Saved ✓';
         } catch (error) {
+          saveResult = 'Could not save';
+          error.message = `Couldn’t update Packed By. ${error.message || 'Please try again.'}`;
           throw error;
         } finally {
-          setPackerUpdateState(orderId, false);
+          try { performance.measure('orders-packed-by-update', { start: saveStartedAt, end: performance.now() }); } catch (_) {}
+          setPackerUpdateState(orderId, false, saveResult);
         }
         return;
       }

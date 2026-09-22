@@ -15,6 +15,7 @@ $roleKey = current_role_key();
 $isPacker = strpos($roleKey, 'packer') !== false;
 $canUploadWaybills = $currentEmployeeId > 0 && ($isPacker || in_array($roleKey, ['owner_admin', 'supervisor_manager'], true));
 $canSendWaybills = in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'marketing_sales'], true);
+$canDownloadWaybills = $currentEmployeeId > 0 && ($canSendWaybills || $canUploadWaybills);
 $canExportWaybills = $roleKey === 'owner_admin';
 $canManageWaybills = in_array($roleKey, ['owner_admin', 'supervisor_manager'], true);
 $canDeleteWaybillsForever = $roleKey === 'owner_admin';
@@ -104,6 +105,17 @@ function wb_bootstrap_schema(): void
         }
     }
 
+    // Additive relationship: keep the legacy order_id for older integrations.
+    db()->exec("CREATE TABLE IF NOT EXISTS hambelela_waybill_orders (
+        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+        waybill_id INT NOT NULL,
+        order_id INT NOT NULL,
+        linked_by_employee_id INT NULL,
+        linked_at DATETIME NULL,
+        UNIQUE KEY uq_waybill_order (waybill_id, order_id),
+        KEY idx_waybill_orders_order (order_id, waybill_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
     db()->exec(
         "CREATE TABLE IF NOT EXISTS hambelela_waybill_sla_log (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -179,6 +191,28 @@ function wb_bootstrap_schema(): void
     }
 
     wb_import_legacy_waybills();
+    // Idempotently backfill valid legacy links, including freshly imported
+    // rows. The original actor/time cannot be inferred from upload metadata.
+    $legacyLinks = ops_rows("SELECT w.id, w.order_id
+        FROM hambelela_waybills w
+        LEFT JOIN hambelela_waybill_orders l ON l.waybill_id = w.id
+        WHERE w.order_id IS NOT NULL AND w.order_id <> '' AND l.id IS NULL");
+    $backfill = db()->prepare('INSERT IGNORE INTO hambelela_waybill_orders (waybill_id, order_id, linked_by_employee_id, linked_at) VALUES (?, ?, ?, ?)');
+    foreach ($legacyLinks as $legacyLink) {
+        $order = wb_find_order((string) $legacyLink['order_id']);
+        if ($order) $backfill->execute([(int) $legacyLink['id'], (int) $order['id'], null, null]);
+    }
+}
+
+function wb_find_order(string $reference): ?array
+{
+    if (!ops_table_exists('ops_orders')) return null;
+    $reference = trim($reference);
+    $normalised = ltrim($reference, '#');
+    if ($normalised === '') return null;
+    $order = ops_row('SELECT id, order_number, customer_name FROM ops_orders WHERE order_number = ? OR order_number = ? ORDER BY CASE WHEN order_number = ? THEN 0 ELSE 1 END LIMIT 1',
+        [$reference, $normalised, $reference]);
+    return $order ?: null;
 }
 
 function wb_now(): DateTimeImmutable
@@ -692,17 +726,27 @@ function wb_normalize_files(array $files): array
     return $normalized;
 }
 
-function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $dateFrom = null, ?string $dateTo = null): array
+function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $dateFrom = null, ?string $dateTo = null, ?string $search = null): array
 {
     $params = $statuses;
     $placeholders = implode(',', array_fill(0, count($statuses), '?'));
     $where = "w.status IN ({$placeholders}) AND w.archived_at IS NULL AND w.deleted_at IS NULL";
-    if ($history) {
+    if ($history && trim((string) $search) === '') {
         $where .= " AND DATE(COALESCE(w.sent_at, w.uploaded_at)) BETWEEN ? AND ?";
         $params[] = $dateFrom ?: date('Y-m-d', strtotime('-7 days'));
         $params[] = $dateTo ?: date('Y-m-d');
     }
 
+    $search = trim((string) $search);
+    if ($search !== '') {
+        $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], ltrim(substr($search, 0, 80), '#')) . '%';
+        $where .= " AND (w.order_id LIKE ? OR w.customer_name LIKE ? OR w.courier_names LIKE ? OR EXISTS (
+            SELECT 1 FROM hambelela_waybills sw
+            JOIN hambelela_waybill_orders link ON link.waybill_id=sw.id
+            JOIN ops_orders so ON so.id=link.order_id
+            WHERE sw.batch_id=w.batch_id AND so.order_number LIKE ?))";
+        array_push($params, $like, $like, $like, $like);
+    }
     $rows = ops_rows(
         "SELECT
             w.batch_id,
@@ -767,15 +811,13 @@ function wb_batch_items(string $batchId): array
         [$batchId]
     );
     foreach ($items as &$item) {
+        $item['linked_orders'] = ops_rows(
+            'SELECT o.id, o.order_number, o.customer_name FROM hambelela_waybill_orders l JOIN ops_orders o ON o.id = l.order_id WHERE l.waybill_id = ? ORDER BY l.id',
+            [(int) $item['id']]
+        );
         $rawOrder = trim((string) ($item['order_id'] ?? ''));
-        $numericOrderId = (int) preg_replace('/\D+/', '', $rawOrder);
-        $order = null;
-        if ($numericOrderId > 0 && ops_table_exists('ops_orders')) {
-            $order = ops_row(
-                'SELECT id,order_number,customer_name FROM ops_orders WHERE id=? OR order_number=? OR order_number LIKE ? ORDER BY CASE WHEN id=? THEN 0 WHEN order_number=? THEN 1 ELSE 2 END LIMIT 1',
-                [$numericOrderId, $rawOrder, '%' . $numericOrderId . '%', $numericOrderId, $rawOrder]
-            );
-        }
+        $order = $rawOrder !== '' ? wb_find_order($rawOrder) : null;
+        if (!$order && $item['linked_orders']) $order = $item['linked_orders'][0];
         $sourceOrder = trim((string) ($order['order_number'] ?? '')) ?: $rawOrder;
         $item['order_record_id'] = (int) ($order['id'] ?? 0);
         $item['order_display'] = preg_match('/#?(\d{3,})/', $sourceOrder, $numberMatch) ? '#' . $numberMatch[1] : $sourceOrder;
@@ -1063,8 +1105,9 @@ function wb_tools_payload(bool $canManage, bool $canDeleteForever): array
 function wb_dashboard_payload(bool $canSend, ?string $dateFrom = null, ?string $dateTo = null): array
 {
     wb_update_overdue_and_reminders();
-    $queueRows = wb_fetch_batch_rows(['pending', 'overdue']);
-    $historyRows = wb_fetch_batch_rows(['sent'], true, $dateFrom, $dateTo);
+    $search = (string) ($_GET['search'] ?? '');
+    $queueRows = wb_fetch_batch_rows(['pending', 'overdue'], false, null, null, $search);
+    $historyRows = wb_fetch_batch_rows(['sent'], true, $dateFrom, $dateTo, $search);
 
     return [
         'stats' => wb_stats(),
@@ -1175,6 +1218,10 @@ if ($ready) {
 }
 
 if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_download_file') {
+    if (!$canDownloadWaybills) {
+        http_response_code(403);
+        exit('Not allowed.');
+    }
     $waybillId = max(0, (int) ($_GET['waybill_id'] ?? 0));
     $batchId = substr((string) ($_GET['batch_id'] ?? ''), 0, 60);
     if (!$waybillId || $batchId === '') {
@@ -1222,7 +1269,10 @@ function wb_batch_detail_html(array $row, bool $sent, string $detailId): string
                 <div class="courier-file-row" role="row">
                     <span data-label="Customer"><strong><?= wb_e((string) (($item['customer_display'] ?? '') ?: 'Customer not recorded')) ?></strong></span>
                     <span data-label="Order">
-                        <?php if ($orderDisplay !== '' && $orderRecordId > 0): ?><a class="courier-order-link" href="orders-board.php?order_id=<?= $orderRecordId ?>"><?= wb_e($orderDisplay) ?></a>
+                        <?php if ($item['linked_orders']): ?>
+                            <span class="courier-order-count"><?= count($item['linked_orders']) ?> order<?= count($item['linked_orders']) === 1 ? '' : 's' ?></span>
+                            <span class="courier-order-links"><?php foreach ($item['linked_orders'] as $linkedOrder): ?><a class="courier-order-link" href="orders-board.php?order_id=<?= (int) $linkedOrder['id'] ?>">#<?= wb_e(ltrim((string) $linkedOrder['order_number'], '#')) ?></a><?php endforeach; ?></span>
+                        <?php elseif ($orderDisplay !== '' && $orderRecordId > 0): ?><a class="courier-order-link" href="orders-board.php?order_id=<?= $orderRecordId ?>"><?= wb_e($orderDisplay) ?></a>
                         <?php else: ?><span class="courier-muted"><?= wb_e($orderDisplay !== '' ? $orderDisplay : 'Not linked') ?></span><?php endif; ?>
                     </span>
                     <span data-label="Waybill file" class="courier-file-name"><i data-lucide="file-text"></i><span><?= wb_e($filename) ?></span></span>
@@ -1237,7 +1287,11 @@ function wb_batch_detail_html(array $row, bool $sent, string $detailId): string
         </div>
         <?php if (($GLOBALS['showOrderAssignment'] ?? false) && !$sent): ?>
             <details class="courier-matching-tools"><summary>Order matching tools</summary><div class="courier-matching-list">
-                <?php foreach ($items as $itemIndex => $item): ?><form class="courier-matching-row" data-waybill-order-form><span><?= $itemIndex + 1 ?>. <?= wb_e((string) ($item['original_filename'] ?: basename((string) $item['file_path']))) ?></span><input name="order_number" value="<?= wb_e((string) ($item['order_id'] ?? '')) ?>" placeholder="#36732" required><input type="hidden" name="action" value="waybill_assign_order"><input type="hidden" name="waybill_id" value="<?= (int) $item['id'] ?>"><input type="hidden" name="batch_id" value="<?= wb_e($batchId) ?>"><button type="submit" class="btn-secondary"><i data-lucide="link"></i><?= trim((string) ($item['order_id'] ?? '')) !== '' ? 'Update link' : 'Link order' ?></button></form><?php endforeach; ?>
+                <?php foreach ($items as $itemIndex => $item): ?><form class="courier-matching-row courier-multi-order-form" data-waybill-order-form>
+                    <span><?= $itemIndex + 1 ?>. <?= wb_e((string) ($item['original_filename'] ?: basename((string) $item['file_path']))) ?></span>
+                    <div class="courier-order-selector"><label for="courier-order-search-<?= (int) $item['id'] ?>">Link orders</label><input id="courier-order-search-<?= (int) $item['id'] ?>" type="search" data-courier-order-search placeholder="Search order, customer or phone" autocomplete="off"><div class="courier-order-search-results" data-courier-order-results hidden></div><div class="courier-selected-orders" data-courier-selected-orders><?php foreach ($item['linked_orders'] as $linkedOrder): ?><label><input type="checkbox" name="order_ids[]" value="<?= (int) $linkedOrder['id'] ?>" checked><span>#<?= wb_e(ltrim((string) $linkedOrder['order_number'], '#')) ?> · <?= wb_e((string) $linkedOrder['customer_name']) ?></span></label><?php endforeach; ?></div><small data-courier-selected-count><?= count($item['linked_orders']) ?> selected</small></div>
+                    <input type="hidden" name="action" value="waybill_assign_order"><input type="hidden" name="waybill_id" value="<?= (int) $item['id'] ?>"><input type="hidden" name="batch_id" value="<?= wb_e($batchId) ?>"><input type="hidden" name="existing_order_ids" value="<?= wb_e(implode(',', array_column($item['linked_orders'], 'id'))) ?>"><button type="submit" class="btn-secondary"><i data-lucide="link"></i>Save linked orders</button>
+                </form><?php endforeach; ?>
             </div></details>
         <?php endif; ?>
         <?php if (!empty($row['notes'])): ?><div class="courier-detail-notes"><span>Notes</span><p><?= nl2br(wb_e((string) $row['notes'])) ?></p></div><?php endif; ?>
@@ -1247,6 +1301,10 @@ function wb_batch_detail_html(array $row, bool $sent, string $detailId): string
 }
 
 if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_download_zip') {
+    if (!$canDownloadWaybills) {
+        http_response_code(403);
+        exit('Not allowed.');
+    }
     wb_stream_batch_download(substr((string) ($_GET['batch_id'] ?? ''), 0, 60));
 }
 
@@ -1268,6 +1326,17 @@ if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_export_selected') {
 
 if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_queue_refresh') {
     wb_json(['success' => true] + wb_dashboard_payload($canSendWaybills, $historyDateFrom, $historyDateTo));
+}
+
+if ($ready && (string) ($_GET['action'] ?? '') === 'waybill_order_search') {
+    if (!$canUploadWaybills && !$canManageWaybills) wb_json(['success' => false, 'message' => 'Not allowed.'], 403);
+    $term = trim(substr((string) ($_GET['q'] ?? ''), 0, 80));
+    if (strlen($term) < 2) wb_json(['success' => true, 'orders' => []]);
+    $like = '%' . str_replace(['%', '_'], ['\\%', '\\_'], ltrim($term, '#')) . '%';
+    $orders = ops_rows("SELECT id, order_number, customer_name, created_at, status
+        FROM ops_orders WHERE order_number LIKE ? OR customer_name LIKE ? OR customer_contact LIKE ?
+        ORDER BY created_at DESC LIMIT 20", [$like, $like, $like]);
+    wb_json(['success' => true, 'orders' => $orders]);
 }
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -1318,8 +1387,17 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $message = 'Restored ' . count($batchIds) . ' waybill batch(es) from Trash.';
                 $activityAction = 'courier_waybill_trash_restored';
             } else {
-                $stmt = db()->prepare("DELETE FROM hambelela_waybills WHERE batch_id IN ({$placeholders}) AND deleted_at IS NOT NULL");
-                $stmt->execute($batchIds);
+                db()->beginTransaction();
+                try {
+                    $linkDelete = db()->prepare("DELETE l FROM hambelela_waybill_orders l JOIN hambelela_waybills w ON w.id=l.waybill_id WHERE w.batch_id IN ({$placeholders}) AND w.deleted_at IS NOT NULL");
+                    $linkDelete->execute($batchIds);
+                    $stmt = db()->prepare("DELETE FROM hambelela_waybills WHERE batch_id IN ({$placeholders}) AND deleted_at IS NOT NULL");
+                    $stmt->execute($batchIds);
+                    db()->commit();
+                } catch (Throwable $deleteError) {
+                    if (db()->inTransaction()) db()->rollBack();
+                    throw $deleteError;
+                }
                 $message = 'Permanently deleted ' . count($batchIds) . ' portal waybill batch(es).';
                 $activityAction = 'courier_waybill_deleted_forever';
             }
@@ -1340,26 +1418,70 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($action === 'waybill_assign_order') {
             if (!$canUploadWaybills && !$canManageWaybills) throw new RuntimeException('Only packers and admin can assign waybills to orders.');
-            $waybillId=max(0,(int)($_POST['waybill_id']??0));$batchId=trim((string)($_POST['batch_id']??''));$orderNumber=trim((string)($_POST['order_number']??''));
-            if(!$waybillId||$batchId===''||$orderNumber==='')throw new RuntimeException('Enter an order number for this waybill.');
-            if(!preg_match('/^[#A-Za-z0-9 _-]{1,50}$/',$orderNumber))throw new RuntimeException('Use a valid order number, such as #36732 or WEB-36732.');
-            $existing=ops_row('SELECT id,order_id FROM hambelela_waybills WHERE id=? AND batch_id=? AND archived_at IS NULL AND deleted_at IS NULL',[$waybillId,$batchId]);
-            if(!$existing)throw new RuntimeException('Waybill not found.');
+            if (!$currentEmployeeId) throw new RuntimeException('Please sign in again before linking orders.');
+            require_once __DIR__ . '/courier-order-requirements.php';
+            courier_requirements_schema();
+            $waybillId = max(0, (int) ($_POST['waybill_id'] ?? 0));
+            $batchId = substr(trim((string) ($_POST['batch_id'] ?? '')), 0, 60);
+            $submittedIds = $_POST['order_ids'] ?? [];
+            $legacyForm = !$submittedIds && isset($_POST['order_number']);
+            if ($legacyForm) {
+                // A tab opened before deployment may still send the old single-order form.
+                $legacyOrder = wb_find_order(substr((string) $_POST['order_number'], 0, 50));
+                if (!$legacyOrder) throw new RuntimeException('That order could not be found. Refresh Courier and search for it.');
+                $submittedIds = [(string) $legacyOrder['id']];
+            }
+            if (!is_array($submittedIds) || count($submittedIds) > 20) throw new RuntimeException('Choose up to 20 orders for one waybill.');
+            if (array_filter($submittedIds, static fn($id): bool => !is_scalar($id) || !ctype_digit((string) $id) || (int) $id <= 0)) throw new RuntimeException('One of the selected orders is invalid.');
+            $orderIds = array_values(array_unique(array_map('intval', $submittedIds)));
+            if (!$waybillId || $batchId === '' || !$orderIds) throw new RuntimeException('Choose at least one order for this waybill.');
             db()->beginTransaction();
-            try{
-                db()->prepare('UPDATE hambelela_waybills SET order_id=? WHERE id=?')->execute([$orderNumber,$waybillId]);
-                $numericOrderId=(int)preg_replace('/\D+/','',$orderNumber);
-                if($numericOrderId>0){
-                    $shipment=ops_row('SELECT order_id,batch_id,box_count FROM ops_courier_requirements WHERE order_id=?',[$numericOrderId]);
-                    if($shipment&&(empty($shipment['batch_id'])||(string)$shipment['batch_id']===$batchId)){
-                        db()->prepare('UPDATE ops_courier_requirements SET batch_id=?,linked_at=?,linked_by=? WHERE order_id=?')->execute([$batchId,wb_now()->format('Y-m-d H:i:s'),$currentEmployeeId,$numericOrderId]);
-                        ops_activity_log('courier_order_upload_linked','order',$numericOrderId,['batch_id'=>$batchId,'waybill_id'=>$waybillId,'physical_boxes'=>(int)$shipment['box_count']]);
+            try {
+                $existing = ops_row('SELECT id FROM hambelela_waybills WHERE id=? AND batch_id=? AND archived_at IS NULL AND deleted_at IS NULL FOR UPDATE', [$waybillId, $batchId]);
+                if (!$existing) throw new RuntimeException('Waybill not found.');
+                $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+                $orders = ops_rows("SELECT id, order_number FROM ops_orders WHERE id IN ($placeholders)", $orderIds);
+                if (count($orders) !== count($orderIds)) throw new RuntimeException('One or more selected orders no longer exist. Search again.');
+                $existingIds = array_map('intval', array_column(ops_rows('SELECT order_id FROM hambelela_waybill_orders WHERE waybill_id=?', [$waybillId]), 'order_id'));
+                if ($legacyForm && count($existingIds) > 1) throw new RuntimeException('This waybill has multiple linked orders. Refresh Courier before changing them.');
+                if (!$legacyForm) {
+                    $snapshot = trim((string) ($_POST['existing_order_ids'] ?? ''));
+                    $expectedIds = $snapshot === '' ? [] : array_map('intval', explode(',', $snapshot));
+                    sort($expectedIds); sort($existingIds);
+                    if ($expectedIds !== $existingIds) throw new RuntimeException('These waybill links changed in another session. Refresh Courier and try again.');
+                }
+                $previouslyRemoved = array_diff($existingIds, $orderIds);
+                $newIds = array_diff($orderIds, $existingIds);
+                $now = wb_now()->format('Y-m-d H:i:s');
+                $remove = db()->prepare('DELETE FROM hambelela_waybill_orders WHERE waybill_id=? AND order_id=?');
+                foreach ($previouslyRemoved as $removedId) $remove->execute([$waybillId, $removedId]);
+                $insert = db()->prepare('INSERT INTO hambelela_waybill_orders (waybill_id,order_id,linked_by_employee_id,linked_at) VALUES (?,?,?,?)');
+                foreach ($newIds as $orderId) {
+                    $otherBatch = ops_row('SELECT w.batch_id FROM hambelela_waybill_orders l JOIN hambelela_waybills w ON w.id=l.waybill_id WHERE l.order_id=? AND w.batch_id<>? AND w.archived_at IS NULL AND w.deleted_at IS NULL LIMIT 1', [$orderId, $batchId]);
+                    if ($otherBatch) throw new RuntimeException('An order is already linked to a different courier batch.');
+                    $insert->execute([$waybillId, $orderId, $currentEmployeeId, $now]);
+                    $shipment = ops_row('SELECT order_id,batch_id,box_count FROM ops_courier_requirements WHERE order_id=?', [$orderId]);
+                    if ($shipment && (empty($shipment['batch_id']) || (string) $shipment['batch_id'] === $batchId)) {
+                        db()->prepare('UPDATE ops_courier_requirements SET batch_id=?,linked_at=?,linked_by=? WHERE order_id=?')->execute([$batchId, $now, $currentEmployeeId, $orderId]);
+                        ops_activity_log('courier_order_upload_linked', 'order', $orderId, ['batch_id'=>$batchId,'waybill_id'=>$waybillId,'physical_boxes'=>(int)$shipment['box_count']]);
+                    } elseif ($shipment) {
+                        throw new RuntimeException('An order is already linked to a different courier batch.');
                     }
                 }
+                foreach ($previouslyRemoved as $removedId) {
+                    $remaining = ops_row('SELECT l.id FROM hambelela_waybill_orders l JOIN hambelela_waybills w ON w.id=l.waybill_id WHERE l.order_id=? AND w.batch_id=? AND w.archived_at IS NULL AND w.deleted_at IS NULL LIMIT 1', [$removedId, $batchId]);
+                    if (!$remaining) db()->prepare('UPDATE ops_courier_requirements SET batch_id=NULL, linked_at=NULL, linked_by=NULL WHERE order_id=? AND batch_id=?')->execute([$removedId, $batchId]);
+                }
+                // Compatibility only; the junction table is authoritative for every link.
+                $ordersById = array_column($orders, null, 'id');
+                db()->prepare('UPDATE hambelela_waybills SET order_id=? WHERE id=?')->execute([(string) $ordersById[$orderIds[0]]['order_number'], $waybillId]);
+                ops_activity_log('courier_waybill_orders_assigned', 'courier_waybill', $waybillId, ['batch_id'=>$batchId,'order_ids'=>$orderIds,'changed_by'=>wb_current_name()]);
                 db()->commit();
-            }catch(Throwable$assignmentError){if(db()->inTransaction())db()->rollBack();throw$assignmentError;}
-            ops_activity_log('courier_waybill_order_assigned','courier_waybill',$waybillId,['batch_id'=>$batchId,'order_number'=>$orderNumber,'changed_by'=>wb_current_name()]);
-            wb_json(['success'=>true,'message'=>'Order number assigned to this waybill.']+wb_dashboard_payload($canSendWaybills,$historyDateFrom,$historyDateTo));
+            } catch (Throwable $assignmentError) {
+                if (db()->inTransaction()) db()->rollBack();
+                throw $assignmentError;
+            }
+            wb_json(['success'=>true,'message'=>count($orderIds).' order'.(count($orderIds)===1?'':'s').' linked to this waybill.']+wb_dashboard_payload($canSendWaybills,$historyDateFrom,$historyDateTo));
         }
 
         if ($action === 'waybill_upload') {
@@ -2032,6 +2154,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
             const data = new FormData(filter);
             if (data.get('date_from')) params.set('date_from', data.get('date_from'));
             if (data.get('date_to')) params.set('date_to', data.get('date_to'));
+            if (data.get('search')) params.set('search', data.get('search'));
         }
         return 'courier.php?' + params.toString();
     }
@@ -2362,13 +2485,81 @@ include BASE_PATH.'/shared/ess-sidebar.php';
         if (rowToggle) toggleBatchDetails(rowToggle);
     });
 
+    const orderSearchTimers = new WeakMap();
+    function positionCourierOrderResults(search, results) {
+        const rect = search.getBoundingClientRect();
+        const height = Math.min(230, window.innerHeight * .38);
+        const below = window.innerHeight - rect.bottom;
+        results.style.left = Math.max(8, rect.left) + 'px';
+        results.style.width = Math.min(rect.width, window.innerWidth - 16) + 'px';
+        results.style.top = (below >= height + 8 ? rect.bottom + 4 : Math.max(8, rect.top - height - 4)) + 'px';
+        results.style.maxHeight = height + 'px';
+    }
+    document.addEventListener('input', (event) => {
+        const search = event.target.closest('[data-courier-order-search]');
+        if (!search) return;
+        const form = search.closest('[data-waybill-order-form]');
+        const results = form?.querySelector('[data-courier-order-results]');
+        if (!results) return;
+        clearTimeout(orderSearchTimers.get(search));
+        const query = search.value.trim();
+        if (query.length < 2) { results.hidden = true; results.replaceChildren(); return; }
+        const timer = setTimeout(async () => {
+            try {
+                const data = await fetchJson('courier.php?action=waybill_order_search&q=' + encodeURIComponent(query));
+                if (search.value.trim() !== query) return;
+                const attr = (value) => esc(value).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+                results.innerHTML = data.orders.length ? data.orders.map((order) => `<button type="button" data-courier-order-pick="${Number(order.id)}" data-order-number="${attr(order.order_number || '')}" data-order-customer="${attr(order.customer_name || '')}"><strong>#${esc(String(order.order_number || '').replace(/^#/, ''))} · ${esc(order.customer_name || 'Customer not recorded')}</strong><small>${esc(order.created_at || '')} · ${esc(order.status || '')}</small></button>`).join('') : '<p>No matching orders found.</p>';
+                positionCourierOrderResults(search, results);
+                results.hidden = false;
+            } catch (error) { results.textContent = error.message; results.hidden = false; }
+        }, 180);
+        orderSearchTimers.set(search, timer);
+    });
+    window.addEventListener('scroll', (event) => {
+        if (event.target?.closest?.('[data-courier-order-results]')) return;
+        document.querySelectorAll('[data-courier-order-results]:not([hidden])').forEach((results) => { results.hidden = true; });
+    }, true);
+    window.addEventListener('resize', () => document.querySelectorAll('[data-courier-order-results]:not([hidden])').forEach((results) => { results.hidden = true; }));
+    document.addEventListener('click', (event) => {
+        const pick = event.target.closest('[data-courier-order-pick]');
+        if (!pick) return;
+        const form = pick.closest('[data-waybill-order-form]');
+        const selected = form?.querySelector('[data-courier-selected-orders]');
+        if (!selected) return;
+        const orderId = String(Number(pick.dataset.courierOrderPick));
+        if (![...selected.querySelectorAll('input[name="order_ids[]"]')].some((input) => input.value === orderId)) {
+            const label = document.createElement('label');
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox'; checkbox.name = 'order_ids[]'; checkbox.value = orderId; checkbox.checked = true;
+            const name = document.createElement('span');
+            name.textContent = '#' + (pick.dataset.orderNumber || '').replace(/^#/, '') + ' · ' + (pick.dataset.orderCustomer || 'Customer not recorded');
+            label.append(checkbox, name); selected.append(label);
+        }
+        const results = form.querySelector('[data-courier-order-results]');
+        results.hidden = true;
+        form.querySelector('[data-courier-order-search]').value = '';
+        form.querySelector('[data-courier-selected-count]').textContent = selected.querySelectorAll('input:checked').length + ' selected';
+    });
+    document.addEventListener('change', (event) => {
+        if (!event.target.matches('[data-courier-selected-orders] input[name="order_ids[]"]')) return;
+        const form = event.target.closest('[data-waybill-order-form]');
+        form.querySelector('[data-courier-selected-count]').textContent = form.querySelectorAll('[data-courier-selected-orders] input:checked').length + ' selected';
+    });
+
     document.addEventListener('submit', async (event) => {
         const form=event.target.closest('[data-waybill-order-form]');
         if(!form)return;
         event.preventDefault();
         const button=form.querySelector('button[type="submit"]'),original=button?.innerHTML;
         if(button){button.disabled=true;button.innerHTML='<i data-lucide="loader-circle"></i><span>Saving...</span>';refreshIcons();}
-        try{const data=await fetchJson('courier.php',{method:'POST',body:new FormData(form)});renderPayload(data);showToast(data.message||'Order number assigned.');}
+        try{
+            const filter=document.querySelector('[data-waybill-filter]');
+            const query=new URLSearchParams();
+            if(filter){const fields=new FormData(filter);['date_from','date_to','search'].forEach((key)=>{if(fields.get(key))query.set(key,fields.get(key));});}
+            const data=await fetchJson('courier.php?'+query.toString(),{method:'POST',body:new FormData(form)});
+            renderPayload(data);showToast(data.message||'Orders linked.');
+        }
         catch(error){showToast(error.message);if(button){button.disabled=false;button.innerHTML=original;refreshIcons();}}
     });
 

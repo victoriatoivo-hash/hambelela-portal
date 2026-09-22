@@ -1,0 +1,62 @@
+name: Deploy approved Portal Corrections
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preflight only or publish exact approved files
+        required: true
+        type: choice
+        options:
+          - preflight
+          - deploy
+      approved_sha:
+        description: Exact main commit SHA to verify and deploy
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  portal-corrections:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Fetch the approved live Orders baseline
+        run: git fetch origin 32d1d216fefc08375e4a5f994f14b6f09ef4e281
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+      - name: Validate exact release files
+        run: |
+          php -l apps/operations/bookkeeping.php
+          php -l apps/operations/courier.php
+          php -l apps/operations/orders-board-action.php
+          php -l apps/operations/orders-board-data.php
+          php -l apps/operations/actor-attribution-candidates.php
+          php -l shared/ess-courier-content.php
+          node --check assets/js/orders-board.js
+          node tests/portal-corrections-static.mjs
+      - name: Preflight or deploy approved delta with backup
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-portal-corrections.py "$MODE" "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: portal-corrections-${{ github.run_id }}
+          path: |
+            portal-corrections-deployment-report.json
+            portal-corrections-deployment-backup.zip
+          if-no-files-found: warn

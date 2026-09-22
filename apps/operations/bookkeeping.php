@@ -17,7 +17,7 @@ $canOperateBookkeeping = $bookkeepingRoleKey !== 'guest'
 $canManageBookkeeping = $bookkeepingRoleKey === 'owner_admin';
 $isBookkeepingReadOnly = !$canOperateBookkeeping;
 $canSelectBookkeepingRows = $canOperateBookkeeping;
-$ledgerUserId = (int) ($currentUser['id'] ?? $employeeId ?? 0);
+$ledgerUserId = (int) ($employeeId ?? 0);
 $ledgerUserName = (string) ($currentUser['name'] ?? 'Unknown user');
 $bookkeepingCsrfToken = (string) ($_SESSION['bookkeeping_csrf_token'] ?? '');
 if ($bookkeepingCsrfToken === '') {
@@ -372,6 +372,15 @@ if ($ready) {
 
 if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        // Resolve the audit identity from the authenticated employee ID, never
+        // from a Front/Marketing role label or a submitted display name.
+        $actorRows = $ledgerUserId > 0
+            ? ops_rows("SELECT full_name FROM ops_employees WHERE id = ? AND status = 'active' LIMIT 1", [$ledgerUserId])
+            : [];
+        if (!$actorRows) {
+            throw new LedgerPermissionException('Could not verify the employee making this change. Please sign in again.');
+        }
+        $ledgerUserName = (string) $actorRows[0]['full_name'];
         $submittedCsrfToken = (string) ($_POST['csrf_token'] ?? '');
         if ($submittedCsrfToken === '' || !hash_equals($bookkeepingCsrfToken, $submittedCsrfToken)) {
             throw new LedgerPermissionException('Your session token is invalid. Refresh Bookkeeping and try again.');
