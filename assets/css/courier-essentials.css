@@ -118,10 +118,10 @@
 .ess-courier-page .add-courier-inline p{font-size:11px;font-weight:300;color:var(--text-secondary);text-transform:none;letter-spacing:0;}
 .ess-courier-page .add-courier-inline>label{display:grid;gap:6px;padding:0 20px;}
 .ess-courier-page .add-courier-inline>label input{width:100%;}
-.ess-courier-page .badge{border-radius:999px;font:400 10px 'Jost',sans-serif;}
-.ess-courier-page .badge:is(.sent,.ontime){color:var(--success);background:#edf3e8;border-color:#dce6d4;}
+.ess-courier-page .badge{min-height:24px;display:inline-flex;align-items:center;gap:5px;padding:0 8px;border-radius:999px;font:500 10.5px/1 'Jost',sans-serif;}
+.ess-courier-page .badge:is(.sent,.ontime){color:#477356;background:#E7F1EA;border-color:#D4E5D9;}
 .ess-courier-page .badge:is(.overdue,.late){color:var(--danger);background:#f9ece9;border-color:#eed5ce;}
-.ess-courier-page .badge:is(.ok,.duesoon){color:var(--warning);background:#f8f1df;border-color:#eadeba;}
+.ess-courier-page .badge:is(.ok,.duesoon){color:#9A6818;background:#FBF1D8;border-color:#EEDDB5;}
 .ess-courier-page .add-courier-inline footer{display:flex;gap:8px;justify-content:flex-end;margin-top:auto;padding:14px 20px;border-top:1px solid var(--border);background:#fff;}
 .ess-courier-page .file-chip{display:flex;justify-content:space-between;align-items:center;min-height:48px;padding:7px 10px;border:1px solid var(--border-soft);background:#fff;border-radius:9px;max-width:100%;color:var(--text-primary);}
 .ess-courier-page .file-chip strong{display:block;font-size:11px;font-weight:400;overflow-wrap:anywhere;}
@@ -147,8 +147,13 @@
 .ess-courier-page .portal-date-field svg{color:var(--courier-700);}
 .ess-courier-page .courier-history-download{min-height:32px!important;height:32px!important;padding:0 9px!important;border:1px solid var(--border)!important;border-radius:8px!important;background:white!important;color:var(--text-secondary)!important;font:400 10.5px 'Jost',sans-serif!important;text-transform:none!important;letter-spacing:0!important;box-shadow:none!important;}
 .ess-courier-page .courier-history-download svg{width:16px!important;height:16px!important;color:var(--courier-700)!important;}
-.ess-courier-page .btn-mark-sent{min-height:34px;border:1px solid var(--courier-600);border-radius:8px;background:var(--courier-600);color:white;font:400 11px 'Jost',sans-serif;}
-.ess-courier-page .btn-mark-sent:hover{background:var(--courier-700);border-color:var(--courier-700);}
+.ess-courier-page .btn-mark-sent{min-height:38px;display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:0 13px;border:1px solid #AF542B;border-radius:8px;background:#AF542B;color:white;font:500 12.5px/1 'Jost',sans-serif;cursor:pointer;transition:transform .18s ease,background-color .18s ease,box-shadow .18s ease;}
+.ess-courier-page .btn-mark-sent:hover{background:var(--courier-700);border-color:var(--courier-700);transform:translateY(-1px);box-shadow:0 6px 16px rgba(175,84,43,.16);}
+.ess-courier-page .btn-mark-sent:disabled{opacity:.65;cursor:wait;transform:none;box-shadow:none;}
+.ess-courier-page .btn-mark-sent svg{width:15px;height:15px;}
+.ess-courier-page .courier-toast{border:1px solid transparent;font:500 11.5px/1.35 'Jost',sans-serif;}
+.ess-courier-page .courier-toast.is-success{background:#477356;border-color:#D4E5D9;color:#fff;}
+.ess-courier-page .courier-toast.is-error{background:#A33E32;border-color:#E9CAC4;color:#fff;}
 .ess-courier-page .courier-tools-kicker{color:var(--courier-800);}
 .ess-courier-page .courier-tools-record-actions button,.ess-courier-page .courier-tools-bulk-actions button{border-color:var(--border);color:var(--text-secondary);background:white;border-radius:8px;min-height:36px;font:400 11px 'Jost',sans-serif;}
 .ess-courier-page .courier-tools-record-actions .is-danger,.ess-courier-page .courier-tools-bulk-actions .is-danger{color:var(--danger);}
@@ -224,3 +229,19 @@
 .ess-courier-page .courier-multi-order-form .courier-selected-orders input[type=checkbox]{width:15px;height:15px;min-height:15px;margin:0;padding:0;flex:0 0 auto}
 .ess-courier-page [data-courier-selected-count]{display:block;margin-top:5px;color:#756b60;font:400 10px/1.2 Jost,sans-serif}
 @media(max-width:700px){.ess-courier-page .courier-multi-order-form{grid-template-columns:minmax(0,1fr)}.ess-courier-page .courier-multi-order-form>button{width:100%;min-height:40px}}
+
+/* Keep the sent state and its action in view on phone-sized screens. */
+@media(max-width:768px){
+  .ess-courier-page .courier-table-wrap{overflow:visible!important;}
+  .ess-courier-page .courier-grid-header{display:none!important;}
+  .ess-courier-page :is(.queue-list,.history-list){display:grid!important;gap:10px;padding:10px;}
+  .ess-courier-page :is(.queue-list,.history-list) .courier-grid-row{position:relative;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important;min-width:0!important;overflow:hidden;border:1px solid var(--border)!important;border-radius:11px!important;background:#fff!important;box-shadow:var(--shadow-xs)!important;}
+  .ess-courier-page :is(.queue-list,.history-list) .courier-cell{min-width:0!important;min-height:44px;height:auto!important;padding:8px 10px!important;border-right:1px solid var(--border-soft);border-bottom:1px solid var(--border-soft);white-space:normal!important;overflow:visible!important;}
+  .ess-courier-page .queue-list .courier-select-cell{position:absolute;z-index:2;top:8px;right:8px;width:28px;min-height:28px!important;padding:0!important;border:0;}
+  .ess-courier-page .queue-list .queue-main{grid-column:1/-1;padding-right:48px!important;}
+  .ess-courier-page :is(.queue-list,.history-list) .courier-actions-cell{grid-column:1/-1;display:flex!important;flex-wrap:wrap;justify-content:flex-start!important;gap:7px;min-height:54px!important;border-right:0;background:var(--courier-50);}
+  .ess-courier-page .queue-list .courier-actions-cell :is(.btn-secondary,.btn-mark-sent){flex:1 1 132px;}
+  .ess-courier-page .history-list .courier-grid-row>.courier-cell:first-child{grid-column:1/-1;}
+  .ess-courier-page .history-list .courier-actions-cell{grid-column:1/-1;}
+  .ess-courier-page :is(.queue-list,.history-list)+.courier-batch-detail{margin:0 10px 10px;}
+}

@@ -1729,7 +1729,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
             <div><button type="button" data-courier-confirm-cancel>Cancel</button><button type="button" class="is-primary" data-courier-confirm-accept>Confirm</button></div>
         </section>
     </div>
-    <div class="courier-toast" data-waybill-toast></div>
+    <div class="courier-toast" data-waybill-toast role="status" aria-live="polite" aria-atomic="true"></div>
 </main>
 
 <script src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
@@ -1771,11 +1771,16 @@ include BASE_PATH.'/shared/ess-sidebar.php';
         sent_this_month: document.querySelector('[data-stat="sent_this_month"]')
     };
 
-    function showToast(message) {
+    let courierToastTimer = null;
+    function showToast(message, type = 'success') {
         if (!toast) return;
         toast.textContent = message;
+        toast.classList.remove('is-success', 'is-error');
+        toast.classList.add(type === 'error' ? 'is-error' : 'is-success');
+        toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
         toast.classList.add('is-visible');
-        setTimeout(() => toast.classList.remove('is-visible'), 2800);
+        if (courierToastTimer) window.clearTimeout(courierToastTimer);
+        courierToastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 3200);
     }
 
     function refreshIcons() {
@@ -2004,7 +2009,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
         toolsPanel.setAttribute('aria-hidden', 'false');
         if (toolsBackdrop) { toolsBackdrop.hidden = false; requestAnimationFrame(() => toolsBackdrop.classList.add('is-open')); }
         document.body.classList.add('courier-tools-open');
-        loadTools().catch((error) => showToast(error.message));
+        loadTools().catch((error) => showToast(error.message, 'error'));
         setTimeout(() => toolsPanel.querySelector('[data-courier-tools-close]')?.focus(), 20);
     }
 
@@ -2321,7 +2326,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
                     renderPayload(data);
                     showToast(data.message || 'Waybills uploaded.');
                 })
-                .catch((error) => showToast(error.message))
+                .catch((error) => showToast(error.message, 'error'))
                 .finally(() => {
                     submit.disabled = false;
                     submit.innerHTML = originalText;
@@ -2350,7 +2355,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
         if (toolsAction) {
             toolsAction.disabled = true;
             runLifecycle(toolsAction.dataset.courierToolAction, [toolsAction.dataset.batchId])
-                .catch((error) => showToast(error.message))
+                .catch((error) => showToast(error.message, 'error'))
                 .finally(() => { toolsAction.disabled = false; });
             return;
         }
@@ -2360,8 +2365,8 @@ include BASE_PATH.'/shared/ess-sidebar.php';
             if (!selectedBatches.size) return;
             if (action === 'download') downloadSelectedBatches();
             else if (action === 'export') exportSelectedBatches();
-            else if (action === 'send') markSelectedSent().then(loadTools).catch((error) => showToast(error.message));
-            else runLifecycle(action, Array.from(selectedBatches)).catch((error) => showToast(error.message));
+            else if (action === 'send') markSelectedSent().then(loadTools).catch((error) => showToast(error.message, 'error'));
+            else runLifecycle(action, Array.from(selectedBatches)).catch((error) => showToast(error.message, 'error'));
             return;
         }
         const rowMenuTrigger = event.target.closest('[data-courier-row-menu]');
@@ -2404,9 +2409,9 @@ include BASE_PATH.'/shared/ess-sidebar.php';
                 const body = new FormData();
                 body.append('action', 'waybill_mark_sent');
                 body.append('batch_id', batchId);
-                fetchJson('courier.php', { method: 'POST', body }).then(renderPayload).catch((error) => showToast(error.message));
+                fetchJson('courier.php', { method: 'POST', body }).then(renderPayload).catch((error) => showToast(error.message, 'error'));
             } else {
-                runLifecycle(action, [batchId]).catch((error) => showToast(error.message));
+                runLifecycle(action, [batchId]).catch((error) => showToast(error.message, 'error'));
             }
             return;
         }
@@ -2417,11 +2422,11 @@ include BASE_PATH.'/shared/ess-sidebar.php';
             if (action === 'download') downloadSelectedBatches();
             if (action === 'send') {
                 bulkAction.disabled = true;
-                markSelectedSent().catch((error) => showToast(error.message)).finally(() => { bulkAction.disabled = false; });
+                markSelectedSent().catch((error) => showToast(error.message, 'error')).finally(() => { bulkAction.disabled = false; });
             }
             if (action === 'archive' || action === 'trash') {
                 bulkAction.disabled = true;
-                runLifecycle(action, Array.from(selectedBatches)).catch((error) => showToast(error.message)).finally(() => { bulkAction.disabled = false; });
+                runLifecycle(action, Array.from(selectedBatches)).catch((error) => showToast(error.message, 'error')).finally(() => { bulkAction.disabled = false; });
             }
             return;
         }
@@ -2467,7 +2472,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
                 .catch((error) => {
                     markButton.innerHTML = originalMarkup;
                     refreshIcons();
-                    showToast(error.message || 'Could not mark this waybill as sent. Please try again.');
+                    showToast(error.message || 'Could not mark this waybill as sent. Please try again.', 'error');
                 })
                 .finally(() => {
                     markButton.disabled = false;
@@ -2490,7 +2495,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
                 .then((data) => {
                     if (data) showToast('Waybill queue refreshed.');
                 })
-                .catch((error) => showToast(error.message))
+                .catch((error) => showToast(error.message, 'error'))
                 .finally(() => {
                     refreshButton.disabled = false;
                 });
@@ -2580,7 +2585,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
             const data=await fetchJson('courier.php?'+query.toString(),{method:'POST',body:new FormData(form)});
             renderPayload(data);showToast(data.message||'Orders linked.');
         }
-        catch(error){showToast(error.message);if(button){button.disabled=false;button.innerHTML=original;refreshIcons();}}
+        catch(error){showToast(error.message, 'error');if(button){button.disabled=false;button.innerHTML=original;refreshIcons();}}
     });
 
     document.addEventListener('change', (event) => {
