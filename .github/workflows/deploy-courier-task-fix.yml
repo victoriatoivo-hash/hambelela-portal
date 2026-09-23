@@ -1,0 +1,55 @@
+name: Deploy Courier and Task delivery fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preflight only or publish the exact approved files
+        required: true
+        type: choice
+        options:
+          - preflight
+          - deploy
+      approved_sha:
+        description: Exact main commit SHA to verify and deploy
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  courier-task-fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+      - name: Validate exact release files
+        run: |
+          php -l apps/operations/courier.php
+          php -l apps/operations/checklists.php
+          node tests/courier-task-delivery-static.mjs
+      - name: Preflight or deploy exact approved delta with backup
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-courier-task-fix.py "$MODE" "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: courier-task-fix-${{ github.run_id }}
+          path: |
+            courier-task-fix-report.json
+            courier-task-fix-backup.zip
+          if-no-files-found: warn
