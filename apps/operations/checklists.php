@@ -1769,6 +1769,21 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
               ]);
               $createdTaskId = (int) db()->lastInsertId();
               $createdTaskIds[] = $createdTaskId;
+              if ($assignmentType === 'specific' && $scheduledAt === null) {
+                  // Confirm the exact employee-visible assignment before the
+                  // transaction is allowed to report success to the owner.
+                  $assignmentCheck = $taskDb->prepare('SELECT assigned_employee_id, status, employee_visible, released_at FROM ops_checklist_tasks WHERE id = ?');
+                  $assignmentCheck->execute([$createdTaskId]);
+                  $assignmentRow = $assignmentCheck->fetch();
+                  if (!$assignmentRow
+                      || (int) ($assignmentRow['assigned_employee_id'] ?? 0) !== (int) $targetEmployeeId
+                      || (string) ($assignmentRow['status'] ?? '') !== 'new'
+                      || (int) ($assignmentRow['employee_visible'] ?? 0) !== 1
+                      || empty($assignmentRow['released_at'])
+                  ) {
+                      throw new RuntimeException('The employee assignment could not be confirmed. Nothing was saved -- please try again.');
+                  }
+              }
               $floatingAllocation = null;
               if ($assignmentType === 'floating' && $scheduledAt === null) {
                   $floatingAllocation = task_floating_allocate($createdTaskId, 'automatic', true);
@@ -4784,9 +4799,34 @@ function initialiseTaskViewTabs(taskRoot = document.querySelector('.digital-task
   if ('requestIdleCallback' in window) window.requestIdleCallback(prefetchViews,{timeout:1800}); else window.setTimeout(prefetchViews,600);
 }
 
+function initialiseEmployeeTaskDelivery(taskRoot = document.querySelector('.digital-task-page')) {
+  if (!taskRoot || taskRoot.dataset.canManage === '1' || taskRoot.dataset.employeeDelivery === 'true') return;
+  taskRoot.dataset.employeeDelivery = 'true';
+  let timer = null;
+  const hasActiveEditor = () => Boolean(document.querySelector('dialog[open], .task-side-panel.is-open, [data-task-create-panel].is-open, input:focus, textarea:focus, select:focus'));
+  const refresh = async () => {
+    if (document.hidden || !navigator.onLine || hasActiveEditor()) return;
+    const view = taskRoot.dataset.activeTaskView || taskRoot.dataset.renderedTaskView || 'tasks';
+    if (!['tasks', 'scheduled', 'floating'].includes(view)) return;
+    invalidateTaskViewCache();
+    try {
+      await openTaskView(view, { root: taskRoot, content: taskRoot.querySelector('[data-task-view-content]'), force: true, historyMethod: 'replaceState' });
+    } catch (_) { /* The next interval or manual tab click can retry safely. */ }
+  };
+  const schedule = () => {
+    window.clearTimeout(timer);
+    timer = window.setTimeout(async () => { await refresh(); schedule(); }, document.hidden ? 120000 : 30000);
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); schedule(); });
+  window.addEventListener('focus', refresh);
+  window.addEventListener('online', refresh);
+  schedule();
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('submit',(event)=>{if((event.target.getAttribute('method')||'get').toLowerCase()==='post')invalidateTaskViewCache();},{capture:true});
   initialiseTaskViewTabs();
+  initialiseEmployeeTaskDelivery();
   initialiseTaskDueStates();
   initialiseTaskAttachments();
   initialiseTaskCorrections();
