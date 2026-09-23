@@ -14,7 +14,9 @@ import zipfile
 BASELINE = "9062012c56f37db10a958cd9d4e93e39ecc4abb5"
 FILES = {
     "apps/operations/courier.php": BASELINE,
-    "apps/operations/checklists.php": BASELINE,
+    # Task Management has an approved live-only employee-role release. Preserve
+    # that exact file and layer this delivery fix over it.
+    "apps/operations/checklists.php": "30cbf6f1e79a380530ea016f639f1baca10f7f66",
 }
 REPORT = "courier-task-fix-report.json"
 BACKUP = "courier-task-fix-backup.zip"
