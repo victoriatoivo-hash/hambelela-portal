@@ -29,11 +29,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
       - name: Validate exact release files
         run: |
+          php --version
           php -l apps/operations/courier.php
           php -l apps/operations/checklists.php
           node tests/courier-task-delivery-static.mjs
