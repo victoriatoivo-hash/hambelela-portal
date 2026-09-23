@@ -105,6 +105,12 @@ function wb_bootstrap_schema(): void
         }
     }
 
+    // sent_at is the durable proof that a waybill was sent. Repair legacy split
+    // states without inventing a sent time: rows lacking proof return to the
+    // actionable queue, while timestamped rows are consistently marked sent.
+    wb_try_sql("UPDATE hambelela_waybills SET status = 'sent' WHERE sent_at IS NOT NULL AND status <> 'sent'");
+    wb_try_sql("UPDATE hambelela_waybills SET status = CASE WHEN due_by < NOW() THEN 'overdue' ELSE 'pending' END WHERE sent_at IS NULL AND status = 'sent'");
+
     // Additive relationship: keep the legacy order_id for older integrations.
     db()->exec("CREATE TABLE IF NOT EXISTS hambelela_waybill_orders (
         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
@@ -728,9 +734,11 @@ function wb_normalize_files(array $files): array
 
 function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $dateFrom = null, ?string $dateTo = null, ?string $search = null): array
 {
-    $params = $statuses;
-    $placeholders = implode(',', array_fill(0, count($statuses), '?'));
-    $where = "w.status IN ({$placeholders}) AND w.archived_at IS NULL AND w.deleted_at IS NULL";
+    $params = [];
+    $where = ($history
+        ? 'w.sent_at IS NOT NULL'
+        : "w.sent_at IS NULL AND w.status IN ('pending','overdue')")
+        . ' AND w.archived_at IS NULL AND w.deleted_at IS NULL';
     if ($history && trim((string) $search) === '') {
         $where .= " AND DATE(COALESCE(w.sent_at, w.uploaded_at)) BETWEEN ? AND ?";
         $params[] = $dateFrom ?: date('Y-m-d', strtotime('-7 days'));
@@ -765,8 +773,8 @@ function wb_fetch_batch_rows(array $statuses, bool $history = false, ?string $da
             MIN(w.sent_by) AS sent_by,
             COUNT(*) AS file_count,
             SUM(CASE WHEN w.first_downloaded_at IS NOT NULL THEN 1 ELSE 0 END) AS downloaded_count,
-            SUM(CASE WHEN w.status = 'overdue' THEN 1 ELSE 0 END) AS overdue_count,
-            SUM(CASE WHEN w.status = 'sent' THEN 1 ELSE 0 END) AS sent_count,
+            SUM(CASE WHEN w.sent_at IS NULL AND w.status = 'overdue' THEN 1 ELSE 0 END) AS overdue_count,
+            SUM(CASE WHEN w.sent_at IS NOT NULL THEN 1 ELSE 0 END) AS sent_count,
             GROUP_CONCAT(COALESCE(w.original_filename, SUBSTRING_INDEX(w.file_path, '/', -1)) ORDER BY w.id SEPARATOR ' | ') AS file_names,
             up.full_name AS uploaded_by_name,
             ur.role_key AS uploaded_role_key,
@@ -855,11 +863,10 @@ function wb_stats(): array
     $rows = ops_rows(
         "SELECT
             SUM(CASE WHEN DATE(uploaded_at) = CURDATE() THEN 1 ELSE 0 END) AS uploaded_today,
-            SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) AS pending,
-            SUM(CASE WHEN status = 'overdue' THEN 1 ELSE 0 END) AS overdue,
+            SUM(CASE WHEN sent_at IS NULL AND status = 'pending' THEN 1 ELSE 0 END) AS pending,
+            SUM(CASE WHEN sent_at IS NULL AND status = 'overdue' THEN 1 ELSE 0 END) AS overdue,
             SUM(CASE
-                WHEN status = 'sent'
-                    AND sent_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
+                WHEN sent_at >= DATE_FORMAT(CURDATE(), '%Y-%m-01')
                     AND sent_at < DATE_FORMAT(DATE_ADD(CURDATE(), INTERVAL 1 MONTH), '%Y-%m-01')
                 THEN 1 ELSE 0
             END) AS sent_this_month
@@ -1594,7 +1601,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new RuntimeException('No pending waybills found for this batch.');
             }
 
-            $pendingRows = array_values(array_filter($rows, static fn(array $row): bool => in_array((string) ($row['status'] ?? ''), ['pending', 'overdue'], true)));
+            $pendingRows = array_values(array_filter($rows, static fn(array $row): bool => empty($row['sent_at'])));
             if (!$pendingRows) {
                 $existingSentAt = (string) ($rows[0]['sent_at'] ?? '');
                 db()->commit();
@@ -1602,7 +1609,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             $sentAt = wb_now()->format('Y-m-d H:i:s');
-            $stmt = db()->prepare("UPDATE hambelela_waybills SET status = 'sent', sent_by = ?, sent_at = ? WHERE batch_id = ? AND status IN ('pending','overdue') AND sent_at IS NULL");
+            $stmt = db()->prepare("UPDATE hambelela_waybills SET status = 'sent', sent_by = ?, sent_at = ? WHERE batch_id = ? AND sent_at IS NULL AND archived_at IS NULL AND deleted_at IS NULL");
             $stmt->execute([$currentEmployeeId, $sentAt, $batchId]);
             $legacyStmt = db()->prepare("UPDATE ops_courier_waybills SET status = 'sent', sent_by = ?, sent_at = ? WHERE label_path = ?");
             foreach ($pendingRows as $row) {
@@ -2060,6 +2067,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
             'Mark as Sent'
         );
         if (!confirmed) return;
+        invalidateCourierRefresh();
         let latestPayload = null;
         for (const batchId of batchIds) {
             const body = new FormData();
@@ -2162,6 +2170,9 @@ include BASE_PATH.'/shared/ess-sidebar.php';
     let courierRefreshRequest = null;
     let courierRefreshTimer = null;
     let courierRefreshVersion = 0;
+    function invalidateCourierRefresh() {
+        courierRefreshVersion += 1;
+    }
     function courierHasActiveEditor() {
         return Boolean(document.querySelector('[data-waybill-upload] input:focus, [data-waybill-upload] textarea:focus, [data-courier-confirm]:not([hidden]), [data-courier-tools-panel].is-open'));
     }
@@ -2389,6 +2400,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
             const batchId = rowAction.dataset.batchId;
             const action = rowAction.dataset.courierRowAction;
             if (action === 'send') {
+                invalidateCourierRefresh();
                 const body = new FormData();
                 body.append('action', 'waybill_mark_sent');
                 body.append('batch_id', batchId);
@@ -2439,7 +2451,11 @@ include BASE_PATH.'/shared/ess-sidebar.php';
                 missingCount > 0 ? 'Mark Sent Anyway' : 'Mark as Sent'
             );
             if (!confirmed) return;
+            invalidateCourierRefresh();
+            const originalMarkup = markButton.innerHTML;
             markButton.disabled = true;
+            markButton.innerHTML = '<i data-lucide="loader-circle"></i> Sending...';
+            refreshIcons();
             const body = new FormData();
             body.append('action', 'waybill_mark_sent');
             body.append('batch_id', batchId);
@@ -2448,7 +2464,11 @@ include BASE_PATH.'/shared/ess-sidebar.php';
                     renderPayload(data);
                     showToast(data.message || 'Marked as sent.');
                 })
-                .catch((error) => showToast(error.message))
+                .catch((error) => {
+                    markButton.innerHTML = originalMarkup;
+                    refreshIcons();
+                    showToast(error.message || 'Could not mark this waybill as sent. Please try again.');
+                })
                 .finally(() => {
                     markButton.disabled = false;
                 });
