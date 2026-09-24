@@ -21,7 +21,7 @@ function portal_feature_permissions(): array
             'dashboard', 'orders', 'bookkeeping', 'cash_tools', 'packing_list',
             'inventory', 'pos_reports', 'kpi_dashboard', 'task_management',
             'error_log', 'settings', 'notifications', 'courier', 'hr',
-            'operations', 'barcode', 'system_issues', 'accounts', 'input_vat', 'marketing',
+            'operations', 'barcode', 'system_issues', 'accounts', 'input_vat', 'marketing', 'miv_shipping',
         ],
         'front_desk_admin' => [...$employeeModules, 'error_log', 'input_vat'],
         'front_desk_admin_employee' => [...$employeeModules, 'error_log', 'input_vat'],
