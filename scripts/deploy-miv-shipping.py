@@ -14,8 +14,6 @@ DEPLOY_FILES = [
     "apps/miv-shipping/extract.php",
     "assets/css/miv-shipping.css",
     "assets/js/miv-shipping.js",
-    "shared/sidebar.php",
-    "shared/employee-features.php",
 ]
 
 def git_blob(ref, path):
@@ -77,8 +75,6 @@ def validate():
     php_files = [
         "apps/miv-shipping/index.php",
         "apps/miv-shipping/extract.php",
-        "shared/sidebar.php",
-        "shared/employee-features.php",
     ]
     for path in php_files:
         subprocess.run(["php", "-l"], input=wanted[path], check=True, stdout=subprocess.PIPE)
@@ -127,6 +123,11 @@ def run(mode):
                 previous = before[path]
                 if previous is not None:
                     ftp_put(ftp, path, previous)
+                else:
+                    try:
+                        ftp.delete(path)
+                    except Exception:
+                        pass
             write_report("rolled-back", attempted=changed)
             raise
         write_report("verified", changed=changed, deployed_hashes={path: digest(data) for path, data in wanted.items()})
