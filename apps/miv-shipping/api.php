@@ -138,11 +138,12 @@ if ($action === 'create_order') {
     $total = round((float)($quote['total'] ?? ($products + $shipping)), 2);
     $weight = round((float)($quote['totalWeight'] ?? 0), 3);
     $plan = in_array(($input['payment_plan'] ?? ''), ['full','split','custom'], true) ? (string)$input['payment_plan'] : 'split';
+    $initialStage = $plan === 'split' ? 'awaiting_product_payment' : 'awaiting_payment';
 
     $stmt = db()->prepare("
         INSERT INTO miv_shipping_orders
         (quote_reference,customer_name,phone,products_total,shipping_total,total_amount,total_weight,payment_plan,order_stage,quote_json,created_by,created_by_name)
-        VALUES(?,?,?,?,?,?,?,?, 'accepted', ?,?,?)
+        VALUES(?,?,?,?,?,?,?,?, ?, ?,?,?)
         ON DUPLICATE KEY UPDATE
           customer_name=VALUES(customer_name), phone=VALUES(phone), products_total=VALUES(products_total),
           shipping_total=VALUES(shipping_total), total_amount=VALUES(total_amount), total_weight=VALUES(total_weight),
@@ -150,7 +151,7 @@ if ($action === 'create_order') {
     ");
     $stmt->execute([
         $reference,$customer,trim((string)($quote['phone'] ?? '')) ?: null,
-        $products,$shipping,$total,$weight,$plan,json_encode($quote, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),
+        $products,$shipping,$total,$weight,$plan,$initialStage,json_encode($quote, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),
         (int)($user['id'] ?? 0) ?: null,(string)($user['name'] ?? '')
     ]);
     $id = (int)db()->lastInsertId();
@@ -167,7 +168,7 @@ if ($action === 'update_order') {
     if ($id < 1) miv_api_json(400, ['ok'=>false,'message'=>'Order ID required.']);
     $stage = trim((string)($input['order_stage'] ?? ''));
     $plan = trim((string)($input['payment_plan'] ?? ''));
-    $allowedStages = ['accepted','awaiting_product_payment','products_paid','ordered_china','china_warehouse','in_transit_sa','in_south_africa','awaiting_shipping_payment','shipping_paid','in_transit_namibia','ready','completed','cancelled'];
+    $allowedStages = ['accepted','awaiting_payment','awaiting_product_payment','products_paid','paid','ordered_china','china_warehouse','in_transit_sa','in_south_africa','awaiting_shipping_payment','shipping_paid','in_transit_namibia','ready','completed','cancelled'];
     if (!in_array($stage,$allowedStages,true)) miv_api_json(400,['ok'=>false,'message'=>'Choose a valid order stage.']);
     if (!in_array($plan,['full','split','custom'],true)) miv_api_json(400,['ok'=>false,'message'=>'Choose a valid payment plan.']);
     $stmt = db()->prepare("UPDATE miv_shipping_orders SET order_stage=?,payment_plan=? WHERE id=?");
@@ -184,7 +185,16 @@ if ($action === 'record_payment') {
     $note = trim((string)($input['note'] ?? ''));
     if ($id < 1 || $amount <= 0) miv_api_json(400,['ok'=>false,'message'=>'Enter a valid payment amount.']);
     if (!in_array($component,['products','shipping','general'],true)) $component='general';
-    if (!preg_match('/^\d{4}-\d{2}-\d{2}$/',$date)) $date=date('Y-m-d');
+    if (!preg_match('/^\\d{4}-\\d{2}-\\d{2}$/',$date)) $date=date('Y-m-d');
+
+    $before = miv_api_order_row($id);
+    if (!$before) miv_api_json(404,['ok'=>false,'message'=>'Order not found.']);
+    $limit = (float)$before['outstanding_total'];
+    if ($component === 'products') $limit = (float)$before['products_outstanding'];
+    if ($component === 'shipping') $limit = (float)$before['shipping_outstanding'];
+    if ($amount > $limit + 0.01) {
+        miv_api_json(400,['ok'=>false,'message'=>'Payment is greater than the outstanding amount for this section.']);
+    }
 
     $stmt = db()->prepare("INSERT INTO miv_shipping_payments(order_id,component,amount,payment_method,paid_at,note,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?)");
     $stmt->execute([$id,$component,$amount,$method?:null,$date,$note?:null,(int)($user['id']??0)?:null,(string)($user['name']??'')]);
@@ -192,8 +202,16 @@ if ($action === 'record_payment') {
     $order = miv_api_order_row($id);
     if ($order) {
         $newStage = $order['order_stage'];
-        if ((float)$order['products_outstanding'] <= 0.009 && in_array($newStage,['accepted','awaiting_product_payment'],true)) $newStage='products_paid';
-        if ((float)$order['shipping_outstanding'] <= 0.009 && $newStage==='awaiting_shipping_payment') $newStage='shipping_paid';
+        if ($order['payment_plan'] === 'split') {
+            if ((float)$order['products_outstanding'] <= 0.009 && in_array($newStage,['accepted','awaiting_product_payment','awaiting_payment'],true)) {
+                $newStage='products_paid';
+            }
+            if ((float)$order['shipping_outstanding'] <= 0.009 && $newStage==='awaiting_shipping_payment') {
+                $newStage='shipping_paid';
+            }
+        } elseif ((float)$order['outstanding_total'] <= 0.009 && in_array($newStage,['accepted','awaiting_payment','awaiting_product_payment'],true)) {
+            $newStage='paid';
+        }
         if ($newStage !== $order['order_stage']) {
             db()->prepare("UPDATE miv_shipping_orders SET order_stage=? WHERE id=?")->execute([$newStage,$id]);
             $order = miv_api_order_row($id);
