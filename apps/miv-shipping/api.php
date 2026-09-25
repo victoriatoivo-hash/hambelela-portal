@@ -196,8 +196,27 @@ if ($action === 'record_payment') {
         miv_api_json(400,['ok'=>false,'message'=>'Payment is greater than the outstanding amount for this section.']);
     }
 
-    $stmt = db()->prepare("INSERT INTO miv_shipping_payments(order_id,component,amount,payment_method,paid_at,note,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?)");
-    $stmt->execute([$id,$component,$amount,$method?:null,$date,$note?:null,(int)($user['id']??0)?:null,(string)($user['name']??'')]);
+    $insert = db()->prepare("INSERT INTO miv_shipping_payments(order_id,component,amount,payment_method,paid_at,note,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?)");
+    $actorId = (int)($user['id']??0) ?: null;
+    $actorName = (string)($user['name']??'');
+    if ($component === 'general') {
+        $remaining = $amount;
+        $productPart = min($remaining, (float)$before['products_outstanding']);
+        if ($productPart > 0.009) {
+            $insert->execute([$id,'products',$productPart,$method?:null,$date,$note?:null,$actorId,$actorName]);
+            $remaining = round($remaining - $productPart, 2);
+        }
+        $shippingPart = min($remaining, (float)$before['shipping_outstanding']);
+        if ($shippingPart > 0.009) {
+            $insert->execute([$id,'shipping',$shippingPart,$method?:null,$date,$note?:null,$actorId,$actorName]);
+            $remaining = round($remaining - $shippingPart, 2);
+        }
+        if ($remaining > 0.009) {
+            miv_api_json(400,['ok'=>false,'message'=>'Payment could not be allocated to the remaining order balance.']);
+        }
+    } else {
+        $insert->execute([$id,$component,$amount,$method?:null,$date,$note?:null,$actorId,$actorName]);
+    }
 
     $order = miv_api_order_row($id);
     if ($order) {
