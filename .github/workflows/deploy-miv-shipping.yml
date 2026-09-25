@@ -30,7 +30,7 @@ jobs:
 
       - name: Verify approved MIV release commit exists
         run: |
-          git cat-file -e 239c8daff45fa7a14d9b0b901e15cc62c509cd81^{commit}
+          git cat-file -e 02554704817aa8281d01b6d94bba8afc58f815e5^{commit}
 
       - name: Preflight exact MIV Shipping delta
         env:

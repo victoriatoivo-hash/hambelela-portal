@@ -8,12 +8,14 @@ import subprocess
 import zipfile
 
 BASELINE = "a0f7b5b5d34f41c43983e447bef650d780511ff1"
-APPROVED_SHA = "239c8daff45fa7a14d9b0b901e15cc62c509cd81"
+APPROVED_SHA = "02554704817aa8281d01b6d94bba8afc58f815e5"
+PREVIOUS_SHA = "239c8daff45fa7a14d9b0b901e15cc62c509cd81"
 DEPLOY_FILES = [
     "apps/miv-shipping/index.php",
     "apps/miv-shipping/extract.php",
     "assets/css/miv-shipping.css",
     "assets/js/miv-shipping.js",
+    "apps/miv-shipping/api.php",
 ]
 
 def git_blob(ref, path):
@@ -75,6 +77,7 @@ def validate():
     php_files = [
         "apps/miv-shipping/index.php",
         "apps/miv-shipping/extract.php",
+        "apps/miv-shipping/api.php",
     ]
     for path in php_files:
         subprocess.run(["php", "-l"], input=wanted[path], check=True, stdout=subprocess.PIPE)
@@ -90,14 +93,24 @@ def run(mode):
         conflicts = []
         for path in DEPLOY_FILES:
             baseline = git_blob(BASELINE, path)
+            previous = git_blob(PREVIOUS_SHA, path)
             live = before[path]
             target = wanted[path]
-            if baseline is None:
-                if live is not None and not same(live, target):
-                    conflicts.append({"path": path, "live": digest(live), "expected": None})
-                continue
-            if not same(live, baseline) and not same(live, target):
-                conflicts.append({"path": path, "live": digest(live), "baseline": digest(baseline), "target": digest(target)})
+            allowed = same(live, target)
+            if not allowed and previous is not None:
+                allowed = same(live, previous)
+            if not allowed and baseline is not None:
+                allowed = same(live, baseline)
+            if not allowed and baseline is None and previous is None and live is None:
+                allowed = True
+            if not allowed:
+                conflicts.append({
+                    "path": path,
+                    "live": digest(live),
+                    "baseline": digest(baseline),
+                    "previous": digest(previous),
+                    "target": digest(target),
+                })
         if conflicts:
             write_report("blocked-baseline-mismatch", conflicts=conflicts)
             raise RuntimeError("Live portal has unexpected changes. No MIV files were uploaded.")
