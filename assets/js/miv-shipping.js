@@ -16,7 +16,7 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function quotes(){return read(K_QUOTES,[])}
 function nextRef(){const y=new Date().getFullYear(),p=(settings.quotePrefix||'MIV').toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,8)||'MIV';let n=0;quotes().forEach(q=>{const m=String(q.reference||'').match(new RegExp('^'+p+'-'+y+'-(\\d+)$'));if(m)n=Math.max(n,+m[1])});return `${p}-${y}-${String(n+1).padStart(4,'0')}`}
 function snapshot(){return {normalRate:num(settings.normalRate),batteryRate:num(settings.batteryRate),namRate:num(settings.namRate),paymentRate:num(settings.paymentRate),adminRate:num(settings.adminRate),fxRate:num(settings.fxRate)}}
-function showTab(name){$$('.miv-tabs button').forEach(b=>b.classList.toggle('is-active',b.dataset.tab===name));$('.miv-view').forEach(v=>v.classList.toggle('is-active',v.dataset.view===name));if(name==='saved')renderSaved();if(name==='orders')loadOrders();if(name==='settings')loadSettings()}
+function showTab(name){$('.miv-tabs button').forEach(b=>b.classList.toggle('is-active',b.dataset.tab===name));$('.miv-view').forEach(v=>v.classList.toggle('is-active',v.dataset.view===name));if(name==='saved')renderSaved();if(name==='orders')loadOrders();if(name==='settings')loadSettings()}
 function itemRow(d={}){const e=document.createElement('article');e.className='miv-item';e.innerHTML=`<div class="miv-item-head"><b>Order item</b><button class="miv-remove" type="button" aria-label="Remove item">×</button></div><div class="miv-item-grid"><label>Product<input class="i-name" placeholder="Product name"></label><label>Qty<input class="i-qty" type="number" min="1" step="1"></label><label>Weight (kg)<input class="i-weight" type="number" min="0" step="0.001" placeholder="0.000"></label><label>Cargo<select class="i-cargo"><option value="normal">Normal</option><option value="battery">Battery / Electronic</option></select></label></div><div class="miv-item-grid2"><label>Weight entered is<select class="i-weight-type"><option value="total">Total for quantity</option><option value="unit">Per unit</option></select></label><label>Weight source<select class="i-source"><option>Supplier/App Weight</option><option>Manually Entered</option><option>AI Estimated</option></select></label><label>Item price (¥ CNY)<input class="i-price" type="number" min="0" step="0.01" placeholder="0.00"></label><label>Price entered is<select class="i-price-type"><option value="unit">Per unit</option><option value="total">Total for quantity</option></select></label></div>`;$('#items').appendChild(e);e.querySelector('.i-name').value=d.name||'';e.querySelector('.i-qty').value=d.quantity||1;e.querySelector('.i-weight').value=d.weight??'';e.querySelector('.i-cargo').value=d.cargo||'normal';e.querySelector('.i-weight-type').value=d.weightType||'total';e.querySelector('.i-source').value=d.source||'Supplier/App Weight';e.querySelector('.i-price').value=d.price??'';e.querySelector('.i-price-type').value=d.priceType||'unit';e.querySelector('.miv-remove').onclick=()=>{e.remove();if(!$$('.miv-item').length)itemRow();update()};e.querySelectorAll('input,select').forEach(x=>{x.addEventListener('input',update);x.addEventListener('change',update)});update()}
 function items(){return $$('.miv-item').map(r=>{const q=qty(r.querySelector('.i-qty').value),w=num(r.querySelector('.i-weight').value),wt=r.querySelector('.i-weight-type').value,p=num(r.querySelector('.i-price').value),pt=r.querySelector('.i-price-type').value;return{name:r.querySelector('.i-name').value.trim()||'Item',quantity:q,weight:w,weightType:wt,totalWeight:wt==='unit'?w*q:w,cargo:r.querySelector('.i-cargo').value,source:r.querySelector('.i-source').value,price:p,priceType:pt,totalItemCny:pt==='unit'?p*q:p}})}
 function calculate(rates=settings){let totalWeight=0,itemsCny=0,china=0;const rows=items();rows.forEach(i=>{totalWeight+=i.totalWeight;itemsCny+=i.totalItemCny;china+=i.totalWeight*(i.cargo==='battery'?num(rates.batteryRate):num(rates.normalRate))});const payment=china*num(rates.paymentRate)/100,chinaNad=(china+payment)*num(rates.fxRate),nam=totalWeight*num(rates.namRate),adminBase=chinaNad+nam,admin=adminBase*num(rates.adminRate)/100,shipping=adminBase+admin,itemsNad=itemsCny*num(rates.fxRate),total=itemsNad+shipping;return{items:rows,totalWeight,itemsCny,itemsNad,china,payment,chinaNad,nam,admin,shipping,total}}
@@ -60,6 +60,28 @@ const stageLabels={
   in_transit_namibia:'In Transit to Namibia',ready:'Ready for Customer',completed:'Completed',cancelled:'Cancelled'
 };
 const planLabels={split:'Products now / Shipping on arrival',full:'Pay in full',custom:'Custom payment'};
+function nextStep(order){
+  const stage=order.order_stage||'accepted', productsDue=num(order.products_outstanding), shippingDue=num(order.shipping_outstanding), totalDue=num(order.outstanding_total);
+  if(stage==='cancelled')return 'Order cancelled.';
+  if(stage==='completed')return 'Order completed. No further action required.';
+  if(stage==='awaiting_product_payment'||stage==='awaiting_payment'){
+    if(order.payment_plan==='split'&&productsDue>0)return 'Next: collect '+money(productsDue)+' for the products before placing the China order.';
+    if(totalDue>0)return 'Next: collect the outstanding '+money(totalDue)+' before continuing.';
+  }
+  if(stage==='products_paid'||stage==='paid')return 'Next: place the customer order with the China supplier and move the stage to Ordered in China.';
+  if(stage==='ordered_china')return 'Next: confirm when the supplier dispatches the order to the China warehouse.';
+  if(stage==='china_warehouse')return 'Next: update the order when the consolidated shipment leaves China for South Africa.';
+  if(stage==='in_transit_sa')return 'Next: update the order when the shipment reaches South Africa.';
+  if(stage==='in_south_africa'){
+    if(shippingDue>0)return 'Next: shipping is now due. Collect '+money(shippingDue)+' and record it before Namibia delivery.';
+    return 'Shipping is already paid. Move the order to In Transit to Namibia when dispatched.';
+  }
+  if(stage==='awaiting_shipping_payment')return shippingDue>0?'Next: collect the remaining shipping balance of '+money(shippingDue)+'.':'Shipping is fully paid. Move the order to Shipping Paid.';
+  if(stage==='shipping_paid')return 'Next: dispatch to Namibia and move the order to In Transit to Namibia.';
+  if(stage==='in_transit_namibia')return 'Next: mark Ready for Customer when the shipment is available for delivery or collection.';
+  if(stage==='ready')return 'Next: hand over or deliver the order, then mark it Completed.';
+  return totalDue>0?'Outstanding balance: '+money(totalDue)+'.':'Payment is complete. Update the shipment stage as it progresses.';
+}
 async function convertToOrder(){
   let q=modalQuote();
   if(!q.reference){
@@ -115,6 +137,7 @@ async function openOrder(order){
   $('#oTotal').textContent=money(order.total_amount);
   $('#oPaid').textContent=money(order.paid_total);
   $('#oOutstanding').textContent=money(order.outstanding_total);
+  $('#oNextStep').textContent=nextStep(order);
   $('#oProductsTotal').textContent=money(order.products_total);
   $('#oProductsBalance').textContent='Outstanding '+money(order.products_outstanding);
   $('#oShippingTotal').textContent=money(order.shipping_total);
