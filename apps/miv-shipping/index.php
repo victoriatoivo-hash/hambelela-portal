@@ -172,6 +172,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <article><span>Products</span><strong id="oProductsTotal">N$0.00</strong><small id="oProductsBalance">Outstanding N$0.00</small></article>
             <article><span>Shipping</span><strong id="oShippingTotal">N$0.00</strong><small id="oShippingBalance">Outstanding N$0.00</small></article>
           </div>
+          <div class="miv-next-step"><span>NEXT STEP</span><strong id="oNextStep">Update the order as it progresses.</strong></div>
           <div class="miv-actions"><button class="miv-btn miv-btn-secondary" id="saveOrderState" type="button">Save Order Stage</button></div>
 
           <div class="miv-payment-box">
