@@ -15,7 +15,7 @@ include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
 <main class="workspace miv-workspace">
-<section id="mivApp" class="miv-app" data-extract-url="<?=htmlspecialchars(BASE_URL.'/apps/miv-shipping/extract.php',ENT_QUOTES,'UTF-8')?>" data-csrf="<?=htmlspecialchars((string)$_SESSION['miv_shipping_csrf'],ENT_QUOTES,'UTF-8')?>">
+<section id="mivApp" class="miv-app" data-extract-url="<?=htmlspecialchars(BASE_URL.'/apps/miv-shipping/extract.php',ENT_QUOTES,'UTF-8')?>" data-api-url="<?=htmlspecialchars(BASE_URL.'/apps/miv-shipping/api.php',ENT_QUOTES,'UTF-8')?>" data-csrf="<?=htmlspecialchars((string)$_SESSION['miv_shipping_csrf'],ENT_QUOTES,'UTF-8')?>">
   <header class="miv-hero">
     <div><p>MIV SHIPPING</p><h1>China → Namibia Shipping</h1><span>Create customer quotes for consolidated orders through South Africa.</span></div>
     <div class="miv-hero-rate"><small>SA → Namibia</small><strong id="heroNamRate">N$70/kg</strong></div>
@@ -24,6 +24,7 @@ include BASE_PATH . '/shared/sidebar.php';
   <nav class="miv-tabs" aria-label="MIV Shipping">
     <button class="is-active" data-tab="quote">New Quote</button>
     <button data-tab="saved">Saved Quotes</button>
+    <button data-tab="orders">Orders & Payments</button>
     <button data-tab="settings">Settings</button>
   </nav>
 
@@ -84,6 +85,36 @@ include BASE_PATH . '/shared/sidebar.php';
     </div>
   </section>
 
+  <section class="miv-view" data-view="orders">
+    <div class="miv-card">
+      <div class="miv-card-head">
+        <div><h2>Orders & Payments</h2><p>Track accepted quotes, payment progress and shipment stage across devices.</p></div>
+        <button class="miv-btn miv-btn-secondary" id="refreshOrders" type="button">Refresh</button>
+      </div>
+      <div class="miv-grid miv-grid-2">
+        <input id="orderSearch" placeholder="Search customer or quote">
+        <select id="orderStageFilter">
+          <option value="">All stages</option>
+          <option value="awaiting_payment">Awaiting Payment</option>
+          <option value="awaiting_product_payment">Awaiting Product Payment</option>
+          <option value="products_paid">Products Paid</option>
+          <option value="paid">Paid in Full</option>
+          <option value="ordered_china">Ordered in China</option>
+          <option value="china_warehouse">At China Warehouse</option>
+          <option value="in_transit_sa">In Transit to South Africa</option>
+          <option value="in_south_africa">In South Africa</option>
+          <option value="awaiting_shipping_payment">Awaiting Shipping Payment</option>
+          <option value="shipping_paid">Shipping Paid</option>
+          <option value="in_transit_namibia">In Transit to Namibia</option>
+          <option value="ready">Ready for Customer</option>
+          <option value="completed">Completed</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div id="ordersList" class="miv-order-list"></div>
+    </div>
+  </section>
+
   <section class="miv-view" data-view="settings">
     <div class="miv-card">
       <div class="miv-card-head"><div><h2>Shipping Settings</h2><p>These defaults apply to new quotes only. Saved quotes keep their original rate snapshot.</p></div></div>
@@ -112,7 +143,50 @@ include BASE_PATH . '/shared/sidebar.php';
           <div class="miv-quote-sums"><div><span>Products subtotal</span><b id="qProducts"></b></div><div><span>Shipping total</span><b id="qShipping"></b></div><div><span>Total payable</span><b id="qGrand"></b></div></div>
           <div id="qItems"></div>
           <p class="miv-disclaimer" id="qDisclaimer"></p><p class="miv-disclaimer" id="qValidity"></p>
+          <div class="miv-payment-choice miv-no-print">
+            <label>When the customer accepts<select id="acceptPaymentPlan"><option value="split">Products now / Shipping on arrival</option><option value="full">Pay in full</option><option value="custom">Custom payment</option></select></label>
+            <button class="miv-btn miv-btn-primary" id="convertOrder" type="button">Accept Quote & Create Order</button>
+          </div>
           <div class="miv-actions miv-no-print"><button class="miv-btn miv-btn-primary" id="sharePdf" type="button">Share PDF</button><button class="miv-btn miv-btn-secondary" id="downloadPdf" type="button">Download PDF</button><button class="miv-btn miv-btn-ghost" id="copyQuote" type="button">Copy Summary</button><button class="miv-btn miv-btn-ghost" id="closeModal" type="button">Close</button></div>
+        </section>
+      </article>
+    </div>
+  </div>
+  <div class="miv-modal" id="orderModal" hidden>
+    <div class="miv-modal-panel">
+      <article class="miv-order-panel">
+        <header class="miv-order-head"><div><p>MIV ORDER</p><h2 id="oTitle">Order</h2><span id="oRef"></span></div><button class="miv-remove" id="closeOrder" type="button">×</button></header>
+        <section>
+          <div class="miv-order-kpis">
+            <article><span>Total</span><strong id="oTotal">N$0.00</strong></article>
+            <article><span>Paid</span><strong id="oPaid">N$0.00</strong></article>
+            <article><span>Outstanding</span><strong id="oOutstanding">N$0.00</strong></article>
+          </div>
+          <div class="miv-grid miv-grid-2 miv-order-controls">
+            <label>Payment plan<select id="oPlan"><option value="split">Products now / Shipping on arrival</option><option value="full">Pay in full</option><option value="custom">Custom payment</option></select></label>
+            <label>Order stage<select id="oStage">
+              <option value="accepted">Accepted</option><option value="awaiting_payment">Awaiting Payment</option><option value="awaiting_product_payment">Awaiting Product Payment</option><option value="products_paid">Products Paid</option><option value="paid">Paid in Full</option><option value="ordered_china">Ordered in China</option><option value="china_warehouse">At China Warehouse</option><option value="in_transit_sa">In Transit to South Africa</option><option value="in_south_africa">In South Africa</option><option value="awaiting_shipping_payment">Awaiting Shipping Payment</option><option value="shipping_paid">Shipping Paid</option><option value="in_transit_namibia">In Transit to Namibia</option><option value="ready">Ready for Customer</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+            </select></label>
+          </div>
+          <div class="miv-balance-grid">
+            <article><span>Products</span><strong id="oProductsTotal">N$0.00</strong><small id="oProductsBalance">Outstanding N$0.00</small></article>
+            <article><span>Shipping</span><strong id="oShippingTotal">N$0.00</strong><small id="oShippingBalance">Outstanding N$0.00</small></article>
+          </div>
+          <div class="miv-actions"><button class="miv-btn miv-btn-secondary" id="saveOrderState" type="button">Save Order Stage</button></div>
+
+          <div class="miv-payment-box">
+            <div class="miv-card-head"><div><h3>Record Payment</h3><p>Add each payment when it is received.</p></div></div>
+            <div class="miv-grid miv-grid-2">
+              <label>Payment for<select id="payComponent"><option value="products">Products</option><option value="shipping">Shipping</option><option value="general">General / Custom</option></select></label>
+              <label>Amount (N$)<input id="payAmount" type="number" min="0.01" step="0.01"></label>
+              <label>Payment method<select id="payMethod"><option value="Bank Transfer">Bank Transfer</option><option value="Cash">Cash</option><option value="Card">Card</option><option value="Other">Other</option></select></label>
+              <label>Date paid<input id="payDate" type="date"></label>
+            </div>
+            <label>Note<input id="payNote" placeholder="Optional reference or note"></label>
+            <div class="miv-actions"><button class="miv-btn miv-btn-primary" id="recordPayment" type="button">Record Payment</button></div>
+          </div>
+
+          <div class="miv-payment-history"><h3>Payment History</h3><div id="paymentHistory"></div></div>
         </section>
       </article>
     </div>
