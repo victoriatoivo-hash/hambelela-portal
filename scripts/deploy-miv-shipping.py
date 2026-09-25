@@ -8,8 +8,11 @@ import subprocess
 import zipfile
 
 BASELINE = "a0f7b5b5d34f41c43983e447bef650d780511ff1"
-APPROVED_SHA = "02554704817aa8281d01b6d94bba8afc58f815e5"
-PREVIOUS_SHA = "239c8daff45fa7a14d9b0b901e15cc62c509cd81"
+APPROVED_SHA = "e95ad0a86bbe705f02f4ae571c43b4c2ac57f38d"
+PREVIOUS_SHAS = [
+    "02554704817aa8281d01b6d94bba8afc58f815e5",
+    "239c8daff45fa7a14d9b0b901e15cc62c509cd81",
+]
 DEPLOY_FILES = [
     "apps/miv-shipping/index.php",
     "apps/miv-shipping/extract.php",
@@ -93,22 +96,22 @@ def run(mode):
         conflicts = []
         for path in DEPLOY_FILES:
             baseline = git_blob(BASELINE, path)
-            previous = git_blob(PREVIOUS_SHA, path)
+            previous_versions = [git_blob(ref, path) for ref in PREVIOUS_SHAS]
             live = before[path]
             target = wanted[path]
             allowed = same(live, target)
-            if not allowed and previous is not None:
-                allowed = same(live, previous)
+            if not allowed:
+                allowed = any(prev is not None and same(live, prev) for prev in previous_versions)
             if not allowed and baseline is not None:
                 allowed = same(live, baseline)
-            if not allowed and baseline is None and previous is None and live is None:
+            if not allowed and baseline is None and all(prev is None for prev in previous_versions) and live is None:
                 allowed = True
             if not allowed:
                 conflicts.append({
                     "path": path,
                     "live": digest(live),
                     "baseline": digest(baseline),
-                    "previous": digest(previous),
+                    "previous": [digest(prev) for prev in previous_versions],
                     "target": digest(target),
                 })
         if conflicts:
