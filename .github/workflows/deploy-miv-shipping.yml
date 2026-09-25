@@ -1,0 +1,57 @@
+name: Deploy MIV Shipping
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/deploy-miv-shipping.yml'
+      - 'scripts/deploy-miv-shipping.py'
+  workflow_dispatch:
+
+concurrency:
+  group: production-miv-shipping
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+
+      - name: Verify approved MIV release commit exists
+        run: |
+          git cat-file -e 239c8daff45fa7a14d9b0b901e15cc62c509cd81^{commit}
+
+      - name: Preflight exact MIV Shipping delta
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-miv-shipping.py preflight
+
+      - name: Deploy and verify exact MIV Shipping files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-miv-shipping.py deploy
+
+      - name: Preserve backup and deployment report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: miv-shipping-deployment-${{ github.run_id }}
+          path: |
+            miv-shipping-backup.zip
+            miv-shipping-deployment-report.json
+          if-no-files-found: warn
