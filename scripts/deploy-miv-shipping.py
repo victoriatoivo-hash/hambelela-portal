@@ -8,7 +8,7 @@ import subprocess
 import zipfile
 
 BASELINE = "a0f7b5b5d34f41c43983e447bef650d780511ff1"
-APPROVED_SHA = "3f8a87eb7118092a8e6930597ef53f1a8253d501"
+APPROVED_SHA = "02554704817aa8281d01b6d94bba8afc58f815e5"
 PREVIOUS_SHA = "239c8daff45fa7a14d9b0b901e15cc62c509cd81"
 DEPLOY_FILES = [
     "apps/miv-shipping/index.php",
