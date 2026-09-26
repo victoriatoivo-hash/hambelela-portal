@@ -1,0 +1,59 @@
+name: Deploy Task and Packing performance optimization
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preflight only or deploy the approved Task and Packing optimization
+        required: true
+        type: choice
+        options:
+          - preflight
+          - deploy
+      approved_sha:
+        description: Exact main commit SHA to verify and deploy
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy-task-packing-performance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+      - name: Validate Task and Packing optimization
+        run: |
+          php -l apps/operations/checklists.php
+          php -l apps/operations/task-templates.php
+          php -l apps/operations/operations.php
+          php -l apps/operations/packing-list-data.php
+          node --check assets/js/packing-list.js
+          node --test tests/task-view-performance-static.mjs tests/task-runtime-performance-static.mjs tests/courier-task-delivery-static.mjs tests/task-recurring-refinement-static.test.js tests/task-completed-correction-static.test.js tests/packing-runtime-performance-static.mjs tests/packing-unread-notifications-static.mjs tests/packing-role-visibility-sync-notifications-static.mjs tests/packing-website-workflows-static.mjs
+          python3 -m py_compile scripts/deploy-task-packing-performance.py
+      - name: Back up and publish only the approved runtime files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-task-packing-performance.py "$MODE" "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: task-packing-performance-${{ github.run_id }}
+          path: |
+            task-packing-performance-deployment-report.json
+            task-packing-performance-deployment-backup.zip
+          if-no-files-found: warn
