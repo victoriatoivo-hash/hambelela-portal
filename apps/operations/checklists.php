@@ -2400,6 +2400,7 @@ $essActiveModule = 'Task Management';
 $essHeadingPartial = BASE_PATH . '/shared/ess-task-heading.php';
 $extraStylesheets[] = ['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')];
 $extraStylesheets[] = ['path'=>'assets/css/task-essentials.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-essentials.css')];
+$extraStylesheets[] = ['path'=>'assets/css/task-recurring-refinement.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-recurring-refinement.css')];
 $extraStylesheets[] = ['path'=>'assets/css/task-correction.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-correction.css')];
 $extraStylesheets[] = ['path'=>'assets/css/portal-view-bar.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/portal-view-bar.css').'-interactive8'];
 $portalViewBarCssLoadedInHead = true;
@@ -4156,14 +4157,17 @@ async function acknowledgeTaskOpen(taskId, panel) {
 
 function promptTaskStart(taskId, panel) {
   const row = document.querySelector(`[data-task-row][data-task-id="${taskId}"]`);
-  if (!panel || row?.dataset.savedStatus !== 'new' || panel.querySelector('[data-start-prompt]')) return;
-  const prompt = document.createElement('section');
+  if (!panel || row?.dataset.savedStatus !== 'new' || document.querySelector('[data-start-prompt]')) return;
+  const prompt = document.createElement('div');
   prompt.dataset.startPrompt = 'true';
-  prompt.className = 'task-start-prompt';
-  prompt.innerHTML = '<div class="task-start-prompt__icon"><i data-lucide="timer" aria-hidden="true"></i></div><div class="task-start-prompt__copy"><strong>Are you starting this task now?</strong><p>Start Task records your start time. Read Only lets you review without starting the clock.</p><div class="task-start-prompt__actions"><button type="button" class="task-modern-button task-modern-button--primary" data-start-now><i data-lucide="play" aria-hidden="true"></i><span>Start Task</span></button><button type="button" class="task-modern-button task-modern-button--secondary" data-read-only><i data-lucide="eye" aria-hidden="true"></i><span>Read Only</span></button></div><p role="status" data-start-message></p></div>';
+  prompt.className = 'task-start-modal-layer';
+  prompt.innerHTML = '<button type="button" class="task-start-modal__backdrop" data-read-only aria-label="Review task without starting"></button><section class="task-start-modal" role="dialog" aria-modal="true" aria-labelledby="task-start-modal-title"><header><span>TASK WORKFLOW</span><h2 id="task-start-modal-title">Ready to start this task?</h2><p>Choose whether you want to begin working now or review the task first.</p></header><div class="task-start-modal__options"><button type="button" class="task-start-option" data-start-now><span class="task-start-option__icon"><i data-lucide="play" aria-hidden="true"></i></span><span><strong>Start Task</strong><small>Begin working and record your start time.</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button><button type="button" class="task-review-option" data-read-only><span class="task-review-option__icon"><i data-lucide="eye" aria-hidden="true"></i></span><span><strong>Review Only</strong><small>Open the task details without starting the clock.</small></span><i data-lucide="chevron-right" aria-hidden="true"></i></button></div><p class="task-start-modal__message" role="status" data-start-message></p></section>';
+  const returnFocus = document.activeElement;
+  const closePrompt = () => { prompt.remove(); if (returnFocus instanceof HTMLElement) returnFocus.focus(); };
+  prompt.querySelectorAll('[data-read-only]').forEach(button => button.addEventListener('click', closePrompt));
+  document.body.append(prompt);
   window.lucide?.createIcons?.();
-  panel.prepend(prompt);
-  prompt.querySelector('[data-read-only]').onclick = () => prompt.remove();
+  prompt.querySelector('[data-start-now]')?.focus();
   prompt.querySelector('[data-start-now]').onclick = async (event) => {
     event.currentTarget.disabled = true;
     const body = new FormData();
@@ -4755,11 +4759,20 @@ async function openTaskView(view, context) {
 function initialiseRecurringTaskView(root = document) {
   const view=root.querySelector?.('[data-recurring-task-view]')||(root.matches?.('[data-recurring-task-view]')?root:null);
   if(!view||view.dataset.initialised==='true')return;view.dataset.initialised='true';
-  view.querySelectorAll('form[data-confirm]').forEach(form=>form.addEventListener('submit',event=>{if(!window.confirm(form.dataset.confirm||'Continue?'))event.preventDefault();}));
+  let openDrawer=null,drawerReturnFocus=null,pendingStopForm=null;
+  const closeDrawer=()=>{if(!openDrawer)return;const id=openDrawer.dataset.recurringDetail;openDrawer.classList.remove('is-open');openDrawer.setAttribute('aria-hidden','true');const backdrop=view.querySelector(`[data-recurring-detail-backdrop="${id}"]`);if(backdrop){backdrop.hidden=true;backdrop.classList.remove('is-open');}document.body.classList.remove('recurring-drawer-open');const focus=drawerReturnFocus;openDrawer=null;drawerReturnFocus=null;if(focus instanceof HTMLElement)focus.focus();};
+  view.querySelectorAll('[data-recurring-open]').forEach(button=>button.addEventListener('click',()=>{closeDrawer();const id=button.dataset.recurringOpen,drawer=view.querySelector(`[data-recurring-detail="${id}"]`),backdrop=view.querySelector(`[data-recurring-detail-backdrop="${id}"]`);if(!drawer||!backdrop)return;drawerReturnFocus=button;openDrawer=drawer;backdrop.hidden=false;requestAnimationFrame(()=>{drawer.classList.add('is-open');backdrop.classList.add('is-open');});drawer.setAttribute('aria-hidden','false');document.body.classList.add('recurring-drawer-open');drawer.querySelector('[data-recurring-detail-close]')?.focus();}));
+  view.querySelectorAll('[data-recurring-detail-close],[data-recurring-detail-backdrop]').forEach(element=>element.addEventListener('click',closeDrawer));
   view.querySelectorAll('[data-recurring-edit]').forEach(button=>button.addEventListener('click',()=>view.querySelector(`[data-recurring-edit-dialog="${button.dataset.recurringEdit}"]`)?.showModal()));
   view.querySelectorAll('[data-recurring-edit-close]').forEach(button=>button.addEventListener('click',()=>button.closest('dialog')?.close()));
+  const stopDialog=view.querySelector('[data-recurring-stop-dialog]');
+  view.querySelectorAll('[data-recurring-stop-form]').forEach(form=>form.addEventListener('submit',event=>{event.preventDefault();pendingStopForm=form;if(stopDialog){stopDialog.querySelector('[data-recurring-stop-name]').textContent=form.dataset.recurringName||'This recurring task';stopDialog.showModal();stopDialog.querySelector('[data-recurring-stop-confirm]')?.focus();}}));
+  stopDialog?.querySelector('[data-recurring-stop-cancel]')?.addEventListener('click',()=>{pendingStopForm=null;stopDialog.close();});
+  stopDialog?.querySelector('[data-recurring-stop-confirm]')?.addEventListener('click',()=>{if(!pendingStopForm)return;const form=pendingStopForm;pendingStopForm=null;stopDialog.close();form.submit();});
+  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&openDrawer)closeDrawer();},{once:false});
   view.querySelectorAll('[data-recurring-occurrences]').forEach(button=>button.addEventListener('click',async()=>{
     const id=button.dataset.recurringOccurrences,row=view.querySelector(`[data-recurring-occurrences-row="${id}"]`),target=row?.querySelector('[data-recurring-occurrences-content]');if(!row||!target)return;
+    if(button.hasAttribute('data-recurring-close-before-occurrences'))closeDrawer();
     if(!row.hidden){row.hidden=true;return;}row.hidden=false;if(row.dataset.loaded==='true')return;
     try{const url=new URL(location.href);url.searchParams.set('recurring_occurrences',id);const response=await fetch(url,{credentials:'same-origin',headers:{'X-Requested-With':'XMLHttpRequest'},cache:'no-store'});const result=await response.json();if(!response.ok||!result.success)throw new Error('Unable to load generated tasks.');
       const esc=value=>String(value??'').replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
