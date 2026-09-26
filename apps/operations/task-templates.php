@@ -10,6 +10,8 @@ function checklist_template_try_sql(string $sql): void
 function checklist_template_bootstrap_schema(): void
 {
     if (!ops_database_ready()) return;
+    $schemaVersion = '2026-09-26-task-template-schema-v1';
+    if (function_exists('checklist_schema_version_applied') && checklist_schema_version_applied($schemaVersion)) return;
     db()->exec("CREATE TABLE IF NOT EXISTS ops_checklist_task_templates (
         id INT AUTO_INCREMENT PRIMARY KEY, template_name VARCHAR(120) NOT NULL,
         task_mode VARCHAR(20) NOT NULL DEFAULT 'manual', task_name VARCHAR(190) NOT NULL,
@@ -46,6 +48,7 @@ function checklist_template_bootstrap_schema(): void
     if (!ops_column_exists('ops_checklist_tasks', 'source_template_id')) {
         checklist_template_try_sql('ALTER TABLE ops_checklist_tasks ADD COLUMN source_template_id INT NULL AFTER recurring_template_id');
     }
+    if (function_exists('checklist_mark_schema_version')) checklist_mark_schema_version($schemaVersion);
 }
 
 function checklist_template_json(array $payload, int $status = 200): void

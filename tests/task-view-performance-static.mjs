@@ -1,8 +1,11 @@
 import fs from 'node:fs';import assert from 'node:assert/strict';
 const page=fs.readFileSync('apps/operations/checklists.php','utf8'),css=fs.readFileSync('assets/css/portal.css','utf8');
-for(const contract of ['const taskViewCache = new Map()','taskViewRequest?.abort()','taskViewRequestVersion','requestIdleCallback','taskViewCacheTtl','invalidateTaskViewCache','popstate','pushState'])assert.ok(page.includes(contract),contract);
+for(const contract of ['const taskViewCache = new Map()','taskViewRequest?.abort()','taskViewRequestVersion','taskViewCacheTtl','invalidateTaskViewCache','popstate','pushState'])assert.ok(page.includes(contract),contract);
 assert.ok(page.includes("taskViewCache.set(`${initialView}|")&&page.includes("taskViewCache.set(cacheKey"),'initial and fetched views cached');
-assert.ok(page.includes("['scheduled','floating','recurring','completed']"),'secondary views prefetched after first paint');
+assert.ok(page.includes("tabs.addEventListener('pointerover', prefetchTab)")&&page.includes("tabs.addEventListener('focusin', prefetchTab)"),'secondary views prefetch only when the user signals intent');
+assert.ok(!page.includes('const prefetchViews = () =>'),'secondary views are not all fetched after first paint');
+assert.ok(page.includes('document.hidden ? 180000 : 60000'),'employee delivery refresh uses a lighter adaptive cadence');
+assert.ok(page.includes('2026-09-26-task-management-schema-v1'),'task schema work is version-gated');
 assert.ok(page.includes("event.target.getAttribute('method')")&&page.includes('invalidateTaskViewCache();'),'POST mutations invalidate view cache');
 assert.ok(!page.slice(page.indexOf('async function openTaskView'),page.indexOf('function initialiseTaskViewTabs')).includes('location.reload'),'view switching never reloads the document');
 assert.ok(css.includes('.task-view-local-loader')&&css.includes('@keyframes task-view-loader-spin'),'local themed loader');

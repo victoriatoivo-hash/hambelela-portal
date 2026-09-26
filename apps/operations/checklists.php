@@ -62,9 +62,31 @@ function checklist_try_sql(string $sql): void
     }
 }
 
+function checklist_schema_version_applied(string $key): bool
+{
+    try {
+        $rows = ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key = ? LIMIT 1', [$key]);
+        return !empty($rows);
+    } catch (Throwable $error) {
+        return false;
+    }
+}
+
+function checklist_mark_schema_version(string $key): void
+{
+    try {
+        db()->prepare('INSERT IGNORE INTO portal_schema_migrations (migration_key) VALUES (?)')->execute([$key]);
+    } catch (Throwable $error) {
+        error_log('Task schema version could not be recorded: ' . $error->getMessage());
+    }
+}
+
 function checklist_bootstrap_schema(): void
 {
     if (!ops_database_ready()) return;
+    checklist_try_sql("CREATE TABLE IF NOT EXISTS portal_schema_migrations (migration_key VARCHAR(190) PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $schemaVersion = '2026-09-26-task-management-schema-v1';
+    if (checklist_schema_version_applied($schemaVersion)) return;
     db()->exec(
         "CREATE TABLE IF NOT EXISTS ops_checklist_tasks (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -329,6 +351,7 @@ function checklist_bootstrap_schema(): void
             ]);
         }
     }
+    checklist_mark_schema_version($schemaVersion);
 }
 
 function checklist_attachment_types(): array
@@ -4813,8 +4836,12 @@ function initialiseTaskViewTabs(taskRoot = document.querySelector('.digital-task
       taskViewCache.set(key,{markup:taskViewMarkup(await response.text(),view),savedAt:Date.now(),duration:0});
     } catch (_) { /* A normal click can retry. */ }
   };
-  const prefetchViews = () => ['scheduled','floating','recurring','completed'].filter((view) => view !== initialView).forEach((view,index) => window.setTimeout(() => prefetch(view),index*180));
-  if ('requestIdleCallback' in window) window.requestIdleCallback(prefetchViews,{timeout:1800}); else window.setTimeout(prefetchViews,600);
+  const prefetchTab = (event) => {
+    const tab = event.target.closest('[data-task-view]');
+    if (tab && tab.dataset.taskView !== initialView) prefetch(tab.dataset.taskView);
+  };
+  tabs.addEventListener('pointerover', prefetchTab);
+  tabs.addEventListener('focusin', prefetchTab);
 }
 
 function initialiseEmployeeTaskDelivery(taskRoot = document.querySelector('.digital-task-page')) {
@@ -4833,7 +4860,7 @@ function initialiseEmployeeTaskDelivery(taskRoot = document.querySelector('.digi
   };
   const schedule = () => {
     window.clearTimeout(timer);
-    timer = window.setTimeout(async () => { await refresh(); schedule(); }, document.hidden ? 120000 : 30000);
+    timer = window.setTimeout(async () => { await refresh(); schedule(); }, document.hidden ? 180000 : 60000);
   };
   document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); schedule(); });
   window.addEventListener('focus', refresh);
