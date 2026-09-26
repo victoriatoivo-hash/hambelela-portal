@@ -9,7 +9,7 @@ const packingJs = fs.readFileSync(new URL('../assets/js/packing-list.js', import
 const viewBar = fs.readFileSync(new URL('../assets/js/portal-view-bar.js', import.meta.url), 'utf8');
 const dashboard = fs.readFileSync(new URL('../index.php', import.meta.url), 'utf8');
 
-for (const role of ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager']) {
+for (const role of ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'marketing_sales']) {
   assert.match(data, new RegExp(role));
 }
 assert.match(data, /pt\.assigned_employee_id = \?/);

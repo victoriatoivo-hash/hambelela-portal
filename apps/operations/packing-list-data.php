@@ -37,7 +37,7 @@ function packing_list_data_version(bool $canViewAll, ?int $employeeId): string
 
 $currentEmployeeId = ops_current_employee_id();
 $currentRoleKey = current_role_key();
-$canViewAllPackingItems = in_array($currentRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canViewAllPackingItems = in_array($currentRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'marketing_sales'], true);
 $canViewAssignedPackingItems = in_array($currentRoleKey, ['packer', 'packer_production_staff'], true);
 if (!$canViewAllPackingItems && !$canViewAssignedPackingItems) {
     http_response_code(403);
@@ -80,8 +80,8 @@ $packingRowKeySelect = $hasPackingRowKey ? 'pt.packing_row_key' : 'NULL AS packi
 $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
-$canViewFrontdeskWebsite = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
-$canConfirmFrontdeskWebsite = user_has_role('front_desk_admin', 'front_desk_admin_employee');
+$canViewFrontdeskWebsite = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'marketing_sales');
+$canConfirmFrontdeskWebsite = $canViewFrontdeskWebsite;
 $packingWebsiteAuditSelect = $hasWebsiteWorkflows
     ? 'pt.packing_website_completed_at, pt.packing_website_completed_by, packing_website_employee.full_name AS packing_website_completed_by_name'
     : 'NULL AS packing_website_completed_at, NULL AS packing_website_completed_by, NULL AS packing_website_completed_by_name';
@@ -98,7 +98,13 @@ $websiteWorkflowJoins = $hasWebsiteWorkflows
 // date_completed in portal time. The completed value is the reliable import
 // moment for these untouched Not Started rows, then completion is cleared.
 $packingCleanupMigration = '2026-09-26-packing-import-cleanup-v1';
-$packingCleanupApplied = !empty(ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key = ? LIMIT 1', [$packingCleanupMigration]));
+$packingCleanupApplied = false;
+try {
+    db()->exec("CREATE TABLE IF NOT EXISTS portal_schema_migrations (migration_key VARCHAR(190) PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    $packingCleanupApplied = !empty(ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key = ? LIMIT 1', [$packingCleanupMigration]));
+} catch (Throwable $migrationError) {
+    error_log('Packing cleanup migration could not be checked: ' . $migrationError->getMessage());
+}
 if ($canManage && !$packingCleanupApplied) {
     $repair = db()->prepare(
         "UPDATE ops_packing_tasks
@@ -171,7 +177,6 @@ if ($canManage && !$packingCleanupApplied) {
         ]);
     }
     try {
-        db()->exec("CREATE TABLE IF NOT EXISTS portal_schema_migrations (migration_key VARCHAR(190) PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         db()->prepare('INSERT IGNORE INTO portal_schema_migrations (migration_key) VALUES (?)')->execute([$packingCleanupMigration]);
     } catch (Throwable $migrationError) {
         error_log('Packing cleanup migration could not be recorded: ' . $migrationError->getMessage());
@@ -206,8 +211,7 @@ $tasks = ops_rows(
      LEFT JOIN ops_employees e ON e.id = pt.assigned_employee_id
      {$websiteWorkflowJoins}
      {$where}
-     ORDER BY pt.date_loaded DESC, FIELD(pt.priority, 'top_critical', 'high', 'medium', 'low'), pt.id DESC
-     LIMIT 500",
+     ORDER BY pt.date_loaded DESC, FIELD(pt.priority, 'top_critical', 'high', 'medium', 'low'), pt.id DESC",
     $params
 );
 

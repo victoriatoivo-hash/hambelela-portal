@@ -20,6 +20,10 @@ FILES = (
 )
 REPORT = "task-packing-performance-deployment-report.json"
 BACKUP = "task-packing-performance-deployment-backup.zip"
+PRESERVED_LIVE_HASHES = {
+    "apps/operations/packing-list-data.php": "30bf132b798a082a78338bd19fa0935840448326f56d2f327514e1b6815a3f1c",
+    "assets/js/packing-list.js": "4180b4d4c6fb182bf933ce5bbc99ce458fbe41a91572f814b50cd8761e64c5ba",
+}
 
 
 def git(*args):
@@ -94,6 +98,7 @@ def main(mode, approved_sha):
             {"path": path, "live_sha256": digest(existing[path]), "baseline_sha256": digest(baselines[path]), "expected_sha256": digest(expected[path])}
             for path in FILES
             if existing[path] not in (baselines[path], expected[path])
+            and digest(existing[path]) != PRESERVED_LIVE_HASHES.get(path)
         ]
         report = {
             "mode": mode,

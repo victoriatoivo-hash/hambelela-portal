@@ -31,6 +31,9 @@
   const createModal = document.getElementById('packing-create-modal');
   const invoiceModal = document.getElementById('packing-invoice-modal');
   const invoiceDraftBody = document.querySelector('[data-invoice-draft-body]');
+  const distributionReview = document.querySelector('[data-packing-distribution-review]');
+  const distributionBody = document.querySelector('[data-packing-distribution-body]');
+  const distributionSummary = document.querySelector('[data-packing-distribution-summary]');
   const invoiceStatus = document.querySelector('[data-invoice-extract-status]');
   const invoiceProgress = document.querySelector('[data-invoice-progress]');
   const invoiceProgressTitle = document.querySelector('[data-invoice-progress-title]');
@@ -56,7 +59,14 @@
   let packingDraftMode = 'invoice';
   let invoiceImportId = '';
   const invoiceCorrectionStorageKey = 'hambelelaPackingInvoiceCorrectionsV1';
+  let invoiceCorrectionDraft = null;
+  let invoiceExtractionController = null;
+  let invoiceExtractionVersion = 0;
+  // Upload previews are page-local; discard drafts left by older versions.
+  try { localStorage.removeItem(invoiceCorrectionStorageKey); } catch (_) { /* storage may be unavailable */ }
   let invoiceAutoRedistribute = true;
+  let distributionReviewOpen = false;
+  let autoDistributionSnapshot = [];
   let packingFilesUploading = false;
   let packingFileUploadVersion = 0;
   let packingRefreshRequest = null;
@@ -88,7 +98,9 @@
   let previousTaskIds = new Set();
   let customColumns = [];
   const selected = new Set();
-  const state = { search: '', priority: '', status: '', person: '', website: '', sort: '', groupBy: 'month', date: '', page: 1, pageSize: 25 };
+  const monthParts = new Intl.DateTimeFormat('en', { timeZone: 'Africa/Windhoek', year: 'numeric', month: '2-digit' }).formatToParts(new Date());
+  const currentMonth = `${monthParts.find(part => part.type === 'year').value}-${monthParts.find(part => part.type === 'month').value}`;
+  const state = { search: '', priority: '', status: '', person: '', website: '', sort: '', groupBy: 'month', date: currentMonth, page: 1, pageSize: 25 };
 
   let priorities = [
     ['top_critical', 'Top Critical', '#721B1A'],
@@ -402,6 +414,7 @@
   }
 
   function updateMetrics(source = tasks) {
+    renderPackerWorkloadCards(source);
     const total = source.length;
     const done = source.filter((task) => packingStatusIsCompleted(task.packing_status)).length;
     const packing = source.filter((task) => normalize(task.packing_status) === 'packing').length;
@@ -419,6 +432,58 @@
   function setUndo(changes) {
     lastUndo = changes && changes.length ? changes : null;
     if (undoButton) undoButton.disabled = !lastUndo;
+  }
+
+  function workloadQuantity(value) {
+    const totals = { weight: 0, volume: 0, count: 0, unknown: false };
+    const text = String(value || '').trim();
+    const pattern = /(\d+(?:\.\d+)?)\s*(kilograms?|kgs?|grams?|g|millilitres?|ml|litres?|liters?|lt|l|pieces?|pcs?|units?)\b\s*(?:\(\s*(\d+)\s*\)|[x*]\s*(\d+))?/gi;
+    const remainder = text.replace(pattern, (_, amount, unitName, bracketCount, timesCount) => {
+      const unit = parsePackUnit(unitName);
+      if (!unit) return _;
+      totals[unit.dimension] += Number(amount) * unit.factor * Number(bracketCount ?? timesCount ?? 1);
+      return '';
+    }).replace(/[\s,+;]+/g, '');
+    totals.unknown = !text || Boolean(remainder);
+    return totals;
+  }
+
+  function packerWorkloadTotals(rows, people) {
+    const empty = () => ({weight:0, volume:0, count:0, unknown:0});
+    const groups = new Map(people.filter(person => person.role_key === 'packer').map(person => [String(person.id), {name:person.full_name, assigned:empty(), remaining:empty(), completed:empty(), rows:0}]));
+    function add(target, quantity) {
+      for (const key of ['weight','volume','count']) target[key] += quantity[key];
+      if (quantity.unknown) target.unknown++;
+    }
+    for (const row of rows) {
+      const key = String(row.assigned_employee_id || '');
+      if (!groups.has(key)) continue;
+      const group = groups.get(key);
+      const planned = workloadQuantity(row.quantity_planned);
+      group.rows++;
+      add(group.assigned, planned);
+      if (packingStatusIsCompleted(row.packing_status)) add(group.completed, workloadQuantity(row.quantity_packed));
+      else add(group.remaining, planned);
+    }
+    return [...groups.values()];
+  }
+
+  function renderPackerWorkloadCards(rows) {
+    let panel = document.querySelector('[data-packer-workload-cards]');
+    if (currentUser.role_key !== 'owner_admin') { if (panel) panel.hidden = true; return; }
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.dataset.packerWorkloadCards = '';
+      panel.className = 'packing-owner-workloads';
+      panel.setAttribute('aria-label', 'Packer workload');
+      document.getElementById('packingListViewport')?.before(panel);
+      const style = document.createElement('style');
+      style.textContent = '.packing-owner-workloads{margin:10px 0;color:#34433c;font:12px Jost,sans-serif}.packing-owner-workloads>p{margin:4px 0 8px;color:#68756a}.packing-owner-workload-grid{display:grid;grid-template-columns:1fr;gap:8px}.packing-owner-workloads article{border:1px solid #dfe5d8;border-left:3px solid #728159;border-radius:9px;background:#fff;padding:10px 12px;display:grid;grid-template-columns:160px minmax(0,1fr);align-items:center;gap:14px;transition:box-shadow .18s}.packing-owner-workloads article:hover{box-shadow:0 4px 14px #34433c12}.packing-owner-workloads h3{font-size:12px;margin:0;font-weight:500}.packing-owner-workloads dl{margin:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.packing-owner-workloads dl>div{padding:0 0 0 12px;border-left:1px solid #edf0e8}.packing-owner-workloads dt{color:#697560;margin-bottom:1px}.packing-owner-workloads dd{margin:0;font-variant-numeric:tabular-nums}.packing-owner-workloads small{display:block;color:#936320;margin-top:3px}.packing-owner-workloads details{font-size:11px;color:#68756a;margin:4px 0 8px}.packing-owner-workloads summary{cursor:pointer}.packing-owner-workloads details p{max-width:560px;margin:4px 0}@media(max-width:520px){.packing-owner-workload-grid{grid-template-columns:1fr;gap:6px}.packing-owner-workloads article{padding:8px;min-width:0;grid-template-columns:1fr;gap:8px}.packing-owner-workloads dl{gap:6px}.packing-owner-workloads dl>div{padding-left:6px}.packing-owner-workloads dd{font-size:11px;overflow-wrap:anywhere}}';
+      document.head.append(style);
+    }
+    panel.hidden = false;
+    const format = total => `${(total.weight/1000).toLocaleString(undefined,{maximumFractionDigits:3})} kg · ${(total.volume/1000).toLocaleString(undefined,{maximumFractionDigits:3})} L · ${total.count.toLocaleString()} pieces${total.unknown ? `<small>${total.unknown} row(s) have missing or unclear quantities; totals are partial.</small>` : ''}`;
+    panel.innerHTML = `<strong>Packer workload</strong><details><summary>About these totals · current filters</summary><p> Remaining shows planned quantities on unfinished rows. Completed uses recorded packed quantities on completed rows, grouped by current assignee—not a historical performance score.</p></details><div class="packing-owner-workload-grid">${packerWorkloadTotals(rows, packers).map(group => `<article><h3>${esc(group.name)} · ${group.rows} items</h3><dl><div><dt>Assigned plan</dt><dd>${format(group.assigned)}</dd></div><div><dt>Still to pack</dt><dd>${format(group.remaining)}</dd></div><div><dt>Completed output</dt><dd>${format(group.completed)}</dd></div></dl></article>`).join('')}</div>`;
   }
 
   function selectedIdsFor(taskId) {
@@ -474,6 +539,21 @@
   }
 
   function renderWebsiteConfirmation(task) {
+    if (!currentUser.can_view_front_website) return;
+    let websiteSection = panel.querySelector('.packing-item-website-section');
+    if (!websiteSection) {
+      websiteSection = document.createElement('section');
+      websiteSection.className = 'packing-item-section packing-item-website-section';
+      websiteSection.innerHTML = '<h2 class="packing-item-section-title">Front-desk website update</h2><p class="packing-item-section-subtitle">Update the live product information, then confirm here. This is separate from the packing-list checkbox.</p><label class="packing-panel-website-toggle packing-website-control" data-packing-website-control><input type="checkbox" data-packing-panel-website><span>Website updated</span><span data-packing-website-confirmed hidden>Confirmed</span></label><dl class="packing-panel-website-audit"><div><dt>Updated</dt><dd data-packing-website-updated-at></dd></div><div><dt>Updated by</dt><dd data-packing-website-updated-by></dd></div></dl>';
+    }
+    const activeTab = panel.querySelector('[data-packing-panel-tab].is-active')?.dataset.packingPanelTab;
+    const destination = panel.querySelector('[data-packing-panel-name="website"]');
+    destination?.append(websiteSection);
+    websiteSection.hidden = false;
+    const title = websiteSection.querySelector('h2');
+    if (title) title.textContent = 'Front-desk website update';
+    const description = websiteSection.querySelector('.packing-item-section-subtitle');
+    if (description) description.textContent = 'Update the live website, then confirm here. Separate from the packing checkbox; original saved confirmation dates are retained for performance tracking.';
     const audit = task?.frontdesk_website || {};
     const confirmed = Boolean(audit.updated);
     const websiteToggle = panel.querySelector('[data-packing-panel-website]');
@@ -1048,7 +1128,10 @@
     if (reviewTitle) reviewTitle.textContent = manual ? 'Items and distribution' : 'Packing review';
     if (reviewDescription) reviewDescription.textContent = manual
       ? 'Confirm each received quantity, enter its packing sizes, and review the physical weight assigned to every packer.'
-      : 'Step 1 confirms received quantity and unit. Step 2 adds packing instructions after whole-row packer distribution.';
+      : 'Confirm received quantities and packing instructions. Review the final packer distribution before creation.';
+    distributionReviewOpen = false;
+    if (distributionReview) distributionReview.hidden = true;
+    if (manual) autoDistributionSnapshot = [];
     if (footerLabel) footerLabel.textContent = manual ? 'Manual multi-item load' : 'Step 1 of 5';
     setInvoiceStatus(manual ? 'Add items, confirm quantities, then distribute by weight.' : 'Upload an invoice or add rows manually.');
   }
@@ -1129,20 +1212,21 @@
   }
 
   function saveInvoiceCorrectionDraft() {
-    try {
-      if (!invoiceDraftRows.length) localStorage.removeItem(invoiceCorrectionStorageKey);
-      else localStorage.setItem(invoiceCorrectionStorageKey, JSON.stringify({ importId: invoiceImportId, autoRedistribute: invoiceAutoRedistribute, rows: invoiceDraftRows, savedAt: new Date().toISOString() }));
-    } catch (_) { /* storage is a convenience; validation remains authoritative */ }
+    if (packingDraftMode === 'manual') return;
+    invoiceCorrectionDraft = invoiceDraftRows.length
+      ? JSON.parse(JSON.stringify({ importId: invoiceImportId, autoRedistribute: invoiceAutoRedistribute, autoAssignments: autoDistributionSnapshot, rows: invoiceDraftRows }))
+      : null;
   }
 
   function restoreInvoiceCorrectionDraft() {
     if (invoiceDraftRows.length) return false;
     try {
-      const saved = JSON.parse(localStorage.getItem(invoiceCorrectionStorageKey) || 'null');
+      const saved = invoiceCorrectionDraft;
       if (!saved || !Array.isArray(saved.rows) || !saved.rows.length) return false;
       invoiceDraftRows = saved.rows;
       invoiceImportId = String(saved.importId || '');
       invoiceAutoRedistribute = saved.autoRedistribute !== false;
+      autoDistributionSnapshot = Array.isArray(saved.autoAssignments) ? saved.autoAssignments.map(String) : [];
       return true;
     } catch (_) { return false; }
   }
@@ -1343,6 +1427,56 @@
     return assignDraftRows({ force: true });
   }
 
+  function captureAutoDistribution() {
+    if (receivedReviewComplete() && autoDistributionSnapshot.length !== invoiceDraftRows.length && invoiceDraftRows.every((row) => row.assignment_source !== 'manual')) {
+      autoDistributionSnapshot = invoiceDraftRows.map((row) => String(row.assigned_employee_id || ''));
+    }
+  }
+
+  function renderDistributionReview() {
+    if (!distributionReview || !distributionBody || !distributionSummary) return;
+    distributionReview.hidden = packingDraftMode !== 'invoice' || !distributionReviewOpen;
+    if (distributionReview.hidden) return;
+    const eligible = new Map(packers.map((packer) => [String(packer.id), packer]));
+    const options = '<option value="">Choose packer</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
+    const totals = new Map(packers.map((packer) => [String(packer.id), { name: packer.full_name, units: 0, rows: 0, points: 0 }]));
+    const invoiceUnits = invoiceDraftRows.reduce((sum, row) => sum + quantityPlanStats(row.quantity_planned).totalUnits, 0);
+    distributionBody.innerHTML = invoiceDraftRows.map((row, index) => {
+      const assignedId = String(row.assigned_employee_id || '');
+      const accounting = quantityAccounting(row);
+      const packer = eligible.get(assignedId);
+      if (packer) {
+        const total = totals.get(assignedId);
+        total.units += quantityPlanStats(row.quantity_planned).totalUnits;
+        total.rows += 1;
+        total.points += Number(row.workload || draftWorkload(row));
+      }
+      const status = !packer ? 'Under allocated' : accounting.status === 'under_allocated' ? 'Under allocated' : accounting.status === 'over_allocated' ? 'Over allocated' : accounting.valid ? 'Balanced' : accounting.message;
+      const statusClass = status === 'Balanced' ? 'is-balanced' : status === 'Over allocated' ? 'is-over' : 'is-under';
+      return `<tr data-review-index="${index}"><td data-label="Product / item"><strong>${esc(row.item_name || 'Unnamed item')}</strong></td><td data-label="Variation / packing plan">${esc(row.quantity_planned || '—')}</td><td data-label="Invoice quantity">${esc(row.received_weight || '—')}</td><td data-label="Packer"><select data-review-packer="${index}" aria-label="Packer for ${esc(row.item_name || `row ${index + 1}`)}">${options}</select></td><td data-label="Allocated">${packer ? esc(row.received_weight || '—') : '0'}</td><td data-label="Status"><span class="packing-distribution-status ${statusClass}">${esc(status)}</span></td></tr>`;
+    }).join('');
+    distributionBody.querySelectorAll('[data-review-packer]').forEach((select) => { select.value = String(invoiceDraftRows[Number(select.dataset.reviewPacker)]?.assigned_employee_id || ''); });
+    distributionSummary.innerHTML = [...totals.values()].map((item) => `<div class="packing-distribution-card"><span>${esc(item.name)}</span><strong>${item.units} units</strong><small>${invoiceUnits ? Math.round(item.units / invoiceUnits * 100) : 0}% of invoice · ${item.rows} complete row${item.rows === 1 ? '' : 's'} · ${item.points.toFixed(1)} workload points</small></div>`).join('');
+    const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
+    if (finalButton) finalButton.disabled = !allPackingAllocationsComplete() || invoiceDraftRows.some((row) => !eligible.has(String(row.assigned_employee_id || '')));
+  }
+
+  function openDistributionReview() {
+    if (!allPackingAllocationsComplete()) {
+      setInvoiceStatus('Confirm each received quantity and complete each packing plan before reviewing distribution.');
+      return;
+    }
+    captureAutoDistribution();
+    distributionReviewOpen = true;
+    renderDistributionReview();
+    setInvoiceStep('assign');
+    document.querySelectorAll('[data-invoice-review-stage]').forEach((step) => step.classList.toggle('is-active', step.dataset.invoiceReviewStage === 'distribution'));
+    const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
+    if (finalButton) { finalButton.type = 'submit'; finalButton.textContent = 'Create Packing Items'; }
+    distributionReview?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    setInvoiceStatus('Review each complete row. The packer choices shown here will be used when creating the packing items.');
+  }
+
   async function runRedistributeDraft(button) {
     if (!invoiceDraftRows.length) {
       setInvoiceStatus('Add or extract invoice rows before redistributing.');
@@ -1503,6 +1637,9 @@
     assignDraftRows();
     const head = invoiceDraftBody.closest('table')?.querySelector('[data-invoice-draft-head]');
     if (!invoiceDraftRows.length) {
+      distributionReviewOpen = false;
+      autoDistributionSnapshot = [];
+      if (distributionReview) distributionReview.hidden = true;
       invoiceDraftBody.innerHTML = packingDraftMode === 'manual'
         ? '<tr class="invoice-empty-row"><td colspan="6"><div class="invoice-empty-state"><i data-lucide="layers-2"></i><div><strong>No manual items yet</strong><span>Choose Add item to start a new row.</span></div></div></td></tr>'
         : '<tr class="invoice-empty-row"><td colspan="6"><div class="invoice-empty-state"><i data-lucide="file-text"></i><div><strong>No invoice rows yet</strong><span>Upload and extract an invoice, or add a row manually.</span></div></div></td></tr>';
@@ -1515,7 +1652,7 @@
     const priorityOptions = priorities.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
     const unitOptions = [['','Unit required'],['kg','kg'],['g','g'],['L','L'],['ml','ml'],['units','units']].map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
     const stageTwo = receivedReviewComplete();
-    document.querySelectorAll('[data-invoice-review-stage]').forEach((step) => step.classList.toggle('is-active', step.dataset.invoiceReviewStage === (stageTwo ? 'instructions' : 'received')));
+    document.querySelectorAll('[data-invoice-review-stage]').forEach((step) => step.classList.toggle('is-active', step.dataset.invoiceReviewStage === (distributionReviewOpen ? 'distribution' : stageTwo ? 'instructions' : 'received')));
     if (head) head.innerHTML = stageTwo
       ? '<th data-col-key="item">Item</th><th data-col-key="received">Received</th><th data-col-key="unit">Unit</th><th data-col-key="packing">Quantity to pack</th><th data-col-key="allocated">Allocated / remaining</th><th data-col-key="priority">Priority</th><th data-col-key="assigned">Assigned</th><th data-col-key="physical">Physical workload</th><th data-col-key="weighted">Weighted workload</th><th data-col-key="actions">Actions</th>'
       : `<th data-col-key="item">Item</th><th data-col-key="received">${packingDraftMode === 'manual' ? 'Received quantity' : 'Extracted quantity'}</th><th data-col-key="unit">Unit *</th><th data-col-key="normalised">Normalised quantity</th><th data-col-key="status">Status</th><th data-col-key="actions">Action</th>`;
@@ -1566,8 +1703,11 @@
     const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
     if (finalButton) {
       finalButton.disabled = !allPackingAllocationsComplete();
-      finalButton.textContent = 'Create Packing Items';
+      finalButton.type = packingDraftMode === 'manual' || distributionReviewOpen ? 'submit' : 'button';
+      finalButton.textContent = packingDraftMode === 'manual' || distributionReviewOpen ? 'Create Packing Items' : 'Review Distribution';
     }
+    captureAutoDistribution();
+    renderDistributionReview();
     setupInvoiceColumnResizing();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
@@ -1642,7 +1782,7 @@
   function visibleTasks() {
     const search = state.search.trim().toLowerCase();
     return tasks.filter((task) => {
-      if (state.date && monthKey(task.date_loaded) !== state.date) return false;
+      if (state.date && !String(task.date_loaded || '').startsWith(state.date)) return false;
       if (state.priority && normalize(task.priority) !== normalize(state.priority)) return false;
       if (state.status && normalize(task.packing_status) !== normalize(state.status)) return false;
       if (state.website === 'updated' && Number(task.packing_website_confirmed || 0) !== 1) return false;
@@ -1961,10 +2101,8 @@
     if (state.sort === 'name') visible.sort((a,b) => String(a.item_name || '').localeCompare(String(b.item_name || '')));
     if (state.sort === 'oldest') visible.sort((a,b) => String(a.date_loaded || '').localeCompare(String(b.date_loaded || '')));
     if (state.sort === 'newest') visible.sort((a,b) => String(b.date_loaded || '').localeCompare(String(a.date_loaded || '')));
-    const pages = Math.max(1, Math.ceil(visible.length / state.pageSize));
-    state.page = Math.max(1, Math.min(state.page, pages));
-    const pageRows = visible.slice((state.page - 1) * state.pageSize, state.page * state.pageSize);
-    renderPagination(visible.length, pages);
+    const pageRows = visible;
+    renderPagination(visible.length);
     const knownIds = new Set(tasks.map((task) => String(task.id)));
     [...selected].forEach((id) => { if (!knownIds.has(id)) selected.delete(id); });
     if (!visible.length) {
@@ -2008,6 +2146,34 @@
     hasRenderedOnce = true;
   }
 
+  function clearPackingUploadDraft() {
+    invoiceExtractionVersion += 1;
+    invoiceExtractionController?.abort();
+    invoiceExtractionController = null;
+    invoiceDraftRows = [];
+    manualDraftRows = [];
+    invoiceCorrectionDraft = null;
+    invoiceImportId = '';
+    autoDistributionSnapshot = [];
+    distributionReviewOpen = false;
+    invoiceAutoRedistribute = true;
+    try { localStorage.removeItem(invoiceCorrectionStorageKey); } catch (_) { /* storage may be unavailable */ }
+    invoiceModal?.querySelector('[data-invoice-draft-form]')?.reset();
+    const file = invoiceModal?.querySelector('[name="invoice_file"]');
+    if (file) file.value = '';
+    const name = invoiceModal?.querySelector('[data-invoice-file-name]');
+    if (name) name.textContent = 'No PDF selected';
+    const remove = invoiceModal?.querySelector('[data-remove-invoice-file]');
+    if (remove) remove.hidden = true;
+    const extract = document.querySelector('[data-extract-invoice]');
+    extract?.classList.remove('is-loading');
+    if (extract) extract.disabled = false;
+    setPackingDraftMode('invoice');
+    renderInvoiceDraft();
+    setInvoiceProgress(false);
+    setInvoiceStep('upload');
+  }
+
   function renderPagination(total, pages) {
     let nav = document.querySelector('[data-packing-pagination]');
     if (!nav) {
@@ -2017,7 +2183,7 @@
       nav.setAttribute('aria-label', 'Packing item pages');
       body.closest('#packingListViewport').after(nav);
     }
-    nav.innerHTML = `<span role="status">Showing ${total ? (state.page - 1) * state.pageSize + 1 : 0}–${Math.min(state.page * state.pageSize, total)} of ${total}</span><div><button type="button" data-packing-page="${state.page - 1}" ${state.page === 1 ? 'disabled' : ''} aria-label="Previous page">‹</button><span>Page ${state.page} of ${pages}</span><button type="button" data-packing-page="${state.page + 1}" ${state.page === pages ? 'disabled' : ''} aria-label="Next page">›</button><label>Rows per page <select data-packing-page-size data-portal-custom-select>${[25,50,100].map(n=>`<option value="${n}" ${state.pageSize===n?'selected':''}>${n}</option>`).join('')}</select></label></div>`;
+    nav.innerHTML = `<span role="status">Showing all ${total} matching items on one page</span>`;
     window.PortalCustomSelect?.initialise(nav);
   }
 
@@ -2076,6 +2242,12 @@
       if (requestVersion !== packingRefreshVersion) return null;
       packingDataVersion = String(data.dataVersion || '');
       tasks = data.tasks || [];
+      const periodControl = document.querySelector('select[data-packing-date]');
+      if (periodControl) {
+        const years = [...new Set([currentMonth.slice(0, 4), ...tasks.map(task => String(task.date_loaded || '').slice(0, 4)).filter(year => /^\d{4}$/.test(year))])].sort().reverse();
+        periodControl.innerHTML = '<option value="">All dates</option>' + years.map(year => `<optgroup label="${year}"><option value="${year}">Full year ${year}</option>${Array.from({length:12}, (_, index) => { const value = `${year}-${String(index + 1).padStart(2, '0')}`; return `<option value="${value}">${new Date(Number(year), index, 1).toLocaleDateString('en-GB', {month:'long', year:'numeric'})}</option>`; }).join('')}</optgroup>`).join('');
+        periodControl.value = state.date;
+      }
       if (Array.isArray(data.priorityLabels) && data.priorityLabels.length) {
         priorities = data.priorityLabels.map((item) => [String(item.key), String(item.label), String(item.color), String(item.textColor || readablePriorityTextColour(item.color))]);
       }
@@ -2584,7 +2756,7 @@
     if (panelSource) panelSource.textContent = currentTask.monday_item_id ? 'Imported from legacy Monday data' : 'Created in the portal';
     panelNotes.value = currentTask.packer_notes || '';
     const canEditOwn = canEditTask(currentTask);
-    const defaultPanelTab = preferredTab || (isFrontDeskAdmin() ? 'website' : 'overview');
+    const defaultPanelTab = preferredTab || (currentUser.can_view_front_website ? 'website' : 'overview');
     panelNotes.disabled = !canEditOwn;
     document.querySelectorAll('[data-packing-save-notes]').forEach((button) => { button.disabled = !canEditOwn; });
     document.querySelectorAll('[data-packing-panel-tab]').forEach((button) => {
@@ -3109,6 +3281,10 @@
 
   async function extractInvoiceDraft(form) {
     const button = document.querySelector('[data-extract-invoice]');
+    invoiceExtractionController?.abort();
+    const controller = new AbortController();
+    invoiceExtractionController = controller;
+    const version = ++invoiceExtractionVersion;
     try {
       button?.classList.add('is-loading');
       if (button) button.disabled = true;
@@ -3117,9 +3293,12 @@
       setInvoiceStatus('Extracting invoice items... please wait.');
       const formData = new FormData(form);
       formData.set('action', 'extract_invoice');
-      const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin' });
+      const response = await fetch(config.actionUrl, { method: 'POST', body: formData, credentials: 'same-origin', signal: controller.signal });
       const data = await readJson(response);
+      if (version !== invoiceExtractionVersion) return;
       invoiceDraftRows = (data.rows || []).map((row) => ({ ...row, unit: row.unit || detectedUnit(row.received_weight), priority: invoicePriority?.value || 'medium', assigned_employee_id: '', assigned_name: '', assignment_source: 'auto', quantity_confirmed: false, pack_parts: quantityPlanParts(row.quantity_planned || '') }));
+      autoDistributionSnapshot = [];
+      distributionReviewOpen = false;
       invoiceImportId = globalThis.crypto?.randomUUID?.() || `packing-import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
       const invoiceNumber = document.querySelector('[data-draft-invoice-number]');
       const invoiceDate = document.querySelector('[data-draft-invoice-date]');
@@ -3130,17 +3309,22 @@
       setInvoiceProgress(true, 'Extraction complete', `${invoiceDraftRows.length} draft row${invoiceDraftRows.length === 1 ? '' : 's'} ready for review.`, 'success');
       setInvoiceStatus(`${data.message} Confirm each received quantity and unit. Packing instructions follow after redistribution.`);
     } catch (error) {
+      if (version !== invoiceExtractionVersion || error.name === 'AbortError') return;
       setInvoiceStep('extract', 'error');
       setInvoiceProgress(true, 'Extraction failed', error.message || 'Could not extract this invoice. You can still use the manual fallback.', 'error');
       setInvoiceStatus(error.message || 'Invoice extraction failed.');
     } finally {
-      button?.classList.remove('is-loading');
-      if (button) button.disabled = false;
+      if (version === invoiceExtractionVersion) {
+        invoiceExtractionController = null;
+        button?.classList.remove('is-loading');
+        if (button) button.disabled = false;
+      }
     }
   }
 
   async function createInvoiceDraft(form) {
     const manualMode = packingDraftMode === 'manual';
+    if (!manualMode && !distributionReviewOpen) throw new Error('Review packer distribution before creating the packing list.');
     if (!invoiceDraftRows.length) {
       invoiceDraftRows = parseManualDraft(new FormData(form).get('invoice_draft') || '');
       renderInvoiceDraft();
@@ -3165,11 +3349,15 @@
       const formData = new FormData(form);
       const submittedRows = invoiceDraftRows.map((row) => ({
         ...row,
+        assignment_source: manualMode ? row.assignment_source : 'manual',
         received_weight: `${String(row.received_weight || '').match(/\d+(?:\.\d+)?/)?.[0] || ''}${row.unit || ''}`,
         allocation: quantityAccounting(row),
       }));
       const result = await post('create_invoice_rows', {
         rows_json: JSON.stringify(submittedRows),
+        distribution_reviewed: manualMode ? '0' : '1',
+        distribution_manually_adjusted: !manualMode && autoDistributionSnapshot.length === submittedRows.length && submittedRows.some((row, index) => String(row.assigned_employee_id || '') !== autoDistributionSnapshot[index]) ? '1' : '0',
+        reviewed_assignments_json: manualMode ? '[]' : JSON.stringify(submittedRows.map((row, index) => ({ index, item_name: row.item_name, received_weight: row.received_weight, quantity_planned: row.quantity_planned, assigned_employee_id: row.assigned_employee_id }))),
         declared_count: submittedCount,
         import_id: invoiceImportId,
         invoice_number: formData.get('invoice_number') || '',
@@ -3195,10 +3383,7 @@
       setInvoiceProgress(true, manualMode ? 'Packing items created' : 'Invoice loaded', `${submittedCount} of ${submittedCount} items loaded successfully.`, 'success');
       setInvoiceStatus(`${submittedCount} of ${submittedCount} items loaded successfully.`);
       await refresh();
-      invoiceDraftRows = [];
-      if (manualMode) manualDraftRows = [];
-      invoiceImportId = '';
-      if (!manualMode) saveInvoiceCorrectionDraft();
+      clearPackingUploadDraft();
       invoiceModal.hidden = true;
       setInvoiceStep('upload');
       setCount(result.message || 'Packing rows created and synced.');
@@ -3530,6 +3715,8 @@
     const removeInvoiceFile = event.target.closest('[data-remove-invoice-file]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
     const redistributeDraft = event.target.closest('[data-redistribute-draft]');
+    const reviewDistributionButton = event.target.closest('[data-confirm-quantities-create]');
+    const resetAutoDistribution = event.target.closest('[data-reset-auto-distribution]');
     const splitDraftRowButton = event.target.closest('[data-split-draft-row]');
     const removeDraftRow = event.target.closest('[data-remove-draft-row]');
     const confirmQuantityRow = event.target.closest('[data-confirm-quantity-row]');
@@ -3689,8 +3876,8 @@
         return;
       }
       if (closeModal) {
-        if (packingDraftMode === 'manual') manualDraftRows = invoiceDraftRows.map((row) => ({ ...row }));
-        else saveInvoiceCorrectionDraft();
+        clearPackingUploadDraft();
+        createModal?.querySelector('form')?.reset();
         createModal.hidden = true;
         invoiceModal.hidden = true;
         lastPackingModalTrigger?.focus({ preventScroll: true });
@@ -3744,6 +3931,26 @@
         await runRedistributeDraft(redistributeDraft);
         redistributeDraft.classList.remove('is-loading');
         redistributeDraft.disabled = false;
+        return;
+      }
+      if (reviewDistributionButton && reviewDistributionButton.type === 'button') {
+        // Cancel this click's default action BEFORE changing the button to submit.
+        // Otherwise the browser submits immediately after opening the review.
+        event.preventDefault();
+        event.stopPropagation();
+        openDistributionReview();
+        return;
+      }
+      if (resetAutoDistribution) {
+        invoiceDraftRows.forEach((row) => { row.assigned_employee_id = ''; row.assigned_name = ''; row.assignment_source = 'auto'; });
+        if (autoDistributionSnapshot.length === invoiceDraftRows.length && autoDistributionSnapshot.every((id) => packers.some((packer) => String(packer.id) === id))) {
+          invoiceDraftRows.forEach((row, index) => { row.assigned_employee_id = autoDistributionSnapshot[index]; row.assigned_name = packers.find((packer) => String(packer.id) === autoDistributionSnapshot[index])?.full_name || ''; });
+        } else {
+          redistributeDraftRows();
+          autoDistributionSnapshot = invoiceDraftRows.map((row) => String(row.assigned_employee_id || ''));
+        }
+        renderInvoiceDraft();
+        setInvoiceStatus('Original automatic packer distribution restored. Review before creating.');
         return;
       }
       if (togglePackBuilder) {
@@ -4056,6 +4263,7 @@
         tab.classList.add('active', 'is-active');
         tab.setAttribute('aria-selected', 'true');
         document.querySelector(`[data-packing-panel-name="${tab.dataset.packingPanelTab}"]`)?.classList.add('active');
+        if (currentTask && currentUser.can_view_front_website) renderWebsiteConfirmation(currentTask);
         if (currentTask && tab.dataset.packingPanelTab === 'details') markPackingItemUpdatesRead(currentTask.id, ['note_added']);
         if (currentTask && tab.dataset.packingPanelTab === 'files') markPackingItemUpdatesRead(currentTask.id, ['file_uploaded']);
         return;
@@ -4150,6 +4358,20 @@
       applyInvoicePriorityToDraftRows(event.target.value || 'medium');
       renderInvoiceDraft();
       setInvoiceStatus('Priority updated for draft rows.');
+    }
+    const reviewPacker = event.target.closest('[data-review-packer]');
+    if (reviewPacker) {
+      const row = invoiceDraftRows[Number(reviewPacker.dataset.reviewPacker)];
+      const packer = packers.find((item) => String(item.id) === String(reviewPacker.value));
+      if (!row) return;
+      row.assigned_employee_id = packer ? String(packer.id) : '';
+      row.assigned_name = packer?.full_name || '';
+      row.assignment_source = 'manual';
+      renderDistributionReview();
+      renderDraftWorkloadSummary();
+      saveInvoiceCorrectionDraft();
+      setInvoiceStatus(packer ? `${row.item_name || 'Item'} will be assigned to ${packer.full_name}.` : 'Choose an active employee eligible for Packing.');
+      return;
     }
     const draftField = event.target.closest('[data-draft-field]');
     if (draftField) {
@@ -4427,6 +4649,7 @@
   });
 
   const storedTheme = localStorage.getItem('hambelelaPackingTheme');
+  clearPackingUploadDraft();
   if (storedTheme) page.dataset.boardTheme = storedTheme;
   updateFilterBadge();
   animateMetricCards();
