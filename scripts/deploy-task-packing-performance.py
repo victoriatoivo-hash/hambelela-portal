@@ -105,6 +105,12 @@ def main(mode, approved_sha):
             "conflicts": conflicts,
         }
         if conflicts:
+            with zipfile.ZipFile(BACKUP, "w") as archive:
+                for path, data in existing.items():
+                    if data is not None:
+                        archive.writestr(path, data)
+                archive.writestr("manifest.json", json.dumps(report, indent=2))
+        if conflicts:
             report["state"] = "blocked-live-baseline-mismatch"
             save_report(report)
             raise RuntimeError("Live Task or Packing files differ from the approved baseline; nothing was uploaded")
