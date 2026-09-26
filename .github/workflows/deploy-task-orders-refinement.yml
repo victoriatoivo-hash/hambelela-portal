@@ -1,0 +1,58 @@
+name: Deploy Task and Orders refinement
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preflight only or deploy the approved Task and Orders delta
+        required: true
+        type: choice
+        options:
+          - preflight
+          - deploy
+      approved_sha:
+        description: Exact main commit SHA to verify and deploy
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy-task-orders-refinement:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+      - name: Validate approved Task and Orders release
+        run: |
+          php -l apps/operations/checklists.php
+          php -l apps/operations/partials/checklist-recurring-tasks.php
+          php -l apps/operations/orders-board.php
+          node --check assets/js/orders-board.js
+          node --test tests/task-recurring-refinement-static.test.js tests/orders-detail-identity-static.test.js tests/task-completed-correction-static.test.js
+          python3 -m py_compile scripts/deploy-task-orders-refinement.py
+      - name: Back up and publish only the approved runtime files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-task-orders-refinement.py "$MODE" "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: task-orders-refinement-${{ github.run_id }}
+          path: |
+            task-orders-refinement-deployment-report.json
+            task-orders-refinement-deployment-backup.zip
+          if-no-files-found: warn
