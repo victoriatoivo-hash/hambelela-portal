@@ -198,7 +198,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
     <aside class="order-panel" id="order-updates-panel" data-orders-details-panel aria-hidden="true" aria-labelledby="panel-order-title">
         <header class="order-panel-header">
             <button class="order-panel-close" type="button" data-panel-close aria-label="Close order panel"><i data-lucide="x"></i></button>
-            <div class="order-panel-heading"><span class="order-panel-kicker">Order</span><h2 class="order-panel-title" id="panel-order-title">Order</h2><div class="order-panel-meta" id="panel-order-meta"></div></div>
+            <div class="order-panel-heading"><span class="order-panel-kicker">Order details</span><div class="orders-detail-heading"><h2 class="order-panel-title orders-detail-number" id="panel-order-title">Order</h2><span class="orders-detail-customer" id="panel-order-customer">Customer</span></div><div class="order-panel-meta" id="panel-order-meta"></div></div>
             <button class="order-panel-menu" type="button" data-order-panel-menu aria-label="Open order actions"><span></span><span></span><span></span></button>
         </header>
         <nav class="order-panel-tabs updates-tabs portal-panel-tabs" role="tablist" aria-label="Order details sections">

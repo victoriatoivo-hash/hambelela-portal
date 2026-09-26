@@ -162,6 +162,10 @@ body.ess-dashboard .ess-orders-page .orders-tools-tab svg {width:28px;height:28p
 body.ess-dashboard .ess-orders-page .orders-tools-tab.is-active {border-color:var(--orders-200);background:var(--orders-50);color:var(--orders-800);}
 body.ess-dashboard .ess-orders-page :is(.orders-tools-content,.order-panel-body) {background:var(--cream-2);}
 body.ess-dashboard .ess-orders-page .order-panel-title {white-space:normal;overflow-wrap:anywhere;font-size:18px;font-weight:500;}
+body.ess-dashboard .ess-orders-page .order-panel-kicker {color:var(--orders-700);font-size:9px;font-weight:600;letter-spacing:.12em;text-transform:uppercase;}
+body.ess-dashboard .ess-orders-page .orders-detail-heading {display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 9px;min-width:0;}
+body.ess-dashboard .ess-orders-page .orders-detail-number {margin:0;color:var(--text-primary);font-size:20px;font-weight:600;line-height:1.25;}
+body.ess-dashboard .ess-orders-page .orders-detail-customer {min-width:0;color:var(--text-secondary);font-size:13px;font-weight:500;line-height:1.35;overflow-wrap:anywhere;}
 body.ess-dashboard .ess-orders-page .order-panel-tab {font-size:10px;gap:5px;padding:0 9px;}
 body.ess-dashboard .ess-orders-page .order-panel-tab.is-active {color:var(--orders-800);}
 body.ess-dashboard .ess-orders-page .order-panel-tab.is-active::after {background:var(--orders-600);}

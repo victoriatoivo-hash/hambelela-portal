@@ -18,6 +18,7 @@
   const panel = document.getElementById('order-updates-panel');
   const backdrop = document.getElementById('panel-backdrop');
   const panelTitle = document.getElementById('panel-order-title');
+  const panelCustomer = document.getElementById('panel-order-customer');
   const panelMeta = document.getElementById('panel-order-meta');
   const panelItems = document.getElementById('panel-order-items');
   const panelEditor = document.getElementById('panel-update-editor');
@@ -3476,10 +3477,18 @@
     return 'SS';
   }
 
-  function orderPanelTitle(order) {
-    const number = formatOrderInvoiceReference(order?.order_number || '');
-    const name = String(order?.customer_name || '').trim();
-    return `${number}${name ? ` ${name}` : ''}`;
+  function orderPanelIdentity(order) {
+    const sourceNumber = String(order?.order_number || '').trim();
+    const number = formatOrderInvoiceReference(sourceNumber || (order?.id ? `Order #${order.id}` : ''));
+    const customer = String(order?.customer_name || '').trim() || 'Customer not recorded';
+    return { number, customer };
+  }
+
+  function renderOrderPanelIdentity(order) {
+    const identity = orderPanelIdentity(order);
+    if (panelTitle) panelTitle.textContent = identity.number;
+    if (panelCustomer) panelCustomer.textContent = identity.customer;
+    if (panelMeta) panelMeta.textContent = prettyDate(orderDisplayDateTime(order));
   }
 
   function savedUpdateBody(order) {
@@ -4071,8 +4080,7 @@
 
   function syncOpenOrderPanel(orderId, field) {
     if (!currentOrder || String(currentOrder.id) !== String(orderId) || !panel.classList.contains('is-open')) return;
-    panelTitle.textContent = orderPanelTitle(currentOrder);
-    if (panelMeta) panelMeta.textContent = [currentOrder.customer_name, prettyDate(orderDisplayDateTime(currentOrder))].filter(Boolean).join(' / ');
+    renderOrderPanelIdentity(currentOrder);
     if (field === 'notes') renderPanelUpdates();
     renderPanelDetails();
     renderPanelActivity();
@@ -4257,8 +4265,7 @@
     if (!currentOrder) return;
     panelReturnPosition = ordersTablePosition(sourceElement, orderId);
     panelReturnTrigger = sourceElement instanceof HTMLElement ? sourceElement : null;
-    panelTitle.textContent = orderPanelTitle(currentOrder);
-    if (panelMeta) panelMeta.textContent = [currentOrder.customer_name, prettyDate(orderDisplayDateTime(currentOrder))].filter(Boolean).join(' • ');
+    renderOrderPanelIdentity(currentOrder);
     panel.querySelectorAll('[data-panel-tab]').forEach((button) => {
       button.classList.remove('active', 'is-active');
       button.setAttribute('aria-selected', 'false');
