@@ -62,6 +62,7 @@
   let packingRefreshRequest = null;
   let packingRefreshVersion = 0;
   let packingRefreshTimer = null;
+  let packingDataVersion = '';
   const failedPackingFiles = new Map();
 
   function isFrontDeskAdmin() {
@@ -2064,10 +2065,16 @@
     packingRefreshRequest = (async () => {
       let loadedData = null;
       try {
+      if (background && packingDataVersion) {
+        const versionResponse = await fetch(`${config.dataUrl}?version_only=1&t=${Date.now()}`, { credentials: 'same-origin' });
+        const versionData = await readJson(versionResponse);
+        if (String(versionData.dataVersion || '') === packingDataVersion) return null;
+      }
       const response = await fetch(`${config.dataUrl}?t=${Date.now()}`, { credentials: 'same-origin' });
       const data = await readJson(response);
       loadedData = data;
       if (requestVersion !== packingRefreshVersion) return null;
+      packingDataVersion = String(data.dataVersion || '');
       tasks = data.tasks || [];
       if (Array.isArray(data.priorityLabels) && data.priorityLabels.length) {
         priorities = data.priorityLabels.map((item) => [String(item.key), String(item.label), String(item.color), String(item.textColor || readablePriorityTextColour(item.color))]);
@@ -2118,11 +2125,11 @@
     finally { packingRefreshRequest = null; }
   }
 
-  function schedulePackingRefresh(delay = 30000) {
+  function schedulePackingRefresh(delay = 60000) {
     if (packingRefreshTimer) window.clearTimeout(packingRefreshTimer);
     packingRefreshTimer = window.setTimeout(async () => {
       try { await refresh({ background: true }); } catch (_) { /* Manual refresh remains available. */ }
-      schedulePackingRefresh(document.hidden ? 120000 : 30000);
+      schedulePackingRefresh(document.hidden ? 180000 : 60000);
     }, delay);
   }
 

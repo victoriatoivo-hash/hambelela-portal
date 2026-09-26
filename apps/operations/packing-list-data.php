@@ -18,6 +18,38 @@ if (!ops_database_ready() || !ops_table_exists('ops_packing_tasks')) {
     exit;
 }
 
+function packing_list_data_version(bool $canViewAll, ?int $employeeId): string
+{
+    $where = [];
+    $params = [];
+    if (!$canViewAll) {
+        $where[] = 'assigned_employee_id = ?';
+        $params[] = (int) ($employeeId ?: 0);
+    }
+    $rows = ops_rows(
+        "SELECT COUNT(*) AS row_count, MAX(GREATEST(COALESCE(updated_at, '1970-01-01 00:00:00'), created_at)) AS latest_update FROM ops_packing_tasks"
+            . ($where ? ' WHERE ' . implode(' AND ', $where) : ''),
+        $params
+    );
+    $row = $rows[0] ?? [];
+    return (string) ((int) ($row['row_count'] ?? 0)) . ':' . (string) ($row['latest_update'] ?? '');
+}
+
+$currentEmployeeId = ops_current_employee_id();
+$currentRoleKey = current_role_key();
+$canViewAllPackingItems = in_array($currentRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
+$canViewAssignedPackingItems = in_array($currentRoleKey, ['packer', 'packer_production_staff'], true);
+if (!$canViewAllPackingItems && !$canViewAssignedPackingItems) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'message' => 'You do not have permission to view the Packing List.']);
+    exit;
+}
+$dataVersion = packing_list_data_version($canViewAllPackingItems, $currentEmployeeId);
+if ((string) ($_GET['version_only'] ?? '') === '1') {
+    echo json_encode(['ok' => true, 'dataVersion' => $dataVersion]);
+    exit;
+}
+
 $hasReceivedWeight = ops_column_exists('ops_packing_tasks', 'received_weight');
 $hasPackingConfirmed = ops_column_exists('ops_packing_tasks', 'packing_website_confirmed');
 $hasDateStarted = ops_column_exists('ops_packing_tasks', 'date_started');
@@ -47,15 +79,6 @@ $mondayErrorSelect = $hasMondayError ? 'pt.monday_sync_error' : 'NULL AS monday_
 $packingRowKeySelect = $hasPackingRowKey ? 'pt.packing_row_key' : 'NULL AS packing_row_key';
 $packerNotesSelect = $hasPackerNotes ? 'pt.packer_notes' : "'' AS packer_notes";
 
-$currentEmployeeId = ops_current_employee_id();
-$currentRoleKey = current_role_key();
-$canViewAllPackingItems = in_array($currentRoleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true);
-$canViewAssignedPackingItems = in_array($currentRoleKey, ['packer', 'packer_production_staff'], true);
-if (!$canViewAllPackingItems && !$canViewAssignedPackingItems) {
-    http_response_code(403);
-    echo json_encode(['ok' => false, 'message' => 'You do not have permission to view the Packing List.']);
-    exit;
-}
 $canManage = user_has_role('owner_admin', 'front_desk_admin', 'supervisor_manager');
 $canViewFrontdeskWebsite = user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee');
 $canConfirmFrontdeskWebsite = user_has_role('front_desk_admin', 'front_desk_admin_employee');
@@ -74,7 +97,9 @@ $websiteWorkflowJoins = $hasWebsiteWorkflows
 // host's UTC time to date_loaded while a database default populated
 // date_completed in portal time. The completed value is the reliable import
 // moment for these untouched Not Started rows, then completion is cleared.
-if ($canManage) {
+$packingCleanupMigration = '2026-09-26-packing-import-cleanup-v1';
+$packingCleanupApplied = !empty(ops_rows('SELECT 1 FROM portal_schema_migrations WHERE migration_key = ? LIMIT 1', [$packingCleanupMigration]));
+if ($canManage && !$packingCleanupApplied) {
     $repair = db()->prepare(
         "UPDATE ops_packing_tasks
          SET date_loaded = date_completed,
@@ -144,6 +169,12 @@ if ($canManage) {
             'rows_cleared' => $clearedGeneratedNotes,
             'changed_by' => current_user()['name'] ?? 'Unknown',
         ]);
+    }
+    try {
+        db()->exec("CREATE TABLE IF NOT EXISTS portal_schema_migrations (migration_key VARCHAR(190) PRIMARY KEY, applied_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        db()->prepare('INSERT IGNORE INTO portal_schema_migrations (migration_key) VALUES (?)')->execute([$packingCleanupMigration]);
+    } catch (Throwable $migrationError) {
+        error_log('Packing cleanup migration could not be recorded: ' . $migrationError->getMessage());
     }
 }
 
@@ -282,6 +313,7 @@ unset($task);
 
 echo json_encode([
     'ok' => true,
+    'dataVersion' => $dataVersion,
     'tasks' => $tasks,
     'assignmentUnreadCount' => notifications_packing_assignment_unread_count((int) ($currentEmployeeId ?: 0)),
     'assignmentUnreadIds' => notifications_packing_assignment_unread_ids((int) ($currentEmployeeId ?: 0)),

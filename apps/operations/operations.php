@@ -1005,6 +1005,9 @@ function ops_log_initial_order_assignment(int $orderId, ?int $packerId, string $
 
 function ops_column_exists(string $table, string $column): bool
 {
+    static $confirmed = [];
+    $cacheKey = $table . '.' . $column;
+    if (!empty($confirmed[$cacheKey])) return true;
     $stmt = null;
     try {
         $stmt = db()->prepare(
@@ -1012,6 +1015,7 @@ function ops_column_exists(string $table, string $column): bool
         );
         $stmt->execute([$table, $column]);
         $exists = (int) $stmt->fetchColumn() > 0;
+        if ($exists) $confirmed[$cacheKey] = true;
 
         return $exists;
     } catch (Throwable $e) {
@@ -1130,11 +1134,14 @@ function ops_employee_can_receive_packing(int $employeeId, bool $automatic = fal
 
 function ops_table_exists(string $table): bool
 {
+    static $confirmed = [];
+    if (!empty($confirmed[$table])) return true;
     $stmt = null;
     try {
         $stmt = db()->prepare('SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?');
         $stmt->execute([$table]);
         $exists = (int) $stmt->fetchColumn() > 0;
+        if ($exists) $confirmed[$table] = true;
 
         return $exists;
     } catch (Throwable $e) {
