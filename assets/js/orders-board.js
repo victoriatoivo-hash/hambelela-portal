@@ -63,6 +63,7 @@
   let personPopupTrigger = null;
   let personPopupOrderId = '';
   let labelMenuCloseTimer = null;
+  let ordersSearchTimer = null;
   let ordersCache = [];
   let packersCache = [];
   let currentUser = {};
@@ -245,6 +246,23 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
   })[char]);
   const selectorEsc = (value) => window.CSS && CSS.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&');
+
+  function scheduleOrdersSearch(value, source = null) {
+    const nextValue = String(value ?? '');
+    const valueChanged = boardState.search !== nextValue;
+    boardState.search = nextValue;
+
+    document.querySelectorAll('[data-toolbar-search], [data-board-search]').forEach((input) => {
+      if (input !== source && input.value !== nextValue) input.value = nextValue;
+    });
+
+    if (!valueChanged) return;
+    window.clearTimeout(ordersSearchTimer);
+    ordersSearchTimer = window.setTimeout(() => {
+      ordersSearchTimer = null;
+      renderOrders(ordersCache);
+    }, 180);
+  }
 
   function closeOrdersFilterMenu() {
     if (!filterMenu) return;
@@ -4415,7 +4433,7 @@
         throw new Error(`Board returned an unsupported response mode: ${responseMode || 'unknown'}.`);
       }
       if (syncState && !lastSyncMessage) {
-        const count = data.orders?.length || 0;
+        const count = ordersCache.length;
         const range = activeDateRange();
         const suffix = boardDateScope === 'all'
           ? ' across all dates'
@@ -5528,14 +5546,12 @@
 
     const search = event.target.closest('[data-toolbar-search]');
     if (search) {
-      boardState.search = search.value;
-      renderOrders(ordersCache);
+      scheduleOrdersSearch(search.value, search);
     }
 
     const boardSearch = event.target.closest('[data-board-search]');
     if (boardSearch) {
-      boardState.search = boardSearch.value;
-      renderOrders(ordersCache);
+      scheduleOrdersSearch(boardSearch.value, boardSearch);
     }
 
     const labelName = event.target.closest('[data-label-editor] [data-label-name]');

@@ -192,19 +192,15 @@ if ($orderIds) {
         $orderIds
     );
     $itemsByOrder = [];
-    foreach ($orderItems as $item) {
-        $itemsByOrder[(int) ($item['order_id'] ?? 0)][] = $item;
-    }
-    $itemStats = ops_rows(
-        "SELECT order_id, COUNT(id) AS item_lines, COALESCE(SUM(quantity), 0) AS item_quantity
-         FROM ops_order_items
-         WHERE order_id IN ({$placeholders})
-         GROUP BY order_id",
-        $orderIds
-    );
     $itemStatsByOrder = [];
-    foreach ($itemStats as $stat) {
-        $itemStatsByOrder[(int) ($stat['order_id'] ?? 0)] = $stat;
+    foreach ($orderItems as $item) {
+        $itemOrderId = (int) ($item['order_id'] ?? 0);
+        $itemsByOrder[$itemOrderId][] = $item;
+        if (!isset($itemStatsByOrder[$itemOrderId])) {
+            $itemStatsByOrder[$itemOrderId] = ['item_lines' => 0, 'item_quantity' => 0.0];
+        }
+        $itemStatsByOrder[$itemOrderId]['item_lines']++;
+        $itemStatsByOrder[$itemOrderId]['item_quantity'] += (float) ($item['quantity'] ?? 0);
     }
     foreach ($orders as &$order) {
         $fulfilment = ops_resolve_order_fulfilment($order);
@@ -292,27 +288,35 @@ $metricWhere = $dateStart !== '' && $dateEnd !== ''
     ? "{$metricDateTimeExpr} >= '" . str_replace("'", "''", $dateStart) . "' AND {$metricDateTimeExpr} < '" . str_replace("'", "''", $dateEnd) . "'"
     : '1=1';
 $metricWhere .= $archiveMetricWhere;
-$validRevenueWhere = $metricWhere . " AND payment_status = 'paid' AND status NOT IN ('cancelled', 'canceled', 'refunded', 'failed', 'error_logged') AND payment_status NOT IN ('refunded', 'cancelled', 'canceled', 'failed')";
-$businessOverdueWhere = $metricWhere
-    . " AND TIME({$metricDateTimeExpr}) >= '" . OPS_BUSINESS_START . "'"
-    . " AND TIME({$metricDateTimeExpr}) < '" . OPS_BUSINESS_END . "'"
-    . " AND {$metricDateTimeExpr} < DATE_SUB(NOW(), INTERVAL 4 HOUR)"
-    . " AND status NOT IN ('completed', 'packed', 'verified', 'cancelled', 'canceled', 'refunded', 'failed')";
-
+$revenueAggregate = $hasTotalAmount
+    ? "COALESCE(SUM(CASE WHEN payment_status = 'paid' AND status NOT IN ('cancelled', 'canceled', 'refunded', 'failed', 'error_logged') AND payment_status NOT IN ('refunded', 'cancelled', 'canceled', 'failed') THEN total_amount ELSE 0 END), 0)"
+    : '0';
+$metricRows = ops_rows(
+    "SELECT
+        COUNT(*) AS total_orders,
+        COALESCE(SUM(CASE WHEN status = 'new_order' THEN 1 ELSE 0 END), 0) AS new_today,
+        COALESCE(SUM(CASE WHEN status = 'in_progress' THEN 1 ELSE 0 END), 0) AS in_progress_today,
+        COALESCE(SUM(CASE WHEN status IN ('completed', 'packed', 'verified') THEN 1 ELSE 0 END), 0) AS completed_all,
+        COALESCE(SUM(CASE WHEN assigned_packer_id IS NULL AND status NOT IN ('completed', 'packed', 'verified') THEN 1 ELSE 0 END), 0) AS unassigned_orders,
+        COALESCE(SUM(CASE WHEN TIME({$metricDateTimeExpr}) >= '" . OPS_BUSINESS_START . "'
+            AND TIME({$metricDateTimeExpr}) < '" . OPS_BUSINESS_END . "'
+            AND {$metricDateTimeExpr} < DATE_SUB(NOW(), INTERVAL 4 HOUR)
+            AND status NOT IN ('completed', 'packed', 'verified', 'cancelled', 'canceled', 'refunded', 'failed')
+            THEN 1 ELSE 0 END), 0) AS overdue_orders,
+        {$revenueAggregate} AS total_revenue
+     FROM ops_orders
+     WHERE {$metricWhere}"
+);
+$metricRow = $metricRows[0] ?? [];
 $metrics = [
-    'total_orders' => ops_count('ops_orders', $metricWhere),
-    'new_today' => ops_count('ops_orders', $metricWhere . " AND status = 'new_order'"),
-    'in_progress_today' => ops_count('ops_orders', $metricWhere . " AND status = 'in_progress'"),
-    'completed_all' => ops_count('ops_orders', $metricWhere . " AND status IN ('completed', 'packed', 'verified')"),
-    'unassigned_orders' => ops_count('ops_orders', $metricWhere . " AND assigned_packer_id IS NULL AND status NOT IN ('completed', 'packed', 'verified')"),
-    'overdue_orders' => ops_count('ops_orders', $businessOverdueWhere),
-    'total_revenue' => 0,
+    'total_orders' => (int) ($metricRow['total_orders'] ?? 0),
+    'new_today' => (int) ($metricRow['new_today'] ?? 0),
+    'in_progress_today' => (int) ($metricRow['in_progress_today'] ?? 0),
+    'completed_all' => (int) ($metricRow['completed_all'] ?? 0),
+    'unassigned_orders' => (int) ($metricRow['unassigned_orders'] ?? 0),
+    'overdue_orders' => (int) ($metricRow['overdue_orders'] ?? 0),
+    'total_revenue' => (float) ($metricRow['total_revenue'] ?? 0),
 ];
-
-if ($hasTotalAmount) {
-    $revenueRows = ops_rows("SELECT COALESCE(SUM(total_amount), 0) AS total_revenue FROM ops_orders WHERE {$validRevenueWhere}");
-    $metrics['total_revenue'] = (float) ($revenueRows[0]['total_revenue'] ?? 0);
-}
 
 $hasPackingAssignable = ops_ensure_packing_assignable_column();
 $packingEligibilityWhere = $hasPackingAssignable
@@ -414,7 +418,6 @@ echo json_encode([
     'success' => true,
     'mode' => $incremental ? 'delta' : 'snapshot',
     'data' => $responseData,
-    'orders' => $orders,
     'incremental' => $incremental,
     'removed_ids' => $removedIds,
     'metrics' => $metrics,
