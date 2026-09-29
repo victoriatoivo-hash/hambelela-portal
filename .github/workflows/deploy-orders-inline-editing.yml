@@ -1,0 +1,64 @@
+name: Deploy Orders inline editing persistence fix
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Preflight only or deploy the approved Orders inline-editing fix
+        required: true
+        type: choice
+        options:
+          - preflight
+          - deploy
+      approved_sha:
+        description: Exact main commit SHA to verify and deploy
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy-orders-inline-editing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate Orders inline-editing release
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.approved_sha }}"
+          php -l apps/operations/orders-board-action.php
+          node --check assets/js/orders-board.js
+          node tests/orders-inline-editing-persistence-static.mjs
+          node tests/orders-invoice-reference-static.mjs
+          node tests/orders-board-loading-ux-static.mjs
+          node tests/orders-performance-static.mjs
+          node tests/orders-live-refresh-cadence-static.mjs
+          node tests/orders-sync-static.mjs
+          node tests/orders-detail-identity-static.test.js
+          python3 -m py_compile scripts/deploy-orders-inline-editing.py
+      - name: Back up and publish only approved Orders files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-orders-inline-editing.py "${{ inputs.mode }}" "${{ inputs.approved_sha }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orders-inline-editing-${{ github.run_id }}
+          path: |
+            orders-inline-editing-deployment-report.json
+            orders-inline-editing-deployment-backup.zip
+          if-no-files-found: warn
