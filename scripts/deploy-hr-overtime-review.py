@@ -52,7 +52,7 @@ def validate(sha):
 
 def run_live_migration(ftp):
     token = secrets.token_urlsafe(32)
-    name = ".codex-overtime-migrate-" + secrets.token_hex(8) + ".php"
+    name = "overtime-schema-" + secrets.token_hex(8) + ".php"
     path = "apps/hr-portal/" + name
     php = f'''<?php
 header('Content-Type: application/json');
@@ -69,7 +69,11 @@ echo json_encode(['ok'=>!array_diff($wanted,$columns)&&$audit===1,'columns'=>arr
     write_remote(ftp, path, php)
     try:
         data = urllib.parse.urlencode({"token": token}).encode()
-        request = urllib.request.Request("https://portal.hambelelaorganic.com/apps/hr-portal/" + name, data=data)
+        request = urllib.request.Request(
+            "https://portal.hambelelaorganic.com/apps/hr-portal/" + name,
+            data=data,
+            headers={"User-Agent": "Hambelela-Deployment-Validator/1.0", "Content-Type": "application/x-www-form-urlencoded"},
+        )
         with urllib.request.urlopen(request, timeout=45) as response: result = json.loads(response.read().decode())
         if not result.get("ok"): raise RuntimeError(f"Live overtime migration verification failed: {result}")
         return result
