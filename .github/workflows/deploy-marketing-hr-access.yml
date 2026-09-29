@@ -1,0 +1,58 @@
+name: Deploy Marketing HR self-access
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validate or deploy the approved Marketing HR access fix
+        required: true
+        type: choice
+        options:
+          - preflight
+          - deploy
+      approved_sha:
+        description: Exact main commit SHA to verify and deploy
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy-marketing-hr-access:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+      - name: Validate Marketing HR self-access release
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: |
+          php -l shared/employee-features.php
+          node --test tests/marketing-hr-self-access-static.mjs tests/hr-loan-portal-notifications-static.mjs tests/hr-probation-leave-entitlements-static.mjs
+          python3 -m py_compile scripts/deploy-marketing-hr-access.py
+          python3 scripts/deploy-marketing-hr-access.py preflight "$APPROVED_SHA"
+      - name: Back up and publish only the approved HR permission file
+        if: inputs.mode == 'deploy'
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-marketing-hr-access.py deploy "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: marketing-hr-access-${{ github.run_id }}
+          path: |
+            marketing-hr-access-deployment-report.json
+            marketing-hr-access-deployment-backup.zip
+          if-no-files-found: warn
