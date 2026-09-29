@@ -1,0 +1,58 @@
+name: Deploy HR overtime review
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Validate or deploy the approved overtime release
+        required: true
+        type: choice
+        options: [preflight, deploy]
+      approved_sha:
+        description: Exact main commit SHA to verify and deploy
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: shivammathur/setup-php@v2
+        with: {php-version: '8.1'}
+      - name: Validate release
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: |
+          php -l apps/hr-portal/includes/overtime-review.php
+          php -l apps/hr-portal/overtime.php
+          php -l apps/hr-portal/my-overtime.php
+          php -l apps/hr-portal/payroll.php
+          php -l apps/hr-portal/install.php
+          node tests/hr-overtime-review-static.mjs
+          python3 -m py_compile scripts/deploy-hr-overtime-review.py
+          python3 scripts/deploy-hr-overtime-review.py preflight "$APPROVED_SHA"
+      - name: Back up, publish and migrate
+        if: inputs.mode == 'deploy'
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-hr-overtime-review.py deploy "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hr-overtime-review-${{ github.run_id }}
+          path: |
+            hr-overtime-review-deployment-report.json
+            hr-overtime-review-deployment-backup.zip
+          if-no-files-found: warn

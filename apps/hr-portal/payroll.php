@@ -36,8 +36,10 @@ require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/loan-agreements.php';
 requireAdmin();
 require_once __DIR__ . '/includes/email.php';
+require_once __DIR__ . '/includes/overtime-review.php';
 $user = currentUser();
 $db   = db();
+hrEnsureOvertimeReviewSchema($db);
 loanAgreementEnsureSchema($db);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 $socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
@@ -137,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $basic = (float)$emp['basic_salary'];
 
             // Get approved OT for this month
-            $ot = $db->prepare("SELECT SUM(amount) FROM overtime WHERE employee_id=? AND status='approved' AND MONTH(ot_date)=? AND YEAR(ot_date)=?");
+            $ot = $db->prepare("SELECT SUM(approved_amount) FROM overtime WHERE employee_id=? AND status='approved' AND approved_amount IS NOT NULL AND MONTH(ot_date)=? AND YEAR(ot_date)=?");
             $ot->execute([$emp['id'],$month,$year]);
             $ot_pay = (float)($ot->fetchColumn() ?? 0);
 
@@ -188,6 +190,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         // Finalise run
         $db->prepare("UPDATE payroll_runs SET status='finalised' WHERE id=?")->execute([$run]);
+        $db->prepare("UPDATE overtime SET payroll_run_id=?, payroll_processed_at=NOW() WHERE status='approved' AND approved_amount IS NOT NULL AND MONTH(ot_date)=? AND YEAR(ot_date)=? AND payroll_run_id IS NULL")
+           ->execute([$run,$month,$year]);
         try {
             $summary = $db->prepare("SELECT COUNT(*) AS employee_count, COALESCE(SUM(net_salary),0) AS total_net, COALESCE(SUM(ssf),0) AS total_ssf FROM payslips WHERE run_id=?");
             $summary->execute([$run]);
@@ -201,6 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete_run') {
         $runId = (int)($_POST['run_id'] ?? 0);
         if ($runId) {
+            $db->prepare("UPDATE overtime SET payroll_run_id=NULL, payroll_processed_at=NULL WHERE payroll_run_id=?")->execute([$runId]);
             $db->prepare("DELETE FROM payslips WHERE run_id=?")->execute([$runId]);
             $db->prepare("DELETE FROM payroll_runs WHERE id=?")->execute([$runId]);
         }

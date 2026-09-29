@@ -2,26 +2,64 @@
 require_once __DIR__ . '/config.php';
 requireAdmin();
 require_once __DIR__ . '/includes/email.php';
+require_once __DIR__ . '/includes/overtime-review.php';
 $user = currentUser();
 $db   = db();
+hrEnsureOvertimeReviewSchema($db);
 
 // ── Actions ──────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
-    if ($action === 'approve' || $action === 'reject') {
+    if (in_array($action, ['approve','adjust_approve','reject'], true)) {
         $id     = (int)($_POST['ot_id'] ?? 0);
-        $status = $action === 'approve' ? 'approved' : 'rejected';
+        $status = $action === 'reject' ? 'rejected' : 'approved';
         if ($id) {
-            $db->prepare("UPDATE overtime SET status=?, approved_by=?, approved_at=NOW() WHERE id=?")
-               ->execute([$status, $user['id'], $id]);
+            $db->beginTransaction();
+            $locked = $db->prepare("SELECT * FROM overtime WHERE id=? FOR UPDATE");
+            $locked->execute([$id]);
+            $before = $locked->fetch();
+            if (!$before) {
+                $db->rollBack();
+                header('Location: overtime.php?msg=missing'); exit;
+            }
+            if (!empty($before['payroll_run_id']) || !empty($before['payroll_processed_at'])) {
+                $db->rollBack();
+                header('Location: overtime.php?msg=processed'); exit;
+            }
+            $reason = trim(clean($_POST['adjustment_reason'] ?? ''));
+            if ($action === 'reject') {
+                if ($reason === '') {
+                    $db->rollBack();
+                    header('Location: overtime.php?msg=reason_required'); exit;
+                }
+                $db->prepare("UPDATE overtime SET status='rejected', approved_start_time=NULL, approved_end_time=NULL, approved_hours=NULL, approved_amount=NULL, review_outcome='rejected', adjustment_reason=?, approved_by=?, approved_at=NOW() WHERE id=?")
+                   ->execute([$reason, $user['id'], $id]);
+            } else {
+                $approvedStart = $action === 'adjust_approve' ? trim((string)($_POST['approved_start_time'] ?? '')) : $before['start_time'];
+                $approvedEnd = $action === 'adjust_approve' ? trim((string)($_POST['approved_end_time'] ?? '')) : $before['end_time'];
+                if ($action === 'adjust_approve' && $reason === '') {
+                    $db->rollBack();
+                    header('Location: overtime.php?msg=reason_required'); exit;
+                }
+                $approvedHours = hrOvertimeDuration($before['ot_date'], $approvedStart, $approvedEnd);
+                $approvedAmount = round($approvedHours * (float)$before['rate'] * (float)$before['hourly_rate'], 2);
+                $outcome = $action === 'adjust_approve' ? 'adjusted_approved' : 'approved_as_submitted';
+                $db->prepare("UPDATE overtime SET status='approved', approved_start_time=?, approved_end_time=?, approved_hours=?, approved_amount=?, review_outcome=?, adjustment_reason=?, approved_by=?, approved_at=NOW() WHERE id=?")
+                   ->execute([$approvedStart,$approvedEnd,$approvedHours,$approvedAmount,$outcome,$reason ?: null,$user['id'],$id]);
+            }
+            $afterStmt = $db->prepare("SELECT * FROM overtime WHERE id=?");
+            $afterStmt->execute([$id]);
+            $after = $afterStmt->fetch();
+            hrLogOvertimeReview($db, $id, $action, hrOvertimeSnapshot($before), hrOvertimeSnapshot($after), $reason ?: null, (int)$user['id']);
+            $db->commit();
             $otContact = $db->prepare("SELECT ot.*, u.id AS user_id, u.email AS user_email, u.name AS user_name, e.email AS employee_email, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM overtime ot JOIN employees e ON e.id=ot.employee_id LEFT JOIN users u ON u.employee_id=e.id WHERE ot.id=? LIMIT 1");
             $otContact->execute([$id]); $otContact = $otContact->fetch();
             if ($otContact && $otContact['user_id']) {
                 $title = $status === 'approved' ? 'Overtime Approved' : 'Overtime Rejected';
                 $message = $status === 'approved'
-                    ? 'Your overtime for '.date('d M Y', strtotime($otContact['ot_date'])).' has been approved.'
-                    : 'Your overtime for '.date('d M Y', strtotime($otContact['ot_date'])).' was not approved.';
+                    ? 'Your overtime for '.date('d M Y', strtotime($otContact['ot_date'])).' has been '.($otContact['review_outcome']==='adjusted_approved'?'adjusted and approved':'approved').'.'
+                    : 'Your overtime for '.date('d M Y', strtotime($otContact['ot_date'])).' was not approved. Reason: '.$reason;
                 $type = $status === 'approved' ? 'success' : 'error';
                 $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,?)")
                    ->execute([$otContact['user_id'], $title, $message, $type]);
@@ -31,14 +69,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $toName = $otContact['user_name'] ?: $otContact['employee_name'];
                 if ($toEmail !== '') {
                     if ($status === 'approved') {
-                        emailOvertimeApproved($toEmail, $toName, $otContact['ot_date'], $otContact['hours'], $otContact['amount']);
+                        emailOvertimeApproved($toEmail, $toName, $otContact['ot_date'], $otContact['approved_hours'], $otContact['approved_amount']);
                     } else {
                         emailOvertimeRejected($toEmail, $toName, $otContact['ot_date'], $otContact['hours']);
                     }
                 }
             }
         }
-        header('Location: overtime.php?msg='.$action.'d'); exit;
+        header('Location: overtime.php?msg='.($action==='adjust_approve'?'adjusted':$action.'d')); exit;
     }
 
     if ($action === 'back_capture_ot') {
@@ -58,8 +96,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $emp->execute([$emp_id]); $emp = $emp->fetch();
             $hourly = $emp ? (float)$emp['hourly_rate'] : 0;
             $amount = round($hours * $rate * $hourly, 2);
-            $db->prepare("INSERT INTO overtime (employee_id,ot_date,start_time,end_time,hours,day_type,rate,hourly_rate,amount,notes,status,approved_by,approved_at) VALUES (?,?,?,?,?,?,?,?,?,?,'approved',?,NOW())")
-               ->execute([$emp_id,$ot_date,$start_time,$end_time,$hours,$day_type,$rate,$hourly,$amount,$notes,$user['id']]);
+            $db->prepare("INSERT INTO overtime (employee_id,ot_date,start_time,end_time,approved_start_time,approved_end_time,hours,approved_hours,day_type,rate,hourly_rate,amount,approved_amount,notes,status,review_outcome,approved_by,approved_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,'approved','approved_as_submitted',?,NOW())")
+               ->execute([$emp_id,$ot_date,$start_time,$end_time,$start_time,$end_time,$hours,$hours,$day_type,$rate,$hourly,$amount,$amount,$notes,$user['id']]);
         }
         header('Location: overtime.php?msg=bc_added'); exit;
     }
@@ -97,13 +135,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // ── Data ─────────────────────────────────────────────────────
 $pending   = $db->query("SELECT ot.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.avatar_color FROM overtime ot JOIN employees e ON e.id=ot.employee_id WHERE ot.status='pending' ORDER BY ot.ot_date ASC")->fetchAll();
-$all       = $db->query("SELECT ot.*, CONCAT(e.first_name,' ',e.last_name) as emp_name FROM overtime ot JOIN employees e ON e.id=ot.employee_id ORDER BY ot.ot_date DESC LIMIT 100")->fetchAll();
+$all       = $db->query("SELECT ot.*, CONCAT(e.first_name,' ',e.last_name) as emp_name, rv.name AS reviewer_name FROM overtime ot JOIN employees e ON e.id=ot.employee_id LEFT JOIN users rv ON rv.id=ot.approved_by ORDER BY ot.ot_date DESC LIMIT 100")->fetchAll();
+$auditByOvertime = [];
+if ($all) {
+    $ids = array_map('intval', array_column($all, 'id'));
+    $auditStmt = $db->query("SELECT a.*, u.name AS actor_name FROM overtime_review_audit a LEFT JOIN users u ON u.id=a.performed_by WHERE a.overtime_id IN (".implode(',', $ids).") ORDER BY a.created_at DESC, a.id DESC");
+    foreach ($auditStmt->fetchAll() as $auditRow) $auditByOvertime[(int)$auditRow['overtime_id']][] = $auditRow;
+}
 $employees = $db->query("SELECT id, CONCAT(first_name,' ',last_name) as name, hourly_rate FROM employees WHERE status='active' ORDER BY first_name")->fetchAll();
 $pendingLeave = $db->query("SELECT COUNT(*) FROM leave_requests WHERE status='pending'")->fetchColumn();
 
 // Summary stats
-$approvedOT  = $db->query("SELECT SUM(amount) FROM overtime WHERE status='approved' AND MONTH(ot_date)=MONTH(CURDATE()) AND YEAR(ot_date)=YEAR(CURDATE())")->fetchColumn() ?? 0;
-$totalHours  = $db->query("SELECT SUM(hours) FROM overtime WHERE status='approved' AND MONTH(ot_date)=MONTH(CURDATE()) AND YEAR(ot_date)=YEAR(CURDATE())")->fetchColumn() ?? 0;
+$approvedOT  = $db->query("SELECT SUM(approved_amount) FROM overtime WHERE status='approved' AND MONTH(ot_date)=MONTH(CURDATE()) AND YEAR(ot_date)=YEAR(CURDATE())")->fetchColumn() ?? 0;
+$totalHours  = $db->query("SELECT SUM(approved_hours) FROM overtime WHERE status='approved' AND MONTH(ot_date)=MONTH(CURDATE()) AND YEAR(ot_date)=YEAR(CURDATE())")->fetchColumn() ?? 0;
 
 $msg = $_GET['msg'] ?? '';
 
@@ -139,7 +183,10 @@ $publicHolidays = [
   <div class="content" id="overtimeContent">
     <?php if ($msg === 'bc_added'): ?><div class="toast"><i class="fa-solid fa-check"></i> Past overtime captured and approved.</div>
     <?php elseif ($msg === 'approved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Overtime approved.</div>
+    <?php elseif ($msg === 'adjusted'): ?><div class="toast"><i class="fa-solid fa-sliders"></i> Overtime adjusted and approved.</div>
     <?php elseif ($msg === 'rejected'): ?><div class="toast error"><i class="fa-solid fa-xmark"></i> Overtime rejected.</div>
+    <?php elseif ($msg === 'reason_required'): ?><div class="toast error"><i class="fa-solid fa-triangle-exclamation"></i> A reason is required for adjustments and rejections.</div>
+    <?php elseif ($msg === 'processed'): ?><div class="toast error"><i class="fa-solid fa-lock"></i> This overtime is already included in payroll and cannot be changed.</div>
     <?php elseif ($msg === 'added'): ?><div class="toast"><i class="fa-solid fa-check"></i> Overtime logged successfully.</div>
     <?php endif ?>
 
@@ -182,16 +229,9 @@ $publicHolidays = [
           <td style="font-weight:700"><?=$r['rate']?>×</td>
           <td style="font-family:monospace;font-weight:700;color:var(--green)">N$ <?=number_format((float)$r['amount'],2)?></td>
           <td>
-            <form method="POST" style="display:inline">
-              <input type="hidden" name="action" value="approve">
-              <input type="hidden" name="ot_id" value="<?=$r['id']?>">
-              <button class="btn btn-success btn-sm"><i class="fa-solid fa-check"></i> Approve</button>
-            </form>
-            <form method="POST" style="display:inline">
-              <input type="hidden" name="action" value="reject">
-              <input type="hidden" name="ot_id" value="<?=$r['id']?>">
-              <button class="btn btn-danger btn-sm"><i class="fa-solid fa-xmark"></i> Reject</button>
-            </form>
+            <button type="button" class="btn btn-success btn-sm" onclick='openReview(<?=json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT)?>,"approve")'><i class="fa-solid fa-check"></i> Approve</button>
+            <button type="button" class="btn btn-secondary btn-sm" onclick='openReview(<?=json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT)?>,"adjust")'><i class="fa-solid fa-sliders"></i> Adjust</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick='openReview(<?=json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT)?>,"reject")'><i class="fa-solid fa-xmark"></i> Reject</button>
           </td>
         </tr>
         <?php endforeach ?>
@@ -208,7 +248,7 @@ $publicHolidays = [
         <thead><tr><th>Employee</th><th>Approved Hours</th><th>Weekday (1.5×)</th><th>Weekend/Holiday (2×)</th><th>Total OT Pay</th></tr></thead>
         <tbody>
         <?php foreach ($employees as $emp):
-          $empOT = $db->prepare("SELECT day_type, SUM(hours) as hrs, SUM(amount) as amt FROM overtime WHERE employee_id=? AND status='approved' AND MONTH(ot_date)=MONTH(CURDATE()) AND YEAR(ot_date)=YEAR(CURDATE()) GROUP BY day_type");
+          $empOT = $db->prepare("SELECT day_type, SUM(approved_hours) as hrs, SUM(approved_amount) as amt FROM overtime WHERE employee_id=? AND status='approved' AND MONTH(ot_date)=MONTH(CURDATE()) AND YEAR(ot_date)=YEAR(CURDATE()) GROUP BY day_type");
           $empOT->execute([$emp['id']]); $empOT = $empOT->fetchAll();
           $wdHrs=0; $whHrs=0; $total=0;
           foreach ($empOT as $o) {
@@ -237,10 +277,12 @@ $publicHolidays = [
         <div class="empty-state"><i class="fa-regular fa-clock"></i><div>No overtime logged yet.</div></div>
       <?php else: ?>
       <table>
-        <thead><tr><th>Employee</th><th>Date</th><th>Hours</th><th>Type</th><th>Rate</th><th>Amount</th><th>Status</th></tr></thead>
+        <thead><tr><th>Employee</th><th>Date</th><th>Submitted</th><th>Approved</th><th>Type</th><th>Amount</th><th>Status</th><th>Review</th></tr></thead>
         <tbody>
         <?php foreach ($all as $r):
           $sc = $r['status']==='approved' ? 'badge-green' : ($r['status']==='rejected' ? 'badge-red' : 'badge-amber');
+          $statusLabel = $r['status']==='approved' && $r['review_outcome']==='adjusted_approved' ? 'Adjusted & approved' : ucfirst($r['status']);
+          if (!empty($r['payroll_run_id'])) $statusLabel = 'Payroll processed';
           $dt = $r['day_type'];
           if ($dt === 'public_holiday') $typeLabel = 'Public Holiday';
           elseif ($dt === 'sunday') $typeLabel = 'Sunday';
@@ -250,17 +292,72 @@ $publicHolidays = [
         <tr>
           <td><?=htmlspecialchars($r['emp_name'])?></td>
           <td><?=date('d M Y',strtotime($r['ot_date']))?></td>
-          <td><?=$r['hours']?>h</td>
+          <td><?=hrOvertimeDisplayHours($r['hours'])?><br><span style="font-size:11px;color:var(--text-mid)"><?=substr($r['start_time'],0,5)?>–<?=substr($r['end_time'],0,5)?></span></td>
+          <td><?=hrOvertimeDisplayHours($r['approved_hours'])?><?php if($r['approved_start_time']): ?><br><span style="font-size:11px;color:var(--text-mid)"><?=substr($r['approved_start_time'],0,5)?>–<?=substr($r['approved_end_time'],0,5)?></span><?php endif ?></td>
           <td><span class="badge <?=in_array($r['day_type'],['public_holiday','sunday'])?'badge-red':'badge-amber'?>"><?=$typeLabel?></span></td>
-          <td><?=$r['rate']?>×</td>
-          <td style="font-family:monospace">N$ <?=number_format((float)$r['amount'],2)?></td>
-          <td><span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span></td>
+          <td style="font-family:monospace">N$ <?=number_format((float)($r['approved_amount'] ?? $r['amount']),2)?></td>
+          <td><span class="badge <?=$sc?>"><?=htmlspecialchars($statusLabel)?></span></td>
+          <td>
+            <?php if($r['status']==='approved' && empty($r['payroll_run_id'])): ?><button type="button" class="btn btn-secondary btn-sm" onclick='openReview(<?=json_encode($r, JSON_HEX_APOS|JSON_HEX_QUOT)?>,"adjust")'><i class="fa-solid fa-pen"></i> Re-edit</button><?php endif ?>
+            <?php if(!empty($r['adjustment_reason'])): ?><div style="font-size:11px;margin-top:5px"><i class="fa-regular fa-note-sticky"></i> <?=htmlspecialchars($r['adjustment_reason'])?></div><?php endif ?>
+            <?php if(!empty($auditByOvertime[(int)$r['id']])): ?>
+              <details style="font-size:11px;margin-top:6px"><summary>Audit history</summary>
+                <?php foreach($auditByOvertime[(int)$r['id']] as $event): $newValues=json_decode($event['new_values_json'] ?: '{}',true) ?: []; ?>
+                  <div style="padding:6px 0;border-top:1px solid var(--border)"><strong><?=htmlspecialchars(str_replace('_',' ',ucfirst($event['action'])))?></strong><br><?=htmlspecialchars($event['actor_name'] ?: 'Management')?> · <?=date('d M Y H:i',strtotime($event['created_at']))?><?php if(isset($newValues['approved_hours']) && $newValues['approved_hours']!==null): ?><br><?=hrOvertimeDisplayHours($newValues['approved_hours'])?> approved<?php endif ?></div>
+                <?php endforeach ?>
+              </details>
+            <?php elseif(empty($r['adjustment_reason']) && !($r['status']==='approved' && empty($r['payroll_run_id']))): ?>—<?php endif ?>
+          </td>
         </tr>
         <?php endforeach ?>
         </tbody>
       </table>
       <?php endif ?>
     </div>
+  </div>
+</div>
+
+<!-- REVIEW OVERTIME MODAL -->
+<div class="overlay" id="reviewOTModal">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <div class="modal-title"><i class="fa-solid fa-user-clock"></i> Review Overtime</div>
+      <button class="modal-close" type="button" onclick="closeModal('reviewOTModal')"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <form method="POST" id="reviewOTForm">
+      <input type="hidden" name="action" id="reviewAction" value="approve">
+      <input type="hidden" name="ot_id" id="reviewOtId">
+      <div class="modal-body">
+        <div style="background:#f7f4ea;border:1px solid #ded8c5;border-radius:12px;padding:14px;margin-bottom:16px">
+          <div style="font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--text-mid)">Employee submission</div>
+          <div id="reviewEmployee" style="font-weight:700;margin:5px 0"></div>
+          <div id="reviewSubmitted" style="font-size:13px"></div>
+        </div>
+        <div id="approvedFields" class="form-grid" style="display:none">
+          <div class="form-group">
+            <label class="form-label">Approved start</label>
+            <input class="form-input" type="time" name="approved_start_time" id="approvedStart">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Approved end</label>
+            <input class="form-input" type="time" name="approved_end_time" id="approvedEnd">
+          </div>
+          <div class="form-group full" style="background:#eef3df;border:1px solid #cfdbad;border-radius:10px;padding:12px">
+            <span style="font-size:12px;color:var(--text-mid)">Approved duration and pay</span>
+            <strong id="approvedPreview" style="display:block;margin-top:3px"></strong>
+          </div>
+        </div>
+        <div class="form-group" id="reasonField" style="display:none;margin-top:14px">
+          <label class="form-label" id="reasonLabel">Reason</label>
+          <textarea class="form-input" name="adjustment_reason" id="reviewReason" rows="3" placeholder="Explain the adjustment or rejection"></textarea>
+        </div>
+        <p id="reviewHelp" style="font-size:12px;color:var(--text-mid);margin-top:12px"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('reviewOTModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="reviewSubmit"><i class="fa-solid fa-check"></i> Approve as submitted</button>
+      </div>
+    </form>
   </div>
 </div>
 
@@ -329,9 +426,53 @@ $publicHolidays = [
 
 <script>
 const publicHolidays = <?= json_encode($publicHolidays) ?>;
+let reviewRecord = null;
 
 function openModal(id)  { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+function openReview(record, mode) {
+  reviewRecord = record;
+  document.getElementById('reviewOtId').value = record.id;
+  document.getElementById('reviewEmployee').textContent = record.emp_name + ' · ' + record.ot_date;
+  document.getElementById('reviewSubmitted').textContent = record.start_time.slice(0,5) + '–' + record.end_time.slice(0,5) + ' · ' + humanHours(record.hours) + ' · N$ ' + Number(record.amount).toFixed(2);
+  document.getElementById('approvedStart').value = (record.approved_start_time || record.start_time).slice(0,5);
+  document.getElementById('approvedEnd').value = (record.approved_end_time || record.end_time).slice(0,5);
+  document.getElementById('reviewReason').value = record.adjustment_reason || '';
+  const adjusting = mode === 'adjust';
+  const rejecting = mode === 'reject';
+  document.getElementById('reviewAction').value = adjusting ? 'adjust_approve' : (rejecting ? 'reject' : 'approve');
+  document.getElementById('approvedFields').style.display = adjusting ? 'grid' : 'none';
+  document.getElementById('reasonField').style.display = (adjusting || rejecting) ? 'block' : 'none';
+  document.getElementById('reviewReason').required = adjusting || rejecting;
+  document.getElementById('reasonLabel').textContent = rejecting ? 'Rejection reason' : 'Adjustment reason';
+  const submit = document.getElementById('reviewSubmit');
+  submit.className = 'btn ' + (rejecting ? 'btn-danger' : 'btn-primary');
+  submit.innerHTML = rejecting ? '<i class="fa-solid fa-xmark"></i> Reject overtime' : (adjusting ? '<i class="fa-solid fa-check"></i> Save adjustment & approve' : '<i class="fa-solid fa-check"></i> Approve as submitted');
+  document.getElementById('reviewHelp').textContent = rejecting ? 'Rejected overtime is excluded from payroll.' : (adjusting ? 'The employee’s submitted times remain unchanged. Payroll will use the approved values.' : 'This creates a separate approved snapshot for payroll.');
+  updateApprovedPreview();
+  openModal('reviewOTModal');
+}
+
+function humanHours(hours) {
+  const mins = Math.round(Number(hours) * 60);
+  return Math.floor(mins / 60) + 'h ' + (mins % 60) + 'm';
+}
+
+function updateApprovedPreview() {
+  if (!reviewRecord) return;
+  const start = document.getElementById('approvedStart').value;
+  const end = document.getElementById('approvedEnd').value;
+  if (!start || !end) return;
+  const sm = Number(start.slice(0,2)) * 60 + Number(start.slice(3,5));
+  let em = Number(end.slice(0,2)) * 60 + Number(end.slice(3,5));
+  if (em <= sm) em += 1440;
+  const hours = Math.round(((em-sm)/60) * 100) / 100;
+  const amount = Math.round(hours * Number(reviewRecord.rate) * Number(reviewRecord.hourly_rate) * 100) / 100;
+  document.getElementById('approvedPreview').textContent = humanHours(hours) + ' · N$ ' + amount.toFixed(2);
+}
+document.getElementById('approvedStart').addEventListener('input', updateApprovedPreview);
+document.getElementById('approvedEnd').addEventListener('input', updateApprovedPreview);
 
 document.querySelectorAll('.overlay').forEach(o => {
   o.addEventListener('click', e => { if (e.target===o) o.classList.remove('open'); });

@@ -144,17 +144,39 @@ CREATE TABLE IF NOT EXISTS `overtime` (
   `ot_date`       DATE NOT NULL,
   `start_time`    TIME NOT NULL,
   `end_time`      TIME NOT NULL,
+  `approved_start_time` TIME NULL,
+  `approved_end_time` TIME NULL,
   `hours`         DECIMAL(5,2) NOT NULL,
+  `approved_hours` DECIMAL(5,2) NULL,
   `day_type`      ENUM('weekday','saturday','sunday','public_holiday') DEFAULT 'weekday',
   `rate`          DECIMAL(4,2) NOT NULL DEFAULT 1.50,
   `hourly_rate`   DECIMAL(8,2) NOT NULL,
   `amount`        DECIMAL(10,2) NOT NULL,
+  `approved_amount` DECIMAL(10,2) NULL,
   `status`        ENUM('pending','approved','rejected') DEFAULT 'pending',
+  `review_outcome` VARCHAR(32) NULL,
   `notes`         TEXT,
+  `adjustment_reason` TEXT NULL,
   `approved_by`   INT UNSIGNED NULL,
   `approved_at`   TIMESTAMP NULL,
+  `payroll_run_id` INT UNSIGNED NULL,
+  `payroll_processed_at` TIMESTAMP NULL,
   `created_at`    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`employee_id`) REFERENCES `employees`(`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `overtime_review_audit` (
+  `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+  `overtime_id` INT UNSIGNED NOT NULL,
+  `action` VARCHAR(40) NOT NULL,
+  `old_values_json` LONGTEXT NULL,
+  `new_values_json` LONGTEXT NULL,
+  `reason` TEXT NULL,
+  `performed_by` INT UNSIGNED NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_ot_review_audit_overtime` (`overtime_id`,`created_at`),
+  INDEX `idx_ot_review_audit_actor` (`performed_by`),
+  FOREIGN KEY (`overtime_id`) REFERENCES `overtime`(`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- ── Payroll Runs ─────────────────────────────────────────────

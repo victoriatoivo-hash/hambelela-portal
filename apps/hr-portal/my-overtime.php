@@ -1,11 +1,13 @@
 <?php
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/email.php';
+require_once __DIR__ . '/includes/overtime-review.php';
 requireLogin();
 $user = currentUser();
 if ($user['role'] !== 'employee') { header('Location: ' . SITE_URL . '/dashboard.php'); exit; }
 
 $db    = db();
+hrEnsureOvertimeReviewSchema($db);
 $empId = (int)($user['emp_id'] ?? 0);
 $emp   = $db->prepare("SELECT * FROM employees WHERE id=?");
 $emp->execute([$empId]);
@@ -183,11 +185,11 @@ $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
         <thead>
           <tr>
             <th>Date</th>
-            <th>Time</th>
-            <th>Hours</th>
+            <th>Submitted</th>
+            <th>Approved</th>
             <th>Type</th>
             <th>Rate</th>
-            <th>Amount</th>
+            <th>Approved Pay</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -207,12 +209,21 @@ $msg = isset($_GET['msg']) ? $_GET['msg'] : '';
           <td><?php echo date('d M Y', strtotime($r['ot_date'])); ?></td>
           <td style="font-size:12px;color:var(--text-mid)">
             <?php echo substr($r['start_time'],0,5); ?> &ndash; <?php echo substr($r['end_time'],0,5); ?>
+            <br><strong><?php echo htmlspecialchars(hrOvertimeDisplayHours($r['hours'])); ?></strong>
           </td>
-          <td><strong><?php echo $r['hours']; ?>h</strong></td>
+          <td style="font-size:12px;color:var(--text-mid)">
+            <?php if ($r['approved_hours'] !== null): ?>
+              <?php echo substr($r['approved_start_time'],0,5); ?> &ndash; <?php echo substr($r['approved_end_time'],0,5); ?>
+              <br><strong><?php echo htmlspecialchars(hrOvertimeDisplayHours($r['approved_hours'])); ?></strong>
+            <?php else: ?>&mdash;<?php endif ?>
+          </td>
           <td><span class="badge <?php echo $badgeCol; ?>"><?php echo $tl; ?></span></td>
           <td><?php echo $r['rate']; ?>&times;</td>
-          <td style="font-family:monospace">N$ <?php echo number_format((float)$r['amount'],2); ?></td>
-          <td><span class="badge <?php echo $sc; ?>"><?php echo ucfirst($r['status']); ?></span></td>
+          <td style="font-family:monospace"><?php echo $r['approved_amount'] === null ? '&mdash;' : 'N$ '.number_format((float)$r['approved_amount'],2); ?></td>
+          <td>
+            <span class="badge <?php echo $sc; ?>"><?php echo $r['status']==='approved' && $r['review_outcome']==='adjusted_approved' ? 'Adjusted &amp; approved' : ucfirst($r['status']); ?></span>
+            <?php if (!empty($r['adjustment_reason'])): ?><div style="font-size:11px;color:var(--text-mid);margin-top:5px"><?php echo htmlspecialchars($r['adjustment_reason']); ?></div><?php endif ?>
+          </td>
         </tr>
         <?php endforeach ?>
         </tbody>
