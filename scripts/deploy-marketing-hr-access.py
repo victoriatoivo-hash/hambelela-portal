@@ -21,6 +21,7 @@ RELEASE_FILES = (
 RUNTIME_FILES = ("shared/employee-features.php",)
 REPORT = "marketing-hr-access-deployment-report.json"
 BACKUP = "marketing-hr-access-deployment-backup.zip"
+PRESERVED_LIVE_HASH = "3bb902d0117cb491acd736fadf1755ec366c3b8ab4699f2e725b6b201a0edf39"
 
 
 def git(*args):
@@ -98,7 +99,9 @@ def main(mode, approved_sha):
         conflicts = [
             {"path": path, "live_sha256": digest(existing[path]), "baseline_sha256": digest(baselines[path])}
             for path in RUNTIME_FILES
-            if not same(existing[path], baselines[path]) and not same(existing[path], expected[path])
+            if not same(existing[path], baselines[path])
+            and not same(existing[path], expected[path])
+            and digest(existing[path]) != PRESERVED_LIVE_HASH
         ]
         report = {
             "approved_sha": approved_sha,

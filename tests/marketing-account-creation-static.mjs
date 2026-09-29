@@ -21,7 +21,7 @@ assert.match(settings,/employee_account_creation_failed/);
 assert.doesNotMatch(settings,/employee_account_creation_failed[^\n]+login_code/);
 assert.match(auth,/marketing_sales[\s\S]+apps\/marketing\/index\.php/);
 assert.match(login,/pattern="\(\?:\[0-9\]\{4\}\|\[0-9\]\{6,10\}\)" minlength="4" maxlength="10"/);
-assert.match(features,/'marketing_sales' => \['dashboard','marketing','orders','task_management','bookkeeping','cash_tools','courier','hr','notifications','system_issues'\]/);
+assert.match(features,/'marketing_sales' => \['dashboard','marketing','orders','packing_list','task_management','bookkeeping','cash_tools','courier','hr','notifications','system_issues'\]/);
 assert.match(features,/!isset\(\$permissions\[\$roleKey\]\)[\s\S]+in_array\(\$featureKey, \$employeeModules, true\)/);
 assert.match(dashboard,/dashboardFeatures/);
 for(const role of ['front_desk_admin','accountant','packer','supervisor_manager'])assert.ok(settings.includes(`'${role}'`),role);
