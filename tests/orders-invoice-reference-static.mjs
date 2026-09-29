@@ -9,7 +9,7 @@ assert.match(board, /return orderNumber \? `INV-\$\{orderNumber\}` : rawReferenc
 assert.match(board, /function getTaskOrderNumber\(orderReference = ''\)/);
 assert.match(board, /function buildOrderTaskName\(order = \{\}\)/);
 assert.match(board, /rawReference\.match\(\/\^\(\?:INV\|WEB\)/);
-assert.match(board, /if \(field === 'customer_name'\) return buildOrderTaskName\(order\)/);
+assert.match(board, /if \(field === 'task_name'\) return buildOrderTaskName\(order\)/);
 assert.match(board, /data-order-reference>\$\{esc\(buildOrderTaskName\(order\)\)\}/);
 assert.doesNotMatch(board, /data-order-reference>\$\{esc\(formatOrderInvoiceReference\(order\.order_number\)\)\}/);
 assert.match(board, /data-payment-order-reference>\$\{esc\(formatOrderInvoiceReference\(order\.order_number \|\| order\.id\)\)\}/);

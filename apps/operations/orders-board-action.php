@@ -17,6 +17,12 @@ if (current_role_key() === 'guest') {
     exit;
 }
 
+if (!portal_user_can_access_feature('orders')) {
+    http_response_code(403);
+    echo json_encode(['ok' => false, 'message' => 'You do not have permission to edit Orders.']);
+    exit;
+}
+
 function ops_board_sync_log(string $message, array $context = []): void
 {
     $dir = BASE_PATH . '/storage/logs';
@@ -639,8 +645,8 @@ function ops_board_sync_website_orders(?string $date = null): array
                     order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at{$displayDateTimeInsertColumn}
                  ) VALUES (?, ?, ?, ?, ?, ?{$breakdownValues}, ?, ?, ?, ?, ?, ?, ?, ?, ?{$displayDateTimeInsertValue})
                  ON DUPLICATE KEY UPDATE
-                    customer_name = VALUES(customer_name),
-                    customer_contact = VALUES(customer_contact),
+                    /* Existing operational customer corrections are authoritative.
+                       Woo values are still used when an order is first imported. */
                     payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END,
                     total_amount = VALUES(total_amount),
                     {$breakdownUpdates}
@@ -656,8 +662,8 @@ function ops_board_sync_website_orders(?string $date = null): array
                     order_type, priority, complexity, assigned_packer_id, status, notes, workload_score, created_at{$displayDateTimeInsertColumn}
                  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?{$displayDateTimeInsertValue})
                  ON DUPLICATE KEY UPDATE
-                    customer_name = VALUES(customer_name),
-                    customer_contact = VALUES(customer_contact),
+                    /* Existing operational customer corrections are authoritative.
+                       Woo values are still used when an order is first imported. */
                     payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END,
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
@@ -1574,7 +1580,12 @@ try {
 
     if ($action === 'update_field') {
         $orderId = (int) ($_POST['order_id'] ?? 0);
-        $field = ops_post_string('field', 40);
+        $requestedField = ops_post_string('field', 40);
+        $inlineFieldAliases = [
+            'task_name' => 'customer_name',
+            'mobile_number' => 'customer_contact',
+        ];
+        $field = $inlineFieldAliases[$requestedField] ?? $requestedField;
         $value = ops_post_string('value', 1000);
 
         $allowed = [
@@ -1892,7 +1903,15 @@ try {
             }
         }
 
-        $response = ['ok' => true, 'message' => 'Order updated.'];
+        $response = [
+            'ok' => true,
+            'message' => 'Order updated.',
+            'order_id' => $orderId,
+            'requested_field' => $requestedField,
+            'field' => $field,
+            'value' => $value,
+            'updated_by' => current_user()['name'] ?? 'Unknown',
+        ];
         if (!empty($autoAssignedPacker)) {
             $response['message'] = 'Order assigned to you.';
             $response += [

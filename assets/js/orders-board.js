@@ -241,6 +241,13 @@
   let panelReturnPosition = null;
   let panelReturnTrigger = null;
   let activeOrderMutationCount = 0;
+  const ordersInlineEditSessions = new Map();
+  const ordersInlineConfirmedUntil = new Map();
+  const ordersInlineFieldDefinitions = {
+    customer_name: { sourceField:'customer_name', apiField:'customer_name', label:'customer name', ariaLabel:'Edit customer name', inputType:'text' },
+    task_name: { sourceField:'customer_name', apiField:'task_name', label:'task', ariaLabel:'Edit task', inputType:'text', preserveOrderNumber:true },
+    mobile_number: { sourceField:'customer_contact', apiField:'mobile_number', label:'mobile number', ariaLabel:'Edit mobile number', inputType:'tel', inputMode:'tel' }
+  };
 
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;'
@@ -642,8 +649,9 @@
 
   function editableDisplayValue(order, field) {
     if (!order) return '';
-    if (field === 'customer_name') return buildOrderTaskName(order);
-    if (field === 'customer_contact') return order.customer_contact || '';
+    if (field === 'task_name') return buildOrderTaskName(order);
+    if (field === 'customer_name') return order.customer_name || '';
+    if (field === 'mobile_number' || field === 'customer_contact') return order.customer_contact || '';
     if (field === 'total_amount') return money(order.total_amount);
     if (field === 'assigned_packer_id') return order.packer_name || 'Unassigned';
     if (field === 'notes') return order.notes || '';
@@ -652,8 +660,9 @@
 
   function editableRawValue(order, field) {
     if (!order) return '';
-    if (field === 'customer_name') return order.customer_name || '';
-    if (field === 'customer_contact') return order.customer_contact || '';
+    const sourceField = ordersInlineFieldDefinitions[field]?.sourceField || field;
+    if (sourceField === 'customer_name') return order.customer_name || '';
+    if (sourceField === 'customer_contact') return order.customer_contact || '';
     if (field === 'total_amount') return String(order.total_amount ?? '');
     if (field === 'assigned_packer_id') return String(order.assigned_packer_id || '');
     if (field === 'notes') return order.notes || '';
@@ -663,11 +672,11 @@
   function renderEditableCell(cell, order, field) {
     cell.classList.remove('is-editing', 'is-saving', 'has-error');
     cell.dataset.value = editableRawValue(order, field);
-    if (field === 'customer_name') {
+    if (field === 'task_name') {
       cell.innerHTML = `<span class="orders-inline-cell-trigger task-name">${esc(editableDisplayValue(order, field))}</span>`;
       return;
     }
-    if (field === 'customer_contact' || field === 'total_amount' || field === 'notes') {
+    if (field === 'customer_name' || field === 'mobile_number' || field === 'customer_contact' || field === 'total_amount' || field === 'notes') {
       cell.innerHTML = `<span class="orders-inline-cell-trigger">${esc(editableDisplayValue(order, field))}</span>`;
       return;
     }
@@ -678,9 +687,10 @@
     const order = ordersCache.find((item) => String(item.id) === String(orderId));
     if (!order) return null;
 
-    if (field === 'customer_name') {
+    const sourceField = ordersInlineFieldDefinitions[field]?.sourceField || field;
+    if (sourceField === 'customer_name') {
       order.customer_name = value;
-    } else if (field === 'customer_contact') {
+    } else if (sourceField === 'customer_contact') {
       order.customer_contact = value;
     } else if (field === 'total_amount') {
       order.total_amount = Number(value || 0);
@@ -716,6 +726,172 @@
     return order;
   }
 
+  function ordersInlineEditKey(orderId, field) {
+    const sourceField = ordersInlineFieldDefinitions[field]?.sourceField || field;
+    return `${String(orderId)}:${sourceField}`;
+  }
+
+  function ordersInlineRowIsProtected(orderId) {
+    const prefix = `${String(orderId)}:`;
+    if ([...ordersInlineEditSessions.keys()].some((key) => key.startsWith(prefix))) return true;
+    const now = Date.now();
+    for (const [key, until] of ordersInlineConfirmedUntil.entries()) {
+      if (until <= now) ordersInlineConfirmedUntil.delete(key);
+      else if (key.startsWith(prefix)) return true;
+    }
+    return false;
+  }
+
+  function inlineSaveState(cell, text, className = '') {
+    const state = cell.querySelector('.orders-inline-save-state');
+    if (!state) return;
+    state.className = `orders-inline-save-state ${className}`.trim();
+    state.textContent = text;
+  }
+
+  function beginOrdersInlineTextEdit(cell, order, field) {
+    const definition = ordersInlineFieldDefinitions[field];
+    if (!definition) return false;
+    const orderId = String(order.id);
+    const key = ordersInlineEditKey(orderId, field);
+    const originalValue = editableRawValue(order, field);
+    let confirmedValue = originalValue;
+    let version = 0;
+    let saving = false;
+    let finished = false;
+    let debounceTimer = null;
+    let savedTimer = null;
+    let pendingExit = false;
+    let pendingMoveNext = false;
+
+    cell.classList.add('is-editing');
+    cell.classList.remove('has-error');
+    cell.dataset.value = originalValue;
+    cell.innerHTML = '';
+
+    const editor = document.createElement('span');
+    editor.className = 'orders-inline-editor';
+    if (definition.preserveOrderNumber) {
+      const prefix = document.createElement('span');
+      prefix.className = 'orders-inline-prefix';
+      prefix.textContent = getTaskOrderNumber(order.order_number ?? order.id);
+      prefix.setAttribute('aria-hidden', 'true');
+      editor.appendChild(prefix);
+    }
+    const control = document.createElement('input');
+    control.className = 'orders-inline-input';
+    control.type = definition.inputType;
+    if (definition.inputMode) control.inputMode = definition.inputMode;
+    control.value = originalValue;
+    control.setAttribute('aria-label', definition.ariaLabel);
+    control.autocomplete = definition.inputType === 'tel' ? 'tel' : 'off';
+    editor.appendChild(control);
+    const state = document.createElement('span');
+    state.className = 'orders-inline-save-state';
+    state.setAttribute('aria-live', 'polite');
+    editor.appendChild(state);
+    cell.appendChild(editor);
+
+    const session = { orderId, field, key, get version() { return version; } };
+    ordersInlineEditSessions.set(key, session);
+    focusInlineEditorAtEnd(control);
+
+    const cleanup = () => {
+      window.clearTimeout(debounceTimer);
+      window.clearTimeout(savedTimer);
+      if (ordersInlineEditSessions.get(key) === session) ordersInlineEditSessions.delete(key);
+    };
+    const finish = (nextOrder = order) => {
+      if (finished) return;
+      finished = true;
+      cleanup();
+      renderEditableCell(cell, nextOrder, field);
+    };
+    const rollback = () => {
+      updateOrderCacheField(orderId, field, confirmedValue);
+      cell.classList.add('has-error');
+      finish(order);
+    };
+    const cancel = () => {
+      if (finished || saving) return;
+      version += 1;
+      updateOrderCacheField(orderId, field, confirmedValue);
+      finish(order);
+    };
+    const valueNow = () => String(control.value || '').trim();
+
+    const commit = async ({ exit = false, moveNext = false } = {}) => {
+      if (finished) return;
+      window.clearTimeout(debounceTimer);
+      window.clearTimeout(savedTimer);
+      pendingExit = pendingExit || exit;
+      pendingMoveNext = pendingMoveNext || moveNext;
+      if (saving) return;
+      const nextValue = valueNow();
+      if (nextValue === confirmedValue) {
+        if (pendingExit) {
+          const shouldMove = pendingMoveNext;
+          finish(order);
+          if (shouldMove) focusNextEditableCell(cell);
+        }
+        return;
+      }
+
+      const requestVersion = version;
+      saving = true;
+      cell.classList.add('is-saving');
+      inlineSaveState(cell, 'Saving…');
+      try {
+        const nextOrder = await saveEditableOrderField(orderId, definition.apiField, nextValue);
+        saving = false;
+        cell.classList.remove('is-saving');
+        confirmedValue = nextValue;
+        ordersInlineConfirmedUntil.set(key, Date.now() + 3000);
+        syncOpenOrderPanel(orderId, definition.sourceField);
+        if (syncState) syncState.textContent = `Saved ${definition.label}.`;
+
+        if (version !== requestVersion || valueNow() !== nextValue) {
+          await commit({ exit:pendingExit, moveNext:pendingMoveNext });
+          return;
+        }
+
+        inlineSaveState(cell, 'Saved ✓', 'orders-inline-saved');
+        const shouldMove = pendingMoveNext;
+        savedTimer = window.setTimeout(() => {
+          if (finished || version !== requestVersion) return;
+          finish(nextOrder || order);
+          if (shouldMove) focusNextEditableCell(cell);
+        }, 900);
+      } catch (error) {
+        saving = false;
+        cell.classList.remove('is-saving');
+        showError(new Error(`Couldn’t save ${definition.label}. Please try again.`));
+        rollback();
+      }
+    };
+
+    control.addEventListener('input', () => {
+      version += 1;
+      pendingExit = false;
+      pendingMoveNext = false;
+      window.clearTimeout(savedTimer);
+      inlineSaveState(cell, '');
+      window.clearTimeout(debounceTimer);
+      debounceTimer = window.setTimeout(() => commit().catch(showError), 600);
+    });
+    control.addEventListener('blur', () => commit({ exit:true }).catch(showError));
+    control.addEventListener('keydown', (event) => {
+      if (event.key === 'Enter' || event.key === 'Tab') {
+        event.preventDefault();
+        commit({ exit:true, moveNext:event.key === 'Tab' }).catch(showError);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        cancel();
+      }
+    });
+    return true;
+  }
+
   function focusNextEditableCell(cell) {
     const cells = [...body.querySelectorAll('[data-editable-order-field]')]
       .filter((item) => item.offsetParent !== null);
@@ -731,6 +907,8 @@
     const field = cell.dataset.editableOrderField;
     const order = ordersCache.find((item) => String(item.id) === String(orderId));
     if (!order || !field) return;
+
+    if (beginOrdersInlineTextEdit(cell, order, field)) return;
 
     const originalValue = editableRawValue(order, field);
     const originalDisplay = editableDisplayValue(order, field);
@@ -845,10 +1023,11 @@
 
   function orderFieldValue(order, field) {
     if (!order) return '';
+    const sourceField = ordersInlineFieldDefinitions[field]?.sourceField || field;
     if (field === 'payment_status') return order.payment_status || 'unpaid';
     if (field === 'assigned_packer_id') return order.assigned_packer_id || '';
     if (field === 'created_at') return orderDisplayDateTime(order) || '';
-    return order[field] ?? '';
+    return order[sourceField] ?? '';
   }
 
   function resetOrdersColumnWidths() {
@@ -1955,11 +2134,12 @@
     list.innerHTML = orders.map((order) => `
       <article class="board-mobile-card" data-mobile-order-id="${esc(order.id)}">
         <header class="board-mobile-card__top">
-          <strong>${esc(formatOrderInvoiceReference(order.order_number))} · ${esc(order.customer_name || 'Customer not recorded')}</strong>
+          <strong class="editable-cell" data-editable-order-field="task_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0" aria-label="Edit task"><span class="orders-inline-cell-trigger task-name">${esc(buildOrderTaskName(order) || 'Customer not recorded')}</span></strong>
           ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
         </header>
         <div class="board-mobile-card__grid">
           <div><span class="orders-mobile-label">Date</span><span class="orders-mobile-value">${esc(prettyDate(orderDisplayDateTime(order)))}</span></div>
+          <div><span class="orders-mobile-label">Mobile number</span><span class="orders-mobile-value editable-cell" data-editable-order-field="mobile_number" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0" aria-label="Edit mobile number"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || 'Not recorded')}</span></span></div>
           <div><span class="orders-mobile-label">Mode</span>${renderLabelCell(order, 'order_type', order.order_type || 'collection', modeLabels, 'mode-label')}</div>
           <div><span class="orders-mobile-label">Amount</span><span class="orders-mobile-value">${esc(money(order.total_amount))}</span></div>
           <div><span class="orders-mobile-label">Payment</span>${renderPaymentBadge(order)}</div>
@@ -2613,10 +2793,10 @@
       return `
         <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="orders-grid-row monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
           <div class="orders-grid-cell orders-grid-cell--select monday-cell check-cell col-checkbox"><label class="portal-grid-checkbox"><input class="portal-grid-checkbox-input orders-row-checkbox" type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''} aria-label="Select order"><span class="portal-grid-checkbox-box" aria-hidden="true"><svg viewBox="0 0 12 12"><path d="m2.2 6.1 2.2 2.2 5.4-5.1" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></span></label></div>
-          <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="customer_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0"><span class="orders-inline-cell-trigger task-name" data-order-reference>${esc(buildOrderTaskName(order))}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--task monday-cell task-cell editable-cell col-task" data-editable-order-field="task_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0" aria-label="Edit task"><span class="orders-inline-cell-trigger task-name" data-order-reference>${esc(buildOrderTaskName(order))}</span></div>
           <div class="orders-grid-cell orders-grid-cell--notes monday-cell comment-cell col-task-icon update-icon-cell">${renderUpdateIconCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--date monday-cell col-date order-date-cell portal-date-cell" data-order-id="${esc(order.id)}" title="Edit order date/time"><input type="datetime-local" class="orders-date-trigger" data-orders-date-input data-order-id="${esc(order.id)}" value="${esc(orderDisplayDateTime(order).replace(' ', 'T').slice(0, 16))}" aria-label="Order date and time"></div>
-          <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="customer_contact" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || '')}</span></div>
+          <div class="orders-grid-cell orders-grid-cell--mobile monday-cell editable-cell col-mobile" data-editable-order-field="mobile_number" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0" aria-label="Edit mobile number"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || '')}</span></div>
           <div class="orders-grid-cell orders-grid-cell--mode monday-cell col-mode"${labelCellStyle(modeLabels, order.order_type)}>${renderLabelCell(order, 'order_type', order.order_type, modeLabels, 'mode-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--amount monday-cell editable-cell col-amount" data-editable-order-field="total_amount" data-order-id="${esc(order.id)}" data-value="${esc(order.total_amount ?? '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(money(order.total_amount))}</span></div>
           <div class="orders-grid-cell orders-grid-cell--payment monday-cell col-payment">${renderPaymentBadge(order)}</div>
@@ -4157,19 +4337,20 @@
 
   function prependLocalOrderActivity(order, field, oldValue, newValue) {
     if (!order) return;
+    const activityField = ordersInlineFieldDefinitions[field]?.sourceField || field;
     const actions = {
       customer_name:'customer_updated', customer_contact:'mobile_changed', payment_method:'payment_changed',
       payment_status:'payment_status_updated', order_type:'mode_changed', total_amount:'amount_changed',
       status:newValue === 'completed' ? 'order_completed' : 'status_changed',
       assigned_packer_id:newValue ? 'packed_by_changed' : 'packed_by_cleared', created_at:'order_datetime_updated', notes:'update_added'
     };
-    const action = actions[field];
+    const action = actions[activityField];
     if (!action) return;
     order.activity = Array.isArray(order.activity) ? order.activity : [];
     order.activity.unshift({
       id:`local-${Date.now()}-${Math.random()}`, action, created_at:new Date().toISOString(),
       actor_name:currentUser.name || currentUser.full_name || 'Current user', actor_role:currentUser.role_name || currentUser.role_key || '',
-      metadata:{ field, old_value:oldValue, new_value:newValue }
+      metadata:{ field:activityField, old_value:oldValue, new_value:newValue }
     });
   }
 
@@ -4326,6 +4507,16 @@
     panelReturnPosition = null;
   }
 
+  function preserveInlineFieldsFromCurrent(incomingOrder, currentById) {
+    const current = currentById.get(String(incomingOrder?.id));
+    if (!current || !ordersInlineRowIsProtected(incomingOrder.id)) return incomingOrder;
+    return {
+      ...incomingOrder,
+      customer_name: current.customer_name,
+      customer_contact: current.customer_contact
+    };
+  }
+
   async function refresh(trigger = null, options = {}) {
     if (refreshInFlight) return refreshInFlight;
     const requestSequence = ++refreshSequence;
@@ -4388,6 +4579,9 @@
         if (!changed.length && Array.isArray(data.orders)) changed.push(...data.orders);
         const removed = new Set((payload.removed_ids || data.removed_ids || []).map(String));
         const currentById = new Map(ordersCache.map((order) => [String(order.id), order]));
+        changed.forEach((order, index) => {
+          changed[index] = preserveInlineFieldsFromCurrent(order, currentById);
+        });
         const effectiveChanged = changed.filter((order) => {
           const current = currentById.get(String(order.id));
           return !current || JSON.stringify(current) !== JSON.stringify(order);
@@ -4425,8 +4619,10 @@
           updateWorkMetrics(visibleOrders());
         }
       } else if (responseMode === 'snapshot') {
-        const snapshotOrders = Array.isArray(payload.orders) ? payload.orders : data.orders;
+        let snapshotOrders = Array.isArray(payload.orders) ? payload.orders : data.orders;
         if (!Array.isArray(snapshotOrders)) throw new Error('Board snapshot is missing its orders array.');
+        const currentById = new Map(ordersCache.map((order) => [String(order.id), order]));
+        snapshotOrders = snapshotOrders.map((order) => preserveInlineFieldsFromCurrent(order, currentById));
         hasInitialOrdersLoadCompleted = true;
         renderOrders(snapshotOrders);
       } else {
@@ -4736,7 +4932,7 @@
       if (action === 'details' || action === 'notes') {
         openPanel(orderId, action === 'notes' ? 'updates' : 'details', orderRowAction);
       } else if (action === 'edit-name') {
-        const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="customer_name"]`);
+        const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="task_name"]`);
         if (cell) beginEditableCell(cell);
       } else if (action === 'archive' || action === 'trash') {
         if (!window.confirm(action === 'archive' ? 'Archive this order?' : 'Move this order to Trash?')) return;
