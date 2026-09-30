@@ -13,7 +13,11 @@ final class PerformanceScore
 {
     private $pdo;
 
-    public function __construct(PDO $pdo) { $this->pdo = $pdo; $this->ensureAutomaticScoringSchema(); }
+    /**
+     * Score reads and calculations must never mutate the database schema.
+     * All EPI schema work is performed by explicit deployment migrations.
+     */
+    public function __construct(PDO $pdo) { $this->pdo = $pdo; }
 
     public static function multiplyImpact(int $base, int $severity = 10000, int $repeat = 10000, int $financial = 10000, int $responsibility = 10000): int
     {
@@ -37,7 +41,7 @@ final class PerformanceScore
         $categories = $this->categories((int) $scorecard['id']);
         $this->validateWeights($categories);
         $sourceEngine = new SourceCompletenessEngine($this->pdo);
-        $coverage = $sourceEngine->evaluate($employeeId, (string) ($employee['role_key'] ?? ''), $start->format('Y-m-d'), $end->format('Y-m-d'));
+        $coverage = $sourceEngine->evaluate($employeeId, (string) ($employee['role_key'] ?? ''), $start->format('Y-m-d'), $end->format('Y-m-d'), true);
         $events = $this->confirmedEvents($employeeId, $start->format('Y-m-d'), $end->format('Y-m-d'));
         $pending = $this->pendingCount($employeeId, $start->format('Y-m-d'), $end->format('Y-m-d'));
         $applied = $this->deduplicateIncidents($events);
@@ -139,8 +143,9 @@ final class PerformanceScore
     {if(trim($reason)==='')throw new RuntimeException('An unlock reason is required.');$this->pdo->prepare('UPDATE epi_employee_month_locks SET unlocked_by=?,unlocked_at=NOW(),unlock_reason=? WHERE employee_id=? AND score_year=? AND score_month=?')->execute([$reviewerId,trim($reason),$employeeId,$year,$month]);$this->pdo->prepare("UPDATE epi_scoring_monthly_scores SET locked=0,locked_by=NULL,locked_at=NULL,lock_note=NULL,score_status='ready_for_review' WHERE employee_id=? AND score_year=? AND score_month=?")->execute([$employeeId,$year,$month]);}
 
     public function getMonthlyScore(int $employeeId,int $year,int $month):array { $m=$this->monthly($employeeId,$year,$month);return$m?$this->monthlyDetail((int)$m['id']):[]; }
-    public function getSourceCoverage(int $employeeId,int $year,int $month):array{$from=sprintf('%04d-%02d-01',$year,$month);$to=(new DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');$employee=$this->employee($employeeId);return(new SourceCompletenessEngine($this->pdo))->evaluate($employeeId,(string)($employee['role_key']??''),$from,$to);}
-    public function eligibilityTotals(int $employeeId,int $year,int $month):array{$from=sprintf('%04d-%02d-01',$year,$month);$to=(new DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');(new SourceCompletenessEngine($this->pdo))->classifyPeriod($employeeId,$from,$to);$s=$this->pdo->prepare('SELECT module,eligibility_state,COUNT(*) total FROM epi_employee_evidence WHERE employee_id=? AND business_date BETWEEN ? AND ? GROUP BY module,eligibility_state ORDER BY module,eligibility_state');$s->execute([$employeeId,$from,$to]);return$s->fetchAll(PDO::FETCH_ASSOC)?:[];}
+    public function getSourceCoverage(int $employeeId,int $year,int $month):array{$from=sprintf('%04d-%02d-01',$year,$month);$to=(new DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');$employee=$this->employee($employeeId);return(new SourceCompletenessEngine($this->pdo))->evaluate($employeeId,(string)($employee['role_key']??''),$from,$to,false);}
+    public function eligibilityTotals(int $employeeId,int $year,int $month):array{$from=sprintf('%04d-%02d-01',$year,$month);$to=(new DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');$s=$this->pdo->prepare('SELECT module,eligibility_state,COUNT(*) total FROM epi_employee_evidence WHERE employee_id=? AND business_date BETWEEN ? AND ? GROUP BY module,eligibility_state ORDER BY module,eligibility_state');$s->execute([$employeeId,$from,$to]);return$s->fetchAll(PDO::FETCH_ASSOC)?:[];}
+    public function classifyEligibility(int $employeeId,int $year,int $month):array{$from=sprintf('%04d-%02d-01',$year,$month);$to=(new DateTimeImmutable($from))->modify('last day of this month')->format('Y-m-d');return(new SourceCompletenessEngine($this->pdo))->classifyPeriod($employeeId,$from,$to);}
     public function supersedeInvalidHundreds($createdBy=null):array{$rows=$this->pdo->query("SELECT * FROM epi_scoring_monthly_scores WHERE final_hundredths=10000 AND confidence_label IN('Insufficient Data','Insufficient Historical Data') AND evidence_count=0 AND superseded=0")->fetchAll(PDO::FETCH_ASSOC)?:[];$corrected=0;$locked=0;foreach($rows as$r){if((int)$r['locked']===1){$locked++;continue;}$uuid=Support::uuid();$this->pdo->prepare("INSERT IGNORE INTO epi_score_superseding_corrections(correction_uuid,monthly_score_id,employee_id,period_start,period_end,previous_result_type,previous_score_hundredths,corrected_result_type,corrected_score_hundredths,correction_reason,locked_record,created_by) VALUES(?,?,?,?,?,?,?,'insufficient_historical_data',NULL,?,0,?)")->execute([$uuid,$r['id'],$r['employee_id'],$r['period_start'],$r['period_end'],$r['result_type']??'legacy',$r['final_hundredths'],'Historical 100% had no usable evidence and is superseded by Step 3B.',$createdBy]);$this->pdo->prepare("UPDATE epi_scoring_monthly_scores SET superseded=1,superseded_at=NOW(),superseded_reason=?,result_type='insufficient_historical_data',official_score_hundredths=NULL,official_performance_level='Not Available',score_status='insufficient_historical_data' WHERE id=? AND locked=0")->execute(['Historical 100% had no usable evidence.',$r['id']]);$corrected++;}return['found'=>count($rows),'corrected'=>$corrected,'locked_requires_audited_unlock'=>$locked];}
     public function getAudit(int $employeeId,int $limit=100):array{$s=$this->pdo->prepare('SELECT * FROM epi_employee_score_audits WHERE employee_id=? ORDER BY created_at DESC LIMIT '.max(1,min(500,$limit)));$s->execute([$employeeId]);return$s->fetchAll(PDO::FETCH_ASSOC);}
     public function getTrend(int $employeeId,int $months=12):array{$s=$this->pdo->prepare('SELECT score_year,score_month,official_score_hundredths,official_performance_level,result_type,confidence_label,locked FROM epi_scoring_monthly_scores WHERE employee_id=? ORDER BY score_year DESC,score_month DESC LIMIT '.max(1,min(60,$months)));$s->execute([$employeeId]);return array_reverse($s->fetchAll(PDO::FETCH_ASSOC));}
@@ -154,34 +159,14 @@ final class PerformanceScore
         $text=strtolower((string)($row['rule_name']??'').' '.(string)($row['action']??''));
         $subjective=(bool)preg_match('/wrong product|missing product|customer complaint|shared responsibility|financial loss|repeat error|critical error|misconduct|supplier|courier fault|business error|system error|conflicting attribution/',$text);
         $confidence=strtolower((string)($meta['evidence_confidence']??$meta['confidence_level']??'high'));if(!in_array($confidence,['high','moderate','low','insufficient'],true))$confidence='insufficient';
-        $exception=null;foreach(['approved_leave','approved_exception','system_error','business_error','external_dependency','system_outage','internet_outage','device_failure','supplier_delay','courier_delay','customer_delay','approved_role_coverage']as$key)if(!empty($meta[$key])){$exception=$key;break;}
+        $exception=EligibilityPolicy::exclusionReason($row,$meta);
         $complete=(int)($row['employee_id']??0)>0&&!empty($row['evidence_uuid'])&&!empty($row['occurred_at'])&&!empty($row['business_date'])&&!empty($row['reference_number'])&&!empty($row['action']);
-        if((string)($row['recording_mode']??'')==='test')return['confirmation_status'=>'excused','automatic_status'=>'automatically_excluded','confidence_level'=>$confidence,'exception_status'=>'test_data'];
         if($exception!==null)return['confirmation_status'=>'excused','automatic_status'=>'automatically_excluded','confidence_level'=>$confidence,'exception_status'=>$exception];
         if(!$complete||$confidence==='insufficient')return['confirmation_status'=>'insufficient_data','automatic_status'=>'insufficient_data','confidence_level'=>'insufficient','exception_status'=>null];
         if($subjective||(int)($row['owner_review_required']??0)===1||(int)($row['owner_confirmation_required']??0)===1||(int)($row['automatic_application']??1)!==1||$confidence==='low')return['confirmation_status'=>'pending','automatic_status'=>'needs_review','confidence_level'=>$confidence,'exception_status'=>$subjective?'ambiguous_responsibility':null];
         $minimum=strtolower((string)($row['minimum_confidence']??'high'));$rank=['insufficient'=>0,'low'=>1,'moderate'=>2,'high'=>3];if(($rank[$confidence]??0)<($rank[$minimum]??3))return['confirmation_status'=>'pending','automatic_status'=>'needs_review','confidence_level'=>$confidence,'exception_status'=>'confidence_below_rule_minimum'];
         return['confirmation_status'=>'confirmed','automatic_status'=>'automatically_applied','confidence_level'=>$confidence,'exception_status'=>null];
     }
-
-    private function ensureAutomaticScoringSchema():void
-    {
-        $ruleColumns=['automatic_application'=>"TINYINT(1) NOT NULL DEFAULT 1",'minimum_confidence'=>"VARCHAR(20) NOT NULL DEFAULT 'high'",'owner_review_required'=>"TINYINT(1) NOT NULL DEFAULT 0",'exclusion_conditions_json'=>'LONGTEXT NULL','grace_period_minutes'=>'INT UNSIGNED NOT NULL DEFAULT 0','root_incident_grouping'=>"VARCHAR(80) NOT NULL DEFAULT 'module_reference'"];
-        $eventColumns=['automatic_status'=>"VARCHAR(40) NOT NULL DEFAULT 'needs_review'",'confidence_level'=>"VARCHAR(20) NOT NULL DEFAULT 'insufficient'",'exception_status'=>'VARCHAR(40) NULL','expected_result'=>'TEXT NULL','actual_result'=>'TEXT NULL','exception_id'=>'BIGINT UNSIGNED NULL','supersedes_event_id'=>'BIGINT UNSIGNED NULL'];
-        $ruleSchemaAdded=false;
-        foreach(['epi_performance_rule_versions'=>$ruleColumns,'epi_performance_score_events'=>$eventColumns]as$table=>$columns)foreach($columns as$name=>$definition)if(!$this->columnExists($table,$name)){$this->pdo->exec("ALTER TABLE {$table} ADD COLUMN {$name} {$definition}");if($table==='epi_performance_rule_versions')$ruleSchemaAdded=true;}
-        if($ruleSchemaAdded){
-            $this->pdo->exec("INSERT INTO epi_employee_performance_settings(setting_key,setting_value,value_type,description) VALUES('epi_scoring_enabled','1','boolean','Evidence-first automatic scoring with review only for ambiguity.') ON DUPLICATE KEY UPDATE setting_value='1',description=VALUES(description)");
-            $this->pdo->exec("UPDATE epi_performance_rule_versions v JOIN epi_performance_rules r ON r.id=v.rule_id SET v.automatic_application=1,v.owner_review_required=0,v.owner_confirmation_required=0,v.minimum_confidence='high' WHERE LOWER(CONCAT(r.rule_name,' ',r.event_type)) REGEXP 'completed|completion|in progress|late|overdue|deadline|checklist|required note|required evidence|quantity variance|website confirmation|waybill|bookkeeping|opening balance|closing balance|login'");
-            $this->pdo->exec("UPDATE epi_performance_rule_versions v JOIN epi_performance_rules r ON r.id=v.rule_id SET v.automatic_application=0,v.owner_review_required=1,v.owner_confirmation_required=1,v.minimum_confidence='high' WHERE LOWER(CONCAT(r.rule_name,' ',r.event_type)) REGEXP 'wrong product|missing product|customer complaint|shared responsibility|financial loss|repeat error|critical error|misconduct|supplier|courier fault|business error|system error|conflicting attribution'");
-        }
-        $this->pdo->exec("UPDATE epi_performance_score_events SET automatic_status='automatically_applied',confidence_level=IF(confidence_level='insufficient','high',confidence_level) WHERE confirmation_status='confirmed' AND reversed=0 AND automatic_status='needs_review'");
-        $this->pdo->exec("UPDATE epi_performance_score_events SET automatic_status='automatically_excluded' WHERE confirmation_status IN('dismissed','excused','duplicate','rejected') AND reversed=0 AND automatic_status='needs_review'");
-        $this->pdo->exec("UPDATE epi_performance_score_events SET automatic_status='reversed' WHERE reversed=1");
-    }
-
-    private function columnExists(string$table,string$column):bool
-    {$s=$this->pdo->prepare('SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=? AND COLUMN_NAME=?');$s->execute([$table,$column]);return(int)$s->fetchColumn()>0;}
 
     private function isMonthLocked(int$employeeId,int$year,int$month):bool
     {$s=$this->pdo->prepare('SELECT locked FROM epi_scoring_monthly_scores WHERE employee_id=? AND score_year=? AND score_month=?');$s->execute([$employeeId,$year,$month]);return(int)$s->fetchColumn()===1;}

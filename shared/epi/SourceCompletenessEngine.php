@@ -32,13 +32,13 @@ final class SourceCompletenessEngine
         return $totals;
     }
 
-    public function evaluate(int $employeeId, string $roleKey, string $from, string $to): array
+    public function evaluate(int $employeeId, string $roleKey, string $from, string $to, bool $persist = false): array
     {
         $roleKey = $this->normaliseRole($roleKey);
-        $this->classifyPeriod($employeeId, $from, $to);
+        if ($persist) $this->classifyPeriod($employeeId, $from, $to);
         $requirements = $this->requirements($roleKey);
         $results = [];
-        foreach ($requirements as $source) $results[] = $this->evaluateSource($employeeId, $from, $to, $source);
+        foreach ($requirements as $source) $results[] = $this->evaluateSource($employeeId, $from, $to, $source, $persist);
         $criticalMissing = array_values(array_filter($results, static function (array $r): bool { return $r['importance'] === 'critical' && $r['source_status'] === 'missing'; }));
         $criticalPartial = array_values(array_filter($results, static function (array $r): bool { return $r['importance'] === 'critical' && $r['source_status'] === 'partial'; }));
         $coreMissing = array_values(array_filter($results, static function (array $r): bool { return $r['importance'] === 'core' && $r['source_status'] === 'missing'; }));
@@ -82,19 +82,19 @@ final class SourceCompletenessEngine
     {
         $meta = json_decode((string) ($row['metadata_json'] ?? ''), true); if (!is_array($meta)) $meta = [];
         $text = strtolower((string) ($row['module'] ?? '') . ' ' . (string) ($row['action'] ?? '') . ' ' . (string) ($row['action_description'] ?? ''));
-        if ((string) ($row['recording_mode'] ?? '') === 'test' || !empty($meta['test_data'])) return $this->decision('test_data','test_data','TEST DATA is never eligible.');
-        if (!empty($meta['duplicate']) || !empty($meta['duplicate_of'])) return $this->decision('duplicate','duplicate','Duplicate evidence is excluded.');
-        if (!empty($meta['superseded'])) return $this->decision('superseded','superseded','Superseded evidence is excluded.');
-        foreach (['system_error','business_error'] as $exception) if (!empty($meta[$exception]) || strpos($text, str_replace('_',' ',$exception)) !== false) return $this->decision($exception,$exception,'Business and System Errors are excluded from employee scoring.');
-        foreach (['approved_leave','approved_exception','external_dependency','system_outage','internet_outage','device_failure','supplier_delay','courier_delay','customer_delay','approved_role_coverage'] as $exception) if (!empty($meta[$exception])) return $this->decision('excluded',$exception,'A confirmed exception excludes this evidence from employee scoring.');
+        $excluded = EligibilityPolicy::exclusionReason($row, $meta);
+        if ($excluded !== null) {
+            $state = in_array($excluded, ['test_data', 'duplicate', 'superseded', 'system_error', 'business_error'], true) ? $excluded : 'excluded';
+            if ($excluded === 'insufficient_attribution' || $excluded === 'unconfirmed') $state = 'needs_review';
+            return $this->decision($state, $excluded, 'The central EPI V2 eligibility policy excludes this evidence from automatic employee scoring.');
+        }
         if (empty($row['employee_id']) || empty($row['occurred_at']) || empty($row['reference_number']) || empty($row['action'])) return $this->decision('invalid','missing_required_fields','Attribution, timestamp, reference and action are required.');
-        if ((string)($row['module']??'')==='Error Log'&&!empty($meta['historical_backfill'])&&empty($meta['responsibility_confirmed'])) return $this->decision('needs_review','quality_attribution_review_required','Error Log activity is not proof of employee responsibility.');
         $subjective = (bool) preg_match('/wrong product|missing product|customer complaint|financial loss|shared responsibility|repeat error|critical error|owner intervention|supplier|courier fault|conflicting attribution/', $text);
         if ($subjective) return !empty($row['verified']) ? $this->decision('verified_eligible','owner_verified','Subjective evidence was verified.') : $this->decision('needs_review','subjective_review_required','Subjective or responsibility-sensitive evidence requires review.');
         return $this->decision('automatically_eligible','objective_system_event','Objective timestamped and attributed system evidence.');
     }
 
-    private function evaluateSource(int $employeeId, string $from, string $to, array $source): array
+    private function evaluateSource(int $employeeId, string $from, string $to, array $source, bool $persist): array
     {
         $pattern = trim((string) ($source['action_pattern'] ?? ''));
         $sql = "SELECT COUNT(*) expected, SUM(CASE WHEN eligibility_state IN('automatically_eligible','verified_eligible') THEN 1 ELSE 0 END) available, SUM(CASE WHEN employee_id IS NOT NULL THEN 1 ELSE 0 END) owned, SUM(CASE WHEN occurred_at IS NOT NULL THEN 1 ELSE 0 END) timestamped, SUM(CASE WHEN status_before IS NOT NULL OR status_after IS NOT NULL THEN 1 ELSE 0 END) statused FROM epi_employee_evidence WHERE employee_id=? AND business_date BETWEEN ? AND ? AND LOWER(module)=LOWER(?)";
@@ -124,7 +124,7 @@ final class SourceCompletenessEngine
         }
         $reliability=$sourceStatus==='complete'?'high':($sourceStatus==='partial'?'moderate':'insufficient');
         $row=['source_id'=>(int)$source['id'],'source_key'=>$source['source_key'],'source_name'=>$source['source_name'],'category_key'=>$source['category_key'],'importance'=>$source['importance'],'records_expected'=>$expected,'records_available'=>$available,'ownership_coverage_hundredths'=>$ownership,'timestamp_coverage_hundredths'=>$timestamp,'status_history_coverage_hundredths'=>$status,'completeness_hundredths'=>$completeness,'source_status'=>$sourceStatus,'source_reliability'=>$reliability,'reason_missing'=>$reason];
-        $this->storeSource($employeeId,$from,$to,$source,$row);
+        if ($persist) $this->storeSource($employeeId,$from,$to,$source,$row);
         return $row;
     }
 

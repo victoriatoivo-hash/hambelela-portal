@@ -14,7 +14,7 @@ try{
         if($action==='sync'){$created=$service->syncEvidenceEvents($employee,$year,$month);$data=['created'=>$created,'classification'=>$service->eventStatusSummary($employee,$year,$month)];}
         elseif($action==='reclassify')$data=$service->reclassifyPeriod($employee,$year,$month);
         elseif($action==='calculate')$data=$service->calculateMonthly($employee,$year,$month,$viewer,'owner_recalculation',(string)($payload['reason']??''));
-        elseif($action==='classify')$data=['eligibility'=>$service->eligibilityTotals($employee,$year,$month),'coverage'=>$service->getSourceCoverage($employee,$year,$month)];
+        elseif($action==='classify'){$service->classifyEligibility($employee,$year,$month);$data=['eligibility'=>$service->eligibilityTotals($employee,$year,$month),'coverage'=>$service->getSourceCoverage($employee,$year,$month)];}
         elseif($action==='supersede_invalid')$data=$service->supersedeInvalidHundreds($viewer);
         elseif($action==='review'){$service->reviewEvent((int)$payload['event_id'],(string)$payload['status'],$viewer,(string)($payload['note']??''));$data=['reviewed'=>true];}
         elseif($action==='reverse')$data=['reversal_event_id'=>$service->reverseEvent((int)$payload['event_id'],$viewer,(string)($payload['reason']??''))];

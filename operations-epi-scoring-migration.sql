@@ -79,7 +79,8 @@ CREATE TABLE IF NOT EXISTS epi_performance_score_events(
  KEY idx_epi_root_incident(root_incident_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
--- Existing installations are upgraded idempotently by PerformanceScore::ensureAutomaticScoringSchema().
+-- Existing installations must apply operations-epi-automatic-scoring-migration.sql explicitly.
+-- Performance page reads and service constructors never perform schema upgrades.
 
 CREATE TABLE IF NOT EXISTS epi_scoring_monthly_scores(
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, employee_id INT NOT NULL, employee_name VARCHAR(160) NOT NULL,

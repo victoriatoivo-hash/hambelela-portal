@@ -905,6 +905,14 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
     } catch (Throwable $e) {
         // Operational activity logging must never depend on EPI.
     }
+
+    // EPI V2 shadow capture. It creates accepted ownership and deadline records
+    // only after the operational transaction has saved successfully.
+    try {
+        \Hambelela\EPI\V2OperationalBridge::record(db(), $entityType, $action, $entityId, $metadata);
+    } catch (Throwable $e) {
+        // V2 intelligence must never block operational work.
+    }
 }
 
 function ops_log_order_stage_event(int $orderId, string $stageKey, array $metadata = [], ?int $employeeId = null): void
