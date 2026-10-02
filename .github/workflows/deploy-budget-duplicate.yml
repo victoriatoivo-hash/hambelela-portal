@@ -1,0 +1,63 @@
+name: Deploy Supplier budget duplication
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Read-only preflight or deploy the approved Budgeting files
+        required: true
+        type: choice
+        options: [preflight, deploy]
+      approved_sha:
+        description: Exact approved commit SHA
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Test budget duplication and existing save behavior
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+          php -l apps/operations/budget-planning.php
+          php -l apps/operations/budgeting-model.php
+          php tests/budgeting.php
+          php tests/budget-duplicate.php
+          node tests/budget-duplicate-static.mjs
+          node tests/budget-planning-save-reset-static.mjs
+          python3 -m py_compile scripts/deploy-budget-duplicate.py scripts/deploy-orders-inline-editing.py
+      - name: Verify live baseline and deploy only Budgeting files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-budget-duplicate.py "$MODE" "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: budget-duplicate-${{ github.run_id }}
+          path: |
+            budget-duplicate-deployment-report.json
+            budget-duplicate-deployment-backup.zip
+          if-no-files-found: warn

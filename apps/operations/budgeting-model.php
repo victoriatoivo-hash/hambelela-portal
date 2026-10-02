@@ -16,3 +16,10 @@ function budget_validate(array $data):array {
     $items=[];foreach($raw as $r){if(!is_array($r))throw new RuntimeException('Invalid item.');$item=trim((string)($r['item']??''));$quantity=trim((string)($r['quantity']??''));$cost=trim((string)($r['cost']??''));if($item===''&&$quantity===''&&$cost==='')continue;if($item===''||$quantity===''||strlen($item)>300||strlen($quantity)>80)throw new RuntimeException('Each row needs an item and quantity (including its unit or size).');budget_cents($cost);$items[]=compact('item','quantity','cost');}
     if(!$items)throw new RuntimeException('Add at least one item.');return compact('kind','title','date','items');
 }
+
+// A duplicate is an unsaved draft, never another view of the original record.
+function budget_duplicate_draft(array $source, string $date):array {
+    $items=json_decode((string)($source['items_json']??''),true,512,JSON_THROW_ON_ERROR);
+    $draft=budget_validate(['kind'=>$source['kind']??'', 'title'=>$source['title']??'', 'date'=>$date, 'items'=>$items]);
+    return ['id'=>0,'revision'=>0]+$draft;
+}

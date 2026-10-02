@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+const page=readFileSync('apps/operations/budget-planning.php','utf8');
+assert.match(page,/require_role\('owner_admin'\)/);
+assert.match(page,/hash_equals\(\$_SESSION\['budget_csrf'\]/);
+assert.match(page,/\$id=\$duplicateId>0\?0:/,'A copied form cannot overwrite its source');
+assert.match(page,/\$values\['id'\]=0;\$values\['revision'\]=0/,'Failed duplicate validation cannot restore source identity');
+assert.match(page,/Duplicate for new month/);
+assert.match(page,/Save new budget/);
+assert.match(page,/budget_duplicate_draft\(\$duplicateSource,date\('Y-m-d'\)\)/);
+assert.match(page,/bh\(\$duplicateSource\['title'\]\)/,'Source names must be escaped');
+assert.match(page,/name="date" required/);
+assert.match(page,/name="month"/);
+assert.match(page,/filemtime\(BASE_PATH\.'\/assets\/css\/budgeting.css'\)/,'CSS must be cache versioned');
+console.log('Budget duplicate UI and safety checks passed.');
