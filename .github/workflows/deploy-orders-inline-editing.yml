@@ -1,10 +1,10 @@
-name: Deploy Orders inline editing persistence fix
+name: Deploy Orders Paid confirmation fix
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Preflight only or deploy the approved Orders inline-editing fix
+        description: Preflight only or deploy the approved Orders Paid confirmation fix
         required: true
         type: choice
         options:
@@ -35,11 +35,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Validate Orders inline-editing release
+      - name: Validate Orders Paid confirmation release
         run: |
           test "$(git rev-parse HEAD)" = "${{ inputs.approved_sha }}"
           php -l apps/operations/orders-board-action.php
           node --check assets/js/orders-board.js
+          php tests/orders-paid-confirmation-behavior.php
+          node tests/orders-paid-ui-behavior.mjs
+          node tests/orders-paid-confirmation-static.mjs
+          node tests/orders-split-payment-static.mjs
           node tests/orders-inline-editing-persistence-static.mjs
           node tests/orders-invoice-reference-static.mjs
           node tests/orders-board-loading-ux-static.mjs

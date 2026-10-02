@@ -1505,3 +1505,9 @@ body.ess-dashboard .ess-orders-page #toolbar-popover.orders-mobile-filter-sheet 
 body.ess-dashboard .ess-orders-page #toolbar-popover.orders-mobile-filter-sheet .work-filter-actions{display:flex!important;justify-content:flex-end}
 body.ess-dashboard .ess-orders-page #toolbar-popover.orders-mobile-filter-sheet .work-filter-actions button{min-height:44px}
 }
+/* Paid save feedback stays visible independently of the hidden sync indicator. */
+.orders-paid-feedback{position:fixed;z-index:50000;right:20px;bottom:28px;display:flex;align-items:center;gap:16px;max-width:min(480px,calc(100vw - 40px));padding:12px 16px;background:#fffaf1;color:#69430f;border:1px solid #c8ad80;border-radius:10px;box-shadow:0 6px 24px #30230f26;font:400 14px/1.45 'Jost',sans-serif}
+.orders-paid-feedback[hidden]{display:none}
+.orders-paid-feedback.is-error{background:#fff5f3;color:#942c22;border-color:#d59790}
+.orders-paid-feedback button{flex:none;width:30px;height:30px;padding:0;border:0;border-radius:5px;background:transparent;color:inherit;font:400 22px/1 'Jost',sans-serif;cursor:pointer}
+.orders-paid-feedback button:hover,.orders-paid-feedback button:focus-visible{background:#96631318}

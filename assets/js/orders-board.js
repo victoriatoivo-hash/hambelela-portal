@@ -103,6 +103,7 @@
   const selectedOrders = new Set();
   let bulkTrashInProgress = false;
   const paidUpdatesInProgress = new Set();
+  let paidMutationRevision = 0;
   const packerUpdatesInProgress = new Set();
   const boardState = {
     search: '',
@@ -2709,14 +2710,44 @@
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
+  function showPaidFeedback(message, isError = false, saving = false) {
+    let notice = document.getElementById('orders-paid-feedback');
+    if (!notice) {
+      notice = document.createElement('div');
+      notice.id = 'orders-paid-feedback';
+      notice.className = 'orders-paid-feedback';
+      const text = document.createElement('span');
+      const dismiss = document.createElement('button');
+      dismiss.type = 'button';
+      dismiss.textContent = '×';
+      dismiss.setAttribute('aria-label', 'Dismiss Paid confirmation message');
+      dismiss.addEventListener('click', () => { notice.hidden = true; });
+      notice.append(text, dismiss);
+      document.body.appendChild(notice);
+    }
+    notice.firstElementChild.textContent = message;
+    notice.setAttribute('role', isError ? 'alert' : 'status');
+    notice.classList.toggle('is-error', isError);
+    notice.lastElementChild.hidden = saving;
+    notice.hidden = false;
+  }
+
   async function togglePaidCell(paidCell) {
     const orderId = paidCell.dataset.paidToggle;
     if (!orderId || paidUpdatesInProgress.has(String(orderId))) return;
-    paidUpdatesInProgress.add(String(orderId));
-    paidCell.disabled = true;
-    paidCell.setAttribute('aria-busy', 'true');
     const value = paidCell.dataset.paidState === 'paid' ? 'unpaid' : 'paid';
     const ids = currentSelectedIdsFor(orderId);
+    if (ids.some((id) => paidUpdatesInProgress.has(String(id)))) return;
+    paidMutationRevision += 1;
+    ids.forEach((id) => {
+      paidUpdatesInProgress.add(String(id));
+      const toggle = body.querySelector(`[data-paid-toggle="${selectorEsc(id)}"]`);
+      if (toggle) {
+        toggle.disabled = true;
+        toggle.setAttribute('aria-busy', 'true');
+      }
+    });
+    showPaidFeedback('Saving Paid confirmation…', false, true);
     const previous = ids.map((id) => {
       const order = ordersCache.find((item) => String(item.id) === String(id));
       return [String(id), order?.payment_status || 'unpaid'];
@@ -2736,16 +2767,30 @@
     };
     ids.forEach((id) => paint(id, value));
     try {
-      await updateOrdersField(ids, 'payment_status', value);
+      // payment_status is the manual portal confirmation in this browser model;
+      // financial_payment_status and payments are intentionally not changed.
+      const saved = await updateOrdersField(ids, 'payment_status', value);
+      const savedIds = new Set(saved.map((change) => String(change.id)));
+      previous.forEach(([id, state]) => { if (!savedIds.has(id)) paint(id, state); });
+      const failedCount = ids.length - savedIds.size;
+      showPaidFeedback(failedCount
+        ? `Saved ${savedIds.size} Paid confirmations; ${failedCount} failed. Failed checkboxes were restored. Please retry.`
+        : 'Paid confirmation saved. Payment amounts are unchanged.', failedCount > 0);
       refreshGroupSummaries(groupKeys);
       updateWorkMetrics(visibleOrders());
     } catch (error) {
       previous.forEach(([id, state]) => paint(id, state));
-      throw error;
+      showPaidFeedback(`Couldn’t update Paid status. ${error?.message || 'Please try again.'}`, true);
     } finally {
-      paidUpdatesInProgress.delete(String(orderId));
-      paidCell.disabled = false;
-      paidCell.removeAttribute('aria-busy');
+      paidMutationRevision += 1;
+      ids.forEach((id) => {
+        paidUpdatesInProgress.delete(String(id));
+        const toggle = body.querySelector(`[data-paid-toggle="${selectorEsc(id)}"]`);
+        if (toggle) {
+          toggle.disabled = false;
+          toggle.removeAttribute('aria-busy');
+        }
+      });
     }
   }
 
@@ -4519,6 +4564,7 @@
 
   async function refresh(trigger = null, options = {}) {
     if (refreshInFlight) return refreshInFlight;
+    const paidRevisionAtRequest = paidMutationRevision;
     const requestSequence = ++refreshSequence;
     const background = options.background === true;
     const run = async () => {
@@ -4547,6 +4593,9 @@
         throw new Error(clean ? `Board returned a page instead of JSON: ${clean.slice(0, 180)}` : 'Board returned an empty response.');
       }
       if (!response.ok || !data.ok) throw new Error(data.message || 'Could not load board');
+      // A read started before/during a Paid save can contain the old confirmation.
+      // Do not advance the cursor: the next refresh must retrieve those changes.
+      if (paidUpdatesInProgress.size || paidRevisionAtRequest !== paidMutationRevision) return data;
       if (requestSequence < appliedRefreshSequence) return data;
       appliedRefreshSequence = requestSequence;
       const payload = data.data && typeof data.data === 'object' ? data.data : {};

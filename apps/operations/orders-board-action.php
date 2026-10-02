@@ -1856,16 +1856,14 @@ try {
             if (!ops_can_update_order_paid_status()) {
                 throw new RuntimeException('You do not have permission to change Paid.');
             }
-            if ($value === 'paid') {
-                $allocations = ops_order_payment_allocations($orderId);
-                $allocatedCents = array_sum(array_map(static fn(array $payment): int => (int) ($payment['amount_cents'] ?? 0), $allocations));
-                $orderTotalCents = (int) round((float) ($previousOrder['total_amount'] ?? 0) * 100);
-                if ($allocations && $allocatedCents < $orderTotalCents) {
-                    throw new RuntimeException('Allocated payments do not cover the order total. Add the remaining payment before marking this order paid.');
-                }
+            // Paid is staff confirmation, not financial settlement. Partial allocations
+            // must remain intact and must not block this independent confirmation.
+            if (!in_array($value, ['paid', 'unpaid'], true)) {
+                throw new RuntimeException('Choose Paid or Unpaid for portal confirmation.');
             }
-            $paidAuditSet = ops_column_exists('ops_orders', 'paid_updated_at') && ops_column_exists('ops_orders', 'paid_updated_by_employee_id')
-                ? ', paid_updated_at = CURRENT_TIMESTAMP, paid_updated_by_employee_id = ?' : '';
+            if (!ops_column_exists('ops_orders', 'portal_paid_confirmed')) {
+                throw new RuntimeException('Paid confirmation storage is unavailable. Please contact an administrator.');
+            }
             ops_set_portal_paid_confirmation($orderId, $value === 'paid', 'manual_orders_board', ops_current_employee_id() ?: null);
             $actor = current_user();
             $oldPaid = ops_portal_paid_status($previousOrder) === 'paid';
@@ -1946,7 +1944,7 @@ try {
             'customer_name' => 'customer_name',
             'customer_contact' => 'customer_contact',
             'total_amount' => 'total_amount',
-            'payment_status' => ops_column_exists('ops_orders', 'portal_paid_confirmed') ? 'portal_paid_confirmed' : 'payment_status',
+            'payment_status' => 'portal_paid_confirmed',
             'order_type' => ops_column_exists('ops_orders', 'fulfilment_mode') ? 'fulfilment_mode' : 'order_type',
             'payment_method' => 'payment_method',
             'status' => 'status',
@@ -2032,19 +2030,18 @@ try {
             }catch(Throwable$bulkStatusError){if($db->inTransaction())$db->rollBack();throw$bulkStatusError;}
             echo json_encode(['ok'=>true,'message'=>$autoAssignments?'Selected orders assigned to you.':'Updated selected orders.','updated'=>$changed,'auto_assignments'=>$autoAssignments]);exit;
         }
-        if ($field === 'payment_status' && $value === 'paid' && ops_ensure_order_payment_schema()) {
-            $underAllocated = ops_rows(
-                "SELECT o.id
-                 FROM ops_orders o
-                 JOIN order_payment_allocations p ON p.order_id = o.id
-                 WHERE o.id IN ({$placeholders})
-                 GROUP BY o.id, o.total_amount
-                 HAVING SUM(p.amount_cents) < ROUND(o.total_amount * 100)
-                 LIMIT 1",
-                $ids
-            );
-            if ($underAllocated) {
-                throw new RuntimeException('One or more selected orders have payments that do not cover their totals. Complete the allocations before marking them paid.');
+        if ($field === 'payment_status') {
+            if (!in_array($value, ['paid', 'unpaid'], true)) {
+                throw new RuntimeException('Choose Paid or Unpaid for portal confirmation.');
+            }
+            if (!ops_column_exists('ops_orders', 'portal_paid_confirmed')) {
+                throw new RuntimeException('Paid confirmation storage is unavailable. Please contact an administrator.');
+            }
+        }
+        $previousPaidStatuses = [];
+        if ($field === 'payment_status') {
+            foreach (ops_rows("SELECT id, portal_paid_confirmed, payment_status FROM ops_orders WHERE id IN ({$placeholders})", $ids) as $previousPaidRow) {
+                $previousPaidStatuses[(int) $previousPaidRow['id']] = ops_portal_paid_status($previousPaidRow);
             }
         }
         $previousKpiStatuses = [];
@@ -2127,6 +2124,19 @@ try {
                     'source' => 'orders_board_bulk',
                     'assigned_packer_id' => $value,
                 ]);
+            }
+            if ($field === 'payment_status') {
+                $oldPaid = ($previousPaidStatuses[(int) $id] ?? 'unpaid') === 'paid';
+                $newPaid = (int) $value === 1;
+                ops_activity_log('payment_status_updated', 'order', $id, [
+                    'field' => 'portal_paid_confirmation',
+                    'old_value' => $oldPaid ? 'paid' : 'unpaid',
+                    'new_value' => $newPaid ? 'paid' : 'unpaid',
+                    'source' => 'manual_orders_board_bulk',
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                    'message' => 'Paid changed from ' . ($oldPaid ? 'Yes' : 'No') . ' to ' . ($newPaid ? 'Yes' : 'No') . ' by ' . (current_user()['name'] ?? 'Unknown') . '.',
+                ]);
+                continue;
             }
             ops_activity_log('bulk_' . $field . '_updated', 'order', $id, [
                 'field' => $field,

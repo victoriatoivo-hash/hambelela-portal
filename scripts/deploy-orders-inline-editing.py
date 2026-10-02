@@ -1,4 +1,4 @@
-"""Safely deploy only the approved Orders inline-editing runtime files."""
+"""Safely deploy the Paid confirmation fix over the approved live Orders release."""
 
 import ftplib
 import hashlib
@@ -10,7 +10,7 @@ import sys
 import zipfile
 
 
-BASELINE = "5ce218dba6e0f48ff054517a6bc68931ff2009d3"
+BASELINE = "01f68f396a6d69c3c5723d4a9b7db102ed3a30fe"
 FILES = (
     "apps/operations/orders-board-action.php",
     "assets/js/orders-board.js",
@@ -118,8 +118,8 @@ def main(mode, approved_sha):
             uploaded = []
             try:
                 for path in changed:
-                    remote_write(ftp, path, expected[path])
                     uploaded.append(path)
+                    remote_write(ftp, path, expected[path])
                     if remote_read(ftp, path) != expected[path]:
                         raise RuntimeError(f"Upload verification failed: {path}")
             except Exception:
