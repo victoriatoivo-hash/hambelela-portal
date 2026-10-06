@@ -10,13 +10,9 @@ import sys
 import zipfile
 
 
-BASELINE = "7521b88ae5c29bc995e7df1faeaa308dbe252980"
+BASELINE = "f468ea8a14cb139029c1750a6668b5d1a99b1ae7"
 FILES = (
     "apps/hr-portal/includes/payslip-print.css",
-    "apps/hr-portal/includes/payslip-print.js",
-    "assets/fonts/jost-variable.woff2",
-    "assets/fonts/jost-variable-italic.woff2",
-    "assets/fonts/jost-OFL.txt",
     "apps/hr-portal/payroll.php",
     "apps/hr-portal/my-payslips.php",
 )
@@ -68,7 +64,7 @@ def main(mode, approved_sha):
         raise RuntimeError("Workflow HEAD does not match the approved release SHA")
 
     expected = {path: blob(head, path) for path in FILES}
-    baselines = {path: blob(BASELINE, path) if path.endswith(".php") else None for path in FILES}
+    baselines = {path: blob(BASELINE, path) for path in FILES}
     credentials = [os.getenv(key) for key in ("FTP_SERVER", "FTP_USERNAME", "FTP_PASSWORD")]
     if not all(credentials):
         raise RuntimeError("FTP deployment credentials are unavailable")

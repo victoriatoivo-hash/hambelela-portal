@@ -13,9 +13,10 @@
   font-weight: 100 900;
   font-display: block;
 }
-@page { size: A4 portrait; margin: 10mm 12mm; }
+/* Own the safe gutters inside the document so a browser margin override cannot remove them. */
+@page { size: A4 portrait; margin: 0; }
 @media print {
-  /* @page owns the margins: use its 186mm content box, not a 210mm body. */
+  /* The document includes its A4 gutters; the shell must not add viewport sizing. */
   html, body {
     width: 100% !important; max-width: none !important; min-width: 0 !important;
     height: auto !important; min-height: 0 !important;
@@ -33,9 +34,10 @@
     transform: none !important;
   }
   .payslip-document {
-    width: 100% !important; max-width: none !important; min-width: 0 !important;
+    box-sizing: border-box !important;
+    width: 210mm !important; max-width: 100% !important; min-width: 0 !important;
     min-height: 0 !important; height: auto !important;
-    margin: 0 !important; padding: 0 !important; background: #fff !important;
+    margin: 0 auto !important; padding: 10mm 12mm !important; background: #fff !important;
     box-shadow: none !important; border: 0 !important; overflow: visible !important;
     transform: none !important; zoom: 1 !important;
   }

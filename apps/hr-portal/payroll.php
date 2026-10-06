@@ -477,8 +477,8 @@ if (isset($_GET['payslip'])) {
 }
 </style>
 <?php if ($viewPayslip): ?>
-<link rel="stylesheet" href="includes/payslip-print.css">
-<script src="includes/payslip-print.js" defer></script>
+<link rel="stylesheet" href="includes/payslip-print.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/includes/payslip-print.css')) ?>">
+<script src="includes/payslip-print.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/includes/payslip-print.js')) ?>" defer></script>
 <?php endif ?>
 </head>
 <body>

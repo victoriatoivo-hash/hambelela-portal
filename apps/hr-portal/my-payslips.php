@@ -135,8 +135,8 @@ foreach (['company_name','company_reg','company_address','company_city','company
 .ps-footer{border-top:1px solid #eee;padding-top:12px;font-size:9.5px;color:#aaa;text-align:center;margin-top:4px}
 </style>
 <?php if ($viewPayslip): ?>
-<link rel="stylesheet" href="includes/payslip-print.css">
-<script src="includes/payslip-print.js" defer></script>
+<link rel="stylesheet" href="includes/payslip-print.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/includes/payslip-print.css')) ?>">
+<script src="includes/payslip-print.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/includes/payslip-print.js')) ?>" defer></script>
 <?php endif ?>
 </head>
 <body>
