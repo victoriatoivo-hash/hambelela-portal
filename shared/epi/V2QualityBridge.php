@@ -23,6 +23,10 @@ final class V2QualityBridge
           &&!empty($r['accuracy_verified_at'])&&!empty($r['attribution_verified_at'])&&V2Store::one($db,'SELECT id FROM ops_employees WHERE id=?',[$employee]);
         $exclusion=EligibilityPolicy::exclusionReason(['module'=>'Orders'],$meta);
         $eligible=$confirmed&&!$historical&&$exclusion===null;
+        // PDO 7.4 may return numeric IDs as strings; keep audit identity types stable.
+        if(isset($r['logged_by']))$r['logged_by']=(int)$r['logged_by'];
+        if(isset($r['attribution_verified_by']))$r['attribution_verified_by']=(int)$r['attribution_verified_by'];
+        if(isset($meta['actor_employee_id']))$meta['actor_employee_id']=(int)$meta['actor_employee_id'];
         $snapshot=['root_incident_id'=>$root,'source_record'=>$r,'reporter_employee_id'=>$r['logged_by']??null,'actor_employee_id'=>$meta['actor_employee_id']??(function_exists('ops_current_employee_id')?ops_current_employee_id():null),'responsible_employee_id'=>$confirmed?$employee:null,'responsibility_confirmed'=>(bool)$confirmed,'reviewer_id'=>$r['attribution_verified_by']??null,'reviewed_at'=>$r['attribution_verified_at']??null,'historical_backfill'=>$historical,'excluded_from_scoring'=>true,'shadow_candidate_eligible'=>(bool)$eligible,'exclusion_reason'=>$exclusion??($historical?'historical_backfill':(!$confirmed?'insufficient_attribution':null)),'mode'=>'shadow'];
         $hash=hash('sha256',Support::json($snapshot));
         $current=V2Store::one($db,'SELECT * FROM epi_v2_quality_revisions WHERE root_incident_id=? AND superseded_at IS NULL',[$root]);
