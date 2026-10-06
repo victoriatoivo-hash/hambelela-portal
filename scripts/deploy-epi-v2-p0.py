@@ -62,7 +62,7 @@ $required=['epi_performance_score_events'=>['automatic_status','confirmation_sta
 $missing=[];$stage='schema_prerequisites';
 foreach($required as $table=>$columns){$s=$db->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');$s->execute([$table]);$found=$s->fetchAll(PDO::FETCH_COLUMN);foreach($columns as $c)if(!in_array($c,$found,true))$missing[]=$table.'.'.$c;}
 $v2=$db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'epi\\_v2\\_%'")->fetchAll(PDO::FETCH_COLUMN);
-$version=$db->query('SELECT VERSION()')->fetchColumn();$db->rollBack();
+$version=$db->query('SELECT VERSION()')->fetchColumn();$db->exec('ROLLBACK');
 echo json_encode(['php'=>PHP_VERSION,'database_version'=>$version,'flags'=>(object)$flags,'missing_prerequisites'=>$missing,'v2_tables'=>$v2]);
 }catch(Throwable $e){http_response_code(500);echo json_encode(['error'=>'Read-only production preflight failed','stage'=>$stage,'error_type'=>get_class($e),'sqlstate'=>$e instanceof PDOException?$e->getCode():null,'driver_code'=>$e instanceof PDOException?($e->errorInfo[1]??null):null,'php'=>PHP_VERSION]);}
 '''.replace('__TOKEN__', token).encode()
@@ -116,6 +116,7 @@ def main(mode, sha):
         host = report["host"]
         blocked = conflicts or host["missing_prerequisites"] or any(str(v) != '0' for v in host["flags"].values())
         if tuple(map(int, host['php'].split('.')[:2])) < (8, 2):
+            report['runtime_blocker'] = 'Host PHP is older than the verified PHP 8.2 runtime; require separate compatibility validation, not an automatic host upgrade'
             blocked = True
         if blocked:
             report["state"] = "blocked-preflight"
