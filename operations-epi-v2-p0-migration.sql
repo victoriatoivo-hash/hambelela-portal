@@ -2,15 +2,12 @@
 -- Explicit deployment migration. It must never be executed by a page request.
 -- Additive only: legacy evidence, scores and reports remain intact for parallel verification.
 
-INSERT INTO epi_employee_performance_settings(setting_key,setting_value,value_type,description)
+INSERT IGNORE INTO epi_employee_performance_settings(setting_key,setting_value,value_type,description)
 VALUES
 ('epi_canonical_system','v2_shadow','enum','EPI V2 is the target canonical system; legacy remains comparison-only during validation.'),
-('epi_v2_capture_enabled','1','boolean','Capture V2 ownership and deadline records in shadow mode.'),
+('epi_v2_capture_enabled','0','boolean','Capture V2 ownership and deadline records in shadow mode.'),
 ('epi_v2_watchdog_enabled','0','boolean','Explicit switch for the scheduled V2 deadline watchdog.'),
-('epi_v2_order_ack_business_minutes','30','integer','Business minutes allowed to acknowledge or progress a new order.'),
-('epi_v2_task_start_business_minutes','30','integer','Business minutes allowed to start an assigned task.'),
-('epi_v2_calculation_version','EPI V2 P0 1.0','string','Current V2 foundation calculation contract.')
-ON DUPLICATE KEY UPDATE description=VALUES(description);
+('epi_v2_calculation_version','EPI V2 P0 2.0','string','Current V2 foundation calculation contract.');
 
 CREATE TABLE IF NOT EXISTS epi_v2_event_registry (
   event_key VARCHAR(100) NOT NULL PRIMARY KEY,
@@ -32,7 +29,7 @@ CREATE TABLE IF NOT EXISTS epi_v2_event_registry (
   KEY idx_epi_v2_registry_category (category_key,active)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-INSERT INTO epi_v2_event_registry
+INSERT IGNORE INTO epi_v2_event_registry
 (event_key,module,description,responsibility_type,polarity,score_eligible,owner_review_required,severity_handling,sla_obligation_key,category_key,applicable_roles_json)
 VALUES
 ('order_created','Orders','Order entered the operational queue.','team_queue','neutral',0,0,'none',NULL,'orders_sla','["front_desk_admin"]'),
@@ -59,11 +56,7 @@ VALUES
 ('incorrect_stock_information','Error Log','Confirmed incorrect stock information.','confirmed_responsible_employee','negative',1,1,'capped',NULL,'inventory_website','[]'),
 ('incorrect_payment_information','Error Log','Confirmed incorrect payment information.','confirmed_responsible_employee','negative',1,1,'capped',NULL,'bookkeeping_cash','["front_desk_admin"]'),
 ('internal_handover_missed','Tasks','Required handover was not initiated and accepted.','owner_at_due','negative',1,0,'capped','complete_handover','attendance_reliability','[]')
-ON DUPLICATE KEY UPDATE
-module=VALUES(module),description=VALUES(description),responsibility_type=VALUES(responsibility_type),
-polarity=VALUES(polarity),score_eligible=VALUES(score_eligible),owner_review_required=VALUES(owner_review_required),
-severity_handling=VALUES(severity_handling),sla_obligation_key=VALUES(sla_obligation_key),
-category_key=VALUES(category_key),applicable_roles_json=VALUES(applicable_roles_json),active=1;
+;
 
 CREATE TABLE IF NOT EXISTS epi_v2_ownership_periods (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -86,6 +79,7 @@ CREATE TABLE IF NOT EXISTS epi_v2_ownership_periods (
   UNIQUE KEY uq_epi_v2_ownership_uuid (ownership_uuid),
   KEY idx_epi_v2_owner_at (module,object_reference,effective_from,effective_to),
   KEY idx_epi_v2_owner_employee (employee_id,effective_from,effective_to)
+  ,CONSTRAINT chk_epi_v2_owner_interval CHECK (effective_to IS NULL OR effective_to>effective_from)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS epi_v2_duty_periods (
@@ -102,10 +96,12 @@ CREATE TABLE IF NOT EXISTS epi_v2_duty_periods (
   source VARCHAR(100) NOT NULL,
   shift_id BIGINT UNSIGNED NULL,
   exception_id BIGINT UNSIGNED NULL,
+  superseded_at DATETIME NULL,
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY uq_epi_v2_duty_uuid (duty_uuid),
   KEY idx_epi_v2_duty_at (duty_key,effective_from,effective_to,responsibility_level),
   KEY idx_epi_v2_duty_employee (employee_id,effective_from,effective_to)
+  ,CONSTRAINT chk_epi_v2_duty_interval CHECK (effective_to IS NULL OR effective_to>effective_from)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS epi_v2_handovers (
@@ -146,8 +142,14 @@ CREATE TABLE IF NOT EXISTS epi_v2_operational_deadlines (
   source_event VARCHAR(100) NULL,
   starts_at DATETIME NOT NULL,
   due_at DATETIME NOT NULL,
+  breach_eligible_at DATETIME NOT NULL,
+  policy_snapshot_json LONGTEXT NOT NULL,
+  historical_backfill TINYINT NOT NULL DEFAULT 1,
+  breach_at DATETIME NULL,
+  cancelled_at DATETIME NULL,
   fulfilled_at DATETIME NULL,
   fulfilled_by INT UNSIGNED NULL,
+  late_business_minutes DECIMAL(12,2) NULL,
   state ENUM('open','fulfilled','breached','needs_attribution','cancelled','excused') NOT NULL DEFAULT 'open',
   grace_minutes INT UNSIGNED NOT NULL DEFAULT 0,
   exception_id BIGINT UNSIGNED NULL,
@@ -156,13 +158,15 @@ CREATE TABLE IF NOT EXISTS epi_v2_operational_deadlines (
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_epi_v2_deadline_uuid (deadline_uuid),
   UNIQUE KEY uq_epi_v2_deadline_idempotency (idempotency_key),
-  KEY idx_epi_v2_deadline_watchdog (state,due_at,fulfilled_at),
+  KEY idx_epi_v2_deadline_watchdog (state,breach_eligible_at),
+  KEY idx_epi_v2_deadline_team (responsible_team,state,due_at),
   KEY idx_epi_v2_deadline_object (module,object_reference,obligation_key)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS epi_v2_performance_incidents (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
   incident_uuid CHAR(36) NOT NULL,
+  root_incident_id VARCHAR(190) NOT NULL,
   deadline_uuid CHAR(36) NULL,
   event_key VARCHAR(100) NOT NULL,
   module VARCHAR(60) NOT NULL,
@@ -180,6 +184,7 @@ CREATE TABLE IF NOT EXISTS epi_v2_performance_incidents (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   resolved_at DATETIME NULL,
   UNIQUE KEY uq_epi_v2_incident_uuid (incident_uuid),
+  UNIQUE KEY uq_epi_v2_root (root_incident_id),
   UNIQUE KEY uq_epi_v2_incident_deadline (deadline_uuid),
   KEY idx_epi_v2_incident_employee (responsible_employee_at_breach,occurred_at),
   KEY idx_epi_v2_incident_event (event_key,occurred_at),
@@ -201,15 +206,48 @@ CREATE TABLE IF NOT EXISTS epi_v2_order_lifecycle_events (
   KEY idx_epi_v2_order_stage (stage_key,occurred_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- Previously implicit constructor mutations are now deployment-only.
-UPDATE epi_performance_score_events
-SET automatic_status='automatically_applied',
-    confidence_level=IF(confidence_level='insufficient','high',confidence_level)
-WHERE confirmation_status='confirmed' AND reversed=0 AND automatic_status='needs_review';
-
-UPDATE epi_performance_score_events
-SET automatic_status='automatically_excluded'
-WHERE confirmation_status IN('dismissed','excused','duplicate','rejected')
-  AND reversed=0 AND automatic_status='needs_review';
-
-UPDATE epi_performance_score_events SET automatic_status='reversed' WHERE reversed=1;
+-- No existing EPI evidence, score event, monthly score or legacy data is mutated.
+CREATE TABLE IF NOT EXISTS epi_v2_activation (
+ id TINYINT PRIMARY KEY CHECK(id=1), enforcement_start_at DATETIME NOT NULL,
+ approved_by INT NOT NULL, approved_at DATETIME NOT NULL, policy_json LONGTEXT NOT NULL,
+ mode VARCHAR(20) NOT NULL DEFAULT 'shadow' CHECK(mode='shadow')
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS epi_v2_scope_locks (scope_key CHAR(64) PRIMARY KEY) ENGINE=InnoDB;
+CREATE TRIGGER IF NOT EXISTS epi_v2_activation_no_update BEFORE UPDATE ON epi_v2_activation FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='P0 activation is immutable';
+CREATE TRIGGER IF NOT EXISTS epi_v2_activation_no_delete BEFORE DELETE ON epi_v2_activation FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='P0 activation is immutable';
+CREATE TABLE IF NOT EXISTS epi_v2_ownership_audits (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, scope_key VARCHAR(255) NOT NULL,
+ actor_id INT NOT NULL, reason VARCHAR(255) NOT NULL, before_json LONGTEXT, after_json LONGTEXT,
+ recorded_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS epi_v2_object_duties (
+ module VARCHAR(60) NOT NULL, object_reference VARCHAR(190) NOT NULL, duty_key VARCHAR(100) NOT NULL,
+ PRIMARY KEY(module,object_reference)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+CREATE TABLE IF NOT EXISTS epi_v2_exceptions (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, employee_id INT NULL, module VARCHAR(60) NULL,
+ object_reference VARCHAR(190) NULL, effective_from DATETIME NOT NULL, effective_to DATETIME NOT NULL,
+ approved_at DATETIME NOT NULL, approved_by INT NOT NULL, reason TEXT NOT NULL, source VARCHAR(190) NOT NULL,
+ kind VARCHAR(40) NOT NULL, CHECK(effective_to>effective_from),
+ KEY idx_epi_v2_exception(employee_id,effective_from,effective_to)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS epi_v2_quality_revisions (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, root_incident_id VARCHAR(190) NOT NULL,
+ revision_hash CHAR(64) NOT NULL, employee_id INT NULL, eligible TINYINT NOT NULL,
+ superseded_at DATETIME NULL, snapshot_json LONGTEXT NOT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ active_root VARCHAR(190) GENERATED ALWAYS AS (CASE WHEN superseded_at IS NULL THEN root_incident_id ELSE NULL END) STORED,
+ UNIQUE KEY uq_epi_v2_quality_current(active_root),
+ KEY idx_epi_v2_quality_root(root_incident_id,id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS epi_v2_outbox (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, event_key CHAR(64) NOT NULL UNIQUE,
+ entity_type VARCHAR(60) NOT NULL, entity_id BIGINT NOT NULL, action VARCHAR(100) NOT NULL,
+ payload_json LONGTEXT NOT NULL, state VARCHAR(20) NOT NULL DEFAULT 'pending', attempts INT NOT NULL DEFAULT 0,
+ last_error TEXT NULL, created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ KEY idx_epi_v2_outbox_pending(state,id)
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS epi_v2_watchdog_runs (
+ id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, started_at DATETIME NOT NULL, finished_at DATETIME NULL,
+ status VARCHAR(20) NOT NULL, rows_inspected INT NOT NULL DEFAULT 0, breaches_created INT NOT NULL DEFAULT 0,
+ errors INT NOT NULL DEFAULT 0, runtime_ms INT NULL, details_json LONGTEXT NULL
+) ENGINE=InnoDB;

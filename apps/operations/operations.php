@@ -906,8 +906,8 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
         // Operational activity logging must never depend on EPI.
     }
 
-    // EPI V2 shadow capture. It creates accepted ownership and deadline records
-    // only after the operational transaction has saved successfully.
+    // EPI V2 outbox/capture participates in the caller transaction. Failed
+    // processing remains pending for the explicit watchdog worker to replay.
     try {
         \Hambelela\EPI\V2OperationalBridge::record(db(), $entityType, $action, $entityId, $metadata);
     } catch (Throwable $e) {

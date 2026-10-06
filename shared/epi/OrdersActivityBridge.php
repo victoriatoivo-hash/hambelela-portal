@@ -176,16 +176,27 @@ final class OrdersActivityBridge
     private static function orderType(array $order): string
     {
         $raw = strtolower(trim((string) (($order['fulfilment_mode'] ?? '') ?: ($order['order_type'] ?? ''))));
-        $aliases=['delivery'=>'windhoek_delivery','windhoek delivery'=>'windhoek_delivery','walk-in'=>'walk_in','walk in'=>'walk_in'];
-        $raw=$aliases[$raw]??$raw;
-        return in_array($raw,['walk_in','collection','windhoek_delivery','courier','showgrounds','other'],true)?$raw:'other';
+        if (strpos($raw, 'courier') !== false) return 'courier';
+        if (strpos($raw, 'deliver') !== false) return 'delivery';
+        if (strpos($raw, 'collect') !== false) return 'collection';
+        if (strpos($raw, 'walk') !== false) return 'walk_in';
+        return $raw ?: 'unknown';
     }
 
     private static function isWalkIn(PDO $pdo, array $order, string $orderType): bool
     {
-        // V2 classification is structured. Customer names, mobile numbers and
-        // free-text contact details never determine Walk-In status.
-        return $orderType === 'walk_in';
+        if ($orderType === 'walk_in') return true;
+        $identifiers = ['walk-in', 'walk in', 'walk_in', 'walk in customer'];
+        try {
+            $stmt = $pdo->prepare("SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='orders_walk_in_identifiers' LIMIT 1");
+            $stmt->execute();
+            $configured = json_decode((string) $stmt->fetchColumn(), true);
+            if (is_array($configured)) $identifiers = array_merge($identifiers, $configured);
+        } catch (Throwable $error) {
+        }
+        $haystack = strtolower(implode(' ', [(string) ($order['customer_contact'] ?? ''), (string) ($order['customer_name'] ?? ''), (string) ($order['order_type'] ?? ''), (string) ($order['fulfilment_mode'] ?? '')]));
+        foreach ($identifiers as $identifier) if (($needle = strtolower(trim((string) $identifier))) !== '' && strpos($haystack, $needle) !== false) return true;
+        return false;
     }
 
     private static function walkInDueAt(PDO $pdo, string $loadedAt): ?DateTimeImmutable

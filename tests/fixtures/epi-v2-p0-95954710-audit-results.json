@@ -1,0 +1,648 @@
+{
+  "database": "epi_p0_audit_d755ce82fb4a",
+  "server": "11.4.10-MariaDB",
+  "timezone": "Africa/Windhoek",
+  "application_files_changed": false,
+  "pass": 72,
+  "fail": 31,
+  "tests": [
+    {
+      "test": "M01 partial migration leaves capture disabled",
+      "status": "FAIL",
+      "expected": "0",
+      "actual": "1"
+    },
+    {
+      "test": "M02 legacy score event unchanged",
+      "status": "FAIL",
+      "expected": "needs_review",
+      "actual": "automatically_applied"
+    },
+    {
+      "test": "M03 locked score row unchanged",
+      "status": "PASS",
+      "expected": 9000,
+      "actual": 9000
+    },
+    {
+      "test": "M04 replay does not duplicate registry",
+      "status": "PASS",
+      "expected": 24,
+      "actual": 24
+    },
+    {
+      "test": "M05 replay preserves configured registry",
+      "status": "FAIL",
+      "expected": 0,
+      "actual": 1
+    },
+    {
+      "test": "M06 immutable activation boundary exists",
+      "status": "FAIL",
+      "expected": true,
+      "actual": false
+    },
+    {
+      "test": "D01 ten watchdog runs one persisted incident",
+      "status": "PASS",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "test": "D02 breach belongs to owner A",
+      "status": "PASS",
+      "expected": 101,
+      "actual": 101
+    },
+    {
+      "test": "D03 later B completion resolves risk",
+      "status": "PASS",
+      "expected": "resolved",
+      "actual": "resolved"
+    },
+    {
+      "test": "D04 late completion preserves A breach",
+      "status": "PASS",
+      "expected": [
+        101,
+        "breach"
+      ],
+      "actual": [
+        101,
+        "breach"
+      ]
+    },
+    {
+      "test": "D05 completer B recorded",
+      "status": "PASS",
+      "expected": 102,
+      "actual": 102
+    },
+    {
+      "test": "D06 repeat fulfilment is a no-op",
+      "status": "PASS",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "test": "D07 late completion BEFORE scan retains breach",
+      "status": "FAIL",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "test": "D08 compliant completion 08:29:59",
+      "status": "PASS",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "test": "D08 compliant completion 08:30:00",
+      "status": "PASS",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "test": "D09 watchdog at exact deadline compliant",
+      "status": "PASS",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "test": "D10 arbitrary exception ID cannot excuse",
+      "status": "FAIL",
+      "expected": "breached",
+      "actual": "excused"
+    },
+    {
+      "test": "D11 transfer before due gives B breach",
+      "status": "PASS",
+      "expected": 102,
+      "actual": 102
+    },
+    {
+      "test": "D12 historical data cannot become pending_rule",
+      "status": "FAIL",
+      "expected": "historical_recovered",
+      "actual": "pending_rule"
+    },
+    {
+      "test": "D13 no ownership is held for review",
+      "status": "PASS",
+      "expected": "needs_review",
+      "actual": "needs_review"
+    },
+    {
+      "test": "D14 full immutable snapshot",
+      "status": "FAIL",
+      "expected": [],
+      "actual": [
+        "responsible_team",
+        "sla_version",
+        "starts_at",
+        "actual_state",
+        "fulfilment_state",
+        "calendar_version",
+        "exception_state"
+      ]
+    },
+    {
+      "test": "O01 normal duty at 10:35",
+      "status": "PASS",
+      "expected": 101,
+      "actual": 101
+    },
+    {
+      "test": "O02 lunch coverage overrides primary",
+      "status": "FAIL",
+      "expected": 102,
+      "actual": 101
+    },
+    {
+      "test": "O03 explicit nonoverlapping coverage works",
+      "status": "PASS",
+      "expected": 102,
+      "actual": 102
+    },
+    {
+      "test": "O04 future acceptance cannot own earlier due",
+      "status": "FAIL",
+      "expected": null,
+      "actual": 101
+    },
+    {
+      "test": "O05 overlapping retroactive assignment rejected",
+      "status": "FAIL",
+      "expected": 1,
+      "actual": 2
+    },
+    {
+      "test": "O06 invalid interval blocked by database",
+      "status": "FAIL",
+      "expected": false,
+      "actual": true
+    },
+    {
+      "test": "O07 orphan employee rejected",
+      "status": "FAIL",
+      "expected": 0,
+      "actual": 1
+    },
+    {
+      "test": "O08 object ownership ends with duty",
+      "status": "FAIL",
+      "expected": "2026-10-01 17:00:00",
+      "actual": null
+    },
+    {
+      "test": "O09 observed A owns until actual acceptance",
+      "status": "PASS",
+      "expected": 101,
+      "actual": 101
+    },
+    {
+      "test": "O10 B owns after acceptance",
+      "status": "PASS",
+      "expected": 102,
+      "actual": 102
+    },
+    {
+      "test": "O11 repeated acceptance no extra period",
+      "status": "PASS",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "test": "O12 handover duty resolves B",
+      "status": "FAIL",
+      "expected": 102,
+      "actual": 101
+    },
+    {
+      "test": "B01 untouched new order single root incident",
+      "status": "FAIL",
+      "expected": 1,
+      "actual": 2
+    },
+    {
+      "test": "B02 completion obligation is created",
+      "status": "FAIL",
+      "expected": 1,
+      "actual": 0
+    },
+    {
+      "test": "B03 team risk includes owned overdue work",
+      "status": "FAIL",
+      "expected": 2,
+      "actual": 0
+    },
+    {
+      "test": "B04 unrelated employee has no personal risk",
+      "status": "PASS",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "test": "B05 current risk follows accepted new owner",
+      "status": "FAIL",
+      "expected": 2,
+      "actual": 0
+    },
+    {
+      "test": "B06 unknown mode has no arbitrary SLA",
+      "status": "FAIL",
+      "expected": 0,
+      "actual": 2
+    },
+    {
+      "test": "B07 order capture inside caller transaction persists",
+      "status": "FAIL",
+      "expected": 2,
+      "actual": 0
+    },
+    {
+      "test": "B08 transaction capture has no swallowed failure",
+      "status": "FAIL",
+      "expected": 0,
+      "actual": 1
+    },
+    {
+      "test": "B09 cancellation creates cancelled not fulfilled state",
+      "status": "FAIL",
+      "expected": "cancelled",
+      "actual": "fulfilled"
+    },
+    {
+      "test": "B10 post-breach cancellation retains history",
+      "status": "PASS",
+      "expected": 2,
+      "actual": 2
+    },
+    {
+      "test": "T01 untouched assigned task owns A breach",
+      "status": "FAIL",
+      "expected": 101,
+      "actual": 0
+    },
+    {
+      "test": "T02 early completed task no open start breach",
+      "status": "FAIL",
+      "expected": 0,
+      "actual": 1
+    },
+    {
+      "test": "T03 task reassignment moves completion responsibility",
+      "status": "FAIL",
+      "expected": 102,
+      "actual": 101
+    },
+    {
+      "test": "Q01 reporter B owner reviewer do not replace responsible A",
+      "status": "PASS",
+      "expected": 101,
+      "actual": 101
+    },
+    {
+      "test": "Q02 reporter and editor preserved",
+      "status": "PASS",
+      "expected": [
+        102,
+        999
+      ],
+      "actual": [
+        102,
+        999
+      ]
+    },
+    {
+      "test": "Q03 resolving quality incident clears current risk",
+      "status": "FAIL",
+      "expected": "resolved",
+      "actual": "open"
+    },
+    {
+      "test": "Q04 correction leaves only one eligible root",
+      "status": "FAIL",
+      "expected": 1,
+      "actual": 2
+    },
+    {
+      "test": "Q05 system no employee scoring",
+      "status": "PASS",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "test": "Q05 business no employee scoring",
+      "status": "PASS",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "test": "Q05 supplier no employee scoring",
+      "status": "PASS",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "test": "Q05 courier no employee scoring",
+      "status": "PASS",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "test": "Q05 customer no employee scoring",
+      "status": "PASS",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "test": "Q05 shared no employee scoring",
+      "status": "PASS",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "test": "Q05 unknown no employee scoring",
+      "status": "PASS",
+      "expected": null,
+      "actual": null
+    },
+    {
+      "test": "E01 excluded_from_scoring blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 test_data blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 duplicate blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 superseded blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 system_error blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 business_error blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 external_dependency blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 supplier_delay blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 courier_delay blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 customer_delay blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 approved_leave blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 approved_exception blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 system_outage blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 internet_outage blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 device_failure blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E01 insufficient_attribution blocked in both classifiers",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "E02 string false does not exclude",
+      "status": "FAIL",
+      "expected": null,
+      "actual": "excluded_from_scoring"
+    },
+    {
+      "test": "E03 mismatched responsible employee held",
+      "status": "FAIL",
+      "expected": true,
+      "actual": false
+    },
+    {
+      "test": "E04 excluded evidence cannot reach monthly confirmed input",
+      "status": "FAIL",
+      "expected": 0,
+      "actual": 1
+    },
+    {
+      "test": "C01 business calendar 2026-10-01 07:59:00",
+      "status": "PASS",
+      "expected": "2026-10-01 08:30:00",
+      "actual": "2026-10-01 08:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-01 08:00:00",
+      "status": "PASS",
+      "expected": "2026-10-01 08:30:00",
+      "actual": "2026-10-01 08:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-01 16:59:00",
+      "status": "PASS",
+      "expected": "2026-10-02 08:29:00",
+      "actual": "2026-10-02 08:29:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-01 17:00:00",
+      "status": "PASS",
+      "expected": "2026-10-02 08:30:00",
+      "actual": "2026-10-02 08:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-01 20:00:00",
+      "status": "PASS",
+      "expected": "2026-10-02 08:30:00",
+      "actual": "2026-10-02 08:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-02 18:00:00",
+      "status": "PASS",
+      "expected": "2026-10-03 09:30:00",
+      "actual": "2026-10-03 09:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-03 09:00:00",
+      "status": "PASS",
+      "expected": "2026-10-03 09:30:00",
+      "actual": "2026-10-03 09:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-03 13:00:00",
+      "status": "PASS",
+      "expected": "2026-10-05 08:30:00",
+      "actual": "2026-10-05 08:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-04 12:00:00",
+      "status": "PASS",
+      "expected": "2026-10-05 08:30:00",
+      "actual": "2026-10-05 08:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-05 08:00:00",
+      "status": "PASS",
+      "expected": "2026-10-05 08:30:00",
+      "actual": "2026-10-05 08:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-10-31 13:00:00",
+      "status": "PASS",
+      "expected": "2026-11-02 08:30:00",
+      "actual": "2026-11-02 08:30:00"
+    },
+    {
+      "test": "C01 business calendar 2026-12-31 16:59:00",
+      "status": "PASS",
+      "expected": "2027-01-01 08:29:00",
+      "actual": "2027-01-01 08:29:00"
+    },
+    {
+      "test": "C02 configured holiday rolls to Saturday",
+      "status": "PASS",
+      "expected": "2027-01-02 09:29:00",
+      "actual": "2027-01-02 09:29:00"
+    },
+    {
+      "test": "F01 injected update failure is surfaced",
+      "status": "PASS",
+      "expected": false,
+      "actual": false
+    },
+    {
+      "test": "F02 inserted incident rolls back",
+      "status": "PASS",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "test": "F03 failed deadline stays open",
+      "status": "PASS",
+      "expected": "open",
+      "actual": "open"
+    },
+    {
+      "test": "F04 retry produces exactly one incident",
+      "status": "PASS",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "test": "F05 concurrent worker 0 exits clean",
+      "status": "PASS",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "test": "F05 concurrent worker 1 exits clean",
+      "status": "PASS",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "test": "F06 two watchdogs exactly twenty roots",
+      "status": "PASS",
+      "expected": 20,
+      "actual": 20
+    },
+    {
+      "test": "F07 actual lock wait timeout surfaces",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "F08 timeout retry one incident",
+      "status": "PASS",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "test": "F09 worker reached insert-before-update boundary",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "F10 terminated DB session rolls back incident",
+      "status": "PASS",
+      "expected": 0,
+      "actual": 0
+    },
+    {
+      "test": "F11 session failure retry one incident",
+      "status": "PASS",
+      "expected": 1,
+      "actual": 1
+    },
+    {
+      "test": "R01 score constructor read-only",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    },
+    {
+      "test": "R02 V2 query methods read-only",
+      "status": "PASS",
+      "expected": true,
+      "actual": true
+    }
+  ]
+}

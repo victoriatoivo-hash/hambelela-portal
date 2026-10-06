@@ -24,17 +24,19 @@ final class EligibilityPolicy
     {
         if ((string) ($row['recording_mode'] ?? '') === 'test') return 'test_data';
         foreach (self::EXCLUSION_FLAGS as $flag) {
-            if (!empty($metadata[$flag])) return $flag;
+            if (self::flag($metadata[$flag] ?? false)) return $flag;
         }
         if (!empty($metadata['duplicate_of'])) return 'duplicate';
-        if (!empty($metadata['insufficient_attribution'])) return 'insufficient_attribution';
+        if (self::flag($metadata['insufficient_attribution'] ?? false)) return 'insufficient_attribution';
         $responsibility = strtolower(trim((string) ($metadata['responsibility_type'] ?? '')));
         if (in_array($responsibility, self::NON_EMPLOYEE_RESPONSIBILITY, true)) return $responsibility;
         if ((string) ($row['module'] ?? '') === 'Error Log') {
-            if ($responsibility !== 'employee_error' || empty($metadata['responsibility_confirmed'])) {
+            if ($responsibility !== 'employee_error' || !self::flag($metadata['responsibility_confirmed'] ?? false)
+                || (int)($row['employee_id']??0)<=0 || (int)($row['employee_id']??0)!==(int)($metadata['responsible_employee_id']??0)) {
                 return 'insufficient_attribution';
             }
         }
         return null;
     }
+    private static function flag($value): bool { return in_array($value,[true,1,'1','true','yes','on'],true); }
 }

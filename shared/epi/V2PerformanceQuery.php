@@ -1,34 +1,40 @@
 <?php
-
 declare(strict_types=1);
-
 namespace Hambelela\EPI;
-
 use PDO;
 
-/** Read-only V2 risk, history and evidence drill-down queries. */
+/** Current ownership is separate from immutable breach responsibility. Read-only. */
 final class V2PerformanceQuery
 {
-    private $pdo;
-    public function __construct(PDO$pdo){$this->pdo=$pdo;}
-
-    public function personalRisk(int$employeeId):array
-    {
-        $stmt=$this->pdo->prepare("SELECT i.*,r.description event_description,r.category_key,d.obligation_key,d.starts_at,d.fulfilled_at FROM epi_v2_performance_incidents i JOIN epi_v2_event_registry r ON r.event_key=i.event_key LEFT JOIN epi_v2_operational_deadlines d ON d.deadline_uuid=i.deadline_uuid WHERE i.responsible_employee_at_breach=? AND i.current_risk_state='open' ORDER BY i.due_at,i.id");$stmt->execute([$employeeId]);return$stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
-    }
-
-    public function teamRisk(string$team):array
-    {
-        $stmt=$this->pdo->prepare("SELECT d.*,r.description event_description,r.category_key FROM epi_v2_operational_deadlines d JOIN epi_v2_event_registry r ON r.event_key=d.breach_event_key WHERE d.responsible_team=? AND d.state IN('open','needs_attribution','breached') AND(d.responsible_employee_snapshot IS NULL OR d.state='needs_attribution') ORDER BY d.due_at,d.id");$stmt->execute([trim($team)]);return$stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
-    }
-
-    public function history(int$employeeId,string$from,string$to):array
-    {
-        $stmt=$this->pdo->prepare('SELECT i.*,r.description event_description,r.category_key,r.polarity,r.score_eligible,r.owner_review_required FROM epi_v2_performance_incidents i JOIN epi_v2_event_registry r ON r.event_key=i.event_key WHERE i.responsible_employee_at_breach=? AND DATE(i.occurred_at) BETWEEN ? AND ? ORDER BY i.occurred_at DESC,i.id DESC');$stmt->execute([$employeeId,$from,$to]);return$stmt->fetchAll(PDO::FETCH_ASSOC)?:[];
-    }
-
-    public function explain(string$incidentUuid):array
-    {
-        $stmt=$this->pdo->prepare('SELECT i.*,r.description event_description,r.responsibility_type,r.polarity,r.score_eligible,r.owner_review_required,r.severity_handling,r.sla_obligation_key,r.category_key,d.starts_at,d.due_at deadline_due_at,d.fulfilled_at,d.fulfilled_by,d.grace_minutes,d.exception_id deadline_exception_id,o.ownership_uuid,o.employee_id ownership_employee_id,o.role_key ownership_role,o.ownership_reason,o.effective_from ownership_from,o.effective_to ownership_to,o.assigned_by,o.accepted_by,o.accepted_at,o.transfer_reason,o.source ownership_source FROM epi_v2_performance_incidents i JOIN epi_v2_event_registry r ON r.event_key=i.event_key LEFT JOIN epi_v2_operational_deadlines d ON d.deadline_uuid=i.deadline_uuid LEFT JOIN epi_v2_ownership_periods o ON o.ownership_uuid=JSON_UNQUOTE(JSON_EXTRACT(i.metadata_json,\'$.ownership_uuid\')) WHERE i.incident_uuid=? LIMIT 1');$stmt->execute([$incidentUuid]);$row=$stmt->fetch(PDO::FETCH_ASSOC);return$row?:[];
-    }
+ private $pdo;
+ public function __construct(PDO $pdo){$this->pdo=$pdo;}
+ public function personalRisk(int $employee,$at=null):array {
+    $time=Support::timestamp($at)->format('Y-m-d H:i:s');
+    $s=$this->pdo->prepare("SELECT * FROM epi_v2_operational_deadlines WHERE state IN('open','breached','needs_attribution') AND due_at<? ORDER BY due_at,id");$s->execute([$time]);
+    $engine=new OwnershipPeriodEngine($this->pdo);$rows=[];
+    foreach($s->fetchAll(PDO::FETCH_ASSOC)as$row){$owner=$engine->ownerAt($row['module'],$row['object_reference'],$time);if($owner&&(int)$owner['employee_id']===$employee){$row['current_owner']=$owner;$rows[]=$row;}}
+    $s=$this->pdo->prepare("SELECT * FROM epi_v2_performance_incidents WHERE module='Error Log' AND responsible_employee_at_breach=? AND current_risk_state='open'");$s->execute([$employee]);
+    return array_merge($rows,$s->fetchAll(PDO::FETCH_ASSOC));
+ }
+ public function teamRisk(string $team):array {
+    $s=$this->pdo->prepare("SELECT * FROM epi_v2_operational_deadlines WHERE responsible_team=? AND state IN('open','breached','needs_attribution') ORDER BY due_at,id");$s->execute([$team]);return $s->fetchAll(PDO::FETCH_ASSOC);
+ }
+ public function history(int $employee,string $from,string $to):array {
+    $s=$this->pdo->prepare('SELECT * FROM epi_v2_performance_incidents WHERE responsible_employee_at_breach=? AND occurred_at>=? AND occurred_at<? ORDER BY occurred_at DESC,id DESC');$s->execute([$employee,$from,Support::timestamp($to)->modify('+1 day')->format('Y-m-d')]);return $s->fetchAll(PDO::FETCH_ASSOC);
+ }
+ public function explain(string $uuid):array {
+    $row=V2Store::one($this->pdo,'SELECT * FROM epi_v2_performance_incidents WHERE incident_uuid=?',[$uuid]);if(!$row)return [];
+    $row['breach_snapshot']=json_decode($row['metadata_json'],true);
+    $s=$this->pdo->prepare('SELECT *,CASE WHEN superseded_at IS NULL THEN eligible ELSE 0 END AS effective_eligible FROM epi_v2_quality_revisions WHERE root_incident_id=? ORDER BY id');$s->execute([$row['root_incident_id']]);$row['revisions']=$s->fetchAll(PDO::FETCH_ASSOC);
+    if($row['deadline_uuid'])$row['current_deadline']=V2Store::one($this->pdo,'SELECT * FROM epi_v2_operational_deadlines WHERE deadline_uuid=?',[$row['deadline_uuid']]);
+    return $row;
+ }
+ public function watchdogHealth():array {
+    $last=V2Store::one($this->pdo,'SELECT * FROM epi_v2_watchdog_runs ORDER BY id DESC LIMIT 1');
+    $success=V2Store::one($this->pdo,"SELECT finished_at FROM epi_v2_watchdog_runs WHERE status='success' ORDER BY id DESC LIMIT 1");
+    $flag=V2Store::one($this->pdo,"SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='epi_v2_watchdog_enabled'");
+    $enabled=($flag['setting_value']??'0')==='1';
+    $stale=!$success||Support::timestamp($success['finished_at'])<Support::timestamp()->modify('-3 minutes');
+    return ['enabled'=>$enabled,'status'=>!$enabled?'disabled':(($last['status']??'never_run')==='failed'?'failed':($stale?'stale':($last['status']??'unknown'))),'last_run'=>$last,'last_success'=>$success['finished_at']??null,'unhealthy'=>$enabled&&($stale||($last['status']??'')==='failed')];
+ }
 }
