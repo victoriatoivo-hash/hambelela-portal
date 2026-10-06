@@ -44,6 +44,16 @@ def same(a, b):
     return a == b or (a is not None and b is not None and a.replace(b"\r\n", b"\n") == b.replace(b"\r\n", b"\n"))
 
 def write(ftp, path, data):
+    current = ''
+    for part in path.split('/')[:-1]:
+        current = current + '/' + part if current else part
+        try:
+            ftp.mkd(current)
+        except ftplib.error_perm:
+            # Verify that it exists rather than swallowing a permission error.
+            original = ftp.pwd()
+            ftp.cwd(current)
+            ftp.cwd(original)
     ftp.storbinary("STOR " + path, io.BytesIO(data))
 
 def host_preflight(ftp):
@@ -139,12 +149,20 @@ def main(mode, sha):
             if report["host_after"]["flags"] != host["flags"]:
                 raise RuntimeError("Activation flags changed during deployment")
         except Exception:
+            rollback_errors = []
             for p in reversed(uploaded):
-                if before[p] is None:
-                    ftp.delete(p)
-                else:
-                    write(ftp, p, before[p])
-            report["state"] = "rolled-back"
+                try:
+                    if before[p] is None:
+                        if read(ftp, p) is not None:
+                            ftp.delete(p)
+                    else:
+                        write(ftp, p, before[p])
+                    if read(ftp, p) != before[p]:
+                        raise RuntimeError('Rollback verification failed')
+                except Exception as error:
+                    rollback_errors.append({"path": p, "error": str(error)})
+            report["rollback_errors"] = rollback_errors
+            report["state"] = "rollback-incomplete" if rollback_errors else "rolled-back"
             raise
         report["state"] = "verified-dormant-code-only"
         report["hashes"] = {p: hashlib.sha256(read(ftp,p)).hexdigest() for p in FILES}
