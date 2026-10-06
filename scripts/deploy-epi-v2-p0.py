@@ -72,8 +72,9 @@ $required=['epi_performance_score_events'=>['automatic_status','confirmation_sta
 $missing=[];$stage='schema_prerequisites';
 foreach($required as $table=>$columns){$s=$db->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');$s->execute([$table]);$found=$s->fetchAll(PDO::FETCH_COLUMN);foreach($columns as $c)if(!in_array($c,$found,true))$missing[]=$table.'.'.$c;}
 $v2=$db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'epi\\_v2\\_%'")->fetchAll(PDO::FETCH_COLUMN);
+$policy=$db->query("SELECT setting_key,setting_value,value_type,description,updated_by FROM epi_employee_performance_settings WHERE setting_key IN ('weekday_open','weekday_close','saturday_open','saturday_close','task_response_minutes','orders_excellent_completion_minutes','orders_late_customer_response_minutes','courier_front_desk_response_minutes','epi_v2_order_new_minutes','epi_v2_order_completion_minutes','epi_v2_task_start_minutes') ORDER BY setting_key")->fetchAll(PDO::FETCH_ASSOC);
 $version=$db->query('SELECT VERSION()')->fetchColumn();$db->exec('ROLLBACK');
-echo json_encode(['php'=>PHP_VERSION,'database_version'=>$version,'flags'=>(object)$flags,'missing_prerequisites'=>$missing,'v2_tables'=>$v2]);
+echo json_encode(['php'=>PHP_VERSION,'database_version'=>$version,'flags'=>(object)$flags,'missing_prerequisites'=>$missing,'v2_tables'=>$v2,'existing_policy'=>$policy]);
 }catch(Throwable $e){http_response_code(500);echo json_encode(['error'=>'Read-only production preflight failed','stage'=>$stage,'error_type'=>get_class($e),'sqlstate'=>$e instanceof PDOException?$e->getCode():null,'driver_code'=>$e instanceof PDOException?($e->errorInfo[1]??null):null,'php'=>PHP_VERSION]);}
 '''.replace('__TOKEN__', token).encode()
     if read(ftp, path) is not None:
