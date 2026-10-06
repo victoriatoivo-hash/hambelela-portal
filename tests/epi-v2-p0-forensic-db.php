@@ -197,6 +197,7 @@ check('R01 score constructor read-only',true,attempt(function()use($db){new Perf
 check('R02 V2 query methods read-only',true,attempt(function()use($query){$query->personalRisk(101);$query->teamRisk('front_desk');$query->history(101,'2026-10-01','2026-10-31');$query->explain((string)scalar('SELECT incident_uuid FROM epi_v2_performance_incidents LIMIT 1'));}));$db->rollBack();
 
 require __DIR__.'/epi-v2-p0-remediation-cases.php';
+require __DIR__.'/epi-v2-shadow-activation.php';
 $summary=['database'=>$database,'server'=>scalar('SELECT VERSION()'),'timezone'=>'Africa/Windhoek','production_changes'=>false,'pass'=>count(array_filter($results,fn($r)=>$r['status']==='PASS')),'fail'=>count(array_filter($results,fn($r)=>$r['status']==='FAIL')),'tests'=>$results];
 echo json_encode($summary,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL;
 exit($summary['fail']?1:0);

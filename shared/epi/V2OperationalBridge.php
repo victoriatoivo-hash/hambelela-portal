@@ -78,13 +78,19 @@ final class V2OperationalBridge
     if(in_array($action,['task_created','task_scheduled','task_assigned','task_reassigned'],true)){
         // Explicit activation policy authorizes directed assignment, not fictional employee acknowledgement.
         $activation=V2Store::activation($db);
+        if(($policy['activation_scope']??'')==='approved_existing_rules'){
+            // Undefined authority, unassigned work and old backlog stay out of this trial.
+            if($employee<=0||(int)($task['created_by']??0)!==(int)$activation['approved_by'])return;
+            if(($task['created_at']??$time)<$activation['enforcement_start_at'])return;
+        }
         if(($policy['task_assignment_policy']??'')!=='owner_directed'||(int)($task['created_by']??0)!==(int)$activation['approved_by'])throw new RuntimeException('Task assignment requires approved authority or accepted handover');
         $existing=$owners->ownerAt('Tasks',$ref,$at);
         if(!$existing||(int)$existing['employee_id']!==$employee)$owners->assign(['module'=>'Tasks','object_reference'=>$ref,'employee_id'=>$employee,'assigned_by'=>(int)$activation['approved_by'],'accepted_by'=>(int)$activation['approved_by'],'authority'=>'owner_directed','effective_from'=>$time,'accepted_at'=>$time,'source'=>'approved_directed_task_assignment']);
         $starts=Support::timestamp($task['released_at']??$task['scheduled_at']??$task['date_assigned']??$time);
         if($action!=='task_reassigned'){
-            if(empty($policy['task_start_minutes']))throw new RuntimeException('Task start policy not configured');
-            $engine->schedule(['module'=>'Tasks','object_reference'=>$ref,'obligation_key'=>'start_task','breach_event_key'=>'task_start_sla_breached','source_event'=>$action,'starts_at'=>$starts,'due_at'=>(new BusinessTimeEngine($db))->addWorkingMinutes($starts,(int)$policy['task_start_minutes']),'responsible_employee_id'=>$employee]);
+            $minutes=$policy['task_start_by_priority'][strtolower((string)($task['priority']??''))]??$policy['task_start_minutes']??null;
+            if($minutes!==null&&(int)$minutes>0)$engine->schedule(['module'=>'Tasks','object_reference'=>$ref,'obligation_key'=>'start_task','breach_event_key'=>'task_start_sla_breached','source_event'=>$action,'starts_at'=>$starts,'due_at'=>(new BusinessTimeEngine($db))->addWorkingMinutes($starts,(int)$minutes),'responsible_employee_id'=>$employee]);
+            elseif(($policy['activation_scope']??'')!=='approved_existing_rules')throw new RuntimeException('Task start policy not configured');
             if(!empty($task['deadline']))$engine->schedule(['module'=>'Tasks','object_reference'=>$ref,'obligation_key'=>'complete_task','breach_event_key'=>'task_completion_sla_breached','source_event'=>$action,'starts_at'=>$starts,'due_at'=>$task['deadline'],'responsible_employee_id'=>$employee]);
         }
     }

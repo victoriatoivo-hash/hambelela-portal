@@ -34,7 +34,8 @@ final class V2PerformanceQuery
     $success=V2Store::one($this->pdo,"SELECT finished_at FROM epi_v2_watchdog_runs WHERE status='success' ORDER BY id DESC LIMIT 1");
     $flag=V2Store::one($this->pdo,"SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='epi_v2_watchdog_enabled'");
     $enabled=($flag['setting_value']??'0')==='1';
-    $stale=!$success||Support::timestamp($success['finished_at'])<Support::timestamp()->modify('-3 minutes');
+    $gap=max(3,(int)(V2Store::policy($this->pdo)['watchdog_max_gap_minutes']??3));
+    $stale=!$success||Support::timestamp($success['finished_at'])<Support::timestamp()->modify('-'.$gap.' minutes');
     return ['enabled'=>$enabled,'status'=>!$enabled?'disabled':(($last['status']??'never_run')==='failed'?'failed':($stale?'stale':($last['status']??'unknown'))),'last_run'=>$last,'last_success'=>$success['finished_at']??null,'unhealthy'=>$enabled&&($stale||($last['status']??'')==='failed')];
  }
 }
