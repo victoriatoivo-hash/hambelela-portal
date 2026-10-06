@@ -168,7 +168,10 @@ $db->exec('DROP TRIGGER audit_fail_before_deadline_update');$engine->processDue(
 
 // Independent PHP processes exercise actual InnoDB row locks and uniqueness.
 resetObjects();for($n=1;$n<=20;$n++){owner('R-'.$n);deadline(['object_reference'=>'R-'.$n]);}
-$command=[PHP_BINARY,'-n','-d','extension_dir='.ini_get('extension_dir'),'-d','extension=pdo_mysql',__FILE__,'--worker',$database];
+$command=[PHP_BINARY,'-n','-d','extension_dir='.ini_get('extension_dir')];
+// Linux packages ship PDO/mysqlnd as shared dependencies; Windows embeds them.
+foreach(['mysqlnd','pdo'] as $dependency)if(PHP_OS_FAMILY!=='Windows'&&is_file(ini_get('extension_dir').'/'.$dependency.'.so'))array_push($command,'-d','extension='.$dependency);
+array_push($command,'-d','extension=pdo_mysql',__FILE__,'--worker',$database);
 $workers=[];for($n=0;$n<2;$n++){$pipes=[];$process=proc_open($command,[0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],$pipes);fclose($pipes[0]);$workers[]=[$process,$pipes];}
 foreach($workers as$n=>[$process,$pipes]){$out=stream_get_contents($pipes[1]);$err=stream_get_contents($pipes[2]);fclose($pipes[1]);fclose($pipes[2]);check('F05 concurrent worker '.$n.' exits clean',0,proc_close($process));}
 check('F06 two watchdogs exactly twenty roots',20,(int)scalar('SELECT COUNT(*) FROM epi_v2_performance_incidents'));

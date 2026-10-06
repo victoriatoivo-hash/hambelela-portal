@@ -17,7 +17,38 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  compatibility:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        php: ['7.4', '8.2']
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+        ports: ['33317:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql
+      - name: Full synthetic P0 verification on release PHP
+        run: |
+          php --version
+          php tests/epi-v2-p0-forensic-db.php > epi-ci-results.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: epi-compatibility-${{ matrix.php }}-${{ github.run_id }}
+          path: epi-ci-results.json
   deploy:
+    needs: compatibility
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -26,7 +57,7 @@ jobs:
           fetch-depth: 0
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.2'
+          php-version: '7.4'
       - name: Validate exact release
         env:
           APPROVED_SHA: ${{ inputs.approved_sha }}

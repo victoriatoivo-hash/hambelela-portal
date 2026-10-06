@@ -115,8 +115,8 @@ def main(mode, sha):
                     archive.writestr(p, data)
         host = report["host"]
         blocked = conflicts or host["missing_prerequisites"] or any(str(v) != '0' for v in host["flags"].values())
-        if tuple(map(int, host['php'].split('.')[:2])) < (8, 2):
-            report['runtime_blocker'] = 'Host PHP is older than the verified PHP 8.2 runtime; require separate compatibility validation, not an automatic host upgrade'
+        if tuple(map(int, host['php'].split('.')[:2])) not in ((7, 4), (8, 2)):
+            report['runtime_blocker'] = 'Host PHP must match a runtime verified by the required compatibility CI job'
             blocked = True
         if blocked:
             report["state"] = "blocked-preflight"
