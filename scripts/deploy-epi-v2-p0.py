@@ -10,6 +10,7 @@ import subprocess
 import sys
 import urllib.parse
 import urllib.request
+import urllib.error
 import zipfile
 
 BASELINE = "524f89c2546e49bd68fe2e4f46c48b19e132f18c"
@@ -52,17 +53,18 @@ def host_preflight(ftp):
 ini_set('display_errors','0');
 header('Content-Type: application/json'); header('Cache-Control: no-store');
 if (!hash_equals('__TOKEN__',(string)($_POST['token']??''))) {http_response_code(403);exit;}
-try {
+$stage='database_bootstrap';try {
 require dirname(__DIR__,2).'/shared/database.php';
-$db=db(); $db->exec('START TRANSACTION READ ONLY');
+$db=db();$stage='readonly_transaction'; $db->exec('START TRANSACTION READ ONLY');
+$stage='feature_flags';
 $flags=$db->query("SELECT setting_key,setting_value FROM epi_employee_performance_settings WHERE setting_key IN ('epi_v2_capture_enabled','epi_v2_watchdog_enabled')")->fetchAll(PDO::FETCH_KEY_PAIR);
 $required=['epi_performance_score_events'=>['automatic_status','confirmation_status'],'epi_employee_evidence'=>['eligibility_state'],'epi_employee_performance_settings'=>['setting_key','setting_value']];
-$missing=[];
+$missing=[];$stage='schema_prerequisites';
 foreach($required as $table=>$columns){$s=$db->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');$s->execute([$table]);$found=$s->fetchAll(PDO::FETCH_COLUMN);foreach($columns as $c)if(!in_array($c,$found,true))$missing[]=$table.'.'.$c;}
 $v2=$db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'epi\\_v2\\_%'")->fetchAll(PDO::FETCH_COLUMN);
 $version=$db->query('SELECT VERSION()')->fetchColumn();$db->rollBack();
 echo json_encode(['php'=>PHP_VERSION,'database_version'=>$version,'flags'=>(object)$flags,'missing_prerequisites'=>$missing,'v2_tables'=>$v2]);
-}catch(Throwable $e){http_response_code(500);echo json_encode(['error'=>'Read-only production preflight failed; inspect server logs']);}
+}catch(Throwable $e){http_response_code(500);echo json_encode(['error'=>'Read-only production preflight failed','stage'=>$stage,'error_type'=>get_class($e),'sqlstate'=>$e instanceof PDOException?$e->getCode():null,'driver_code'=>$e instanceof PDOException?($e->errorInfo[1]??null):null,'php'=>PHP_VERSION]);}
 '''.replace('__TOKEN__', token).encode()
     if read(ftp, path) is not None:
         raise RuntimeError("Temporary preflight path already exists")
@@ -71,8 +73,15 @@ echo json_encode(['php'=>PHP_VERSION,'database_version'=>$version,'flags'=>(obje
         req = urllib.request.Request("https://portal.hambelelaorganic.com/" + path,
             data=urllib.parse.urlencode({"token": token}).encode(), method="POST",
             headers={"User-Agent": "Hambelela-Deployment-Validator/1.0", "Content-Type": "application/x-www-form-urlencoded"})
-        with urllib.request.urlopen(req, timeout=45) as response:
-            return json.load(response)
+        try:
+            with urllib.request.urlopen(req, timeout=45) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            try:
+                result = json.load(error)
+            except (ValueError, UnicodeDecodeError):
+                result = {"error": "Host rejected read-only preflight", "http_status": error.code}
+            return result
     finally:
         ftp.delete(path)
         if read(ftp, path) is not None:
@@ -97,6 +106,9 @@ def main(mode, sha):
         conflicts = [p for p in FILES if not same(before[p], blob(BASELINE, p)) and not same(before[p], expected[p])]
         report["conflicts"] = conflicts
         report["host"] = host_preflight(ftp)
+        if report["host"].get("error"):
+            report["state"] = "blocked-host-preflight"
+            raise RuntimeError("Host preflight failed; see sanitized diagnostic in report")
         with zipfile.ZipFile(BACKUP, "w") as archive:
             for p, data in before.items():
                 if data is not None:
