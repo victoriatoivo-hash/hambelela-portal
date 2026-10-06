@@ -47,13 +47,13 @@ def write(ftp, path, data):
 
 def host_preflight(ftp):
     token = secrets.token_hex(32)
-    path = "epi-p0-preflight-" + secrets.token_hex(12) + ".php"
+    path = "apps/operations/epi-p0-preflight-" + secrets.token_hex(12) + ".php"
     source = '''<?php
 ini_set('display_errors','0');
 header('Content-Type: application/json'); header('Cache-Control: no-store');
 if (!hash_equals('__TOKEN__',(string)($_POST['token']??''))) {http_response_code(403);exit;}
 try {
-require __DIR__.'/shared/database.php';
+require dirname(__DIR__,2).'/shared/database.php';
 $db=db(); $db->exec('START TRANSACTION READ ONLY');
 $flags=$db->query("SELECT setting_key,setting_value FROM epi_employee_performance_settings WHERE setting_key IN ('epi_v2_capture_enabled','epi_v2_watchdog_enabled')")->fetchAll(PDO::FETCH_KEY_PAIR);
 $required=['epi_performance_score_events'=>['automatic_status','confirmation_status'],'epi_employee_evidence'=>['eligibility_state'],'epi_employee_performance_settings'=>['setting_key','setting_value']];
@@ -61,7 +61,7 @@ $missing=[];
 foreach($required as $table=>$columns){$s=$db->prepare('SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=?');$s->execute([$table]);$found=$s->fetchAll(PDO::FETCH_COLUMN);foreach($columns as $c)if(!in_array($c,$found,true))$missing[]=$table.'.'.$c;}
 $v2=$db->query("SELECT TABLE_NAME FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME LIKE 'epi\\_v2\\_%'")->fetchAll(PDO::FETCH_COLUMN);
 $version=$db->query('SELECT VERSION()')->fetchColumn();$db->rollBack();
-echo json_encode(['php'=>PHP_VERSION,'database_version'=>$version,'flags'=>$flags,'missing_prerequisites'=>$missing,'v2_tables'=>$v2]);
+echo json_encode(['php'=>PHP_VERSION,'database_version'=>$version,'flags'=>(object)$flags,'missing_prerequisites'=>$missing,'v2_tables'=>$v2]);
 }catch(Throwable $e){http_response_code(500);echo json_encode(['error'=>'Read-only production preflight failed; inspect server logs']);}
 '''.replace('__TOKEN__', token).encode()
     if read(ftp, path) is not None:
@@ -69,7 +69,8 @@ echo json_encode(['php'=>PHP_VERSION,'database_version'=>$version,'flags'=>$flag
     try:
         write(ftp, path, source)
         req = urllib.request.Request("https://portal.hambelelaorganic.com/" + path,
-            data=urllib.parse.urlencode({"token": token}).encode(), method="POST")
+            data=urllib.parse.urlencode({"token": token}).encode(), method="POST",
+            headers={"User-Agent": "Hambelela-Deployment-Validator/1.0", "Content-Type": "application/x-www-form-urlencoded"})
         with urllib.request.urlopen(req, timeout=45) as response:
             return json.load(response)
     finally:
@@ -90,7 +91,7 @@ def main(mode, sha):
     ftp = ftplib.FTP(creds[0], timeout=45)
     ftp.login(creds[1], creds[2])
     report = {"sha": sha, "baseline": BASELINE, "mode": mode, "files": list(FILES),
-              "database_mutated": False, "activation_changed": False}
+              "database_mutated": False, "activation_changed": False, "state": "preflight-incomplete"}
     try:
         before = {p: read(ftp, p) for p in FILES}
         conflicts = [p for p in FILES if not same(before[p], blob(BASELINE, p)) and not same(before[p], expected[p])]
