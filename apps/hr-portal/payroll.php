@@ -399,13 +399,6 @@ if (isset($_GET['payslip'])) {
 <link rel="stylesheet" href="includes/styles.css">
 <style>
 /* ── Payslip print ── */
-@media print {
-  .sidebar,.topbar,.no-print{display:none!important}
-  .main{display:block!important;overflow:visible!important}
-  .content{padding:0!important;overflow:visible!important}
-  body{height:auto!important;overflow:visible!important;display:block!important;background:#fff!important}
-  .payslip-doc{box-shadow:none!important;border:none!important;max-width:100%!important;padding:20px!important}
-}
 .payslip-doc{background:#fff;border:1px solid #e0e0e0;padding:44px 48px;font-family:'Plus Jakarta Sans',sans-serif;color:#111;max-width:780px;margin:0 auto;box-shadow:0 2px 16px rgba(0,0,0,.07)}
 .ps-header{display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:20px;border-bottom:2px solid #111;margin-bottom:18px}
 .ps-logo img{height:60px;width:auto;display:block}
@@ -439,8 +432,8 @@ if (isset($_GET['payslip'])) {
 .ps-col-table tr:last-child td{border-bottom:none;font-weight:700;background:#fff;border-top:1px solid #bbb}
 .ps-col-table .deduct td:last-child{color:#c00}
 .money{display:inline-block;min-width:96px;text-align:right;font-family:monospace;font-variant-numeric:tabular-nums}
-@media(max-width:900px){.payslip-doc{padding:30px 28px}.ps-meta,.ps-summary,.ps-cols{grid-template-columns:minmax(0,1fr);gap:18px}.ps-meta-grid{grid-template-columns:minmax(96px,120px) minmax(0,1fr)}}
-@media(max-width:520px){.payslip-doc{padding:22px 16px}.ps-meta-grid,.ps-emp-row{grid-template-columns:minmax(84px,104px) minmax(0,1fr)}.ps-col-table td{padding:8px}.ps-col-table td:last-child{width:104px}}
+@media screen and (max-width:900px){.payslip-doc{padding:30px 28px}.ps-meta,.ps-summary,.ps-cols{grid-template-columns:minmax(0,1fr);gap:18px}.ps-meta-grid{grid-template-columns:minmax(96px,120px) minmax(0,1fr)}}
+@media screen and (max-width:520px){.payslip-doc{padding:22px 16px}.ps-meta-grid,.ps-emp-row{grid-template-columns:minmax(84px,104px) minmax(0,1fr)}.ps-col-table td{padding:8px}.ps-col-table td:last-child{width:104px}}
 .ps-net-total{display:flex;justify-content:space-between;align-items:center;border:1.5px solid #111;padding:13px 18px;margin-bottom:10px;background:#fff}
 .ps-net-total .lbl{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.06em}
 .ps-net-total .lbl small{display:block;font-weight:400;text-transform:none;letter-spacing:0;color:#888;font-size:10.5px;margin-top:2px}
@@ -483,6 +476,10 @@ if (isset($_GET['payslip'])) {
   .hr-payroll-actions>.btn{width:100%;justify-content:center}
 }
 </style>
+<?php if ($viewPayslip): ?>
+<link rel="stylesheet" href="includes/payslip-print.css">
+<script src="includes/payslip-print.js" defer></script>
+<?php endif ?>
 </head>
 <body>
 <?php include __DIR__ . '/includes/sidebar.php'; ?>
@@ -492,7 +489,7 @@ if (isset($_GET['payslip'])) {
     <div class="topbar-title">Payroll &amp; Payslips</div>
     <div class="hr-payroll-actions">
       <?php if ($viewPayslip): ?>
-        <button class="btn btn-secondary" onclick="window.print()"><i class="fa-solid fa-print"></i> Print Payslip</button>
+        <button class="btn btn-secondary" onclick="printPayslip(this)"><i class="fa-solid fa-print"></i> Print Payslip</button>
         <a href="payroll.php?run=<?=$runId?>" class="btn btn-secondary"><i class="fa-solid fa-arrow-left"></i> Back</a>
       <?php else: ?>
         <button class="btn btn-secondary" onclick="openModal('settingsModal')"><i class="fa-solid fa-building"></i> Company Details</button>
@@ -505,7 +502,7 @@ if (isset($_GET['payslip'])) {
 
   <?php if ($viewPayslip): ?>
   <!-- ── PAYSLIP VIEW ── -->
-  <div class="payslip-doc" id="payslipDoc">
+  <div class="payslip-doc payslip-document" id="payslipDoc">
     <?php
     $runRow = $db->prepare("SELECT id, period_label, period_month, period_year, generated_at FROM payroll_runs WHERE id=(SELECT run_id FROM payslips WHERE id=?)");
     $runRow->execute([$viewPayslip['id']]); $runRow = $runRow->fetch();

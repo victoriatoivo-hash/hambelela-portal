@@ -1,0 +1,100 @@
+/* Shared by admin and employee payslips. Loaded after screen/responsive CSS. */
+@font-face {
+  font-family: 'Jost Payslip';
+  src: url('../../../assets/fonts/jost-variable.woff2') format('woff2');
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+}
+@font-face {
+  font-family: 'Jost Payslip';
+  src: url('../../../assets/fonts/jost-variable-italic.woff2') format('woff2');
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: block;
+}
+@page { size: A4 portrait; margin: 10mm 12mm; }
+@media print {
+  /* @page owns the margins: use its 186mm content box, not a 210mm body. */
+  html, body {
+    width: 100% !important; max-width: none !important; min-width: 0 !important;
+    height: auto !important; min-height: 0 !important;
+    margin: 0 !important; padding: 0 !important; overflow: visible !important;
+    background: #fff !important; display: block !important;
+    -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important;
+  }
+  body > :not(.main), .main > :not(.content), .content > :not(.payslip-document),
+  .no-print, .sidebar, .topbar, .overlay, .toast, .tooltip { display: none !important; }
+  body .main, body .main .content {
+    display: block !important; position: static !important;
+    width: 100% !important; max-width: none !important; min-width: 0 !important;
+    height: auto !important; min-height: 0 !important;
+    margin: 0 !important; padding: 0 !important; overflow: visible !important;
+    transform: none !important;
+  }
+  .payslip-document {
+    width: 100% !important; max-width: none !important; min-width: 0 !important;
+    min-height: 0 !important; height: auto !important;
+    margin: 0 !important; padding: 0 !important; background: #fff !important;
+    box-shadow: none !important; border: 0 !important; overflow: visible !important;
+    transform: none !important; zoom: 1 !important;
+  }
+  .payslip-document, .payslip-document * {
+    font-family: 'Jost Payslip', sans-serif !important;
+    font-synthesis: none !important;
+  }
+  .payslip-document { font-size: 9pt; line-height: 1.4; font-weight: 400; }
+  .ps-header {
+    display: flex !important; justify-content: space-between !important;
+    align-items: flex-start !important; gap: 5mm;
+    padding-bottom: 4mm !important; margin-bottom: 4mm !important;
+  }
+  .ps-logo img { height: 15mm !important; width: auto !important; max-width: 45mm !important; object-fit: contain; }
+  .ps-right { text-align: right !important; }
+  .ps-slip-label { font-size: 8pt !important; font-weight: 400 !important; }
+  .ps-slip-month { font-size: 18pt !important; font-weight: 600 !important; }
+  /* Explicitly restore desktop columns even when printing a narrow screen. */
+  .ps-meta, .ps-summary, .ps-cols { display: grid !important; align-items: start !important; }
+  .ps-meta { grid-template-columns: minmax(0,1.2fr) minmax(0,.8fr) !important; gap: 7mm !important; }
+  .ps-summary, .ps-cols { grid-template-columns: repeat(2,minmax(0,1fr)) !important; gap: 7mm !important; }
+  .ps-meta, .ps-summary { margin-bottom: 5mm !important; padding-bottom: 4mm !important; }
+  .ps-cols { margin-bottom: 4mm !important; }
+  .ps-meta { font-size: 8.5pt !important; line-height: 1.4 !important; }
+  .ps-meta-grid, .ps-emp-row { grid-template-columns: 28mm minmax(0,1fr) !important; column-gap: 2.5mm !important; }
+  .ps-meta-grid { row-gap: 1mm !important; }
+  .ps-emp-block { font-size: 9pt !important; }
+  .ps-emp-row { margin-bottom: 1.5mm !important; }
+  .ps-meta h4, .ps-emp-block h4, .ps-col-header { font-size: 8.5pt !important; font-weight: 600 !important; }
+  .ps-meta h4, .ps-emp-block h4 { margin: 0 0 2mm !important; }
+  .payslip-document .lbl { font-weight: 400 !important; }
+  .payslip-document .val, .payslip-document strong { font-weight: 600 !important; }
+  .ps-net-box { padding: 5mm !important; border: .3mm solid #111 !important; background: #fff !important; }
+  .ps-net-box .net-amount { font-size: 21pt !important; font-weight: 600 !important; }
+  .ps-net-box .net-label { font-size: 8.5pt !important; font-weight: 600 !important; }
+  .ps-net-box .net-sub { font-size: 8.5pt !important; margin-top: 3mm !important; padding-top: 3mm !important; gap: 1.5mm 2.5mm !important; }
+  .ps-col-header { padding: 2mm 3mm !important; }
+  .ps-col-table { width: 100% !important; border-collapse: collapse !important; }
+  .ps-col-table td { padding: 2mm 3mm !important; font-size: 9pt !important; }
+  .ps-col-table td:last-child { width: 29mm !important; font-size: 8.5pt !important; }
+  .payslip-document .money { min-width: 0 !important; white-space: nowrap; }
+  .ps-net-total {
+    display: flex !important; align-items: center !important; justify-content: space-between !important;
+    gap: 4mm; min-height: 15mm; padding: 3mm 5mm !important; margin-bottom: 2mm !important;
+    border: .3mm solid #111 !important;
+  }
+  .ps-net-total .lbl { font-size: 9pt !important; font-weight: 600 !important; }
+  .ps-net-total .lbl small { font-size: 8pt !important; }
+  .ps-net-total .val { font-size: 18pt !important; white-space: nowrap; }
+  .ps-words { font-size: 8.5pt !important; text-align: right !important; margin-bottom: 4mm !important; }
+  .ps-bank { display: flex !important; gap: 7mm !important; padding: 3mm 4mm !important; margin-bottom: 4mm !important; font-size: 8.5pt !important; }
+  .ps-bank > * { min-width: 0; overflow-wrap: anywhere; }
+  .ps-bank .lbl { font-size: 8pt !important; }
+  .ps-footer { font-size: 7.5pt !important; padding-top: 3mm !important; margin-top: 0 !important; }
+  /* Keep cards intact; do not prevent the whole document from flowing on long slips. */
+  .ps-header, .ps-meta, .ps-summary, .ps-cols > *, .ps-net-box,
+  .ps-net-total, .ps-words, .ps-bank, .ps-footer, .ps-col-table tr {
+    break-inside: avoid !important; page-break-inside: avoid !important;
+  }
+  .ps-col-header { break-after: avoid; page-break-after: avoid; }
+  .ps-net-total, .ps-words { break-after: avoid; page-break-after: avoid; }
+}
