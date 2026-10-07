@@ -6,7 +6,7 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = '06fbe696f699fd2a8b505d5c2fba3a868527d8eb'
+BASELINE = '1472b927f798221b112098729fe27257813fd7ec'
 NEW = [
     'shared/epi/HrAbsenceEvidence.php', 'shared/epi/HrConnection.php',
     'shared/epi/OrdersSlaPolicy.php', 'shared/epi/OrdersStageBridge.php',
@@ -14,6 +14,7 @@ NEW = [
     'shared/epi/FrontCoverageNotifications.php', 'shared/front-coverage-prompt.php',
     'shared/epi/FrontHandoverChecklist.php',
     'shared/epi/StageReadiness.php', 'scripts/epi-stage-readiness.php',
+    'shared/epi/StageSchemaInstaller.php', 'scripts/epi-stage-migrate.php',
     'assets/css/front-coverage.css', 'assets/js/front-coverage.js',
 ]
 RUNTIME = NEW + [

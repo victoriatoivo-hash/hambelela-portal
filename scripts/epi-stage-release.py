@@ -16,7 +16,7 @@ spec = importlib.util.spec_from_file_location('shadow', Path(__file__).with_name
 shadow = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(shadow)
 release = shadow.release
-FILES = shadow.FILES
+FILES = tuple(dict.fromkeys(list(shadow.FILES) + shadow.stage_package.MIGRATIONS))
 BASELINE = shadow.stage_package.BASELINE
 # Exact live snapshot from private run 37585525587, reviewed 2026-10-07.
 # Employee mobile navigation and profile menu preserved in the merged footer.

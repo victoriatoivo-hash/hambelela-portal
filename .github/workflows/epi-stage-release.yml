@@ -43,6 +43,9 @@ jobs:
       - run: |
           python3 tests/epi-stage-release-test.py
           php tests/epi-v2-p0-forensic-db.php > epi-stage-tests.json
+          php tests/epi-stage-migrate-db.php
+          php -l scripts/epi-stage-migrate.php
+          php -l shared/epi/StageSchemaInstaller.php
           php tests/epi-hr-absence-evidence.php
           node tests/epi-v2-p0-static.mjs
           node tests/epi-orders-event-paths-static.mjs
