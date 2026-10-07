@@ -42,6 +42,7 @@ jobs:
           extensions: pdo_mysql
       - run: |
           python3 tests/epi-stage-release-test.py
+          php tests/epi-rate-score.php
           php tests/epi-v2-p0-forensic-db.php > epi-stage-tests.json
           php tests/epi-stage-migrate-db.php
           php -l scripts/epi-stage-migrate.php

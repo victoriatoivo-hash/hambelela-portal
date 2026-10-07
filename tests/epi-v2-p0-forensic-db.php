@@ -196,6 +196,7 @@ $db->exec('SET TRANSACTION READ ONLY');$db->beginTransaction();
 check('R01 score constructor read-only',true,attempt(function()use($db){new PerformanceScore($db);}));
 check('R02 V2 query methods read-only',true,attempt(function()use($query){$query->personalRisk(101);$query->teamRisk('front_desk');$query->history(101,'2026-10-01','2026-10-31');$query->explain((string)scalar('SELECT incident_uuid FROM epi_v2_performance_incidents LIMIT 1'));}));$db->rollBack();
 
+require __DIR__.'/epi-deadline-rates-db.php';
 require __DIR__.'/epi-v2-p0-remediation-cases.php';
 require __DIR__.'/epi-v2-shadow-activation.php';
 require __DIR__.'/epi-front-coverage-db.php';

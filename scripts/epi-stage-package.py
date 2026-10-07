@@ -6,8 +6,10 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = '1472b927f798221b112098729fe27257813fd7ec'
+BASELINE = '7e4d601abbf109b45493d950597e0ac49988df81'
 NEW = [
+    'shared/epi/RateScoreCalculator.php', 'shared/epi/DeadlineRateQuery.php',
+    'apps/operations/epi-rate-review.php',
     'shared/epi/HrAbsenceEvidence.php', 'shared/epi/HrConnection.php',
     'shared/epi/OrdersSlaPolicy.php', 'shared/epi/OrdersStageBridge.php',
     'shared/epi/FrontDeskCoverage.php', 'shared/epi/FrontDeskRoster.php',
