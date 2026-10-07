@@ -1,4 +1,4 @@
-"""Update only the standalone app's four reviewed files over verified FTPS."""
+"""Update four reviewed files; owner-authorized FTP exception expires tonight."""
 import argparse
 import ftplib
 import io
@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import ssl
+from datetime import datetime, timezone
 
 FILES = ("index.php", "api.php", "assets/js/miv-shipping.js", "assets/css/miv-shipping.css")
 PREFIX = "standalone/miv/"
@@ -58,10 +59,14 @@ def main():
     if any(not os.environ.get(key) for key in required):
         raise SystemExit("Add the three CHIN_FTP secrets in GitHub first.")
     bundle = json.loads(Path("standalone/miv-bundle.json").read_text())
-    with ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=60) as ftp:
+    # Owner authorized plain FTP for tonight only. Secure transport resumes automatically.
+    temporary_ftp = datetime.now(timezone.utc) < datetime(2026, 10, 8, tzinfo=timezone.utc)
+    client = ftplib.FTP(timeout=60) if temporary_ftp else ftplib.FTP_TLS(context=ssl.create_default_context(), timeout=60)
+    with client as ftp:
         ftp.connect(os.environ["CHIN_FTP_SERVER"], 21)
-        ftp.login(os.environ["CHIN_FTP_USERNAME"], os.environ["CHIN_FTP_PASSWORD"])
-        ftp.prot_p()
+        ftp.login(os.environ["CHIN_FTP_USERNAME"].strip(), os.environ["CHIN_FTP_PASSWORD"])
+        if not temporary_ftp:
+            ftp.prot_p()
         deploy(ftp, bundle, args.check)
 
 if __name__ == "__main__":
