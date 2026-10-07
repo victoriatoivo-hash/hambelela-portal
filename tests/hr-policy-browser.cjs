@@ -1,0 +1,53 @@
+const {createRequire}=require('node:module');
+const req=createRequire('C:/Users/User/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules/package.json');
+const {chromium}=req('playwright');
+const base='http://127.0.0.1:8099';let count=0;
+function check(ok,label){if(!ok)throw Error(label);console.log('PASS '+label);count++;}
+(async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+  const context=await browser.newContext();
+  await context.route('**/*',r=>r.request().url().startsWith(base)?r.continue():r.abort());
+  await context.request.get(base+'/login-test.php?id=2');
+  const page=await context.newPage();
+  await page.goto(base+'/index.php');
+  check(await page.locator('#mainPolicyPopup').evaluate(e=>e.open),'mandatory policy popup opens on Main Portal');
+  check(await page.getByText('HR POLICY',{exact:true}).isVisible(),'HR POLICY label is visible');
+  check(await page.getByRole('heading',{name:'Company Policy Requires Your Acknowledgement'}).isVisible(),'requested policy heading is visible');
+  const link=page.getByRole('link',{name:'Read & Acknowledge'});
+  check((await link.getAttribute('href')).includes('portal-login.php?return=policy-view.php%3Fid%3D1'),'popup uses SSO bridge with exact current policy deep link');
+  await page.setViewportSize({width:390,height:844});
+  check(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'popup has no page-wide mobile overflow');
+  await page.screenshot({path:'verification/local-main-policy-popup.png'});
+  await link.click();
+  await page.waitForURL('**/policy-view.php?id=1');
+  check(page.url().endsWith('/policy-view.php?id=1'),'bridge opens the current existing policy directly');
+  check(await page.getByRole('heading',{name:'Existing Handbook',exact:true}).isVisible(),'existing policy is readable');
+  check((await context.cookies()).some(c=>c.name==='hambelela_hr_test_session'),'HR session is established without a second login');
+  const csrf=await page.locator('input[name="csrf"]').getAttribute('value');
+  const rejected=await context.request.post(base+'/apps/hr-portal/policy-action.php',{form:{action:'sign',version_id:'1',ajax:'1',csrf,ack_confirm:'1',legal_name:'New Employee',signature_method:'typed',typed_signature:'New Employee'}});
+  check(rejected.status()===422,'existing reading requirement blocks premature signature');
+  await page.locator('#acknowledgement').scrollIntoViewIfNeeded();
+  await page.locator('#signatureFields').waitFor({state:'visible'});
+  await page.waitForFunction(()=>!document.getElementById('signatureFields').disabled);
+  const marked=await context.request.post(base+'/apps/hr-portal/policy-action.php',{form:{action:'mark_end',version_id:'1',csrf}});
+  check(marked.ok()&&(await marked.json()).ok,'existing acknowledgement section is reached');
+  await page.locator('input[name="ack_confirm"]').check();
+  await page.getByRole('button',{name:'Typed fallback'}).click();
+  await page.locator('input[name="typed_signature"]').fill('New Employee');
+  page.once('dialog',d=>d.accept());
+  await page.getByRole('button',{name:'Sign & Acknowledge'}).click();
+  await page.waitForURL('**/policy-receipt.php?id=*');
+  check(await page.getByRole('heading',{name:'Policy Acknowledgement Receipt'}).isVisible(),'unchanged signature handler creates preserved receipt');
+  check((await page.locator('body').innerText()).includes('New Employee'),'receipt belongs to the synthetic employee');
+  const receiptUrl=page.url();
+  await page.goto(base+'/index.php');
+  check(await page.locator('#mainPolicyPopup').count()===0,'main popup stops after signature');
+  await page.goto(receiptUrl);
+  check(await page.getByRole('heading',{name:'Policy Acknowledgement Receipt'}).isVisible(),'signed receipt remains available');
+  const second=await browser.newContext();
+  const denied=await second.request.get(receiptUrl);
+  check(denied.status()===401,'receipt is not publicly accessible');
+  console.log('TOTAL '+count+' policy end-to-end checks passed');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

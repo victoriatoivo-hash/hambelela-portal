@@ -9,6 +9,7 @@ if (isset($user['id'])) {
     try {
         require_once __DIR__ . '/policy-system.php';
         hrPolicyEnsureSchema(db());
+        hrPolicyAssignCurrent(db());
         $empPolicyPending = hrPolicyPending(db(), hrPolicyEmployeeId($user));
         $empPolicyPopup = hrPolicyPopupForUser(db(), (int)$user['id']);
         if($empPolicyPopup)db()->prepare("UPDATE hr_policy_notifications SET delivered_at=COALESCE(delivered_at,NOW()) WHERE id=?")->execute(array($empPolicyPopup['notification_requirement_id']));
@@ -25,6 +26,7 @@ function empNavItem($href, $icon, $label, $badge=0, $current='') {
 }
 ?>
 <link rel="stylesheet" href="includes/styles.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/styles.css')) ?>">
+<link rel="stylesheet" href="../../assets/css/hr-sidebar-theme.css?v=<?= filemtime(__DIR__.'/../../../assets/css/hr-sidebar-theme.css') ?>">
 <link rel="stylesheet" href="../../assets/css/portal-date-picker.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/css/portal-date-picker.css')) ?>">
 <script defer src="../../assets/js/portal-date-picker.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/js/portal-date-picker.js')) ?>"></script>
 <button type="button" class="hr-mobile-menu-toggle" data-hr-menu-open aria-label="Open HR navigation" aria-controls="hrPortalSidebar" aria-expanded="false">

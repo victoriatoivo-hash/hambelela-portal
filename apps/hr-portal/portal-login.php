@@ -107,6 +107,8 @@ try {
             : 'The linked HR profile does not have an active HR Portal employee account.');
     }
 
+    require_once __DIR__ . '/includes/policy-system.php';
+    hrPolicyAssignCurrent($hrDb);
     session_write_close();
     session_name('hambelela_hr_test_session');
     // Do not reuse or regenerate the Business Portal session ID under the HR
@@ -130,6 +132,7 @@ try {
 
     $requested = trim((string)($_GET['return'] ?? ''));
     $allowedReturn = preg_match('#^(?:my-loans|loan-view)\.php(?:\?[A-Za-z0-9_=&%-]+)?$#', $requested) ? $requested : '';
+    if ($allowedReturn === '') { $allowedReturn = hrPolicyBridgeReturn($requested); }
     $destination = $allowedReturn !== '' ? $allowedReturn : ($canManageHr ? 'dashboard.php' : 'self-service.php');
     header('Location: ' . (BASE_URL ?: '') . '/apps/hr-portal/' . $destination, true, 303);
     exit;

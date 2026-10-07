@@ -336,6 +336,51 @@ function hrPolicyMetadataMismatches(array $v): array {
     return $issues;
 }
 
+/** Catch up active employee accounts without republishing or touching signatures. */
+function hrPolicyAssignCurrent(PDO $db): array {
+    if ($db->inTransaction()) throw new RuntimeException('Policy assignment requires its own transaction.');
+    $assigned=0; $notified=0;
+    $db->beginTransaction();
+    try {
+        $versions=$db->query("SELECT v.id,v.policy_id,v.title FROM hr_policies p
+            JOIN hr_policy_versions v ON v.id=p.current_version_id AND v.policy_id=p.id
+            WHERE p.status='published' AND v.status='published' AND v.acknowledgement_required=1
+            ORDER BY p.id FOR UPDATE")->fetchAll(PDO::FETCH_ASSOC);
+        foreach ($versions as $version) {
+            $employees=$db->prepare("SELECT u.id user_id,e.id employee_id FROM users u
+                JOIN employees e ON e.id=u.employee_id
+                LEFT JOIN hr_policy_acknowledgements a ON a.version_id=? AND a.employee_id=e.id
+                WHERE u.role='employee' AND u.active=1 AND e.status='active' AND a.signed_at IS NULL
+                ORDER BY e.id,u.id");
+            $employees->execute(array($version['id']));
+            foreach ($employees->fetchAll(PDO::FETCH_ASSOC) as $employee) {
+                $a=$db->prepare("INSERT IGNORE INTO hr_policy_assignments (policy_id,version_id,employee_id,user_id) VALUES (?,?,?,?)");
+                $a->execute(array($version['policy_id'],$version['id'],$employee['employee_id'],$employee['user_id']));
+                $assigned+=$a->rowCount();
+                $n=$db->prepare("INSERT IGNORE INTO hr_policy_notifications (version_id,user_id) VALUES (?,?)");
+                $n->execute(array($version['id'],$employee['user_id']));
+                if ($n->rowCount()===1) {
+                    $notice=$db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'info',?)");
+                    $notice->execute(array($employee['user_id'],'HR Policy — Acknowledgement Required',
+                        'Please read and acknowledge the current company policy.','policy-view.php?id='.(int)$version['id']));
+                    $db->prepare("UPDATE hr_policy_notifications SET notification_id=? WHERE version_id=? AND user_id=?")
+                        ->execute(array($db->lastInsertId(),$version['id'],$employee['user_id']));
+                    $notified++;
+                }
+            }
+        }
+        $db->commit();
+        return array('assigned'=>$assigned,'notified'=>$notified);
+    } catch (Throwable $error) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $error;
+    }
+}
+
+function hrPolicyBridgeReturn(string $requested): string {
+    return preg_match('#^policy-view\\.php\\?id=[1-9][0-9]*$#D',$requested) ? $requested : '';
+}
+
 function hrPolicyPopupForUser(PDO $db, int $userId): ?array {
     if ($userId<=0) return null;
     $s=$db->prepare("SELECT pn.id notification_requirement_id,pn.opened_at notification_opened_at,pn.remind_after,
