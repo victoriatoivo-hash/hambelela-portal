@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once dirname(__DIR__, 2) . '/config.php';
 require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/shared/database.php';
+require_once BASE_PATH . '/shared/hr-access.php';
 
 require_login();
 
@@ -37,9 +38,11 @@ function hr_bridge_fail(string $message, int $status = 503): void
 {
     http_response_code($status);
     header('Content-Type: text/html; charset=UTF-8');
-    $safeMessage = htmlspecialchars($message, ENT_QUOTES, 'UTF-8');
+    $safeMessage = htmlspecialchars("Your HR access needs administrator attention. Please contact the administrator to check your linked profile and employee account.", ENT_QUOTES, 'UTF-8');
     $loginUrl = htmlspecialchars((BASE_URL ?: '') . '/index.php', ENT_QUOTES, 'UTF-8');
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HR Portal access</title></head><body style="font-family:system-ui,sans-serif;padding:32px;color:#1a1a1a"><main style="max-width:560px;margin:auto"><h1 style="color:#721b1a">Unable to open HR Portal</h1><p>' . $safeMessage . '</p><p><a href="' . $loginUrl . '">Return to the Business Portal</a></p></main></body></html>';
+    $fontUrl = htmlspecialchars((BASE_URL ?: '') . '/assets/fonts/jost-variable.woff2', ENT_QUOTES, 'UTF-8');
+    header('Cache-Control: no-store, private');
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>HR Portal access</title><style>@font-face{font-family:Jost;src:url("' . $fontUrl . '") format("woff2");font-display:swap}*{box-sizing:border-box}body{margin:0;background:#f6f4ec;color:#303c27;font-family:Jost,sans-serif;min-height:100vh;display:grid;place-items:center;padding:24px}.hr-access-card{width:100%;max-width:480px;background:white;border:1px solid #e1e5d8;border-radius:18px;padding:32px;box-shadow:0 12px 36px #303c270a}h1{font-size:26px;line-height:1.2;margin:12px 0 16px}p{line-height:1.6;color:#5d6556}.hr-access-label{font-size:12px;letter-spacing:.12em;text-transform:uppercase}a{display:inline-block;margin-top:8px;background:#52633f;color:white;border-radius:10px;padding:12px 20px;text-decoration:none}a:focus-visible{outline:3px solid #adba8d;outline-offset:3px}@media(max-width:430px){body{padding:16px}.hr-access-card{padding:24px}h1{font-size:24px}}</style></head><body><main class="hr-access-card"><span class="hr-access-label">Hambelela · HR Portal</span><h1>HR Portal access isn’t ready</h1><p>' . $safeMessage . '</p><a href="' . $loginUrl . '">Return to Portal</a></main></body></html>';
     exit;
 }
 
@@ -90,31 +93,13 @@ try {
              LIMIT 1"
         );
         $accountStmt->execute([$portalUserEmail]);
+        $account = $accountStmt->fetch();
+        $accountStmt->closeCursor();
     } else {
-        $link = db()->prepare(
-            'SELECT hr_employee_id
-             FROM employee_user_links
-             WHERE portal_user_id = ? AND active = 1
-             LIMIT 1'
-        );
-        $link->execute([$portalUserId]);
-        $hrEmployeeId = (int) $link->fetchColumn();
-        $link->closeCursor();
-
-        if ($hrEmployeeId < 1) {
-            throw new HrBridgeUserException('Your employee account is not linked to an HR profile. Ask an Owner/Admin to add the link in Employees & Roles.');
-        }
-
-        $accountStmt = $hrDb->prepare(
-            "SELECT id, name, email, role, employee_id
-             FROM users
-             WHERE employee_id = ? AND active = 1 AND role = 'employee'
-             LIMIT 1"
-        );
-        $accountStmt->execute([$hrEmployeeId]);
+        $health = hr_access_health(db(), $hrDb, $portalUserId);
+        if ($health['state'] !== 'ready') { throw new HrBridgeUserException($health['detail']); }
+        $account = $health['account'];
     }
-    $account = $accountStmt->fetch();
-    $accountStmt->closeCursor();
 
     if (!$account) {
         throw new HrBridgeUserException($canManageHr

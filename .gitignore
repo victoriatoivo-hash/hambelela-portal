@@ -7,3 +7,13 @@ default-login-accounts.txt
 
 .DS_Store
 Thumbs.db
+
+/audit-evidence/
+/live-baseline/
+/test-db-data/
+/test-http-fixture/
+/test-evidence/
+/hr-access-deployment*.json
+/hr-access-deployment*.zip
+
+/scripts/__pycache__/

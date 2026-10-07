@@ -4,14 +4,18 @@ on:
     inputs:
       mode:
         type: choice
-        options: [audit, cleanup]
+        options: [audit, cleanup, preflight, deploy]
         default: audit
         required: true
+      approved_sha:
+        type: string
+        required: false
 concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
 jobs:
   inspect:
+    if: inputs.mode == 'audit' || inputs.mode == 'cleanup'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -36,3 +40,58 @@ jobs:
             hr-access-live-source.zip
             hr-access-audit-report.json
           retention-days: 7
+  validate:
+    if: inputs.mode == 'preflight' || inputs.mode == 'deploy'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        php: ['7.4', '8.2']
+    services:
+      mysql:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql
+      - name: Validate PHP and account health integration
+        env:
+          HR_ACCESS_TEST_DSN: mysql:host=127.0.0.1;port=3306
+        run: |
+          php -l shared/hr-access.php
+          php -l apps/hr-portal/portal-login.php
+          php -l apps/operations/my-account.php
+          php tests/hr-access-health-db.php
+          python3 -m py_compile scripts/deploy-hr-access-health.py
+  release:
+    if: inputs.mode == 'preflight' || inputs.mode == 'deploy'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify live baseline and release scoped HR fix
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-hr-access-health.py "$MODE" "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hr-access-release-${{ github.run_id }}
+          path: |
+            hr-access-deployment-report.json
+            hr-access-deployment-backup.zip
+          retention-days: 30

@@ -1,0 +1,17 @@
+{
+  "apps/operations/my-account.php": "2360020a316febf338825b6394b95f9d711c3e5ee6905288ec4ffb4cc5a45131",
+  "apps/operations/operations.php": "8b01ba15e92e92fc1532c1663631f6e7ab22c5cbdfcc2bc69215ec8dccabfbbe",
+  "apps/hr-portal/portal-login.php": "f6fb3bd166c2126a42c0873c6585165a6b1e475db4301a932d3925b2d3703f1d",
+  "apps/hr-portal/create-account.php": "ba56a09fbac9581aeeb76818b79588d4ac9c3e304ea0a6f6b7969f0dab65474e",
+  "apps/hr-portal/employees.php": "b6efd44ee27b7534088189be19b23fef8b351ed443240142981238a578c56eea",
+  "apps/hr-portal/settings.php": "f124eeb1028b54589e5b1abd315edc7f6593d6ace2599486ad31b9f349e98355",
+  "apps/hr-portal/self-service.php": "a513cb71ee5d8af3f8593605bd6d7cdf1f935e947f41dbe4182249525f348bd6",
+  "apps/hr-portal/my-leave.php": "0dea37cec79ff92d7513e0a4ecdf96c9c0e3270c413c8aa95db8a1e5cedb334c",
+  "apps/hr-portal/my-loans.php": "e2fd8f5da1679bd32de88a136665398ffb10b173e0ef8c5c457523c2eb88b647",
+  "apps/hr-portal/my-payslips.php": "d9e397254a97bf4784d5a64323cb4d07834f9feabe73db6390fcf7385bb3e5b2",
+  "shared/auth.php": "106844d26228524ec348433b3af53723a4993dbec453da4236520e8090e77ca2",
+  "shared/database.php": "a96fff19d0bfa951a2187becb4b53048c553534f6dd6134e9a709e88f7109670",
+  "shared/workplace-access.php": "f50af78ed0d3a60a142b1bb54a7bd3592fa47aa35137acb06b9b7069fc69867a",
+  "assets/css/profile-settings.css": "6a44ab6877f4791fce0ce475527e4027015a79b7b44cd14578217e5671885b7b",
+  "assets/css/settings-detail.css": "cd4442f1387049e59fcca2321fc2d4ed8f83b420602874b93fb7b93cd628db1d"
+}

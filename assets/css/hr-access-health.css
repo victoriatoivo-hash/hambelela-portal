@@ -1,0 +1,9 @@
+.settings-hr-access { min-width: 170px; max-width: 240px; white-space: normal; }
+.settings-hr-access small { display: block; margin-top: 5px; line-height: 1.4; white-space: normal; }
+.settings-hr-health-detail { color: #626b59; font-size: 11px; }
+.settings-hr-access form { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.settings-hr-access .btn-secondary { padding: 6px 9px; min-height: 32px; font-size: 11px; }
+.settings-hr-access .settings-pill.is-conflict { background: #fae9e4; color: #944d40; }
+@media (max-width: 430px) {
+  .settings-hr-access { min-width: 156px; max-width: 210px; }
+}
