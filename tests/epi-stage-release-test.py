@@ -27,6 +27,13 @@ class Host:
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_first_publication_sql_requires_absence_or_exact_target(self):
+        with patch.object(stage.release, 'blob', return_value=b'git-only'):
+            for path in stage.FIRST_PUBLICATION_SQL:
+                self.assertIsNone(stage.baseline_file(path))
+                self.assertFalse(stage.release.same(b'live-only SQL', stage.baseline_file(path)))
+            self.assertEqual(stage.baseline_file('shared/footer.php'), b'git-only')
+
     def run_release(self, mode='publish', conflict=False, fail_health=False, concurrent=False):
         host = Host()
         if conflict: host.files['old.php'] = b'live-only'

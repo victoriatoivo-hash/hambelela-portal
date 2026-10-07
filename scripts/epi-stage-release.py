@@ -22,6 +22,15 @@ BASELINE = shadow.stage_package.BASELINE
 # Employee mobile navigation and profile menu preserved in the merged footer.
 REVIEWED_LIVE_HASHES = {'shared/footer.php': '8f4524ef4147917ac684e36828e9658b3834c2ce7ace82d9a13ee1a88cb308f1'}
 
+# Run 37639080956 verified these three files are absent (empty conflict snapshot).
+# The previous publisher shipped runtime files only, although SQL existed in git.
+# Permit first creation only; any existing divergent SQL still stops the release.
+FIRST_PUBLICATION_SQL = frozenset(shadow.stage_package.MIGRATIONS)
+
+
+def baseline_file(path):
+    return None if path in FIRST_PUBLICATION_SQL else release.blob(BASELINE, path)
+
 
 def preflight(ftp):
     """Read-only host health/schema observation; never disclose credentials or HR rows."""
@@ -93,7 +102,7 @@ def main(mode, sha):
     try:
         before = {p: release.read(ftp, p) for p in FILES}
         conflicts = [p for p in FILES if not release.same(before[p], expected[p])
-                     and not release.same(before[p], release.blob(BASELINE, p))
+                     and not release.same(before[p], baseline_file(p))
                      and not (before[p] is not None and hashlib.sha256(before[p]).hexdigest() == REVIEWED_LIVE_HASHES.get(p))]
         report['conflicts'] = conflicts
         if conflicts:
