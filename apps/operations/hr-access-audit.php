@@ -5,7 +5,7 @@ if (time() - (int) filemtime(__FILE__) > 1800) {
     http_response_code(410);
     exit('Temporary audit expired.');
 }
-require_once dirname(__DIR__) . '/apps/operations/operations.php';
+require_once __DIR__ . '/operations.php';
 require_role('owner_admin');
 header('Cache-Control: no-store, private');
 header('X-Robots-Tag: noindex, nofollow');

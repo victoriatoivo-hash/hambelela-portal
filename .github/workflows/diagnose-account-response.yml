@@ -21,7 +21,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '7.4'
-      - run: php -l tools/hr-access-audit.php
+      - run: php -l apps/operations/hr-access-audit.php
       - name: Inspect account code and relevant PHP errors without changing data
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

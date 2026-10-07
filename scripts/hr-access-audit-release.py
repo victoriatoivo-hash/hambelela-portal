@@ -19,7 +19,7 @@ FILES = ('apps/operations/my-account.php', 'apps/operations/operations.php',
          'apps/hr-portal/my-loans.php', 'apps/hr-portal/my-payslips.php',
          'shared/auth.php', 'shared/database.php', 'shared/workplace-access.php',
          'assets/css/profile-settings.css', 'assets/css/settings-detail.css')
-AUDIT = 'tools/hr-access-audit.php'
+AUDIT = 'apps/operations/hr-access-audit.php'
 mode = sys.argv[1]
 if mode not in ('audit', 'cleanup'):
     raise SystemExit('Unsupported mode')
