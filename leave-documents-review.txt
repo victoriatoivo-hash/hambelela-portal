@@ -1,6 +1,9 @@
 HAMBELELA HR LEAVE DOCUMENTS - LOCAL REVIEW
 7 October 2026
 
+HISTORICAL REVIEW SNAPSHOT: The user subsequently authorized push/deployment.
+See leave-documents-deployment.txt for the completed live release and verification.
+
 This patch is prepared in the isolated codex/leave-history-documents worktree,
 based on commit 531fd46d. It has not been committed, pushed, or deployed.
 All PASS results below refer to the local patch and synthetic test records.

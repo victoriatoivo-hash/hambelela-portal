@@ -1,0 +1,61 @@
+HAMBELELA HR LEAVE DOCUMENTS - DEPLOYMENT VERIFIED
+7 October 2026
+
+The user explicitly authorized push and live deployment after the local review.
+Branch: codex/leave-history-documents
+Runtime commit: b8e609a1ff7d8694792e8bf3b44936535a166d43
+Deployment: https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/37670566855
+Preflight: https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/37670437673
+Source capture: https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/37670253069
+
+Current server PHP was captured and compared before deployment. It matched the
+review baseline; only the intended rendering/access delta was applied. Production
+hash preflight passed, a rollback backup was saved, and all six uploaded files
+were verified by reading them back and comparing SHA-256 hashes.
+
+EXISTING CERTIFICATE FIELD: FOUND
+APPROVED RECORD RETAINS CERTIFICATE: YES (unchanged approval SQL verified locally)
+LEAVE HISTORY CERTIFICATE COLUMN: PASS (live)
+EXISTING APPROVED SICK LEAVE DOCUMENTS: VISIBLE (live when file available)
+SECURE DOCUMENT ENDPOINT: PASS (live admin images; local security cases)
+EMPLOYEE OWN DOCUMENT: PASS (local; no live employee impersonation performed)
+OTHER EMPLOYEE DOCUMENT BLOCKED: PASS (local)
+MISSING FILE HANDLING: PASS (live and local)
+MOBILE: PASS (390px live, 390px/430px/1366px local)
+LEAVE CALCULATIONS CHANGED: NO
+DATABASE CHANGE: NO
+UNRELATED: NONE
+PUSHED: YES
+DEPLOYED: YES
+
+Live verification found the requested two approved-record links and confirmed
+both images loaded in the authenticated admin viewer. Three history links are
+available overall. Ten older records show File unavailable. This state includes
+missing, unsafe, unreadable or invalid-type files; it is not proof that all ten
+were deleted. Their record metadata is saved locally in verification/
+live-unavailable-records.json and has not been published to GitHub.
+
+Public direct URLs to both tested uploads return HTTP 403. Unauthenticated admin
+and employee viewer requests redirect to login (HTTP 302). Existing employee
+self-service UI remains unchanged. Cross-employee authorization was tested on
+synthetic accounts, not by impersonating real employees. PHP fileinfo is working
+on the live host, as demonstrated by the available JPEG document states.
+
+PRODUCTION FILES DEPLOYED (exact list):
+apps/hr-portal/includes/leave-documents.php
+apps/hr-portal/includes/leave-documents.css
+apps/hr-portal/download-certificate.php
+apps/hr-portal/view-my-certificate.php
+apps/hr-portal/uploads/certificates/.htaccess
+apps/hr-portal/leave.php
+
+RELEASE TOOLING (Git only):
+.github/workflows/deploy-portal-corrections.yml (branch-scoped six-file workflow)
+scripts/deploy-leave-documents.py
+scripts/leave-documents-live-baseline.json
+
+The release workflow on this branch uses the already registered workflow path.
+The main-branch deployment workflow was not modified or run. No broad FTP sync,
+merge to main, schema changes, upload replacements or certificate deletions ran.
+The local review report/tests are retained with this release. Backups, source
+capture and deployment reports are also downloaded under verification/ locally.
