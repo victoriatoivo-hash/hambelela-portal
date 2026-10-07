@@ -1,0 +1,17 @@
+HR current policy access - deployed 7 October 2026
+Runtime SHA: bfea850e6e219f0b0ab0f70e096a9ad89568a329
+Deployment: https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/37672966488
+Captured current live source; production preflight, backup and read-back hashes passed.
+38 isolated assignment/employee-browser/signature checks passed, plus PHP syntax.
+Live: linked target account Ready; assignment catch-up completed through successful
+HR SSO; existing current handbook opens directly; existing acknowledgement rows
+unchanged. Target employee's own live sign-in/popup check awaits her session.
+No real employee was impersonated or signed for. No new employee, policy, policy
+version or schema was created. Existing signing handlers and receipts unchanged.
+Five live files: shared/header.php, shared/portal-policy-popup.php,
+apps/hr-portal/portal-login.php, apps/hr-portal/includes/policy-system.php,
+apps/hr-portal/includes/emp-sidebar.php.
+Release used the existing registered delta workflow path on this isolated branch.
+No full-site sync or main-branch merge. Backups/reports retained locally under
+verification/ and in the private workflow artifact; live HR record snapshots stay
+local. Tests and scoped release tooling committed separately from live files.
