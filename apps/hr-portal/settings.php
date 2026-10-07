@@ -3,6 +3,9 @@ require_once __DIR__ . '/config.php';
 requireAdmin();
 $user = currentUser();
 $db   = db();
+require_once __DIR__.'/includes/policy-system.php';
+hrPolicyEnsureSchema($db);
+$newEmployeePolicySettings=hrPolicySettings($db);
 require_once __DIR__ . '/includes/leave-reserve.php';
 require_once __DIR__ . '/includes/leave-balance-service.php';
 require_once __DIR__ . '/includes/employment-letter.php';
@@ -51,6 +54,19 @@ $msg = clean($_GET['msg'] ?? '');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+    if($action==='save_policy_settings'){
+        if(!hash_equals($settingsCsrfToken,(string)($_POST['csrf_token']??''))){http_response_code(403);exit('Your session expired. Refresh and try again.');}
+        $days=filter_var($_POST['policy_ack_days']??'',FILTER_VALIDATE_INT,array('options'=>array('min_range'=>1,'max_range'=>365)));
+        if($days===false){http_response_code(422);exit('Select an acknowledgement period from 1 to 365 days.');}
+        $db->beginTransaction();
+        try{
+            foreach(array('policy_auto_assign','policy_main_popup','policy_reminders') as $key) saveSetting($key,isset($_POST[$key])?'1':'0');
+            saveSetting('policy_ack_days',(string)$days);
+            hrPolicyAudit($db,'new_employee_policy_settings_changed',null,null,null,array('previous'=>$newEmployeePolicySettings,'current'=>hrPolicySettings($db)));
+            $db->commit();
+        }catch(Throwable $error){if($db->inTransaction())$db->rollBack();throw $error;}
+        header('Location: settings.php?tab=policy&msg=policy_saved');exit;
+    }
 
     if (in_array($action, ['run_leave_accrual', 'renew_leave', 'save_leave'], true)) {
         $csrf = (string)($_POST['csrf_token'] ?? '');
@@ -205,6 +221,11 @@ $activeTab    = $_GET['tab'] ?? 'company';
 .settings-nav a i{width:16px;text-align:center;font-size:13px}
 .settings-body{flex:1;min-width:0}
 .settings-layout{display:flex;gap:24px;align-items:flex-start}
+<?php if($activeTab==='policy'): ?>
+@font-face{font-family:Jost;src:url('/assets/fonts/jost-variable.woff2') format('woff2');font-display:swap}
+.settings-body,.settings-body input,.settings-body button{font-family:Jost,sans-serif}
+@media(max-width:768px){.settings-layout{flex-direction:column}.settings-nav{width:100%;flex-direction:row;flex-wrap:wrap}.settings-nav a{min-height:44px;box-sizing:border-box}.settings-body{width:100%}}
+<?php endif; ?>
 .toggle-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
 .toggle-row:last-child{border-bottom:none}
 .toggle-label{font-size:13px;font-weight:500}
@@ -263,6 +284,7 @@ $activeTab    = $_GET['tab'] ?? 'company';
     <nav class="settings-nav">
       <?php
       $tabs = [
+        ['policy', 'fa-solid fa-file-signature', 'New Employee Policy'],
         ['company',   'fa-solid fa-building',        'Company Information'],
         ['leave',     'fa-solid fa-calendar-check',   'Leave Policy'],
         ['overtime',  'fa-regular fa-clock',          'Overtime Settings'],
@@ -286,7 +308,24 @@ $activeTab    = $_GET['tab'] ?? 'company';
     <!-- ── SETTINGS BODY ── -->
     <div class="settings-body">
 
-    <?php if ($activeTab === 'company'): ?>
+    <?php if ($activeTab === 'policy'): ?>
+    <div class="card">
+      <div class="card-header"><div class="card-title">New Employee Policy Settings</div></div>
+      <form method="POST" style="padding:20px;font-family:Jost,sans-serif">
+        <input type="hidden" name="action" value="save_policy_settings">
+        <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($settingsCsrfToken,ENT_QUOTES,'UTF-8')?>">
+        <?php if($msg==='policy_saved'):?><p role="status">Policy settings saved.</p><?php endif;?>
+        <p>New active employees with a working HR account receive the current mandatory policy. Existing signatures and policy versions stay intact.</p>
+        <?php foreach(array('policy_auto_assign'=>'Automatically assign current mandatory policy','policy_main_popup'=>'Main Portal popup notification','policy_reminders'=>'Reminder for unsigned policy') as $key=>$label):?>
+        <label style="display:flex;gap:12px;align-items:center;min-height:44px"><input type="checkbox" name="<?=$key?>" value="1" <?=$newEmployeePolicySettings[$key]==='1'?'checked':''?>><?=htmlspecialchars($label)?></label>
+        <?php endforeach;?>
+        <label class="form-label" for="policyAckDays">Default acknowledgement period (calendar days)</label>
+        <input class="form-input" id="policyAckDays" type="number" name="policy_ack_days" min="1" max="365" required value="<?=(int)$newEmployeePolicySettings['policy_ack_days']?>">
+        <p>The deadline is the later of the start date or assignment date, plus this period. Owners can set an individual date. Reminders refresh the existing pending Main Portal notification once a day when the portal checks notifications.</p>
+        <button class="btn btn-primary" type="submit">Save Policy Settings</button>
+      </form>
+    </div>
+    <?php elseif ($activeTab === 'company'): ?>
     <!-- ══ COMPANY INFORMATION ══ -->
     <div class="card">
       <div class="card-header"><div class="card-title"><i class="fa-solid fa-building" style="color:var(--green)"></i> Company Information</div></div>

@@ -6,6 +6,9 @@ if(empty($v['digital_html'])){http_response_code(409);exit('This policy version 
 $ack=null;$legal='';
 if($preview){$legal='Preview Employee';}
 elseif(!$isAdmin){
+    $deadlineQuery=$db->prepare('SELECT acknowledgement_deadline FROM hr_policy_assignments WHERE version_id=? AND employee_id=?');
+    $deadlineQuery->execute(array($v['id'],$eid));$individualDeadline=$deadlineQuery->fetchColumn();
+    if($individualDeadline) $v['acknowledgement_deadline']=$individualDeadline;
     $legal=hrPolicyLegalName($db,$eid);
     $s=$db->prepare("INSERT INTO hr_policy_acknowledgements (policy_id,version_id,employee_id,user_id,opened_at,last_opened_at) VALUES (?,?,?,?,NOW(),NOW()) ON DUPLICATE KEY UPDATE opened_at=COALESCE(opened_at,NOW()),last_opened_at=NOW()");
     $s->execute(array($v['policy_id'],$v['id'],$eid,$u['id']));

@@ -12,7 +12,13 @@ function check(ok,label){if(!ok)throw Error(label);console.log('PASS '+label);co
   const page=await context.newPage();
   await page.goto(base+'/index.php');
   check(await page.locator('#mainPolicyPopup').evaluate(e=>e.open),'mandatory policy popup opens on Main Portal');
-  check(await page.getByText('HR POLICY',{exact:true}).isVisible(),'HR POLICY label is visible');
+  check(await page.getByText('HR POLICY — ACTION REQUIRED',{exact:true}).isVisible(),'HR POLICY label is visible');
+  check((await page.locator('#mainPolicyDescription').innerText()).includes('13 October 2026'),'popup shows the individual deadline');
+  await page.getByRole('button',{name:'Later',exact:true}).click();
+  check(!(await page.locator('#mainPolicyPopup').evaluate(e=>e.open)),'popup can be dismissed');
+  await page.reload();
+  check(!(await page.locator('#mainPolicyPopup').evaluate(e=>e.open)),'dismissed popup stays quiet during the current day');
+  await page.evaluate(()=>sessionStorage.clear());await page.reload();
   check(await page.getByRole('heading',{name:'Company Policy Requires Your Acknowledgement'}).isVisible(),'requested policy heading is visible');
   const link=page.getByRole('link',{name:'Read & Acknowledge'});
   check((await link.getAttribute('href')).includes('portal-login.php?return=policy-view.php%3Fid%3D1'),'popup uses SSO bridge with exact current policy deep link');
@@ -23,6 +29,7 @@ function check(ok,label){if(!ok)throw Error(label);console.log('PASS '+label);co
   await page.waitForURL('**/policy-view.php?id=1');
   check(page.url().endsWith('/policy-view.php?id=1'),'bridge opens the current existing policy directly');
   check(await page.getByRole('heading',{name:'Existing Handbook',exact:true}).isVisible(),'existing policy is readable');
+  check((await page.locator('.viewer-meta').innerText()).includes('13 October 2026'),'employee viewer shows the individual deadline');
   check((await context.cookies()).some(c=>c.name==='hambelela_hr_test_session'),'HR session is established without a second login');
   const csrf=await page.locator('input[name="csrf"]').getAttribute('value');
   const rejected=await context.request.post(base+'/apps/hr-portal/policy-action.php',{form:{action:'sign',version_id:'1',ajax:'1',csrf,ack_confirm:'1',legal_name:'New Employee',signature_method:'typed',typed_signature:'New Employee'}});

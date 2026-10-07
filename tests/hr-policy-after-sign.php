@@ -8,3 +8,5 @@ check($db->query('SELECT status FROM hr_policy_assignments WHERE employee_id=2')
 check((bool)$db->query('SELECT resolved_at FROM hr_policy_notifications WHERE user_id=12')->fetchColumn(),'notification resolves after signing');
 check((int)$db->query('SELECT COUNT(*) FROM hr_policy_notifications WHERE user_id=12')->fetchColumn()===1,'no duplicate notification after policy navigation and signature');
 check((int)$db->query('SELECT COUNT(*) FROM hr_policy_acknowledgements WHERE employee_id=2 AND signed_at IS NOT NULL AND acknowledgement_reference IS NOT NULL')->fetchColumn()===1,'new signed acknowledgement and receipt reference preserved');
+$portal=new PDO('mysql:host=127.0.0.1;port=3339;dbname=hr_policy_portal_test','root','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+check($portal->query('SELECT cleared_at FROM notification_recipients')->fetchColumn()!==null,'Main Portal policy notification resolves after real synthetic signature');

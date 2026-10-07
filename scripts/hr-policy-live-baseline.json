@@ -1,13 +1,16 @@
 {
-  "apps/hr-portal/includes/policy-system.php": "4f048ff78d5aac3b013e32430fb07048e56850dafa23b0bb9bb4c588ddbdc0a9",
-  "shared/portal-policy-popup.php": null,
-  "apps/hr-portal/portal-login.php": "22cb0ce3d1f4b953e0781ba4ed14a7d8936ec3f73a6d62c4243af0e521fcfe74",
-  "apps/hr-portal/includes/emp-sidebar.php": "c13f0a1b9457d3d4cb9060cae53d5c09cacafcf43a9f7b55662c869b96138354",
-  "shared/header.php": "fef9e3098c3d21467865ad82ce5af604fc19f243646835e835e5531320777de3",
+  "apps/hr-portal/includes/policy-system.php": "2969aed4122f355f8a4acb117e3c26aa291b3586586af30abd821ab3cadcd7f0",
+  "shared/portal-policy-notifications.php": null,
+  "apps/hr-portal/policy-action.php": "4c4bd942baf85b37ffa7cdd2ee868d25a379a89cb03583ec1e963a14df59fa0a",
+  "apps/hr-portal/policy-acknowledgements.php": "a50932b5755fa38d3508285cebbb7746069dcecb52981d34448e0b8d056531c3",
+  "apps/hr-portal/policy-view.php": "58913b0a498e99037272a6933090380c437a95370e04c9508234e8ea2418c4de",
+  "apps/hr-portal/settings.php": "f124eeb1028b54589e5b1abd315edc7f6593d6ace2599486ad31b9f349e98355",
+  "shared/portal-policy-popup.php": "9ee798c524c9b31a6f4cdc55a360f2c5bf3813f1d276ad83990a64afdd042bec",
+  "api/notifications.php": "b6b3bff86e911967f91507946669bfd98cbedb45bc9bc01e38fb607c9547af01",
   "apps/operations/operations.php": "be9355d8956aa95f6ad8f6ce771b9d34ebaa1c6538010906ec53316cdfc49b9a",
   "shared/hr-access.php": "23ad2950de399bae3d244f2fe88f3f54b7d05f3de766ba52402bca5928989b06",
-  "apps/hr-portal/policy-action.php": "4c4bd942baf85b37ffa7cdd2ee868d25a379a89cb03583ec1e963a14df59fa0a",
-  "apps/hr-portal/policy-view.php": "58913b0a498e99037272a6933090380c437a95370e04c9508234e8ea2418c4de",
+  "shared/notifications.php": "0d0b47853f68747882b116661f1ce2724634eb2c64586c28cc54df609917131e",
   "apps/hr-portal/policy-receipt.php": "a3e86d3e3fbe7b3098662bf2480a184e9828503e12458083f563f9665ecdd9b0",
-  "apps/hr-portal/policy-acknowledgements.php": "a50932b5755fa38d3508285cebbb7746069dcecb52981d34448e0b8d056531c3"
+  "apps/hr-portal/portal-login.php": "5e52f9b02187b5454f45908d67e6d0ff23bb1dffd9336e3c70015a9b6fd6d32b",
+  "apps/hr-portal/includes/emp-sidebar.php": "950ad6b773e6227213eaaa9491c5e55b2956da42d2a7c931caf193bad55ef000"
 }

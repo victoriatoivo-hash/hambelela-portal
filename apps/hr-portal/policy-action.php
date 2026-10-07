@@ -13,6 +13,24 @@ try {
     if ($_SERVER['REQUEST_METHOD']!=='POST') throw new RuntimeException('Invalid request method.');
     hrPolicyVerifyCsrf((string)($_POST['csrf']??''));
     $action=(string)($_POST['action']??'');
+    if(in_array($action,array('assign_notify','change_deadline','resend_reminder'),true)){
+        if($user['role']==='employee') throw new RuntimeException('Owner or administrator access is required.');
+        $id=(int)($_POST['version_id']??0);$eid=(int)($_POST['employee_id']??0);
+        $v=hrPolicyVersion($db,$id);
+        if(!$v || $v['status']!=='published' || (int)$v['current_version_id']!==$id || !$v['acknowledgement_required']) throw new RuntimeException('Select the current published mandatory policy.');
+        $signed=$db->prepare('SELECT signed_at FROM hr_policy_acknowledgements WHERE employee_id=? AND version_id=?');$signed->execute(array($eid,$id));
+        if($signed->fetchColumn()) throw new RuntimeException('This employee has already signed. Their acknowledgement cannot be changed.');
+        require_once dirname(__DIR__,2).'/shared/portal-policy-notifications.php';
+        $portal=portal_policy_database();
+        $links=$portal->prepare('SELECT portal_user_id FROM employee_user_links WHERE hr_employee_id=? AND active=1');$links->execute(array($eid));$linked=$links->fetchAll(PDO::FETCH_COLUMN);
+        if(count($linked)!==1 || hr_access_health($portal,$db,(int)$linked[0])['state']!=='ready') throw new RuntimeException('A working, uniquely linked employee Main Portal and HR account is required.');
+        $deadline=$action==='resend_reminder'?null:trim((string)($_POST['deadline']??''));
+        if($deadline!==null && $deadline==='') throw new RuntimeException('Select an individual acknowledgement deadline.');
+        hrPolicyAssignCurrent($db,$eid,$id,$deadline,$action!=='change_deadline');
+        portal_policy_sync($portal,$db,$eid);
+        $_SESSION['policy_assignment_success']=$action==='resend_reminder'?'Reminder sent. The existing assignment and notification were reused.':'Policy assignment and individual deadline saved. Main Portal notification is pending.';
+        header('Location: policy-acknowledgements.php?id='.$id);exit;
+    }
     if ($action==='save_draft') {
         if ($user['role']==='employee') throw new RuntimeException('Owner or administrator access is required.');
         if (empty($_FILES['policy_file']) || $_FILES['policy_file']['error']!==UPLOAD_ERR_OK) throw new RuntimeException('Select the approved DOCX policy file.');
@@ -160,6 +178,8 @@ try {
         $db->prepare("UPDATE hr_policy_assignments SET status='acknowledged' WHERE version_id=? AND user_id=?")->execute(array($id,(int)$user['id']));
         $db->prepare("UPDATE hr_policy_notifications SET resolved_at=COALESCE(resolved_at,NOW()),remind_after=NULL WHERE version_id=? AND user_id=?")->execute(array($id,(int)$user['id']));
         hrPolicyAudit($db,'policy_signed',$v['policy_id'],$id,$eid,array('reference'=>$ref,'method'=>$method)); $db->commit();
+        try {require_once dirname(__DIR__,2).'/shared/portal-policy-notifications.php';portal_policy_sync(portal_policy_database(),$db,$eid);}
+        catch(Throwable $error){error_log('Signed policy Main Portal notification sync deferred: '.$error->getMessage());}
         if (!empty($_POST['ajax'])) { header('Content-Type: application/json'); echo json_encode(array('ok'=>true,'status'=>'Signed & Acknowledged','signed_at'=>date('c'),'receipt_url'=>'policy-receipt.php?id='.$ack['id'])); exit; }
         header('Location: policy-receipt.php?id='.$ack['id']); exit;
     }
@@ -167,5 +187,8 @@ try {
 } catch (Throwable $e) {
     if ($db->inTransaction()) $db->rollBack();
     if (in_array(($action??''),array('mark_end','save_progress'),true) || !empty($_POST['ajax'])) { http_response_code(422); header('Content-Type: application/json'); echo json_encode(array('ok'=>false,'error'=>$e->getMessage())); exit; }
+    if(in_array(($action??''),array('assign_notify','change_deadline','resend_reminder'),true)){
+        $_SESSION['policy_assignment_error']=$e->getMessage();header('Location: policy-acknowledgements.php?id='.(int)($_POST['version_id']??0));exit;
+    }
     policyBack($e->getMessage());
 }

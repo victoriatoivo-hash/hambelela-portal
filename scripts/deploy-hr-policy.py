@@ -1,4 +1,4 @@
-"""Source-only capture and hash-guarded six-file HR document release."""
+"""Source-only capture and hash-guarded eight-file HR policy assignment release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 FILES = ('apps/hr-portal/includes/policy-system.php','shared/portal-policy-notifications.php','apps/hr-portal/policy-action.php','apps/hr-portal/policy-acknowledgements.php','apps/hr-portal/policy-view.php','apps/hr-portal/settings.php','shared/portal-policy-popup.php','api/notifications.php')

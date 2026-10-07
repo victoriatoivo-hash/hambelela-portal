@@ -3,15 +3,23 @@ from pathlib import Path
 import shutil
 root=Path(__file__).resolve().parents[1]
 fixture=root/'verification/fixture'
-for folder in ('shared','apps/operations','apps/hr-portal/includes'):
+for folder in ('shared','apps/operations','apps/hr-portal/includes','assets/css','assets/js','assets/fonts'):
     (fixture/folder).mkdir(parents=True,exist_ok=True)
-for p in ('shared/portal-policy-popup.php','shared/hr-access.php','apps/hr-portal/includes/policy-system.php','apps/hr-portal/portal-login.php'):
+for p in ('shared/portal-policy-popup.php','shared/portal-policy-notifications.php','shared/hr-access.php','apps/hr-portal/includes/policy-system.php','apps/hr-portal/portal-login.php'):
     shutil.copy2(root/p,fixture/p)
-for p in ('policy-action.php','policy-view.php','policy-receipt.php'):
-    shutil.copy2(root/'verification/live-source/apps/hr-portal'/p,fixture/'apps/hr-portal'/p)
-for p in ('policy-signature.js','policies.css'):
+for p in ('policy-action.php','policy-view.php','policy-receipt.php','policy-acknowledgements.php','settings.php'):
+    shutil.copy2(root/'apps/hr-portal'/p,fixture/'apps/hr-portal'/p)
+for p in ('policy-signature.js','policies.css','styles.css'):
     shutil.copy2(root/'apps/hr-portal/includes'/p,fixture/'apps/hr-portal/includes'/p)
 def write(p,text): (fixture/p).write_text(text,encoding='utf-8')
+write('config.local.php',"<?php return ['db_host'=>'127.0.0.1;port=3339','db_name'=>'hr_policy_portal_test','db_user'=>'root','db_pass'=>''];")
+for p in ('apps/hr-portal/includes/sidebar.php','apps/hr-portal/includes/styles.css','apps/hr-portal/includes/hr-responsive.js','assets/css/hr-sidebar-theme.css'):
+    if (root/'verification/live-source'/p).exists(): shutil.copy2(root/'verification/live-source'/p,fixture/p)
+for p in ('assets/css/portal-date-picker.css','assets/js/portal-date-picker.js','assets/fonts/jost-variable.woff2'):
+    if (root/p).exists(): shutil.copy2(root/p,fixture/p)
+write('apps/hr-portal/includes/leave-reserve.php','<?php function ensureLeaveShutdownSchema(PDO $db):void{}')
+write('apps/hr-portal/includes/leave-balance-service.php','<?php')
+write('apps/hr-portal/includes/employment-letter.php','<?php function employmentLetterSettings(PDO $db):array{return [];}')
 write('config.php',"""<?php
 define('BASE_PATH',__DIR__);define('BASE_URL','');
 session_name('policy_portal_fixture');session_start();
@@ -34,6 +42,8 @@ session_name('hambelela_hr_test_session');session_start();
 function db():PDO{static $db;return $db??($db=new PDO('mysql:host=127.0.0.1;port=3339;dbname=hr_policy_test','root','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]));}
 function currentUser():?array{return $_SESSION['user']??null;}
 function requireLogin():void{if(!currentUser()){http_response_code(401);exit('HR login required');}}
+function requireAdmin():void{requireLogin();if(currentUser()['role']==='employee'){http_response_code(403);exit('Admin required');}}
+function clean($value):string{return trim((string)$value);}
 function hrTableExists(PDO $db,string $table):bool{$s=$db->prepare('SELECT COUNT(*) FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?');$s->execute([$table]);return(bool)$s->fetchColumn();}
 function hrColumnExists(PDO $db,string $table,string $column):bool{$s=$db->prepare('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?');$s->execute([$table,$column]);return(bool)$s->fetchColumn();}
 """)

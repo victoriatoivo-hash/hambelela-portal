@@ -1,4 +1,4 @@
-name: Deploy HR current policy access
+name: Deploy HR policy assignment completion
 on:
   workflow_dispatch:
     inputs:
@@ -26,7 +26,7 @@ jobs:
         with:
           php-version: '8.1'
           extensions: fileinfo, pdo_mysql
-      - name: Capture, preflight or deploy the five authorized policy files
+      - name: Capture, preflight or deploy the eight authorized policy files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

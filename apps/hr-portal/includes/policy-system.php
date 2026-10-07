@@ -133,6 +133,32 @@ function hrPolicyEnsureSchema(PDO $db): void {
     hrPolicyAddColumn($db, 'hr_policy_notifications', 'opened_at', 'DATETIME NULL');
     hrPolicyAddColumn($db, 'hr_policy_notifications', 'remind_after', 'DATETIME NULL');
     hrPolicyAddColumn($db, 'hr_policy_notifications', 'resolved_at', 'DATETIME NULL');
+    hrPolicyAssignmentSchema($db);
+}
+
+function hrPolicyAssignmentSchema(PDO $db): void {
+    static $ready = array();
+    $key=spl_object_id($db); if(isset($ready[$key])) return;
+    $lock=(string)$db->query("SELECT GET_LOCK(CONCAT(DATABASE(),':policy-deadlines-v1'),10)")->fetchColumn();
+    if($lock!=='1') throw new RuntimeException('Policy settings are busy. Please retry.');
+    try {
+        hrPolicyAddColumn($db,'hr_policy_assignments','acknowledgement_deadline','DATE NULL');
+        hrPolicyAddColumn($db,'hr_policy_assignments','reminder_sequence','INT UNSIGNED NOT NULL DEFAULT 0');
+        $ready[$key]=true;
+    } finally { $db->query("SELECT RELEASE_LOCK(CONCAT(DATABASE(),':policy-deadlines-v1'))"); }
+}
+
+function hrPolicySettings(PDO $db): array {
+    $settings=array('policy_auto_assign'=>'1','policy_ack_days'=>'7','policy_main_popup'=>'1','policy_reminders'=>'1');
+    $q=$db->query("SELECT setting_key,setting_val FROM settings WHERE setting_key IN ('policy_auto_assign','policy_ack_days','policy_main_popup','policy_reminders')");
+    foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row) $settings[$row['setting_key']]=$row['setting_val'];
+    $settings['policy_ack_days']=(string)max(1,min(365,(int)$settings['policy_ack_days']));
+    return $settings;
+}
+
+function hrPolicyDefaultDeadline(string $start, string $assigned, int $days): string {
+    $base=max(substr($assigned,0,10),substr($start,0,10));
+    return (new DateTimeImmutable($base))->modify('+'.$days.' days')->format('Y-m-d');
 }
 
 function hrPolicyAddColumn(PDO $db, string $table, string $column, string $definition): void {
@@ -290,7 +316,7 @@ function hrPolicyApplyAuthorizedV1DraftCorrection(PDO $db, array $user): array {
 }
 
 function hrPolicyAudit(PDO $db, string $action, ?int $policyId, ?int $versionId, ?int $employeeId, array $details = array()): void {
-    $u = currentUser();
+    $u = function_exists('currentUser') ? currentUser() : null;
     $stmt = $db->prepare("INSERT INTO hr_policy_audit (actor_user_id,actor_employee_id,policy_id,version_id,subject_employee_id,action,details) VALUES (?,?,?,?,?,?,?)");
     $stmt->execute(array($u ? (int)$u['id'] : null, $u && !empty($u['emp_id']) ? (int)$u['emp_id'] : null, $policyId, $versionId, $employeeId, $action, json_encode($details)));
 }
@@ -337,8 +363,15 @@ function hrPolicyMetadataMismatches(array $v): array {
 }
 
 /** Catch up active employee accounts without republishing or touching signatures. */
-function hrPolicyAssignCurrent(PDO $db): array {
+function hrPolicyAssignCurrent(PDO $db, ?int $employeeId=null, ?int $versionId=null, ?string $deadline=null, bool $remind=false): array {
     if ($db->inTransaction()) throw new RuntimeException('Policy assignment requires its own transaction.');
+    hrPolicyAssignmentSchema($db);
+    $settings=hrPolicySettings($db);
+    if($employeeId===null && $settings['policy_auto_assign']!=='1') return array('assigned'=>0,'notified'=>0);
+    if($deadline!==null){
+        $date=DateTimeImmutable::createFromFormat('!Y-m-d',$deadline);
+        if(!$date || $date->format('Y-m-d')!==$deadline) throw new RuntimeException('Select a valid acknowledgement date.');
+    }
     $assigned=0; $notified=0;
     $db->beginTransaction();
     try {
@@ -347,26 +380,43 @@ function hrPolicyAssignCurrent(PDO $db): array {
             WHERE p.status='published' AND v.status='published' AND v.acknowledgement_required=1
             ORDER BY p.id FOR UPDATE")->fetchAll(PDO::FETCH_ASSOC);
         foreach ($versions as $version) {
-            $employees=$db->prepare("SELECT u.id user_id,e.id employee_id FROM users u
+            if($versionId!==null && (int)$version['id']!==$versionId) continue;
+            $employees=$db->prepare("SELECT u.id user_id,e.id employee_id,e.start_date FROM users u
                 JOIN employees e ON e.id=u.employee_id
                 LEFT JOIN hr_policy_acknowledgements a ON a.version_id=? AND a.employee_id=e.id
                 WHERE u.role='employee' AND u.active=1 AND e.status='active' AND a.signed_at IS NULL
-                ORDER BY e.id,u.id");
+                ORDER BY e.id,u.id FOR UPDATE");
             $employees->execute(array($version['id']));
             foreach ($employees->fetchAll(PDO::FETCH_ASSOC) as $employee) {
+                if($employeeId!==null && (int)$employee['employee_id']!==$employeeId) continue;
                 $a=$db->prepare("INSERT IGNORE INTO hr_policy_assignments (policy_id,version_id,employee_id,user_id) VALUES (?,?,?,?)");
                 $a->execute(array($version['policy_id'],$version['id'],$employee['employee_id'],$employee['user_id']));
-                $assigned+=$a->rowCount();
+                $new=$a->rowCount()===1; $assigned+=(int)$new;
+                $q=$db->prepare('SELECT * FROM hr_policy_assignments WHERE version_id=? AND employee_id=? FOR UPDATE');
+                $q->execute(array($version['id'],$employee['employee_id']));$assignment=$q->fetch(PDO::FETCH_ASSOC);
+                if((int)$assignment['user_id']!==(int)$employee['user_id']) throw new RuntimeException('Employee policy account changed. Review the HR link first.');
+                $due=$deadline ?? $assignment['acknowledgement_deadline'] ?? hrPolicyDefaultDeadline((string)($employee['start_date']??''),$assignment['assigned_at'],(int)$settings['policy_ack_days']);
+                if($due!==$assignment['acknowledgement_deadline']){
+                    $db->prepare('UPDATE hr_policy_assignments SET acknowledgement_deadline=?,reminder_sequence=reminder_sequence+1 WHERE id=?')->execute(array($due,$assignment['id']));
+                    hrPolicyAudit($db,$new?'policy_assigned':'policy_deadline_changed',(int)$version['policy_id'],(int)$version['id'],(int)$employee['employee_id'],array('previous_deadline'=>$assignment['acknowledgement_deadline'],'deadline'=>$due,'automatic'=>$employeeId===null));
+                }
+                if($remind){
+                    $db->prepare('UPDATE hr_policy_assignments SET reminder_sequence=reminder_sequence+1 WHERE id=?')->execute(array($assignment['id']));
+                    $db->prepare('UPDATE hr_policy_notifications SET remind_after=NULL WHERE version_id=? AND user_id=?')->execute(array($version['id'],$employee['user_id']));
+                    hrPolicyAudit($db,'policy_reminder_requested',(int)$version['policy_id'],(int)$version['id'],(int)$employee['employee_id']);
+                }
                 $n=$db->prepare("INSERT IGNORE INTO hr_policy_notifications (version_id,user_id) VALUES (?,?)");
                 $n->execute(array($version['id'],$employee['user_id']));
                 if ($n->rowCount()===1) {
                     $notice=$db->prepare("INSERT INTO notifications (user_id,title,message,type,action_url) VALUES (?,?,?,'info',?)");
                     $notice->execute(array($employee['user_id'],'HR Policy — Acknowledgement Required',
-                        'Please read and acknowledge the current company policy.','policy-view.php?id='.(int)$version['id']));
+                        'Please read and acknowledge the current company policy by '.date('j F Y',strtotime($due)).'.','policy-view.php?id='.(int)$version['id']));
                     $db->prepare("UPDATE hr_policy_notifications SET notification_id=? WHERE version_id=? AND user_id=?")
                         ->execute(array($db->lastInsertId(),$version['id'],$employee['user_id']));
                     $notified++;
                 }
+                $db->prepare("UPDATE notifications n JOIN hr_policy_notifications pn ON pn.notification_id=n.id SET n.message=? WHERE pn.version_id=? AND pn.user_id=? AND pn.resolved_at IS NULL")
+                    ->execute(array('Please read and acknowledge the current company policy by '.date('j F Y',strtotime($due)).'.',$version['id'],$employee['user_id']));
             }
         }
         $db->commit();
@@ -384,8 +434,9 @@ function hrPolicyBridgeReturn(string $requested): string {
 function hrPolicyPopupForUser(PDO $db, int $userId): ?array {
     if ($userId<=0) return null;
     $s=$db->prepare("SELECT pn.id notification_requirement_id,pn.opened_at notification_opened_at,pn.remind_after,
-        v.id version_id,v.policy_id,v.version_number,v.title,v.effective_date,v.acknowledgement_deadline
+        v.id version_id,v.policy_id,v.version_number,v.title,v.effective_date,COALESCE(s.acknowledgement_deadline,v.acknowledgement_deadline) acknowledgement_deadline
         FROM hr_policy_notifications pn JOIN hr_policy_versions v ON v.id=pn.version_id
+        LEFT JOIN hr_policy_assignments s ON s.version_id=v.id AND s.user_id=pn.user_id
         LEFT JOIN hr_policy_acknowledgements a ON a.version_id=v.id AND a.user_id=pn.user_id
         WHERE pn.user_id=? AND v.status='published' AND v.acknowledgement_required=1
           AND pn.resolved_at IS NULL AND a.signed_at IS NULL
@@ -396,12 +447,20 @@ function hrPolicyPopupForUser(PDO $db, int $userId): ?array {
 }
 
 function hrPolicyPending(PDO $db, int $employeeId): array {
-    $s=$db->prepare("SELECT v.*,p.title AS policy_title,a.opened_at,a.signed_at
+    $s=$db->prepare("SELECT v.*,COALESCE(s.acknowledgement_deadline,v.acknowledgement_deadline) acknowledgement_deadline,p.title AS policy_title,a.opened_at,a.signed_at
       FROM hr_policy_versions v JOIN hr_policies p ON p.id=v.policy_id
+      JOIN hr_policy_assignments s ON s.version_id=v.id AND s.employee_id=?
       LEFT JOIN hr_policy_acknowledgements a ON a.version_id=v.id AND a.employee_id=?
       WHERE v.status='published' AND v.acknowledgement_required=1 AND a.signed_at IS NULL
       ORDER BY v.acknowledgement_deadline IS NULL,v.acknowledgement_deadline,v.id");
-    $s->execute(array($employeeId)); return $s->fetchAll(PDO::FETCH_ASSOC);
+    $s->execute(array($employeeId,$employeeId)); return $s->fetchAll(PDO::FETCH_ASSOC);
+}
+
+function hrPolicyAssignmentStatus(array $row): string {
+    if(!empty($row['signed_at'])) return 'Signed & Acknowledged';
+    if(empty($row['assignment_id'])) return 'Not Assigned';
+    if(!empty($row['deadline']) && $row['deadline']<date('Y-m-d')) return 'Overdue';
+    return !empty($row['opened_at']) ? 'Opened — Awaiting Signature' : 'Assigned — Not Opened';
 }
 
 function hrPolicyAckStatus(array $version, ?array $ack): string {
