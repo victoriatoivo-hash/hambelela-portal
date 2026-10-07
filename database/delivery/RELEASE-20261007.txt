@@ -1,5 +1,24 @@
 DELIVERY RELEASE — 7 OCTOBER 2026
 
+EMPLOYEE LOGIN UPDATE — published after the correction release below
+Drivers now use the normal employee identity/access-code session, landing on
+assigned deliveries. Old Driver login bookmarks redirect to the common login.
+The normal Employees & Roles creation form supports Delivery Driver without
+requiring email, and creates the associated Driver profile transactionally.
+Existing Driver rows bypass name-based canonicalization in employee management.
+Own-profile and verified HR-bridge routes are permitted; unrelated staff/admin
+routes remain denied. Mobile/off-site exemption is restricted to these routes.
+Existing private Driver secrets were NOT copied into standard employee passwords.
+Owner must use the normal code setup/reset and verified HR-link controls.
+21 PHP regression suites pass, including new employee-session boundary tests.
+Live server PHP lint and exact-context deployment passed. Live Driver role,
+optional email, Victoria demo row and HR-link selector verified without submitting
+credentials or changing account/HR records. No real Driver password sign-in was
+performed by the agent. Existing live role-edit handler removal was preserved;
+only matching create-account/identity patches were applied to its newer form.
+Backup: /home/hambele1/delivery-employee-login-20261007/backup
+Additional employee-list backup: same private directory, driver-list-before.php.
+
 Operational Delivery is published and enabled. The earlier disabled status in
 planning documents is historical, not the current live release state.
 

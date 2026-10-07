@@ -91,6 +91,9 @@ function portal_safe_return_path($candidate): string
  */
 function portal_post_login_destination(array $user, $candidate = null): string
 {
+    if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'delivery_driver') {
+        return BASE_URL . '/apps/delivery/driver/index.php';
+    }
     if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'accountant') {
         return BASE_URL . '/apps/accounts/index.php';
     }

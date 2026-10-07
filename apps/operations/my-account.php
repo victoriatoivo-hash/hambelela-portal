@@ -134,6 +134,7 @@ function settings_force_delete_employee(int $employeeId): void
 if ($ready && $canManagePortal) {
     settings_employee_link_bootstrap();
     ops_reconcile_core_staff();
+    db()->prepare("INSERT IGNORE INTO ops_roles (role_key, name, description) VALUES ('delivery_driver', 'Delivery Driver', 'Assigned deliveries and linked personal HR services')")->execute();
     db()->prepare("INSERT IGNORE INTO ops_roles (role_key, name, description) VALUES ('marketing_sales', 'Marketing & Sales Assistant', 'Marketing production, website content and limited sales cover')")->execute();
 }
 
@@ -233,7 +234,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     throw new RuntimeException('Choose an employee account.');
                 }
                 $roleKey = strtolower(ops_post_string('role', 60));
-                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales'];
+                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales', 'delivery_driver'];
                 if (!in_array($roleKey, $allowedRoleKeys, true)) {
                     throw new RuntimeException('Choose a valid role.');
                 }
@@ -261,6 +262,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     ]);
                     $message = 'Employee role updated.';
                 }
+                if($roleKey==='delivery_driver')db()->prepare('INSERT INTO delivery_driver_profiles(employee_id,active,verified_by_employee_id,verified_at) VALUES(?,1,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE active=1,verified_by_employee_id=VALUES(verified_by_employee_id),verified_at=UTC_TIMESTAMP()')->execute([$employeeId,(int)$employee['id']]);
             } elseif ($action === 'save_packing_eligibility') {
                 if (!ops_ensure_packing_auto_assignable_column()) {
                     throw new RuntimeException('Packing assignment eligibility is not available yet.');
@@ -364,7 +366,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!hash_equals($code, $confirmCode)) throw new RuntimeException('The access codes do not match.');
 
                 $roleKey = strtolower(ops_post_string('role', 60));
-                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales'];
+                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales', 'delivery_driver'];
                 if (!in_array($roleKey, $allowedRoleKeys, true)) {
                     throw new RuntimeException('Choose a valid role.');
                 }
@@ -380,10 +382,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $email = strtolower(ops_post_string('email', 190));
-                if ($email === '') {
+                if ($email === '' && $roleKey !== 'delivery_driver') {
                     throw new RuntimeException('Email is required.');
                 }
-                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Enter a valid email address.');
+                if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Enter a valid email address.');
                 $fullName = ops_post_string('full_name', 160);
                 if ($fullName === '') throw new RuntimeException('Full name is required.');
                 $status = ops_post_string('status', 20) ?: 'active';
@@ -403,8 +405,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         "INSERT INTO ops_employees (role_id, full_name, email, phone, password_hash, status, requires_code_reset)
                          VALUES (?, ?, ?, ?, ?, ?, 0)"
                     );
-                    $stmt->execute([$roleId, $fullName, $email, ops_post_string('phone', 60), password_hash($code, PASSWORD_DEFAULT), $status]);
+                    $stmt->execute([$roleId, $fullName, $email === '' ? null : $email, ops_post_string('phone', 60), password_hash($code, PASSWORD_DEFAULT), $status]);
                     $createdEmployeeId = (int) db()->lastInsertId();
+                    if($roleKey==='delivery_driver')db()->prepare('INSERT INTO delivery_driver_profiles(employee_id,active,verified_by_employee_id,verified_at) VALUES(?,1,?,UTC_TIMESTAMP())')->execute([$createdEmployeeId,(int)$employee['id']]);
                     $createdRoleKey = $roleKey;
                     if ($hasPackingColumns) {
                         $packingAssignable = in_array($roleKey, ['packer', 'supervisor_manager', 'front_desk_admin'], true) ? 1 : 0;
@@ -554,7 +557,10 @@ $managedEmployees = $ready && $canManagePortal ? ops_rows(
      ORDER BY FIELD(r.role_key, 'front_desk_admin', 'packer', 'supervisor_manager'), e.full_name ASC
      LIMIT 50"
 ) : [];
-$managedEmployees = $canManagePortal ? ops_canonical_employee_rows($managedEmployees) : [];
+$managedEmployees = $canManagePortal ? array_merge(
+    ops_canonical_employee_rows(array_values(array_filter($managedEmployees, static fn(array $row): bool => ($row['role_key'] ?? '') !== 'delivery_driver'))),
+    array_values(array_filter($managedEmployees, static fn(array $row): bool => ($row['role_key'] ?? '') === 'delivery_driver'))
+) : [];
 $loginRows = $ready && $canManagePortal && ops_table_exists('ops_login_events') ? ops_rows(
     "SELECT le.employee_id, COALESCE(e.full_name, le.employee_name, 'Unknown') AS employee_name,
             COALESCE(r.name, le.role_key, '-') AS role_name,
@@ -1190,6 +1196,9 @@ const employeeFieldMap = {
     confirm_login_code: [confirmAccessCodeInput, confirmAccessCodeError],
 };
 const clearEmployeeErrors = () => Object.values(employeeFieldMap).forEach(([input, error]) => setAccessFieldError(input, error));
+const syncDriverEmailRequirement=()=>{if(employeeFieldMap.email[0])employeeFieldMap.email[0].required=employeeFieldMap.role[0]?.value!=='delivery_driver';};
+employeeFieldMap.role[0]?.addEventListener('change',syncDriverEmailRequirement);
+syncDriverEmailRequirement();
 const validateNewEmployeeFields = () => {
     let valid = true;
     const show = (name, message) => {const field=employeeFieldMap[name];setAccessFieldError(field[0],field[1],message);valid=false;};
@@ -1198,8 +1207,8 @@ const validateNewEmployeeFields = () => {
     const role=String(employeeFieldMap.role[0]?.value||'').trim();
     const status=String(employeeFieldMap.status[0]?.value||'').trim();
     if(!fullName)show('full_name','Full name is required.');
-    if(!email)show('email','Email is required.');
-    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))show('email','Enter a valid email address.');
+    if(!email&&role!=='delivery_driver')show('email','Email is required.');
+    else if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))show('email','Enter a valid email address.');
     if(!role)show('role','Choose a role.');
     if(!['active','inactive'].includes(status))show('status','Choose a valid status.');
     return valid;

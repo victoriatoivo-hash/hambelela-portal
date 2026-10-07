@@ -11,6 +11,8 @@ require_once BASE_PATH.'/apps/operations/operations.php';require_login();
 require_once BASE_PATH.'/shared/delivery/FrontSession.php';require_once BASE_PATH.'/shared/delivery/DriverProvisioning.php';
 try{$actor=\Hambelela\Delivery\FrontSession::actor(db(),(int)(current_user()['id']??0));if($actor['role']!=='owner_admin')throw new DomainException('Owner access required.');}
 catch(DomainException $e){http_response_code(403);exit('Owner access required.');}
+// Driver credentials and HR links are managed through normal Employees & Roles.
+header('Location: '.BASE_URL.'/apps/operations/my-account.php#section-employees',true,303);exit;
 $_SESSION['delivery_front_csrf']??=bin2hex(random_bytes(32));$message='';$error='';
 if($_SERVER['REQUEST_METHOD']==='POST'){
     try{

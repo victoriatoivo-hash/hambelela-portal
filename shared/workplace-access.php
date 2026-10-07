@@ -104,6 +104,11 @@ function portal_render_workplace_required(string $reason): void
 
 function portal_enforce_employee_workplace_access(array $user): void
 {
+    // Drivers work off-site; only their explicit self-service route list is mobile-enabled.
+    if ((string)($user['role_key']??'') === 'delivery_driver') {
+        require_once __DIR__.'/delivery/EmployeeDriverSession.php';
+        if(\Hambelela\Delivery\EmployeeDriverSession::allowedPath((string)($_SERVER['SCRIPT_NAME']??'')))return;
+    }
     if ((string)($user['role_key']??'') === 'owner_admin') return;
     static $checked = false;
     if ($checked) return;
