@@ -784,7 +784,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
     const fetchNotifications = async () => {
       try {
-        const response = await fetch(`${apiUrl}?mode=summary`, {
+        const response = await fetch(`${apiUrl}?mode=summary&active_task_notification=${encodeURIComponent(window.HambelelaTaskPopups?.activeId() || 0)}`, {
           credentials: 'same-origin',
           headers: { Accept: 'application/json' },
         });
@@ -796,6 +796,7 @@ window.addEventListener('DOMContentLoaded', () => {
         window.updatePackingListUnreadCount(data.packing_list_unread_count || 0);
         taskReminderSound.configure(data.preferences || {});
 
+        window.HambelelaTaskPopups?.accept(data.task_popups || []);
         const latest = Array.isArray(data.latest) ? data.latest : [];
         const latestIds = latest.map((notification) => Number(notification.id || 0)).filter(Boolean);
         const maxLatestId = latestIds.length ? Math.max(...latestIds) : lastSeenLatestId;
@@ -805,6 +806,7 @@ window.addEventListener('DOMContentLoaded', () => {
           .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
           .forEach((notification) => {
             const id = Number(notification.id || 0);
+            if (notification.related_type === 'checklist_task') return;
             if (id > lastSeenLatestId) {
               queuePortalToast(notification);
               lastSeenLatestId = id;
@@ -823,134 +825,13 @@ window.addEventListener('DOMContentLoaded', () => {
     return { poll: fetchNotifications };
   })();
 
-  const urgentTaskAlerts = (() => {
-    const endpoint = '/api/notifications.php';
-    const queue = [];
-    const known = new Set();
-    let active = null;
-    let soundEnabled = true;
-    let previousFocus = null;
-
-    const createModal = () => {
-      const root = document.createElement('div');
-      root.className = 'urgent-task-alert task-alert-overlay';
-      root.hidden = true;
-      root.innerHTML = '<div class="urgent-task-alert__backdrop" aria-hidden="true"></div><section class="urgent-task-alert__dialog task-alert" role="alertdialog" aria-modal="true" aria-labelledby="urgentTaskTitle" aria-describedby="urgentTaskInstructions"><button type="button" class="urgent-task-alert__close" aria-label="Remind me about this task later">&times;</button><div class="urgent-task-alert__icon" aria-hidden="true">!</div><span class="urgent-task-alert__eyebrow">Urgent task</span><h2 id="urgentTaskTitle"></h2><p class="urgent-task-alert__message" id="urgentTaskInstructions"></p><div class="urgent-task-alert__meta"><span data-alert-due></span><span data-alert-assigned-by></span><span data-alert-checklist></span></div><section class="urgent-task-alert__summary" aria-labelledby="urgentTaskSummaryTitle"><div><strong id="urgentTaskSummaryTitle">Your other tasks</strong><button type="button" class="urgent-task-alert__all">View All Tasks</button></div><ul data-alert-summary></ul></section><div class="urgent-task-alert__reminder" hidden><strong>Remind me again in</strong><div><button type="button" data-reminder-minutes="10">10 min</button><button type="button" data-reminder-minutes="30">30 min</button><button type="button" data-reminder-minutes="60">1 hour</button></div></div><div class="urgent-task-alert__actions"><button type="button" class="urgent-task-alert__remind">Remind Me Later</button><button type="button" class="urgent-task-alert__view">View Task</button></div></section>';
-      document.body.appendChild(root);
-      return root;
-    };
-    const modal = createModal();
-    const dialog = modal.querySelector('.urgent-task-alert__dialog');
-    const postState = async (alertId, state) => {
-      try { await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({action:`urgent_${state}`, alert_id:String(alertId)}) }); } catch (_) {}
-    };
-    const postReminder = async (alertId, minutes) => {
-      try { await fetch(endpoint, { method: 'POST', credentials: 'same-origin', headers: {'Content-Type':'application/x-www-form-urlencoded'}, body: new URLSearchParams({action:'urgent_remind', alert_id:String(alertId), minutes:String(minutes)}) }); } catch (_) {}
-    };
-    const claimDelivery = async (alertId) => {
-      try {
-        const response = await fetch(endpoint, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(alertId)}) });
-        return response.ok && Boolean((await response.json()).claimed);
-      } catch (_) { return false; }
-    };
-    const playSound = () => {
-      if (soundEnabled) taskReminderSound.play('urgent');
-    };
-    const formatDue = (value) => {
-      if (!value) return '';
-      const date = new Date(String(value).replace(' ', 'T'));
-      if (Number.isNaN(date.getTime())) return String(value);
-      const now = new Date();
-      const day = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const difference = Math.round((day - today) / 86400000);
-      const label = difference === 0 ? 'Today' : difference === 1 ? 'Tomorrow' : date.toLocaleDateString([], {day:'numeric', month:'short'});
-      return `${label}, ${date.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}`;
-    };
-    const showNext = async () => {
-      if (active || !queue.length) return;
-      active = queue.shift();
-      previousFocus = document.activeElement;
-      modal.querySelector('#urgentTaskTitle').textContent = active.title || 'Urgent task';
-      const instructions = String(active.instructions || '').trim();
-      const instructionsNode = modal.querySelector('#urgentTaskInstructions');
-      instructionsNode.textContent = instructions || 'Open the task to review its required steps.';
-      instructionsNode.hidden = !instructions;
-      modal.querySelector('[data-alert-assigned-by]').textContent = `Assigned by: ${active.assignedBy || 'Management'}`;
-      modal.querySelector('[data-alert-due]').textContent = active.dueAt ? `Due: ${formatDue(active.dueAt)}` : 'No due date';
-      modal.querySelector('[data-alert-checklist]').textContent = `Checklist: ${Number(active.checklistCompleted || 0)} of ${Number(active.checklistTotal || 0)} complete`;
-      const summary = active.summary || {};
-      const summaryItems = [[Number(summary.overdueCount || 0), 'overdue'], [Number(summary.dueTodayCount || 0), 'due today'], [Number(summary.inProgressCount || 0), 'in progress']].filter(([count]) => count > 0);
-      modal.querySelector('[data-alert-summary]').innerHTML = summaryItems.length
-        ? summaryItems.map(([count, label]) => `<li><strong>${count}</strong><span>${label}</span></li>`).join('')
-        : '<li class="is-clear">No other outstanding tasks.</li>';
-      modal.querySelector('.urgent-task-alert__reminder').hidden = true;
-      modal.hidden = false;
-      document.body.classList.add('urgent-task-alert-open');
-      modal.querySelector('.urgent-task-alert__view').focus();
-      if (!active.deliveredAt && await claimDelivery(active.alertId)) playSound();
-    };
-    const finish = async (state, reminderMinutes = 30) => {
-      if (!active) return;
-      const finished = active;
-      active = null;
-      modal.hidden = true;
-      document.body.classList.remove('urgent-task-alert-open');
-      if (state === 'remind') {
-        known.delete(String(finished.alertId));
-        await postReminder(finished.alertId, reminderMinutes);
-      } else await postState(finished.alertId, state);
-      if (state === 'viewed') {
-        const target = `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(finished.taskId)}`;
-        const onManualTasks = /\/apps\/operations\/checklists\.php$/.test(window.location.pathname)
-          && ['active', 'manual', null].includes(new URLSearchParams(window.location.search).get('task_view'));
-        if (onManualTasks && typeof window.openTaskPanel === 'function' && window.openTaskPanel(finished.taskId)) {
-          history.replaceState({}, '', target);
-        } else window.location.assign(target);
-        return;
-      }
-      if (previousFocus instanceof HTMLElement) previousFocus.focus();
-      showNext();
-    };
-    modal.querySelector('.urgent-task-alert__close').addEventListener('click', () => finish('remind', 30));
-    modal.querySelector('.urgent-task-alert__remind').addEventListener('click', () => { modal.querySelector('.urgent-task-alert__reminder').hidden = false; });
-    modal.querySelectorAll('[data-reminder-minutes]').forEach((button) => button.addEventListener('click', () => finish('remind', Number(button.dataset.reminderMinutes))));
-    modal.querySelector('.urgent-task-alert__view').addEventListener('click', () => finish('viewed'));
-    modal.querySelector('.urgent-task-alert__all').addEventListener('click', async () => {
-      if (!active) return;
-      await postState(active.alertId, 'viewed');
-      window.location.assign('/apps/operations/checklists.php?task_view=active&outstanding=1');
-    });
-    modal.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape') { event.preventDefault(); finish('remind', 30); return; }
-      if (event.key !== 'Tab') return;
-      const focusable = Array.from(dialog.querySelectorAll('button:not([disabled])'));
-      if (!focusable.length) return;
-      const first = focusable[0], last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    });
-    const check = async () => {
-      if (document.visibilityState === 'hidden') return;
-      try {
-        const response = await fetch(`${endpoint}?mode=urgent`, {credentials:'same-origin', headers:{Accept:'application/json'}});
-        if (!response.ok) return;
-        const payload = await response.json();
-        soundEnabled = Number(payload.sound_enabled ?? 1) === 1;
-        (payload.alerts || []).forEach((alert) => { const id=String(alert.alertId); if (!known.has(id) && String(active?.alertId)!==id) { known.add(id); queue.push(alert); } });
-        showNext();
-      } catch (_) {}
-    };
-    return { poll: check };
-  })();
-
   const portalLiveUpdates = (() => {
     let timerId = null;
     let requestInProgress = false;
     const poll = async () => {
       if (requestInProgress || document.visibilityState === 'hidden') return;
       requestInProgress = true;
-      try { await Promise.all([portalNotificationPoller.poll(), urgentTaskAlerts.poll()]); window.dispatchEvent(new CustomEvent('portal:live-tick')); }
+      try { await Promise.all([portalNotificationPoller.poll()]); window.dispatchEvent(new CustomEvent('portal:live-tick')); }
       finally { requestInProgress = false; }
     };
     return { start() { if (timerId) return; poll(); timerId = window.setInterval(poll, 10000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') poll(); }); window.addEventListener('online', poll); }, poll };

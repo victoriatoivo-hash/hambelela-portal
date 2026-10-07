@@ -99,7 +99,6 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
-    <?php if ($showPortalHeaderStatus): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/urgent-task-alert.css?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/css/urgent-task-alert.css'), ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= htmlspecialchars($responsiveAssetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-header-account.css?v=<?= htmlspecialchars($headerAccountCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?=BASE_URL?>/assets/css/profile-menu.css?v=<?=filemtime(BASE_PATH.'/assets/css/profile-menu.css')?>">
@@ -121,6 +120,8 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <script>window.HambelelaPortalUser={id:<?= (int) ($headerUser['id'] ?? 0) ?>,role:<?= json_encode((string) ($headerUser['role_key'] ?? 'guest')) ?>};</script>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/notifications-ui.css?v=<?= filemtime(BASE_PATH . '/assets/css/notifications-ui.css') ?>">
     <script defer src="<?= BASE_URL ?>/assets/js/notifications-ui.js?v=<?= filemtime(BASE_PATH . '/assets/js/notifications-ui.js') ?>"></script>
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/task-assignment-popup.css?v=<?= filemtime(BASE_PATH . '/assets/css/task-assignment-popup.css') ?>">
+    <script defer src="<?= BASE_URL ?>/assets/js/task-assignment-popup.js?v=<?= filemtime(BASE_PATH . '/assets/js/task-assignment-popup.js') ?>"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($portalJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php if ($showPortalHeaderStatus): ?>
         <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= htmlspecialchars($presenceJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>

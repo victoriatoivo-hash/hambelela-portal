@@ -1,15 +1,92 @@
-name: Diagnose account response (read only)
+name: Task automatic popup release
 on:
   workflow_dispatch:
+    inputs:
+      mode:
+        type: choice
+        options: [export, preflight, deploy]
+        default: preflight
+        required: true
+      approved_sha:
+        type: string
+        required: false
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
 jobs:
-  inspect:
+  validate:
+    if: inputs.mode != 'export'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    strategy:
+      matrix:
+        php: ['7.4', '8.2']
+    services:
+      mysql:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql
+      - name: Check PHP and JavaScript syntax
+        run: |
+          for file in shared/notifications.php shared/task-reminders.php shared/task-scheduling.php shared/header.php api/notifications.php apps/operations/checklists.php; do php -l "$file"; done
+          node --check assets/js/task-assignment-popup.js
+          node --check assets/js/portal.js
+          node --check assets/js/task-essentials.js
+          python3 -m py_compile scripts/deploy-task-auto-popups.py
+      - name: Verify database delivery and preserved task workflows
+        env:
+          TASK_POPUP_TEST_DSN: mysql:host=127.0.0.1;port=3306
+        run: |
+          php tests/task-auto-popups-db.php
+          php tests/task-start-required.php
+          node tests/task-assignment-privacy-static.mjs
+          node tests/task-recurring-disable-integrity-static.mjs
+          node tests/task-floating-assignment-static.mjs
+  release:
+    if: inputs.mode != 'export'
+    needs: validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
-      - name: Export task popup source without changing production
+        with:
+          fetch-depth: 0
+      - name: Verify baseline, back up and publish the task popup delta
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-task-auto-popups.py "$MODE" "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: task-popup-release-${{ github.run_id }}
+          path: |
+            task-popup-deployment-report.json
+            task-popup-deployment-backup.zip
+          retention-days: 30
+          if-no-files-found: warn
+  export:
+    if: inputs.mode == 'export'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export source without modifying production
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -21,4 +98,3 @@ jobs:
           path: |
             task-popup-live-source.zip
             task-popup-live-hashes.json
-          retention-days: 7

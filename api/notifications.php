@@ -63,7 +63,9 @@ try {
         exit;
     }
 
+    notifications_recover_task_assignments();
     $summary = notifications_summary_for_current_user(5);
+    $summary['task_popups'] = notifications_task_popups((int)($_GET['active_task_notification'] ?? 0));
     $summary['sidebar_counts'] = notifications_sidebar_counts_for_current_user();
     $summary['packing_list_unread_count'] = notifications_packing_assignment_unread_count();
     $summary['packing_list_unread_ids'] = notifications_packing_assignment_unread_ids();

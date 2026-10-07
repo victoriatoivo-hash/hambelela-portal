@@ -1,0 +1,12 @@
+{
+  "assets/css/task-assignment-popup.css": null,
+  "assets/js/task-assignment-popup.js": null,
+  "shared/notifications.php": "4a5903c886be8324708826e97f3e03c3f8c1e8645087f8940647990588a0f9e0",
+  "shared/task-reminders.php": "da8303957423be35802f5ac4d9b0e56c7a9dbcafcdd40bc9180f30d817ddbb33",
+  "shared/task-scheduling.php": "8073b037b4b110d238765098851bb81ae1589e2d61522a5796c3b693ec54dd28",
+  "api/notifications.php": "7263596afd67717b5b56602099ca7f222614e696032a55dcd0376525f63f65d7",
+  "apps/operations/checklists.php": "40984be1f3c1f97050b9e193f34ac942b22115051b80c3055a4b0e3ba64a114c",
+  "assets/js/task-essentials.js": "2ba006937b9ed010132375c0ee55078fb1632904681b9b2ddac18ef86c0446de",
+  "assets/js/portal.js": "5512e591427009032a72a0cf2d309417fddd75180c84ce2ea3b7ce1448f07776",
+  "shared/header.php": "2ee21a06215347321311d9032aee5b7b16c010332f2de1b8ceef7e4dbb5bedb8"
+}

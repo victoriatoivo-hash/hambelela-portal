@@ -1,0 +1,73 @@
+HAMBELELA AUTOMATIC TASK POPUPS — RELEASE REPORT
+7 October 2026
+
+BASELINE
+Retrieved current production source with read-only GitHub Actions run 37627435011.
+Recorded the live source in isolated baseline commit e5a15024.
+Deploy only ten listed runtime files, guarded against their exact audited SHA256 hashes.
+Separately deployed notification UI, presence, footer and task changes are preserved.
+
+MANUAL POPUP TOGGLE REMOVED: YES
+AUTOMATIC TASK NOTIFICATION: PASS (database integration)
+PERSON-ASSIGNED TASK: PASS (database integration)
+REASSIGNMENT: PASS (including assignment back to original employee)
+RECURRING OCCURRENCE: PASS (per-occurrence identity integration; existing generator preserved)
+FLOATING TASK: PASS (existing individual allocator contract; allocator unchanged)
+ROLE TASK: Existing individual-task expansion preserved; no new group-claim workflow
+HOPE / MARKETING: Numeric employee-ID delivery has no Front/Packers-only recipient filter
+OFFLINE PERSISTENCE: PASS (database integration)
+CROSS-MODULE POPUP: Global header/poller wired; presenter tested on Orders fixture
+DUPLICATE PREVENTION: PASS (idempotency, cross-tab claim and retry integration)
+MULTIPLE TASK QUEUE: PASS (browser test)
+SEEN STATE: PASS (delivered_at persists separately from read_at)
+READ STATE: PASS (dismiss does not clear/read notification)
+REVIEW TASK: PASS (presenter dispatch; existing detail workflow preserved)
+START TASK: PASS (presenter dispatch and existing completion/start safeguards)
+MOBILE: PASS (390x844 and 430x932 browser tests)
+JOST: PASS (browser computed style and visual inspection)
+TASK ACCENT #966313: PASS (browser computed style)
+OLD POPUP STYLING REMAINING: Legacy stylesheet remains on disk, unreferenced by global header; blocking urgent presenter removed
+DATABASE CHANGE: NO
+
+VALIDATION
+28 production-function database integration assertions on isolated MariaDB 11.4.
+PHP syntax checks on all six changed PHP files.
+JavaScript syntax checks on all three changed JS files.
+Preserved assignment privacy, recurrence-disable, floating allocator and Start Task guard checks passed.
+Presenter browser tests cover single-card queue, dismissal, repeated delivery, stale removal,
+focus retention, Review/Start dispatch, Jost, accent and dimensions at three viewport sizes.
+Visual fixtures are in task-popup-qa/ (local review artifacts, not deployed).
+Live employee end-to-end login/assignment tests have NOT been performed; no production test tasks were created.
+
+FAILURE / RETRY
+Notification failure logs a task-specific warning and retains the task.
+Existing notification polling recovers missing assignments/meaningful update events.
+Recipient insert repair and deduplication reuse the existing unique notification key.
+Meaningful due-date and escalation-to-urgent edits create Task Updated events.
+Popup claim rechecks current employee assignment, visibility, release and lifecycle state.
+Assignment notifications have no automatic sound; existing unrelated notification behavior is preserved.
+
+RUNTIME FILES CHANGED / DEPLOYMENT MANIFEST
+assets/css/task-assignment-popup.css (new)
+assets/js/task-assignment-popup.js (new)
+shared/notifications.php
+shared/task-reminders.php
+shared/task-scheduling.php
+api/notifications.php
+apps/operations/checklists.php
+assets/js/task-essentials.js
+assets/js/portal.js
+shared/header.php
+
+RELEASE SUPPORT
+scripts/task-popup-live-export.py
+scripts/task-popup-baseline.json
+scripts/deploy-task-auto-popups.py
+.github/workflows/diagnose-account-response.yml (isolated branch export/validation/deployment workflow)
+tests/task-auto-popups-db.php
+tests/task-auto-popups-ui.cjs
+docs/task-auto-popups-report.txt
+
+UNRELATED PRODUCTION FILES CHANGED: NONE
+Release authorization: user requested commit, push and live deployment after the original review-only request.
+Deployment outcome is recorded in task-popup-deployment-report.json from the release workflow.

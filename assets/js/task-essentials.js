@@ -153,63 +153,7 @@
     const clear=document.createElement('button');clear.type='button';clear.className='task-clear-filters';clear.textContent='Clear all';clear.addEventListener('click',()=>{if(input){input.value='';input.dispatchEvent(new Event('input',{bubbles:true}));}go(clearUrl());});row.append(clear);
     window.lucide?.createIcons();
   }
-  function decorateNotifications() {
-    let changed=false;
-    document.querySelectorAll('.ess-task-page [data-urgent-control],.ess-task-popover [data-urgent-control]').forEach(card => {
-      if (card.classList.contains('task-notification-card')) return;
-      const options = card.querySelector('[data-urgent-options]');
-      const grid = options?.querySelector('.task-urgent-recipients');
-      if (!options || !grid) return;
-      card.classList.add('task-notification-card');
-      changed=true;
-      const icon = name => { const span=document.createElement('span');span.setAttribute('aria-hidden','true');span.innerHTML=`<i data-lucide="${name}"></i>`;return span; };
-      const header=document.createElement('div');header.className='task-notification-header';
-      const bell=icon('bell');bell.className='task-notification-icon';header.append(bell);
-      const heading=document.createElement('div');heading.className='task-notification-heading';
-      heading.innerHTML='<h4 class="task-notification-title">Send popup notification</h4><p class="task-notification-description">Notify selected employees when this task is assigned.</p>';
-      header.append(heading);
-      const toggle=card.querySelector('[data-urgent-toggle]');
-      if (toggle) {
-        const oldLabel=toggle.closest('label');
-        const label=document.createElement('label');label.className='task-notification-switch';
-        toggle.setAttribute('role','switch');toggle.setAttribute('aria-label','Send popup notification');
-        const track=document.createElement('span');track.className='task-notification-toggle';track.setAttribute('aria-hidden','true');
-        label.append(toggle,track);header.append(label);oldLabel?.remove();
-      } else {
-        const sent=card.querySelector('.task-urgent-sent');
-        if (sent) { heading.querySelector('h4').textContent='Popup notification sent';heading.querySelector('p').remove();heading.append(sent); }
-      }
-      card.prepend(header);
-      options.classList.add('task-notification-body');grid.classList.add('task-notify-grid');
-      options.querySelector('.task-field-label')?.classList.add('task-notification-label');
-      const copy={assigned:['Assigned employee','Notify the person this task is assigned to.'],'role:front_desk':['Front desk','Notify all front desk employees.'],'role:packers':['Packers','Notify all packing staff.'],'role:all_relevant':['All relevant employees','Notify everyone related to this task based on its assignment and task type.']};
-      grid.querySelectorAll('input[type="checkbox"]').forEach(input=>{
-        const label=input.closest('label'),text=copy[input.value];if(!label||!text)return;
-        label.classList.add('task-notify-option');
-        if(input.value==='role:all_relevant')label.classList.add('task-notify-all');
-        label.replaceChildren(input);
-        input.setAttribute('aria-label',text[0]);
-        const check=icon('check');check.className='task-notify-checkbox';
-        const words=document.createElement('span');words.className='task-notify-copy';
-        const title=document.createElement('span');title.className='task-notify-name';title.textContent=text[0];
-        const help=document.createElement('span');help.className='task-notify-help';help.textContent=text[1];words.append(title,help);label.append(check,words);
-      });
-      const helper=options.querySelector('small');
-      if(helper){const strip=document.createElement('div');strip.className='task-notification-info';const info=icon('info');info.className='task-notification-info-icon';strip.append(info,helper);options.append(strip);}
-      const sync=()=>{
-        const off=!!toggle&&!toggle.checked;card.classList.toggle('is-disabled',off);
-        // Inert blocks mouse and keyboard without disabling successful form fields or clearing selections.
-        options.inert=off;
-        grid.querySelectorAll('input[type="checkbox"]').forEach(input=>input.closest('label').classList.toggle('is-selected',input.checked));
-      };
-      card.addEventListener('change',sync);
-      card.closest('form')?.addEventListener('reset',()=>requestAnimationFrame(sync));
-      // Templates may restore checked values programmatically after firing the toggle's change event.
-      card.closest('form')?.addEventListener('change',()=>requestAnimationFrame(sync));
-      sync();
-    });
-    return changed;
-  }
+  function decorateNotifications() { return false; }
   function decorateDetailWorkspace() {
     let changed=false;
     document.querySelectorAll('.task-detail-panel:not([data-workspace-designed])').forEach(panel=>{
