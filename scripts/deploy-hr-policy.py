@@ -1,8 +1,8 @@
 """Source-only capture and hash-guarded six-file HR document release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('apps/hr-portal/includes/policy-system.php','shared/portal-policy-popup.php','apps/hr-portal/portal-login.php','apps/hr-portal/includes/emp-sidebar.php','shared/header.php')
-READ_ONLY = ('apps/operations/operations.php','shared/hr-access.php','apps/hr-portal/policy-action.php','apps/hr-portal/policy-view.php','apps/hr-portal/policy-receipt.php','apps/hr-portal/policy-acknowledgements.php')
+FILES = ('apps/hr-portal/includes/policy-system.php','shared/portal-policy-notifications.php','apps/hr-portal/policy-action.php','apps/hr-portal/policy-acknowledgements.php','apps/hr-portal/policy-view.php','apps/hr-portal/settings.php','shared/portal-policy-popup.php','api/notifications.php')
+READ_ONLY = ('apps/operations/operations.php','shared/hr-access.php','shared/notifications.php','apps/hr-portal/policy-receipt.php','apps/hr-portal/portal-login.php','apps/hr-portal/includes/emp-sidebar.php')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
