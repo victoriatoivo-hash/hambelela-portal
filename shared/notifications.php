@@ -557,8 +557,8 @@ function notifications_notify_packing_loaded(int $taskId): ?int
     if (!$recipients) return null;
 
     return notifications_create([
-        'title' => 'New Packing List item loaded',
-        'message' => (string) ($task['item_name'] ?? 'A packing item') . ' was loaded and may require a website update.',
+        'title' => 'Website update required — new packing item',
+        'message' => (string) ($task['item_name'] ?? 'A packing item') . ' was loaded. Update the website, then open this item and tick Website updated.',
         'module' => 'packing',
         'priority' => 'normal',
         'related_type' => 'packing_loaded',
@@ -637,6 +637,7 @@ function notifications_sidebar_module_keys(): array
 {
     return [
         'orders' => 'Orders',
+        'marketing' => 'Marketing',
         'bookkeeping' => 'Bookkeeping',
         'packing_list' => 'Packing List',
         'courier_waybills' => 'Courier Waybills',
@@ -652,6 +653,7 @@ function notifications_sidebar_module_map(): array
 {
     return [
         'orders' => 'orders',
+        'marketing' => 'marketing',
         'bookkeeping' => 'bookkeeping',
         'packing' => 'packing_list',
         'packing_list' => 'packing_list',

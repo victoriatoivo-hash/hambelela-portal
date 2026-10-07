@@ -222,13 +222,13 @@
     };
     const renderNotificationPreview = (payload) => {
       const unread = Math.max(0, Number(payload?.unread_count || 0));
-      const latest = Array.isArray(payload?.latest) ? payload.latest.slice(0, 3) : [];
+      const latest = Array.isArray(payload?.latest) ? payload.latest.slice(0, 6) : [];
       if (notificationPreviewCount) notificationPreviewCount.textContent = `${unread} unread`;
       notificationButton.setAttribute('aria-label', `Notifications, ${unread} unread`);
       if (!notificationList) return;
       notificationList.innerHTML = latest.length ? latest.map((item) => `
-        <a class="portal-notification-preview__item" href="${escapeHtml(notificationHref(item.action_link))}">
-          <span class="portal-notification-preview__indicator" aria-hidden="true"></span>
+        <a class="portal-notification-preview__item" data-source="${window.PortalNotificationUI?.source(item) || 'system'}" href="${escapeHtml(notificationHref(item.action_link))}">
+          <span class="nt-source-icon" aria-hidden="true">${window.PortalNotificationUI?.icon(window.PortalNotificationUI.source(item)) || ''}</span>
           <span><strong class="portal-notification-preview__item-title">${escapeHtml(item.title || 'Notification')}</strong><span class="portal-notification-preview__item-text">${escapeHtml(item.message || '')}</span></span>
           <time class="portal-notification-preview__time">${escapeHtml(notificationTime(item.created_at))}</time>
         </a>`).join('') : '<div class="portal-notification-preview__empty"><strong>No new notifications</strong><span>You are all caught up.</span></div>';
@@ -262,11 +262,35 @@
         }
       }, 180);
     };
+    const closePreview = () => {
+      notificationControl.classList.remove('is-preview-open');
+      notificationPreview.setAttribute('aria-hidden', 'true');
+      notificationButton.setAttribute('aria-expanded', 'false');
+    };
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && notificationControl.classList.contains('is-preview-open')) { notificationButton.focus(); closePreview(); } });
+    document.addEventListener('click', event => { if (!notificationControl.contains(event.target)) closePreview(); });
+    notificationControl.querySelector('[data-bell-mark-read]')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      button.disabled = true;
+      try {
+        const response = await fetch(new URL('notifications-api.php', new URL(notificationButton.href).origin), {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded', Accept:'application/json'}, body:new URLSearchParams({action:'mark_read',ids:''})});
+        const payload = await response.json();
+        if (!response.ok || !payload.ok) throw new Error('Unable to mark notifications read');
+        const count = Math.max(0, Number(payload.unread_count || 0));
+        document.querySelectorAll('[data-notification-count]').forEach(badge => { badge.textContent = count > 99 ? '99+' : String(count); badge.classList.toggle('is-hidden', count < 1); });
+        lastPreviewFetch = 0;
+        await refreshNotificationPreview();
+        button.textContent = 'Mark all read';
+      } catch (_) { button.textContent = 'Try again'; }
+      finally { button.disabled = false; }
+    });
     notificationControl.addEventListener('mouseenter', openPreview);
     notificationControl.addEventListener('mouseleave', scheduleClose);
     notificationControl.addEventListener('focusin', openPreview);
     notificationControl.addEventListener('focusout', scheduleClose);
-    notificationButton.addEventListener('click', () => {
+    notificationButton.addEventListener('click', (event) => {
+      event.preventDefault();
+      openPreview();
       notificationButton.classList.remove('is-animating');
       void notificationButton.offsetWidth;
       notificationButton.classList.add('is-animating');
