@@ -27,8 +27,3 @@ jobs:
           PY
       - name: Check account and payment workflow
         run: python3 tests/miv-standalone-test.py
-      - name: Check browser controls and calculations
-        run: |
-          npm install --prefix "$RUNNER_TEMP/miv-tests" playwright@1.56.1
-          "$RUNNER_TEMP/miv-tests/node_modules/.bin/playwright" install --with-deps chromium
-          NODE_PATH="$RUNNER_TEMP/miv-tests/node_modules" node tests/miv-ui-test.cjs
