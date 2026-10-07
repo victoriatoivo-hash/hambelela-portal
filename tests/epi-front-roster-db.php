@@ -1,0 +1,45 @@
+<?php
+// Isolated synthetic database only; no production HR connection or identities.
+use Hambelela\EPI\FrontDeskRoster;
+$shadow->exec(file_get_contents(dirname(__DIR__).'/operations-epi-front-roster-migration.sql'));
+check('RSTR01 roster dormant by default','disabled',FrontDeskRoster::materialise($shadow,$shadow,'2026-10-15 08:00:00')['status']);
+check('RSTR02 employee cannot approve own roster',false,attempt(function()use($shadow){FrontDeskRoster::approve($shadow,2,2,'2026-10-15','2026-10-17','Test','2026-10-14 10:00:00');}));
+FrontDeskRoster::approve($shadow,2,1,'2026-10-15','2026-10-17','Approved weekday and Saturday duty','2026-10-14 10:00:00');
+check('RSTR03 overlapping roster rejected',false,attempt(function()use($shadow){FrontDeskRoster::approve($shadow,2,1,'2026-10-16','2026-10-19','Overlap','2026-10-14 10:00:00');}));
+$shadow->exec("UPDATE epi_employee_performance_settings SET setting_value='1' WHERE setting_key='epi_v2_front_roster_enabled'");
+check('RSTR04 before opening no duty','before_open',FrontDeskRoster::materialise($shadow,$shadow,'2026-10-15 07:59:59')['status']);
+check('RSTR05 delayed worker uses scheduled opening','2026-10-15 08:00:00',FrontDeskRoster::materialise($shadow,$shadow,'2026-10-15 08:10:00')['effective_from']);
+$scheduled=$dutyEngine->dutyAt('front_desk','2026-10-15 08:00:00');
+check('RSTR06 scheduled responsibility without login',2,(int)$scheduled['employee_id']);
+check('RSTR07 no fictional employee acceptance',null,$scheduled['accepted_by']);
+check('RSTR08 no duplicate roster interval','existing',FrontDeskRoster::materialise($shadow,$shadow,'2026-10-15 08:15:00')['status']);
+check('RSTR09 Sunday closed','closed',FrontDeskRoster::materialise($shadow,$shadow,'2026-10-18 10:00:00')['status']);
+$shadow->exec("INSERT INTO leave_requests VALUES(9,102,'approved','2026-10-16','2026-10-16','2026-10-14 12:00:00',90)");
+check('RSTR10 approved absence requires coverage','coverage_required',FrontDeskRoster::materialise($shadow,$shadow,'2026-10-16 08:00:00')['status']);
+check('RSTR11 absence does not assign Hope by assumption',null,$dutyEngine->dutyAt('front_desk','2026-10-16 08:30:00'));
+check('RSTR12 missing HR fails closed','needs_review',FrontDeskRoster::materialise($shadow,null,'2026-10-17 09:00:00')['status']);
+check('RSTR13 Saturday opening is nine','2026-10-17 09:00:00',FrontDeskRoster::materialise($shadow,$shadow,'2026-10-17 09:05:00')['effective_from']);
+check('RSTR14 approved roster immutable',false,attempt(function()use($shadow){$shadow->exec("UPDATE epi_v2_front_rosters SET employee_id=4");}));
+// HR approval discovered during a shift must be checked at the breach, not just opening.
+$shadow->exec("INSERT INTO leave_requests VALUES(10,102,'approved','2026-10-15','2026-10-15','2026-10-15 09:00:00',90)");
+$shadow->prepare("INSERT INTO epi_v2_object_duties VALUES('Orders',?,'front_desk')")->execute(['HR-BREACH']);
+$hrEngine=new \Hambelela\EPI\DeadlineEngine($shadow,$shadow);
+$deadline=$hrEngine->schedule(['module'=>'Orders','object_reference'=>'HR-BREACH','obligation_key'=>'complete_order','breach_event_key'=>'order_completion_sla_breached','starts_at'=>'2026-10-15 08:00:00','due_at'=>'2026-10-15 10:00:00']);
+$hrEngine->processDue('2026-10-15 10:01:00');
+$hrIncident=\Hambelela\EPI\V2Store::one($shadow,'SELECT * FROM epi_v2_performance_incidents WHERE deadline_uuid=?',[$deadline]);
+check('RSTR15 HR absence prevents employee attribution',null,$hrIncident['responsible_employee_at_breach']);
+check('RSTR16 HR exclusion evidence recorded','approved_absence_without_verified_coverage',$hrIncident['exclusion_reason']);
+check('RSTR17 original scheduled history not deleted',2,(int)$dutyEngine->dutyAt('front_desk','2026-10-15 08:00:00')['employee_id']);
+check('RSTR18 official score unchanged',87,(int)$shadow->query('SELECT value FROM official_score')->fetchColumn());
+$shadow->exec("CREATE TABLE notifications(id BIGINT AUTO_INCREMENT PRIMARY KEY,title VARCHAR(255),message TEXT,module VARCHAR(80),related_type VARCHAR(80),priority VARCHAR(20),deduplication_key VARCHAR(190) UNIQUE,action_link VARCHAR(255),created_by INT NULL);
+CREATE TABLE notification_recipients(notification_id BIGINT,employee_id INT,PRIMARY KEY(notification_id,employee_id));");
+FrontDeskRoster::approve($shadow,2,1,'2026-10-19','2026-10-24','Next week scheduled duty','2026-10-18 10:00:00');
+$tick=\Hambelela\EPI\V2Watchdog::run($shadow,'2026-10-19 11:05:00',$shadow);
+check('RSTR19 integrated worker schedules roster','created',$tick['roster']['status']);
+check('RSTR20 no browser needed for lunch notification',1,$tick['coverage_reminders']['sent']);
+$again=\Hambelela\EPI\V2Watchdog::run($shadow,'2026-10-19 11:10:00',$shadow);
+check('RSTR21 integrated notifications are idempotent',0,$again['coverage_reminders']['sent']);
+$late=\Hambelela\EPI\V2Watchdog::run($shadow,'2026-10-19 12:05:00',$shadow);
+check('RSTR22 unanswered lunch plan escalates owner',1,$late['coverage_reminders']['sent']);
+check('RSTR23 automated notification does not impersonate owner',0,(int)$shadow->query('SELECT COUNT(*) FROM notifications WHERE created_by IS NOT NULL')->fetchColumn());
+check('RSTR24 roster worker healthy','success',$late['status']);

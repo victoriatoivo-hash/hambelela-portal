@@ -39,6 +39,7 @@ final class V2OperationalBridge
     foreach($s->fetchAll(PDO::FETCH_COLUMN)as$key){if(microtime(true)-$started>10)break;self::consume($db,$key);}
  }
  private static function order(PDO $db,string $action,array $order,array $meta):void {
+    if(OrdersStageBridge::enabled($db)){OrdersStageBridge::capture($db,$action,$order,$meta);return;}
     $reference=(string)($order['order_number']?:'ORDER-'.$order['id']);$at=Support::timestamp($meta['occurred_at']);
     $mode=self::fulfilmentMode($order);$engine=new DeadlineEngine($db);$owners=new OwnershipPeriodEngine($db);$policy=V2Store::policy($db);
     $actor=(int)($meta['employee_id']??0);

@@ -1779,11 +1779,12 @@ try {
             ops_ensure_kpi_activity_events();
             $db->beginTransaction();
             try {
-                $locked = $db->prepare('SELECT order_number,status,assigned_packer_id FROM ops_orders WHERE id=? FOR UPDATE');
+                $locked = $db->prepare('SELECT * FROM ops_orders WHERE id=? FOR UPDATE');
                 $locked->execute([$orderId]);
                 $lockedOrder = $locked->fetch(PDO::FETCH_ASSOC);
                 $locked->closeCursor();
                 if (!$lockedOrder) throw new RuntimeException('Order not found. Refresh and try again.');
+                \Hambelela\EPI\OrdersStageBridge::assertStatusAllowed($db,$lockedOrder,$value);
                 $oldKpiStatus = (string) ($lockedOrder['status'] ?? '');
                 $lockedPackerId = (int) ($lockedOrder['assigned_packer_id'] ?? 0);
                 if ($oldKpiStatus === $value) {
@@ -2013,7 +2014,8 @@ try {
         if ($field === 'status' && in_array($value, ['in_progress','completed'], true)) {
             $db = db();$autoAssignments=[];$currentPackingEmployeeCandidate=ops_board_current_packing_employee();ops_ensure_kpi_activity_events();$db->beginTransaction();
             try {
-                $lockedStmt=$db->prepare("SELECT id,order_number,status,assigned_packer_id FROM ops_orders WHERE id IN ({$placeholders}) FOR UPDATE");$lockedStmt->execute($ids);$lockedRows=$lockedStmt->fetchAll(PDO::FETCH_ASSOC);$lockedStmt->closeCursor();
+                $lockedStmt=$db->prepare("SELECT * FROM ops_orders WHERE id IN ({$placeholders}) FOR UPDATE");$lockedStmt->execute($ids);$lockedRows=$lockedStmt->fetchAll(PDO::FETCH_ASSOC);$lockedStmt->closeCursor();
+                foreach($lockedRows as $lockedRow) \Hambelela\EPI\OrdersStageBridge::assertStatusAllowed($db,$lockedRow,$value);
                 if(count($lockedRows)!==count(array_unique($ids)))throw new RuntimeException('One or more selected orders could not be found. Refresh and try again.');
                 $currentPackingEmployee=$currentPackingEmployeeCandidate;$missing=[];
                 foreach($lockedRows as$lockedRow)if(!(int)($lockedRow['assigned_packer_id']??0))$missing[]=(int)$lockedRow['id'];

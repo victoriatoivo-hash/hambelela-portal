@@ -5,6 +5,7 @@
 <link rel="stylesheet" data-portal-responsive-final href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= is_file(BASE_PATH . '/assets/css/portal-responsive.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-responsive.css') : (string) time() ?>-mobile-final3">
 <script defer src="<?= BASE_URL ?>/assets/js/portal-view-bar.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-view-bar.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-view-bar.js') : (string) time() ?>-interactive7"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/portal-responsive.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-responsive.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-responsive.js') : (string) time() ?>"></script>
+<?php require __DIR__.'/front-coverage-prompt.php'; ?>
 </div>
 </body>
 </html>

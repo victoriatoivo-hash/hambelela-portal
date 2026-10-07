@@ -11,8 +11,16 @@ final class OwnershipPeriodEngine
     private $pdo;
     public function __construct(PDO $pdo){$this->pdo=$pdo;}
     private function periods(string $table,string $where,array $args,string $at):array {
-        $s=$this->pdo->prepare("SELECT * FROM $table WHERE $where AND accepted_by IS NOT NULL AND accepted_at<=? AND effective_from<=? AND (effective_to IS NULL OR effective_to>?) ORDER BY effective_from");
-        $s->execute(array_merge($args,[$at,$at,$at]));return $s->fetchAll(PDO::FETCH_ASSOC)?:[];
+        $authority='accepted_by IS NOT NULL AND accepted_at<=?';$times=[$at];
+        if($table==='epi_v2_ownership_periods'){
+            $authority="($authority) OR (accepted_by IS NULL AND ownership_reason='approved_order_assignment' AND source='orders_sla_v1' AND effective_from<=?)";
+            $times[]=$at;
+        }else{
+            $authority="($authority) OR (accepted_by IS NULL AND source='approved_front_roster' AND effective_from<=?)";
+            $times[]=$at;
+        }
+        $s=$this->pdo->prepare("SELECT * FROM $table WHERE $where AND ($authority) AND effective_from<=? AND (effective_to IS NULL OR effective_to>?) ORDER BY effective_from");
+        $s->execute(array_merge($args,$times,[$at,$at]));return $s->fetchAll(PDO::FETCH_ASSOC)?:[];
     }
     public function ownerAt(string $module,string $reference,$at):?array {
         Support::requireModule($module);$time=Support::timestamp($at)->format('Y-m-d H:i:s');

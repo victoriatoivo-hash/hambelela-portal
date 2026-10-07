@@ -16,6 +16,10 @@ spec=importlib.util.spec_from_file_location('release',Path(__file__).with_name('
 release=importlib.util.module_from_spec(spec);spec.loader.exec_module(release)
 BASE='10a595bd6f0103ac07a8c3483727aeac22c4a6c0'
 FILES=('shared/epi/ShadowActivation.php','shared/epi/V2OperationalBridge.php','shared/epi/V2PerformanceQuery.php','shared/epi/DeadlineEngine.php','apps/operations/epi-v2-shadow.php')
+stage_spec=importlib.util.spec_from_file_location('stage_package',Path(__file__).with_name('epi-stage-package.py'))
+stage_package=importlib.util.module_from_spec(stage_spec);stage_spec.loader.exec_module(stage_package)
+# During a guarded rollout accept either complete release, never a mixed dependency set.
+FILES=tuple(dict.fromkeys(stage_package.RUNTIME+list(FILES)))
 
 def invoke(ftp,mode,sha):
     token=secrets.token_hex(32);path='apps/operations/epi-shadow-worker-'+secrets.token_hex(12)+'.php'
@@ -56,15 +60,12 @@ def main(mode,sha):
     try:
         before={p:release.read(ftp,p)for p in FILES}
         if mode=='tick':
-            if any(not release.same(before[p],expected[p])for p in FILES):raise RuntimeError('Live worker code drift; refusing run')
+            current=all(release.same(before[p],expected[p])for p in FILES)
+            baseline=all(release.same(before[p],release.blob(stage_package.BASELINE,p))for p in FILES)
+            if not current and not baseline:raise RuntimeError('Live worker code drift or mixed release; refusing run')
         else:
-            if any(not release.same(before[p],expected[p])and not release.same(before[p],release.blob(BASE,p))for p in FILES):raise RuntimeError('Live baseline mismatch; refusing overwrite')
-            with zipfile.ZipFile('epi-shadow-backup.zip','w')as backup:
-                for p,data in before.items():
-                    if data is not None:backup.writestr(p,data)
-            for p in FILES:
-                if not release.same(before[p],expected[p]):release.write(ftp,p,expected[p])
-                if release.read(ftp,p)!=expected[p]:raise RuntimeError('Published file hash mismatch: '+p)
+            if mode=='activate':raise RuntimeError('P0 is already activated. Stage activation requires separate validated approval.')
+            if not all(release.same(before[p],expected[p])for p in FILES):raise RuntimeError('Publish through the guarded stage release workflow first')
         report['result']=invoke(ftp,mode,sha)
         state=report['result'].get('first_run',report['result']).get('status')
         if mode!='inspect' and state not in ('success','already_running'):raise RuntimeError('Watchdog did not succeed: '+str(state))

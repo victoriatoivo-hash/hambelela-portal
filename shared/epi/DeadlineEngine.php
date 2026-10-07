@@ -9,7 +9,8 @@ final class DeadlineEngine
 {
  private $pdo;
  private $ownership;
- public function __construct(PDO $pdo){$this->pdo=$pdo;$this->ownership=new OwnershipPeriodEngine($pdo);}
+ private $hr;
+ public function __construct(PDO $pdo,?PDO $hr=null){$this->pdo=$pdo;$this->hr=$hr;$this->ownership=new OwnershipPeriodEngine($pdo);}
  public function schedule(array $input):string {
     $module=Support::requireModule((string)($input['module']??''));$ref=trim((string)($input['object_reference']??''));$obligation=(string)($input['obligation_key']??'');
     $event=(new CanonicalEventRegistry($this->pdo))->event((string)($input['breach_event_key']??''));
@@ -20,6 +21,13 @@ final class DeadlineEngine
     $calendar=$this->pdo->query('SELECT * FROM epi_employee_business_calendar ORDER BY business_date')->fetchAll(PDO::FETCH_ASSOC);
     $settings=$this->pdo->query("SELECT setting_key,setting_value FROM epi_employee_performance_settings WHERE setting_key IN('weekday_open','weekday_close','saturday_open','saturday_close')")->fetchAll(PDO::FETCH_KEY_PAIR);
     $snapshot=['event'=>$event,'activation'=>$activation,'sla_version'=>$policy['version']??'unconfigured','calendar_version'=>$policy['calendar_version']??'unconfigured','calendar'=>$calendar,'hours'=>$settings,'policy'=>$policy,'original_created_at'=>$input['original_created_at']??$start->format('Y-m-d H:i:s'),'historical_record'=>!empty($input['historical_record']),'historical_backfill'=>$historical,'enforcement_started_at'=>$activation['enforcement_start_at']??null];
+    if(isset($input['stage_policy'])){
+        $snapshot['stage_policy']=$input['stage_policy'];
+        $snapshot['sla_version']=$input['stage_policy']['version'];
+        $h=$input['stage_policy']['rules']['hours'];
+        $snapshot['hours']=['weekday_open'=>$h['1'][0],'weekday_close'=>$h['1'][1],'saturday_open'=>$h['6'][0],'saturday_close'=>$h['6'][1]];
+        $snapshot['calendar']=[]; // This approved Orders version uses the specified weekly hours, not unrelated runtime overrides.
+    }
     $key=Support::dedupe([$module,$ref,$obligation,$input['cycle_id']??$start->format('Y-m-d H:i:s')]);$uuid=Support::uuidFromHash($key);
     $grace=max(0,(int)($input['grace_minutes']??0));$eligible=$due->modify('+'.$grace.' minutes')->format('Y-m-d H:i:s');
     return V2Store::transaction($this->pdo,function()use($input,$module,$ref,$obligation,$event,$start,$due,$snapshot,$historical,$key,$uuid,$grace,$eligible){
@@ -92,8 +100,18 @@ final class DeadlineEngine
     if(($snap['policy']['activation_scope']??'')==='approved_existing_rules'&&!isset($snap['policy']['minimum_opportunity_minutes']))$fair=false; // Unapproved fairness policy is review-only, not an invented threshold.
     $eligibility=$d['historical_backfill']?'historical_recovered':($fair?'pending_rule':'needs_review');
     $reason=$d['historical_backfill']?'pre_activation':(!$employee?'insufficient_attribution':(!$fair?'insufficient_opportunity':null));
+    $hrEvidence=null;
+    if($employee && FrontDeskRoster::enabled($this->pdo)){
+        $hrEvidence=HrAbsenceEvidence::inspect($this->pdo,$this->hr??HrConnection::connect(),$employee,$d['due_at']);
+        if($hrEvidence['state']!=='no_approved_absence'){
+            $employee=null;$eligibility='needs_review';
+            $reason=$hrEvidence['state']==='approved_absence'?'approved_absence_without_verified_coverage':'hr_availability_unverified';
+        }
+    }
+    if(empty($snap['event']['score_eligible'])){$employee=null;$eligibility='excluded';$reason='non_employee_obligation';}
     $meta=['deadline_uuid'=>$d['deadline_uuid'],'obligation_key'=>$d['obligation_key'],'responsible_employee_at_breach'=>$employee,'responsible_team'=>$d['responsible_team'],'ownership_uuid'=>$owner['ownership_uuid']??null,'owner_interval'=>$owner,'sla_version'=>$snap['sla_version']??null,'calendar_version'=>$snap['calendar_version']??null,'policy_snapshot'=>$snap,'starts_at'=>$d['starts_at'],'due_at'=>$d['due_at'],'actual_state'=>$d['fulfilled_at']?'fulfilled_late':'overdue','fulfilment_state'=>['at'=>$d['fulfilled_at'],'by'=>$d['fulfilled_by']],'exception_state'=>$exception,'object_reference'=>$d['object_reference'],'detected_at'=>$detected,'historical_backfill'=>(bool)$d['historical_backfill'],'late_business_minutes'=>self::minutes($d['due_at'],$d['fulfilled_at']??$detected,$snap),'responsibility_status'=>$employee?'attributed':'unattributed','exclusion_reason'=>$reason,'excluded_from_scoring'=>true,'mode'=>'shadow'];
     $uuid=Support::uuidFromHash('deadline-breach|'.$d['deadline_uuid']);
+    $meta['hr_evidence']=$hrEvidence;
     $this->pdo->prepare('INSERT INTO epi_v2_performance_incidents(incident_uuid,root_incident_id,deadline_uuid,event_key,module,object_reference,responsible_employee_at_breach,occurred_at,due_at,current_risk_state,historical_state,eligibility_state,exclusion_reason,metadata_json,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$uuid,'deadline:'.$d['deadline_uuid'],$d['deadline_uuid'],$d['breach_event_key'],$d['module'],$d['object_reference'],$employee,$d['due_at'],$d['due_at'],$d['fulfilled_at']?'resolved':'open','breach',$eligibility,$reason,Support::json($meta),$d['fulfilled_at']]);
     $this->pdo->prepare('UPDATE epi_v2_operational_deadlines SET breach_at=due_at,breach_incident_uuid=?,state=? WHERE id=?')->execute([$uuid,$d['fulfilled_at']?'fulfilled':($employee?'breached':'needs_attribution'),$d['id']]);
     return $employee?'breached':'needs_attribution';

@@ -13,6 +13,10 @@ try{
         if(!$activation||$actor!==$primary)throw new RuntimeException('Only the configured Front Desk employee can confirm their own duty.');
         $now=Support::timestamp();$engine=new OwnershipPeriodEngine($db);$current=$engine->dutyAt('front_desk',$now);$action=(string)($_POST['action']??'');
         if($action==='start'){
+            if(\Hambelela\EPI\FrontDeskRoster::enabled($db)){
+                $availability=\Hambelela\EPI\HrAbsenceEvidence::inspect($db,ops_hr_db(),$actor,$now->format('Y-m-d H:i:s'));
+                if($availability['state']!=='no_approved_absence')throw new RuntimeException('HR availability needs review before confirming duty.');
+            }
             if(V2Store::absence($db,$actor,$now->format('Y-m-d H:i:s')))throw new RuntimeException('An approved absence is active. Contact the owner.');
             $window=(new BusinessTimeEngine($db))->windowForDate($now);
             if(!$window||$now<$window[0]||$now>=$window[1])throw new RuntimeException('Duty must begin within the saved business hours.');
@@ -35,7 +39,7 @@ function epi_shadow_escape($value):string{return htmlspecialchars((string)$value
 ?>
 <!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>EPI shadow trial</title>
 <style>@font-face{font-family:Jost;src:url('/assets/fonts/jost-variable.woff2')}body{margin:0;background:#f7f7f2;color:#263521;font:400 14px/1.5 Jost,sans-serif}main{max-width:900px;margin:35px auto;padding:20px}section{background:white;border:1px solid #dfe4d6;border-radius:12px;padding:20px;margin:16px 0}h1{font-size:25px;font-weight:500}h2{font-size:16px;font-weight:500}button,a{font:inherit}button{border:0;background:#53673c;color:white;border-radius:7px;padding:9px 16px;margin:5px;cursor:pointer}button:hover{background:#354526}.warning{color:#8b4025}dl{display:grid;grid-template-columns:1fr 1fr;gap:8px}dd{margin:0}a{color:#28639b}</style>
-<main><a href="/apps/operations/employee-performance.php">Back to Employee Performance</a><h1>Employee Performance — shadow trial</h1>
+<main><a href="/apps/operations/employee-performance.php">Back to Employee Performance</a><h1>Employee Performance — shadow trial</h1><p><a href="front-roster.php">Owner: approve Front Desk roster</a></p>
 <section><h2>Observation only · official scores unchanged</h2><p>Only new owner-assigned tasks and quality records are captured. Every incident is excluded from official scoring. Missing order deadlines, unassigned work and historical backlog are not inferred.</p>
 <?php if($error):?><p class="warning"><?=epi_shadow_escape($error)?></p><?php endif;?>
 <?php if($notice):?><p><?=epi_shadow_escape($notice)?></p><?php endif;?>
@@ -43,4 +47,4 @@ function epi_shadow_escape($value):string{return htmlspecialchars((string)$value
 <p>Checks are scheduled every five minutes. The scheduler may be delayed; breach timestamps remain the original deadlines. A gap over twenty minutes is shown as unhealthy.</p></section>
 <section><h2>Front Desk duty</h2><p>The one configured Front Desk employee confirms when they are actually on duty. Ending duty does not assign coverage to anyone else. Do not confirm duty while absent or on leave.</p>
 <?php if($activation&&$actor===($primary??0)):?><form method="post"><input type="hidden" name="csrf" value="<?=epi_shadow_escape($_SESSION['epi_shadow_csrf'])?>"><button name="action" value="start">Confirm I am on duty</button><button name="action" value="stop">End my duty</button></form><?php else:?><p>Duty confirmation is available on the Front Desk employee’s own account.</p><?php endif;?></section>
-<section><h2>Trial limitations</h2><p>No order SLA is configured. Coverage and HR absence integration require further validation; this trial cannot be used for deductions or an official employee rating.</p></section></main></html>
+<section><h2>Trial limitations</h2><p>Orders stage tracking requires its separate approved migration and activation. Coverage and HR absence integration require further validation; this trial cannot be used for deductions or an official employee rating.</p><a href="epi-orders-deadlines.php">Owner: review Orders stage deadlines</a></section></main></html>
