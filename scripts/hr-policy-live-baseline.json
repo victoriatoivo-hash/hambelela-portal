@@ -2,7 +2,7 @@
   "apps/hr-portal/includes/policy-system.php": "2969aed4122f355f8a4acb117e3c26aa291b3586586af30abd821ab3cadcd7f0",
   "shared/portal-policy-notifications.php": null,
   "apps/hr-portal/policy-action.php": "4c4bd942baf85b37ffa7cdd2ee868d25a379a89cb03583ec1e963a14df59fa0a",
-  "apps/hr-portal/policy-acknowledgements.php": "a50932b5755fa38d3508285cebbb7746069dcecb52981d34448e0b8d056531c3",
+  "apps/hr-portal/policy-acknowledgements.php": "3bbee494c76bdea90097e3d74972bb0c0f057b2445b57bf137ec761d2d77b688",
   "apps/hr-portal/policy-view.php": "58913b0a498e99037272a6933090380c437a95370e04c9508234e8ea2418c4de",
   "apps/hr-portal/settings.php": "f124eeb1028b54589e5b1abd315edc7f6593d6ace2599486ad31b9f349e98355",
   "shared/portal-policy-popup.php": "9ee798c524c9b31a6f4cdc55a360f2c5bf3813f1d276ad83990a64afdd042bec",

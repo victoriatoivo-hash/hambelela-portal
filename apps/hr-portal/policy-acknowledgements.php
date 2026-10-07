@@ -4,14 +4,9 @@ $u=currentUser();$user=$u;if($u['role']==='employee'){http_response_code(403);ex
 $db=db();hrPolicyEnsureSchema($db);$v=hrPolicyVersion($db,(int)($_GET['id']??0));
 if(!$v){http_response_code(404);exit('Version not found.');}
 $current=$v['status']==='published' && (int)$v['current_version_id']===(int)$v['id'] && $v['acknowledgement_required'];
-$deliveryWarning='';
-if($current){
-    hrPolicyAssignCurrent($db);
-    try{require_once dirname(__DIR__,2).'/shared/portal-policy-notifications.php';portal_policy_sync(portal_policy_database(),$db);}
-    catch(Throwable $error){error_log('Owner policy delivery check: '.$error->getMessage());$deliveryWarning='Main Portal delivery is temporarily unavailable. Saved assignments will retry when the portal checks notifications.';}
-}
+$deliveryWarning=''; // Overview reads records; employee login/polling and explicit owner actions deliver assignments.
 $s=$db->prepare("SELECT e.id,e.emp_number,e.start_date,e.job_title,TRIM(CONCAT(e.first_name,' ',e.last_name)) employee_name,
-    s.id assignment_id,s.assigned_at,COALESCE(s.acknowledgement_deadline,v.acknowledgement_deadline) deadline,
+    s.id assignment_id,s.assigned_at,s.acknowledgement_deadline individual_deadline,COALESCE(s.acknowledgement_deadline,v.acknowledgement_deadline) deadline,
     a.id ack_id,a.opened_at,a.last_opened_at,a.reading_percent,a.reached_end_at,a.signed_at,
     pn.created_at notification_sent_at,pn.delivered_at notification_delivered_at
     FROM employees e JOIN hr_policy_versions v ON v.id=?
@@ -38,7 +33,7 @@ function policyOverviewDate($value):string{return $value?date('j M Y H:i',strtot
 <div class="table-wrap"><table><thead><tr><th>Employee</th><th>Assignment</th><th>Individual deadline</th><th>Status</th><th>Details &amp; actions</th></tr></thead><tbody>
 <?php foreach($rows as $r):
 if(($filter==='signed'&&!$r['signed_at'])||($filter==='pending'&&$r['signed_at'])||($filter==='opened'&&(!$r['opened_at']||$r['signed_at']))||($filter==='overdue'&&$r['status']!=='Overdue'))continue;
-$date=$r['assignment_id']?$r['deadline']:hrPolicyDefaultDeadline((string)$r['start_date'],date('Y-m-d'),(int)$settings['policy_ack_days']);
+$date=$r['individual_deadline']?:hrPolicyDefaultDeadline((string)$r['start_date'],date('Y-m-d'),(int)$settings['policy_ack_days']);
 ?><tr data-employee="<?=(int)$r['id']?>"><td><b><?=policyOverviewEscape($r['employee_name'])?></b><small><?=policyOverviewEscape($r['emp_number'])?> · <?=policyOverviewEscape($r['job_title'])?></small></td><td data-label="Assigned"><?=policyOverviewDate($r['assigned_at'])?></td><td data-label="Deadline"><?=$r['assignment_id']||$r['signed_at']?($r['deadline']?date('j F Y',strtotime($r['deadline'])):'Not set'):'Select Date'?></td><td><span class="status-pill"><?=policyOverviewEscape($r['status'])?></span></td><td>
 <details><summary>Acknowledgement details</summary><dl><dt>Assignment date</dt><dd><?=policyOverviewDate($r['assigned_at'])?></dd><dt>Opened</dt><dd><?=policyOverviewDate($r['opened_at'])?></dd><dt>Last opened</dt><dd><?=policyOverviewDate($r['last_opened_at'])?></dd><dt>Reading progress</dt><dd><?=number_format((float)$r['reading_percent'],0)?>%</dd><dt>Signed</dt><dd><?=policyOverviewDate($r['signed_at'])?></dd><dt>HR notification</dt><dd><?=policyOverviewDate($r['notification_sent_at'])?></dd></dl>
 <?php $history=$db->prepare("SELECT action,details,created_at FROM hr_policy_audit WHERE subject_employee_id=? AND version_id=? AND action IN ('policy_assigned','policy_deadline_changed','policy_reminder_requested') ORDER BY id DESC LIMIT 10");$history->execute(array($r['id'],$v['id']));foreach($history->fetchAll(PDO::FETCH_ASSOC) as $event):$detail=json_decode($event['details']?:'{}',true);?><p><small><?=policyOverviewDate($event['created_at'])?> · <?=policyOverviewEscape(str_replace('_',' ',$event['action']))?><?=isset($detail['deadline'])?' · '.policyOverviewEscape($detail['previous_deadline']??'Not set').' → '.policyOverviewEscape($detail['deadline']):''?></small></p><?php endforeach;?></details>
