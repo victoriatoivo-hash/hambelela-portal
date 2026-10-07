@@ -1,0 +1,33 @@
+name: Verify standalone MIV
+on:
+  pull_request:
+    paths:
+      - 'standalone/miv-bundle.json'
+      - '.github/workflows/verify-miv-standalone.yml'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo_sqlite
+      - name: Extract isolated release
+        run: |
+          python3 - <<'PY'
+          import json,pathlib
+          for name,content in json.loads(pathlib.Path('standalone/miv-bundle.json').read_text()).items():
+              path=pathlib.Path(name)
+              assert str(path).startswith(('standalone/miv/','tests/')) and '..' not in path.parts
+              path.parent.mkdir(parents=True,exist_ok=True)
+              path.write_text(content)
+          PY
+      - name: Check account and payment workflow
+        run: python3 tests/miv-standalone-test.py
+      - name: Check interface controls and calculations
+        run: |
+          npm install --prefix "$RUNNER_TEMP/miv-tests" jsdom@26.1.0
+          NODE_PATH="$RUNNER_TEMP/miv-tests/node_modules" node tests/miv-interface-test.cjs
