@@ -1,0 +1,71 @@
+name: Deploy standalone MIV to chin
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Check connection first, then deploy
+        type: choice
+        options: [check, deploy]
+        default: check
+  push:
+    branches: [main]
+    paths:
+      - standalone/miv-bundle.json
+      - scripts/deploy-chin.py
+      - tests/test-deploy-chin.py
+      - .github/workflows/deploy-chin.yml
+  pull_request:
+    paths:
+      - standalone/miv-bundle.json
+      - scripts/deploy-chin.py
+      - tests/test-deploy-chin.py
+      - .github/workflows/deploy-chin.yml
+permissions:
+  contents: read
+concurrency:
+  group: standalone-chin
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo_sqlite
+      - name: Extract app and tests
+        run: |
+          python3 - <<'PY'
+          import json, pathlib
+          for name, content in json.loads(pathlib.Path('standalone/miv-bundle.json').read_text()).items():
+              path = pathlib.Path(name)
+              assert not path.is_absolute() and '..' not in path.parts
+              assert name.startswith(('standalone/miv/', 'tests/'))
+              path.parent.mkdir(parents=True, exist_ok=True)
+              path.write_text(content)
+          PY
+      - run: python3 tests/test-deploy-chin.py
+      - run: python3 tests/miv-standalone-test.py
+      - name: Check interface and calculations
+        run: |
+          npm install --prefix "$RUNNER_TEMP/miv-tests" jsdom@26.1.0
+          NODE_PATH="$RUNNER_TEMP/miv-tests/node_modules" node tests/miv-interface-test.cjs
+  deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && vars.CHIN_DEPLOY_ENABLED == 'true'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify connection or deploy
+        env:
+          CHIN_FTP_SERVER: ${{ secrets.CHIN_FTP_SERVER }}
+          CHIN_FTP_USERNAME: ${{ secrets.CHIN_FTP_USERNAME }}
+          CHIN_FTP_PASSWORD: ${{ secrets.CHIN_FTP_PASSWORD }}
+          DEPLOY_MODE: ${{ inputs.mode }}
+        run: |
+          if [ "$DEPLOY_MODE" = "check" ]; then
+            python3 scripts/deploy-chin.py --check
+          else
+            python3 scripts/deploy-chin.py
+          fi
