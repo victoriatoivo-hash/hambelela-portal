@@ -60,8 +60,9 @@ def main(mode,sha):
     try:
         before={p:release.read(ftp,p)for p in FILES}
         if mode=='tick':
-            current=all(release.same(before[p],expected[p])for p in FILES)
-            baseline=all(release.same(before[p],release.blob(stage_package.BASELINE,p))for p in FILES)
+            worker_files=[p for p in FILES if p.startswith('shared/epi/')]
+            current=all(release.same(before[p],expected[p])for p in worker_files)
+            baseline=all(release.same(before[p],release.blob(stage_package.BASELINE,p))for p in worker_files)
             if not current and not baseline:raise RuntimeError('Live worker code drift or mixed release; refusing run')
         else:
             if mode=='activate':raise RuntimeError('P0 is already activated. Stage activation requires separate validated approval.')

@@ -76,3 +76,4 @@ jobs:
           path: |
             epi-stage-result.json
             epi-stage-backup.zip
+            epi-stage-live-conflicts.zip

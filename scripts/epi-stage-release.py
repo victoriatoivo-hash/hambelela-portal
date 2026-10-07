@@ -92,6 +92,11 @@ def main(mode, sha):
                      and not release.same(before[p], release.blob(BASELINE, p))]
         report['conflicts'] = conflicts
         if conflicts:
+            # Read-only snapshot for a reviewed merge, never automatic overwrite.
+            with zipfile.ZipFile('epi-stage-live-conflicts.zip', 'w', zipfile.ZIP_DEFLATED) as snapshot:
+                for path in conflicts:
+                    if before[path] is not None:
+                        snapshot.writestr(path, before[path])
             raise RuntimeError('Live-only edits preserved; baseline mismatch: ' + ', '.join(conflicts))
         report['preflight'] = preflight(ftp)
         if mode == 'inspect':
