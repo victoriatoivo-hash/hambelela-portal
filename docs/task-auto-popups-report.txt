@@ -71,3 +71,19 @@ docs/task-auto-popups-report.txt
 UNRELATED PRODUCTION FILES CHANGED: NONE
 Release authorization: user requested commit, push and live deployment after the original review-only request.
 Deployment outcome is recorded in task-popup-deployment-report.json from the release workflow.
+
+LIVE RELEASE COMPLETED
+Runtime release commit: b590ece0b3c9c5b2a066ffbbee2964ccf32840ed
+Branch: codex/task-auto-popups
+PUSHED: YES
+DEPLOYED: YES
+Deployment run: https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/37630695269
+State: deployed-verified
+All ten production file hashes match the committed release.
+Rollback backup: task-popup-deployment-evidence/task-popup-deployment-backup.zip
+PHP 7.4 and PHP 8.2 CI database integration and workflow checks: PASS
+Desktop / 390px / 430px popup browser tests: PASS
+Public HTTPS popup JS, CSS and portal JS hashes: PASS
+Portal login: HTTP 200
+Live employee login/assignment end-to-end: NOT RUN
+Database migration: NONE
