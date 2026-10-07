@@ -1,0 +1,2 @@
+# Certificates must be served through authenticated, record-authorized PHP viewers.
+Require all denied

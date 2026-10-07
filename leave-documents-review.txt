@@ -1,0 +1,98 @@
+HAMBELELA HR LEAVE DOCUMENTS - LOCAL REVIEW
+7 October 2026
+
+This patch is prepared in the isolated codex/leave-history-documents worktree,
+based on commit 531fd46d. It has not been committed, pushed, or deployed.
+All PASS results below refer to the local patch and synthetic test records.
+
+EXISTING CERTIFICATE FIELD: FOUND
+Existing leave_requests.certificate is selected by lr.*. No migration needed.
+
+APPROVED RECORD RETAINS CERTIFICATE: YES (repository approval SQL tested)
+The existing UPDATE changes status/reviewer/date/rejection reason on the same
+row. It does not clear certificate, replace the row, or unlink a document.
+The previously captured live my-leave.php stores the uploaded certificate path
+in the request INSERT. Its cleanup runs only on failed submission rollback,
+not admin approval. Upload code has not been changed.
+
+LEAVE HISTORY CERTIFICATE COLUMN: PASS (local)
+Supporting Document follows Status and precedes Back-Capture. Pending Requests
+uses the same component. Every leave type can display an attached document.
+
+EXISTING APPROVED SICK LEAVE DOCUMENTS:
+VISIBLE in the local preview when a safe reference and valid physical file exist.
+NOT VISIBLE in the current live history, which still lacks this column.
+Secilia Shiweda's approved 18 September 2026 row and Klaudia Averinus's approved
+sick-leave rows were located in the authenticated live history. Their actual
+certificate references and physical files could not be verified through that
+UI. No missing production files are confirmed, and no replacement was invented.
+Their links will appear without re-upload if those references/files are intact.
+
+SECURE DOCUMENT ENDPOINT: PASS (local PHP endpoint tests)
+Authentication, fresh active-user and role checks, leave-record authorization,
+basename validation, canonical directory containment, symlink rejection,
+PDF/JPEG/PNG extension plus MIME matching, no-store and nosniff, generic errors.
+An unreferenced upload cannot be served even to an admin. Paths and unsupported
+file types are rejected. New tabs use target=_blank and rel=noopener.
+The certificate directory .htaccess denies public direct-file requests on an
+Apache-compatible host. Its enforcement is NOT yet verified on production:
+confirm AllowOverride/authz support, or equivalent server deny configuration,
+before release. The PHP built-in test server does not enforce .htaccess.
+
+EMPLOYEE OWN DOCUMENT: PASS (local)
+OTHER EMPLOYEE DOCUMENT BLOCKED: PASS (local)
+Employee access follows the database leave owner, not the filename employee
+prefix. Parameter manipulation, stale employee mapping, inactive account and
+forged/stale roles are denied. My Leave History UI remains unchanged.
+
+MISSING FILE HANDLING: PASS (local)
+Empty reference: Not uploaded. Nonempty but missing/unsafe/invalid file:
+File unavailable with a muted warning icon and no broken link.
+Back-captured leave with no reference: dash. Valid attached file: View document.
+
+MOBILE: PASS (local)
+1366px desktop and 390px/430px mobile tested with current live HR CSS and the
+existing responsive table wrapper. No page-wide horizontal overflow; links
+remain reachable by scrolling inside the table. Visual screenshots inspected.
+New component uses Jost, cream/olive styling, inline SVG and visible focus.
+
+LEAVE CALCULATIONS CHANGED: NO
+DATABASE CHANGE: NO (production). Synthetic tables only in localhost fixture DB.
+UNRELATED: NONE. Existing root-workspace edits were left untouched.
+
+FILES CHANGED (production):
+apps/hr-portal/leave.php
+apps/hr-portal/download-certificate.php
+apps/hr-portal/view-my-certificate.php
+apps/hr-portal/includes/leave-documents.php (new)
+apps/hr-portal/includes/leave-documents.css (new)
+apps/hr-portal/uploads/certificates/.htaccess (new)
+
+FILES ADDED (local verification/review):
+tests/leave-documents-fixture.py
+tests/leave-documents-db.php
+tests/leave-documents-browser.cjs
+leave-documents-review.txt
+Generated fixture, live CSS copies, patch and screenshots are under verification/;
+none are production files or intended for release.
+
+VALIDATION:
+34 database/helper checks and 34 HTTP/browser checks passed.
+PHP syntax checks passed for leave.php, both viewers, shared helper and PHP test.
+The pre-render business logic in leave.php is unchanged except loading the new
+document helper. No balance, entitlement, reserve, approval or day changes.
+
+LIVE BASELINE LIMITATION:
+Current live styles and the authenticated live history were inspected. The exact
+live PHP for leave.php and both viewers was not exportable through the existing
+approved export workflow's fixed allowlist. A new source-export workflow would
+require a push, which this request prohibits. This is therefore a review patch,
+not a verified replacement for current server PHP. Before any future release,
+capture those current server files and apply only this scoped rendering/access
+change to them, preserving all newer live fixes. Confirm live PHP fileinfo and
+server direct-file protection, then verify Secilia/Klaudia's real references/files
+and authenticated PDF/image viewing. No live business data was changed by this task.
+
+PUSHED: NO
+DEPLOYED: NO
+STOP FOR REVIEW.

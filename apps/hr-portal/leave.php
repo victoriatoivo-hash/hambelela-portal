@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/config.php';
 requireAdmin();
+require_once __DIR__ . '/includes/leave-documents.php';
 require_once __DIR__ . '/includes/email.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
 require_once __DIR__ . '/includes/leave-balance-service.php';
@@ -347,6 +348,7 @@ $msg = $_GET['msg'] ?? '';
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link rel="stylesheet" href="includes/styles.css?v=20260729-1">
+<link rel="stylesheet" href="includes/leave-documents.css?v=<?=rawurlencode((string)filemtime(__DIR__ . '/includes/leave-documents.css'))?>">
 </head>
 <body>
 <?php include __DIR__ . '/includes/sidebar.php'; ?>
@@ -407,7 +409,7 @@ $msg = $_GET['msg'] ?? '';
         <span class="badge badge-amber"><?=count($pending)?> Pending</span>
       </div>
       <table>
-        <thead><tr><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Days</th><th>Certificate</th><th>Submitted</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Days</th><th>Supporting Document</th><th>Submitted</th><th>Actions</th></tr></thead>
         <tbody>
         <?php foreach ($pending as $r):
           $ini = strtoupper(implode('',array_map(function($w){return $w[0];},explode(' ',trim($r['emp_name'])))));
@@ -417,17 +419,7 @@ $msg = $_GET['msg'] ?? '';
           <td><span class="badge badge-blue"><?=htmlspecialchars($r['leave_type'])?></span></td>
           <td><?=date('d M',strtotime($r['start_date']))?> – <?=date('d M Y',strtotime($r['end_date']))?></td>
           <td><strong><?=$r['days']?></strong></td>
-          <td>
-            <?php if (($r['leave_type']==='Sick Leave' || $r['leave_type']==='Unpaid Leave') && $r['certificate']): ?>
-              <a href="download-certificate.php?file=<?php echo urlencode(basename($r['certificate'])); ?>" target="_blank" style="color:#2c5f2d;text-decoration:none;font-size:12px">
-                <i class="fa-solid fa-file-pdf"></i> View
-              </a>
-            <?php elseif (($r['leave_type']==='Sick Leave' || $r['leave_type']==='Unpaid Leave') && !$r['certificate']): ?>
-              <span style="color:#999;font-size:12px">Not uploaded</span>
-            <?php else: ?>
-              <span style="color:#999;font-size:12px">—</span>
-            <?php endif ?>
-          </td>
+          <td data-label="Supporting Document"><?=hr_leave_document_markup($r['certificate'] ?? null, !empty($r['back_capture']))?></td>
           <td style="font-size:12px;color:var(--text-mid)"><?=date('d M Y',strtotime($r['created_at']))?></td>
           <td>
             <form method="POST" style="display:inline">
@@ -539,7 +531,7 @@ $msg = $_GET['msg'] ?? '';
         <div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i><div>No leave requests yet.</div></div>
       <?php else: ?>
       <table>
-        <thead><tr><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Days</th><th>Status</th><th>Back-Capture</th><th style="width:120px">Actions</th></tr></thead>
+        <thead><tr><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Days</th><th>Status</th><th>Supporting Document</th><th>Back-Capture</th><th style="width:120px">Actions</th></tr></thead>
         <tbody>
         <?php foreach ($all as $r):
           $sc = $r['status']==='approved' ? 'badge-green' : ($r['status']==='rejected' ? 'badge-red' : 'badge-amber');
@@ -564,6 +556,7 @@ $msg = $_GET['msg'] ?? '';
               <?php endif ?>
             </div>
           </td>
+          <td data-label="Supporting Document"><?=hr_leave_document_markup($r['certificate'] ?? null, !empty($r['back_capture']))?></td>
           <td><?=$r['back_capture'] ? '<span class="badge badge-gray">Back-Captured</span>' : '—'?></td>
           <td style="white-space:nowrap">
             <?php if($r['status']!=='approved'): ?>
