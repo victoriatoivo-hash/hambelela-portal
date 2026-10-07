@@ -68,6 +68,8 @@ final class CoreApi
         $driver=$actor['role']==='delivery_driver';
         $today=(new \DateTimeImmutable('now',new \DateTimeZone('Africa/Windhoek')))->format('Y-m-d');
         $where=$driver?'j.driver_employee_id=?':'1=1';$params=$driver?[$actor['id']]:[];
+        // Admin oversight filters records without impersonating a Driver or widening Driver access.
+        if(!$driver&&(int)($filters['driver_id']??0)>0){$where.=' AND j.driver_employee_id=?';$params[]=(int)$filters['driver_id'];}
         if((int)($filters['id']??0)>0){$where.=' AND j.id=?';$params[]=(int)$filters['id'];}
         $state=(string)($filters['state']??'all');
         if($state==='active')$where.=" AND j.status NOT IN ('completed','cancelled')";

@@ -40,6 +40,10 @@ ok($core->board($driver,['state'=>'active'])['total']===0,'completed jobs are ex
 ok($core->board($driver,['state'=>'completed','q'=>$row['public_reference']])['total']===1,'history search finds assigned completed delivery');
 ok(count($core->board($driver,['state'=>'completed','page'=>2])['jobs'])===0,'history pagination preserves assigned-only boundaries');
 ok(!$board['can_reconcile']&&!$board['can_arrange'],'Driver has no Front actions');
+$owner=['kind'=>'employee','id'=>$id,'role'=>'owner_admin','active'=>true];
+ok($core->board($owner,['driver_id'=>$driverId])['total']===1,'Owner oversight filters by selected Driver');
+ok($core->board($owner,['driver_id'=>$driverId+1])['total']===0,'Owner oversight does not show other Drivers in selected view');
+ok($core->board($driver,['driver_id'=>$driverId+1])['total']===1,'Driver cannot switch identity using oversight filter');
 $repeat=$body;$repeat['uuid']=uid();
 try{$core->command($front,$repeat);throw new RuntimeException('Unapproved repeat delivery accepted');}catch(DomainException $e){ok(str_contains($e->getMessage(),'completed delivery'),'completed Order cannot be silently booked again');}
 ok($core->command($front,$body)===$job,'original assignment replay still works after completion');

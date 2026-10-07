@@ -1,5 +1,21 @@
 DELIVERY RELEASE — 7 OCTOBER 2026
 
+ADMIN DASHBOARD — published 7 October 2026
+Owner/Admin Delivery entry now opens a connected dashboard with five live totals,
+Front workspace, read-only Driver phone-layout oversight, partner submissions
+(Tedlaser), and Accounting. Other approved staff retain the operational board.
+The original board remains at workspace.php; employee accounts stay in the normal
+Employees & Roles area. No employee impersonation, new permissions, migrations,
+rates, customer records or payments were introduced by this dashboard release.
+Server PHP 7.4 lint, verified backups and file hashes passed. Live dashboard totals,
+Driver selector, partner empty state and Front workspace navigation were checked.
+Synthetic production workflow tests include selected-Driver filtering and rejection
+of identity switching by a Driver. Live deliveries are currently empty, so populated
+phone cards are not claimed as live business acceptance. Driver oversight is read-only,
+not an exact interactive mirror of every Driver control. Full-brief acceptance remains
+separate from this dashboard correction.
+Private dashboard backups: /home/hambele1/delivery-dashboard-20261007/backup
+
 EMPLOYEE LOGIN UPDATE — published after the correction release below
 Drivers now use the normal employee identity/access-code session, landing on
 assigned deliveries. Old Driver login bookmarks redirect to the common login.

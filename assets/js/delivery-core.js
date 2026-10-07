@@ -55,6 +55,17 @@ $('#job-action-fields').innerHTML=html;$('#job-action-form .form-error').textCon
 $('#job-action-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{await command({...Object.fromEntries(f),urgent:f.has('urgent'),action:modalAction,id:Number(selectedJob.id),version:Number(selectedJob.version)});extraDialog.close();}catch(err){e.target.querySelector('.form-error').textContent=err.message;}};
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{if(busy)e.preventDefault();}));
 
-load().then(()=>{if(driver){const hr=document.createElement('a');hr.href='../../hr-portal/portal-login.php';hr.className='secondary';hr.textContent='My HR / leave';document.querySelector('.pagehead .actions').append(hr);}if(board.can_manage_access){for(const [href,label] of [['drivers.php','Drivers / partners'],['access.php','Staff permissions']]){const a=document.createElement('a');a.href=href;a.className='secondary';a.textContent=label;document.querySelector('.pagehead .actions').append(a);}}if(driver&&board.profile){const p=document.createElement('details');p.id='driver-profile';p.className='panel';p.innerHTML='<summary>My profile</summary><p>'+esc(board.profile.full_name)+' · Employee '+esc(board.profile.id)+'</p><p>'+esc(board.profile.mobile||'')+'</p><p>Restricted Driver access. Contact Front to change account details.</p>';$('#jobs').after(p);}if(!driver&&board.can_accounting){const a=document.createElement('a');a.href='accounting.php';a.className='secondary';a.textContent='Accounting / pricing';document.querySelector('.pagehead .actions').append(a);}if(!driver&&board.can_reconcile){const link=document.createElement('a');link.href='reviews.php';link.className='secondary';link.textContent='Payment reviews';document.querySelector('.pagehead .actions').append(link);}}).catch(e=>$('#message').textContent=e.message);
+load().then(()=>{
+ if(!driver){
+  $('.pagehead h1').textContent=location.pathname.endsWith('/workspace.php')?'Front workspace':'Delivery board';
+  $('.pagehead p').textContent='Monitor deliveries, arrange orders and confirm collections.';
+  $('.pagehead .actions a[href$="/index.php"]')?.remove();
+  if(location.pathname.endsWith('/workspace.php')){const home=document.createElement('a');home.href='index.php';home.className='secondary';home.textContent='Delivery home';$('.pagehead .actions').append(home);}
+ }
+ if(driver){const hr=document.createElement('a');hr.href='../../hr-portal/portal-login.php';hr.className='secondary';hr.textContent='My HR / leave';document.querySelector('.pagehead .actions').append(hr);}
+ if(driver&&board.profile){const p=document.createElement('details');p.id='driver-profile';p.className='panel';p.innerHTML='<summary>My profile</summary><p>'+esc(board.profile.full_name)+' · Employee '+esc(board.profile.id)+'</p><p>'+esc(board.profile.mobile||'')+'</p><p>Manage your employee profile through the portal. Contact your administrator for account changes.</p>';$('#jobs').after(p);}
+ if(!driver&&board.can_accounting){const a=document.createElement('a');a.href='accounting.php';a.className='secondary';a.textContent='Accounting';document.querySelector('.pagehead .actions').append(a);}
+ if(!driver&&board.can_reconcile){const link=document.createElement('a');link.href='reviews.php';link.className='secondary';link.textContent='Payment reviews';document.querySelector('.pagehead .actions').append(link);}
+}).catch(e=>$('#message').textContent=e.message);
 function refreshWhenIdle(){if(!document.hidden&&!busy&&!document.querySelector('dialog[open]'))load().catch(e=>$('#message').textContent=e.message);}window.addEventListener('focus',refreshWhenIdle);document.addEventListener('visibilitychange',refreshWhenIdle);setInterval(refreshWhenIdle,60000);
 })();
