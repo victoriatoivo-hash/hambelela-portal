@@ -305,6 +305,13 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $health = hr_access_health(db(), $hrDb, $employeeId);
                 if ($action === 'test_hr_access') {
                     $message = $health['label'] . ': ' . $health['detail'];
+                    if ($health['profile']) {
+                        $message .= ' HR profile ' . $health['profile']['emp_number'] . ' (#' . (int) $health['profile']['id'] . ').';
+                    }
+                    if ($health['account']) {
+                        $message .= ' HR user #' . (int) $health['account']['id'] . ', role ' . $health['account']['role']
+                            . ', ' . ((int) $health['account']['active'] === 1 ? 'active' : 'inactive') . '.';
+                    }
                     $messageType = $health['state'] === 'ready' ? 'success' : 'error';
                 } else {
                     if (!$hrDb) { throw new RuntimeException('HR connection unavailable. No account changes made.'); }
@@ -590,7 +597,9 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
         </div>
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
-    <?php ops_flash($message, $messageType); ?>
+    <?php if (($action ?? '') === 'test_hr_access' && $message): ?>
+        <section class="ops-alert" role="status"><strong>HR access check.</strong> <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></section>
+    <?php else: ops_flash($message, $messageType); endif; ?>
     <a class="settings-back" href="<?= BASE_URL ?>/settings.php"><i data-lucide="arrow-left"></i>All settings</a>
 
     <div class="settings-layout">
