@@ -7,6 +7,21 @@ use RuntimeException;
 /** Owner-directed planned duty, not a fabricated employee login or acceptance. */
 final class FrontDeskRoster
 {
+    /** Permanent job responsibility; begins at the next not-yet-started opening. */
+    public static function approvePermanent(PDO $db,int $owner,$now=null): int {
+        $at=Support::timestamp($now);
+        $hours=OrdersSlaPolicy::approved()['hours'];
+        $day=$at->setTime(0,0);
+        for($i=0;$i<8;$i++,$day=$day->modify('+1 day')) {
+            $window=$hours[$day->format('N')]??null;
+            if(!$window)continue;
+            $opening=Support::timestamp($day->format('Y-m-d').' '.$window[0].':00');
+            if($opening<=$at)continue;
+            return self::approve($db,(int)(V2Store::policy($db)['front_desk_employee_id']??0),$owner,
+                $day->format('Y-m-d'),'9999-12-31','Permanent Front Desk job responsibility; coverage and approved absence remain explicit exceptions',$at);
+        }
+        throw new RuntimeException('No next scheduled opening found');
+    }
     public static function enabled(PDO $db): bool {
         $r=V2Store::one($db,"SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='epi_v2_front_roster_enabled'");
         return $r && $r['setting_value']==='1';

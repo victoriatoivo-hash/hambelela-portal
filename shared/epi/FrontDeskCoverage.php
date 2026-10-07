@@ -25,6 +25,9 @@ final class FrontDeskCoverage
         $plan=V2Store::one($this->db,'SELECT * FROM epi_v2_front_plans WHERE work_date=? AND primary_employee_id=?',[$day,$primary]);
         $q=$this->db->query("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key='marketing_sales' ORDER BY e.full_name");
         $candidates=$q->fetchAll(PDO::FETCH_ASSOC); $q->closeCursor();
+        $candidates=array_values(array_filter($candidates,function(array $candidate)use($time):bool{
+            return HrAbsenceEvidence::inspect($this->db,$this->hr,(int)$candidate['id'],$time->format('Y-m-d H:i:s'))['state']==='no_approved_absence';
+        }));
         $absence=HrAbsenceEvidence::inspect($this->db,$this->hr,$primary,$time->format('Y-m-d H:i:s'));
         $weekday=(int)$time->format('N')<=5;
         $prompt=$weekday && $actor===$primary && !$plan && $time->format('H:i')>='11:00' && $time->format('H:i')<'17:00';
@@ -34,7 +37,9 @@ final class FrontDeskCoverage
         elseif ($plan && $plan['state']==='active' && $time->format('Y-m-d H:i:s') >= $plan['planned_end']) $alert='Coverage end reached. Confirm the return handover; responsibility has not automatically reverted.';
         elseif ($plan && in_array($plan['state'],['requested','declined','accepted'],true) && $time->format('Y-m-d H:i:s') >= $plan['planned_start']) $alert='Planned coverage has not started. Confirm the actual handover.';
         elseif ($plan && $plan['state']==='exception') $alert='Front Desk exception recorded; owner attention required.';
+        $outgoing=$plan && $plan['state']==='active'?(int)$plan['coverage_employee_id']:$primary;
         return ['enabled'=>true,'actor'=>$actor,'primary'=>$primary,'role'=>$person['role_key'],'plan'=>$plan,
+            'handover'=>FrontHandoverChecklist::read($this->db,$outgoing,$time),
             'candidates'=>$candidates,'prompt'=>$prompt,'alert'=>$alert,'hr_state'=>$absence['state'],
             'hr_reason'=>$absence['reason'],'duty'=>(new OwnershipPeriodEngine($this->db))->dutyAt('front_desk',$time)];
     }
@@ -48,6 +53,13 @@ final class FrontDeskCoverage
         V2Store::transaction($this->db,function()use($actor,$action,$input,$time,$at,$day,$primary,$person){
             V2Store::lock($this->db,'front-plan|'.$day);
             $plan=V2Store::one($this->db,'SELECT * FROM epi_v2_front_plans WHERE work_date=? AND primary_employee_id=? FOR UPDATE',[$day,$primary]);
+            $handoverNotes=FrontHandoverChecklist::notes($this->db,$day);
+            if($action==='plan' && isset($input['handover_notes']))$handoverNotes=FrontHandoverChecklist::validateNotes($input['handover_notes']);
+            $handover=null;
+            if(in_array($action,['accept','start','resume','absence_cover'],true)) {
+                $outgoing=$action==='resume'?(int)($plan['coverage_employee_id']??0):$primary;
+                $handover=FrontHandoverChecklist::confirm($this->db,$outgoing,$input,$time);
+            }
             if (in_array($action,['plan','no_lunch','exception','absence_cover'],true)) {
                 if ($plan && !in_array($plan['state'],['requested','declined','no_lunch','exception','accepted'],true)) throw new RuntimeException('Active or completed coverage cannot be replaced.');
                 if ($plan && $action==='absence_cover') throw new RuntimeException('A daily plan already exists; owner review is required.');
@@ -76,6 +88,7 @@ final class FrontDeskCoverage
                         if (!preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/',$start) || !preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/',$end)) throw new RuntimeException('Choose valid lunch times.');
                         $from=$day.' '.$start.':00';$to=$day.' '.$end.':00';
                         if ($from<$at || $start<'08:00' || $end>'17:00' || $to<=$from) throw new RuntimeException('Choose a future lunch interval within working hours.');
+                        $this->available($cover,$from);
                     }
                     if($plan) $this->db->prepare("UPDATE epi_v2_front_plans SET coverage_employee_id=?,planned_start=?,planned_end=?,state='requested',reason=?,accepted_at=NULL WHERE id=?")->execute([$cover,$from,$to,$reason,$plan['id']]);
                     else $this->db->prepare('INSERT INTO epi_v2_front_plans(work_date,primary_employee_id,coverage_employee_id,planned_start,planned_end,state,reason,accepted_at,actual_start) VALUES(?,?,?,?,?,?,?,?,?)')->execute([$day,$primary,$cover,$from,$to,$absenceCover?'active':'requested',$absenceCover?'HR approved absence':$reason,$absenceCover?$at:null,$absenceCover?$at:null]);
@@ -111,6 +124,8 @@ final class FrontDeskCoverage
                 } else throw new RuntimeException('Unknown action.');
             }
             $after=V2Store::one($this->db,'SELECT * FROM epi_v2_front_plans WHERE work_date=? AND primary_employee_id=?',[$day,$primary]);
+            $after['handover_notes']=$handoverNotes;
+            if($handover!==null)$after['reviewed_work']=$handover;
             V2Store::audit($this->db,'front-plan|'.$day,$actor,$action,$plan,$after);
         });
     }
@@ -178,12 +193,12 @@ final class FrontDeskCoverage
             $outgoing[(int)$row['employee_id']]=true;
         }
         (new OwnershipPeriodEngine($this->db))->assignDuty(['duty_key'=>'front_desk','employee_id'=>$employee,'assigned_by'=>$actor,'accepted_by'=>$employee,'accepted_at'=>$at,'effective_from'=>$at,'effective_to'=>$to,'responsibility_level'=>'primary','source'=>'front_coverage_workflow','reason'=>$reason]);
-        // Transfer only explicit Front Desk ownership, never Packing module ownership.
+        // Transfer explicit Front Desk role ownership across its supported modules, never Packing.
         foreach(array_keys($outgoing) as $oldEmployee) {
-            $q=$this->db->prepare("SELECT module,object_reference FROM epi_v2_ownership_periods WHERE module='Orders' AND employee_id=? AND role_key IN ('front_desk_admin','marketing_sales') AND effective_from<? AND (effective_to IS NULL OR effective_to>?)");
+            $q=$this->db->prepare("SELECT module,object_reference FROM epi_v2_ownership_periods WHERE module IN('Orders','Courier','Bookkeeping','Inventory') AND employee_id=? AND role_key IN ('front_desk_admin','marketing_sales') AND effective_from<? AND (effective_to IS NULL OR effective_to>?)");
             $q->execute([$oldEmployee,$at,$at]);$objects=$q->fetchAll(PDO::FETCH_ASSOC);$q->closeCursor();
             foreach($objects as $object) (new OwnershipPeriodEngine($this->db))->assign([
-                'module'=>'Orders','object_reference'=>$object['object_reference'],'employee_id'=>$employee,
+                'module'=>$object['module'],'object_reference'=>$object['object_reference'],'employee_id'=>$employee,
                 'role_key'=>$this->person($employee)['role_key'],'assigned_by'=>$actor,'accepted_by'=>$employee,
                 'accepted_at'=>$at,'effective_from'=>$at,'source'=>'front_coverage_workflow','transfer_reason'=>$reason]);
         }

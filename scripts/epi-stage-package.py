@@ -6,12 +6,14 @@ import subprocess
 import zipfile
 
 ROOT = Path(__file__).resolve().parents[1]
-BASELINE = '4d0b903d56423172236b3b881bf8358e2b4d50dc'
+BASELINE = '06fbe696f699fd2a8b505d5c2fba3a868527d8eb'
 NEW = [
     'shared/epi/HrAbsenceEvidence.php', 'shared/epi/HrConnection.php',
     'shared/epi/OrdersSlaPolicy.php', 'shared/epi/OrdersStageBridge.php',
     'shared/epi/FrontDeskCoverage.php', 'shared/epi/FrontDeskRoster.php',
     'shared/epi/FrontCoverageNotifications.php', 'shared/front-coverage-prompt.php',
+    'shared/epi/FrontHandoverChecklist.php',
+    'shared/epi/StageReadiness.php', 'scripts/epi-stage-readiness.php',
     'assets/css/front-coverage.css', 'assets/js/front-coverage.js',
 ]
 RUNTIME = NEW + [
@@ -20,6 +22,7 @@ RUNTIME = NEW + [
     'shared/epi/V2Watchdog.php', 'apps/operations/front-coverage.php',
     'apps/operations/front-roster.php', 'apps/operations/epi-orders-deadlines.php',
     'apps/operations/epi-v2-shadow.php', 'apps/operations/orders-board-action.php',
+    'apps/operations/sync-orders.php',
     'shared/footer.php', 'scripts/epi-front-coverage-reminders.php',
 ]
 MIGRATIONS = [

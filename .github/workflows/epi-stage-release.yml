@@ -45,6 +45,7 @@ jobs:
           php tests/epi-v2-p0-forensic-db.php > epi-stage-tests.json
           php tests/epi-hr-absence-evidence.php
           node tests/epi-v2-p0-static.mjs
+          node tests/epi-orders-event-paths-static.mjs
           node --check assets/js/front-coverage.js
           python3 -m py_compile scripts/epi-stage-release.py scripts/epi-shadow-release.py scripts/epi-stage-package.py
           python3 -c "import importlib.util,subprocess; s=importlib.util.spec_from_file_location('p','scripts/epi-stage-package.py'); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); [subprocess.run(['php','-l',p],check=True) for p in m.RUNTIME if p.endswith('.php')]"

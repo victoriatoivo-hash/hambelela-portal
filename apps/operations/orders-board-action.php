@@ -777,6 +777,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                 ops_activity_log('order_created', 'order', $orderId, [
                     'source' => 'woocommerce_sync',
                     'order_number' => $orderNumber,
+                    'original_created_at' => $createdAt,
                     'new_value' => 'new_order',
                     'recording_mode' => 'automatic',
                 ]);
@@ -2209,6 +2210,8 @@ try {
         if ($action === 'bulk_duplicate') {
             $orders = ops_rows("SELECT * FROM ops_orders WHERE id IN ({$placeholders})", $ids);
             $created = 0;
+            db()->beginTransaction();
+            try {
             foreach ($orders as $order) {
                 $copyNumber = 'COPY-' . date('His') . '-' . (int) $order['id'];
                 $initialPackerId = ops_initial_order_packer_id(
@@ -2246,6 +2249,12 @@ try {
                     ops_current_employee_id(),
                 ]);
                 $newId = (int) db()->lastInsertId();
+                ops_activity_log('order_created', 'order', $newId, [
+                    'source' => 'orders_board_duplicate',
+                    'duplicated_from_order_id' => (int) $order['id'],
+                    'order_number' => $copyNumber,
+                    'new_value' => 'new_order',
+                ]);
                 ops_log_initial_order_assignment($newId, $initialPackerId, 'orders_board_duplicate');
                 $items = ops_rows('SELECT * FROM ops_order_items WHERE order_id = ?', [(int) $order['id']]);
                 foreach ($items as $item) {
@@ -2266,6 +2275,11 @@ try {
                     ]);
                 }
                 $created++;
+            }
+            db()->commit();
+            } catch (Throwable $duplicateError) {
+                if (db()->inTransaction()) db()->rollBack();
+                throw $duplicateError;
             }
             echo json_encode(['ok' => true, 'message' => 'Duplicated ' . $created . ' selected orders.']);
             exit;

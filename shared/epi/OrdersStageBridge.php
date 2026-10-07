@@ -31,8 +31,10 @@ final class OrdersStageBridge
             if(!$version)return;
             $original=(string)($meta['original_created_at']??$order['created_at']??$at);
             if($original<$version['effective_from'])return; // Historical imports require a separate prospective acceptance.
+            $created=Support::timestamp($original)->format('Y-m-d H:i:s');
+            if($created>$at)throw new RuntimeException('Order creation is after its capture time; review source timestamp');
             [$mode,$source]=OrdersSlaPolicy::classify($order);
-            $db->prepare('INSERT INTO epi_v2_orders_tracking(order_id,object_reference,classification,classification_source,policy_version,created_at,source_snapshot_json) VALUES(?,?,?,?,?,?,?)')->execute([$id,$ref,$mode,$source,$version['version'],$at,Support::json($order)]);
+            $db->prepare('INSERT INTO epi_v2_orders_tracking(order_id,object_reference,classification,classification_source,policy_version,created_at,source_snapshot_json) VALUES(?,?,?,?,?,?,?)')->execute([$id,$ref,$mode,$source,$version['version'],$created,Support::json($order)]);
             $db->prepare("INSERT IGNORE INTO epi_v2_object_duties VALUES('Orders',?,'front_desk')")->execute([$ref]);
             $state=V2Store::one($db,'SELECT * FROM epi_v2_orders_tracking WHERE order_id=?',[$id]);
         }

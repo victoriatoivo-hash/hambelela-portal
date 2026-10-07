@@ -80,3 +80,17 @@ check('O38 unpaid waiting explicitly excluded','excluded',$waiting['eligibility_
 $wait['order_type']='collection';$wait['id']=208;$capture('order_created',$wait,'2026-10-08 08:00:00');
 $wait['status']='completed';$capture('order_completed',$wait,'2026-10-08 10:00:00');
 check('O39 unpaid collection completion does not erase customer expiry','open',$get(208,'collection_expiry')['state']);
+$import=array_replace($delivery,['id'=>209,'status'=>'new_order','created_at'=>'2026-10-08 08:00:00']);
+$capture('order_created',$import,'2026-10-08 10:00:00');
+check('O40 delayed import does not extend packing allowance','2026-10-08 11:00:00',$get(209,'pack_order')['due_at']);
+$capture('order_created',$import,'2026-10-08 10:30:00');
+check('O41 duplicate creation does not restart deadline','2026-10-08 11:00:00',$get(209,'pack_order')['due_at']);
+$import['id']=210;$import['created_at']='2026-10-08 12:00:00';
+check('O42 future source timestamp requires review',false,attempt(function()use($capture,$import){$capture('order_created',$import,'2026-10-08 10:00:00');}));
+check('O43 invalid source time leaves no partial tracking',null,\Hambelela\EPI\V2Store::one($shadow,'SELECT order_id FROM epi_v2_orders_tracking WHERE order_id=210'));
+$import['id']=211;$import['created_at']='2026-10-08 08:00:00';
+$capture('order_created',$import,'2026-10-08 12:00:00');
+$watch->processDue('2026-10-08 12:01:00');
+$lateImport=\Hambelela\EPI\V2Store::one($shadow,'SELECT * FROM epi_v2_performance_incidents WHERE deadline_uuid=?',[$get(211,'pack_order')['deadline_uuid']]);
+check('O44 assignment at import never backdates ownership',null,$lateImport['responsible_employee_at_breach']);
+check('O45 delayed import retains original missed deadline','2026-10-08 11:00:00',$lateImport['occurred_at']);

@@ -201,6 +201,8 @@ require __DIR__.'/epi-v2-shadow-activation.php';
 require __DIR__.'/epi-front-coverage-db.php';
 require __DIR__.'/epi-orders-stages-db.php';
 require __DIR__.'/epi-front-roster-db.php';
+require __DIR__.'/epi-handover-checklist-db.php';
+require __DIR__.'/epi-stage-readiness-db.php';
 $summary=['database'=>$database,'server'=>scalar('SELECT VERSION()'),'timezone'=>'Africa/Windhoek','production_changes'=>false,'pass'=>count(array_filter($results,fn($r)=>$r['status']==='PASS')),'fail'=>count(array_filter($results,fn($r)=>$r['status']==='FAIL')),'tests'=>$results];
 echo json_encode($summary,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL;
 exit($summary['fail']?1:0);

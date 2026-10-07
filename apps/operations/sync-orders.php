@@ -282,6 +282,13 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($affected === 1) {
+                ops_activity_log('order_created', 'order', $orderId, [
+                    'source' => 'woocommerce_sync',
+                    'order_number' => $orderNumber,
+                    'original_created_at' => $createdAt,
+                    'new_value' => 'new_order',
+                    'recording_mode' => 'automatic',
+                ]);
                 ops_log_order_stage_event($orderId, 'order_received', [
                     'source' => 'woocommerce_sync',
                     'woo_order_id' => $wooOrderId,

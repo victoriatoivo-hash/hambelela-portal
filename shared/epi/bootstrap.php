@@ -17,6 +17,7 @@ require_once __DIR__ . '/OrdersStageBridge.php';
 require_once __DIR__ . '/HrAbsenceEvidence.php';
 require_once __DIR__ . '/HrConnection.php';
 require_once __DIR__ . '/FrontDeskRoster.php';
+require_once __DIR__ . '/FrontHandoverChecklist.php';
 require_once __DIR__ . '/FrontDeskCoverage.php';
 require_once __DIR__ . '/FrontCoverageNotifications.php';
 require_once __DIR__ . '/OwnershipPeriodEngine.php';
