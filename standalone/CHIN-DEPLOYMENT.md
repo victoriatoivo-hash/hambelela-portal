@@ -26,8 +26,8 @@ and relevant main pushes. Manual runs can deploy only main. Portal deployment wo
 and credentials are not used.
 
 ## Failure handling
-TLS certificate validation is mandatory; there is no plain FTP fallback. If connection
-verification fails, confirm the FTP hostname with FastComet. Do not disable TLS checks.
+The owner authorized plain FTP temporarily on 7 October 2026 after the FTPS hostname mismatch. This exception expires automatically at 00:00 UTC on 8 October 2026 (02:00 Namibia); subsequent runs require verified FTPS. Confirm the provider certificate hostname before the next deployment. If connection
+verification fails, confirm the FTP hostname with FastComet. The temporary exception sends FTP credentials and files without encryption.
 A missing destination marker or a changed bootstrap stops the upload.
 All four existing files are read before uploading. Failed uploads attempt to restore every
 touched file and verify restoration; an incomplete rollback fails explicitly.
