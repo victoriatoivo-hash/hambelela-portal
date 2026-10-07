@@ -1,5 +1,6 @@
 """Guarded dormant runtime publication. No SQL migrations, activation or scoring."""
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,9 @@ spec.loader.exec_module(shadow)
 release = shadow.release
 FILES = shadow.FILES
 BASELINE = shadow.stage_package.BASELINE
+# Exact live snapshot from private run 37585525587, reviewed 2026-10-07.
+# Employee mobile navigation and profile menu preserved in the merged footer.
+REVIEWED_LIVE_HASHES = {'shared/footer.php': '8f4524ef4147917ac684e36828e9658b3834c2ce7ace82d9a13ee1a88cb308f1'}
 
 
 def preflight(ftp):
@@ -89,7 +93,8 @@ def main(mode, sha):
     try:
         before = {p: release.read(ftp, p) for p in FILES}
         conflicts = [p for p in FILES if not release.same(before[p], expected[p])
-                     and not release.same(before[p], release.blob(BASELINE, p))]
+                     and not release.same(before[p], release.blob(BASELINE, p))
+                     and not (before[p] is not None and hashlib.sha256(before[p]).hexdigest() == REVIEWED_LIVE_HASHES.get(p))]
         report['conflicts'] = conflicts
         if conflicts:
             # Read-only snapshot for a reviewed merge, never automatic overwrite.

@@ -7,5 +7,11 @@
 <script defer src="<?= BASE_URL ?>/assets/js/portal-responsive.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-responsive.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-responsive.js') : (string) time() ?>"></script>
 <?php require __DIR__.'/front-coverage-prompt.php'; ?>
 </div>
+<?php if (!empty($employeeSidebarUpgrade)): ?>
+<?php include __DIR__ . '/ess-mobile-navigation.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH . '/assets/js/ess-dashboard.js') ?>"></script>
+<?php endif; ?>
+<?php include __DIR__.'/profile-menu.php'; ?>
+<script defer src="<?=BASE_URL?>/assets/js/profile-menu.js?v=<?=filemtime(BASE_PATH.'/assets/js/profile-menu.js')?>"></script>
 </body>
 </html>

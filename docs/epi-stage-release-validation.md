@@ -2,6 +2,8 @@
 
 ## Current publication scope
 
+The first upload was stopped before application changes because the live footer contained independently published employee navigation and profile-menu additions. Read-only snapshot run `37585525587` retrieved it; the exact SHA-256 is pinned in the uploader and those additions are preserved in the merged footer. Other live versions still fail closed. No broad drift bypass was added.
+
 The user requested the next step and publication. The guarded stage release publishes runtime files only, with all three new feature flags absent/off. It does not apply migrations, activate Orders deadlines, approve a roster or change official scores. Live-only file mismatches stop the entire upload. Files are backed up, uploaded through temporary names, verified, and restored on failure unless a concurrent edit must be preserved. The existing watchdog accepts either complete baseline or complete new release during rollout, never a mixed dependency set.
 
 Five in-memory deployment tests cover read-only inspection, dormant publication, drift refusal, rollback, and concurrent-edit preservation. These are separate from the 243 database checks.
