@@ -633,12 +633,12 @@ function ops_board_sync_website_orders(?string $date = null): array
             $breakdownColumns = $hasReportBreakdown ? ', product_total, tax_total, shipping_total, shipping_tax_total, discount_total, refund_total' : '';
             $breakdownValues = $hasReportBreakdown ? ', ?, ?, ?, ?, ?, ?' : '';
             $breakdownUpdates = $hasReportBreakdown ? '
-                    product_total = VALUES(product_total),
-                    tax_total = VALUES(tax_total),
-                    shipping_total = VALUES(shipping_total),
-                    shipping_tax_total = VALUES(shipping_tax_total),
-                    discount_total = VALUES(discount_total),
-                    refund_total = VALUES(refund_total),' : '';
+                    product_total = CASE WHEN payment_source = \'delivery\' THEN product_total ELSE VALUES(product_total) END,
+                    tax_total = CASE WHEN payment_source = \'delivery\' THEN tax_total ELSE VALUES(tax_total) END,
+                    shipping_total = CASE WHEN payment_source = \'delivery\' THEN shipping_total ELSE VALUES(shipping_total) END,
+                    shipping_tax_total = CASE WHEN payment_source = \'delivery\' THEN shipping_tax_total ELSE VALUES(shipping_tax_total) END,
+                    discount_total = CASE WHEN payment_source = \'delivery\' THEN discount_total ELSE VALUES(discount_total) END,
+                    refund_total = CASE WHEN payment_source = \'delivery\' THEN refund_total ELSE VALUES(refund_total) END,' : '';
             $orderStmt = $pdo->prepare(
                 "INSERT INTO ops_orders (
                     woo_order_id, order_number, customer_name, customer_contact, payment_method, total_amount{$breakdownColumns}, payment_status,
@@ -647,8 +647,8 @@ function ops_board_sync_website_orders(?string $date = null): array
                  ON DUPLICATE KEY UPDATE
                     /* Existing operational customer corrections are authoritative.
                        Woo values are still used when an order is first imported. */
-                    payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END,
-                    total_amount = VALUES(total_amount),
+                    payment_method = CASE WHEN payment_source = 'delivery' THEN payment_method WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END,
+                    total_amount = CASE WHEN payment_source = 'delivery' THEN total_amount ELSE VALUES(total_amount) END,
                     {$breakdownUpdates}
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
@@ -664,7 +664,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                  ON DUPLICATE KEY UPDATE
                     /* Existing operational customer corrections are authoritative.
                        Woo values are still used when an order is first imported. */
-                    payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END,
+                    payment_method = CASE WHEN payment_source = 'delivery' THEN payment_method WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END,
                     order_type = VALUES(order_type),
                     notes = VALUES(notes),
                     workload_score = VALUES(workload_score),
@@ -748,6 +748,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                 $orderValues[] = $createdAt;
             }
 
+            \Hambelela\Delivery\OrderSyncReview::capture($pdo,$wooOrderId,(string)($order['total']??'0'),ops_wc_payment_allocations($order),ops_wc_payment_source($order));
             $orderStmt->execute($orderValues);
 
             $affected = $orderStmt->rowCount();
@@ -777,6 +778,7 @@ function ops_board_sync_website_orders(?string $date = null): array
                 ops_activity_log('order_created', 'order', $orderId, [
                     'source' => 'woocommerce_sync',
                     'order_number' => $orderNumber,
+                    'original_created_at' => $createdAt,
                     'new_value' => 'new_order',
                     'recording_mode' => 'automatic',
                 ]);
@@ -1779,11 +1781,12 @@ try {
             ops_ensure_kpi_activity_events();
             $db->beginTransaction();
             try {
-                $locked = $db->prepare('SELECT order_number,status,assigned_packer_id FROM ops_orders WHERE id=? FOR UPDATE');
+                $locked = $db->prepare('SELECT * FROM ops_orders WHERE id=? FOR UPDATE');
                 $locked->execute([$orderId]);
                 $lockedOrder = $locked->fetch(PDO::FETCH_ASSOC);
                 $locked->closeCursor();
                 if (!$lockedOrder) throw new RuntimeException('Order not found. Refresh and try again.');
+                \Hambelela\EPI\OrdersStageBridge::assertStatusAllowed($db,$lockedOrder,$value);
                 $oldKpiStatus = (string) ($lockedOrder['status'] ?? '');
                 $lockedPackerId = (int) ($lockedOrder['assigned_packer_id'] ?? 0);
                 if ($oldKpiStatus === $value) {
@@ -1880,8 +1883,17 @@ try {
             ]);
             ops_kpi_record_event('orders', 'order', $orderId, 'portal_paid_confirmation_updated', $oldPaid ? 'paid' : 'unpaid', $value, ops_current_employee_id() ?: null, ['related_reference' => $previousOrder['order_number'] ?? null]);
         } else {
-            $stmt = db()->prepare('UPDATE ops_orders SET ' . $allowed[$field] . ' = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
-            $stmt->execute([$value, $orderId]);
+            $writeField = static function () use ($allowed, $field, $value, $orderId): int {
+                $stmt = db()->prepare('UPDATE ops_orders SET ' . $allowed[$field] . ' = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?');
+                $stmt->execute([$value, $orderId]);
+                return $stmt->rowCount();
+            };
+            if ($field === 'total_amount') {
+                require_once BASE_PATH . '/shared/delivery/OrderTotalGuard.php';
+                \Hambelela\Delivery\OrderTotalGuard::update(db(), [$orderId], $writeField);
+            } else {
+                $writeField();
+            }
             $activityActions = [
                 'customer_name' => 'customer_updated',
                 'customer_contact' => 'mobile_changed',
@@ -2013,7 +2025,8 @@ try {
         if ($field === 'status' && in_array($value, ['in_progress','completed'], true)) {
             $db = db();$autoAssignments=[];$currentPackingEmployeeCandidate=ops_board_current_packing_employee();ops_ensure_kpi_activity_events();$db->beginTransaction();
             try {
-                $lockedStmt=$db->prepare("SELECT id,order_number,status,assigned_packer_id FROM ops_orders WHERE id IN ({$placeholders}) FOR UPDATE");$lockedStmt->execute($ids);$lockedRows=$lockedStmt->fetchAll(PDO::FETCH_ASSOC);$lockedStmt->closeCursor();
+                $lockedStmt=$db->prepare("SELECT * FROM ops_orders WHERE id IN ({$placeholders}) FOR UPDATE");$lockedStmt->execute($ids);$lockedRows=$lockedStmt->fetchAll(PDO::FETCH_ASSOC);$lockedStmt->closeCursor();
+                foreach($lockedRows as $lockedRow) \Hambelela\EPI\OrdersStageBridge::assertStatusAllowed($db,$lockedRow,$value);
                 if(count($lockedRows)!==count(array_unique($ids)))throw new RuntimeException('One or more selected orders could not be found. Refresh and try again.');
                 $currentPackingEmployee=$currentPackingEmployeeCandidate;$missing=[];
                 foreach($lockedRows as$lockedRow)if(!(int)($lockedRow['assigned_packer_id']??0))$missing[]=(int)$lockedRow['id'];
@@ -2098,9 +2111,17 @@ try {
         } else {
             array_unshift($params, $value);
             $params = array_merge($params, $ids);
-            $stmt = db()->prepare("UPDATE ops_orders SET {$set}, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
-            $stmt->execute($params);
-            $changed = $stmt->rowCount();
+            $writeBulk = static function () use ($set, $placeholders, $params): int {
+                $stmt = db()->prepare("UPDATE ops_orders SET {$set}, updated_at = CURRENT_TIMESTAMP WHERE id IN ({$placeholders})");
+                $stmt->execute($params);
+                return $stmt->rowCount();
+            };
+            if ($field === 'total_amount') {
+                require_once BASE_PATH . '/shared/delivery/OrderTotalGuard.php';
+                $changed = \Hambelela\Delivery\OrderTotalGuard::update(db(), $ids, $writeBulk);
+            } else {
+                $changed = $writeBulk();
+            }
         }
 
         foreach ($ids as $id) {
@@ -2207,6 +2228,8 @@ try {
         if ($action === 'bulk_duplicate') {
             $orders = ops_rows("SELECT * FROM ops_orders WHERE id IN ({$placeholders})", $ids);
             $created = 0;
+            db()->beginTransaction();
+            try {
             foreach ($orders as $order) {
                 $copyNumber = 'COPY-' . date('His') . '-' . (int) $order['id'];
                 $initialPackerId = ops_initial_order_packer_id(
@@ -2244,6 +2267,12 @@ try {
                     ops_current_employee_id(),
                 ]);
                 $newId = (int) db()->lastInsertId();
+                ops_activity_log('order_created', 'order', $newId, [
+                    'source' => 'orders_board_duplicate',
+                    'duplicated_from_order_id' => (int) $order['id'],
+                    'order_number' => $copyNumber,
+                    'new_value' => 'new_order',
+                ]);
                 ops_log_initial_order_assignment($newId, $initialPackerId, 'orders_board_duplicate');
                 $items = ops_rows('SELECT * FROM ops_order_items WHERE order_id = ?', [(int) $order['id']]);
                 foreach ($items as $item) {
@@ -2264,6 +2293,11 @@ try {
                     ]);
                 }
                 $created++;
+            }
+            db()->commit();
+            } catch (Throwable $duplicateError) {
+                if (db()->inTransaction()) db()->rollBack();
+                throw $duplicateError;
             }
             echo json_encode(['ok' => true, 'message' => 'Duplicated ' . $created . ' selected orders.']);
             exit;

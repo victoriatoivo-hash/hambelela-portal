@@ -160,16 +160,16 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $amountColumns = $hasTotalAmount ? ', total_amount' : '';
         $amountValues = $hasTotalAmount ? ', ?' : '';
-        $amountUpdates = $hasTotalAmount ? ', total_amount = VALUES(total_amount)' : '';
+        $amountUpdates = $hasTotalAmount ? ', total_amount = CASE WHEN payment_source = \'delivery\' THEN total_amount ELSE VALUES(total_amount) END' : '';
         $breakdownColumns = $hasReportBreakdown ? ', product_total, tax_total, shipping_total, shipping_tax_total, discount_total, refund_total' : '';
         $breakdownValues = $hasReportBreakdown ? ', ?, ?, ?, ?, ?, ?' : '';
         $breakdownUpdates = $hasReportBreakdown ? ',
-                product_total = VALUES(product_total),
-                tax_total = VALUES(tax_total),
-                shipping_total = VALUES(shipping_total),
-                shipping_tax_total = VALUES(shipping_tax_total),
-                discount_total = VALUES(discount_total),
-                refund_total = VALUES(refund_total)' : '';
+                product_total = CASE WHEN payment_source = \'delivery\' THEN product_total ELSE VALUES(product_total) END,
+                tax_total = CASE WHEN payment_source = \'delivery\' THEN tax_total ELSE VALUES(tax_total) END,
+                shipping_total = CASE WHEN payment_source = \'delivery\' THEN shipping_total ELSE VALUES(shipping_total) END,
+                shipping_tax_total = CASE WHEN payment_source = \'delivery\' THEN shipping_tax_total ELSE VALUES(shipping_tax_total) END,
+                discount_total = CASE WHEN payment_source = \'delivery\' THEN discount_total ELSE VALUES(discount_total) END,
+                refund_total = CASE WHEN payment_source = \'delivery\' THEN refund_total ELSE VALUES(refund_total) END' : '';
 
         $orderStmt = $pdo->prepare(
             "INSERT INTO ops_orders (
@@ -179,7 +179,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
              ON DUPLICATE KEY UPDATE
                 customer_name = VALUES(customer_name),
                 customer_contact = VALUES(customer_contact),
-                payment_method = CASE WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END{$amountUpdates}{$breakdownUpdates},
+                payment_method = CASE WHEN payment_source = 'delivery' THEN payment_method WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END{$amountUpdates}{$breakdownUpdates},
                 order_type = VALUES(order_type),
                 notes = VALUES(notes),
                 workload_score = VALUES(workload_score),
@@ -259,6 +259,7 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $orderValues[] = $createdAt;
             }
 
+            \Hambelela\Delivery\OrderSyncReview::capture($pdo,$wooOrderId,(string)($order['total']??'0'),ops_wc_payment_allocations($order),ops_wc_payment_source($order));
             $orderStmt->execute($orderValues);
 
             $affected = $orderStmt->rowCount();
@@ -282,6 +283,13 @@ if ($ready && $hasWooColumns && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
 
             if ($affected === 1) {
+                ops_activity_log('order_created', 'order', $orderId, [
+                    'source' => 'woocommerce_sync',
+                    'order_number' => $orderNumber,
+                    'original_created_at' => $createdAt,
+                    'new_value' => 'new_order',
+                    'recording_mode' => 'automatic',
+                ]);
                 ops_log_order_stage_event($orderId, 'order_received', [
                     'source' => 'woocommerce_sync',
                     'woo_order_id' => $wooOrderId,

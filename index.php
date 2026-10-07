@@ -110,6 +110,10 @@ if ($roleKey !== 'owner_admin') {
     $apps = array_values(array_filter($apps, static fn(array $app): bool => !isset($dashboardFeatures[$app['name']]) || portal_user_can_access_feature($dashboardFeatures[$app['name']])));
 }
 
+require_once __DIR__.'/shared/delivery/Navigation.php';
+$deliveryNavigationEntry=\Hambelela\Delivery\Navigation::entry();
+if($deliveryNavigationEntry!==null)$apps[]=$deliveryNavigationEntry;
+
 $isEssDashboard = true;
 if ($isEssDashboard) {
     $extraStylesheets[] = ['path' => 'assets/css/ess-dashboard.css', 'version' => (string) filemtime(__DIR__ . '/assets/css/ess-dashboard.css')];

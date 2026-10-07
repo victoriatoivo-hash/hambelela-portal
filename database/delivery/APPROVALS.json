@@ -1,0 +1,15 @@
+{
+  "scope": "Additive Delivery schema only; not application activation or changes to existing Orders tables",
+  "additional_tables_approved_on": "2026-10-07",
+  "additional_tables": [
+    "delivery_driver_credentials",
+    "delivery_login_limits",
+    "delivery_order_sync_reviews"
+  ],
+  "migrations": {
+    "001-delivery-proposed.sql": "7e0372410e010f7c1404c0b4286ed137572cbe565398275613d5a679fe9f269e",
+    "002-driver-auth-proposed.sql": "0397d0cc85601d9c36d2d43b3ea330ed492bdcd89ac2d8b9d97155fd953efd95",
+    "003-sync-review-proposed.sql": "9f17231b9bd72064fce3358dbd585841d59938a09ecca40225808cc42fa984ef"
+  },
+  "notes": "Original 12 tables were approved earlier. This explicit approval covers the three additional tables. SQL comments still say proposed to preserve the reviewed file bytes. No live migration has been performed."
+}

@@ -17,6 +17,8 @@ function portal_feature_permissions(): array
     ];
 
     return [
+        // Driver uses a dedicated mobile session, never the broad employee fallback.
+        'delivery_driver' => [],
         'owner_admin' => [
             'dashboard', 'orders', 'bookkeeping', 'cash_tools', 'packing_list',
             'inventory', 'pos_reports', 'kpi_dashboard', 'task_management',
@@ -98,6 +100,7 @@ function portal_user_can_access_feature(string $featureKey, ?array $user = null)
 {
     $user = $user ?? (function_exists('current_user') ? current_user() : []);
     $roleKey = (string) ($user['role_key'] ?? 'guest');
+    if (normalise_portal_role($roleKey) === 'delivery_driver') return false;
 
     return portal_role_can_access_feature($roleKey, $featureKey)
         || portal_user_has_feature_override($featureKey, $user);
@@ -171,6 +174,10 @@ function render_employee_coming_soon_page(string $moduleName): void
 
 function enforce_employee_feature_for_current_request(): void
 {
+    if (normalise_portal_role(current_role_key()) === 'delivery_driver') {
+        http_response_code(403);
+        exit('This account must use the Delivery Driver sign-in.');
+    }
     if (!is_employee_session()) {
         return;
     }

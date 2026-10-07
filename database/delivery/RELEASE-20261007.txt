@@ -1,0 +1,39 @@
+DELIVERY RELEASE — 7 OCTOBER 2026
+
+Operational Delivery is published and enabled. The earlier disabled status in
+planning documents is historical, not the current live release state.
+
+Installed: 63 initial runtime files, followed by 12 verified correction files.
+The correction installer preserved the existing live dashboard/navigation and
+added only the permission-checked Delivery entry. No broad repository overwrite.
+Backups and before/after manifests are retained privately on the live server.
+No table recreation, rate seeding, customer payment or order changes were made
+during deployment verification. The notification worker is scheduled each minute.
+
+Corrections: five scoped board totals, separate urgent queue, oldest-created-first
+queue order, desktop table/mobile cards, details drawer, Driver navigation/profile,
+read-only pre-arrangement amount review, collection-handover breakdown, server-side
+history search/paging, accounting collection/fee status and date presets, and
+versioned assets. Existing assignment, collection, reconciliation, pricing,
+expense, partner settlement, payment-sync protection and access controls retained.
+
+Verification: all 20 PHP regression suites passed locally; JavaScript syntax,
+PWA isolation, mobile layouts and synthetic end-to-end handover passed. Corrected
+PHP files passed server PHP 7.4 lint. Live board totals, accounting results and
+portal Delivery entry verified. No console errors observed on the live board.
+
+CONFIGURATION / ACCEPTANCE NOT CLAIMED COMPLETE
+- Owner enters real area rates in Accounting / pricing as requested; rates were
+  intentionally left empty. No guessed rate, including Elisenheim, was inserted.
+- Isarael's real restricted account and Tedlaser account/routing need verified
+  identities and privately entered secrets. Existing Victoria demo is not those
+  accounts. Secrets must never be generated or submitted by an agent.
+- Real-device installation and an actual live collection/reconciliation were not
+  performed. Synthetic tests are not represented as real financial acceptance.
+- Orders lacking authoritative shipping data fail closed for review. The module
+  does not guess a product/delivery split or provide an external refund workflow.
+  An external refund workflow is not an added completion requirement of this brief.
+
+This file records verified delivery software/release work separately from private
+account setup and actual-business rollout. It does not claim every full-brief
+acceptance condition has been completed.

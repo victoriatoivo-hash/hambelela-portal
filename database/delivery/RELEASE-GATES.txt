@@ -1,0 +1,175 @@
+CURRENT REVIEW — 7 OCTOBER 2026, REMAINING BRIEF IMPLEMENTATION
+This section supersedes the historical progress notes below.
+
+PUBLIC STATE: Owner/Driver sign-in test only. delivery_enabled=false.
+No live orders, collections, settlements or customer records changed during this review.
+No commits or force pushes performed. Never replay the existing 15-table installer.
+
+IMPLEMENTED LOCALLY:
+- Front order search/assignment; urgency, notes, failure, reschedule and cancellation.
+- Explicit additional-trip reason and duplicate protection after a completed delivery.
+- Restricted Driver mobile login, assigned jobs, collection, completion, profile and notices.
+- Owner expense corrections/reversals, fund reports, pricing/history and CSV export.
+- Partner login, own-user/company privacy, request/COD, explicit Driver routing,
+  separate fee receipt and COD remittance accounting; no netting with product money.
+- Partner Active/Completed/History views and automatic non-Order reference numbering.
+- Owner Driver administration and separately audited Delivery staff permission grants.
+- Transactional notification outbox, Driver unread/acknowledge UI, CLI retry worker.
+- Collection shortfall/issue hold and verified resolution; separate handover still required.
+- Orders financial preservation across importer/manual writers and payment review.
+- Driver-only PWA offline fallback; no cached customer/API/payment data or queued writes.
+
+EVIDENCE:
+- 20 PHP regression suites pass, including two-process assignment and reconciliation.
+- PWA cache isolation and setup secret visibility JavaScript suites pass.
+- Synthetic Partner request -> Driver start/collect/complete -> Front handover passes.
+- Driver 390/430/768px, accounting/expense/pricing 390px and Partner 390px checked.
+- Private server review delivery-full-review-20261007-170403/source: patched manifest
+  verified and 58 PHP files linted on PHP 7.4.33. Pure runtime checks passed earlier.
+  Final UI-only refinements are validated with Node syntax and a refreshed manifest.
+- Local screenshot set covers board, arrangement, urgency, Driver cards/collection/
+  completion, Front handover, accounting, expenses, pricing and Partner desktop/mobile.
+- Read-only live shared baseline matches origin/main 1472b927f798221b112098729fe27257813fd7ec.
+  Current remote Orders enhancements are preserved in local integration files.
+- Live database NOW() and UTC_TIMESTAMP() agree; no global timezone/PHP changes.
+
+NOT COMPLETE / MUST NOT REPRESENT AS LIVE:
+- The real Isarael account still needs Owner-entered private secret and verification.
+  Victoria employee 16 is a verified test Driver, not a substitute identity for Isarael.
+- Tedlaser requires verified company/contact email, private credential and explicit routing.
+  Do not seed a guessed person, email, secret or staff mapping.
+- Live area/rate configuration needs actual business-approved values. Elisenheim N$60
+  in the brief is conditional, not authority to invent all other rates.
+- Manual/unlinked Orders remain blocked when authoritative shipping is unavailable.
+  Ambiguous part-paid shipping and changed balances fail closed rather than being guessed.
+- Payment review retains a verified portal payment; it is not an external refund/payment
+  correction tool. A complete accounting correction process is not yet acceptance-tested.
+- Complete production-authenticated end-to-end verification and actual mobile PWA install
+  remain outstanding; local browser accounts are synthetic, not proof of live activation.
+- The new CLI notification retry worker is not scheduled live. After approved activation,
+  use a one-minute cron for scripts/delivery-notification-worker.php; preserve existing cron.
+- Read-only live setup audit: Isarael account absent, zero active partners, zero active rates.
+- Full exact-file deployment and production/mobile acceptance remain release gates.
+  Do not call the entire 170-section brief complete on unit tests alone.
+
+DELIVERY OWNER SETUP INSTALLED — OPERATIONAL ACTIVATION STILL DISABLED
+7 October 2026 update (supersedes older staging-only statements below):
+- Private package: delivery-staging-20261007-140645.zip
+  SHA256 a36838d93ebc6033706513ac7667cb44b209532bb51c9e2c8ed94aca63ed149b
+- Preserved new upstream OrdersStageBridge changes from remote 06fbe696 locally.
+  Live orders-board-action.php baseline now b041afa0a65cfc8228810688a1f548dcc62bbbca3d5cf53165e15f1fdda9b5ef.
+- Updated package passed server PHP 7.4 lint, six runtime checks and no-write installer check.
+- All 15 approved additive tables created, each verified empty immediately after creation.
+- 37 new Delivery files installed. Existing portal/shared integration files NOT overwritten.
+- Private backup/journal: /home/hambele1/delivery-backup-20261007-125014-4ee6b1
+  Includes before-schema definitions and exact existing shared-file backups.
+- Flags in storage/delivery-release-flags.json: setup_enabled=true, delivery_enabled=false.
+- Real HTTPS Owner login verified by opening /apps/delivery/driver-setup.php successfully.
+  Isarael name and confirmed mobile prefilled. Secret, verification checkbox and submission
+  handed to Owner; no employee or credential created by agent. Never request secret in chat.
+- Owner setup is live, NOT the operational Front/Driver release. No customer/payment changes.
+- Driver PWA files included, but mobile/offline browser regression remains pending.
+- Local manual-total guard added/tested; blocks reconciled Driver totals and preserves ordinary
+  updates. Not installed in the live Orders action until the full integration release.
+- Fresh Woo shipping check added to start/collect/complete/reconcile; synthetic integrated test
+  confirms changed shipping blocks writes and N$510 including N$60 shipping credits only once.
+- Remaining activation gates below still apply: full importer/concurrency checks, payment
+  correction workflow, production Front/Driver checks and actual account setup. Do not claim
+  the secret submission alone completes deployment. Do not replay the CREATE TABLE installer.
+
+Historical preflight notes:
+Baseline: 4d0b903d56423172236b3b881bf8358e2b4d50dc (remote main, 6 October 2026).
+No public-site/database writes, commits, pushes or workflow dispatch performed.
+Private server staging only: /home/hambele1/delivery-stage-20261007-091312
+Archive SHA256: d61da64e3ddd1d2164f0673cac10361f3dfec3b104c2fade86382886b67f9d46
+This private archive predates the latest local missing-shipping safeguard/query fix.
+
+7 October 2026 live preflight:
+- Existing shared-file hashes match baseline for operations.php, orders-board-action.php,
+  sync-orders.php and employee-features.php. No prior Delivery tables exist live.
+- Server uses PHP 7.4.33; global PHP setting covers 18 domains and was NOT changed.
+- Removed PHP 8-only constructors/match/callback syntax from isolated Delivery source.
+- Private staged PHP files passed server PHP 7.4 syntax checks (exit 0); six pure
+  runtime checks passed without accessing the database. Local regression suites pass.
+- Live MariaDB 11.4.13. Required employee/role/permission/payment/audit columns and
+  InnoDB engines verified. Orders contract FAIL: shipping_total and shipping_tax_total
+  do not exist. Do not assume missing shipping means zero; could double-charge fees.
+- Local search no longer selects unused missing column; arrangement now fails closed
+  on missing shipping breakdown. Added shipping-contract regression (all 8 suites pass).
+- Additional 3-table approval explicitly received on 7 October 2026 (credentials,
+  login limits, sync reviews). Exact approved SQL checksums recorded in APPROVALS.json.
+  No live migrations or Isarael account creation performed.
+
+Prepared:
+- Server-side WooCommerce shipping verifier now connected to Front assignment locally.
+  Fetches an exact linked Order before DB locks; checks NAD, ID, total, status, refunds,
+  shipping lines and tax. Missing/contradictory data blocks creation. Existing Orders
+  table is not altered. Manual/unlinked Orders remain blocked pending verified handling.
+- Shipping evidence is recorded in the approved delivery_events metadata. Changed portal
+  row or expired evidence is rejected. Completed request retries avoid a fresh Woo call.
+- Synthetic integration verifies N$510 including N$60 shipping is credited once and only
+  N$60 enters the delivery fund. One live linked Order GET now verified: ID matched,
+  NAD, total matched portal, shipping_total/shipping_tax/shipping_lines/refunds present.
+  No customer data printed or Orders changed; existing Woo request logging may append
+  its normal diagnostic entry. This is a source-contract check, not live workflow proof.
+- Owner-only mobile Driver setup/reset page and transactional provisioning added locally.
+  Requires explicit identity confirmation and Owner-entered secret over HTTPS. No fake
+  email or generic staff password; duplicate identities and broader role grants rejected.
+  Secret reset increments session version. Existing security-event table records actor
+  and target without secrets. Live role/role-permission/audit column names verified,
+  including ops_security_events.metadata_json. Name/mobile lookup found zero existing
+  candidates for Isarael Maluena / confirmed mobile. No live employee was created.
+- Owner approved first release scope: Front search/assignment, mobile Driver login,
+  collection and reconciliation. Partner settlement and expense tools deferred.
+- Front/Driver pages, APIs and shared view/script created; disabled by default.
+- Production CoreApi synthetic end-to-end test passes with actual adapter classes.
+- Saved Order shipping address/mobile reused; manual area fee requires recorded reason.
+- Full shipping already paid supported; ambiguous part-paid shipping requires review.
+- Reviewed domain/transaction/payment/auth classes, without preview credentials/endpoints.
+- Dedicated secure Driver session with active employee + delivery_driver role resolver.
+- Legacy staff feature access denied for Driver, including employee overrides.
+- Shared payment writers lock the Order; protect delivery-sourced allocations.
+- Both importer upsert variants preserve Delivery financial fields; exact SQL variants tested.
+- Conflicting external snapshots captured/deduplicated in proposed sync-review table.
+- Production Front read adapter created, disabled by default, with fresh active-role resolution.
+- Regression tests pass on isolated local fixtures; ordinary POS payment update preserved.
+- Release-page browser run passed: search/assign, mobile sign-in, start, collect,
+  complete, Front handover and refresh persistence. Synthetic order/account only.
+- Database confirms N$450 product allocation + N$60 fee ledger, packing flag unchanged.
+- Driver HTTP checks pass: anonymous denial, cookie rotation/flags, assigned-only data,
+  no Front actions, CSRF rejection and logout denial. Loopback harness simulates TLS;
+  this is not live HTTPS or real portal Front-login evidence.
+- Front and Driver checked at 390px with no horizontal overflow; mobile controls aligned.
+- Completed-order accidental rebooking blocked; original retry remains idempotent.
+  Additional deliveries remain unavailable until explicit authorized-reason workflow exists.
+- Payment review page/API compares protected allocations with incoming snapshots.
+  Front can view; Owner accounting permission required to close with verification reason.
+  Closure records actor/time/reason and leaves payments untouched; stale views rejected.
+  Actual external payment corrections are not implemented by this review screen.
+- Review service regression tests and Front browser display/navigation pass locally.
+- CLI-only read-only preflight inventories 21 table definitions and 5 shared file hashes;
+  now run on live through signed-in cPanel terminal, without reading customer records.
+
+Mandatory remaining gates:
+- Run updated shipping/provisioning files on server PHP 7.4 and verify full workflow.
+  One read-only live Woo source-contract check passed; no Order schema change/backfill
+  is planned. Unlinked/manual Orders remain blocked rather than guessing shipping.
+  Changes after assignment still need importer review.
+- Real portal Front-login and production HTTPS checks, live-schema contract and broader
+  browser/device/security regressions still required. Local Front auth was a test fixture.
+- Verify searchable Order/address/rate/balance resolver against live column contract;
+  ambiguous shipping payments remain blocked for review.
+- Importer upsert SQL tested; still run full importer including concurrent imports and
+  audit direct manual total/status writers. Tests do not yet cover whole production importer.
+- Verify actual external-payment correction workflow before release; review screen only
+  supports retaining a verified portal payment, not applying a different external snapshot.
+- Verify Owner setup page in browser and live role/audit schema, then hand off secret
+  entry and submission to the Owner. Isarael's live account is still uncreated.
+- Additive mobile-auth and sync-review schemas now approved alongside original 12 tables.
+  Apply only through verified migration/backup steps; Owner closure browser/HTTP checks
+  still required. Approval does not authorise changes to existing Order table definitions.
+- Driver PWA/offline-safe fallback and mobile regression tests.
+- Partner/expenses/settlement deferred from first release. Notification worker still incomplete.
+- Feature flag, backup, exact-file manifest/hash verification, migration runner and rollback plan.
+
+Never upload tests, local preview, synthetic seeders, local database or verification directory.

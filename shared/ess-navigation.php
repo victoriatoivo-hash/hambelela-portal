@@ -83,6 +83,9 @@ function ess_shell_apps(): array
         if (current_role_key() !== 'owner_admin' && !portal_user_can_access_feature($feature)) continue;
         $apps[] = ['name'=>$name,'icon'=>$icon,'href'=>BASE_URL.$route];
     }
+    require_once __DIR__.'/delivery/Navigation.php';
+    $deliveryEntry=\Hambelela\Delivery\Navigation::entry();
+    if($deliveryEntry!==null)$apps[]=$deliveryEntry;
     return $apps;
 }
 
