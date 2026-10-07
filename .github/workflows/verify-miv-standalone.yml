@@ -27,3 +27,7 @@ jobs:
           PY
       - name: Check account and payment workflow
         run: python3 tests/miv-standalone-test.py
+      - name: Check interface controls and calculations
+        run: |
+          npm install --prefix "$RUNNER_TEMP/miv-tests" jsdom@26.1.0
+          NODE_PATH="$RUNNER_TEMP/miv-tests/node_modules" node tests/miv-interface-test.cjs
