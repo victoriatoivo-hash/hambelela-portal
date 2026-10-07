@@ -1,4 +1,4 @@
-name: Deploy HR current policy access
+name: Deploy responsive HR sidebar
 on:
   workflow_dispatch:
     inputs:
@@ -26,20 +26,20 @@ jobs:
         with:
           php-version: '8.1'
           extensions: fileinfo, pdo_mysql
-      - name: Capture, preflight or deploy the five authorized policy files
+      - name: Capture, preflight or deploy the sidebar stylesheet only
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           MODE: ${{ inputs.mode }}
           APPROVED_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/deploy-hr-policy.py "$MODE" "$APPROVED_SHA"
+        run: python3 scripts/deploy-hr-sidebar.py "$MODE" "$APPROVED_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: hr-policy-${{ github.run_id }}
+          name: hr-sidebar-${{ github.run_id }}
           path: |
-            hr-policy-live-source.zip
-            hr-policy-deployment-backup.zip
-            hr-policy-deployment-report.json
+            hr-sidebar-live-source.zip
+            hr-sidebar-deployment-backup.zip
+            hr-sidebar-deployment-report.json
           if-no-files-found: warn
