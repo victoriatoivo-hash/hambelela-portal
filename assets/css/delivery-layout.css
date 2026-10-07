@@ -1,0 +1,10 @@
+.ess-dashboard #ess-main .delivery-content .delivery-main{min-height:0;padding:16px 0 0;margin:0;animation:none}
+.ess-dashboard #ess-main .ess-topbar{position:static;min-height:68px;margin-bottom:16px}
+.ess-dashboard #ess-main .ess-topbar .portal-header-status{position:static;inset:auto;margin:0;transform:none}
+.ess-dashboard #ess-main .ess-topbar{flex-wrap:wrap;gap:12px}
+.ess-dashboard #ess-main .ess-topbar-actions{flex:1 1 560px;justify-content:flex-end;flex-wrap:nowrap}
+.ess-dashboard #ess-main .ess-search{flex:1 1 180px;min-width:120px;width:180px}
+.ess-dashboard #ess-main .ess-account-slot{flex:0 1 auto}
+.ess-dashboard #ess-main .delivery-content .pagehead{margin-bottom:16px}
+.ess-dashboard #ess-main .delivery-content .kpis{margin-bottom:16px}
+@media(max-width:700px){.ess-dashboard #ess-main .ess-topbar-actions{flex-basis:100%;flex-wrap:wrap}.ess-dashboard #ess-main .ess-topbar .portal-header-status{flex-wrap:wrap;justify-content:flex-end}.ess-dashboard #ess-main .delivery-content .delivery-main{padding-top:8px}}

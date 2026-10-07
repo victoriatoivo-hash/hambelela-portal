@@ -23,6 +23,7 @@ final class PortalShell
             $extraStylesheets = [
                 ['path' => 'assets/css/ess-dashboard.css', 'version' => (string) filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')],
                 ['path' => 'assets/css/delivery-portal.css', 'version' => (string) filemtime(BASE_PATH.'/assets/css/delivery-portal.css')],
+                ['path' => 'assets/css/delivery-layout.css', 'version' => (string) filemtime(BASE_PATH.'/assets/css/delivery-layout.css')],
             ];
             ob_start();
             require BASE_PATH.'/shared/header.php';
@@ -37,7 +38,8 @@ final class PortalShell
             echo '<script defer src="'.htmlspecialchars(BASE_URL, ENT_QUOTES).'/assets/js/ess-dashboard.js?v='.filemtime(BASE_PATH.'/assets/js/ess-dashboard.js').'"></script>';
             require BASE_PATH.'/shared/footer.php';
             $footer = (string) ob_get_clean();
-            echo $shell.'<div id="ess-main" class="workspace ess-dashboard-main">'.$topbar.'<div class="delivery-content">'.$body[2].'</div></div>'.$footer;
+            $content = str_replace(['<main class="delivery-main">', '</main>'], ['<section class="delivery-main">', '</section>'], $body[2]);
+            echo $shell.'<main id="ess-main" class="workspace ess-dashboard-main">'.$topbar.'<div class="delivery-content">'.$content.'</div></main>'.$footer;
         });
     }
 }
