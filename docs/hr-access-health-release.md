@@ -60,6 +60,33 @@ The local fixture substitutes Business authentication and the self-service
 destination body; it tests the actual bridge and administration guards, not
 Hope's real live login. Live end-to-end confirmation requires Hope's session.
 
-PHP 7.4/8.2 CI, production deployment and immediate account setup are pending.
+PHP 7.4/8.2 CI passed. Runtime commit
+`d9f4c45fc3f222540b90e1d88ba7a2a531aa760c` was pushed and deployed in
+[run 37638528153](https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/37638528153).
+All four production source hashes were verified. Source backups and deployment
+reports are saved locally under `audit-evidence/` and in the release artifacts.
+
+Live owner verification showed Hope as Account missing and the other three
+linked staff as Ready. Test HR Access performed a read-only check and confirmed
+the missing user. The owner signed in again when the original session expired.
+The final owner diagnostic banner says HR access check, without implying a save.
+
+Immediate Hope provisioning is still pending browser action-time confirmation.
+The browser tool requires that confirmation because creating the employee user
+grants access to sensitive HR records. No account was created while waiting.
+
+| Requested result | Verified status |
+|---|---|
+| Hope Business account / active link / active HR employee | PASS live audit |
+| Hope HR user / active / employee role | NOT READY — user missing; creation pending |
+| Hope opens HR / self-service / correct identity | PASS isolated fixture; live Hope login not tested |
+| Other employee data blocked | PASS local bridge/admin guard tests and live-source query inspection |
+| Settings health / missing user never shown ready | PASS live owner page |
+| Repair HR Access | PASS database tests; live action pending confirmation |
+| Existing linked staff | PASS live read-only audit; no other account changes |
+| Duplicate HR employee / schema migration | NONE |
+| Unrelated deployed changes | NONE |
+| Pushed / deployed | YES, explicitly authorized by the user |
+
 The user explicitly authorized push and deployment after the original review-only
 instruction. No unrelated application files are included in the release.
