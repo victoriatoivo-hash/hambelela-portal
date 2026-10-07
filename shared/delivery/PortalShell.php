@@ -15,16 +15,29 @@ final class PortalShell
             $pageTitle = html_entity_decode($title[1] ?? 'Delivery · Hambelela', ENT_QUOTES, 'UTF-8');
             $activeApp = 'delivery';
             $isEssDashboard = true;
-            $extraStylesheets = [['path' => 'assets/css/delivery-portal.css', 'version' => (string) filemtime(BASE_PATH.'/assets/css/delivery-portal.css')]];
+            $pageUsesPortalSidebar = false;
+            require_once BASE_PATH.'/shared/ess-navigation.php';
+            $essShellApps = ess_shell_apps();
+            $essActiveModule = 'Delivery';
+            $essHeadingPartial = BASE_PATH.'/shared/delivery/PortalHeading.php';
+            $extraStylesheets = [
+                ['path' => 'assets/css/ess-dashboard.css', 'version' => (string) filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')],
+                ['path' => 'assets/css/delivery-portal.css', 'version' => (string) filemtime(BASE_PATH.'/assets/css/delivery-portal.css')],
+            ];
             ob_start();
             require BASE_PATH.'/shared/header.php';
-            require BASE_PATH.'/shared/sidebar.php';
+            require BASE_PATH.'/shared/ess-sidebar.php';
             $shell = (string) ob_get_clean();
             $shell = preg_replace('~<body([^>]*)>~', '<body$1'.$body[1].'>', $shell, 1);
             ob_start();
+            require BASE_PATH.'/shared/ess-topbar.php';
+            $topbar = (string) ob_get_clean();
+            ob_start();
+            require BASE_PATH.'/shared/ess-mobile-navigation.php';
+            echo '<script defer src="'.htmlspecialchars(BASE_URL, ENT_QUOTES).'/assets/js/ess-dashboard.js?v='.filemtime(BASE_PATH.'/assets/js/ess-dashboard.js').'"></script>';
             require BASE_PATH.'/shared/footer.php';
             $footer = (string) ob_get_clean();
-            echo $shell.'<div class="workspace delivery-content">'.$body[2].'</div>'.$footer;
+            echo $shell.'<div id="ess-main" class="workspace ess-dashboard-main">'.$topbar.'<div class="delivery-content">'.$body[2].'</div></div>'.$footer;
         });
     }
 }
