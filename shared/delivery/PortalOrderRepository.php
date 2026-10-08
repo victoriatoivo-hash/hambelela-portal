@@ -4,6 +4,7 @@ namespace Hambelela\Delivery;
 require_once __DIR__.'/DriverAuth.php';
 require_once __DIR__.'/DeliveryPolicy.php';
 require_once __DIR__.'/WooShippingSource.php';
+require_once __DIR__.'/OrderDispatchBalance.php';
 final class PortalOrderRepository
 {
     public static function shippingAddress(string $notes):string
@@ -24,6 +25,27 @@ final class PortalOrderRepository
     {
         if(!$db->inTransaction())throw new \LogicException('Order must be locked during arrangement.');
         $s=$db->prepare('SELECT * FROM ops_orders WHERE id=? AND deleted_at IS NULL AND archived_at IS NULL FOR UPDATE');$s->execute([$id]);$order=$s->fetch(\PDO::FETCH_ASSOC);if(!$order)return null;
+        if(!empty($input['source_order'])){
+            $mode=strtolower(trim((string)($order['fulfilment_mode']??'')))?:strtolower(trim((string)($order['order_type']??'')));
+            if($mode!==''&&$mode!=='delivery')throw new \DomainException('Only Delivery-mode orders can be arranged here.');
+            if(in_array(strtolower((string)($order['status']??'')),['completed','cancelled','canceled','refunded','dispatched','out_for_delivery','delivered'],true))throw new \DomainException('This Order is completed, cancelled or already dispatched.');
+            if(!empty($input['additional_delivery']))throw new \DomainException('An additional trip requires separate authorized review.');
+            if($shippingEvidence!==null){WooShippingSource::assertCurrent($order,$shippingEvidence);$fee=(int)$shippingEvidence['included_cents'];}
+            else $fee=self::shippingComponent($order);
+            $address=trim((string)($shippingEvidence['address']??''))?:self::shippingAddress((string)($order['notes']??''));
+            if($address==='')$address=trim((string)($input['address']??''));
+            if(strlen($address)>2000)throw new \DomainException('Address is too long.');
+            if($address===''&&empty($input['preview']))throw new \DomainException('Delivery address missing. Add an address before dispatch.');
+            $mobile=DriverAuth::mobile(trim((string)($order['customer_contact']??''))?:trim((string)($shippingEvidence['mobile']??'')));
+            $area=trim((string)($shippingEvidence['area']??''))?:mb_substr($address,0,190);
+            $money=OrderDispatchBalance::read($db,$order,$fee);
+            $prepaid=$money['collect_cents']===0;
+            return $money+['customer_name'=>$order['customer_name'],'customer_mobile'=>$mobile,'address'=>$address,'area'=>$area,
+                'order_number'=>$order['order_number']??('#'.$id),'payment_method'=>$order['payment_method']??'',
+                'fee_cents'=>$fee,'included_fee_cents'=>$fee,'zone_id'=>null,'manual_rate_reason'=>null,
+                'fee_payer'=>$prepaid?'already_paid':'customer','prepaid_reference'=>$prepaid?'order:'.$id:null,
+                'urgent'=>0,'notes'=>'','customer_instructions'=>trim((string)($shippingEvidence['customer_instructions']??'').'\n'.(string)($order['notes']??'')),'shipping_evidence'=>$shippingEvidence,'source_order'=>true];
+        }
         $address=trim((string)($input['address']??''));if($address==='')$address=self::shippingAddress((string)($order['notes']??''));
         if($address===''||strlen($address)>2000)throw new \DomainException('Confirm the delivery address.');
         $mobile=DriverAuth::mobile(trim((string)($input['mobile']??''))?:trim((string)$order['customer_contact']));

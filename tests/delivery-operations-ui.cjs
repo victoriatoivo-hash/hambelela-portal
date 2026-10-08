@@ -1,0 +1,17 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('assets/js/delivery-core.js','utf8');
+const presentation=source.slice(source.indexOf('const statusLabel='),source.indexOf('async function load()'))+source.slice(source.indexOf('function deadlineControl('),source.indexOf("$('#refresh').onclick"));
+function card(driver,oversight,job){const context={driver,oversight,board:{methods:{cash:'Cash'},can_reconcile:true,can_arrange:true}};vm.createContext(context);vm.runInContext(`const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const money=n=>'N$'+(Number(n)/100).toFixed(2);const action=(type,label,id,receipt)=>'<button data-action="'+type+'">'+label+'</button>';function collectionLabel(j){return 'test';}`+presentation,context);context.job=job;return vm.runInContext('jobCard(job)',context);}
+const job={id:1,urgent:1,source:'hambelela',source_label:'Hambelela',public_reference:'#38421',customer_name:'Test <customer>',customer_mobile:'+264 81 000 0000',address:'25 Test Street\nWindhoek',area:'Test area',scheduled_date:'2026-10-07',driver_name:'Synthetic',status:'ready',fee_cents:6000,remaining:{order_goods:45000,delivery_fee:6000,partner_cod:0},collection_state:'Due',receipts:[],history:[]};
+let html=card(true,false,job);assert.match(html,/N\$510.00/);assert.match(html,/Start Delivery/);assert.match(html,/tel:\+264810000000/);assert.match(html,/google.com\/maps/);assert.match(html,/Test &lt;customer&gt;/);assert.doesNotMatch(html,/data-action="reconcile"/);
+html=card(true,false,{...job,status:'out_for_delivery'});assert.match(html,/Record Payment/);assert.doesNotMatch(html,/Complete Delivery/);
+html=card(true,false,{...job,status:'out_for_delivery',remaining:{order_goods:0,delivery_fee:0,partner_cod:0},collection_state:'Not required'});assert.match(html,/Nothing to collect/);assert.match(html,/Complete Delivery/);assert.doesNotMatch(html,/Record Payment/);
+const delivered={...job,status:'awaiting_reconciliation',delivered_at:'2026-10-07 12:00:00',remaining:{order_goods:0,delivery_fee:0,partner_cod:0},collection_state:'Collected by Driver',receipts:[{id:4,status:'collected',payment_method:'cash',order_goods_cents:45000,delivery_fee_cents:6000,partner_cod_cents:0}]};
+html=card(true,false,delivered);assert.match(html,/N\$510.00/);assert.match(html,/Reconciliation pending/);assert.doesNotMatch(html,/data-action=/);
+html=card(true,true,job);assert.doesNotMatch(html,/data-action=/);assert.match(html,/Test &lt;customer&gt;/);
+html=card(false,false,delivered);assert.match(html,/Confirm Money Received/);
+html=card(true,false,{...job,source:'partner',source_label:'Tedlaser',remaining:{order_goods:0,delivery_fee:6000,partner_cod:50000}});assert.match(html,/Tedlaser COD/);assert.match(html,/N\$560.00/);
+console.log('PASS: shared card rendering, collection actions, completed read-only, Owner oversight, escaping, Call/Maps and Tedlaser amounts');
+html=card(true,false,{...job,deadline:{mode:'before',label:'08 Oct 2026 · Before 14:00',status:'ETA unavailable'}});assert.match(html,/Before 14:00/);assert.match(html,/ETA unavailable/);assert.doesNotMatch(html,/data-action="deadline"/);
+html=card(false,false,{...job,deadline:{mode:'before',label:'Before 14:00',status:'Late'}});assert.match(html,/data-action="deadline"/);assert.match(html,/is-late/);
+console.log('PASS: Driver deadline visibility and Front-only deadline editing');

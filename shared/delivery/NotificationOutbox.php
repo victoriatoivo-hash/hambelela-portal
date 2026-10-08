@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Delivery;
+require_once __DIR__.'/DeliveryDeadline.php';
 
 /** Uses the existing notification tables. Never runs schema creation or DDL. */
 final class NotificationOutbox
@@ -27,9 +28,10 @@ final class NotificationOutbox
     // Do not leak former assignments or notify revoked/inactive accounts.
     $driver=$r&&$r['role_key']==='delivery_driver';$allowed=$r&&$r['status']==='active'&&($driver?(int)$r['driver_employee_id']===(int)$o['recipient_employee_id']:(in_array($r['role_key'],['owner_admin','front_desk_admin','front_desk_admin_employee'],true)||(bool)$r['can_reconcile']));
     if($allowed){
-     $payload=json_decode($o['payload_json'],true);$kind=$payload['kind']??'assignment';$title=['reconciliation'=>'Delivery collection ready for handover','failed'=>'Delivery needs attention','partner'=>'New partner delivery request','assignment'=>'Delivery assignment updated'][$kind]??'Delivery update';
+     $payload=json_decode($o['payload_json'],true);$kind=$payload['kind']??'assignment';$title=['reconciliation'=>'Delivery collection ready for handover','failed'=>'Delivery needs attention','partner'=>'New partner delivery request','assignment'=>'Delivery assignment updated','deadline'=>'Customer delivery time updated','deadline_late'=>'Customer delivery deadline passed'][$kind]??'Delivery update';
      if($driver&&$kind==='assignment')$title=(int)$r['urgent']?'URGENT DELIVERY':'New Delivery';
-     $s=$db->prepare("INSERT INTO notifications(title,message,module,related_type,related_id,priority,deduplication_key,action_link) VALUES(?,?,'delivery','delivery_job',?,?,?,?)");$s->execute([$title,$r['public_reference'].' · Open Delivery to view the current details.',$o['delivery_id'],(int)$r['urgent']?'urgent':'normal','delivery:'.$o['event_key'],$driver?'/apps/delivery/driver/index.php':'/apps/delivery/index.php']);$notice=(int)$db->lastInsertId();
+     $deadline=DeliveryDeadline::label(DeliveryDeadline::latest($db,(int)$o['delivery_id']));
+     $s=$db->prepare("INSERT INTO notifications(title,message,module,related_type,related_id,priority,deduplication_key,action_link) VALUES(?,?,'delivery','delivery_job',?,?,?,?)");$s->execute([$title,$r['public_reference'].' · '.$deadline.' · Open Delivery to view the current details.',$o['delivery_id'],(int)$r['urgent']?'urgent':'normal','delivery:'.$o['event_key'],$driver?'/apps/delivery/driver/index.php':'/apps/delivery/index.php']);$notice=(int)$db->lastInsertId();
      $db->prepare('INSERT INTO notification_recipients(notification_id,employee_id) VALUES(?,?)')->execute([$notice,$o['recipient_employee_id']]);$sent++;
     }
     $db->prepare('UPDATE delivery_outbox SET delivered_at=UTC_TIMESTAMP(),attempts=attempts+1 WHERE id=?')->execute([$id]);$db->commit();

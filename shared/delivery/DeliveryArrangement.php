@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
+require_once __DIR__.'/DeliveryDeadline.php';
 
 final class DeliveryArrangement
 {
@@ -55,8 +56,11 @@ final class DeliveryArrangement
             $payer=$order['fee_payer']??'customer';if(!in_array($payer,['customer','already_paid'],true))throw new \DomainException('Invalid Hambelela fee payer.');
             $this->db->prepare('UPDATE delivery_jobs SET zone_id=?,manual_rate_reason=?,fee_payer=?,prepaid_reference=?,urgent=?,notes=? WHERE id=?')->execute([$order['zone_id']??null,$order['manual_rate_reason']??null,$payer,$order['prepaid_reference']??null,$order['urgent']??0,$order['notes']??null,$id]);
             if($additional)$this->db->prepare('UPDATE delivery_jobs SET additional_delivery=1,additional_delivery_reason=? WHERE id=?')->execute([$additionalReason,$id]);
-            $result=['id'=>$id,'reference'=>$ref,'status'=>'ready'];$json=json_encode($result,JSON_THROW_ON_ERROR);
+            $deadline=$details['deadline']??['mode'=>'none','start_at'=>null,'end_at'=>null];
+            $this->db->prepare("INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json) VALUES(?,'deadline_updated',?,?)")->execute([$id,$actor['id'],json_encode(['deadline'=>$deadline],JSON_THROW_ON_ERROR)]);
+            $result=['id'=>$id,'reference'=>$ref,'status'=>'ready','deadline'=>DeliveryDeadline::label($deadline)];$json=json_encode($result,JSON_THROW_ON_ERROR);
             $metadata=$result;$metadata['additional_delivery']=$additional;$metadata['additional_reason']=$additionalReason;if(!empty($order['shipping_evidence']))$metadata['shipping_verification']=$order['shipping_evidence'];
+            if(!empty($order['source_order']))$metadata['order_dispatch']=['version'=>1,'fee_snapshot_cents'=>$order['fee_cents'],'total_cents'=>$order['total_cents'],'paid_cents'=>$order['paid_cents'],'allocation_policy'=>'goods_first'];
             $this->db->prepare("INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json) VALUES(?,'arranged',?,?)")->execute([$id,$actor['id'],json_encode($metadata,JSON_THROW_ON_ERROR)]);
             $this->db->prepare("INSERT INTO delivery_requests(actor_key,request_uuid,action,request_hash,response_json) VALUES(?,?,'arranged',?,?)")->execute([$actorKey,$uuid,$hash,$json]);
             $this->db->prepare('INSERT INTO delivery_outbox(event_key,delivery_id,recipient_employee_id,payload_json,next_attempt_at) VALUES(?,?,?,?,UTC_TIMESTAMP())')->execute(['assigned:'.$id,$id,$driverId,$json]);

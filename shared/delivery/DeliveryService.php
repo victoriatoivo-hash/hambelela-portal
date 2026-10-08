@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
 require_once __DIR__.'/NotificationOutbox.php';
+require_once __DIR__.'/DeliveryDeadline.php';
 
 /** Internal service; not an HTTP endpoint. Adapters must verify session and CSRF. */
 final class DeliveryService
@@ -71,7 +72,7 @@ final class DeliveryService
         return $this->command($actor,$id,$uuid,'note_added',[$note],function($j)use($actor){
             if(!DeliveryPolicy::canView($actor,$j))throw new \DomainException('Delivery access denied.');
             if(($actor['role']??'')==='delivery_driver')$this->assigned($actor,$j);
-        },function($j)use($id,$note){return ['id'=>$id,'note'=>$note];});
+        },function($j)use($id,$note,$actor){if(($actor['role']??'')==='delivery_driver'&&in_array($j['status'],['completed','awaiting_reconciliation','cancelled'],true))throw new \DomainException('Completed deliveries are read-only. Ask Front for an approved correction.');return ['id'=>$id,'note'=>$note];});
     }
 
     public function fail(array $actor,int $id,string $uuid,string $reason,string $note):array
@@ -102,6 +103,40 @@ final class DeliveryService
             if((int)$held['n']>0)throw new \DomainException('Resolve collected money before rescheduling or reassigning.');
             $this->exec("UPDATE delivery_jobs SET driver_employee_id=?,scheduled_date=?,address=?,customer_mobile=?,urgent=?,status='ready',started_at=NULL,updated_at=UTC_TIMESTAMP(),version=version+1 WHERE id=?",[$driver,$date,$address,$mobile,(int)$urgent,$id]);
             return ['id'=>$id,'status'=>'ready','reason'=>$reason,'previous'=>['driver'=>$j['driver_employee_id'],'date'=>$j['scheduled_date'],'status'=>$j['status'],'urgent'=>$j['urgent'],'address'=>$j['address'],'mobile'=>$j['customer_mobile']],'driver'=>$driver,'date'=>$date,'urgent'=>$urgent];
+        });
+    }
+
+    public function deadline(array $actor,int $id,string $uuid,array $body):array
+    {
+        $d=DeliveryDeadline::normalize($body);$version=(int)($body['version']??0);
+        return $this->command($actor,$id,$uuid,'deadline_updated',[$d,$version],function($j)use($actor){
+            if(!DeliveryPolicy::can($actor,'delivery_arrange')||!DeliveryPolicy::canView($actor,$j))throw new \DomainException('Arrangement permission required.');
+        },function($j)use($id,$d,$version){
+            if((int)$j['version']!==$version||!in_array($j['status'],['ready','failed','out_for_delivery'],true))throw new \DomainException('Delivery changed or completed. Refresh before editing its deadline.');
+            $previous=DeliveryDeadline::latest($this->db,$id);
+            $this->exec('UPDATE delivery_jobs SET version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?',[$id]);
+            NotificationOutbox::queue($this->db,$id,(int)$j['driver_employee_id'],'deadline-change:'.$id.':'.($version+1),['kind'=>'deadline','deadline'=>DeliveryDeadline::label($d)]);
+            return ['id'=>$id,'deadline'=>$d,'previous'=>$previous,'note'=>DeliveryDeadline::label($d)];
+        });
+    }
+
+    public function inlineUpdate(array $actor,int $id,string $uuid,array $body):array
+    {
+        $field=(string)($body['field']??'');if(!in_array($field,['urgent','driver'],true))throw new \DomainException('Unsupported inline field.');
+        $value=$field==='urgent'?(!empty($body['value'])?1:0):(int)($body['value']??0);$version=(int)($body['version']??0);
+        return $this->command($actor,$id,$uuid,'dispatch_updated',[$field,$value,$version],function($j)use($actor){
+            if(!DeliveryPolicy::can($actor,'delivery_arrange')||!DeliveryPolicy::canView($actor,$j))throw new \DomainException('Arrangement permission required.');
+        },function($j)use($id,$field,$value,$version){
+            if((int)$j['version']!==$version||!in_array($j['status'],['ready','failed','out_for_delivery'],true))throw new \DomainException('Delivery changed. Refresh before updating.');
+            if($field==='driver'){
+                if($j['status']==='out_for_delivery')throw new \DomainException('Cannot reassign a delivery in progress.');
+                $active=$this->row("SELECT e.id FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id JOIN delivery_driver_profiles p ON p.employee_id=e.id WHERE e.id=? AND e.status='active' AND r.role_key='delivery_driver' AND p.active=1 FOR UPDATE",[$value]);
+                if(!$active)throw new \DomainException('Choose an active verified Driver.');
+                $held=$this->row("SELECT COUNT(*) n FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue')",[$id]);if((int)$held['n'])throw new \DomainException('Resolve collected money before reassigning.');
+                $this->exec('UPDATE delivery_jobs SET driver_employee_id=?,updated_at=UTC_TIMESTAMP(),version=version+1 WHERE id=?',[$value,$id]);
+                NotificationOutbox::queue($this->db,$id,$value,'assigned:'.$id.':'.($version+1),['kind'=>'assignment']);
+            }else $this->exec('UPDATE delivery_jobs SET urgent=?,updated_at=UTC_TIMESTAMP(),version=version+1 WHERE id=?',[$value,$id]);
+            return ['id'=>$id,'field'=>$field,'previous'=>$field==='driver'?$j['driver_employee_id']:$j['urgent'],'value'=>$value];
         });
     }
 
@@ -180,7 +215,11 @@ final class DeliveryService
             if($j['fee_payer']==='already_paid'&&(int)$j['fee_cents']>0&&trim((string)$j['prepaid_reference'])==='')throw new \DomainException('Prepaid fee evidence required.');
             $this->exec('UPDATE delivery_jobs SET status=?,delivered_at=UTC_TIMESTAMP(),completed_at=IF(?="completed",UTC_TIMESTAMP(),NULL),updated_at=UTC_TIMESTAMP(),version=version+1 WHERE id=?',[$status,$status,$id]);
             $this->ledger('earned:'.$id,$j,'fee_earned',(int)$j['fee_cents'],$actor['id']);
-            if($j['fee_payer']==='already_paid')$this->ledger('prepaid:'.$id,$j,'fee_received',(int)$j['fee_cents'],$actor['id']);
+            $event=$this->row("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id LIMIT 1",[$id]);$metadata=json_decode((string)($event['metadata_json']??''),true);
+            if(!empty($metadata['order_dispatch'])){
+                $collected=$this->row("SELECT COALESCE(SUM(delivery_fee_cents),0) fee FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue','reconciled')",[$id]);
+                $this->ledger('prepaid:'.$id,$j,'fee_received',max(0,(int)$j['fee_cents']-(int)$collected['fee']),$actor['id']);
+            }elseif($j['fee_payer']==='already_paid')$this->ledger('prepaid:'.$id,$j,'fee_received',(int)$j['fee_cents'],$actor['id']);
             return ['id'=>$id,'status'=>$status];
         });
     }

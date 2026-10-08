@@ -40,7 +40,9 @@ final class WooShippingSource
             $lineNet+=DeliveryPolicy::cents($line['total']);$lineTax+=DeliveryPolicy::cents($line['total_tax']);
         }
         if($lineNet!==$net||$lineTax!==$tax||$net+$tax>$total)throw new \DomainException('Order shipping totals need review.');
-        return ['source'=>'woocommerce','woo_order_id'=>(int)$remote['id'],'order_total_cents'=>$total,
+        $shipping=$remote['shipping']??[];
+        $address=trim((string)($shipping['address_1']??''))!==''?implode(', ',array_filter(array_map('trim',array_intersect_key($shipping,array_flip(['address_1','address_2','city','state','postcode','country']))))):'';
+        return ['address'=>$address,'area'=>(string)($shipping['city']??''),'mobile'=>(string)($remote['billing']['phone']??''),'customer_instructions'=>mb_substr((string)($remote['customer_note']??''),0,4000),'source'=>'woocommerce','woo_order_id'=>(int)$remote['id'],'order_total_cents'=>$total,
             'shipping_cents'=>$net,'shipping_tax_cents'=>$tax,'included_cents'=>$net+$tax,
             'verified_at'=>time(),'portal_fingerprint'=>self::fingerprint($order),
             'source_modified_gmt'=>(string)($remote['date_modified_gmt']??'')];
