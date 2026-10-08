@@ -21,7 +21,7 @@ It requires the exact destination marker bytes, accepts only the committed prede
 
 `CHIN_FTP_SERVER` was reset to exactly `s11745.sgp1.stableserver.net`. Verified FTPS authentication succeeded in read-only inspection run 37760454347. The account reports `/`, with three root entries. It cannot retrieve `.chin-deploy-target`, `bootstrap.php` or `extract.php`, and cannot enter a named `chin.hambelelaorganic.com` child. No MIV index, login, API or assets are visible.
 
-The physical jailed directory cannot be obtained from FTP PWD. In FastComet/cPanel, verify that `chin-deploy@hambelelaorganic.com` is jailed to `/home/hambele1/chin.hambelelaorganic.com`, not a new empty account directory. Correct that mapping if needed. Only after independently confirming the document root, place `.chin-deploy-target` there with exactly `chin.hambelelaorganic.com` (23 bytes, no newline). Do not plant the marker in the empty directory to bypass the check.
+The physical jailed directory cannot be obtained from FTP PWD. In FastComet/cPanel, verify that `chin-deploy@hambelelaorganic.com` is jailed to `/home/hambele1/chin.hambelelaorganic.com`, not a new empty account directory. Correct that mapping if needed. Only after independently confirming the document root, place `.chin-deploy-target` there with exactly `chin.hambelelaorganic.com` (25 bytes, no newline). Do not plant the marker in the empty directory to bypass the check.
 
 Then run the workflow's read-only `inspect` and `check` modes. Compare live code hashes; review any unknown manual changes before changing the approved predecessor hashes. Do not weaken certificate verification or use plain FTP.
 
@@ -31,7 +31,7 @@ Exact rejected ZIP: `MIV-Repair-Update.zip`, 27,370 bytes.
 
 SHA256: `a97f5fc0aa40c6406e0220c944347a5ab1353d56b10f3c92d666b9938db675cd`
 
-Both downloaded copies have this hash. ZIP CRC checks pass. All 11 application members match the current bundle byte for byte; the remaining member is the destination marker. Windows Defender 4.18.26080.4 reported no threats for the unchanged archive with remediation disabled.
+Both downloaded copies have this hash. ZIP CRC checks pass. All 11 application members match the current bundle byte for byte; the remaining member is the destination marker with a trailing LF (26 bytes). The revised deployer deliberately rejects that marker; replace it with the exact 25-byte value after verifying the document root. Windows Defender 4.18.26080.4 reported no threats for the unchanged archive with remediation disabled.
 
 [Sanesecurity's Foxhole documentation](https://sanesecurity.com/foxhole-databases/) says its JavaScript archive signatures inspect filenames/extensions and block most JavaScript inside small ZIP/RAR archives, with medium false-positive risk. This supports a possible format-policy detection; it does not establish FastComet clearance for this archive.
 
