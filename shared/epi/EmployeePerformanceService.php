@@ -38,7 +38,7 @@ final class EmployeePerformanceService
     }
 
     /** Same read contract for the existing profile, workforce overview and exports. */
-    public function profile(int $employee,string $period,$now=null):array
+    public function profile(int $employee,string $period,$now=null,int $historyPage=1):array
     {
         self::period($employee,$period);
         require_once __DIR__.'/V2PerformanceQuery.php';
@@ -47,6 +47,10 @@ final class EmployeePerformanceService
         $person=V2Store::one($this->db,'SELECT id,full_name FROM ops_employees WHERE id=?',[$employee]);
         if(!$person)throw new InvalidArgumentException('Employee not found.');
         $result['employee_name']=$person['full_name'];
+        require_once __DIR__.'/PerformanceHistory.php';
+        $result['previous_history']=(new PerformanceHistory($this->db))->read($employee,$period,$historyPage);
+        $assignment=V2Store::one($this->db,'SELECT official_from FROM epi_v2_scorecard_assignments WHERE employee_id=? AND period_start=?',[$employee,$period]);
+        $result['v2_official_from']=$assignment['official_from']??null;
         $previousPeriod=Support::timestamp($period)->modify('-1 month')->format('Y-m-01');
         $previous=$this->read($employee,$previousPeriod);
         $result['previous_period']=['period_start'=>$previousPeriod,'status'=>$previous['status'],
@@ -73,8 +77,16 @@ final class EmployeePerformanceService
             $work[$row['opportunity_key']]=true;
             if($row['outcome']==='failure'&&!empty($row['root_incident_id']))$roots[$row['root_incident_id']]=true;
         }
-        $result['eligible_work_count']=count($work);$result['confirmed_incident_count']=count($roots);
+        // Counts of an absent or incomplete published result are NOT evidence of no work/errors.
+        $complete=isset($result['result_id']) && (int)($result['missing_required_weight_hundredths']??10000)===0;
+        $result['eligible_work_count']=$complete||count($work)>0?count($work):null;
+        $result['confirmed_incident_count']=$complete||count($roots)>0?count($roots):null;
+        $result['workload_scope']='Published V2 evidence only; preserved historical records are separate';
         foreach($result['historical_incidents'] as $index=>$incident){
+            $snapshot=json_decode($incident['metadata_json']??'{}',true)?:[];
+            $result['historical_incidents'][$index]['expected_result']=isset($snapshot['obligation_key'])?
+                $snapshot['obligation_key'].' by '.($incident['due_at']??'deadline not recorded'):'Expected action not recorded';
+            $result['historical_incidents'][$index]['actual_result']=$snapshot['actual_state']??($incident['historical_state']??'Not recorded');
             $included=[];
             foreach($result['evidence']??[] as $evidence){
                 $sources=array_column($evidence['supporting_evidence']??[],'source');
@@ -84,7 +96,7 @@ final class EmployeePerformanceService
             }
             $result['historical_incidents'][$index]['published_score_effect']=$included?
                 'Included in published result: '.implode(', ',array_unique($included)):
-                'Not included in the published result; see eligibility / review evidence';
+                'Not included in the published result — '.($incident['exclusion_reason']?:($incident['eligibility_state']??'eligibility requires review'));
         }
         foreach($result['categories']??[] as $key=>$category){
             $old=$previous['categories'][$key]['official_score_hundredths']??null;
@@ -101,10 +113,11 @@ final class EmployeePerformanceService
             }
         }
         $missing=(int)($result['missing_required_weight_hundredths']??10000);
-        $result['management_summary']=count($work).' eligible work records; '.count($roots).' distinct confirmed failures. '.
+        $result['management_summary']=($result['eligible_work_count']===null?'Eligible workload not measured':count($work).' work records included in published V2 result').'; '.
+            ($result['confirmed_incident_count']===null?'confirmed incident total not measured':count($roots).' distinct failures included in published V2 result').'. '.
             ($missing>0?number_format($missing/100,2).'% of required score weight is not fully measured. ':'All required score components are measured. ').
             (!empty($result['data_may_be_stale'])?'New evidence is awaiting recalculation. ':'').
-            'Current open work is shown separately from historical performance.';
+            'Current open work is shown separately from historical performance. Historical evidence is available below where recorded; absence of a V2 result does not mean no work occurred.';
         return $result;
     }
 
@@ -122,7 +135,7 @@ final class EmployeePerformanceService
             $result['employee_id'],$result['employee_name']??'', $result['period_start'],$result['status'],
             $result['official_score_hundredths']===null?'':$result['official_score_hundredths']/100,
             $result['scorecard_version']??'',$category['label'],$category['weight_hundredths']/100,
-            $r['label'],$r['numerator'],$r['eligible_volume'],$r['rate_hundredths']===null?'':$r['rate_hundredths']/100,
+            $r['label'],self::unmeasuredCounts($r)?'Not measured':$r['numerator'],self::unmeasuredCounts($r)?'Not measured':$r['eligible_volume'],$r['rate_hundredths']===null?'':$r['rate_hundredths']/100,
             $r['status'],$r['confidence'],$r['reason']??'', $result['last_calculated_at']??'',
             !empty($result['data_may_be_stale'])?'Yes':'No',($r['direction']??'success')==='error'?'Errors':'Successful outcomes',
             isset($r['target_hundredths'])?$r['target_hundredths']/100:'',
@@ -135,6 +148,11 @@ final class EmployeePerformanceService
             $result['scorecard_version']??'','','','','','','',$result['status'],'not_measured',
             'No published KPI result',$result['last_calculated_at']??'',!empty($result['data_may_be_stale'])?'Yes':'No','','','',''];
         return $rows;
+    }
+
+    private static function unmeasuredCounts(array $metric):bool {
+        return (int)($metric['eligible_volume']??0)===0 && in_array($metric['reason']??'',
+            ['missing_evidence','incomplete_source','not_applicable_requires_scorecard_revision'],true);
     }
 
     public function read(int $employee,string $period): array
