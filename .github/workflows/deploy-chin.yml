@@ -5,7 +5,7 @@ on:
       mode:
         description: Check connection first, then deploy
         type: choice
-        options: [check, deploy]
+        options: [inspect, check, deploy]
         default: check
   push:
     branches: [main]
@@ -32,7 +32,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '7.4'
           extensions: pdo_sqlite
       - name: Extract app and tests
         run: |
@@ -53,7 +53,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/miv-tests/node_modules" node tests/miv-interface-test.cjs
   deploy:
     needs: verify
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (vars.CHIN_DEPLOY_ENABLED == 'true' || github.event.head_commit.message == 'Deploy chin once tonight 2026-10-07')))
+    if: (github.event_name == 'workflow_dispatch' && (inputs.mode == 'inspect' || inputs.mode == 'check')) || (github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && vars.CHIN_DEPLOY_ENABLED == 'true')))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -64,7 +64,9 @@ jobs:
           CHIN_FTP_PASSWORD: ${{ secrets.CHIN_FTP_PASSWORD }}
           DEPLOY_MODE: ${{ inputs.mode }}
         run: |
-          if [ "$DEPLOY_MODE" = "check" ]; then
+          if [ "$DEPLOY_MODE" = "inspect" ]; then
+            python3 scripts/deploy-chin.py --inspect
+          elif [ "$DEPLOY_MODE" = "check" ]; then
             python3 scripts/deploy-chin.py --check
           else
             python3 scripts/deploy-chin.py --check
