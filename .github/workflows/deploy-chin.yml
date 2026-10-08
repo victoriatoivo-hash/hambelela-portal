@@ -5,7 +5,7 @@ on:
       mode:
         description: Check connection first, then deploy
         type: choice
-        options: [check, deploy]
+        options: [inspect, check, deploy]
         default: check
   push:
     branches: [main]
@@ -13,12 +13,14 @@ on:
       - standalone/miv-bundle.json
       - scripts/deploy-chin.py
       - tests/test-deploy-chin.py
+      - tests/miv-mobile-layout.cjs
       - .github/workflows/deploy-chin.yml
   pull_request:
     paths:
       - standalone/miv-bundle.json
       - scripts/deploy-chin.py
       - tests/test-deploy-chin.py
+      - tests/miv-mobile-layout.cjs
       - .github/workflows/deploy-chin.yml
 permissions:
   contents: read
@@ -32,7 +34,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '8.1'
+          php-version: '7.4'
           extensions: pdo_sqlite
       - name: Extract app and tests
         run: |
@@ -51,9 +53,14 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/miv-tests" jsdom@26.1.0
           NODE_PATH="$RUNNER_TEMP/miv-tests/node_modules" node tests/miv-interface-test.cjs
+      - name: Check fixed totals bar on mobile and desktop
+        run: |
+          npm install --prefix "$RUNNER_TEMP/miv-tests" playwright@1.62.1
+          "$RUNNER_TEMP/miv-tests/node_modules/.bin/playwright" install --with-deps chromium
+          NODE_PATH="$RUNNER_TEMP/miv-tests/node_modules" node tests/miv-mobile-layout.cjs
   deploy:
     needs: verify
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && (vars.CHIN_DEPLOY_ENABLED == 'true' || github.event.head_commit.message == 'Deploy chin once tonight 2026-10-07')))
+    if: (github.event_name == 'workflow_dispatch' && (inputs.mode == 'inspect' || inputs.mode == 'check')) || (github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && vars.CHIN_DEPLOY_ENABLED == 'true')))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,8 +70,12 @@ jobs:
           CHIN_FTP_USERNAME: ${{ secrets.CHIN_FTP_USERNAME }}
           CHIN_FTP_PASSWORD: ${{ secrets.CHIN_FTP_PASSWORD }}
           DEPLOY_MODE: ${{ inputs.mode }}
+          # Set only after FastComet clears the exact payload; see the repair handoff.
+          CHIN_SCANNER_CLEARANCE_SHA256: ${{ vars.CHIN_SCANNER_CLEARANCE_SHA256 }}
         run: |
-          if [ "$DEPLOY_MODE" = "check" ]; then
+          if [ "$DEPLOY_MODE" = "inspect" ]; then
+            python3 scripts/deploy-chin.py --inspect
+          elif [ "$DEPLOY_MODE" = "check" ]; then
             python3 scripts/deploy-chin.py --check
           else
             python3 scripts/deploy-chin.py --check
