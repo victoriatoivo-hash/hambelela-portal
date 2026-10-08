@@ -1,12 +1,20 @@
-# Standalone MIV repair handoff — 8 October 2026
+# Standalone MIV repair — live deployment, 8 October 2026
 
-The app is still returning HTTP 500. No application files have been uploaded in this repair session. The live PHP version and authenticated functionality remain unverified because the dedicated FTP account cannot see the app and the hosting browser controller cannot start.
+Deployment completed successfully through the dedicated delta workflow in Actions run 37782006877, using merged revision `1999f651519562459b594fcb20f45326dd4abcf0` (PR #83). The upload changed three files: `api.php`, `bootstrap.php`, and `extract.php`. All six allowlisted deployment files were checked against the reviewed bundle. No setup keys, private configuration, database files, login files or portal files were uploaded.
 
-## Ready repair
+The live main URL now redirects to the login page and returns HTTP 200. Both unauthenticated orders and extraction API requests return HTTP 401. The PHP 500 / undefined str_ends_with error is repaired. Authenticated live quotes, order creation, payments and mobile totals-bar checks remain pending the user's existing MIV sign-in; these functions passed the PHP 7.4 and interface tests, but those source tests are not a claim of authenticated live verification. No live test orders or payments were created.
 
-Source remains `standalone/miv-bundle.json` at compatibility commit `cf3741b445a1ebab5e6433340bc113efe7b35565`. No policy, portal, account, database, private configuration or setup-key changes are included.
+## Runtime and destination
 
-The revised delta deployer updates only:
+cPanel's PHP Selector confirms that chin.hambelelaorganic.com uses PHP 7.4 (account default), with pdo_sqlite enabled. No hosting PHP version or extension settings were changed.
+
+The Domains interface confirms `/home/hambele1/chin.hambelelaorganic.com` as the site's document root. The existing FTP account originally pointed to `/home/hambele1/hambelelaorganic.com/chin.hambelelaorganic.com`. Following the user's action-time approval, cPanel's Ftp set_homedir operation corrected the account to the actual document root. The account and password were retained. The browser could not display the raw API response; the resulting path was independently verified in FTP Accounts, and Actions check run 37780023231 verified a fresh FTPS login, the exact marker and all repair files.
+
+The marker already existed in the real document root with exactly `chin.hambelelaorganic.com` (25 bytes, no newline). It was not rewritten. The deploy script never changes directories or removes the destination checks. Transport uses certificate-verified FTPS; the expired plain-FTP exception was not extended. `CHIN_FTP_SERVER` is exactly `s11745.sgp1.stableserver.net`.
+
+## Exact repair and preservation
+
+Source remains `standalone/miv-bundle.json` at compatibility commit `cf3741b445a1ebab5e6433340bc113efe7b35565`. Compatibility changes replace str_ends_with, never return types and null-coalescing assignment syntax. The six-file allowlist is:
 
 - `bootstrap.php`
 - `extract.php`
@@ -15,38 +23,26 @@ The revised delta deployer updates only:
 - `assets/js/miv-shipping.js`
 - `assets/css/miv-shipping.css`
 
-It requires the exact destination marker bytes, accepts only the committed predecessor/current bootstrap and extraction sources, verifies uploaded bytes, and restores every touched file on an upload failure. Unknown manual edits stop deployment for review. It never uploads setup keys, schema, login code or the private directory. Transport is certificate-verified FTPS only; the expired plain FTP exception has been removed.
+Only changed bytes are uploaded. The script accepts only reviewed predecessor/current bootstrap and extraction sources, checks uploaded bytes and rolls back every touched file on an upload failure. No rollback was necessary. The standalone login, session and private SQLite database remain independent of the portal.
 
-## Connection and destination
+## Scanner evidence and clearance
 
-`CHIN_FTP_SERVER` was reset to exactly `s11745.sgp1.stableserver.net`. Verified FTPS authentication succeeded in read-only inspection run 37760454347. The account reports `/`, with three root entries. It cannot retrieve `.chin-deploy-target`, `bootstrap.php` or `extract.php`, and cannot enter a named `chin.hambelelaorganic.com` child. No MIV index, login, API or assets are visible.
-
-The physical jailed directory cannot be obtained from FTP PWD. In FastComet/cPanel, verify that `chin-deploy@hambelelaorganic.com` is jailed to `/home/hambele1/chin.hambelelaorganic.com`, not a new empty account directory. Correct that mapping if needed. Only after independently confirming the document root, place `.chin-deploy-target` there with exactly `chin.hambelelaorganic.com` (25 bytes, no newline). Do not plant the marker in the empty directory to bypass the check.
-
-Then run the workflow's read-only `inspect` and `check` modes. Compare live code hashes; review any unknown manual changes before changing the approved predecessor hashes. Do not weaken certificate verification or use plain FTP.
-
-## Rejected archive investigation
-
-Exact rejected ZIP: `MIV-Repair-Update.zip`, 27,370 bytes.
-
+Original rejected ZIP: `MIV-Repair-Update.zip`, 27,370 bytes.
 SHA256: `a97f5fc0aa40c6406e0220c944347a5ab1353d56b10f3c92d666b9938db675cd`
+Detection: `Sanesecurity.Foxhole.JS_Zip_11.UNOFFICIAL`
 
-Both downloaded copies have this hash. ZIP CRC checks pass. All 11 application members match the current bundle byte for byte; the remaining member is the destination marker with a trailing LF (26 bytes). The revised deployer deliberately rejects that marker; replace it with the exact 25-byte value after verifying the document root. Windows Defender 4.18.26080.4 reported no threats for the unchanged archive with remediation disabled.
+Both original downloaded copies had that hash. ZIP CRC checks passed. All 11 application members matched the reviewed bundle byte for byte; the remaining marker member had a trailing LF. Windows Defender 4.18.26080.4 reported no threats when scanning the unchanged archive with remediation disabled. The original downloaded archives were subsequently no longer present in Downloads; no archive was rebuilt or disguised.
 
-[Sanesecurity's Foxhole documentation](https://sanesecurity.com/foxhole-databases/) says its JavaScript archive signatures inspect filenames/extensions and block most JavaScript inside small ZIP/RAR archives, with medium false-positive risk. This supports a possible format-policy detection; it does not establish FastComet clearance for this archive.
+[Sanesecurity's Foxhole documentation](https://sanesecurity.com/foxhole-databases/) describes filename/extension-based JavaScript archive rules with medium false-positive risk. This explained a possible archive-policy detection; it was not treated as hosting clearance.
 
-FastComet must review `Sanesecurity.Foxhole.JS_Zip_11.UNOFFICIAL` against the exact archive hash and provide clearance before the payload is uploaded. Do not rename, obscure, repackage or upload individual files to circumvent the scanner. No support message was sent on the user's behalf.
-
-After that review, record clearance for the six-file source manifest by setting repository variable `CHIN_SCANNER_CLEARANCE_SHA256` to:
+The user then explicitly confirmed that FastComet clearance was already obtained. No support message was sent on the user's behalf. Source continuity checks verified that all six current deployment files were unchanged from the previously ZIP-verified compatibility revision. The exact six-file manifest digest, derived from filename/content hashes rather than ZIP-container bytes, is:
 
 `aa3c23c4e82c6f5eaab7a11e86d7d0b94119e7945c6bf7f4a066d4dd4695afee`
 
-This is the deterministic digest of the six filename/content hashes, not an antivirus verdict. Set it only after actual hosting clearance; any payload change invalidates it.
+After those checks, the repository variable `CHIN_SCANNER_CLEARANCE_SHA256` was set to that digest. Any change to the allowlisted payload invalidates the gate. This variable records the user's confirmed clearance; it is not a new antivirus scan or a general scanner bypass.
 
 ## Verification
 
-GitHub run 37760242025 passed PHP 7.4.33 lint/runtime tests for setup, login, independent sessions, CSRF, order creation, duplicate references, split and delivery-only payments, idempotent retries, overpayment protection and setup lock. Interface tests passed quote arithmetic, goods-price exclusion, shipping-only balances, saved quote behavior, delivery stages and payment controls.
+Actions run 37782006877 passed PHP 7.4.33 lint/runtime tests for setup, login, independent sessions, CSRF, order creation, duplicate references, split and delivery-only payments, idempotent retries, overpayment protection and setup lock. Interface tests passed quote arithmetic, goods-price exclusion, shipping-only balances, saved quote behavior, delivery stages and payment controls. Nine deployment safety tests passed.
 
-Local Chromium geometry tests passed fixed viewport placement throughout scrolling and no horizontal overflow at 320x568, 375x667, 640x360, 768x1024 and 1280x800. These are source tests, not live verification.
-
-After verified destination access and hosting clearance, merge/push the exact repair revision to main and dispatch `deploy-chin.yml` with mode `deploy`. First inspect the actual hosting PHP version using cPanel or existing hosting logs; do not change the portal or hosting PHP version. Then verify the live login using the existing account, delivery-only and normal quotes, order creation, payment behavior, and mobile totals bar. Preserve all real records and use separately identified test records only with an appropriate cleanup plan. Do not claim completion while HTTP 500 persists.
+Chromium geometry tests passed fixed totals-bar placement while scrolling and no horizontal overflow at 320x568, 375x667, 640x360, 768x1024 and 1280x800. These are source tests. The live login page is visibly restored and has been left open for the user's existing sign-in. Positive authenticated live tests remain outstanding until that session is available.
