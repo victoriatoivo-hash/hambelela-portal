@@ -17,6 +17,10 @@ def inspect_destination(ftp):
     """Read only known deployment metadata; never read credentials or records."""
     original = ftp.pwd()
     print("FTP account working directory: " + original)
+    names = ftp.nlst()
+    print("Visible root entry count: " + str(len(names)))
+    for known in ("index.php", "api.php", "login.php", "assets", "public_html", "chin.hambelelaorganic.com", ".chin-deploy-target"):
+        print("Root contains " + known + ": " + str(any(name.rstrip('/').split('/')[-1] == known for name in names)))
     def inspect_here(label):
         print("Checking " + label)
         for name in (".chin-deploy-target", "bootstrap.php", "extract.php"):
