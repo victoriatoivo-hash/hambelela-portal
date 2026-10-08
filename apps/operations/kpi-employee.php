@@ -44,7 +44,7 @@ include BASE_PATH . '/shared/sidebar.php';
   <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
   <section class="employee-kpi-page" data-kpi-employee-content><div class="kpi-health-grid"><?php foreach (range(1, 8) as $unused): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
   <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button><div data-kpi-timeline-content></div></dialog>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
-  <script src="<?= BASE_URL ?>/assets/js/kpi-employee.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/kpi-employee.js') ?>"></script>
+  <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/employee-performance.css?v=<?= (int) @filemtime(BASE_PATH . '/assets/css/employee-performance.css') ?>">
+  <script src="<?= BASE_URL ?>/assets/js/employee-performance.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/employee-performance.js') ?>"></script>
 </main>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

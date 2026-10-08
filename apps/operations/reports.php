@@ -310,13 +310,18 @@ include BASE_PATH . '/shared/sidebar.php';
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
         <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
     <?php elseif ($tab === 'employees'): ?>
-        <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
-        <section class="kpi-employee-directory-head" data-kpi-employee-selection-note>
-            <div><p class="eyebrow">Team performance</p><h2>Choose an employee</h2><p>Open an individual workspace to review role-specific performance, supporting evidence and activity.</p></div>
-            <span data-kpi-employee-count>Loading team…</span>
+        <section class="performance-report-controls" aria-label="Employee performance filters">
+            <label>Reporting month<select data-performance-period><option>This month</option></select></label>
+            <label>Employee<select data-performance-employee><option value="0">All employees</option></select></label>
+            <label>Role<select data-performance-role><option value="all">All roles</option></select></label>
+            <label>View<select data-performance-section><option value="workforce">Workforce overview</option></select></label>
+            <div class="performance-report-actions"><button class="btn-secondary" type="button" data-performance-compare>Compare employees</button><button class="btn-secondary" type="button" data-performance-print>Print</button><button class="btn-secondary" type="button" data-performance-pdf>Export PDF</button><button class="btn-secondary" type="button" data-performance-csv>Export CSV</button></div>
         </section>
-        <nav class="kpi-employee-tabs kpi-employee-directory" data-kpi-employee-tabs aria-label="Employees"></nav>
-        <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
+        <div class="performance-report-meta"><span data-performance-period-caption></span><span data-performance-refreshed></span><span data-performance-quality></span></div>
+        <div class="ops-alert error" data-performance-error hidden role="alert"></div>
+        <section data-performance-output aria-live="polite">Loading published employee results…</section>
+        <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/employee-performance.css?v=<?= (int)@filemtime(BASE_PATH.'/assets/css/employee-performance.css') ?>">
+        <script src="<?= BASE_URL ?>/assets/js/employee-performance-workforce.js?v=<?= (int)@filemtime(BASE_PATH.'/assets/js/employee-performance-workforce.js') ?>"></script>
     <?php elseif ($tab === 'performance-reports'): ?>
         <section class="performance-report-controls" aria-label="Performance report filters">
             <label><span>Reporting period</span><select data-performance-period><option value="since_adoption">Since adoption (14 Jul 2026)</option><option value="today">Today</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom date range</option></select></label>

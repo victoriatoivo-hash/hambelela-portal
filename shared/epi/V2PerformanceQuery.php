@@ -16,8 +16,9 @@ final class V2PerformanceQuery
     $s=$this->pdo->prepare("SELECT * FROM epi_v2_performance_incidents WHERE module='Error Log' AND responsible_employee_at_breach=? AND current_risk_state='open'");$s->execute([$employee]);
     return array_merge($rows,$s->fetchAll(PDO::FETCH_ASSOC));
  }
- public function teamRisk(string $team):array {
-    $s=$this->pdo->prepare("SELECT * FROM epi_v2_operational_deadlines WHERE responsible_team=? AND state IN('open','breached','needs_attribution') ORDER BY due_at,id");$s->execute([$team]);return $s->fetchAll(PDO::FETCH_ASSOC);
+ public function teamRisk(string $team,$at=null):array {
+    $time=Support::timestamp($at)->format('Y-m-d H:i:s');
+    $s=$this->pdo->prepare("SELECT * FROM epi_v2_operational_deadlines WHERE responsible_team=? AND state IN('open','breached','needs_attribution') AND due_at<? ORDER BY due_at,id");$s->execute([$team,$time]);return $s->fetchAll(PDO::FETCH_ASSOC);
  }
  public function history(int $employee,string $from,string $to):array {
     $s=$this->pdo->prepare('SELECT * FROM epi_v2_performance_incidents WHERE responsible_employee_at_breach=? AND occurred_at>=? AND occurred_at<? ORDER BY occurred_at DESC,id DESC');$s->execute([$employee,$from,Support::timestamp($to)->modify('+1 day')->format('Y-m-d')]);return $s->fetchAll(PDO::FETCH_ASSOC);

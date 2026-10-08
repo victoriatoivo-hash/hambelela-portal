@@ -24,6 +24,7 @@ try {
         'approved_break'=>'excluded', 'approved_absence'=>'excluded', 'rest_day'=>'excluded',
         'public_holiday'=>'excluded', 'portal_outage'=>'excluded', 'schedule_change'=>'excluded',
         'unexplained'=>'negative', 'no_performance_impact'=>'positive',
+        'confirmed_present'=>'positive','confirmed_late_arrival'=>'negative','confirmed_unapproved_absence'=>'negative',
     ];
     if (!$employeeId || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) || !isset($allowed[$classification]) || $note === '') {
         kpi_send_json(['ok'=>false,'message'=>'Choose a classification and enter an owner note.'], 422);
@@ -31,8 +32,17 @@ try {
     $employee = ops_rows("SELECT id,full_name FROM ops_employees WHERE id=? AND status='active' LIMIT 1", [$employeeId])[0] ?? null;
     if (!$employee) kpi_send_json(['ok'=>false,'message'=>'Employee not found.'], 404);
     $actor = ops_current_employee_id();
+    $snapshot=(string)($_POST['source_snapshot_json']??'{}');
+    if(in_array($classification,['confirmed_present','confirmed_late_arrival','confirmed_unapproved_absence'],true)){
+        $reference=trim((string)($_POST['attendance_evidence_reference']??''));
+        if($reference===''||strlen($reference)>500||$date>date('Y-m-d'))
+            kpi_send_json(['ok'=>false,'message'=>'Provide physical-attendance evidence for a date that has occurred.'],422);
+        require_once BASE_PATH.'/shared/epi/PerformanceCapturePolicy.php';
+        $snapshot=json_encode(['attendance_evidence_reference'=>$reference,
+            'score_eligible_at_capture'=>\Hambelela\EPI\PerformanceCapturePolicy::approved(db(),$employeeId,$date.' 00:00:00')],JSON_UNESCAPED_SLASHES);
+    }
     db()->prepare('INSERT INTO kpi_portal_presence_reviews (employee_id,evidence_date,classification,owner_note,score_effect,source_snapshot_json,reviewed_by,reviewed_at) VALUES (?,?,?,?,?,?,?,NOW())')
-        ->execute([$employeeId,$date,$classification,$note,$allowed[$classification],(string)($_POST['source_snapshot_json']??'{}'),$actor]);
+        ->execute([$employeeId,$date,$classification,$note,$allowed[$classification],$snapshot,$actor]);
     $reviewId = (int) db()->lastInsertId();
     ops_activity_log('kpi_portal_presence_reviewed','kpi_portal_presence_review',$reviewId,[
         'employee_id'=>$employeeId,'employee_name'=>$employee['full_name'],'evidence_date'=>$date,

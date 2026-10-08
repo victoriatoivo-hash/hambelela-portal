@@ -12,6 +12,7 @@ require_once BASE_PATH . '/shared/task-instructions.php';
 require_once BASE_PATH . '/shared/employee-features.php';
 require_once BASE_PATH . '/shared/packing-notifications.php';
 require_once BASE_PATH . '/shared/epi/bootstrap.php';
+require_once BASE_PATH . '/shared/delivery/OrderSyncReview.php';
 
 const OPS_ORDER_STATUSES = [
     'new_order' => 'New Order',
@@ -65,16 +66,7 @@ function ops_website_payment_methods(): array
     ];
 }
 
-function ops_payment_method_map(): array
-{
-    return [
-        'cash' => 'Cash', 'card_swipe' => 'Swipe', 'eft' => 'EFT',
-        'fnb_ewallet' => 'FNB eWallet', 'easywallet' => 'EasyWallet',
-        'blue_wallet' => 'Blue Wallet', 'nedbank' => 'Nedbank',
-        'netbank_wallet' => 'NetBank Wallet', 'pay2cell' => 'Pay2Cell',
-        'paytoday' => 'PayToday', 'dpo' => 'DPO',
-    ];
-}
+require_once BASE_PATH . '/shared/order-payment-methods.php';
 
 function ops_normalize_payment_code(string $value): string
 {
@@ -362,18 +354,46 @@ function ops_wc_payment_source(array $order): string
 function ops_sync_order_payment_allocations(int $orderId, array $allocations, string $source, string $version): void
 {
     if (!$allocations) return;
-    $current = ops_row('SELECT payment_source, payment_version FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
+    $ownsTransaction = !db()->inTransaction();
+    if ($ownsTransaction) {
+        if (!ops_ensure_order_payment_schema()) throw new RuntimeException('Payment storage unavailable.');
+        db()->beginTransaction();
+    }
+    try {
+    $current = ops_row('SELECT payment_source, payment_version FROM ops_orders WHERE id = ? FOR UPDATE', [$orderId]);
+    if (!$current) throw new RuntimeException('Order not found.');
     $currentSource = (string) ($current['payment_source'] ?? 'woocommerce');
+    // Driver receipts are additive local financial events, not replaceable snapshots.
+    // A later external snapshot requires explicit reconciliation, never blind replacement.
+    if ($currentSource === 'delivery') return;
     if ((string) ($current['payment_version'] ?? '') === $version) return;
     if ($source === 'woocommerce' && in_array($currentSource, ['pos', 'order_list'], true)) return;
     if ($source === 'order_list' && $currentSource === 'pos' && (string) ($current['payment_version'] ?? '') !== $version) return;
     ops_replace_order_payment_allocations($orderId, $allocations, $source, $version);
+    } catch (Throwable $error) {
+        if ($ownsTransaction && db()->inTransaction()) db()->rollBack();
+        throw $error;
+    } finally {
+        if ($ownsTransaction && db()->inTransaction()) db()->commit();
+    }
 }
 
 function ops_replace_order_payment_allocations(int $orderId, array $allocations, string $source, string $version, ?int $employeeId = null): void
 {
-    if ($orderId <= 0 || !$allocations || !ops_ensure_order_payment_schema()) return;
-    $previous = ops_order_payment_allocations($orderId);
+    if ($orderId <= 0 || !$allocations) return;
+    if (!db()->inTransaction()) throw new LogicException('Payment replacement requires a transaction.');
+    // Caller preflights schema BEFORE opening the transaction. No runtime DDL here.
+    $lockedOrder = ops_row('SELECT payment_source FROM ops_orders WHERE id = ? FOR UPDATE', [$orderId]);
+    if (!$lockedOrder) throw new RuntimeException('Order not found.');
+    if (($lockedOrder['payment_source'] ?? '') === 'delivery') {
+        throw new RuntimeException('This order includes reconciled Driver payments. Use Delivery reconciliation to review changes.');
+    }
+    $previousRows = ops_rows('SELECT payment_method, amount_cents, transaction_reference, source, source_version, updated_at FROM order_payment_allocations WHERE order_id = ? ORDER BY id FOR UPDATE', [$orderId]);
+    $previous = array_map(static fn(array $row): array => [
+        'method'=>(string)$row['payment_method'], 'label'=>ops_payment_label((string)$row['payment_method']),
+        'amount_cents'=>(int)$row['amount_cents'], 'transaction_reference'=>(string)($row['transaction_reference']??''),
+        'source'=>(string)$row['source'], 'version'=>(string)$row['source_version'], 'updated_at'=>(string)$row['updated_at'],
+    ], $previousRows);
     db()->prepare('DELETE FROM order_payment_allocations WHERE order_id = ?')->execute([$orderId]);
     $insert = db()->prepare('INSERT INTO order_payment_allocations (order_id, payment_method, amount_cents, transaction_reference, source, source_version, updated_by_employee_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
     foreach ($allocations as $allocation) {
@@ -912,6 +932,13 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
         \Hambelela\EPI\V2OperationalBridge::record(db(), $entityType, $action, $entityId, $metadata);
     } catch (Throwable $e) {
         // V2 intelligence must never block operational work.
+    }
+    try {
+        require_once dirname(__DIR__, 2) . '/shared/epi/PerformanceRefreshRuntime.php';
+        \Hambelela\EPI\PerformanceRefreshRuntime::invalidate(db(), $entityType . ':' . $action);
+    } catch (Throwable $e) {
+        // Scheduled reconciliation retries invalidation; operational writes remain independent.
+        error_log('Employee Performance refresh invalidation failed: ' . $e->getMessage());
     }
 }
 

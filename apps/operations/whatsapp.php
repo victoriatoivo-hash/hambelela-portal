@@ -123,6 +123,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                  SELECT ?, platform, ?, 'manual', ?, ?, ? FROM ops_whatsapp_conversations WHERE id = ?"
             );
             $stmt->execute([$conversationId, $direction, $text, $messageAt, $direction === 'outbound' ? ops_current_employee_id() : null, $conversationId]);
+            $savedMessageId = (int) db()->lastInsertId();
 
             $field = $direction === 'outbound' ? 'last_staff_response_at' : 'last_customer_message_at';
             $firstResponse = $direction === 'outbound' ? ', first_response_at = COALESCE(first_response_at, ?)' : '';
@@ -130,9 +131,11 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 ? [$messageAt, $messageAt, $messageAt, $conversationId]
                 : [$messageAt, $messageAt, $conversationId];
             db()->prepare("UPDATE ops_whatsapp_conversations SET {$field} = ?, last_message_at = ?{$firstResponse}, updated_at = CURRENT_TIMESTAMP WHERE id = ?")->execute($params);
+            ops_activity_log('whatsapp_message_saved', 'ops_whatsapp_conversation', $conversationId,
+                ['direction'=>$direction,'occurred_at'=>$messageAt]);
 
             if ($direction === 'inbound') {
-                wa_apply_flagging_rules($conversationId, (int) db()->lastInsertId(), $text);
+                wa_apply_flagging_rules($conversationId, $savedMessageId, $text);
             }
             $message = 'Message logged.';
         }

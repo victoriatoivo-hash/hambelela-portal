@@ -43,13 +43,18 @@ unset($mixedSamples['tasks']);
 check(RateScoreCalculator::calculate($mixed,$mixedSamples)['official_score_hundredths'] === null, 'No silent weight redistribution');
 $sampleZero = ['orders'=>['sla'=>['eligible_volume'=>0,'numerator'=>0,'source_complete'=>true]]];
 check(RateScoreCalculator::calculate($policy,$sampleZero)['official_score_hundredths'] === null, 'Zero workload not perfect');
-foreach (['weight','counts','version','minimum','direction'] as $invalid) {
+$targetPolicy=$policy;$targetPolicy['categories']['orders']['metrics']['sla']['target_hundredths']=250;
+check(RateScoreCalculator::calculate($targetPolicy,$sample)['categories']['orders']['metrics']['sla']['target_hundredths']===250,'Configured target retained');
+check(RateScoreCalculator::calculate($policy,$sample)['categories']['orders']['metrics']['sla']['target_hundredths']===null,'No invented target');
+check(RateScoreCalculator::calculate($targetPolicy,$sample)['official_score_hundredths']===RateScoreCalculator::calculate($policy,$sample)['official_score_hundredths'],'Target display does not change rate formula');
+foreach (['weight','counts','version','minimum','direction','target'] as $invalid) {
     $p=$policy; $s=$sample;
     if ($invalid==='weight') $p['categories']['orders']['weight_hundredths']=9999;
     if ($invalid==='counts') $s['orders']['sla']['numerator']=313;
     if ($invalid==='version') unset($p['version']);
     if ($invalid==='minimum') $p['categories']['orders']['metrics']['sla']['minimum_volume']=0;
     if ($invalid==='direction') $p['categories']['orders']['metrics']['sla']['direction']='unknown';
+    if ($invalid==='target') $p['categories']['orders']['metrics']['sla']['target_hundredths']=10001;
     $rejected=false;
     try { RateScoreCalculator::calculate($p,$s); } catch (InvalidArgumentException $e) { $rejected=true; }
     check($rejected,'Reject '.$invalid);

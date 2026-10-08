@@ -20,6 +20,45 @@ try {
     $employeeId=max(0,(int)($_GET['id']??$currentEmployeeId)); $section=(string)($_GET['section']??'overview');if(!$canReview&&$employeeId!==$currentEmployeeId)kpi_send_json(['ok'=>false,'message'=>'You may view only your own performance report.'],403);
     $employee=ops_rows('SELECT e.id,e.full_name,e.hire_date,e.working_days,e.shift_start,e.shift_end,e.late_grace_minutes,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? AND e.status=\'active\' AND r.role_key<>\'owner_admin\' LIMIT 1',[$employeeId])[0]??null;
     if(!$employee){kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Employee not found.','error_code'=>'KPI_EMPLOYEE_NOT_FOUND'],404);}
+    $requestedAction=(string)($_GET['action']??'');
+    if($requestedAction==='performance_incident_review'){
+        if(!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner review required.'],403);
+        if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')kpi_send_json(['ok'=>false,'message'=>'Method not allowed.'],405);
+        $token=(string)($_SESSION['kpi_presence_csrf_token']??'');
+        if($token===''||!hash_equals($token,(string)($_POST['csrf_token']??'')))
+            kpi_send_json(['ok'=>false,'message'=>'Your session expired. Refresh and try again.'],403);
+        $month=(string)($_GET['month']??'');
+        if(!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$month))kpi_send_json(['ok'=>false,'message'=>'Choose a valid reporting month.'],422);
+        require_once BASE_PATH.'/shared/epi/PerformanceIncidentReview.php';
+        try{
+            \Hambelela\EPI\PerformanceIncidentReview::save(db(),$employeeId,$month.'-01',$_POST,$currentEmployeeId,date('Y-m-d H:i:s'));
+        }catch(RuntimeException $error){kpi_send_json(['ok'=>false,'message'=>$error->getMessage()],422);}
+        kpi_send_json(['ok'=>true,'message'=>'Evidence link reviewed. Automatic recalculation is queued; any locked result stays unchanged.']);
+    }
+    if(in_array($requestedAction,['','performance','performance_export'],true)){
+        require_once BASE_PATH.'/shared/epi/EmployeePerformanceService.php';
+        $month=(string)($_GET['month']??date('Y-m'));
+        if(!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$month))kpi_send_json(['ok'=>false,'message'=>'Choose a valid reporting month.'],422);
+        $result=(new \Hambelela\EPI\EmployeePerformanceService(db()))->profile($employeeId,$month.'-01');
+        require_once BASE_PATH.'/shared/epi/PerformanceIncidentReview.php';
+        $result['quality_review']=\Hambelela\EPI\PerformanceIncidentReview::read(db(),$employeeId,$month.'-01');
+        if(!$canReview)$result['quality_review']['work']=[];
+        header('Cache-Control: private, no-store');
+        header('X-Performance-Calculation: epi-v2-rate-1');
+        if($requestedAction==='performance_export'){
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="employee-performance-'.$employeeId.'-'.$month.'.csv"');
+            $out=fopen('php://output','wb');
+            fputcsv($out,\Hambelela\EPI\EmployeePerformanceService::exportHeaders());
+            foreach(\Hambelela\EPI\EmployeePerformanceService::exportRows($result) as $row){
+                foreach($row as &$cell)if(is_string($cell)&&preg_match('/^[=+@\-\t\r]/',$cell))$cell="'".$cell;unset($cell);
+                fputcsv($out,$row);
+            }fclose($out);exit;
+        }
+        $choices=$canReview?ops_rows("SELECT e.id,e.full_name,r.name role_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key<>'owner_admin' ORDER BY e.full_name"):[];
+        kpi_send_json(['ok'=>true,'employee'=>$employee,'performance'=>$result,'employees'=>$choices]);
+    }
+    if($requestedAction==='legacy_comparison'&&!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner access required for legacy comparison.'],403);
     if((string)($_GET['action']??'')==='live_presence'){
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');$livePresence=portal_presence_employee($employeeId);
         kpi_send_json(['ok'=>true,'employee'=>['id'=>$employeeId,'name'=>$employee['full_name']],'live_presence'=>$livePresence,'diagnostic'=>$canReview?['source_table'=>'ops_board_presence','session_table'=>'kpi_sessions','identity_mapping'=>$livePresence['identity_mapping']??null,'online_threshold_seconds'=>portal_presence_online_seconds(),'recent_threshold_seconds'=>portal_presence_recent_seconds()]:null]);

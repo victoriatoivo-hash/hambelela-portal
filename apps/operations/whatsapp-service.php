@@ -4,6 +4,17 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 
+function wa_capture_performance_message(int $conversationId,int $messageId,string $direction,string $at):void
+{
+    if($messageId<=0)return;
+    try {
+        \Hambelela\EPI\V2OperationalBridge::record(db(),'ops_whatsapp_conversation','whatsapp_message_received',$conversationId,
+            ['employee_id'=>0,'direction'=>$direction,'occurred_at'=>$at,'event_uuid'=>'native-message:'.$messageId]);
+        require_once BASE_PATH.'/shared/epi/PerformanceRefreshRuntime.php';
+        \Hambelela\EPI\PerformanceRefreshRuntime::invalidate(db(),'native communication message');
+    }catch(Throwable $error){error_log('Communication performance capture pending: '.$error->getMessage());}
+}
+
 function wa_statuses(): array
 {
     return [
@@ -524,6 +535,7 @@ function wa_store_inbound_message(array $message, array $contact, ?string $phone
     )->execute([$messageAt, $messageAt, $conversationId]);
 
     wa_apply_flagging_rules($conversationId, $insertedId > 0 ? $insertedId : null, $text);
+    wa_capture_performance_message($conversationId,$insertedId,'inbound',$messageAt);
 }
 
 function wa_store_meta_messaging_event(array $event, string $platform, ?string $accountId = null): void
@@ -579,6 +591,7 @@ function wa_store_meta_messaging_event(array $event, string $platform, ?string $
     if ($direction === 'inbound') {
         wa_apply_flagging_rules($conversationId, $insertedId > 0 ? $insertedId : null, $text);
     }
+    wa_capture_performance_message($conversationId,$insertedId,$direction,$messageAt);
 }
 
 function wa_store_status(array $status, ?string $phoneNumberId): void

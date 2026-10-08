@@ -21,11 +21,16 @@ final class V2Watchdog
         $roster=FrontDeskRoster::materialise($db,$hr,$now);
         $reminders=FrontCoverageNotifications::run($db,$hr,$now);
         V2OperationalBridge::replay($db,100);
+        require_once __DIR__.'/BookkeepingControlBridge.php';
+        $cashControls=BookkeepingControlBridge::reconcile($db,$now);
         $result=(new DeadlineEngine($db,$hr))->processDue($now,500,true);
+        require_once __DIR__.'/PerformanceRefreshRuntime.php';
+        $result['performance_refresh']=PerformanceRefreshRuntime::run($db);
         $result['roster']=$roster;
         $result['coverage_reminders']=$reminders;
+        $result['cash_controls']=$cashControls;
         $pending=(int)$db->query("SELECT COUNT(*) FROM epi_v2_outbox WHERE state='pending' AND last_error IS NOT NULL")->fetchColumn();
-        $errors=count($result['errors']??[])+$pending+(int)($reminders['failed']??0)+(($roster['status']??'')==='needs_review'?1:0);$status=$errors?'failed':'success';
+        $errors=count($result['errors']??[])+$pending+(int)($reminders['failed']??0)+(int)$result['performance_refresh']['failed']+(($roster['status']??'')==='needs_review'?1:0);$status=$errors?'failed':'success';
         $db->prepare('UPDATE epi_v2_watchdog_runs SET finished_at=NOW(),status=?,rows_inspected=?,breaches_created=?,errors=?,runtime_ms=?,details_json=? WHERE id=?')->execute([$status,$result['examined'],$result['breached']+$result['needs_attribution'],$errors,(int)round((microtime(true)-$start)*1000),Support::json($result+['outbox_failures'=>$pending]),$run]);
         if($errors)error_log('EPI V2 WATCHDOG UNHEALTHY: run '.$run.'; owner review required');
         return $result+['status'=>$status,'run_id'=>$run];

@@ -28,6 +28,11 @@ final class V2QualityBridge
         if(isset($r['attribution_verified_by']))$r['attribution_verified_by']=(int)$r['attribution_verified_by'];
         if(isset($meta['actor_employee_id']))$meta['actor_employee_id']=(int)$meta['actor_employee_id'];
         $snapshot=['root_incident_id'=>$root,'source_record'=>$r,'reporter_employee_id'=>$r['logged_by']??null,'actor_employee_id'=>$meta['actor_employee_id']??(function_exists('ops_current_employee_id')?ops_current_employee_id():null),'responsible_employee_id'=>$confirmed?$employee:null,'responsibility_confirmed'=>(bool)$confirmed,'reviewer_id'=>$r['attribution_verified_by']??null,'reviewed_at'=>$r['attribution_verified_at']??null,'historical_backfill'=>$historical,'excluded_from_scoring'=>true,'shadow_candidate_eligible'=>(bool)$eligible,'exclusion_reason'=>$exclusion??($historical?'historical_backfill':(!$confirmed?'insufficient_attribution':null)),'mode'=>'shadow'];
+        require_once __DIR__.'/PerformanceCapturePolicy.php';
+        if($eligible && PerformanceCapturePolicy::approved($db,$employee,$occurred)) {
+            $snapshot['excluded_from_scoring']=false;$snapshot['mode']='approved_prospective';
+            $snapshot['responsibility_type']='employee_error';
+        }
         $hash=hash('sha256',Support::json($snapshot));
         $current=V2Store::one($db,'SELECT * FROM epi_v2_quality_revisions WHERE root_incident_id=? AND superseded_at IS NULL',[$root]);
         if($current&&$current['revision_hash']===$hash)return;
