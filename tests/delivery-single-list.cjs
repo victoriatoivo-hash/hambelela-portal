@@ -1,5 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
 const source=fs.readFileSync('assets/js/delivery-back-capture.js','utf8');
+new TextDecoder('utf-8',{fatal:true}).decode(fs.readFileSync('assets/js/delivery-back-capture.js'));
 const functions=source.slice(source.indexOf('async function loadAllCandidates('),source.indexOf('const localTime='));
 const context={Map,Number,Array,Error,$:()=>({textContent:''})};vm.createContext(context);vm.runInContext(functions,context);
 (async()=>{
@@ -7,6 +8,12 @@ const context={Map,Number,Array,Error,$:()=>({textContent:''})};vm.createContext
  context.fetch=async url=>{const page=Number(new URLSearchParams(url.split('?')[1]).get('page'));pages.push(page);return {ok:true,json:async()=>({orders:Array.from({length:page===3?6:10},(_,i)=>({id:(page-1)*10+i+1})),total:26,has_more:page<3,drivers:[],csrf:'test'})};};
  const result=await context.loadAllCandidates(new URLSearchParams(),new AbortController().signal);
  assert.equal(result.orders.length,26);assert.deepEqual(pages,[1,2,3]);assert.equal(new Set(result.orders.map(x=>x.id)).size,26);
+ const nodes=new Map();const checks=Array.from({length:26},()=>({checked:false}));
+ Object.assign(context,{AbortController,URLSearchParams,FormData:class{*[Symbol.iterator](){}},loadController:null,rows:[],drivers:[],csrf:'',esc:String,money:String,localTime:String,existingLink:()=>'',document:{querySelectorAll:selector=>selector==='[data-order]:not(:disabled)'?checks:[]},$:selector=>{if(!nodes.has(selector))nodes.set(selector,{});return nodes.get(selector);}});
+ context.fetch=async url=>{const page=Number(new URLSearchParams(url.split('?')[1]).get('page'));return {ok:true,json:async()=>({orders:Array.from({length:page===3?6:10},(_,i)=>({id:(page-1)*10+i+1,existing:[]})),total:26,has_more:page<3})};};
+ vm.runInContext(source.slice(source.indexOf('async function read(){'),source.indexOf("$('#history-filter').onsubmit")),context);
+ await context.read();assert.equal(nodes.get('#back-review').disabled,false);assert.match(nodes.get('#back-page').textContent,/26 Delivery orders/);
+ nodes.get('#back-all').onchange({target:{checked:true}});assert.equal(checks.filter(x=>x.checked).length,26);
  context.fetch=async()=>({ok:false,json:async()=>({error:'Verification unavailable'})});
  await assert.rejects(context.loadAllCandidates(new URLSearchParams(),new AbortController().signal),/Verification unavailable/);
  const queue={pending:[{uuid:'a',items:Array(10).fill({id:1})},{uuid:'b',items:Array(10).fill({id:2})},{uuid:'c',items:Array(6).fill({id:3})}],saved:0};
