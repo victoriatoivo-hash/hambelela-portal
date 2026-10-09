@@ -41,6 +41,7 @@ jobs:
           python3 -m py_compile scripts/deploy-delivery-single-list.py
           node --check assets/js/delivery-back-capture.js
           node tests/delivery-single-list.cjs
+          php tests/delivery-recorded-history.php
       - name: Back up and publish only approved Orders files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

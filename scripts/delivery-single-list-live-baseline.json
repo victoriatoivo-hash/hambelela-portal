@@ -1,5 +1,8 @@
 {
-  "assets/js/delivery-back-capture.js": "b3b7b222124d6a2cc97390066e419da0c85bd674b5de48189e776aea215cb080",
+  "shared/delivery/BackCapture.php": "7f3eca806d7a655865ab30228a1584dac4c0c2cbd3c9a5021c4530c792c349a4",
+  "assets/js/delivery-back-capture.js": "754091484a8596ddf488f7ff19ac03abbc553c256ab048fccb5f58db6975533a",
   "apps/delivery/back-capture.php": "af2feb80ff0b69beada1a69de4ad774932b108913c0bd943ccc90cdedce36c56",
-  "shared/delivery/BackCapture.php": "7f3eca806d7a655865ab30228a1584dac4c0c2cbd3c9a5021c4530c792c349a4"
+  "shared/delivery/WooShippingSource.php": "d256e8d0693cca9beb4223b4cda89af41251cbbace5e9cc9f58427bc423a0440",
+  "shared/delivery/DeliveryPolicy.php": "73ed69c9f4d75a24d9adac00204929442dda5e8109cac2bdc714ef64e6073200",
+  "shared/delivery/FrontSession.php": "8f3a29e0487c1c05c8a2d7d9486dc0478fd7ade1c0a95d39c444191eb11113f6"
 }
