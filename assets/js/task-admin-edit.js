@@ -46,6 +46,10 @@
     const parsed=new DOMParser().parseFromString(await response.text(),'text/html');
     const selector=`[data-task-row][data-task-id="${Number(id)}"]`, current=document.querySelector(selector),next=parsed.querySelector(selector);
     if(current&&next)current.replaceWith(next);else if(current&&!next)current.remove();
+    const activePanel=document.querySelector(`.task-edit-drawer.open[data-task-panel="${Number(id)}"]`),nextPanel=parsed.querySelector(`[data-task-panel="${Number(id)}"]`);
+    const view=activePanel?.querySelector('[data-task-admin-view]'),nextView=nextPanel?.querySelector('[data-task-admin-view]');
+    if(view&&nextView){view.replaceChildren(...nextView.childNodes);initialiseTaskAttachments(view);initialiseTaskCorrections(view);initialiseTaskCompletionEnforcement();initializePortalCustomSelects(view);}
+    window.invalidateTaskViewCache?.();
     document.querySelectorAll('[data-stat]').forEach(stat=>{const fresh=parsed.querySelector(`[data-stat="${stat.dataset.stat}"] .dtb-stat-value`),value=stat.querySelector('.dtb-stat-value');if(fresh&&value)value.textContent=fresh.textContent;});
     document.querySelectorAll('.task-section').forEach(section=>{const count=section.querySelector('.task-count');if(count)count.textContent=String(section.querySelectorAll('tr[data-task-id]').length);});
     initialiseTaskBulkSelection();initialiseTaskStatusWorkflow();initialiseTaskColumnResizing();window.taskDueStateController?.refresh?.();window.lucide?.createIcons?.();
@@ -77,6 +81,7 @@
     let wasOpen=false;new MutationObserver(()=>{const open=panel.classList.contains('open');if(open&&!wasOpen){panel.classList.add('is-opening');setTimeout(()=>panel.classList.remove('is-opening'),260);}wasOpen=open;}).observe(panel,{attributes:true,attributeFilter:['class']});
   }
   panels().forEach(initialise);
+  new MutationObserver(changes=>{for(const change of changes)for(const node of change.addedNodes){if(!(node instanceof Element))continue;if(node.matches('.task-edit-drawer'))initialise(node);node.querySelectorAll('.task-edit-drawer').forEach(initialise);}}).observe(document.body,{childList:true,subtree:true});
   document.addEventListener('click',event=>{if(event.target.closest('[data-task-close]')&&document.querySelector('[data-task-admin-form][data-saving]')){event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('keydown',event=>{if(event.key==='Escape'&&document.querySelector('[data-task-admin-form][data-saving]')){event.preventDefault();event.stopImmediatePropagation();}},true);
   document.addEventListener('click',event=>{if(event.target.closest('[data-task-close]'))panels().forEach(panel=>{if(!panel.classList.contains('open'))mode(panel,false);});});
