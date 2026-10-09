@@ -2,7 +2,7 @@
    HAMBELELA — TASK MANAGEMENT ADMIN EDIT DRAWER
    =================================================== */
 
-:root {
+.task-edit-drawer {
   --task-olive-deep: #26311F;
   --task-olive-dark: #344126;
   --task-olive: #59694A;

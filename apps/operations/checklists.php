@@ -2562,7 +2562,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
         $activeCorrection = null;
         foreach ($panelCorrections as $panelCorrection) if ((int)($panelCorrection['id']??0)===(int)($task['active_correction_id']??0)) { $activeCorrection=$panelCorrection; break; }
         ?>
-        <aside class="<?= $canManage ? 'task-admin-detail-panel task-edit-drawer' : 'task-detail-panel task-details-panel' ?> task-detail-view" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
+        <aside class="<?= $canManage ? 'task-admin-detail-panel task-edit-drawer' : 'task-detail-panel task-details-panel task-detail-view' ?>" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
             <header class="<?= $canManage ? 'task-edit-header' : 'task-details-header' ?>">
                 <?php if (!$canManage): ?><button type="button" class="task-details-close" data-task-close aria-label="Close task details"><i data-lucide="x"></i></button><?php endif; ?>
                 <div class="task-details-heading"><?php if ($canManage): ?><span class="task-edit-eyebrow">TASK MANAGEMENT</span><h2 class="task-edit-title">Task Details</h2><?php endif; ?>
