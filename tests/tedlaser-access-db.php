@@ -60,6 +60,9 @@ try{
  $a=$adminService->accounting($admin);check($a['totals']['fee_due']===3000&&$a['totals']['cod_due']===1000&&count($a['entries'])===4,'scoped accounting balances match existing formula');
  $b['reference']='OWNER-TEST';$ownerJob=$service->arrangeForOwner($owner,1,'00000000-0000-4000-8000-000000000009',$b);
  check((int)$db->query('SELECT arranged_by_employee_id FROM delivery_jobs WHERE id='.(int)$ownerJob['id'])->fetchColumn()===1,'existing Owner on-behalf-of workflow preserved');
+ $oldHash=$db->query('SELECT password_hash FROM delivery_partner_users WHERE id='.(int)$id)->fetchColumn();
+ $access->manage($owner,['action'=>'permissions','id'=>$id,'name'=>'Toivo Test','role'=>'partner_admin','can_create'=>1,'can_edit'=>1,'can_driver'=>1,'can_accounting'=>1]);
+ check($access->identity($id)['display_name']==='Toivo Test'&&$db->query('SELECT password_hash FROM delivery_partner_users WHERE id='.(int)$id)->fetchColumn()===$oldHash,'rename and upgrade preserve existing password and account');
  $reset=$access->manage($owner,['action'=>'reset','id'=>$id]);
  denied(function()use($auth,&$session){$auth->actor($session);},'reset revokes previous sessions');
  $reset2=$access->manage($owner,['action'=>'reset','id'=>$id]);

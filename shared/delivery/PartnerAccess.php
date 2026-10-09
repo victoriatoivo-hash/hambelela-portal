@@ -68,6 +68,11 @@ final class PartnerAccess
             }else{
                 $s=$this->db->prepare("SELECT u.id FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id WHERE u.id=? AND (LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name)) IN ('tedlaser','tedlaser and engraving')) FOR UPDATE");$s->execute([$id]);if(!$s->fetchColumn())throw new \DomainException('Tedlaser account unavailable.');
             }
+            if($action==='permissions'&&array_key_exists('name',$b)){
+                $name=trim((string)$b['name']);
+                if($name===''||strlen($name)>190)throw new \DomainException('Enter a valid account name.');
+                $this->db->prepare('UPDATE delivery_partner_users SET display_name=? WHERE id=?')->execute([$name,$id]);
+            }
             if(in_array($action,['create','permissions'],true)){
                 $admin=$role==='partner_admin';
                 $this->db->prepare('INSERT INTO delivery_partner_access(user_id,role_key,can_create,can_edit,can_driver,can_accounting) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE role_key=VALUES(role_key),can_create=VALUES(can_create),can_edit=VALUES(can_edit),can_driver=VALUES(can_driver),can_accounting=VALUES(can_accounting),updated_at=UTC_TIMESTAMP()')->execute([$id,$role,(int)!empty($b['can_create']),(int)!empty($b['can_edit']),(int)($admin&&!empty($b['can_driver'])),(int)($admin&&!empty($b['can_accounting']))]);

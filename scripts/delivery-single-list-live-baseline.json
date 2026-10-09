@@ -1,7 +1,6 @@
 {
-  "shared/delivery/PartnerAccess.php": "0137e41885a53d7ed051579a3e4a56c350d60974fad1b84cafb27163d2aa4798",
-  "shared/delivery/PartnerService.php": "3113419b3a37985fd546083746856fb386e96653d3e776dc2451809367ccab41",
-  "apps/delivery/tedlaser-api.php": "4a575acb019a9e2e262077d8c0de9990738189b60f5e2bba1f6022c2248654a9",
+  "shared/delivery/PartnerAccess.php": "a4c2b6644e25d48d0b5aa587206f1732a4e21da6529721db3d97f42465cbcc34",
+  "apps/delivery/settings.php": "dc1285b5f96cbb6af6b42fb49ca4dc9fe8fc6668558be3f91ede8e064213590c",
   "shared/delivery/FrontSession.php": "8f3a29e0487c1c05c8a2d7d9486dc0478fd7ade1c0a95d39c444191eb11113f6",
   "shared/delivery/DeliveryPolicy.php": "73ed69c9f4d75a24d9adac00204929442dda5e8109cac2bdc714ef64e6073200",
   "shared/delivery/PartnerAuth.php": "a56c5bd95f491855536870b126328c612d0c8ea6ff0aad89e47a61fa28da9bd5",
