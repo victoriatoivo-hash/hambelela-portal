@@ -378,7 +378,7 @@
 
 /* Buttons */
 
-.task-edit-btn {
+.task-edit-drawer .task-edit-btn {
   min-height: 40px;
 
   display: inline-flex;
@@ -465,7 +465,7 @@
       calc(11px + env(safe-area-inset-bottom));
   }
 
-  .task-edit-btn {
+  .task-edit-drawer .task-edit-btn {
     min-height: 44px;
     flex: 1;
   }
@@ -476,7 +476,7 @@
     animation: none;
   }
 
-  .task-edit-btn {
+  .task-edit-drawer .task-edit-btn {
     transition: none;
   }
 }

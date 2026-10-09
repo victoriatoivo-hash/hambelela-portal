@@ -1,9 +1,9 @@
 {
-  "apps/operations/checklists.php": "e182290be62c06c82fa3478529473d17269c6c5e2b978392eab1f2b3dfd0c01d",
+  "apps/operations/checklists.php": "ebd7f6ca2d0a4b7640377dc10393679dd7d2635b93bf3c03f4d6ee9b53b64ab8",
   "assets/css/task-essentials.css": "db7062a2ee7ca69398cd946d561bbc15782744723b65939a9ccb3722b60ffd19",
   "assets/js/task-essentials.js": "404ec8219a835a0f839c8238664a003edcbe2d4a5efe4744a3b409c3f40f45bb",
   "shared/task-admin-edit.php": "94fceb7cdd0cb6d08a0595ba7d47d40fb426d14a2405697e3222511e31c9c2c5",
-  "assets/css/task-admin-edit.css": "870076c3c37973c12b4a042403cda29511630d7ee92c86c5095187544678a407",
+  "assets/css/task-admin-edit.css": "c3405e5bfa2de20fef9f437f6c99097bc1d0c890e50b807c39d1165d93504ec1",
   "assets/js/task-admin-edit.js": "f2180cf0c04181c9b287ff82bbc08279552e2dbc0e5b579bfed8184cd4e0b032",
   "shared/epi/TaskActivityBridge.php": "cebab1590f4ea5ff2d478ca263ae13aae6157d51e25c3812653091bb1e3c673a",
   "shared/epi/V2OperationalBridge.php": "d5007ab8bbb2d0f25d45a02ee20733e436b0a8493ac94a5210773a4c6e72bbf6",
