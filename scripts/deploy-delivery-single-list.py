@@ -1,8 +1,8 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('shared/delivery/BackCapture.php','assets/js/delivery-back-capture.js','apps/delivery/back-capture.php')
-READ_ONLY = ('shared/delivery/WooShippingSource.php','shared/delivery/DeliveryPolicy.php','shared/delivery/FrontSession.php')
+FILES = ('shared/delivery/PartnerAuth.php', 'shared/delivery/PartnerService.php', 'shared/delivery/PartnerWorkspace.php', 'shared/delivery/WorkspaceApps.php', 'apps/delivery/partner/login.php', 'apps/delivery/partner/index.php', 'apps/delivery/partner/api.php', 'apps/delivery/partner/bootstrap.php')
+READ_ONLY = ('shared/delivery/DeliveryPolicy.php', 'shared/delivery/PartnerProvisioning.php', 'shared/delivery/WorkspaceView.php', 'shared/delivery/AccountingService.php', 'shared/delivery/PartnerRouting.php', 'shared/delivery/DeliveryDeadline.php', 'shared/delivery/NotificationOutbox.php', 'shared/delivery/FrontSession.php', 'shared/delivery/PortalShell.php', 'apps/delivery/index.php', 'apps/delivery/partner/logout.php', 'apps/delivery/partner-setup.php', 'apps/delivery/accounting-api.php', 'assets/js/delivery-partner.js', 'assets/css/delivery-core.css', 'assets/css/delivery-controls.css', 'assets/css/delivery-workspace.css')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
