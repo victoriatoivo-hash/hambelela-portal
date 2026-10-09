@@ -1,0 +1,11 @@
+{
+  "apps/hr-portal/index.php": "c031cf4407d9488201b65adedf8fab1a7b666d1ef6ffd93ec286820782d2290f",
+  "apps/hr-portal/dashboard.php": "bf28da242e0fdec1fdb8ed86b409c76b9912d7956fb5908d1bda2a94873c0925",
+  "apps/hr-portal/includes/sidebar.php": "308ff04131ff025ad0ac95abcd8bd5ba989a12efee8655fdb13f422103b95a74",
+  "apps/hr-portal/includes/emp-sidebar.php": "950ad6b773e6227213eaaa9491c5e55b2956da42d2a7c931caf193bad55ef000",
+  "assets/css/hr-sidebar-theme.css": "d0089845194f99a24d1463380673998855c1511c3dbb7ed92318035ee90735b8",
+  "apps/hr-portal/portal-login.php": "5e52f9b02187b5454f45908d67e6d0ff23bb1dffd9336e3c70015a9b6fd6d32b",
+  "apps/hr-portal/includes/styles.css": "3970a7e7710545fb150a82a6d296a76d91263e1084071b95072420aa78d8299f",
+  "apps/hr-portal/includes/hr-responsive.js": "e42f1db3f30828abbb801a11c5deccac4a3a751ecc781fe4dab019d1da5ab11c",
+  "apps/hr-portal/includes/policy-system.php": "1283c9228d771d46213733650106f8688ea8286e05098333778eaf0e178bc5ed"
+}

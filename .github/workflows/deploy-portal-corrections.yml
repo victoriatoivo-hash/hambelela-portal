@@ -25,7 +25,10 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '7.4'
-          extensions: fileinfo, pdo_mysql
+          extensions: fileinfo, pdo_mysql, pdo_sqlite
+      - name: Verify dashboard data and preserved acknowledgements
+        if: inputs.mode != 'export'
+        run: php tests/hr-unified-interface.php
       - name: Capture, preflight or deploy the authorized HR interface files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

@@ -10,6 +10,16 @@ $db = db();
 $totalEmployees = $db->query("SELECT COUNT(*) FROM employees WHERE status='active'")->fetchColumn();
 $pendingLeave   = $db->query("SELECT COUNT(*) FROM leave_requests WHERE status='pending'")->fetchColumn();
 $pendingOT      = $db->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
+$pendingPolicies = null;
+try {
+    $pendingPolicies = (int)$db->query("SELECT COUNT(*) FROM hr_policy_assignments s
+        JOIN hr_policy_versions v ON v.id=s.version_id AND v.status='published' AND v.acknowledgement_required=1
+        JOIN employees e ON e.id=s.employee_id AND e.status='active'
+        LEFT JOIN hr_policy_acknowledgements a ON a.version_id=s.version_id AND a.employee_id=s.employee_id
+        WHERE a.signed_at IS NULL")->fetchColumn();
+} catch (PDOException $error) {
+    error_log('HR dashboard acknowledgement count unavailable: '.$error->getMessage());
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -109,19 +119,20 @@ $pendingOT      = $db->query("SELECT COUNT(*) FROM overtime WHERE status='pendin
         <div class="stat-value"><?= $pendingOT ?></div>
         <div class="stat-label">Pending Overtime</div>
       </div>
-      <div class="stat-card" onclick="location.href='payroll.php'">
-        <div class="stat-icon green"><i class="fa-solid fa-money-bill-wave"></i></div>
-        <div class="stat-value">N$0</div>
-        <div class="stat-label">Monthly Payroll</div>
+      <div class="stat-card" onclick="location.href='policies.php'">
+        <div class="stat-icon green"><i class="fa-solid fa-file-shield"></i></div>
+        <div class="stat-value"><?= $pendingPolicies === null ? '—' : $pendingPolicies ?></div>
+        <div class="stat-label">Outstanding Policy Acknowledgements</div>
       </div>
     </div>
     <?php endif ?>
 
     <div class="card">
-      <div class="card-title"><i class="fa-solid fa-rocket" style="color:var(--green)"></i> HR Portal is Live!</div>
+      <div class="card-title"><i class="fa-solid fa-list-check" style="color:var(--green)"></i> HR work awaiting review</div>
       <p style="color:var(--text-mid);font-size:13px;line-height:1.7">
-        Stage 2 complete — your login system is working. We are now building the full HR system step by step.<br><br>
-        <strong>Next up:</strong> Employee Management — add, edit and manage your team.
+        <a href="leave.php"><?= (int)$pendingLeave ?> pending leave requests</a> ·
+        <a href="overtime.php"><?= (int)$pendingOT ?> pending overtime requests</a> ·
+        <a href="policies.php"><?= $pendingPolicies === null ? 'Policy acknowledgement totals unavailable' : $pendingPolicies.' outstanding policy acknowledgements' ?></a>
       </p>
     </div>
 

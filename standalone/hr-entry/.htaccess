@@ -1,0 +1,5 @@
+# One current HR application. Existing stored files remain available here.
+Options -Indexes
+RewriteEngine On
+RewriteRule ^$ https://portal.hambelelaorganic.com/apps/hr-portal/index.php [R=307,L]
+RewriteRule ^(.*\.php)$ https://portal.hambelelaorganic.com/apps/hr-portal/$1 [R=307,L,NE]

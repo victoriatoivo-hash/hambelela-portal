@@ -4,10 +4,6 @@ $pendingLeave = db()->query("SELECT COUNT(*) FROM leave_requests WHERE status='p
 $pendingOT    = db()->query("SELECT COUNT(*) FROM overtime WHERE status='pending'")->fetchColumn();
 $currentPage  = basename($_SERVER['PHP_SELF']);
 $showBusinessPortalLink = strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') !== false;
-$buildInfoPath = __DIR__ . '/../build-info.php';
-if (is_file($buildInfoPath)) {
-    require_once $buildInfoPath;
-}
 function navItem($href, $icon, $label, $badge=0, $current='') {
     $active = (basename($href) === $current) ? ' active' : '';
     $b = $badge > 0 ? "<span class='nav-badge'>$badge</span>" : '';
@@ -15,6 +11,7 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
 }
 ?>
 <link rel="stylesheet" href="includes/styles.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/styles.css')) ?>">
+<link rel="stylesheet" href="../../assets/css/hr-sidebar-theme.css?v=<?= filemtime(__DIR__.'/../../../assets/css/hr-sidebar-theme.css') ?>">
 <link rel="stylesheet" href="../../assets/css/portal-date-picker.css?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/css/portal-date-picker.css')) ?>">
 <script defer src="../../assets/js/portal-date-picker.js?v=<?= rawurlencode((string) filemtime(__DIR__ . '/../../../assets/js/portal-date-picker.js')) ?>"></script>
 <button type="button" class="hr-mobile-menu-toggle" data-hr-menu-open aria-label="Open HR navigation" aria-controls="hrPortalSidebar" aria-expanded="false">
@@ -27,7 +24,7 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
   </div>
   <div class="sidebar-logo">
     <img src="data:image/jpeg;base64,YOUR_EXISTING_BASE64_HERE" alt="Hambelela Organic" style="width:160px;height:auto;display:block;filter:invert(1) brightness(2);">
-    <div style="font-size:9px;color:rgba(255,255,255,0.28);margin-top:6px;letter-spacing:.1em;font-family:'Century Gothic','Futura',Arial,sans-serif;text-transform:uppercase">HR Portal</div>
+    <div style="font-size:9px;color:rgba(255,255,255,0.28);margin-top:6px;letter-spacing:.1em;font-family:Jost,sans-serif;text-transform:uppercase">HR Portal</div>
   </div>
 
   <div class="sidebar-user">
@@ -60,12 +57,6 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
   </div>
 
   <div class="sidebar-footer">
-    <?php if (defined('HR_PORTAL_BUILD_COMMIT')): ?>
-      <div style="font-size:10px;line-height:1.35;color:rgba(255,255,255,.42);margin-bottom:10px">
-        Build <?=htmlspecialchars(substr(HR_PORTAL_BUILD_COMMIT,0,7))?><br>
-        <?=htmlspecialchars(HR_PORTAL_BUILD_DATE)?>
-      </div>
-    <?php endif ?>
     <form method="POST" action="logout.php">
       <button type="submit" class="logout-btn"><i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out</button>
     </form>

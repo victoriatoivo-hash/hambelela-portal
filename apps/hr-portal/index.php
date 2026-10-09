@@ -48,11 +48,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Hambelela Organic — HR Portal Login</title>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>@font-face{font-family:Jost;src:url("../../assets/fonts/jost-variable.woff2") format("woff2");font-weight:100 900;font-display:swap}</style>
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{
-    font-family:'Plus Jakarta Sans',sans-serif;
+    font-family:'Jost',sans-serif;
     background: linear-gradient(135deg, #0d1f14 0%, #1a3a26 50%, #0d1f14 100%);
     min-height:100vh;
     display:flex;align-items:center;justify-content:center;
