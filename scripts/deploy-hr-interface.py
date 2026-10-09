@@ -1,7 +1,7 @@
 """Source capture and hash-guarded HR interface delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('apps/hr-portal/index.php','apps/hr-portal/dashboard.php','apps/hr-portal/includes/sidebar.php','apps/hr-portal/includes/emp-sidebar.php','assets/css/hr-sidebar-theme.css','apps/hr-portal/includes/policies.css')
+FILES = ('apps/hr-portal/index.php','apps/hr-portal/dashboard.php','apps/hr-portal/includes/sidebar.php','apps/hr-portal/includes/emp-sidebar.php','assets/css/hr-sidebar-theme.css','apps/hr-portal/includes/policies.css','apps/hr-portal/policies.php','apps/hr-portal/policy-acknowledgements.php','apps/hr-portal/policy-receipt.php','apps/hr-portal/policy-view.php')
 READ_ONLY = ('apps/hr-portal/portal-login.php','apps/hr-portal/includes/styles.css','apps/hr-portal/includes/hr-responsive.js','apps/hr-portal/includes/policy-system.php','apps/hr-portal/assets/letter/hambelela-logo.jpg')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
