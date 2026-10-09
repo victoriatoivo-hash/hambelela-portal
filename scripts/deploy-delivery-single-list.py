@@ -1,8 +1,8 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('assets/js/delivery-back-capture.js',)
-READ_ONLY = ('apps/delivery/back-capture.php','shared/delivery/BackCapture.php')
+FILES = ('shared/delivery/BackCapture.php','assets/js/delivery-back-capture.js','apps/delivery/back-capture.php')
+READ_ONLY = ('shared/delivery/WooShippingSource.php','shared/delivery/DeliveryPolicy.php','shared/delivery/FrontSession.php')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
