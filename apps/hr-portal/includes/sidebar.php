@@ -23,7 +23,7 @@ function navItem($href, $icon, $label, $badge=0, $current='') {
     <button type="button" class="hr-sidebar-close" data-hr-menu-close aria-label="Close HR navigation">&times;</button>
   </div>
   <div class="sidebar-logo">
-    <img src="data:image/jpeg;base64,YOUR_EXISTING_BASE64_HERE" alt="Hambelela Organic" style="width:160px;height:auto;display:block;filter:invert(1) brightness(2);">
+    <img src="assets/letter/hambelela-logo.jpg" alt="Hambelela Organic" style="width:160px;height:auto;display:block;filter:invert(1);mix-blend-mode:screen;">
     <div style="font-size:9px;color:rgba(255,255,255,0.28);margin-top:6px;letter-spacing:.1em;font-family:Jost,sans-serif;text-transform:uppercase">HR Portal</div>
   </div>
 
