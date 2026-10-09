@@ -11,9 +11,9 @@ final class PartnerShell
             $html=str_replace('</head>',$links.'</head>',$html);
             // Local SVG equivalents keep the shared card icons under the partner's self-only CSP.
             $icons=[
-                'bike'=>'<circle cx="5.5" cy="17.5" r="3.5"/><circle cx="18.5" cy="17.5" r="3.5"/><path d="m15 6 2 3h3M12 17.5l-3-5 4-4 3 4h3M10 5h1"/><circle cx="16" cy="3" r="1"/>',
-                'boxes'=>'<path d="m12 3 7 4-7 4-7-4 7-4Zm-7 4v8l7 4 7-4V7M12 11v8M3 11l2-1M19 10l2 1v8l-7 4-2-1M3 11v8l7 4 2-1"/>',
-                'wallet'=>'<path d="M20 8V5a2 2 0 0 0-2-2H5a3 3 0 0 0 0 6h15v11H5a3 3 0 0 1-3-3V6M20 12h-5v5h5"/><path d="M16 14.5h.01"/>',
+                'bike'=>'<circle cx="18.5" cy="17.5" r="3.5"/><circle cx="5.5" cy="17.5" r="3.5"/><circle cx="15" cy="5" r="1"/><path d="M12 17.5V14l-3-3 4-3 2 3h2"/>',
+                'boxes'=>'<path d="M2.97 12.92A2 2 0 0 0 2 14.63v3.24a2 2 0 0 0 .97 1.71l3 1.8a2 2 0 0 0 2.06 0L12 19v-5.5l-5-3-4.03 2.42Z"/><path d="m7 16.5-4.74-2.85m4.74 2.85 5-3M7 16.5v5.17M12 13.5V19l3.97 2.38a2 2 0 0 0 2.06 0l3-1.8a2 2 0 0 0 .97-1.71v-3.24a2 2 0 0 0-.97-1.71L17 10.5l-5 3Zm5 3-5-3m5 3 4.74-2.85M17 16.5v5.17M7.97 4.42A2 2 0 0 0 7 6.13v4.37l5 3 5-3V6.13a2 2 0 0 0-.97-1.71l-3-1.8a2 2 0 0 0-2.06 0l-3 1.8ZM12 8 7.26 5.15M12 8l4.74-2.85M12 13.5V8"/>',
+                'wallet'=>'<path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>',
             ];
             foreach($icons as $name=>$paths)$html=str_replace('<i data-lucide="'.$name.'"></i>','<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$paths.'</svg>',$html);
             $nav='<header class="delivery-main"><nav class="actions" aria-label="Partner workspace">';
