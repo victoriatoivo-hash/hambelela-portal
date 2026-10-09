@@ -1,6 +1,6 @@
 {
-  "shared/delivery/PartnerAccess.php": "a4c2b6644e25d48d0b5aa587206f1732a4e21da6529721db3d97f42465cbcc34",
-  "apps/delivery/settings.php": "dc1285b5f96cbb6af6b42fb49ca4dc9fe8fc6668558be3f91ede8e064213590c",
+  "shared/delivery/PartnerAccess.php": "d40daf544fa2817cbfe341ede7f461bdd877395b9f7721bb574c6ca6fd439973",
+  "apps/delivery/settings.php": "2d0db393dd8efabc56925a5817b812d355530c21fc9e39720aaf981395294896",
   "shared/delivery/FrontSession.php": "8f3a29e0487c1c05c8a2d7d9486dc0478fd7ade1c0a95d39c444191eb11113f6",
   "shared/delivery/DeliveryPolicy.php": "73ed69c9f4d75a24d9adac00204929442dda5e8109cac2bdc714ef64e6073200",
   "shared/delivery/PartnerAuth.php": "a56c5bd95f491855536870b126328c612d0c8ea6ff0aad89e47a61fa28da9bd5",
