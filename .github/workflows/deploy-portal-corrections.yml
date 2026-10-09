@@ -40,6 +40,7 @@ jobs:
         run: |
           php tests/task-admin-edit.php
           php tests/task-admin-permissions.php
+          php tests/task-details.php
           php tests/task-admin-performance.php
       - name: Capture, preflight or deploy the authorized Task editing files
         env:

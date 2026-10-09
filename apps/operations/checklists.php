@@ -443,6 +443,17 @@ function checklist_json_items(?string $value): array
     return array_values(array_filter(array_map('trim', preg_split('/\r\n|\r|\n/', $value) ?: [])));
 }
 
+function checklist_detail_access(array $task, bool $canManage, int $employeeId): array
+{
+    $available = empty($task['deleted_at']) && empty($task['archived_at']);
+    $released = empty($task['scheduled_at']) || !empty($task['released_at']);
+    $assigned = $employeeId > 0 && (int)($task['assigned_employee_id'] ?? 0) === $employeeId;
+    $employeeAccess = !$canManage && $available && $assigned && !empty($task['employee_visible']) && $released;
+    $status = checklist_normalize_status((string)($task['status'] ?? 'new'));
+    $started = $status === 'in_progress' && !empty($task['started_at']);
+    return ['can_view'=>$canManage || $employeeAccess, 'can_start'=>$employeeAccess && $status !== 'complete' && !$started, 'can_work'=>$employeeAccess && $started];
+}
+
 function checklist_completion_validation(array $task, ?array $checkedOverride = null, ?string $noteOverride = null, bool $newEvidence = false): array
 {
     $required = checklist_json_items((string) ($task['checklist_items'] ?? ''));
@@ -1434,7 +1445,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'acknowledge_task') {
             header('Content-Type: application/json; charset=utf-8');
             $taskId = (int) ($_POST['task_id'] ?? 0);
-            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
+            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND archived_at IS NULL AND deleted_at IS NULL';
             $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
             $taskRows = ops_rows("SELECT id, status FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$taskRows) throw new RuntimeException('Task was not found or is not assigned to you.');
@@ -1447,13 +1458,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         if ($action === 'update_task_status') {
+            if ($canManage) { http_response_code(403); throw new RuntimeException('Use Edit Task to record a management correction.'); }
             header('Content-Type: application/json; charset=utf-8');
             $taskId = (int) ($_POST['task_id'] ?? 0);
             $status = checklist_requested_status();
             if ($taskId <= 0 || !array_key_exists($status, $statuses)) {
                 throw new RuntimeException('Choose a valid task status.');
             }
-            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
+            $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND archived_at IS NULL AND deleted_at IS NULL';
             $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
             $beforeRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$beforeRows) throw new RuntimeException('Task was not found or is not assigned to you.');
@@ -1575,7 +1587,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
         $taskId = (int) ($_POST['task_id'] ?? 0);
-        $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
+        $scope = $canManage ? 'id = ?' : 'id = ? AND assigned_employee_id = ? AND employee_visible = 1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND archived_at IS NULL AND deleted_at IS NULL';
         $scopeParams = $canManage ? [$taskId] : [$taskId, $currentEmployeeId ?: 0];
 
         if ($action === 'create_task' && $canManage) {
@@ -1855,6 +1867,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($action === 'update_task_progress') {
+            if ($canManage) { http_response_code(403); throw new RuntimeException('Use Edit Task to record a management correction.'); }
             $status = checklist_requested_status();
             $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
             $note = checklist_require_progress_note(ops_post_string('completion_note', 1500));
@@ -1868,6 +1881,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     http_response_code(403);
                     throw new RuntimeException('This task is not assigned to your account.');
                 }
+                if (!checklist_detail_access($task, $canManage, (int)$currentEmployeeId)['can_work']) { http_response_code(403); throw new RuntimeException('Start your assigned, released task before recording work.'); }
                 $previousStatus = checklist_normalize_status((string) ($task['status'] ?? 'new'));
                 if (!$canManage && $previousStatus === 'complete' && $status !== 'complete') {
                     http_response_code(403);
@@ -2312,6 +2326,7 @@ $essShellApps = ess_shell_apps();
 $essActiveModule = 'Task Management';
 $essHeadingPartial = BASE_PATH . '/shared/ess-task-heading.php';
 $extraStylesheets[] = ['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')];
+$extraStylesheets[] = ['path'=>'assets/css/task-details.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-details.css')];
 $extraStylesheets[] = ['path'=>'assets/css/task-admin-edit.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-admin-edit.css')];
 $extraStylesheets[] = ['path'=>'assets/css/task-essentials.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-essentials.css')];
 $extraStylesheets[] = ['path'=>'assets/css/task-recurring-refinement.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/task-recurring-refinement.css')];
@@ -2562,87 +2577,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
         $activeCorrection = null;
         foreach ($panelCorrections as $panelCorrection) if ((int)($panelCorrection['id']??0)===(int)($task['active_correction_id']??0)) { $activeCorrection=$panelCorrection; break; }
         ?>
-        <aside class="<?= $canManage ? 'task-admin-detail-panel task-edit-drawer' : 'task-detail-panel task-details-panel task-detail-view' ?>" data-task-panel="<?= $panelId ?>" data-deadline-state="<?= htmlspecialchars((string) ($panelDueState['value'] ?? 'normal'), ENT_QUOTES, 'UTF-8') ?>" aria-hidden="true">
-            <header class="<?= $canManage ? 'task-edit-header' : 'task-details-header' ?>">
-                <?php if (!$canManage): ?><button type="button" class="task-details-close" data-task-close aria-label="Close task details"><i data-lucide="x"></i></button><?php endif; ?>
-                <div class="task-details-heading"><?php if ($canManage): ?><span class="task-edit-eyebrow">TASK MANAGEMENT</span><h2 class="task-edit-title">Task Details</h2><?php endif; ?>
-                    <div class="task-details-badges">
-                        <span class="task-details-badge task-details-badge--status task-details-badge--<?= htmlspecialchars($statusClass, ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($groups[$effective] ?? ($statuses[$effective] ?? $effective), ENT_QUOTES, 'UTF-8') ?></span>
-                        <span class="task-details-badge task-details-badge--<?= $taskKind === 'recurring' ? 'recurring' : 'manual' ?>"><i data-lucide="<?= $taskKind === 'recurring' ? 'repeat-2' : 'square-pen' ?>"></i><?= $taskKind === 'recurring' ? 'Recurring' : 'Manual' ?></span>
-                        <?php if ($panelDueState): ?><span class="task-details-badge task-details-badge--deadline task-details-badge--<?= htmlspecialchars(str_replace('_', '-', $panelDueState['value']), ENT_QUOTES, 'UTF-8') ?>"><i data-lucide="clock-3"></i><?= htmlspecialchars($panelDueState['label'], ENT_QUOTES, 'UTF-8') ?></span><?php endif; ?>
-                    </div>
-                    <h2 class="<?= $canManage ? 'task-edit-subtitle' : 'task-details-title' ?>" data-task-admin-title><?= htmlspecialchars(checklist_display_task_title((string) $task['task_name']), ENT_QUOTES, 'UTF-8') ?></h2>
-                    <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><p class="task-scheduled-notice"><strong>Scheduled</strong> · releases <?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?> · hidden from employee</p><?php endif; ?>
-                </div>
-                <?php if ($canManage): ?><div class="task-edit-header-actions"><button type="button" class="task-edit-btn task-edit-btn--secondary" data-task-admin-edit>Edit Task</button><button type="button" class="task-edit-btn task-edit-btn--secondary" data-task-close aria-label="Close task details">Close</button></div><?php endif; ?>
-            </header>
-
-            <div class="<?= $canManage ? 'task-edit-body' : 'task-details-body' ?>" id="task-details-<?= $panelId ?>"><?php if ($canManage) task_admin_render($task,$employees,$taskAttachmentCsrf); ?><div data-task-admin-view>
-                <?php if ($activeCorrection): ?><section class="task-correction-banner"><div class="task-correction-banner__icon"><i data-lucide="rotate-ccw" aria-hidden="true"></i></div><div><span>Correction required · Round <?= (int)$activeCorrection['correction_round'] ?></span><h3><?= htmlspecialchars((string)$activeCorrection['message'],ENT_QUOTES,'UTF-8') ?></h3><p>Due <?= htmlspecialchars(checklist_date_label((string)$activeCorrection['correction_due_at']),ENT_QUOTES,'UTF-8') ?><?= !empty($activeCorrection['require_new_proof'])?' · New proof required':'' ?></p><?php if(!$canManage):?><small>When finished, describe the correction in the Correction completion note below, then submit it.</small><?php endif;?></div></section><?php endif; ?>
-                <?php if ($canManage && $panelSavedStatus==='complete' && !$activeCorrection): ?><form method="post" enctype="multipart/form-data" class="task-details-section task-correction-card" data-task-correction-form><input type="hidden" name="action" value="request_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><header class="task-correction-card__heading"><span><i data-lucide="rotate-ccw" aria-hidden="true"></i></span><div><h3>Request correction</h3><p>Reopen this completed task for the assigned employee. The original completion remains in its audit history.</p></div></header><label>What needs correcting<textarea name="correction_message" required minlength="5" maxlength="1000"></textarea></label><label>Correction due date and time<input type="datetime-local" name="correction_due_at" required></label><label class="task-correction-check"><input type="checkbox" name="require_new_proof" value="1"> Require new proof for this correction</label><label class="task-correction-file"><span>Supporting file (optional)</span><input type="file" name="correction_attachment" accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx"></label><p data-task-correction-error hidden></p><button class="task-btn task-btn--primary" type="submit"><i data-lucide="send" aria-hidden="true"></i><span>Request correction</span></button></form><?php endif; ?>
-                <?php if ($canManage && $activeCorrection): ?><section class="task-details-section task-correction-card task-correction-card--edit"><form method="post" data-task-correction-form><input type="hidden" name="action" value="update_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><header class="task-correction-card__heading"><span><i data-lucide="message-square-pen" aria-hidden="true"></i></span><div><h3>Edit correction request</h3><p>Update the instructions or deadline sent to the assigned employee.</p></div></header><label>Correction message<textarea name="correction_message" required minlength="5"><?= htmlspecialchars((string)$activeCorrection['message'],ENT_QUOTES,'UTF-8') ?></textarea></label><div class="task-correction-card__options"><label>Correction due date and time<input type="datetime-local" name="correction_due_at" value="<?= htmlspecialchars(substr((string)$activeCorrection['correction_due_at'],0,16),ENT_QUOTES,'UTF-8') ?>" required></label><label class="task-correction-proof-toggle"><input type="checkbox" name="require_new_proof" value="1" <?= !empty($activeCorrection['require_new_proof'])?'checked':'' ?>><span class="task-correction-proof-toggle__track"><span></span></span><span class="task-correction-proof-toggle__copy"><strong>Require new proof</strong><small>Employee must upload fresh evidence.</small></span></label></div><p data-task-correction-error hidden></p><div class="task-correction-actions"><button class="task-btn task-btn--primary task-correction-save" type="submit"><i data-lucide="save" aria-hidden="true"></i><span>Save correction</span></button></div></form><details class="task-correction-cancel"><summary><i data-lucide="circle-x" aria-hidden="true"></i><span>Cancel this correction</span><i data-lucide="chevron-down" aria-hidden="true"></i></summary><form method="post" data-task-correction-form data-correction-cancel><input type="hidden" name="action" value="cancel_task_correction"><input type="hidden" name="task_id" value="<?= $panelId ?>"><label>Cancellation reason<textarea name="cancel_reason" required minlength="5" placeholder="Explain why this correction is being cancelled."></textarea></label><p data-task-correction-error hidden></p><div class="task-correction-actions"><button class="task-btn task-btn--danger" type="submit"><span>Confirm cancellation</span></button></div></form></details></section><?php endif; ?>
-                <?php if ($panelCorrections): ?><details class="task-details-section task-correction-history"><summary>Correction history · <?= count($panelCorrections) ?> round<?= count($panelCorrections)===1?'':'s' ?></summary><?php foreach ($panelCorrections as $cycle): $snapshot=json_decode((string)($cycle['completion_snapshot_json']??'{}'),true)?:[]; ?><article><strong>Round <?= (int)$cycle['correction_round'] ?> · <?= htmlspecialchars(ucfirst((string)$cycle['status']),ENT_QUOTES,'UTF-8') ?></strong><p><?= htmlspecialchars((string)$cycle['message'],ENT_QUOTES,'UTF-8') ?></p><?php if(trim((string)($cycle['employee_completion_note']??''))!==''):?><div class="task-correction-history__response"><span>Employee correction note</span><p><?= htmlspecialchars((string)$cycle['employee_completion_note'],ENT_QUOTES,'UTF-8') ?></p></div><?php endif;?><small>Previous completion: <?= htmlspecialchars(checklist_date_label((string)($snapshot['completed_at']??'')),ENT_QUOTES,'UTF-8') ?> · <?= htmlspecialchars((string)($snapshot['completion_note']??'No note'),ENT_QUOTES,'UTF-8') ?></small></article><?php endforeach; ?></details><?php endif; ?>
-                <?php if ($canManage): ?>
-                    <?php if (!empty($task['scheduled_at']) && empty($task['released_at'])): ?><section class="task-details-section task-scheduled-actions"><div><h3 class="task-section-title">Scheduled release</h3><p>This task remains private until <strong><?= htmlspecialchars(checklist_date_label((string) $task['scheduled_at']), ENT_QUOTES, 'UTF-8') ?></strong>.</p></div><div class="task-scheduled-actions__buttons"><form method="post"><input type="hidden" name="action" value="release_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-schedule-button task-schedule-button--primary" type="submit"><i data-lucide="play" aria-hidden="true"></i><span>Release Now</span></button></form><form method="post" onsubmit="return confirm('Cancel this scheduled task?');"><input type="hidden" name="action" value="cancel_scheduled_task"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-schedule-button task-schedule-button--secondary" type="submit">Cancel scheduled task</button></form></div></section><?php endif; ?>
-                    <button type="button" class="task-edit-btn task-edit-btn--secondary" data-save-task-template="<?= $panelId ?>">Save as template</button>
-                    <?php if ($taskKind === 'recurring'): ?><form method="post" class="task-recurrence-stop-form"><input type="hidden" name="action" value="task_cancel_recurrence"><input type="hidden" name="task_id" value="<?= $panelId ?>"><button class="task-btn task-btn--danger" type="submit">Stop future recurrence</button><small>The current task stays available; no new copies will be created.</small></form><?php endif; ?>
-                <?php endif; ?>
-
-                <section class="task-details-section task-content-card">
-                    <h3 class="task-content-heading task-instructions__heading">Instructions</h3>
-                    <?php $instructionValue = (string) ($task['instructions'] ?: $task['notes'] ?: ''); ?>
-                    <div class="task-content-text task-instructions-rendered<?= checklist_instruction_text_length($instructionValue) > 400 ? ' is-collapsed' : '' ?>" data-readonly-instructions><?= checklist_render_instructions($instructionValue) ?></div>
-                    <?php if (checklist_instruction_text_length($instructionValue) > 400): ?><button type="button" class="task-instructions-read-more" data-instructions-read-more aria-expanded="false">View full instructions</button><?php endif; ?>
-                </section>
-
-                <form method="post" enctype="multipart/form-data" class="task-details-section task-details-progress-form" data-task-progress-form data-task-id="<?= $panelId ?>">
-                    <input type="hidden" name="task_id" value="<?= $panelId ?>">
-                    <div class="task-completion-error" data-task-completion-error role="alert" hidden><strong>This task cannot be completed yet.</strong><span data-task-completion-error-message></span></div>
-                    <section class="task-content-card">
-                    <h3 class="task-content-heading task-checklist__heading" id="task-checklist-<?= $panelId ?>">Checklist items</h3>
-                        <div class="task-checklist">
-                            <?php foreach ($items as $item): ?>
-                                <?php $itemComplete = in_array($item, $checked, true); ?>
-                                <label class="task-checklist-item<?= $itemComplete ? ' is-complete' : '' ?>" data-required-checklist-item><input type="checkbox" name="checked_items[]" value="<?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?>" <?= $itemComplete ? 'checked' : '' ?>><span class="task-checklist-label"><?= htmlspecialchars($item, ENT_QUOTES, 'UTF-8') ?></span><small>Required</small></label>
-                            <?php endforeach; ?>
-                            <?php if (!$items): ?><p class="task-history-empty">No checklist items added.</p><?php endif; ?>
-                        </div>
-                    </section>
-
-                    <?php if ($effective !== 'complete'): ?>
-                        <section class="task-details-section task-progress-card">
-                            <h3 class="task-section-title task-progress__heading"><?= $activeCorrection?'Correction response':'Progress Update' ?></h3>
-                            <?php if ($canManage): ?><div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div><?php else: ?><input type="hidden" name="status" value="complete"><?php endif; ?>
-                            <div class="task-field<?= $activeCorrection?' task-correction-response-field':'' ?>" id="task-notes-<?= $panelId ?>"><label class="task-progress-label" for="task-progress-note-<?= $panelId ?>"><?= $activeCorrection?'Correction completion note':'Completion note' ?> <span class="required-marker" aria-hidden="true">*</span></label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" required minlength="5" aria-required="true" maxlength="1000" data-completion-note placeholder="<?= $activeCorrection?'Explain exactly what you corrected.':'Explain what was completed.' ?>"><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea><p class="task-progress-note-error" data-task-note-error role="alert" hidden>Enter a completion note before saving.</p></div>
-                            <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress" data-save-task><?= $canManage ? 'Save progress' : 'Save Task' ?></button></div>
-                        </section>
-                    <?php else: ?>
-                        <section class="task-details-section task-content-card"><h3 class="task-content-heading">Completion note</h3><p class="task-content-text"><?= htmlspecialchars((string) ($task['completion_note'] ?? 'No completion note added.'), ENT_QUOTES, 'UTF-8') ?></p></section>
-                    <?php endif; ?>
-                </form>
-
-                <?php
-                $panelAttachments = $attachmentsByTask[$panelId] ?? [];
-                $taskIsComplete = checklist_normalize_status((string) ($task['status'] ?? 'pending')) === 'complete';
-                $taskAcceptsFiles = empty($task['archived_at']) && empty($task['deleted_at']) && ($canManage || !$taskIsComplete);
-                ?>
-                <section class="task-details-section task-files" data-task-files data-task-id="<?= $panelId ?>" data-csrf-token="<?= htmlspecialchars($taskAttachmentCsrf, ENT_QUOTES, 'UTF-8') ?>">
-                    <div class="task-files__heading"><div><h3>Files / proof</h3><p>Upload a photo, document or other proof of work.</p></div><?php if ($taskAcceptsFiles): ?><button type="button" class="task-files__add" data-add-task-file><i data-lucide="paperclip" aria-hidden="true"></i><span>Add photo or file</span></button><?php endif; ?></div>
-                    <?php if ($taskAcceptsFiles): ?><input type="file" data-task-file-input multiple hidden accept=".jpg,.jpeg,.png,.webp,.pdf,.doc,.docx,.xls,.xlsx,.mp4"><?php endif; ?>
-                    <p class="task-files__error" data-task-files-error hidden></p>
-                    <div class="task-files__list" data-task-file-list>
-                        <?php foreach ($panelAttachments as $attachment): ?>
-                            <?php $canRemoveAttachment = $canManage || (!$taskIsComplete && (int) ($attachment['uploaded_by'] ?? 0) === (int) $currentEmployeeId); $attachmentPayload = checklist_attachment_payload($attachment, $canRemoveAttachment); ?>
-                            <article class="task-file" data-task-attachment-id="<?= (int) $attachment['id'] ?>"><a class="task-file__thumbnail" href="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener"><?php if (strpos((string) $attachment['mime_type'], 'image/') === 0): ?><img src="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" alt=""><?php else: ?><i data-lucide="file-text" aria-hidden="true"></i><?php endif; ?></a><div class="task-file__information"><div class="task-file__name"><?= htmlspecialchars((string) $attachment['original_filename'], ENT_QUOTES, 'UTF-8') ?></div><div class="task-file__meta"><?= number_format(((int) $attachment['file_size']) / 1024, 1) ?> KB · <?= htmlspecialchars((string) $attachment['uploaded_by_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(checklist_date_label((string) $attachment['created_at']), ENT_QUOTES, 'UTF-8') ?></div></div><div class="task-file__actions"><a class="task-file__action" href="<?= htmlspecialchars($attachmentPayload['viewUrl'], ENT_QUOTES, 'UTF-8') ?>" target="_blank" rel="noopener">View</a><a class="task-file__action" href="<?= htmlspecialchars($attachmentPayload['downloadUrl'], ENT_QUOTES, 'UTF-8') ?>">Download</a><?php if ($canRemoveAttachment): ?><button type="button" class="task-file__action" data-remove-task-file>Remove</button><?php endif; ?></div></article>
-                        <?php endforeach; ?>
-                        <?php if (!$panelAttachments && !empty($task['photo_path'])): ?><article class="task-file task-file--legacy"><span class="task-file__thumbnail"><i data-lucide="image" aria-hidden="true"></i></span><div class="task-file__information"><div class="task-file__name">Legacy photo proof</div><div class="task-file__meta">Previously uploaded evidence</div></div><div class="task-file__actions"><a class="task-file__action" href="<?= BASE_URL ?>/apps/operations/task-proof.php?task_id=<?= $panelId ?>" target="_blank" rel="noopener">View</a></div></article><?php endif; ?>
-                    </div>
-                    <p class="task-files__empty" data-task-files-empty <?= ($panelAttachments || !empty($task['photo_path'])) ? 'hidden' : '' ?>>No files uploaded yet.</p>
-                </section>
-            </div>
-</div>
-        <?php if ($canManage): ?><footer class="task-edit-footer" data-task-admin-footer hidden><button type="button" class="task-edit-btn task-edit-btn--secondary" data-task-admin-cancel>Cancel</button><button type="submit" form="task-admin-form-<?= $panelId ?>" class="task-edit-btn task-edit-btn--primary" data-task-admin-save>Save Changes</button></footer><?php endif; ?>
-        </aside>
+        <?php include __DIR__ . '/partials/task-details-drawer.php'; ?>
     <?php endforeach; ?>
     <section class="task-instructions-modal" data-task-instructions-modal hidden role="dialog" aria-modal="true" aria-labelledby="task-instructions-modal-title"><div class="task-instructions-modal__backdrop" data-rich-cancel></div><div class="task-instructions-modal__panel"><header><div><span>Task instructions</span><h2 id="task-instructions-modal-title">Edit instructions</h2></div><button type="button" data-rich-cancel aria-label="Close expanded instructions"><i data-lucide="x"></i></button></header><div class="task-rich-editor__toolbar" role="toolbar" aria-label="Expanded instruction formatting"><button type="button" data-rich-modal-command="bold"><strong>B</strong></button><button type="button" data-rich-modal-command="italic"><em>I</em></button><button type="button" data-rich-modal-command="underline"><u>U</u></button><button type="button" data-rich-modal-command="insertUnorderedList">• List</button><button type="button" data-rich-modal-command="insertOrderedList">1. List</button><button type="button" data-rich-modal-command="undo">↶</button><button type="button" data-rich-modal-command="redo">↷</button></div><div class="task-instructions-modal__body"><div class="task-rich-editor__surface task-rich-editor__surface--expanded" contenteditable="true" role="textbox" aria-multiline="true" data-rich-expanded-surface></div></div><footer><button type="button" class="task-form-cancel" data-rich-cancel>Cancel</button><button type="button" class="task-form-submit" data-rich-save>Save Instructions</button></footer></div></section>
     <div class="panel-backdrop task-panel-backdrop" data-task-close data-task-create-close hidden></div>
@@ -4001,6 +3936,8 @@ function initialiseTaskCompletionEnforcement() {
           window.setTimeout(() => row?.remove(), 360);
           form.querySelectorAll('input, textarea, select').forEach((field) => { field.disabled = true; });
           if (submit) { submit.textContent = 'Completed'; submit.disabled = true; }
+          const detail = form.closest('[data-task-panel]');
+          if (detail) { detail.dataset.canWork = '0'; detail.dataset.canStart = '0'; detail.querySelectorAll('[data-task-summary-status],.task-details-badge--status').forEach(el => { el.textContent='Complete'; el.dataset.status='complete'; }); }
           const page = document.querySelector('.digital-task-page');
           const previousStatus = row?.dataset.savedStatus === 'in_progress' ? 'in-progress' : 'new';
           const previousValue = document.querySelector(`[data-stat="${previousStatus}"] .dtb-stat-value`);
@@ -4026,7 +3963,7 @@ async function acknowledgeTaskOpen(taskId, panel) {
   if (!panel || panel.dataset.taskAcknowledged === 'true') return;
   if (document.querySelector('.digital-task-page')?.dataset.canManage === '1') return;
   const row = document.querySelector(`[data-task-row][data-task-id="${taskId}"]`);
-  if (row?.dataset.savedStatus !== 'new') return;
+  if (panel.dataset.canStart !== '1') return;
   panel.dataset.taskAcknowledged = 'true';
   const data = new FormData();
   data.append('action', 'acknowledge_task');
@@ -4067,7 +4004,7 @@ function promptTaskStart(taskId, panel, startNow = false) {
       const response = await fetch(document.URL, {method:'POST',body,credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
       const result = await response.json();
       if (!response.ok || !result.success) throw new Error(result.message || 'Unable to start task.');
-      location.reload();
+      location.href = location.pathname + '?task_id=' + encodeURIComponent(taskId);
     } catch (error) {
       prompt.querySelector('[data-start-message]').textContent = error.message;
       prompt.querySelector('[data-start-now]').disabled = false;
@@ -4119,6 +4056,7 @@ function initialiseTaskStatusWorkflow() {
       const previousDisplay = row?.dataset.displayStatus || previousSaved;
       const nextStatus = option.dataset.statusKey;
       if (!row || !['new', 'in_progress', 'complete'].includes(nextStatus)) return;
+      if (page?.dataset.canManage === '1') { close(); window.openTaskPanel?.(row.dataset.taskId); document.querySelector(`[data-task-panel="${row.dataset.taskId}"] [data-task-admin-edit]`)?.click(); return; }
       const completionForm = document.querySelector(`[data-task-progress-form][data-task-id="${row.dataset.taskId}"]`);
       let progressNote = '';
       if (nextStatus === 'complete') {
@@ -4786,7 +4724,7 @@ document.addEventListener('click', (event) => {
       document.body.appendChild(panel);
       initializePortalCustomSelects(panel);
       initialiseTaskAttachments(panel);
-      acknowledgeTaskOpen(open.dataset.taskOpen, panel).then(() => promptTaskStart(open.dataset.taskOpen, panel));
+      acknowledgeTaskOpen(open.dataset.taskOpen, panel);
       panel.classList.add('open');
       panel.setAttribute('aria-hidden', 'false');
     }
@@ -4897,6 +4835,7 @@ const initialTaskId = new URLSearchParams(window.location.search).get('task_id')
 if (initialTaskId) window.openTaskPanel(initialTaskId, new URLSearchParams(window.location.search).get('task_intent') === 'start' ? 'start' : 'review');
 </script>
 <?php if ($canManage): ?><script src="<?= BASE_URL ?>/assets/js/task-import.js?v=<?= rawurlencode((string) @filemtime(BASE_PATH . '/assets/js/task-import.js')) ?>"></script><?php endif; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/task-details.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-details.js') ?>"></script>
 <?php if ($canManage): ?><script defer src="<?= BASE_URL ?>/assets/js/task-admin-edit.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-admin-edit.js') ?>"></script><?php endif; ?>
 <?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
 <script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH.'/assets/js/ess-dashboard.js') ?>"></script>

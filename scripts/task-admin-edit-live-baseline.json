@@ -3,7 +3,7 @@
   "assets/css/task-essentials.css": "db7062a2ee7ca69398cd946d561bbc15782744723b65939a9ccb3722b60ffd19",
   "assets/js/task-essentials.js": "404ec8219a835a0f839c8238664a003edcbe2d4a5efe4744a3b409c3f40f45bb",
   "shared/task-admin-edit.php": "94fceb7cdd0cb6d08a0595ba7d47d40fb426d14a2405697e3222511e31c9c2c5",
-  "assets/css/task-admin-edit.css": "c3405e5bfa2de20fef9f437f6c99097bc1d0c890e50b807c39d1165d93504ec1",
+  "assets/css/task-admin-edit.css": "363532b2d49634be2fe2e81abf35aa86a263b8d9255729bd9ec55ddba2254491",
   "assets/js/task-admin-edit.js": "f2180cf0c04181c9b287ff82bbc08279552e2dbc0e5b579bfed8184cd4e0b032",
   "shared/epi/TaskActivityBridge.php": "cebab1590f4ea5ff2d478ca263ae13aae6157d51e25c3812653091bb1e3c673a",
   "shared/epi/V2OperationalBridge.php": "d5007ab8bbb2d0f25d45a02ee20733e436b0a8493ac94a5210773a4c6e72bbf6",
@@ -19,5 +19,8 @@
   "shared/epi/CompletedWorkCapture.php": "6bd104ce39c8f76277b714842925a763a9d256febf951f0d05f763599a4eb3b2",
   "shared/epi/ModuleDeadlineBridge.php": "647e1122aa8426b978a8e144986d1de12dd1d4073266391923582a2c1cc3a2fa",
   "shared/epi/V2Store.php": "f31b8590bbe519e4a5b89a700c0986b0118ebd583aa352aedcb37b6ff35d2d41",
-  "assets/js/portal.js": "4785b97328e2b55e6b3ace732f3147d2eb7224d5193e1f9d935ef9d297f8a2d3"
+  "assets/js/portal.js": "4785b97328e2b55e6b3ace732f3147d2eb7224d5193e1f9d935ef9d297f8a2d3",
+  "apps/operations/partials/task-details-drawer.php": null,
+  "assets/css/task-details.css": null,
+  "assets/js/task-details.js": null
 }

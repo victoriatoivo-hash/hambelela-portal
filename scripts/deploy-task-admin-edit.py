@@ -2,6 +2,7 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 FILES = ('apps/operations/checklists.php','assets/css/task-essentials.css','assets/js/task-essentials.js','shared/task-admin-edit.php','assets/css/task-admin-edit.css','assets/js/task-admin-edit.js','shared/epi/TaskActivityBridge.php','shared/epi/V2OperationalBridge.php','shared/epi/DeadlineEngine.php','shared/epi/TaskPerformance.php','shared/epi/CompletedWorkCapture.php')
+FILES += ('apps/operations/partials/task-details-drawer.php','assets/css/task-details.css','assets/js/task-details.js')
 READ_ONLY = ('apps/operations/operations.php','shared/task-instructions.php','shared/notifications.php','shared/epi/OwnershipPeriodEngine.php','shared/epi/Performance.php','shared/epi/Support.php','shared/epi/DeadlineRateQuery.php','shared/epi/ModuleDeadlineBridge.php','shared/epi/V2Store.php','assets/js/portal.js')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')

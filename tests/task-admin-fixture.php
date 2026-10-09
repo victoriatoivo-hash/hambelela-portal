@@ -3,7 +3,7 @@ require_once dirname(__DIR__).'/shared/task-instructions.php';
 require_once dirname(__DIR__).'/shared/task-admin-edit.php';
 // Load the actual existing checklist validation/timing helpers without booting the portal or touching its database.
 $tokens=token_get_all(file_get_contents(dirname(__DIR__).'/apps/operations/checklists.php'));
-$wanted=['checklist_json_items','checklist_completion_validation','checklist_authoritative_deadline','checklist_working_minutes','checklist_elapsed_duration_label','checklist_task_timing','checklist_instruction_text_length','checklist_sanitize_instructions','checklist_normalize_status','checklist_custom_filter_field'];
+$wanted=['checklist_json_items','checklist_completion_validation','checklist_authoritative_deadline','checklist_working_minutes','checklist_elapsed_duration_label','checklist_task_timing','checklist_instruction_text_length','checklist_sanitize_instructions','checklist_normalize_status','checklist_custom_filter_field','checklist_detail_access','checklist_date_label','checklist_render_instructions','checklist_display_task_title','checklist_require_completion'];
 for($i=0;$i<count($tokens);$i++){
     if(!is_array($tokens[$i])||$tokens[$i][0]!==T_FUNCTION)continue;
     $name=$i+1;while(is_array($tokens[$name])&&$tokens[$name][0]===T_WHITESPACE)$name++;

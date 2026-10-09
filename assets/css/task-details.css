@@ -1,0 +1,107 @@
+/* Task Details design tokens from the approved component specification. */
+.hb-task-details{--td-olive:#59694A;--td-dark:#344126;--td-soft:#F2F4EC;--td-light:#E7EBDD;--td-cream:#F8F7F2;--td-text:#1C2118;--td-muted:#62675E;--td-border:#E4E6DC}
+/* Shared Task Details component. Same compact drawer rhythm as Create Task. */
+.hb-task-details.task-edit-drawer{width:min(680px,100vw);height:100vh;height:100dvh;max-height:100dvh;inset:0 0 0 auto;display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:#F8F7F2;font:400 12px/1.55 Jost,sans-serif;color:#1C2118;border-left:1px solid #E4E6DC;border-radius:0;transition:transform .22s ease,visibility .22s ease}
+.hb-task-details.task-edit-drawer,.hb-task-details.task-edit-drawer *{box-sizing:border-box;font-family:Jost,sans-serif}
+.hb-task-details.task-edit-drawer [hidden]{display:none!important}
+.hb-task-details.task-edit-drawer .task-edit-header{display:flex;flex-wrap:nowrap;align-items:flex-start;gap:14px;padding:22px 22px 18px;background:#fff;border-bottom:1px solid #E4E6DC}
+.hb-task-details .task-detail-heading__copy{flex:1;min-width:0}
+.hb-task-details.task-edit-drawer .task-edit-eyebrow{display:block;margin:0 0 5px;font-size:9.5px;font-weight:600;letter-spacing:.1em;color:#667653}
+.hb-task-details.task-edit-drawer .task-edit-title{margin:0;font-size:23px;font-weight:600;line-height:1.2;color:#1C2118}
+.hb-task-details.task-edit-drawer .task-edit-subtitle{margin:9px 0 0;font-size:13px;font-weight:500;line-height:1.45;color:#1C2118;overflow-wrap:anywhere}
+.hb-task-details.task-edit-drawer .task-edit-header-actions{display:flex;align-items:center;width:auto;flex:none;gap:8px}
+.hb-task-details.task-edit-drawer .task-edit-header-actions .task-edit-btn{min-height:34px;padding:0 10px;flex:none;white-space:nowrap}
+.hb-task-details.task-edit-drawer .task-detail-close{display:inline-flex;align-items:center;justify-content:center;flex:none;width:34px;height:34px;min-height:34px;padding:0;background:#F2F4EC;border:1px solid #E4E6DC;border-radius:8px;color:#59694A;cursor:pointer}
+.hb-task-details.task-edit-drawer svg{width:16px;height:16px;flex:none;stroke-width:1.7}
+.hb-task-details.task-edit-drawer .task-details-badges{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0 0}
+.hb-task-details.task-edit-drawer .task-details-badge{display:inline-flex;align-items:center;min-height:23px;padding:3px 8px;border:0;border-radius:20px;background:#E7EBDD;color:#344126;font-size:10px;font-weight:500;line-height:1.3}
+.hb-task-details.task-edit-drawer .task-details-badge[data-status=complete]{background:#E8F0E4;color:#3C6032}
+.hb-task-details.task-edit-drawer .task-details-badge[data-priority=urgent]{background:#F7EAE7;color:#9B4036}
+.hb-task-details.task-edit-drawer .task-details-badge[data-priority=important]{background:#F5F0DF;color:#756326}
+.hb-task-details.task-edit-drawer .task-edit-body{display:block;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding:20px 22px 24px;scrollbar-width:thin;scrollbar-color:#C8CFBD transparent}
+.hb-task-details.task-edit-drawer [data-task-admin-view]{display:grid;gap:16px;min-width:0}
+.hb-task-details.task-edit-drawer .task-details-section,.hb-task-details.task-edit-drawer .task-edit-section{min-width:0;margin:0;padding:16px;border:1px solid #E4E6DC;border-radius:12px;background:#fff;box-shadow:none}
+.hb-task-details.task-edit-drawer h3{display:flex;align-items:center;gap:8px;margin:0 0 12px;font-size:13px;font-weight:600;line-height:1.4;color:#1C2118}
+.hb-task-details.task-edit-drawer h3 svg{color:#667653}
+.hb-task-details.task-edit-drawer p{font-size:12px;line-height:1.6}
+.hb-task-details.task-edit-drawer .task-detail-helper,.hb-task-details.task-edit-drawer small{font-size:10.5px;font-weight:400;line-height:1.5;color:#62675E}
+.hb-task-details.task-edit-drawer .task-detail-helper{margin:10px 0 0}
+.hb-task-details .td-summary-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:0}
+.hb-task-details .td-summary-item{min-width:0;padding:10px 11px;border:1px solid #E4E6DC;border-radius:9px;background:#FBFCF9}
+.hb-task-details .td-summary-grid dt,.hb-task-details.task-edit-drawer .task-detail-field-label{display:block;margin:0 0 4px;font-size:10.5px;font-weight:500;line-height:1.4;color:#62675E;letter-spacing:0;text-transform:none}
+.hb-task-details .td-summary-grid dd{margin:0;font-size:12px;font-weight:500;line-height:1.5;overflow-wrap:anywhere;color:#1C2118}
+.hb-task-details .td-summary-grid dd small{display:block;margin-top:3px}
+.hb-task-details.task-edit-drawer .td-scheduled{background:#F2F4EC;border-color:#DEE4D3}
+.hb-task-details .task-detail-scheduled__heading{display:flex;align-items:center;gap:10px}
+.hb-task-details .task-detail-scheduled__heading h3{margin:0 0 3px}
+.hb-task-details .task-detail-scheduled__heading p{margin:0;font-weight:500}
+.hb-task-details .task-detail-icon{display:grid;place-items:center;width:36px;height:36px;flex:none;background:#E7EBDD;border-radius:9px;color:#59694A}
+.hb-task-details .td-scheduled-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.hb-task-details .td-scheduled-actions form{margin:0;min-width:0;flex:1 1 auto}
+.hb-task-details .td-scheduled-actions button{width:100%}
+.hb-task-details .td-instructions{font-size:12px;font-weight:400;line-height:1.65;overflow-wrap:anywhere;color:#1C2118}
+.hb-task-details .td-instructions p{margin:0 0 10px}
+.hb-task-details .td-instructions p:last-child{margin-bottom:0}
+.hb-task-details .td-instructions :is(ol,ul){margin:8px 0 12px;padding-left:22px}
+.hb-task-details .td-instructions li{margin:0 0 6px;padding-left:2px}
+.hb-task-details .td-instructions :is(b,strong){font-weight:600}
+.hb-task-details .td-instructions a{color:#59694A;text-decoration:underline}
+.hb-task-details .task-detail-work-form{display:grid;gap:16px;margin:0;padding:0;border:0;background:transparent}
+.hb-task-details .task-detail-section-heading{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.hb-task-details .task-detail-section-heading h3,.hb-task-details .task-detail-section-heading .task-detail-helper{margin:0}
+.hb-task-details .td-checklist{display:grid;gap:8px}
+.hb-task-details.task-edit-drawer .td-check-row{display:grid;grid-template-columns:20px minmax(0,1fr) auto;align-items:start;gap:10px;width:100%;min-height:44px;margin:0;padding:12px 10px;border:1px solid #E4E6DC;border-radius:8px;background:#fff;text-transform:none;letter-spacing:0;cursor:pointer}
+.hb-task-details.task-edit-drawer .td-check-row input[type=checkbox]{appearance:auto;display:block;position:static;width:18px;height:18px;min-height:0;padding:0;margin:1px 0 0;accent-color:#59694A;box-shadow:none;border-radius:4px}
+.hb-task-details.task-edit-drawer .td-check-text{display:block;min-width:0;font-size:12px;font-weight:500;line-height:1.5;color:#1C2118;overflow-wrap:anywhere}
+.hb-task-details.task-edit-drawer .td-check-required{align-self:start;margin:0;padding:4px 7px;border-radius:999px;background:#F2F4EC;color:#59694A;font-size:9px;font-weight:600;white-space:nowrap}
+.hb-task-details .td-check-row:has(input:disabled){cursor:default}
+.hb-task-details .td-check-row:has(input:not(:disabled)):hover{border-color:#A9B59A;background:#F8F9F5}
+.hb-task-details .td-check-row.is-complete{border-color:#CFD8C1;background:#F2F4EC}
+.hb-task-details .td-check-row.is-complete .td-check-text{color:#59694A}
+.hb-task-details .td-check-row.is-incomplete{border-color:#C18176;background:#FDF7F5}
+.hb-task-details.task-edit-drawer textarea{display:block;width:100%;min-height:94px;height:auto;padding:10px 12px;border:1px solid #E4E6DC;border-radius:8px;background:#fff;color:#1C2118;font:400 12px/1.6 Jost,sans-serif;resize:vertical}
+.hb-task-details .task-detail-note{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
+.hb-task-details.task-edit-drawer .task-edit-footer{display:flex;align-items:center;justify-content:flex-end;gap:8px;position:relative;inset:auto;min-height:68px;padding:13px 22px calc(13px + env(safe-area-inset-bottom));border-top:1px solid #E4E6DC;background:#fff;box-shadow:0 -3px 12px #26311F05}
+.hb-task-details.task-edit-drawer .task-edit-btn,.hb-task-details.task-edit-drawer .task-btn,.hb-task-details.task-edit-drawer .task-files__add{display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;padding:0 13px;border:1px solid #E4E6DC;border-radius:8px;background:#fff;background-image:none;color:#344126;box-shadow:none;font:600 11.5px/1.3 Jost,sans-serif;text-decoration:none;cursor:pointer;transition:background-color .16s,border-color .16s}
+.hb-task-details.task-edit-drawer .task-edit-btn--primary,.hb-task-details.task-edit-drawer .task-btn--primary{background:#59694A;border-color:#59694A;color:#fff}
+.hb-task-details.task-edit-drawer :is(.task-edit-btn--primary,.task-btn--primary):hover{background:#344126;border-color:#344126}
+.hb-task-details.task-edit-drawer :is(.task-edit-btn--secondary,.task-files__add):hover{background:#F2F4EC;border-color:#A9B59A}
+.hb-task-details.task-edit-drawer .td-btn-danger,.hb-task-details.task-edit-drawer .task-btn--danger{background:#fff;border-color:#D9B8B2;color:#944B40}
+.hb-task-details.task-edit-drawer button:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.hb-task-details.task-edit-drawer :focus-visible{outline:2px solid #59694A;outline-offset:2px}
+.hb-task-details.task-edit-drawer .task-files__heading{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.hb-task-details.task-edit-drawer .task-files__heading h3{margin:0 0 4px}
+.hb-task-details.task-edit-drawer .task-files__heading p,.hb-task-details.task-edit-drawer .task-files__empty{margin:0;font-size:10.5px;color:#62675E}
+.hb-task-details .task-files__list{display:grid;gap:8px}
+.hb-task-details .task-file{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px;border:1px solid #E4E6DC;border-radius:8px;background:#fff}
+.hb-task-details .task-file__thumbnail{display:grid;place-items:center;width:36px;height:36px;border-radius:6px;overflow:hidden;flex:none;background:#F2F4EC;color:#59694A}
+.hb-task-details .task-file__thumbnail img{width:100%;height:100%;object-fit:cover}
+.hb-task-details .task-file__information{flex:1;min-width:0}
+.hb-task-details .task-file__name{font-size:12px;font-weight:500;overflow-wrap:anywhere}
+.hb-task-details .task-file__meta{font-size:10.5px;color:#62675E}
+.hb-task-details .task-file__actions{display:flex;flex-wrap:wrap;gap:6px}
+.hb-task-details .task-file__action{display:inline-flex;align-items:center;min-height:32px;padding:5px 8px;border:1px solid #E4E6DC;border-radius:6px;background:#fff;font-size:10.5px;color:#59694A;text-decoration:none}
+.hb-task-details.task-edit-drawer :is(.task-detail-audit,.task-detail-management)>summary{display:flex;align-items:center;gap:8px;list-style:none;font-size:13px;font-weight:600;cursor:pointer;color:#344126}
+.hb-task-details.task-edit-drawer summary::-webkit-details-marker{display:none}
+.hb-task-details summary>svg:last-child{margin-left:auto;transition:transform .15s}
+.hb-task-details details[open]>summary>svg:last-child{transform:rotate(180deg)}
+.hb-task-details [data-task-details-audits],.hb-task-details .task-detail-management__body{display:grid;gap:12px;margin-top:15px}
+.hb-task-details .task-detail-management__body>[data-save-task-template]{justify-self:start;width:auto}
+.hb-task-details.task-edit-drawer .task-correction-card :is(label,.task-correction-check){font-size:10.5px;color:#62675E}
+.hb-task-details .task-correction-card{display:grid;gap:12px}
+.hb-task-details .task-correction-card form{display:grid;gap:12px}
+.hb-task-details .task-correction-card :is(input:not([type=checkbox]),textarea){max-width:100%;border:1px solid #E4E6DC;border-radius:8px;padding:9px;font:400 12px Jost,sans-serif}
+.hb-task-details .task-correction-check{display:flex;align-items:center;gap:8px}
+.hb-task-details .task-correction-check input{width:16px;height:16px;accent-color:#59694A}
+.hb-task-details .task-correction-banner{display:flex;align-items:flex-start;gap:10px;padding:16px;border:1px solid #D6DECB;border-radius:12px;background:#F2F4EC}
+.hb-task-details .task-correction-banner h3{margin:4px 0 6px}
+.hb-task-details .task-correction-banner p{margin:0}
+.hb-task-details .task-correction-history article{padding:12px 0;border-bottom:1px solid #E4E6DC}
+.hb-task-details.task-edit-drawer .task-edit-section-title{font-size:13px;font-weight:600}
+.hb-task-details.task-edit-drawer .task-edit-label,.hb-task-details.task-edit-drawer .dtb-filter-field label{font-size:10.5px;font-weight:500}
+.hb-task-details.task-edit-drawer .task-edit-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+@media(max-width:767px){.hb-task-details.task-edit-drawer{width:100vw;border-left:0}.hb-task-details.task-edit-drawer .task-edit-header{padding:18px 16px 15px;gap:8px}.hb-task-details.task-edit-drawer .task-edit-header-actions{gap:5px}.hb-task-details.task-edit-drawer .task-edit-header-actions .task-edit-btn{min-height:44px;padding:0 9px}.hb-task-details.task-edit-drawer .task-detail-close{width:36px;height:44px}.hb-task-details.task-edit-drawer .task-edit-body{padding:16px}.hb-task-details.task-edit-drawer .task-edit-footer{padding:12px 16px calc(12px + env(safe-area-inset-bottom))}.hb-task-details.task-edit-drawer .task-edit-btn{min-height:44px}.hb-task-details .task-edit-footer .task-edit-btn{flex:1}.hb-task-details.task-edit-drawer .task-edit-grid{grid-template-columns:minmax(0,1fr)}.hb-task-details.task-edit-drawer .td-check-row{grid-template-columns:20px minmax(0,1fr);gap:4px 11px;padding:12px}.hb-task-details .td-check-required{grid-column:2;justify-self:start}.hb-task-details.task-edit-drawer .td-check-row small{font-size:9px}}
+@media(max-height:500px){.hb-task-details.task-edit-drawer .task-edit-header{padding:10px 16px}.hb-task-details.task-edit-drawer .task-edit-footer{padding-top:8px;padding-bottom:8px;min-height:56px}.hb-task-details.task-edit-drawer .task-details-badges{margin-top:5px}}
+@media(prefers-reduced-motion:reduce){.hb-task-details.task-edit-drawer{transition:none;animation:none}}
+
+@media(max-width:380px){.hb-task-details .td-summary-grid{grid-template-columns:minmax(0,1fr)}.hb-task-details.task-edit-drawer .td-header-row{flex-wrap:wrap}}

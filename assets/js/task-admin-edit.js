@@ -1,6 +1,6 @@
 (() => {
   'use strict';
-  const panels = () => document.querySelectorAll('.task-edit-drawer');
+  const panels = () => document.querySelectorAll('.task-admin-detail-panel.task-edit-drawer');
   const textNode = (tag, className, text) => { const el=document.createElement(tag);el.className=className;el.textContent=text;return el; };
   const person = (form,id) => form.querySelector(`[name=assigned_employee_id]`)?.closest('.portal-custom-select')?.querySelector(`[data-value="${Number(id)}"]`)?.textContent.trim() || (id ? `Employee ${id}` : 'Unassigned');
   async function request(form,action) {
@@ -24,7 +24,7 @@
   }
   function mode(panel,editing) {
     panel.querySelector('[data-task-admin-form]').hidden=!editing;panel.querySelector('[data-task-admin-view]').hidden=editing;panel.querySelector('[data-task-admin-footer]').hidden=!editing;
-    panel.querySelector('[data-task-admin-edit]').hidden=editing;panel.dataset.editing=String(editing);panel.querySelector('.task-edit-body').scrollTop=0;
+    panel.querySelectorAll('[data-task-admin-edit]').forEach(button=>button.hidden=editing);const viewFooter=panel.querySelector('[data-task-detail-footer]');if(viewFooter)viewFooter.hidden=editing;panel.dataset.editing=String(editing);panel.querySelector('.task-edit-body').scrollTop=0;
     panel.querySelectorAll('.portal-custom-select.is-open').forEach(el=>{el.classList.remove('is-open');el.querySelector('button')?.setAttribute('aria-expanded','false');});window.PortalDatePicker?.close?.();
   }
   function populate(form,payload) {
@@ -48,26 +48,33 @@
     if(current&&next)current.replaceWith(next);else if(current&&!next)current.remove();
     const activePanel=document.querySelector(`.task-edit-drawer.open[data-task-panel="${Number(id)}"]`),nextPanel=parsed.querySelector(`[data-task-panel="${Number(id)}"]`);
     const view=activePanel?.querySelector('[data-task-admin-view]'),nextView=nextPanel?.querySelector('[data-task-admin-view]');
-    if(view&&nextView){view.replaceChildren(...nextView.childNodes);initialiseTaskAttachments(view);initialiseTaskCorrections(view);initialiseTaskCompletionEnforcement();initializePortalCustomSelects(view);}
+    if(view&&nextView){view.replaceChildren(...nextView.childNodes);initialiseTaskAttachments(view);initialiseTaskCorrections(view);initialiseTaskCompletionEnforcement();initializePortalCustomSelects(view);bindAudit(activePanel);}
+    if(activePanel&&nextPanel){const badge=activePanel.querySelector('.task-details-badge--priority'),fresh=nextPanel.querySelector('.task-details-badge--priority');if(badge&&fresh)badge.replaceWith(fresh);}
     window.invalidateTaskViewCache?.();
     document.querySelectorAll('[data-stat]').forEach(stat=>{const fresh=parsed.querySelector(`[data-stat="${stat.dataset.stat}"] .dtb-stat-value`),value=stat.querySelector('.dtb-stat-value');if(fresh&&value)value.textContent=fresh.textContent;});
     document.querySelectorAll('.task-section').forEach(section=>{const count=section.querySelector('.task-count');if(count)count.textContent=String(section.querySelectorAll('tr[data-task-id]').length);});
     initialiseTaskBulkSelection();initialiseTaskStatusWorkflow();initialiseTaskColumnResizing();window.taskDueStateController?.refresh?.();window.lucide?.createIcons?.();
   }
+  function bindAudit(panel) {
+    const disclosure=panel.querySelector('[data-task-audit-disclosure]');if(!disclosure||disclosure.dataset.bound)return;disclosure.dataset.bound='true';
+    disclosure.addEventListener('toggle',async()=>{if(!disclosure.open||disclosure.dataset.loaded)return;const target=disclosure.querySelector('[data-task-details-audits]');target.textContent='Loading history…';try{const form=panel.querySelector('[data-task-admin-form]'),payload=await request(form,'task_admin_detail');renderHistory(form,payload);target.replaceChildren(...[...form.querySelector('[data-task-admin-audits]').children].map(node=>node.cloneNode(true)));disclosure.dataset.loaded='true';}catch(error){target.textContent=error.message;}});
+  }
   function initialise(panel) {
+    if(!panel.querySelector('[data-task-admin-form]'))return;
     if(panel.dataset.adminReady)return;panel.dataset.adminReady='true';panel.setAttribute('role','dialog');panel.setAttribute('aria-modal','true');
     const title=panel.querySelector('.task-edit-title');title.id=`task-admin-dialog-title-${panel.dataset.taskPanel}`;panel.setAttribute('aria-labelledby',title.id);
     const form=panel.querySelector('[data-task-admin-form]'),message=form.querySelector('[data-task-admin-message]'),save=panel.querySelector('[data-task-admin-save]'),edit=panel.querySelector('[data-task-admin-edit]');
     initialisePortalDatePickers(panel);initializePortalCustomSelects(panel);
     const surface=form.querySelector('[data-edit-rich-surface]');surface.addEventListener('input',()=>{form.elements.instructions.value=surface.innerHTML.trim();});form.querySelectorAll('[data-edit-rich-command]').forEach(button=>button.addEventListener('click',()=>{surface.focus();document.execCommand(button.dataset.editRichCommand,false);form.elements.instructions.value=surface.innerHTML.trim();}));
-    edit.addEventListener('click',async()=>{if(edit.disabled)return;edit.disabled=true;edit.textContent='Loading…';try{const payload=await request(form,'task_admin_detail');populate(form,payload);mode(panel,true);save.disabled=false;message.textContent='';form.elements.task_name.focus();}catch(error){mode(panel,true);message.textContent=error.message;save.disabled=true;}finally{edit.disabled=false;edit.textContent='Edit Task';}});
+    panel.querySelectorAll('[data-task-admin-edit]').forEach(button=>button.addEventListener('click',async()=>{if(edit.disabled)return;panel.querySelectorAll('[data-task-admin-edit]').forEach(b=>{b.disabled=true;b.textContent='Loading…';});try{const payload=await request(form,'task_admin_detail');populate(form,payload);mode(panel,true);save.disabled=false;message.textContent='';form.elements.task_name.focus();}catch(error){mode(panel,true);message.textContent=error.message;save.disabled=true;}finally{panel.querySelectorAll('[data-task-admin-edit]').forEach(b=>{b.disabled=false;b.textContent='Edit Task';});}}));
+    bindAudit(panel);
     panel.querySelector('[data-task-admin-cancel]').addEventListener('click',()=>{if(!form.dataset.saving)mode(panel,false);});
-    panel.querySelector('[data-task-close]').addEventListener('click',()=>{if(form.dataset.saving)return;mode(panel,false);});
+    panel.querySelectorAll('[data-task-close]').forEach(button=>button.addEventListener('click',()=>{if(form.dataset.saving)return;mode(panel,false);}));
     form.addEventListener('submit',async event=>{
       event.preventDefault();if(form.dataset.saving)return;const surface=form.querySelector('[data-edit-rich-surface]');form.elements.instructions.value=surface.innerHTML.trim();if(!surface.textContent.trim()){message.textContent='Task instructions are required.';surface.focus();return;}if(!form.reportValidity())return;
       form.dataset.saving='true';save.disabled=true;save.textContent='Saving…';message.textContent='';panel.querySelector('[data-task-admin-cancel]').disabled=true;
       try {const payload=await request(form,'admin_update_task');form.elements.revision.value=payload.revision;form.elements.request_key.value=crypto.randomUUID();renderHistory(form,payload);message.textContent='Changes saved';panel.querySelector('[data-task-admin-title]').textContent=payload.task.task_name;
-        const badge=panel.querySelector('.task-details-badge--status');if(badge)badge.textContent=payload.task.status==='complete'?'Complete':payload.task.status==='in_progress'?'In Progress':'New';
+        const badge=panel.querySelector('.task-details-badge--status');if(badge){badge.textContent=payload.task.status==='complete'?'Complete':payload.task.status==='in_progress'?'In Progress':'New';badge.dataset.status=payload.task.status;}
         const instructions=panel.querySelector('[data-readonly-instructions]');if(instructions)instructions.innerHTML=payload.task.instructions;
         try{await refreshRow(payload.task.id);}catch(error){message.textContent='Changes saved. '+error.message;}
       }catch(error){message.textContent=error.message;}finally{delete form.dataset.saving;save.disabled=false;save.textContent='Save Changes';panel.querySelector('[data-task-admin-cancel]').disabled=false;}
