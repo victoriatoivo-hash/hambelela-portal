@@ -37,6 +37,7 @@ final class BackCapture
             return $date&&$date->format('Y-m-d H:i:s')===$value?$date:null;
         };
         $completion=$parse($remote['date_completed_gmt']??'', 'UTC');$source='Original POS completion';
+        if(!$completion){$completion=$parse($order['history_completed_gmt']??'', 'UTC');$source='Original Orders completion event';}
         $paid=$fullyPaid?$parse($remote['date_paid_gmt']??'', 'UTC'):null;
         if($paid&&$paid>new \DateTimeImmutable('now',new \DateTimeZone('UTC')))throw new \DomainException('Recorded payment date cannot be in the future.');
         return ['recorded_completed_local'=>$completion?$completion->setTimezone(new \DateTimeZone('Africa/Windhoek'))->format('Y-m-d\TH:i'):'',
@@ -49,6 +50,10 @@ final class BackCapture
     private function snapshot(array $o,array $remote):array
     {
         $e=WooShippingSource::verify($o,$remote);
+        if(empty($remote['date_completed_gmt'])&&($o['status']??'')==='completed'){
+            // Orders writes this event with UTC_TIMESTAMP(); do not infer a zone for legacy DATETIME columns.
+            $s=$this->db->prepare("SELECT changed_at FROM kpi_status_events WHERE module='order' AND record_id=? AND new_status='completed' ORDER BY changed_at DESC,id DESC LIMIT 1");$s->execute([$o['id']]);$o['history_completed_gmt']=$s->fetchColumn()?:null;
+        }
         $s=$this->db->prepare('SELECT id FROM delivery_jobs WHERE order_id=? ORDER BY id');$s->execute([$o['id']]);$existing=$s->fetchAll(\PDO::FETCH_COLUMN);
         $s=$this->db->prepare('SELECT amount_cents FROM order_payment_allocations WHERE order_id=?'.($this->db->inTransaction()?' FOR UPDATE':''));$s->execute([$o['id']]);$amounts=$s->fetchAll(\PDO::FETCH_COLUMN);$paid=0;
         foreach($amounts as $a){if((int)$a<0)throw new \DomainException('Payment allocations require review.');$paid+=(int)$a;}
@@ -79,6 +84,30 @@ final class BackCapture
         }
         $drivers=$this->db->query("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id JOIN delivery_driver_profiles p ON p.employee_id=e.id WHERE e.status='active' AND r.role_key='delivery_driver' AND p.active=1 ORDER BY e.full_name")->fetchAll(\PDO::FETCH_ASSOC);
         return ['orders'=>$out,'drivers'=>$drivers,'page'=>$page,'has_more'=>$more,'total'=>$total,'date_basis'=>'Order date displayed in Live Orders List','mode'=>'Delivery'];
+    }
+    public function createHistoricalDriver(array $actor,string $name):array
+    {
+        $this->owner($actor);$name=trim($name);
+        if($name===''||strlen($name)>160||preg_match('/[\x00-\x1f]/',$name))throw new \DomainException('Enter the Driver name.');
+        $this->db->beginTransaction();
+        try{
+            $this->owner($actor);
+            $role=(int)$this->db->query("SELECT id FROM ops_roles WHERE role_key='delivery_driver' FOR UPDATE")->fetchColumn();
+            if(!$role)throw new \DomainException('Restricted Driver role is unavailable.');
+            $s=$this->db->prepare('SELECT COUNT(*) FROM ops_role_permissions WHERE role_id=?');$s->execute([$role]);
+            if((int)$s->fetchColumn())throw new \DomainException('Driver role permissions need review.');
+            $s=$this->db->prepare('SELECT e.id,e.role_id,e.status,e.password_hash,p.active FROM ops_employees e LEFT JOIN delivery_driver_profiles p ON p.employee_id=e.id WHERE LOWER(TRIM(e.full_name))=LOWER(?) FOR UPDATE');$s->execute([$name]);$matches=$s->fetchAll(\PDO::FETCH_ASSOC);
+            if($matches){
+                if(count($matches)!==1||(int)$matches[0]['role_id']!==$role||$matches[0]['status']!=='active'||(int)$matches[0]['active']!==1)throw new \DomainException('A matching employee exists. Review that profile instead of creating a duplicate.');
+                $id=(int)$matches[0]['id'];
+            }else{
+                // Profile only: no password, mobile secret, login session or HR employee is created.
+                $s=$this->db->prepare("INSERT INTO ops_employees(role_id,full_name,phone,email,password_hash,status,packing_assignable,packing_auto_assignable) VALUES(?,?,NULL,NULL,NULL,'active',0,0)");$s->execute([$role,$name]);$id=(int)$this->db->lastInsertId();
+                $this->db->prepare('INSERT INTO delivery_driver_profiles(employee_id,active,verified_by_employee_id,verified_at) VALUES(?,1,?,UTC_TIMESTAMP())')->execute([$id,$actor['id']]);
+                $this->db->prepare('INSERT INTO ops_security_events(event_type,employee_id,metadata_json) VALUES(?,?,?)')->execute(['delivery_driver_profile_created',$actor['id'],json_encode(['target_employee_id'=>$id,'login_created'=>false,'purpose'=>'historical delivery attribution'],JSON_THROW_ON_ERROR)]);
+            }
+            $this->db->commit();return ['id'=>$id,'full_name'=>$name];
+        }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
     public function save(array $actor,array $body):array
     {

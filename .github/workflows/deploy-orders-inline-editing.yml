@@ -42,6 +42,7 @@ jobs:
           node --check assets/js/delivery-back-capture.js
           node tests/delivery-single-list.cjs
           php tests/delivery-recorded-history.php
+          php tests/delivery-historical-profile.php
       - name: Back up and publish only approved Orders files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
