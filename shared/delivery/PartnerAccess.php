@@ -48,7 +48,7 @@ final class PartnerAccess
     public function accounts(array $owner):array
     {
         $this->owner($owner);
-        return $this->db->query("SELECT u.id,u.partner_id,u.display_name,u.email,u.active,p.name partner_name,COALESCE(a.role_key,'partner_staff') role_key,COALESCE(a.can_create,1) can_create,COALESCE(a.can_edit,0) can_edit,COALESCE(a.can_driver,0) can_driver,COALESCE(a.can_accounting,0) can_accounting,a.last_login_at FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id LEFT JOIN delivery_partner_access a ON a.user_id=u.id WHERE LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name))='tedlaser' ORDER BY u.id")->fetchAll(\PDO::FETCH_ASSOC);
+        return $this->db->query("SELECT u.id,u.partner_id,u.display_name,u.email,u.active,p.name partner_name,COALESCE(a.role_key,'partner_staff') role_key,COALESCE(a.can_create,1) can_create,COALESCE(a.can_edit,0) can_edit,COALESCE(a.can_driver,0) can_driver,COALESCE(a.can_accounting,0) can_accounting,a.last_login_at FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id LEFT JOIN delivery_partner_access a ON a.user_id=u.id WHERE LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name)) IN ('tedlaser','tedlaser and engraving') ORDER BY u.id")->fetchAll(\PDO::FETCH_ASSOC);
     }
     public function manage(array $owner,array $b):array
     {
@@ -61,12 +61,12 @@ final class PartnerAccess
             if($action==='create'){
                 $name=trim((string)($b['name']??''));$email=strtolower(trim((string)($b['email']??'')));
                 if($name===''||strlen($name)>190||strlen($email)>190||!filter_var($email,FILTER_VALIDATE_EMAIL))throw new \DomainException('Enter a valid name and email.');
-                $p=$this->db->query("SELECT id FROM delivery_partners WHERE active=1 AND (LOWER(code)='tedlaser' OR LOWER(TRIM(name))='tedlaser') FOR UPDATE")->fetchAll(\PDO::FETCH_COLUMN);
+                $p=$this->db->query("SELECT id FROM delivery_partners WHERE active=1 AND (LOWER(code)='tedlaser' OR LOWER(TRIM(name)) IN ('tedlaser','tedlaser and engraving')) FOR UPDATE")->fetchAll(\PDO::FETCH_COLUMN);
                 if(count($p)!==1)throw new \DomainException('Exactly one active Tedlaser company must be configured.');
                 $s=$this->db->prepare('SELECT id FROM delivery_partner_users WHERE email=? FOR UPDATE');$s->execute([$email]);if($s->fetchColumn())throw new \DomainException('This email already has an account. Use the existing account controls.');
                 $s=$this->db->prepare('INSERT INTO delivery_partner_users(partner_id,display_name,email,password_hash,active) VALUES(?,?,?,?,1)');$s->execute([$p[0],$name,$email,password_hash(bin2hex(random_bytes(32)),PASSWORD_DEFAULT)]);$id=(int)$this->db->lastInsertId();
             }else{
-                $s=$this->db->prepare("SELECT u.id FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id WHERE u.id=? AND (LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name))='tedlaser') FOR UPDATE");$s->execute([$id]);if(!$s->fetchColumn())throw new \DomainException('Tedlaser account unavailable.');
+                $s=$this->db->prepare("SELECT u.id FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id WHERE u.id=? AND (LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name)) IN ('tedlaser','tedlaser and engraving')) FOR UPDATE");$s->execute([$id]);if(!$s->fetchColumn())throw new \DomainException('Tedlaser account unavailable.');
             }
             if(in_array($action,['create','permissions'],true)){
                 $admin=$role==='partner_admin';

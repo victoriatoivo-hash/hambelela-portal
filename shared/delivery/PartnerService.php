@@ -35,7 +35,7 @@ final class PartnerService
  public function arrangeForOwner(array $owner,int $contactId,string $uuid,array $body):array
  {
   if(($owner['kind']??'')!=='employee'||($owner['role']??'')!=='owner_admin'||empty($owner['active']))throw new \DomainException('Owner access required.');
-  $contacts=$this->rows("SELECT u.id,u.partner_id FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id WHERE u.id=? AND u.active=1 AND p.active=1 AND (LOWER(TRIM(p.name))='tedlaser' OR LOWER(p.code)='tedlaser')",[$contactId]);
+  $contacts=$this->rows("SELECT u.id,u.partner_id FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id WHERE u.id=? AND u.active=1 AND p.active=1 AND (LOWER(TRIM(p.name)) IN ('tedlaser','tedlaser and engraving') OR LOWER(p.code)='tedlaser')",[$contactId]);
   if(!$contacts)throw new \DomainException('Select a configured active Tedlaser contact.');
   return $this->arrangeRequest(['kind'=>'partner','id'=>(int)$contacts[0]['id'],'partner_id'=>(int)$contacts[0]['partner_id'],'active'=>true],$uuid,$body,$owner);
  }
