@@ -1,8 +1,8 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('shared/delivery/PartnerAccess.php', 'shared/delivery/PartnerAdminService.php', 'shared/delivery/PartnerShell.php', 'shared/delivery/PartnerAuth.php', 'shared/delivery/PartnerService.php', 'assets/js/delivery-partner-admin.js', 'assets/js/delivery-partner-reset.js', 'assets/js/delivery-partner.js', 'apps/delivery/partner/admin-api.php', 'apps/delivery/partner/password.php', 'apps/delivery/partner/driver.php', 'apps/delivery/partner/accounting.php', 'apps/delivery/partner/workspace.php', 'apps/delivery/settings.php', 'apps/delivery/partner/login.php', 'apps/delivery/partner/index.php', 'apps/delivery/partner/api.php', 'shared/delivery/WorkspaceApps.php')
-READ_ONLY = ('shared/delivery/PartnerProvisioning.php', 'shared/delivery/WorkspaceView.php', 'shared/delivery/AccountingService.php', 'shared/delivery/PartnerRouting.php', 'shared/delivery/DeliveryDeadline.php', 'shared/delivery/NotificationOutbox.php', 'shared/delivery/FrontSession.php', 'shared/delivery/PortalShell.php', 'apps/delivery/index.php', 'apps/delivery/partner/logout.php', 'apps/delivery/partner-setup.php', 'apps/delivery/accounting-api.php', 'assets/css/delivery-core.css', 'assets/css/delivery-controls.css', 'assets/css/delivery-workspace.css', 'apps/delivery/partner/bootstrap.php', 'assets/js/delivery-workspace.js', 'apps/delivery/drivers.php', 'apps/delivery/access.php', 'apps/delivery/partner-routing.php', 'shared/delivery/DeliveryPolicy.php')
+FILES = ('shared/delivery/PartnerAccess.php', 'shared/delivery/PartnerService.php', 'apps/delivery/tedlaser-api.php')
+READ_ONLY = ('shared/delivery/FrontSession.php', 'shared/delivery/DeliveryPolicy.php', 'shared/delivery/PartnerAuth.php', 'shared/delivery/NotificationOutbox.php', 'shared/delivery/PartnerRouting.php', 'shared/delivery/PartnerAdminService.php')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
