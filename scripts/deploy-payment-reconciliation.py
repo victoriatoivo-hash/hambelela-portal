@@ -1,7 +1,7 @@
 """Approved isolated Payment Reconciliation delta, with live-baseline checks and rollback."""
 import argparse, ftplib, hashlib, io, json, os, subprocess, zipfile
 
-BASELINE = '3e2836169f2e9342a60159cf17e95c1fa580dd9f'
+BASELINE = '574f2b8a0d9107cf252b077287d933790a01f0f5'
 FILES = [
  'shared/reconciliation/PaymentEvidence.php','shared/reconciliation/FnbTerminalReport.php',
  'shared/reconciliation/BankStatementCsv.php','shared/reconciliation/Reconciliation.php',
@@ -44,7 +44,7 @@ def main(approved,deploy):
  try:
   old={p:read(ftp,p) for p in FILES+[ORDERS]}
   for p in FILES:
-   base=git('show',BASELINE+':'+p) if p=='apps/accounts/index.php' else None
+   base=git('show',BASELINE+':'+p)
    if old[p] not in (base,expected[p]): raise RuntimeError('Live baseline changed; no files uploaded: '+p)
   source=old[ORDERS]
   if source is None: raise RuntimeError('Orders baseline missing')
