@@ -15,3 +15,9 @@ $r=\Hambelela\Delivery\BackCapture::recordedHistory([],$remote,false);
 check(!$r['fully_paid_verified']&&$r['payment_date_source']==='Payment date unavailable','Unverified payment cannot qualify for automatic paid history');
 $r=\Hambelela\Delivery\BackCapture::recordedHistory(['completed_at'=>'2026-10-06 12:00:00'],['date_completed_gmt'=>'2026-02-30T12:00:00'],true);
 check(!$r['recorded_completed_gmt'],'Invalid or timezone-ambiguous completion is not invented');
+
+$snapshot=['allocated_cents'=>5000,'address'=>'Original address','recorded_completed_gmt'=>'2026-10-07 12:00:00'];$order=['woo_order_id'=>123,'payment_version'=>1,'status'=>'completed','order_type'=>'delivery','updated_at'=>'2026-10-08 12:00:00'];
+$version=\Hambelela\Delivery\BackCapture::reviewVersion($snapshot,$order);
+check($version===\Hambelela\Delivery\BackCapture::reviewVersion($snapshot,array_merge($order,['updated_at'=>'2026-10-09 12:00:00'])),'Routine sync timestamp does not invalidate unchanged reviewed facts');
+foreach(['payment_version'=>2,'woo_order_id'=>456,'status'=>'cancelled','order_type'=>'collection','archived_at'=>'2026-10-09 12:00:00'] as $field=>$value)check($version!==\Hambelela\Delivery\BackCapture::reviewVersion($snapshot,array_merge($order,[$field=>$value])),'Changed '.$field.' invalidates review');
+foreach(['allocated_cents'=>4999,'address'=>'Different address','recorded_completed_gmt'=>'2026-10-08 12:00:00'] as $field=>$value)check($version!==\Hambelela\Delivery\BackCapture::reviewVersion(array_merge($snapshot,[$field=>$value]),$order),'Changed '.$field.' invalidates review');

@@ -63,7 +63,13 @@ final class BackCapture
         $address=$e['address']?:PortalOrderRepository::shippingAddress((string)($o['notes']??''));
         $result=['id'=>(int)$o['id'],'number'=>$o['order_number']??(string)$o['id'],'customer'=>$o['customer_name']??'','mobile'=>$o['customer_contact']??$e['mobile'],'address'=>$address,'area'=>$e['area'],'fee_cents'=>$fee,'total_cents'=>$total,'allocated_cents'=>$paid,'verified_fee_cents'=>$verifiedFee,'payment_status'=>$o['payment_status']??'unknown','order_completed_gmt'=>$remote['date_completed_gmt']??null,'existing'=>$existing];
         $result+=self::recordedHistory($o,$remote,$paid===$total&&$total>0&&($o['payment_status']??'')==='paid');
-        $result['version']=hash('sha256',json_encode([$result,WooShippingSource::fingerprint($o)],JSON_THROW_ON_ERROR));return $result;
+        // Background synchronisation touches updated_at even when the reviewed facts are unchanged.
+        // Guard the actual source, payment revision, status and reviewed delivery data instead.
+        $result['version']=self::reviewVersion($result,$o);return $result;
+    }
+    public static function reviewVersion(array $snapshot,array $order):string
+    {
+        return hash('sha256',json_encode([$snapshot,(string)($order['woo_order_id']??''),(string)($order['payment_version']??''),(string)($order['status']??''),(string)(($order['fulfilment_mode']??'')?:($order['order_type']??'')),(string)($order['archived_at']??'')],JSON_THROW_ON_ERROR));
     }
     public function candidates(array $actor,array $q):array
     {
@@ -125,6 +131,7 @@ final class BackCapture
             $saved=[];
             foreach($items as $i){
                 $o=$this->order((int)$i['id'],true);
+                if(!empty($o['archived_at']))throw new \DomainException('Archived Orders cannot be back-captured.');
                 if(strtolower((string)(($o['fulfilment_mode']??'')?:($o['order_type']??'')))!=='delivery')throw new \DomainException('Only Delivery-mode Orders can be back-captured.');
                 $v=$this->snapshot($o,$remote[(int)$i['id']]);
                 if($v['existing'])throw new \DomainException('Order '.$v['number'].' already has a Delivery record. Nothing was saved.');
