@@ -3,8 +3,10 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/orders-list-query.php';
 
 header('Content-Type: application/json');
+header('Cache-Control: private, no-store');
 
 $roleKey = current_role_key();
 if ($roleKey === 'guest') {
@@ -45,6 +47,8 @@ $since = preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) ($_GET['
     ? (string) $_GET['since']
     : '';
 $incremental = $since !== '';
+$paged = ($_GET['paged'] ?? '') === '1';
+if ($paged) { $incremental = false; $since = ''; }
 $databaseClock = ops_row("SELECT DATE_FORMAT(CURRENT_TIMESTAMP, '%Y-%m-%d %H:%i:%s') AS cursor_time");
 $responseCursor = (string) ($databaseClock['cursor_time'] ?? '');
 if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $responseCursor)) {
@@ -127,6 +131,73 @@ $where = $whereParts ? 'WHERE ' . implode(' AND ', $whereParts) : '';
 $portalPaidSelect = ops_column_exists('ops_orders', 'portal_paid_confirmed')
     ? "CASE WHEN o.portal_paid_confirmed IS NULL THEN CASE WHEN o.payment_status = 'paid' THEN 'paid' ELSE 'unpaid' END WHEN o.portal_paid_confirmed = 1 THEN 'paid' ELSE 'unpaid' END"
     : "CASE WHEN o.payment_status = 'paid' THEN 'paid' ELSE 'unpaid' END";
+$pagination = null;
+$listOrderBy = "{$displayDateTimeExpr} DESC, o.id DESC";
+$listLimit = '500';
+if ($paged) {
+    $nameFields = ['o.customer_name'];
+    foreach (['customer_first_name','customer_last_name','billing_first_name','billing_last_name'] as $column) {
+        if (ops_column_exists('ops_orders', $column)) $nameFields[] = 'o.'.$column;
+    }
+    [$searchWhere, $searchParams] = ops_list_search((string)($_GET['q'] ?? ''), "CONCAT_WS(' ',".implode(',', $nameFields).')');
+    [$filterParts, $filterParams] = ops_list_filters($_GET, $displayDateTimeExpr, $portalPaidSelect, (int)ops_current_employee_id());
+    $whereParts = array_merge($whereParts, $filterParts);
+    $params = array_merge($params, $filterParams);
+    if ($searchWhere !== '') { $whereParts[] = $searchWhere; $params = array_merge($params, $searchParams); }
+    $where = $whereParts ? 'WHERE '.implode(' AND ', $whereParts) : '';
+    $from = 'FROM ops_orders o LEFT JOIN ops_employees e ON e.id=o.assigned_packer_id ';
+    // Explicitly selected IDs are read independently of the current page/date filters.
+    if (($_GET['list_action'] ?? '') === 'selection') {
+        $request = json_decode((string)file_get_contents('php://input'), true);
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array)($request['ids'] ?? [])), static fn($id) => $id > 0)));
+        if (count($ids) > 250) { http_response_code(422); echo json_encode(['ok'=>false,'message'=>'Read selections in batches of 250.']); exit; }
+        $selection = [];
+        if ($ids) {
+            $idSlots = implode(',', array_fill(0, count($ids), '?'));
+            $rows = ops_rows("SELECT o.id,o.order_number,o.customer_name,o.customer_contact,o.total_amount,o.payment_method,o.payment_status AS financial_payment_status,{$portalPaidSelect} AS payment_status,o.status,o.notes,{$displayDateTimeExpr} AS displayed_order_datetime,COALESCE(NULLIF(o.fulfilment_mode,''),o.order_type) AS order_type,e.full_name AS packer_name {$from} WHERE o.id IN ({$idSlots})".($hasArchivedAt ? ' AND o.archived_at IS NULL' : '').($hasDeletedAt ? ' AND o.deleted_at IS NULL' : ''), $ids);
+            $payments = ops_rows("SELECT order_id,amount_cents,source,source_version FROM order_payment_allocations WHERE order_id IN ({$idSlots})", $ids);
+            $byId = [];
+            foreach ($payments as $payment) $byId[(int)$payment['order_id']][] = $payment;
+            foreach ($rows as $row) { $row['selection_money'] = ops_list_money($row, $byId[(int)$row['id']] ?? []); $selection[] = $row; }
+        }
+        echo json_encode(['ok'=>true,'orders'=>$selection]); exit;
+    }
+    if (($_GET['list_action'] ?? '') === 'matching_ids') {
+        // IDs only: selecting all results never downloads the historical order records.
+        $ids = ops_rows("SELECT o.id {$from} {$where} ORDER BY o.id", $params);
+        echo json_encode(['ok'=>true,'ids'=>array_map(static fn($row)=>(int)$row['id'], $ids)]); exit;
+    }
+    $metricEmployee = (int)ops_current_employee_id();
+    $listMetrics = ops_row("SELECT COUNT(*) AS total_orders,
+        COALESCE(SUM(o.status='new_order'),0) AS new_today,
+        COALESCE(SUM(o.status='in_progress'),0) AS in_progress_today,
+        COALESCE(SUM(o.status IN ('completed','packed','verified')),0) AS completed_all,
+        COALESCE(SUM(o.assigned_packer_id IS NULL OR o.assigned_packer_id=0),0) AS unassigned_orders,
+        COALESCE(SUM(o.assigned_packer_id={$metricEmployee}),0) AS my_orders,
+        COALESCE(SUM(o.status NOT IN ('completed','packed','verified')),0) AS pending_orders,
+        COALESCE(SUM(o.status='completed' AND DATE(COALESCE(o.completed_at,o.packed_at,{$displayDateTimeExpr}))=CURRENT_DATE),0) AS completed_today,
+        COALESCE(SUM(CASE WHEN o.payment_status='paid' AND o.status NOT IN ('cancelled','canceled','refunded','failed','error_logged') THEN o.total_amount ELSE 0 END),0) AS total_revenue,
+        COALESCE(SUM(CASE WHEN o.payment_status='paid' AND o.status NOT IN ('cancelled','canceled','refunded','failed','error_logged') AND DATE({$displayDateTimeExpr})=CURRENT_DATE THEN o.total_amount ELSE 0 END),0) AS today_revenue,
+        COALESCE(SUM(TIME({$displayDateTimeExpr}) >= '".OPS_BUSINESS_START."' AND TIME({$displayDateTimeExpr}) < '".OPS_BUSINESS_END."' AND {$displayDateTimeExpr}<DATE_SUB(NOW(),INTERVAL 4 HOUR) AND o.status NOT IN ('completed','packed','verified','cancelled','canceled','refunded','failed')),0) AS overdue_orders
+        {$from} {$where}", $params);
+    $count = (int)($listMetrics['total_orders'] ?? 0);
+    $pageSize = 100;
+    $pageNumber = min(max(1, (int)($_GET['page'] ?? 1)), max(1, (int)ceil($count / $pageSize)));
+    $hiddenMatches = 0;
+    if ($searchWhere !== '') {
+        $active = [];
+        if ($hasArchivedAt) $active[] = 'o.archived_at IS NULL';
+        if ($hasDeletedAt) $active[] = 'o.deleted_at IS NULL';
+        $active[] = $searchWhere;
+        $allMatches = (int)(ops_row('SELECT COUNT(*) AS n FROM ops_orders o WHERE '.implode(' AND ', $active), $searchParams)['n'] ?? 0);
+        $hiddenMatches = max(0, $allMatches - $count);
+    }
+    $sorts = ['date'=>$displayDateTimeExpr,'task'=>'o.order_number','mobile'=>'o.customer_contact','mode'=>"COALESCE(NULLIF(o.fulfilment_mode,''),o.order_type)",'amount'=>'o.total_amount','payment'=>'o.payment_method','paid'=>$portalPaidSelect,'status'=>'o.status','packer'=>'e.full_name','text'=>'o.notes'];
+    $direction = ($_GET['sortDirection'] ?? '') === 'asc' ? 'ASC' : 'DESC';
+    $listOrderBy = ($sorts[$_GET['sortColumn'] ?? 'date'] ?? $displayDateTimeExpr)." {$direction}, o.id {$direction}";
+    $listLimit = $pageSize.' OFFSET '.(($pageNumber - 1) * $pageSize);
+    $pagination = ['page'=>$pageNumber,'page_size'=>$pageSize,'total'=>$count,'pages'=>max(1,(int)ceil($count/$pageSize)),'hidden_matches'=>$hiddenMatches];
+}
 $orders = ops_rows(
     "SELECT
         o.id, o.order_number, {$wooOrderIdSelect}, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status AS financial_payment_status, {$portalPaidSelect} AS payment_status,
@@ -137,8 +208,8 @@ $orders = ops_rows(
      LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
      {$manualOrderJoin}
      {$where}
-     ORDER BY {$displayDateTimeExpr} DESC, o.id DESC
-     LIMIT 500",
+     ORDER BY {$listOrderBy}
+     LIMIT {$listLimit}",
     $params
 );
 
@@ -291,7 +362,7 @@ $metricWhere .= $archiveMetricWhere;
 $revenueAggregate = $hasTotalAmount
     ? "COALESCE(SUM(CASE WHEN payment_status = 'paid' AND status NOT IN ('cancelled', 'canceled', 'refunded', 'failed', 'error_logged') AND payment_status NOT IN ('refunded', 'cancelled', 'canceled', 'failed') THEN total_amount ELSE 0 END), 0)"
     : '0';
-$metricRows = ops_rows(
+$metricRows = $paged ? [$listMetrics] : ops_rows(
     "SELECT
         COUNT(*) AS total_orders,
         COALESCE(SUM(CASE WHEN status = 'new_order' THEN 1 ELSE 0 END), 0) AS new_today,
@@ -317,6 +388,7 @@ $metrics = [
     'overdue_orders' => (int) ($metricRow['overdue_orders'] ?? 0),
     'total_revenue' => (float) ($metricRow['total_revenue'] ?? 0),
 ];
+if ($paged) $metrics = array_merge($metrics, $listMetrics, ['paged'=>true]);
 
 $hasPackingAssignable = ops_ensure_packing_assignable_column();
 $packingEligibilityWhere = $hasPackingAssignable
@@ -385,6 +457,12 @@ $ordersPermissions = [
     'can_delete' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
 ];
 $responseData['permissions'] = $ordersPermissions;
+if ($paged) {
+    $responseData['pagination'] = $pagination;
+    $responseData['total_matching'] = $pagination['total'];
+    foreach ($responseData['orders'] as &$listOrder) $listOrder['selection_money'] = ops_list_money($listOrder, $listOrder['payments'] ?? []);
+    unset($listOrder);
+}
 
 $packingAttributionReview = [];
 if ($roleKey === 'owner_admin' && ops_table_exists('ops_activity_logs') && ops_table_exists('kpi_status_events')) {

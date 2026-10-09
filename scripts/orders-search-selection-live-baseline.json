@@ -1,0 +1,11 @@
+{
+  "apps/operations/orders-board.php": "1afa04356afc2ea7cdc46c30ea8d002242dee27f37211621da0ae3548e54803c",
+  "apps/operations/orders-board-data.php": "4b896e1c4f1055e2a84f810d940337ad892cf95e9fd49082570a0240d0a906f6",
+  "assets/js/orders-board.js": "7d83c1855d9da98d505aa83efab389434e5419255225ef0cc72c3fe2ccd837c6",
+  "assets/css/orders-board.css": "753d23aa18e9a84be8de62b61e3216f43ec24d65a7cf72f7e06a5bb5314bebf2",
+  "apps/operations/operations.php": "9fc3947c6b52c94eb308b93ff2e176cca3d4457d27c360d4b34108de20b22218",
+  "apps/operations/orders-board-action.php": "15a4864575b49ea5f9592efc512d64315bb38c583800321fc6d0ad0d77f1d070",
+  "assets/css/orders-essentials.css": "dac1beafdff8648c917365de3d0b5bd6f546c16f04b5a6b981529261a3b9f7bb",
+  "apps/operations/orders-list-query.php": null,
+  "assets/css/orders-list-selection.css": null
+}

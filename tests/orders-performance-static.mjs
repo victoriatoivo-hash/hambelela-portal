@@ -5,7 +5,7 @@ const client = fs.readFileSync(new URL('../assets/js/orders-board.js', import.me
 const endpoint = fs.readFileSync(new URL('../apps/operations/orders-board-data.php', import.meta.url), 'utf8');
 
 assert.match(client, /function scheduleOrdersSearch\(value, source = null\)/);
-assert.match(client, /window\.setTimeout\(\(\) => \{[\s\S]*?renderOrders\(ordersCache\);[\s\S]*?\}, 180\);/);
+assert.match(client, /window\.setTimeout\(\(\) => \{[\s\S]*?requestOrdersList\(\);[\s\S]*?250\);/);
 assert.doesNotMatch(client, /if \(search\) \{\s*boardState\.search = search\.value;\s*renderOrders\(ordersCache\);/);
 assert.doesNotMatch(client, /if \(boardSearch\) \{\s*boardState\.search = boardSearch\.value;\s*renderOrders\(ordersCache\);/);
 assert.match(client, /const count = ordersCache\.length;/);

@@ -27,6 +27,7 @@ $extraStylesheets = [
     ['path' => 'assets/css/portal-column-resize.css', 'version' => is_file(BASE_PATH . '/assets/css/portal-column-resize.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal-column-resize.css') : (string) time()],
     ['path' => 'assets/css/orders-board.css', 'version' => $ordersStylesVersion],
     ['path' => 'assets/css/orders-essentials.css', 'version' => (string) filemtime(BASE_PATH . '/assets/css/orders-essentials.css')],
+    ['path' => 'assets/css/orders-list-selection.css', 'version' => (string) filemtime(BASE_PATH . '/assets/css/orders-list-selection.css')],
 ];
 
 $isEssDashboard = true;
@@ -77,7 +78,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
             <div class="orders-filter-controls">
                 <div class="orders-search">
                     <i data-lucide="search" aria-hidden="true"></i>
-                    <input class="orders-search-input" data-board-search type="search" placeholder="Search by order, customer or phone..." aria-label="Search orders">
+                    <input class="orders-search-input orders-live-search" data-board-search type="search" placeholder="Search by order, customer or phone..." aria-label="Search orders" autocomplete="off">
                     <button type="button" class="portal-toolbar-search__clear" data-search-clear aria-label="Clear search"><i data-lucide="x"></i></button>
                 </div>
                 <button type="button" class="portal-toolbar-action" data-toolbar="person" data-toolbar-action="person" aria-expanded="false"><i data-lucide="circle-user-round"></i> Person</button>

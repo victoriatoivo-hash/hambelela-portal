@@ -15,7 +15,7 @@ assert.doesNotMatch(board, /data-order-reference>\$\{esc\(formatOrderInvoiceRefe
 assert.match(board, /data-payment-order-reference>\$\{esc\(formatOrderInvoiceReference\(order\.order_number \|\| order\.id\)\)\}/);
 assert.match(board, /modal\.dataset\.orderId = String\(order\.id\)/);
 assert.match(board, /post\('save_payment_allocations',\{order_id:order\.id/);
-assert.match(board, /order\.order_number, formatOrderInvoiceReference\(order\.order_number\)/);
+assert.match(board, /params.set\('q', boardState.search.trim\(\)\)/); // References are now searched server-side.
 assert.doesNotMatch(board, /order_number\.replace\(\/\^WEB-/);
 
 console.log('Orders invoice display-reference checks passed.');

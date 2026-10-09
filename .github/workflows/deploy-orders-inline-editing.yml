@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Preflight only or deploy the approved Orders Paid confirmation fix
+        description: Export, preflight or deploy the isolated Orders search and selection change
         required: true
         type: choice
         options:
@@ -12,7 +12,7 @@ on:
           - preflight
           - deploy
       approved_sha:
-        description: Exact main commit SHA to verify and deploy
+        description: Exact checkout commit SHA to verify and deploy
         required: true
         type: string
 
@@ -24,6 +24,16 @@ jobs:
   deploy-orders-inline-editing:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: local-test-only
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=10s --health-timeout=5s --health-retries=10
     permissions:
       contents: read
     steps:
@@ -36,10 +46,17 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Validate Orders Paid confirmation release
+      - name: Validate Orders search, selection and payment regressions
+        env:
+          ORDERS_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=mysql;charset=utf8mb4
+          ORDERS_TEST_PASSWORD: local-test-only
         run: |
           test "$(git rev-parse HEAD)" = "${{ inputs.approved_sha }}"
           php -l apps/operations/orders-board-action.php
+          php -l apps/operations/orders-board-data.php
+          php -l apps/operations/orders-list-query.php
+          php tests/orders-search-selection-behavior.php
+          node tests/orders-selection-ui-behavior.mjs
           node --check assets/js/orders-board.js
           php tests/orders-paid-confirmation-behavior.php
           node tests/orders-paid-ui-behavior.mjs
