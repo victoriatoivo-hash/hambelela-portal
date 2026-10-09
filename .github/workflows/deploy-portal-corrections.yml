@@ -28,7 +28,9 @@ jobs:
           extensions: fileinfo, pdo_mysql, pdo_sqlite
       - name: Verify dashboard data and preserved acknowledgements
         if: inputs.mode != 'export'
-        run: php tests/hr-unified-interface.php
+        run: |
+          php tests/hr-unified-interface.php
+          php tests/hr-employee-permissions.php
       - name: Capture, preflight or deploy the authorized HR interface files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
