@@ -1,0 +1,26 @@
+<?php
+use Hambelela\Accounts\Reconciliation as R;
+require __DIR__.'/payment-reconciliation.php';
+$db->exec("UPDATE ops_orders SET order_type='delivery' WHERE id IN(2,3)");
+$manual=function(int $order,int $allocation,string $method='pay2cell')use($db){$d=(new R($db))->detail($order);foreach($d['allocations'] as $a)if((int)$a['id']===$allocation)return ['order'=>$order,'allocation'=>$allocation,'fingerprint'=>$a['fingerprint'],'amount'=>number_format($a['amount_cents']/100,2,'.',''),'actual_method'=>$method,'verification_method'=>'phone_wallet','attested'=>true,'reference'=>'TEST-RECEIPT','note'=>'Synthetic independent verification'];throw new RuntimeException('Missing allocation');};
+$before=$db->query('SELECT * FROM order_payment_allocations ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
+$body=$manual(3,4);denied(fn()=>(new R($db))->act(2,'manual-confirm',$body),'Front cannot manually verify');
+denied(fn()=>(new R($db))->act(1,'manual-confirm',array_merge($body,['attested'=>false])),'Attestation required');
+denied(fn()=>(new R($db))->act(1,'manual-confirm',array_merge($body,['amount'=>'99'])),'Amount discrepancy explicit');
+(new R($db))->act(1,'manual-confirm',$body);$d=(new R($db))->detail(3);
+check($d['status']==='Confirmed'&&$d['allocations'][0]['actual_method']==='pay2cell'&&$d['allocations'][0]['payment_method']==='cash','Owner verifies Pay2Cell preserving original Cash');
+$count=$db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn();(new R($db))->act(1,'manual-confirm',$body);check($db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn()===$count,'Manual confirmation replay creates no duplicate');
+(new R($db))->act(1,'flag',['order'=>3,'choice'=>'Wrong payment method','note'=>'Investigate']);check((new R($db))->detail(3)['status']==='Flagged — Awaiting Investigation','Structured flag status');
+(new R($db))->act(1,'resolve',['order'=>3,'choice'=>'Payment confirmed','note'=>'Verified wallet']);check((new R($db))->detail(3)['status']==='Confirmed','Verified flag resolution');
+(new R($db))->act(1,'reopen',['order'=>3,'note'=>'Test grouped handover']);
+denied(fn()=>(new R($db))->act(1,'resolve',['order'=>3,'choice'=>'Payment confirmed','note'=>'No evidence']),'Resolution cannot bypass verification');
+$db->exec("INSERT INTO ops_cash_book_entries VALUES(9,NULL,'Grouped Driver handover',350,0,350,2,NULL,NULL)");
+$group=array_merge($manual(3,4,'cash'),['verification_method'=>'cash_handover','cashbook_id'=>9]);(new R($db))->act(1,'manual-confirm',$group);
+$second=array_merge($manual(2,3,'cash'),['verification_method'=>'cash_handover','cashbook_id'=>9]);denied(fn()=>(new R($db))->act(1,'manual-confirm',$second),'Shared handover capacity prevents reuse');
+$db->exec('UPDATE ops_cash_book_entries SET cash_in=400,actual_count=400 WHERE id=9');check((new R($db))->detail(3)['status']==='Discrepancy','Changed grouped handover invalidates verification');
+(new R($db))->act(1,'reopen',['order'=>3,'note'=>'Review corrected cash count']);(new R($db))->act(1,'manual-confirm',$group);(new R($db))->act(1,'manual-confirm',$second);
+check((new R($db))->detail(2)['verified_cents']===30000&&(new R($db))->detail(3)['verified_cents']===10000,'One handover supports distinct order portions');
+$list=(new R($db))->listing('2026-10-01','2026-10-09');$by=array_column($list['orders'],null,'id');check($by[2]['mode']==='delivery'&&$by[1]['mode']==='collection','Authoritative Orders Mode classification');
+check($by[2]['recorded_cents']===30000&&$by[2]['outstanding_cents']===0,'Recorded and independently verified amounts separate');
+check($db->query('SELECT * FROM order_payment_allocations ORDER BY id')->fetchAll(PDO::FETCH_ASSOC)===$before,'Original payment rows remain byte-for-byte unchanged');
+echo "All correction checks passed.\n";

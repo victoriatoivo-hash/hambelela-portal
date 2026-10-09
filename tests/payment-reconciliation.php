@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require __DIR__.'/../shared/reconciliation/Reconciliation.php';
 require __DIR__.'/../shared/reconciliation/BankStatementCsv.php';
+require __DIR__.'/reconciliation-methods.php';
 use Hambelela\Accounts\Reconciliation as R;
 use Hambelela\Accounts\BankStatementCsv as B;
 function check(bool $ok,string $label):void{if(!$ok)throw new RuntimeException($label);echo "PASS $label\n";}
@@ -16,6 +17,7 @@ $db->exec("CREATE TABLE order_payment_allocations(id INT PRIMARY KEY,order_id IN
 $db->exec("CREATE TABLE delivery_jobs(id INT PRIMARY KEY,order_id INT,source VARCHAR(20),fee_order_component_cents INT);CREATE TABLE delivery_receipts(id INT PRIMARY KEY,delivery_id INT,order_allocation_applied_at DATETIME NULL,delivery_fee_cents INT,order_goods_cents INT,partner_cod_cents INT,payment_method VARCHAR(30),transaction_reference VARCHAR(190),status VARCHAR(20),reversed_at DATETIME NULL,collected_by_employee_id INT,reconciled_by_employee_id INT)");
 $db->exec(file_get_contents(__DIR__.'/../database/payment-reconciliation.sql'));
 $db->exec('ALTER TABLE ops_orders ADD created_by INT NULL');
+$db->exec("ALTER TABLE ops_orders ADD order_type VARCHAR(40) DEFAULT 'collection'");
 $svc=new R($db);foreach([2,3,4,999] as $id)denied(fn()=>$svc->owner($id),'Non-owner denied '.$id);
 $csv="Date,Description,Reference,Debit,Credit\n09/10/2026,Transfer,REF1,,300.00\n";$report=B::parse($csv,'TEST-BANK','eft');
 check($svc->importBank(1,$report)['imported']===1,'Bank Processor export imported');check($svc->importBank(1,$report)['duplicates']===1,'Import replay deduplicated');
@@ -27,8 +29,8 @@ denied(fn()=>$svc->act(1,'confirm',['order'=>1]),'Split requires each component'
 $svc->act(1,'match',['order'=>1,'allocation'=>2,'evidence'=>'import:1']);
 $count=$db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn();$svc->act(1,'match',['order'=>1,'allocation'=>2,'evidence'=>'import:1']);check($db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn()===$count,'Matching replay idempotent');
 denied(fn()=>$svc->act(1,'match',['order'=>2,'allocation'=>3,'evidence'=>'import:1']),'Evidence cannot be used twice');
-$svc->act(1,'flag',['order'=>1,'note'=>'Synthetic issue']);denied(fn()=>$svc->act(1,'confirm',['order'=>1]),'Issue blocks confirmation');
-$svc->act(1,'resolve',['order'=>1,'note'=>'Synthetic resolution']);$svc->act(1,'confirm',['order'=>1]);check((new R($db))->detail(1)['status']==='Confirmed','Split independently confirmed');
+$svc->act(1,'flag',['order'=>1,'choice'=>'Amount differs','note'=>'Synthetic issue']);denied(fn()=>$svc->act(1,'confirm',['order'=>1]),'Issue blocks confirmation');
+$svc->act(1,'resolve',['order'=>1,'choice'=>'Incorrect flag removed','note'=>'Synthetic resolution']);$svc->act(1,'confirm',['order'=>1]);check((new R($db))->detail(1)['status']==='Confirmed','Split independently confirmed');
 $count=$db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn();$svc->act(1,'confirm',['order'=>1]);check($db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn()===$count,'Confirmation replay idempotent');
 check((int)$db->query('SELECT COUNT(*) FROM order_payment_allocations')->fetchColumn()===3,'No payment allocations duplicated');
 check((int)$db->query('SELECT SUM(amount_cents) FROM order_payment_allocations')->fetchColumn()===80000,'Original amounts unchanged');

@@ -1,18 +1,12 @@
 """Approved isolated Payment Reconciliation delta, with live-baseline checks and rollback."""
 import argparse, ftplib, hashlib, io, json, os, subprocess, zipfile
 
-BASELINE = '574f2b8a0d9107cf252b077287d933790a01f0f5'
+BASELINE = '308d21ec7ab03e2e6821ca7163b1d1bc7f070e01'
 FILES = [
- 'shared/reconciliation/PaymentEvidence.php','shared/reconciliation/FnbTerminalReport.php',
- 'shared/reconciliation/BankStatementCsv.php','shared/reconciliation/Reconciliation.php',
- 'database/payment-reconciliation.sql','apps/accounts/payment-reconciliation-api.php',
+ 'shared/reconciliation/Reconciliation.php',
  'assets/css/payment-reconciliation.css','assets/js/payment-reconciliation.js',
- 'apps/accounts/payment-reconciliation.php','apps/accounts/index.php',
+ 'apps/accounts/payment-reconciliation.php',
 ]
-ORDERS='apps/operations/orders-board.php'
-ORDERS_HASH='3adcb1c9758c3a7652df033b71e7b2d6bf65b848e723872a67d6a72cabb0bf13'
-ANCHOR=b'<span class="board-state" id="board-sync-state" aria-live="polite"></span>'
-SHORTCUT=b'<?php if (user_has_role("owner_admin")): ?><a class="invite-btn packing-btn packing-btn-secondary" data-payment-reconciliation href="../accounts/payment-reconciliation.php">Payment Reconciliation</a><?php endif; ?>\n                '
 def sha(data): return hashlib.sha256(data).hexdigest() if data is not None else None
 def git(*args): return subprocess.check_output(['git',*args])
 def read(ftp,path):
@@ -40,20 +34,12 @@ def main(approved,deploy):
  if head!=approved: raise RuntimeError('Approved SHA does not match checkout')
  expected={p:git('show',head+':'+p) for p in FILES}
  ftp=ftplib.FTP_TLS(os.environ['FTP_SERVER'],timeout=60);ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD']);ftp.prot_p()
- report={'approved_sha':head,'state':'preflight','files':FILES+[ORDERS]}
+ report={'approved_sha':head,'state':'preflight','files':FILES}
  try:
-  old={p:read(ftp,p) for p in FILES+[ORDERS]}
+  old={p:read(ftp,p) for p in FILES}
   for p in FILES:
    base=git('show',BASELINE+':'+p)
    if old[p] not in (base,expected[p]): raise RuntimeError('Live baseline changed; no files uploaded: '+p)
-  source=old[ORDERS]
-  if source is None: raise RuntimeError('Orders baseline missing')
-  if SHORTCUT in source:
-   if sha(source.replace(SHORTCUT,b'',1))!=ORDERS_HASH: raise RuntimeError('Orders changed after shortcut release')
-   expected[ORDERS]=source
-  else:
-   if sha(source)!=ORDERS_HASH or source.count(ANCHOR)!=1: raise RuntimeError('Orders baseline or anchor changed')
-   expected[ORDERS]=source.replace(ANCHOR,SHORTCUT+ANCHOR,1)
   report['before']={p:sha(v) for p,v in old.items()};report['after']={p:sha(v) for p,v in expected.items()}
   with zipfile.ZipFile('payment-reconciliation-backup.zip','w') as z:
    for p,v in old.items():
