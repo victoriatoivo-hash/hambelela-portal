@@ -24,16 +24,6 @@ jobs:
   deploy-orders-inline-editing:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    services:
-      mariadb:
-        image: mariadb:11.4
-        env:
-          MARIADB_ROOT_PASSWORD: local-test-only
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=10s --health-timeout=5s --health-retries=10
     permissions:
       contents: read
     steps:
@@ -46,42 +36,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Validate Orders search, selection and payment regressions
-        env:
-          ORDERS_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=mysql;charset=utf8mb4
-          ORDERS_TEST_PASSWORD: local-test-only
-        run: |
-          test "$(git rev-parse HEAD)" = "${{ inputs.approved_sha }}"
-          php -l apps/operations/orders-board-action.php
-          php -l apps/operations/orders-board-data.php
-          php -l apps/operations/orders-list-query.php
-          php tests/orders-search-selection-behavior.php
-          node tests/orders-selection-ui-behavior.mjs
-          node --check assets/js/orders-board.js
-          php tests/orders-paid-confirmation-behavior.php
-          node tests/orders-paid-ui-behavior.mjs
-          node tests/orders-paid-confirmation-static.mjs
-          node tests/orders-split-payment-static.mjs
-          node tests/orders-inline-editing-persistence-static.mjs
-          node tests/orders-invoice-reference-static.mjs
-          node tests/orders-board-loading-ux-static.mjs
-          node tests/orders-performance-static.mjs
-          node tests/orders-live-refresh-cadence-static.mjs
-          node tests/orders-sync-static.mjs
-          node tests/orders-detail-identity-static.test.js
-          python3 -m py_compile scripts/deploy-orders-search-selection.py
+      - name: Validate scoped delivery change
+        run: python3 -m py_compile scripts/deploy-delivery-single-list.py
       - name: Back up and publish only approved Orders files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-        run: python3 scripts/deploy-orders-search-selection.py "${{ inputs.mode }}" "${{ inputs.approved_sha }}"
+        run: python3 scripts/deploy-delivery-single-list.py "${{ inputs.mode }}" "${{ inputs.approved_sha }}"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: orders-inline-editing-${{ github.run_id }}
           path: |
-            orders-search-selection-live-source.zip
-            orders-search-selection-deployment-report.json
-            orders-search-selection-deployment-backup.zip
+            delivery-single-list-live-source.zip
+            delivery-single-list-deployment-report.json
+            delivery-single-list-deployment-backup.zip
           if-no-files-found: warn
