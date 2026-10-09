@@ -37,7 +37,10 @@ jobs:
         with:
           node-version: '20'
       - name: Validate scoped delivery change
-        run: python3 -m py_compile scripts/deploy-delivery-single-list.py
+        run: |
+          python3 -m py_compile scripts/deploy-delivery-single-list.py
+          node --check assets/js/delivery-back-capture.js
+          node tests/delivery-single-list.cjs
       - name: Back up and publish only approved Orders files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

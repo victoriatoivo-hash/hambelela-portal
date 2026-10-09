@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm');
+const source=fs.readFileSync('assets/js/delivery-back-capture.js','utf8');
+const functions=source.slice(source.indexOf('async function loadAllCandidates('),source.indexOf('const localTime='));
+const context={Map,Number,Array,Error,$:()=>({textContent:''})};vm.createContext(context);vm.runInContext(functions,context);
+(async()=>{
+ let pages=[];
+ context.fetch=async url=>{const page=Number(new URLSearchParams(url.split('?')[1]).get('page'));pages.push(page);return {ok:true,json:async()=>({orders:Array.from({length:page===3?6:10},(_,i)=>({id:(page-1)*10+i+1})),total:26,has_more:page<3,drivers:[],csrf:'test'})};};
+ const result=await context.loadAllCandidates(new URLSearchParams(),new AbortController().signal);
+ assert.equal(result.orders.length,26);assert.deepEqual(pages,[1,2,3]);assert.equal(new Set(result.orders.map(x=>x.id)).size,26);
+ context.fetch=async()=>({ok:false,json:async()=>({error:'Verification unavailable'})});
+ await assert.rejects(context.loadAllCandidates(new URLSearchParams(),new AbortController().signal),/Verification unavailable/);
+ const queue={pending:[{uuid:'a',items:Array(10).fill({id:1})},{uuid:'b',items:Array(10).fill({id:2})},{uuid:'c',items:Array(6).fill({id:3})}],saved:0};
+ let calls=[],fail=true;
+ context.fetch=async(url,options)=>{const body=JSON.parse(options.body);calls.push(body.uuid);if(body.uuid==='b'&&fail){fail=false;throw Error('network interrupted');}return {ok:true,json:async()=>({saved:body.items})};};
+ await assert.rejects(context.saveReviewedBatches(queue,'test',()=>{}),/network interrupted/);
+ assert.equal(queue.saved,10);assert.equal(queue.pending[0].uuid,'b');
+ assert.equal(await context.saveReviewedBatches(queue,'test',()=>{}),26);
+ assert.deepEqual(calls,['a','b','b','c'],'Retry preserves the pending idempotency key and never replays confirmed batches');
+ assert.match(source,/\$\('#back-prev'\)\.hidden=true;\$\('#back-next'\)\.hidden=true/);
+ assert.doesNotMatch(source,/back-next'\)\.onclick/);
+ console.log('PASS: 26 orders in one list, automatic paging, load failures, and resumable 10/10/6 saves.');
+})().catch(error=>{console.error(error);process.exitCode=1;});
