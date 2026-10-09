@@ -32,7 +32,12 @@ final class TaskActivityBridge
             $responsible = self::actor($pdo, isset($task['assigned_employee_id']) ? (int)$task['assigned_employee_id'] : null);
             $at = Support::timestamp($input['changed_at'] ?? $input['occurred_at'] ?? null);
             $reference = 'TASK-' . $taskId;
-            $action = self::action($legacyAction, $input);
+            $management = $legacyAction === 'task_management_corrected' || !empty($input['management_correction']);
+            $action = $legacyAction === 'task_management_corrected' ? (!empty($input['completion_changed']) && !empty($input['actual_completed_at']) ? 'task_completed' : 'task_management_corrected') : self::action($legacyAction, $input);
+            if ($management && $action === 'task_completed') {
+                $at = Support::timestamp($input['actual_completed_at']);
+                $pdo->prepare("UPDATE epi_employee_evidence SET metadata_json=JSON_SET(COALESCE(metadata_json,'{}'),'$.management_superseded',true,'$.superseded_by_audit',?) WHERE module='Tasks' AND reference_number=? AND action='task_completed'")->execute([$input['audit_id'],'TASK-'.$taskId]);
+            }
             $before = self::status((string)($input['previous_status'] ?? $input['old_value'] ?? ''));
             $after = self::status((string)($input['status'] ?? $input['new_value'] ?? $task['status'] ?? ''));
             $assignedAt = self::date($task['date_assigned'] ?? $task['created_at'] ?? null);
@@ -89,6 +94,7 @@ final class TaskActivityBridge
                 'activity_source'=>'task_activity_log:'.$legacyAction,
                 'deduplication_key'=>Support::dedupe(['task-evidence',$dedupe]),'metadata'=>$metadata,
             ]);
+            if ($management) { if ($legacyAction==='task_reassigned') self::ownership($reference,$task,$actor,$action,$at,$input); return; } // Corrections do not transfer candidates to a new assignee.
             self::ownership($reference, $task, $actor, $action, $at, $input);
             if ((int)($task['assigned_employee_id'] ?? 0) > 0) self::candidates($pdo, $reference, $task, $responsible, $action, $at, $metadata, $uuid);
         } catch (Throwable $error) {

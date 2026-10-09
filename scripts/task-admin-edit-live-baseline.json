@@ -1,0 +1,23 @@
+{
+  "apps/operations/checklists.php": "420ef8fbba10c3b3fd776d1bc24a67773444c049bf990d3fdbb65196eeae89be",
+  "assets/css/task-essentials.css": "e2842292c17692eef520cdfc39bdc205ebaf0cfa37d66234197c515ce31dee23",
+  "assets/js/task-essentials.js": "9a25b7d9acff02971739bb0644e71589abb591b808ad127a9aa9538ce246a44c",
+  "shared/task-admin-edit.php": null,
+  "assets/css/task-admin-edit.css": null,
+  "assets/js/task-admin-edit.js": null,
+  "shared/epi/TaskActivityBridge.php": "ee35a347221971bd8d532305a8cb86c2028080cd98e52bdb686fc84713b85414",
+  "shared/epi/V2OperationalBridge.php": "52348e6cbd31ee84dba57a8160436e3507c77748026dd43240db041564d35b2f",
+  "shared/epi/DeadlineEngine.php": "9909f9dbc2c0204dd82e02d2916c12ff9f5539d1e9207c6c2228de61faad1c0a",
+  "shared/epi/TaskPerformance.php": "7bc612af81ea833f10e5db01fb8da99d03642b0c2f3d5b73f98d12a007015339",
+  "apps/operations/operations.php": "9fc3947c6b52c94eb308b93ff2e176cca3d4457d27c360d4b34108de20b22218",
+  "shared/task-instructions.php": "f25ad1e871533892cab50a63cc16ad046d2470c4b4e7000cacd884ee65dd57fd",
+  "shared/notifications.php": "0d0b47853f68747882b116661f1ce2724634eb2c64586c28cc54df609917131e",
+  "shared/epi/OwnershipPeriodEngine.php": "c8ebfa3aed07229b2239d0debbdf1e1b55b4e760221d42cc968224b01a0ed922",
+  "shared/epi/Performance.php": "28271abcbaee06914e285c2dfedf56331a8df294c7eb49470168700f803ae74e",
+  "shared/epi/Support.php": "84a884290632af97228087b79c5bc22cb0ecf2e14fa07e45f56fca2a744ca1cb",
+  "shared/epi/DeadlineRateQuery.php": "4b07738fc39e6c5fa53d38a69b39b1eee3026424a1e2d4538117aef835f5dd31",
+  "shared/epi/CompletedWorkCapture.php": "bb4b4308b80ba9c183dca33533ace7c4e449fa019e309c9e3163f91d0fec1e5d",
+  "shared/epi/ModuleDeadlineBridge.php": "647e1122aa8426b978a8e144986d1de12dd1d4073266391923582a2c1cc3a2fa",
+  "shared/epi/V2Store.php": "f31b8590bbe519e4a5b89a700c0986b0118ebd583aa352aedcb37b6ff35d2d41",
+  "assets/js/portal.js": "4785b97328e2b55e6b3ace732f3147d2eb7224d5193e1f9d935ef9d297f8a2d3"
+}

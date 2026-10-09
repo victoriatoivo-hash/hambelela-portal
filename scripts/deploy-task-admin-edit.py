@@ -1,8 +1,8 @@
 """Source capture and hash-guarded Task admin edit delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('apps/operations/checklists.php','assets/css/task-essentials.css','assets/js/task-essentials.js','shared/task-admin-edit.php','assets/css/task-admin-edit.css','assets/js/task-admin-edit.js','shared/epi/TaskActivityBridge.php','shared/epi/V2OperationalBridge.php','shared/epi/DeadlineEngine.php','shared/epi/TaskPerformance.php')
-READ_ONLY = ('apps/operations/operations.php','shared/task-instructions.php','shared/notifications.php','shared/epi/OwnershipPeriodEngine.php','shared/epi/Performance.php','shared/epi/Support.php','shared/epi/DeadlineRateQuery.php','shared/epi/CompletedWorkCapture.php','shared/epi/ModuleDeadlineBridge.php','shared/epi/V2Store.php','assets/js/portal.js')
+FILES = ('apps/operations/checklists.php','assets/css/task-essentials.css','assets/js/task-essentials.js','shared/task-admin-edit.php','assets/css/task-admin-edit.css','assets/js/task-admin-edit.js','shared/epi/TaskActivityBridge.php','shared/epi/V2OperationalBridge.php','shared/epi/DeadlineEngine.php','shared/epi/TaskPerformance.php','shared/epi/CompletedWorkCapture.php')
+READ_ONLY = ('apps/operations/operations.php','shared/task-instructions.php','shared/notifications.php','shared/epi/OwnershipPeriodEngine.php','shared/epi/Performance.php','shared/epi/Support.php','shared/epi/DeadlineRateQuery.php','shared/epi/ModuleDeadlineBridge.php','shared/epi/V2Store.php','assets/js/portal.js')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
@@ -48,7 +48,8 @@ try:
                 z.writestr('manifest.json',json.dumps(report['before'],indent=2))
             attempted=[]
             try:
-                for p in FILES:
+                upload_order = [p for p in FILES if p != 'apps/operations/checklists.php'] + ['apps/operations/checklists.php']
+                for p in upload_order:
                     if read(p)!=before[p]: raise RuntimeError('Live changed after preflight: '+p)
                     if before[p]==desired[p]: continue
                     attempted.append(p);put(p,desired[p])

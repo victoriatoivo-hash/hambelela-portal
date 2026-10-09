@@ -15,9 +15,16 @@ concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
 jobs:
-  leave-documents:
+  task-admin-edit:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: fixture-password
+        ports: ['33319:3306']
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=5s --health-retries=12
     permissions:
       contents: read
     steps:
@@ -26,11 +33,14 @@ jobs:
         with:
           php-version: '7.4'
           extensions: fileinfo, pdo_mysql, pdo_sqlite
-      - name: Verify dashboard data and preserved acknowledgements
+      - name: Verify corrections, preserved records and permissions
         if: inputs.mode != 'export'
+        env:
+          TASK_TEST_MYSQL_PASSWORD: fixture-password
         run: |
           php tests/task-admin-edit.php
           php tests/task-admin-permissions.php
+          php tests/task-admin-performance.php
       - name: Capture, preflight or deploy the authorized Task editing files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
