@@ -77,7 +77,8 @@ final class PartnerAccess
             $this->db->prepare('UPDATE delivery_partner_users SET session_version=session_version+1 WHERE id=?')->execute([$id]);
             $this->db->prepare('DELETE FROM delivery_partner_reset_tokens WHERE user_id=?')->execute([$id]);
             if($action==='create'||$action==='reset'){
-                $token=bin2hex(random_bytes(32));$this->db->prepare('INSERT INTO delivery_partner_reset_tokens(user_id,token_hash,expires_at) VALUES(?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 60 MINUTE))')->execute([$id,hash('sha256',$token)]);
+                $v=$this->db->prepare('SELECT session_version FROM delivery_partner_users WHERE id=?');$v->execute([$id]);$issuedVersion=(int)$v->fetchColumn();
+                $token=bin2hex(random_bytes(32));$this->db->prepare('INSERT INTO delivery_partner_reset_tokens(user_id,token_hash,expires_at) VALUES(?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 60 MINUTE))')->execute([$id,hash('sha256',hash('sha256',$token).':'.$issuedVersion)]);
             }
             $this->db->prepare('INSERT INTO ops_security_events(event_type,employee_id,metadata_json) VALUES(?,?,?)')->execute(['delivery_partner_'.$action,$owner['id'],json_encode(['partner_user_id'=>$id,'sessions_revoked'=>true],JSON_THROW_ON_ERROR)]);
             $this->db->commit();return ['id'=>$id,'token'=>$token];
@@ -100,9 +101,9 @@ final class PartnerAccess
                 }
             }else{
                 if(!preg_match('/^[a-f0-9]{64}$/D',$token))throw new \DomainException('Setup link is invalid or expired.');
-                $s=$this->db->prepare('SELECT user_id FROM delivery_partner_reset_tokens WHERE token_hash=? AND expires_at>UTC_TIMESTAMP()');$s->execute([hash('sha256',$token)]);$id=(int)$s->fetchColumn();if(!$id)throw new \DomainException('Setup link is invalid or expired.');
-                $this->identity($id,true);
-                $s=$this->db->prepare('SELECT user_id FROM delivery_partner_reset_tokens WHERE user_id=? AND token_hash=? AND expires_at>UTC_TIMESTAMP() FOR UPDATE');$s->execute([$id,hash('sha256',$token)]);if(!$s->fetchColumn())throw new \DomainException('Setup link is invalid or expired.');
+                $s=$this->db->prepare("SELECT t.user_id FROM delivery_partner_reset_tokens t JOIN delivery_partner_users u ON u.id=t.user_id WHERE t.token_hash=SHA2(CONCAT(?,':',u.session_version),256) AND t.expires_at>UTC_TIMESTAMP()");$s->execute([hash('sha256',$token)]);$id=(int)$s->fetchColumn();if(!$id)throw new \DomainException('Setup link is invalid or expired.');
+                $fresh=$this->identity($id,true);
+                $s=$this->db->prepare('SELECT user_id FROM delivery_partner_reset_tokens WHERE user_id=? AND token_hash=? AND expires_at>UTC_TIMESTAMP() FOR UPDATE');$s->execute([$id,hash('sha256',hash('sha256',$token).':'.$fresh['session_version'])]);if(!$s->fetchColumn())throw new \DomainException('Setup link is invalid or expired.');
             }
             $this->db->prepare('UPDATE delivery_partner_users SET password_hash=?,session_version=session_version+1,failed_attempts=0,locked_until=NULL WHERE id=?')->execute([password_hash($new,PASSWORD_DEFAULT),$id]);
             $this->db->prepare('DELETE FROM delivery_partner_reset_tokens WHERE user_id=?')->execute([$id]);$this->db->commit();

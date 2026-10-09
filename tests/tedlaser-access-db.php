@@ -66,6 +66,9 @@ try{
  denied(function()use($access,$reset){$access->password('Another synthetic password',$reset['token']);},'new reset invalidates older token');
  $db->exec('UPDATE delivery_partner_reset_tokens SET expires_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND)');
  denied(function()use($access,$reset2){$access->password('Another synthetic password',$reset2['token']);},'expired reset rejected');
+ $legacyReset=$access->manage($owner,['action'=>'reset','id'=>$id]);
+ $db->exec('UPDATE delivery_partner_users SET session_version=session_version+1 WHERE id='.(int)$id);
+ denied(function()use($access,$legacyReset){$access->password('Another synthetic password',$legacyReset['token']);},'legacy password reset or revocation invalidates new setup links');
  $reset3=$access->manage($owner,['action'=>'reset','id'=>$id]);$access->password('Updated synthetic password',$reset3['token']);
  $session=$auth->authenticate('admin@example.test','Updated synthetic password','127.0.0.1');$admin=$auth->actor($session);
  for($i=0;$i<5;$i++)denied(function()use($access,$admin){$access->password('Changed synthetic password','',$admin,'wrong');},'incorrect current password rejected');
