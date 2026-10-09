@@ -21,6 +21,7 @@ $apps=[
  ['amendments.php','message-square-text','amendments','Amendments',$isAccountant?'Send me any accounting amendments or corrections you need me to make.':'Discuss accounting corrections with a complete shared audit trail.'],
 ];
 if(accounts_is_owner()){$apps[]=['sage-reconciliation.php','book-open-check','sage','Sage Posting & Reconciliation','Prepare Sage postings and reconcile receipts without double-counting.'];$apps[]=['asset-register.php','boxes','asset-register','Asset Register','Record, assign, maintain and audit business assets.'];}
+if(accounts_is_owner())$apps[]=['payment-reconciliation.php','badge-check','sage','Payment Reconciliation','Verify customer payments against Orders, Bookkeeping, bank transactions and driver collections.'];
 include BASE_PATH.'/shared/header.php'; include BASE_PATH.'/shared/sidebar.php';
 ?>
 <main class="workspace module accounts-page accounts-workspace<?= $isAccountant ? ' is-accountant-workspace' : '' ?>">

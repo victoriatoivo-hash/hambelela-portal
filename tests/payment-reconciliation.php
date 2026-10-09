@@ -1,0 +1,41 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/../shared/reconciliation/Reconciliation.php';
+require __DIR__.'/../shared/reconciliation/BankStatementCsv.php';
+use Hambelela\Accounts\Reconciliation as R;
+use Hambelela\Accounts\BankStatementCsv as B;
+function check(bool $ok,string $label):void{if(!$ok)throw new RuntimeException($label);echo "PASS $label\n";}
+function denied(callable $call,string $label):void{try{$call();}catch(DomainException $e){check(true,$label);return;}throw new RuntimeException($label);}
+$dsn=getenv('PR_TEST_DSN');if(!$dsn||strpos($dsn,'host=127.0.0.1;')===false||strpos($dsn,'dbname=payment_reconciliation_test')===false)throw new RuntimeException('Explicit isolated localhost test database required.');
+$server=new PDO(str_replace(';dbname=payment_reconciliation_test','',$dsn),getenv('PR_TEST_USER')?:'root',getenv('PR_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);$server->exec('CREATE DATABASE IF NOT EXISTS payment_reconciliation_test');
+$db=new PDO($dsn,getenv('PR_TEST_USER')?:'root',getenv('PR_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+foreach(['accounts_payment_review_audit','accounts_payment_matches','accounts_payment_evidence','delivery_receipts','delivery_jobs','ops_cash_book_entries','order_payment_allocation_audit','order_payment_allocations','ops_orders','ops_employees','ops_roles'] as $table)$db->exec('DROP TABLE IF EXISTS '.$table);
+$db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(40));INSERT INTO ops_roles VALUES(1,'owner_admin'),(2,'front_admin'),(3,'delivery_driver');CREATE TABLE ops_employees(id INT PRIMARY KEY,role_id INT,status VARCHAR(20),full_name VARCHAR(80));INSERT INTO ops_employees VALUES(1,1,'active','Test Owner'),(2,2,'active','Test Front'),(3,3,'active','Test Driver'),(4,1,'inactive','Inactive Owner')");
+$db->exec("CREATE TABLE ops_orders(id INT PRIMARY KEY,order_number VARCHAR(40),customer_name VARCHAR(80),customer_contact VARCHAR(80),total_amount DECIMAL(12,2),created_at DATETIME,payment_status VARCHAR(20),payment_method VARCHAR(20),payment_updated_by_employee_id INT,deleted_at DATETIME NULL,archived_at DATETIME NULL);INSERT INTO ops_orders VALUES(1,'TEST-1','Synthetic customer','',500,'2026-10-09 10:00:00','paid','split',2,NULL,NULL),(2,'TEST-2','Second synthetic','',300,'2026-10-09 11:00:00','paid','eft',2,NULL,NULL)");
+$db->exec("CREATE TABLE order_payment_allocations(id INT PRIMARY KEY,order_id INT,payment_method VARCHAR(30),amount_cents INT,transaction_reference VARCHAR(190),updated_by_employee_id INT);INSERT INTO order_payment_allocations VALUES(1,1,'cash',20000,'',2),(2,1,'eft',30000,'REF1',2),(3,2,'eft',30000,'REF1',2);CREATE TABLE order_payment_allocation_audit(id INT PRIMARY KEY,order_id INT,changed_by_employee_id INT);CREATE TABLE ops_cash_book_entries(id INT PRIMARY KEY,related_order_id INT,related_order_number VARCHAR(40),cash_in DECIMAL(12,2),cash_out DECIMAL(12,2),actual_count DECIMAL(12,2),recorded_by INT,deleted_at DATETIME NULL,archived_at DATETIME NULL);INSERT INTO ops_cash_book_entries VALUES(1,1,'TEST-1',200,0,200,2,NULL,NULL)");
+$db->exec("CREATE TABLE delivery_jobs(id INT PRIMARY KEY,order_id INT,source VARCHAR(20),fee_order_component_cents INT);CREATE TABLE delivery_receipts(id INT PRIMARY KEY,delivery_id INT,order_allocation_applied_at DATETIME NULL,delivery_fee_cents INT,order_goods_cents INT,partner_cod_cents INT,payment_method VARCHAR(30),transaction_reference VARCHAR(190),status VARCHAR(20),reversed_at DATETIME NULL,collected_by_employee_id INT,reconciled_by_employee_id INT)");
+$db->exec(file_get_contents(__DIR__.'/../database/payment-reconciliation.sql'));
+$db->exec('ALTER TABLE ops_orders ADD created_by INT NULL');
+$svc=new R($db);foreach([2,3,4,999] as $id)denied(fn()=>$svc->owner($id),'Non-owner denied '.$id);
+$csv="Date,Description,Reference,Debit,Credit\n09/10/2026,Transfer,REF1,,300.00\n";$report=B::parse($csv,'TEST-BANK','eft');
+check($svc->importBank(1,$report)['imported']===1,'Bank Processor export imported');check($svc->importBank(1,$report)['duplicates']===1,'Import replay deduplicated');
+denied(fn()=>B::parse(str_replace('09/10/2026','31/02/2026',$csv),'TEST','eft'),'Invalid date rejected');
+denied(fn()=>$svc->act(2,'confirm',['order'=>1]),'Operational employee cannot confirm');
+denied(fn()=>$svc->act(1,'confirm',['order'=>1]),'POS paid cannot confirm without evidence');
+$svc->act(1,'match',['order'=>1,'allocation'=>1,'evidence'=>'cash:1']);
+denied(fn()=>$svc->act(1,'confirm',['order'=>1]),'Split requires each component');
+$svc->act(1,'match',['order'=>1,'allocation'=>2,'evidence'=>'import:1']);
+$count=$db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn();$svc->act(1,'match',['order'=>1,'allocation'=>2,'evidence'=>'import:1']);check($db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn()===$count,'Matching replay idempotent');
+denied(fn()=>$svc->act(1,'match',['order'=>2,'allocation'=>3,'evidence'=>'import:1']),'Evidence cannot be used twice');
+$svc->act(1,'flag',['order'=>1,'note'=>'Synthetic issue']);denied(fn()=>$svc->act(1,'confirm',['order'=>1]),'Issue blocks confirmation');
+$svc->act(1,'resolve',['order'=>1,'note'=>'Synthetic resolution']);$svc->act(1,'confirm',['order'=>1]);check((new R($db))->detail(1)['status']==='Confirmed','Split independently confirmed');
+$count=$db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn();$svc->act(1,'confirm',['order'=>1]);check($db->query('SELECT COUNT(*) FROM accounts_payment_review_audit')->fetchColumn()===$count,'Confirmation replay idempotent');
+check((int)$db->query('SELECT COUNT(*) FROM order_payment_allocations')->fetchColumn()===3,'No payment allocations duplicated');
+check((int)$db->query('SELECT SUM(amount_cents) FROM order_payment_allocations')->fetchColumn()===80000,'Original amounts unchanged');
+$db->exec('UPDATE ops_cash_book_entries SET actual_count=199 WHERE id=1');check((new R($db))->detail(1)['status']!=='Confirmed','Changed receipt invalidates confirmation');
+$list=(new R($db))->listing('2026-10-01','2026-10-09');check(count($list['orders'])===2,'Range includes every order once');
+$db->exec("INSERT INTO delivery_jobs VALUES(1,1,'hambelela',4000);INSERT INTO delivery_receipts VALUES(1,1,'2026-10-09',4000,10000,0,'cash','','reconciled',NULL,3,2),(2,1,'2026-10-09',4000,5000,0,'cash','','reconciled',NULL,3,2)");
+$e=(new R($db))->evidence(1);$drivers=array_values(array_filter($e,fn($r)=>strpos($r['key'],'driver:')===0));check($drivers[0]['amount_cents']===14000&&$drivers[1]['amount_cents']===5000,'Delivery fee included at most once');
+check($drivers[0]['recorded_by']===3&&$drivers[0]['handover_by']===2,'Collector and receiver remain separate');
+echo "All reconciliation database checks passed.\n";
+$db->exec("INSERT INTO ops_orders(id,order_number,customer_name,customer_contact,total_amount,created_at,payment_status,payment_method,payment_updated_by_employee_id,created_by) VALUES(3,'UI-TEST-3','Synthetic UI workflow','',100,'2026-10-09 12:00:00','paid','cash',2,2);INSERT INTO order_payment_allocations VALUES(4,3,'cash',10000,'',2);INSERT INTO ops_cash_book_entries VALUES(2,3,'UI-TEST-3',100,0,100,2,NULL,NULL)");

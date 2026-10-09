@@ -13,6 +13,37 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  deploy-payment-reconciliation:
+    if: github.ref == 'refs/heads/codex/payment-reconciliation' && inputs.approved_sha == github.sha
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.approved_sha }}
+      - name: Check isolated reconciliation source
+        run: |
+          find shared/reconciliation -name '*.php' -exec php -l {} \;
+          php -l apps/accounts/payment-reconciliation.php
+          php -l apps/accounts/payment-reconciliation-api.php
+          node --check assets/js/payment-reconciliation.js
+          python3 -m py_compile scripts/deploy-payment-reconciliation.py
+      - name: Back up and publish isolated delta
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-payment-reconciliation.py '${{ inputs.approved_sha }}' --deploy
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: payment-reconciliation-${{ github.run_id }}
+          path: |
+            payment-reconciliation-backup.zip
+            payment-reconciliation-report.json
   deploy-orders-marketing-packed-by:
     if: inputs.approved_sha == '32d1d216fefc08375e4a5f994f14b6f09ef4e281'
     runs-on: ubuntu-latest
