@@ -1,11 +1,9 @@
 """Approved isolated Payment Reconciliation delta, with live-baseline checks and rollback."""
 import argparse, ftplib, hashlib, io, json, os, subprocess, zipfile
 
-BASELINE = '308d21ec7ab03e2e6821ca7163b1d1bc7f070e01'
+BASELINE = '8fbf0ea4c02d405940d9453b9580d2ecfc83a6f9'
 FILES = [
- 'shared/reconciliation/Reconciliation.php',
- 'assets/css/payment-reconciliation.css','assets/js/payment-reconciliation.js',
- 'apps/accounts/payment-reconciliation.php',
+ 'assets/js/payment-reconciliation.js',
 ]
 def sha(data): return hashlib.sha256(data).hexdigest() if data is not None else None
 def git(*args): return subprocess.check_output(['git',*args])
