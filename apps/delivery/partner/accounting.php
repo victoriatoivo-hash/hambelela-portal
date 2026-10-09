@@ -1,0 +1,5 @@
+<?php
+declare(strict_types=1);require __DIR__.'/bootstrap.php';
+try{$actor=$partnerAuth->actor($_SESSION['partner']);if(!\Hambelela\Delivery\PartnerAccess::can($actor,'accounting'))throw new DomainException();}catch(Throwable $e){http_response_code(403);exit('Accounting access denied.');}
+require_once BASE_PATH.'/shared/delivery/PartnerShell.php';\Hambelela\Delivery\PartnerShell::begin($actor);
+?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Tedlaser Delivery Accounting</title></head><body data-partner-admin-view="accounting"><main class="delivery-main"><header class="pagehead"><div><div class="eyebrow">TEDLASER · DELIVERY ACCOUNTING</div><h1>Delivery Accounting</h1><p>Your company’s delivery fees, collections and settlements.</p></div></header><p id="partner-admin-message" role="status"></p><section id="partner-admin-content"></section></main><script src="<?=htmlspecialchars(BASE_URL,ENT_QUOTES)?>/assets/js/delivery-partner-admin.js"></script></body></html>

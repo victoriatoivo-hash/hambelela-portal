@@ -1,0 +1,81 @@
+<?php
+declare(strict_types=1);
+// Isolated, disposable local/CI database only. Never use application configuration.
+$dsn=getenv('TEDLASER_TEST_DSN')?:'mysql:host=127.0.0.1;port=3318';
+if(!preg_match('/^mysql:host=127\.0\.0\.1;port=\d+$/D',$dsn))throw new RuntimeException('Loopback test DSN required.');
+$db=new PDO($dsn,'root',getenv('TEDLASER_TEST_PASSWORD')?:'',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
+$name='tedlaser_test_'.bin2hex(random_bytes(5));$db->exec('CREATE DATABASE '.$name);$db->exec('USE '.$name);
+require __DIR__.'/../shared/delivery/PartnerAuth.php';
+require __DIR__.'/../shared/delivery/PartnerAdminService.php';
+require __DIR__.'/../shared/delivery/PartnerService.php';
+require __DIR__.'/../shared/delivery/WorkspaceApps.php';
+use Hambelela\Delivery\PartnerAccess;
+use Hambelela\Delivery\PartnerAuth;
+use Hambelela\Delivery\PartnerAdminService;
+use Hambelela\Delivery\PartnerService;
+use Hambelela\Delivery\WorkspaceApps;
+function check($v,string $m):void{if(!$v)throw new RuntimeException($m);echo "PASS $m\n";}
+function denied(callable $f,string $m):void{try{$f();}catch(DomainException $e){check(true,$m);return;}throw new RuntimeException('Allowed: '.$m);}
+try{
+ $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(80)); CREATE TABLE ops_employees(id INT PRIMARY KEY,role_id INT,status VARCHAR(30),full_name VARCHAR(190)); CREATE TABLE ops_permissions(id INT PRIMARY KEY,permission_key VARCHAR(80)); CREATE TABLE ops_orders(id INT PRIMARY KEY); CREATE TABLE ops_security_events(id INT AUTO_INCREMENT PRIMARY KEY,event_type VARCHAR(100),employee_id INT,metadata_json JSON); INSERT INTO ops_roles VALUES(1,'owner_admin'),(2,'delivery_driver'); INSERT INTO ops_employees VALUES(1,1,'active','Test Owner'),(2,2,'active','Test Driver'); INSERT INTO ops_orders VALUES(1)");
+ $db->exec(file_get_contents(__DIR__.'/fixtures/tedlaser-delivery-schema.sql'));
+ $db->exec('CREATE TABLE delivery_login_limits(bucket CHAR(64) PRIMARY KEY,window_start BIGINT,failures INT NOT NULL DEFAULT 0)');
+ $db->exec("INSERT INTO delivery_partners(id,name,code,created_by_employee_id) VALUES(1,'Tedlaser','tedlaser',1),(2,'Other','other',1); INSERT INTO delivery_driver_profiles VALUES(2,1,1,UTC_TIMESTAMP()); INSERT INTO delivery_zones(id,area,fee_cents,updated_by_employee_id) VALUES(1,'Test Area',4000,1)");
+ $hash=password_hash('Only synthetic test password',PASSWORD_DEFAULT);
+ $insert=$db->prepare('INSERT INTO delivery_partner_users(id,partner_id,display_name,email,password_hash,active) VALUES(?,?,?,?,?,1)');
+ foreach([[1,1,'Staff A','a@example.test'],[2,1,'Staff B','b@example.test'],[3,2,'Other Staff','other@example.test']] as $r)$insert->execute(array_merge($r,[$hash]));
+ $access=new PartnerAccess($db);$access->install();$owner=['kind'=>'employee','id'=>1,'role'=>'owner_admin','active'=>true];
+ $create=['action'=>'create','name'=>'Synthetic Admin','email'=>'admin@example.test','role'=>'partner_admin','can_create'=>1,'can_edit'=>1,'can_driver'=>1,'can_accounting'=>1];
+ $adminCreated=$access->manage($owner,$create);$id=$adminCreated['id'];
+ check((int)$db->query('SELECT COUNT(*) FROM ops_employees')->fetchColumn()===2,'partner creation does not create employees');
+ check($db->query('SELECT token_hash FROM delivery_partner_reset_tokens')->fetchColumn()!==$adminCreated['token'],'reset token stored only as hash');
+ $access->password('Synthetic administrator password',$adminCreated['token']);
+ denied(function()use($access,$adminCreated){$access->password('Another synthetic password',$adminCreated['token']);},'setup token is single-use');
+ $auth=new PartnerAuth($db);$session=$auth->authenticate('admin@example.test','Synthetic administrator password','127.0.0.1');$admin=$auth->actor($session);
+ $staff=$access->identity(1);$other=$access->identity(3);
+ check(count(WorkspaceApps::forActor($admin))===3,'administrator has three application cards');
+ check(WorkspaceApps::forActor($staff)===[],'staff has no administrator workspace');
+ check(count(WorkspaceApps::forActor($owner))===6,'owner retains five apps and gains Settings');
+ $db->exec("INSERT INTO ops_security_events(event_type,employee_id,metadata_json) VALUES('delivery_partner_routing',1,'{\"partner_id\":1,\"driver_id\":2}'),('delivery_partner_routing',1,'{\"partner_id\":2,\"driver_id\":2}')");
+ $service=new PartnerService($db);$b=['customer_name'=>'Test customer','mobile'=>'+264811234567','address'=>'Test street','zone_id'=>1,'date'=>date('Y-m-d'),'fee_payer'=>'partner','cod'=>'15.00'];
+ $jobs=[];foreach([$staff,$access->identity(2),$other] as $i=>$a){$b['reference']='TEST-'.$i;$jobs[]=$service->arrange($a,'00000000-0000-4000-8000-00000000000'.$i,$b)['id'];}
+ $db->exec("INSERT INTO delivery_jobs(public_reference,source,order_id,customer_name,customer_mobile,address,area,fee_cents,fee_payer,scheduled_date,arranged_by_employee_id) VALUES('PRIVATE-HAMBELELA','hambelela',1,'PRIVATE CUSTOMER','PRIVATE PHONE','PRIVATE ADDRESS','Test',4000,'customer',CURRENT_DATE,1)");
+ check(count($service->board($staff)['jobs'])===1,'staff sees only own jobs');
+ check(count($service->board($admin)['jobs'])===2,'admin sees all and only its company jobs');
+ $forged=$staff;$forged['role']='partner_admin';$forged['can_driver']=1;
+ check(count($service->board($forged)['jobs'])===1,'forged role is ignored');
+ $adminService=new PartnerAdminService($db);
+ denied(function()use($adminService,$owner){$adminService->driver($owner,[]);},'employee identity cannot substitute for partner authentication');
+ $_SESSION=['csrf'=>'synthetic-session-token'];denied(function(){PartnerAuth::csrf('wrong-token');},'invalid CSRF token rejected');
+ denied(function()use($adminService,$forged){$adminService->driver($forged,[]);},'staff direct Driver request rejected');
+ check(count($adminService->driver($admin,[])['jobs'])===2,'Driver only contains Tedlaser jobs');
+ check($adminService->driver($admin,['q'=>'PRIVATE'])['jobs']===[],'Driver search cannot reveal Hambelela');
+ denied(function()use($adminService,$staff){$adminService->accounting($staff);},'staff direct Accounting request rejected');
+ denied(function()use($adminService,$admin,$jobs){$adminService->edit($admin,['id'=>$jobs[2],'version'=>1]);},'cross-partner edit denied');
+ $adminService->edit($admin,['id'=>$jobs[1],'version'=>1,'notes'=>'Updated instructions','urgent'=>1]);
+ check($db->query('SELECT notes FROM delivery_jobs WHERE id='.$jobs[1])->fetchColumn()==='Updated instructions','admin edits authorised job instructions');
+ denied(function()use($adminService,$admin,$jobs){$adminService->edit($admin,['id'=>$jobs[1],'version'=>1]);},'stale edit cannot overwrite new version');
+ $ledger=$db->prepare('INSERT INTO delivery_ledger(delivery_id,partner_id,account,amount_cents,event_key,employee_id) VALUES(?,?,?,?,?,1)');
+ foreach([[$jobs[0],1,'fee_earned',4000],[$jobs[0],1,'fee_received',1000],[$jobs[0],1,'partner_cod_held',1500],[$jobs[0],1,'partner_cod_remitted',500],[$jobs[2],2,'fee_earned',990000]] as $i=>$r)$ledger->execute(array_merge($r,['test-'.$i]));
+ $a=$adminService->accounting($admin);check($a['totals']['fee_due']===3000&&$a['totals']['cod_due']===1000&&count($a['entries'])===4,'scoped accounting balances match existing formula');
+ $b['reference']='OWNER-TEST';$ownerJob=$service->arrangeForOwner($owner,1,'00000000-0000-4000-8000-000000000009',$b);
+ check((int)$db->query('SELECT arranged_by_employee_id FROM delivery_jobs WHERE id='.(int)$ownerJob['id'])->fetchColumn()===1,'existing Owner on-behalf-of workflow preserved');
+ $reset=$access->manage($owner,['action'=>'reset','id'=>$id]);
+ denied(function()use($auth,&$session){$auth->actor($session);},'reset revokes previous sessions');
+ $reset2=$access->manage($owner,['action'=>'reset','id'=>$id]);
+ denied(function()use($access,$reset){$access->password('Another synthetic password',$reset['token']);},'new reset invalidates older token');
+ $db->exec('UPDATE delivery_partner_reset_tokens SET expires_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND)');
+ denied(function()use($access,$reset2){$access->password('Another synthetic password',$reset2['token']);},'expired reset rejected');
+ $reset3=$access->manage($owner,['action'=>'reset','id'=>$id]);$access->password('Updated synthetic password',$reset3['token']);
+ $session=$auth->authenticate('admin@example.test','Updated synthetic password','127.0.0.1');$admin=$auth->actor($session);
+ for($i=0;$i<5;$i++)denied(function()use($access,$admin){$access->password('Changed synthetic password','',$admin,'wrong');},'incorrect current password rejected');
+ denied(function()use($access,$admin){$access->password('Changed synthetic password','',$admin,'Updated synthetic password');},'password change attempts rate limited');
+ $db->exec('UPDATE delivery_partner_users SET locked_until=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND)');
+ $access->password('Changed synthetic password','',$admin,'Updated synthetic password');
+ denied(function()use($auth,&$session){$auth->actor($session);},'own password change revokes sessions');
+ $access->manage($owner,['action'=>'permissions','id'=>$id,'role'=>'partner_staff','can_create'=>1,'can_driver'=>1,'can_accounting'=>1]);
+ denied(function()use($adminService,$admin){$adminService->accounting($admin);},'permission downgrade immediately enforced');
+ $access->manage($owner,['action'=>'deactivate','id'=>1]);denied(function()use($service,$staff){$service->board($staff);},'deactivated staff access denied');
+ check((int)$db->query('SELECT COUNT(*) FROM ops_employees')->fetchColumn()===2,'employee records preserved');
+ echo "All Tedlaser database tests passed.\n";
+}finally{$db->exec('DROP DATABASE '.$name);}
