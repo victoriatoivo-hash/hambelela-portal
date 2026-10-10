@@ -17,6 +17,8 @@ function portal_feature_permissions(): array
     ];
 
     return [
+        // Ordinary employee identity, restricted to assigned deliveries and own HR.
+        'delivery_driver' => ['dashboard','delivery_driver','notifications','hr'],
         'owner_admin' => [
             'dashboard', 'orders', 'bookkeeping', 'cash_tools', 'packing_list',
             'inventory', 'pos_reports', 'kpi_dashboard', 'task_management',
@@ -98,6 +100,7 @@ function portal_user_can_access_feature(string $featureKey, ?array $user = null)
 {
     $user = $user ?? (function_exists('current_user') ? current_user() : []);
     $roleKey = (string) ($user['role_key'] ?? 'guest');
+    if (normalise_portal_role($roleKey) === 'delivery_driver') return portal_role_can_access_feature($roleKey, $featureKey);
 
     return portal_role_can_access_feature($roleKey, $featureKey)
         || portal_user_has_feature_override($featureKey, $user);
@@ -171,6 +174,14 @@ function render_employee_coming_soon_page(string $moduleName): void
 
 function enforce_employee_feature_for_current_request(): void
 {
+    if (normalise_portal_role(current_role_key()) === 'delivery_driver') {
+        require_once __DIR__.'/delivery/EmployeeDriverSession.php';
+        $path=(string)($_SERVER['SCRIPT_NAME']??'');
+        if(!\Hambelela\Delivery\EmployeeDriverSession::allowedPath($path)){
+            http_response_code(403);exit('Driver access is limited to assigned deliveries, your profile and your linked HR portal.');
+        }
+        return;
+    }
     if (!is_employee_session()) {
         return;
     }

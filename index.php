@@ -20,9 +20,21 @@ if ($roleKey === 'accountant') {
 }
 $dashboardTaskRows = [];
 $dashboardTaskCount = 0;
-$dashboardPackingUnread = function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
-$dashboardSystemIssues = system_issue_attention_summary();
+$dashboardPackingUnread = $roleKey!=='delivery_driver' && function_exists('notifications_packing_assignment_unread_count') ? notifications_packing_assignment_unread_count() : 0;
+$dashboardSystemIssues = $roleKey==='delivery_driver'?[]:system_issue_attention_summary();
+$dashboardDelivery = null;
+if($roleKey==='delivery_driver'){
+    require_once __DIR__.'/shared/delivery/EmployeeDashboard.php';
+    try{$dashboardDelivery=\Hambelela\Delivery\EmployeeDashboard::summary(db(),(int)current_user()['id']);}
+    catch(Throwable $e){error_log('Driver dashboard unavailable: '.$e->getMessage());}
+}
 $dashboardMarketing = null;
+$dashboardMarketingAssigned = 0;
+if ($roleKey === 'marketing_sales' && ops_table_exists('marketing_work_items')) {
+    $marketingCount = db()->prepare("SELECT COUNT(*) FROM marketing_work_items WHERE assigned_employee_id=? AND cancelled_at IS NULL AND status NOT IN ('published','cancelled')");
+    $marketingCount->execute([ops_current_employee_id() ?: 0]);
+    $dashboardMarketingAssigned = (int) $marketingCount->fetchColumn();
+}
 if ($roleKey === 'owner_admin') {
     try {
         require_once __DIR__ . '/shared/marketing.php';
@@ -46,9 +58,10 @@ if ($roleKey === 'owner_admin') {
         error_log('Marketing dashboard summary unavailable: ' . $marketingDashboardError->getMessage());
     }
 }
-if ($roleKey !== 'owner_admin' && ops_table_exists('ops_checklist_tasks')) {
+if ($roleKey !== 'owner_admin' && $roleKey !== 'delivery_driver' && ops_table_exists('ops_checklist_tasks')) {
     $employeeId = ops_current_employee_id() ?: 0;
     $visibilityWhere = ops_column_exists('ops_checklist_tasks', 'employee_visible') ? ' AND employee_visible = 1' : '';
+    if (ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at')) $visibilityWhere .= ' AND (scheduled_at IS NULL OR released_at IS NOT NULL)';
     $dashboardTaskRows = ops_rows(
         "SELECT id, task_name, deadline, priority FROM ops_checklist_tasks
          WHERE assigned_employee_id = ?{$visibilityWhere}
@@ -79,7 +92,7 @@ if ($roleKey === 'owner_admin') {
 } else {
     $dashboardPackingHref = BASE_URL . '/apps/operations/consignments.php?unread=1';
     $dashboardPackingDescription = 'newly loaded products, website updates and packing progress';
-    if (!in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true)) {
+    if (!in_array($roleKey, ['front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'marketing_sales'], true)) {
         $dashboardPackingHref .= '&assigned=me';
         $dashboardPackingDescription = 'assigned consignment packing quantities and completion status';
     }
@@ -108,7 +121,12 @@ if (portal_role_can_access_feature($roleKey, 'system_issues')) {
 if ($roleKey !== 'owner_admin') {
     $dashboardFeatures = ['Packing List'=>'packing_list','Courier Waybills'=>'courier','HR Portal'=>'hr','Orders'=>'orders','Tasks'=>'task_management','Bookkeeping'=>'bookkeeping','Notifications'=>'notifications','Input VAT'=>'input_vat','Error Log'=>'error_log','Marketing'=>'marketing','System Issues Log'=>'system_issues'];
     $apps = array_values(array_filter($apps, static fn(array $app): bool => !isset($dashboardFeatures[$app['name']]) || portal_user_can_access_feature($dashboardFeatures[$app['name']])));
+    if ($roleKey === 'marketing_sales') $apps = array_values(array_filter($apps, static fn(array $app): bool => in_array($app['name'], ['Marketing','Orders','Packing List','Tasks','Bookkeeping','Courier Waybills','Notifications','System Issues Log','HR Portal'], true)));
 }
+
+require_once __DIR__.'/shared/delivery/Navigation.php';
+$deliveryNavigationEntry=\Hambelela\Delivery\Navigation::entry();
+if($deliveryNavigationEntry!==null)$apps[]=$deliveryNavigationEntry;
 
 $isEssDashboard = true;
 if ($isEssDashboard) {

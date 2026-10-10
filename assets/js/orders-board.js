@@ -101,6 +101,17 @@
   let customColumns = [];
   let rowDragState = null;
   const selectedOrders = new Set();
+  const selectedOrderRecords = new Map();
+  let listPage = 1;
+  let listPagination = {page:1, pages:1, total:0, hidden_matches:0};
+  let appliedListQuery = '';
+  let listRequestQueued = false;
+  let selectionReadSequence = 0;
+  let selectionReadTimer = null;
+  let selectionReadError = '';
+  let selectionExpanded = false;
+  const listFilterKeys = ['person','mode','payment','status','paid','minAmount','maxAmount','createdAfter','createdBefore','sortColumn','sortDirection'];
+
   let bulkTrashInProgress = false;
   const paidUpdatesInProgress = new Set();
   let paidMutationRevision = 0;
@@ -255,6 +266,122 @@
   })[char]);
   const selectorEsc = (value) => window.CSS && CSS.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&');
 
+  function ordersListQueryKey() {
+    return JSON.stringify([activeDateRange(), boardState.search.trim(), ...listFilterKeys.map((key) => boardState[key])]);
+  }
+
+  async function requestOrdersList(resetPage = true) {
+    if (resetPage) listPage = 1;
+    if (listRequestQueued) return;
+    listRequestQueued = true;
+    try {
+      if (refreshInFlight) await refreshInFlight.catch(() => {});
+      await refresh(null, {preservePosition:true});
+    } catch (error) { showError(error); }
+    finally {
+      listRequestQueued = false;
+      if (appliedListQuery !== ordersListQueryKey() || listPage !== listPagination.page) {
+        // Only retry automatically when a newer query superseded this request.
+        if (!liveFailures) requestOrdersList(false);
+      }
+    }
+  }
+
+  function renderOrdersPagination() {
+    let controls = document.getElementById('orders-list-pagination');
+    if (!controls) {
+      controls = document.createElement('div');
+      controls.id = 'orders-list-pagination';
+      controls.className = 'orders-list-pagination';
+      document.querySelector('.orders-tools-bar').after(controls);
+    }
+    const p = listPagination;
+    controls.innerHTML = `<span role="status">${p.total ? `${(p.page-1)*p.page_size+1}–${Math.min(p.total,p.page*p.page_size)} of ${p.total} orders` : 'No matching orders'}</span>
+      <div class="orders-list-page-actions"><button type="button" data-list-page="previous" ${p.page<=1?'disabled':''}>Previous</button><span>Page ${p.page} of ${p.pages}</span><button type="button" data-list-page="next" ${p.page>=p.pages?'disabled':''}>Next</button></div>
+      <div class="orders-list-selection-actions"><button type="button" data-list-select-page ${!p.total?'disabled':''}>Select this page</button><button type="button" data-list-select-matching ${!p.total?'disabled':''}>Select all ${p.total} filtered results</button></div>
+      ${p.hidden_matches ? `<p class="orders-list-filter-notice">${p.hidden_matches} matching order${p.hidden_matches===1?' is':'s are'} hidden by the date or other filters. Adjust filters to include them.</p>` : ''}`;
+  }
+
+  const selectionCurrency = (cents) => `N$${(cents/100).toLocaleString('en-NA',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
+
+  function renderSelectionMoney(bar) {
+    let total = 0, paid = 0, outstanding = 0, unknown = 0, missing = 0;
+    selectedOrders.forEach((id) => {
+      const money = selectedOrderRecords.get(id)?.selection_money;
+      if (!money || !Number.isSafeInteger(money.total_cents)) missing++;
+      else total += money.total_cents;
+      if (!money?.payment_verified) unknown++;
+      else { paid += money.paid_cents; outstanding += money.outstanding_cents; }
+    });
+    bar.querySelector('[data-selection-total]').textContent = `Total Order Value: ${missing ? 'Verifying…' : selectionCurrency(total)}`;
+    bar.querySelector('[data-selection-paid]').textContent = `Amount Paid: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(paid)}`;
+    bar.querySelector('[data-selection-outstanding]').textContent = `Outstanding: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(outstanding)}`;
+    bar.querySelector('[data-selection-warning]').textContent = selectionReadError || (unknown ? `${unknown} selected order${unknown===1?' has':'s have'} incomplete or inconsistent payment records. Paid/outstanding totals are withheld.` : 'Verified payment records · includes delivery in the order total.');
+    page.classList.toggle('has-orders-selection', selectedOrders.size > 0);
+  }
+
+  async function refreshSelectedOrderRecords() {
+    const ids = [...selectedOrders];
+    const sequence = ++selectionReadSequence;
+    if (!ids.length) return true;
+    try {
+      const records = new Map();
+      for (let offset = 0; offset < ids.length; offset += 250) {
+        const response = await fetch(`${config.dataUrl}?paged=1&list_action=selection`, {
+          method:'POST', credentials:'same-origin', cache:'no-store',
+          headers:{'Content-Type':'application/json', Accept:'application/json'},
+          body:JSON.stringify({ids:ids.slice(offset,offset+250)})
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'Could not verify selection');
+        result.orders.forEach((order) => records.set(String(order.id), order));
+      }
+      if (sequence !== selectionReadSequence || ids.join(',') !== [...selectedOrders].join(',')) return false;
+      let missing = 0;
+      ids.forEach((id) => { if (records.has(id)) selectedOrderRecords.set(id, records.get(id)); else { selectedOrderRecords.delete(id); missing++; } });
+      selectionReadError = missing ? `${missing} selected order(s) are no longer available. Clear the selection and select active orders.` : '';
+      const bar = document.getElementById('orders-bulk-action-bar');
+      if (bar) renderSelectionMoney(bar);
+      return !missing;
+    } catch (error) {
+      if (sequence === selectionReadSequence) {
+        selectionReadError = 'Could not refresh selected amounts. Retry before using these totals.';
+        const bar = document.getElementById('orders-bulk-action-bar');
+        if (bar) renderSelectionMoney(bar);
+      }
+      return false;
+    }
+  }
+
+  document.addEventListener('click', async (event) => {
+    if (event.target.closest('[data-search-clear]')) { scheduleOrdersSearch(''); return; }
+    const target = event.target.closest('[data-list-page], [data-list-select-page], [data-list-select-matching], [data-selection-toggle]');
+    if (!target) return;
+    if (target.hasAttribute('data-selection-toggle')) {
+      selectionExpanded = !selectionExpanded;
+      updateBulkActionBar();
+    } else if (target.hasAttribute('data-list-page')) {
+      listPage += target.dataset.listPage === 'next' ? 1 : -1;
+      await requestOrdersList(false);
+    } else if (target.hasAttribute('data-list-select-page')) {
+      ordersCache.forEach((order) => selectedOrders.add(String(order.id)));
+      updateSelectionBar();
+    } else {
+      target.disabled = true;
+      const queryKey = ordersListQueryKey();
+      const params = boardDataParams(); params.set('list_action','matching_ids');
+      try {
+        const response = await fetch(`${config.dataUrl}?${params}`, {credentials:'same-origin',cache:'no-store'});
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'Could not select matching orders');
+        if (queryKey !== ordersListQueryKey()) throw new Error('Filters changed. Please select the matching results again.');
+        result.ids.forEach((id) => selectedOrders.add(String(id)));
+        updateSelectionBar();
+      } catch (error) { showError(error); }
+      finally { target.disabled = false; }
+    }
+  });
+
   function scheduleOrdersSearch(value, source = null) {
     const nextValue = String(value ?? '');
     const valueChanged = boardState.search !== nextValue;
@@ -268,8 +395,8 @@
     window.clearTimeout(ordersSearchTimer);
     ordersSearchTimer = window.setTimeout(() => {
       ordersSearchTimer = null;
-      renderOrders(ordersCache);
-    }, 180);
+      requestOrdersList();
+    }, /^(?:[# +]*\d+)$/.test(nextValue.trim()) || !nextValue ? 0 : 250);
   }
 
   function closeOrdersFilterMenu() {
@@ -469,6 +596,10 @@
       params.set('date_from', range.from);
       params.set('date_to', range.to);
     }
+    params.set('paged', '1');
+    params.set('q', boardState.search.trim());
+    listFilterKeys.forEach((key) => params.set(key, boardState[key] || ''));
+    params.set('page', String(listPage));
     params.set('t', String(Date.now()));
     return params;
   }
@@ -1594,6 +1725,13 @@
 
   function updateWorkMetrics(metricOrders = ordersCache) {
     const serverMetrics = window.HambelelaBoardMetrics || null;
+    if (serverMetrics?.paged) {
+      ['total_orders','new_today','in_progress_today','completed_all','unassigned_orders','overdue_orders','my_orders','pending_orders','completed_today'].forEach((key) => setMetric(key,String(serverMetrics[key] || 0)));
+      setMetric('in_progress',String(serverMetrics.in_progress_today || 0));
+      setMetric('total_revenue',money(serverMetrics.total_revenue || 0));
+      setMetric('today_revenue',money(serverMetrics.today_revenue || 0));
+      return;
+    }
     if (serverMetrics && currentUser && ['owner_admin', 'supervisor_manager'].includes(currentUser.role_key)) {
       const validRevenue = metricOrders.filter(isValidRevenueOrder).reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
       setMetric('total_orders', String(metricOrders.length));
@@ -1628,33 +1766,7 @@
   }
 
   function visibleOrders() {
-    const search = boardState.search.toLowerCase();
-    let orders = ordersCache.filter((order) => {
-      const haystack = [
-        order.order_number, formatOrderInvoiceReference(order.order_number), order.customer_name, order.customer_contact, order.payment_method,
-        order.order_type, order.status, order.packer_name, order.notes
-      ].join(' ').toLowerCase();
-
-      if (search && !haystack.includes(search)) return false;
-      if (boardState.person === '__me__' && String(order.assigned_packer_id || '') !== String(currentUser.id || '')) return false;
-      if (boardState.person && boardState.person !== '__me__' && (order.packer_name || 'Unassigned') !== boardState.person) return false;
-      if (boardState.mode && normalize(order.order_type) !== normalize(boardState.mode)) return false;
-      if (boardState.payment) {
-        const requestedPayment = normalize(boardState.payment);
-        const paymentMatches = normalize(order.payment_method) === requestedPayment
-          || (Array.isArray(order.payments) && order.payments.some((payment) => normalize(payment.label || payment.method) === requestedPayment));
-        if (!paymentMatches) return false;
-      }
-      if (boardState.status && normalize(order.status) !== normalize(boardState.status)) return false;
-      if (boardState.paid && (order.payment_status === 'paid' ? 'paid' : 'unpaid') !== boardState.paid) return false;
-      const amount = Number(order.total_amount || 0);
-      if (boardState.minAmount !== '' && amount < Number(boardState.minAmount)) return false;
-      if (boardState.maxAmount !== '' && amount > Number(boardState.maxAmount)) return false;
-      const created = dateKey(orderDisplayDateTime(order));
-      if (boardState.createdAfter && created < boardState.createdAfter) return false;
-      if (boardState.createdBefore && created > boardState.createdBefore) return false;
-      return true;
-    });
+    let orders = ordersCache; // The server applies every filter before pagination.
 
     const sortValue = (order, column) => {
       if (column === 'task') return order.order_number || order.customer_name || '';
@@ -2134,6 +2246,7 @@
     const list = ensureMobileList();
     list.innerHTML = orders.map((order) => `
       <article class="board-mobile-card" data-mobile-order-id="${esc(order.id)}">
+        <label class="orders-mobile-select"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''}> Select order ${esc(formatOrderInvoiceReference(order.order_number))}</label>
         <header class="board-mobile-card__top">
           <strong class="editable-cell" data-editable-order-field="task_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0" aria-label="Edit task"><span class="orders-inline-cell-trigger task-name">${esc(buildOrderTaskName(order) || 'Customer not recorded')}</span></strong>
           ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
@@ -2304,8 +2417,9 @@
     URL.revokeObjectURL(link.href);
   }
 
-  function exportSelectedOrders() {
-    const rows = ordersCache.filter((order) => selectedOrders.has(String(order.id)));
+  async function exportSelectedOrders() {
+    if (!await refreshSelectedOrderRecords()) return;
+    const rows = [...selectedOrders].map((id) => selectedOrderRecords.get(id)).filter(Boolean);
     exportOrders(rows, `hambelela-selected-orders-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
@@ -2314,7 +2428,7 @@
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'orders-bulk-action-bar';
-      bar.className = 'orders-packing-bulk-bar';
+      bar.className = 'orders-packing-bulk-bar orders-selection-bar';
       bar.dataset.ordersBulkActions = '';
       bar.setAttribute('role', 'toolbar');
       bar.setAttribute('aria-label', 'Selected orders actions');
@@ -2322,7 +2436,13 @@
       (page || document.body).appendChild(bar);
     }
     bar.innerHTML = `
-      <div class="orders-packing-bulk-selection"><span class="orders-packing-bulk-count" data-bulk-count>0</span><strong class="orders-packing-bulk-label" data-bulk-label>items selected</strong></div>
+      <div class="orders-selection-finances">
+        <div class="orders-selection-total" data-selection-total aria-live="polite">Total: —</div>
+        <button type="button" class="orders-selection-clear orders-selection-toggle" data-selection-toggle aria-expanded="${selectionExpanded}">Payment breakdown</button>
+        <div class="orders-selection-meta" data-selection-breakdown ${selectionExpanded ? '' : 'data-collapsed'}><span data-selection-paid></span><span data-selection-outstanding></span><span data-selection-warning role="status"></span></div>
+      </div>
+      <button type="button" class="orders-selection-clear" data-order-bulk-action="close">Clear Selection</button>
+      <div class="orders-packing-bulk-selection orders-selection-count"><span class="orders-packing-bulk-count" data-bulk-count>0</span><strong class="orders-packing-bulk-label" data-bulk-label>items selected</strong></div>
       <div class="orders-packing-bulk-divider" aria-hidden="true"></div>
       <div class="orders-packing-bulk-actions">
         <button type="button" class="orders-packing-bulk-action" data-bulk-action="duplicate" data-order-bulk-action="duplicate" data-needs-manage><i data-lucide="copy"></i><span>Duplicate</span></button>
@@ -2341,7 +2461,8 @@
     bar.hidden = count === 0;
     bar.classList.toggle('is-visible', count > 0);
     bar.querySelector('[data-bulk-count]').textContent = String(count);
-    bar.querySelector('[data-bulk-label]').textContent = count === 1 ? 'item selected' : 'items selected';
+    bar.querySelector('[data-bulk-label]').textContent = count === 1 ? 'order selected' : 'orders selected';
+    renderSelectionMoney(bar);
     bar.querySelectorAll('[data-needs-manage]').forEach((button) => {
       button.hidden = !currentUser.can_bulk_manage;
     });
@@ -2353,6 +2474,9 @@
 
   function clearOrderSelection() {
     selectedOrders.clear();
+    selectedOrderRecords.clear();
+    selectionReadSequence++;
+    selectionReadError = '';
     updateSelectionBar();
   }
 
@@ -2884,22 +3008,24 @@
   }
 
   function renderOrders(orders) {
+    if (appliedListQuery && appliedListQuery !== ordersListQueryKey()) {
+      requestOrdersList();
+      return;
+    }
     const savedBoardPositions = hasRenderedOnce ? captureOrdersBoardPositions() : [];
     const savedWindowPosition = { x: window.scrollX, y: window.scrollY };
     ordersCache = orders;
     syncPaymentFilterOptions();
     syncOrdersGridColumns();
-    const knownIds = new Set(ordersCache.map((order) => String(order.id)));
-    [...selectedOrders].forEach((id) => {
-      if (!knownIds.has(id)) selectedOrders.delete(id);
-    });
+    ordersCache.forEach((order) => { if (selectedOrders.has(String(order.id))) selectedOrderRecords.set(String(order.id), order); });
+    renderOrdersPagination();
     const visible = visibleOrders();
     updateWorkMetrics(visible);
     updateFilterBadge();
     renderMoreFilterChips();
     if (!visible.length) {
       body.innerHTML = hasClientFilters()
-        ? '<div class="board-empty-state orders-filter-empty"><strong>No orders match these filters.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
+        ? '<div class="board-empty-state orders-filter-empty"><strong>No matching orders.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
         : '<div class="board-empty-state orders-data-empty"><strong>No orders found.</strong><p>There are currently no orders in this view.</p></div>';
       renderMobileCards([]);
       updateSelectionBar();
@@ -3008,6 +3134,9 @@
   }
 
   function updateSelectionBar() {
+    ordersCache.forEach((order) => { if (selectedOrders.has(String(order.id))) selectedOrderRecords.set(String(order.id), order); });
+    window.clearTimeout(selectionReadTimer);
+    if (selectedOrders.size) selectionReadTimer = window.setTimeout(refreshSelectedOrderRecords, 120);
     const selectAllOrders = document.querySelectorAll('[data-select-all-orders]');
     if (selectAllOrders.length) {
       const visibleIds = visibleOrders().map((order) => String(order.id));
@@ -4155,7 +4284,7 @@
         `}
       </section>`;
     const cards = [
-      ['Order summary', [['Order', formatOrderInvoiceReference(currentOrder.order_number)], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
+      ['Order summary', [['Order', formatOrderInvoiceReference(currentOrder.order_number)], ['Created by', currentOrder.creator_name || 'Not recorded'], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
       ['Customer', [['Name', currentOrder.customer_name || ''], ['Mobile number', currentOrder.customer_contact || '']]],
       ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned'], ...(currentOrder.dispatch_courier ? [['Courier type', currentOrder.dispatch_courier], ['EasyBox / parcel details', currentOrder.dispatch_package_detail || 'Not recorded'], ['Recorded service date', currentOrder.dispatch_service_date || ''], ['Waybill upload', currentOrder.dispatch_waybill_linked ? 'Linked' : 'Awaiting upload']] : [])]],
       ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
@@ -4572,8 +4701,10 @@
     if (!hasInitialOrdersLoadCompleted) showInitialLoadingState();
     if (background && hasInitialOrdersLoadCompleted) page.classList.add('is-background-updating');
     try {
+      if (appliedListQuery && appliedListQuery !== ordersListQueryKey()) listPage = 1;
       const params = boardDataParams();
-      if (background && hasRenderedOnce && liveCursor) params.set('since', liveCursor);
+      const requestedListKey = ordersListQueryKey();
+      const requestedPage = listPage;
       const response = await fetch(`${config.dataUrl}?${params.toString()}`, {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
@@ -4597,11 +4728,13 @@
       // Do not advance the cursor: the next refresh must retrieve those changes.
       if (paidUpdatesInProgress.size || paidRevisionAtRequest !== paidMutationRevision) return data;
       if (requestSequence < appliedRefreshSequence) return data;
+      if (requestedListKey !== ordersListQueryKey() || requestedPage !== listPage) return data;
       appliedRefreshSequence = requestSequence;
+      appliedListQuery = requestedListKey;
       const payload = data.data && typeof data.data === 'object' ? data.data : {};
       const responseMode = String(payload.mode || data.mode || (data.incremental ? 'delta' : 'snapshot'));
       liveCursor = String(payload.cursor || data.cursor || data.serverTime || liveCursor);
-      if (background && hasRenderedOnce && responseMode !== 'delta') {
+      if (background && hasRenderedOnce && responseMode !== 'delta' && !payload.pagination) {
         throw new Error('Background Orders refresh did not return an incremental update.');
       }
       liveFailures = 0;
@@ -4673,7 +4806,17 @@
         const currentById = new Map(ordersCache.map((order) => [String(order.id), order]));
         snapshotOrders = snapshotOrders.map((order) => preserveInlineFieldsFromCurrent(order, currentById));
         hasInitialOrdersLoadCompleted = true;
-        renderOrders(snapshotOrders);
+        listPagination = payload.pagination || listPagination;
+        listPage = listPagination.page;
+        if (background && hasRenderedOnce) {
+          const nextIds = new Set(snapshotOrders.map((order) => String(order.id)));
+          const removed = new Set(ordersCache.filter((order) => !nextIds.has(String(order.id))).map((order) => String(order.id)));
+          const changed = snapshotOrders.filter((order) => JSON.stringify(currentById.get(String(order.id))) !== JSON.stringify(order));
+          if (!ordersInteractionInProgress()) patchLiveOrderGroups(ordersCache, snapshotOrders, changed, removed);
+          else { ordersCache = snapshotOrders; liveRenderPending = true; }
+          renderOrdersPagination();
+          refreshSelectedOrderRecords();
+        } else renderOrders(snapshotOrders);
       } else {
         throw new Error(`Board returned an unsupported response mode: ${responseMode || 'unknown'}.`);
       }

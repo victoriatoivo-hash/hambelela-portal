@@ -299,13 +299,20 @@ function notifications_create(array $data, array $recipientIds): ?int
             $data['scheduled_at'] ?? null,
             $data['deduplication_key'] ?? null,
             $data['action_link'] ?? null,
-            notifications_current_employee_id(),
+            $data['created_by'] ?? notifications_current_employee_id(),
         ]);
-        if ($stmt->rowCount() < 1) return null;
         $notificationId = (int) db()->lastInsertId();
+        if ($stmt->rowCount() < 1) {
+            if (empty($data['deduplication_key'])) return null;
+            $existing = db()->prepare('SELECT id FROM notifications WHERE deduplication_key=? LIMIT 1');
+            $existing->execute([$data['deduplication_key']]);
+            $notificationId = (int) $existing->fetchColumn();
+            if (!$notificationId) return null;
+        }
         $recipientStmt = db()->prepare('INSERT IGNORE INTO notification_recipients (notification_id, employee_id) VALUES (?, ?)');
         foreach ($recipientIds as $employeeId) {
             $recipientStmt->execute([$notificationId, $employeeId]);
+            if ($recipientStmt->rowCount() < 1) continue;
             try {
                 require_once __DIR__ . '/epi/bootstrap.php';
                 \Hambelela\EPI\NotificationActivityBridge::record(db(), 'notification_created', $notificationId, $employeeId, [
@@ -405,7 +412,7 @@ function notifications_mark_urgent_state(int $notificationId, string $state): bo
 {
     $employeeId = notifications_current_employee_id();
     if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
-    $column = ['delivered' => 'delivered_at', 'viewed' => 'read_at', 'dismissed' => 'cleared_at'][$state] ?? '';
+    $column = ['delivered' => 'delivered_at', 'viewed' => 'read_at', 'dismissed' => 'delivered_at'][$state] ?? '';
     if ($column === '') return false;
     $stmt = db()->prepare(
         "UPDATE notification_recipients nr JOIN notifications n ON n.id = nr.notification_id
@@ -424,6 +431,10 @@ function notifications_mark_task_state(int $notificationId, string $state): bool
     $employeeId = notifications_current_employee_id();
     if (!$employeeId || $notificationId <= 0 || !notifications_schema_ready()) return false;
     $column = ['delivered' => 'delivered_at', 'viewed' => 'read_at', 'dismissed' => 'cleared_at'][$state] ?? '';
+    if ($state === 'dismissed') {
+        $taskNotification = ops_rows("SELECT n.id FROM notifications n JOIN notification_recipients nr ON nr.notification_id=n.id WHERE n.id=? AND nr.employee_id=? AND n.related_type='checklist_task'",[$notificationId,$employeeId]);
+        if ($taskNotification) $column='delivered_at';
+    }
     if ($column === '') return false;
     $stmt = db()->prepare("UPDATE notification_recipients SET {$column}=COALESCE({$column},NOW()) WHERE notification_id=? AND employee_id=?");
     $stmt->execute([$notificationId, $employeeId]);
@@ -449,7 +460,9 @@ function notifications_claim_task_delivery(int $notificationId): bool
          LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
          SET nr.delivered_at = NOW()
          WHERE nr.notification_id = ? AND nr.employee_id = ? AND nr.delivered_at IS NULL
-           AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+           AND nr.read_at IS NULL AND nr.cleared_at IS NULL
+           AND t.assigned_employee_id=nr.employee_id AND t.employee_visible=1
+           AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL) AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
            AND t.archived_at IS NULL AND t.deleted_at IS NULL
            AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))"
     );
@@ -557,8 +570,8 @@ function notifications_notify_packing_loaded(int $taskId): ?int
     if (!$recipients) return null;
 
     return notifications_create([
-        'title' => 'New Packing List item loaded',
-        'message' => (string) ($task['item_name'] ?? 'A packing item') . ' was loaded and may require a website update.',
+        'title' => 'Website update required — new packing item',
+        'message' => (string) ($task['item_name'] ?? 'A packing item') . ' was loaded. Update the website, then open this item and tick Website updated.',
         'module' => 'packing',
         'priority' => 'normal',
         'related_type' => 'packing_loaded',
@@ -637,6 +650,7 @@ function notifications_sidebar_module_keys(): array
 {
     return [
         'orders' => 'Orders',
+        'marketing' => 'Marketing',
         'bookkeeping' => 'Bookkeeping',
         'packing_list' => 'Packing List',
         'courier_waybills' => 'Courier Waybills',
@@ -652,6 +666,7 @@ function notifications_sidebar_module_map(): array
 {
     return [
         'orders' => 'orders',
+        'marketing' => 'marketing',
         'bookkeeping' => 'bookkeeping',
         'packing' => 'packing_list',
         'packing_list' => 'packing_list',
@@ -731,43 +746,89 @@ function notifications_mark_packing_assignment_viewed(int $taskId, ?int $employe
     } catch (Throwable $e) { return false; }
 }
 
-function notifications_notify_task_assigned(int $taskId, ?int $employeeId, string $taskName): ?int
+/** Assignment event identity comes from the existing persistent task audit, not the browser. */
+function notifications_task_event(int $taskId, bool $updated = false): array
 {
-    if (!$employeeId) {
-        return null;
-    }
+    if (!ops_table_exists('ops_activity_logs')) return [];
+    $actions = $updated ? "'task_notification_updated'" : "'task_created','task_assigned','task_reassigned','floating_task_allocated'";
+    return ops_rows("SELECT id,action,metadata,employee_id FROM ops_activity_logs WHERE entity_type='checklist_task' AND entity_id=? AND action IN ({$actions}) ORDER BY id DESC LIMIT 1", [$taskId])[0] ?? [];
+}
 
+function notifications_notify_task_assigned(int $taskId, ?int $employeeId, string $taskName, bool $updated = false): ?int
+{
+    if (!$employeeId || !notifications_schema_ready()) return null;
     try {
-        $hasRecurringParents = function_exists('ops_table_exists') && ops_table_exists('ops_checklist_recurring_templates');
-        $parentJoin = $hasRecurringParents
-            ? ' LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id' : '';
-        $parentScope = $hasRecurringParents
-            ? " AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))" : '';
-        $eligible = ops_rows(
-            "SELECT t.id FROM ops_checklist_tasks t{$parentJoin}
-             WHERE t.id=? AND t.assigned_employee_id=? AND t.employee_visible=1
-               AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)
-               AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
-               AND t.archived_at IS NULL AND t.deleted_at IS NULL{$parentScope} LIMIT 1",
-            [$taskId, $employeeId]
-        );
-        if (!$eligible) return null;
-    } catch (Throwable $e) {
+        $task = ops_rows("SELECT t.* FROM ops_checklist_tasks t
+            LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
+            WHERE t.id=? AND t.assigned_employee_id=? AND t.employee_visible=1
+              AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)
+              AND t.status NOT IN ('complete','completed','done','archived','deleted','trashed','cancelled')
+              AND t.archived_at IS NULL AND t.deleted_at IS NULL
+              AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active')) LIMIT 1", [$taskId,$employeeId])[0] ?? null;
+        if (!$task) return null;
+        $event = notifications_task_event($taskId, $updated);
+        $version = (string) ($event['id'] ?? hash('sha256', (string)($task['date_assigned'] ?? $task['released_at'] ?? $task['created_at'] ?? $taskId)));
+        // Preserve existing assignments from before this release; never replay an acknowledged legacy popup.
+        if (!$updated && ($event['action'] ?? '') !== 'task_reassigned') {
+            $legacy = ops_rows("SELECT n.id FROM notifications n JOIN notification_recipients nr ON nr.notification_id=n.id WHERE n.deduplication_key=? AND nr.employee_id=? AND (n.created_at>=? OR ? IS NULL) LIMIT 1", ['task:'.$taskId.':user:'.$employeeId.':type:assigned',$employeeId,$task['date_assigned'],$task['date_assigned']])[0] ?? [];
+            if (!empty($legacy['id'])) return (int)$legacy['id'];
+        }
+        $notificationId = notifications_create([
+            'title' => $updated ? 'Task updated' : 'New task assigned',
+            'message' => $taskName . ($updated ? ' has been updated.' : ' has been assigned to you.'),
+            'module'=>'tasks', 'priority'=>$task['priority']==='urgent'?'urgent':'normal',
+            'created_by'=>$event['employee_id'] ?? $task['created_by'] ?? null,
+            'sound_key'=>null, 'required_delivery'=>true,
+            'deduplication_key'=>'task:'.$taskId.':user:'.$employeeId.':type:'.($updated?'updated':'assigned').':event:'.$version,
+            'related_type'=>'checklist_task', 'related_id'=>$taskId,
+            'action_link'=>BASE_URL.'/apps/operations/checklists.php?task_view=active&task_id='.$taskId,
+        ], [$employeeId]);
+        if (!$notificationId) error_log('Automatic task notification insert failed; recovery pending for task '.$taskId);
+        return $notificationId;
+    } catch (Throwable $error) {
+        error_log('Automatic task notification failed for task '.$taskId.': '.$error->getMessage());
         return null;
     }
+}
 
-    return notifications_create([
-        'title' => 'New task assigned',
-        'message' => $taskName . ' has been assigned to you.',
-        'module' => 'tasks',
-        'priority' => 'normal',
-        'sound_key' => 'assigned',
-        'deduplication_key' => 'task:' . $taskId . ':user:' . $employeeId . ':type:assigned',
-        'required_delivery' => true,
-        'related_type' => 'checklist_task',
-        'related_id' => $taskId,
-        'action_link' => BASE_URL . '/apps/operations/checklists.php?task_view=active&task_id=' . $taskId,
-    ], [$employeeId]);
+/** Retry missing deliveries for actionable tasks in the existing notification polling workflow. */
+function notifications_recover_task_assignments(): void
+{
+    $employeeId=notifications_current_employee_id();
+    if (!$employeeId || !notifications_schema_ready()) return;
+    $tasks=ops_rows("SELECT id,task_name FROM ops_checklist_tasks WHERE assigned_employee_id=? AND employee_visible=1
+        AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND status IN ('new','in_progress')
+        AND archived_at IS NULL AND deleted_at IS NULL ORDER BY id DESC LIMIT 500",[$employeeId]);
+    foreach ($tasks as $task) {
+        $taskId=(int)$task['id'];
+        notifications_notify_task_assigned($taskId,$employeeId,(string)$task['task_name']);
+        $update=notifications_task_event($taskId,true);
+        $assignment=notifications_task_event($taskId);
+        if (!empty($update['id']) && (int)$update['id']>(int)($assignment['id'] ?? 0))
+            notifications_notify_task_assigned($taskId,$employeeId,(string)$task['task_name'],true);
+    }
+}
+
+/** Unseen popups are a presentation of existing recipient rows; history remains independent. */
+function notifications_task_popups(int $activeId = 0): array
+{
+    $employeeId=notifications_current_employee_id();
+    if (!$employeeId || !notifications_schema_ready()) return [];
+    return ops_rows("SELECT n.id,n.title,n.message,n.created_at,n.action_link,n.related_id,n.related_type,n.deadline_state,
+        nr.delivered_at,t.task_name,t.deadline AS due_at,t.priority,t.instructions,t.task_mode,t.status,
+        creator.full_name AS assigned_by
+        FROM notification_recipients nr JOIN notifications n ON n.id=nr.notification_id
+        JOIN ops_checklist_tasks t ON t.id=n.related_id AND n.related_type='checklist_task'
+        LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
+        LEFT JOIN ops_employees creator ON creator.id=n.created_by
+        WHERE nr.employee_id=? AND t.assigned_employee_id=nr.employee_id AND t.employee_visible=1
+        AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)
+        AND t.status IN ('new','in_progress') AND t.archived_at IS NULL AND t.deleted_at IS NULL
+        AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))
+        AND nr.read_at IS NULL AND nr.cleared_at IS NULL
+        AND (nr.snoozed_until IS NULL OR nr.snoozed_until<=NOW())
+        AND (nr.delivered_at IS NULL OR n.id=?)
+        ORDER BY (t.priority='urgent') DESC,n.created_at,n.id LIMIT 100",[$employeeId,$activeId]);
 }
 
 function notifications_notify_task_correction(int $taskId, int $correctionId, int $round, int $employeeId, string $taskName, string $correctionMessage, string $dueAt): ?int
