@@ -2,20 +2,11 @@
 import argparse, ftplib, hashlib, io, json, os, subprocess, zipfile
 
 BASE = {
- 'index.php':'19ee6a6ac90528aa5e4ff8def20ec1befa5a47a294dd9c2720693696afbaf953',
- 'shared/header.php':'f9caeaccef41d65da484ee3fe9bddc0de2f496a0636837b3d001916da296f566',
- 'shared/footer.php':'e5b04beca93b5d5754a71508c15d0999619d9a4e4bb49c78ac11150225780ed4',
- 'shared/employee-features.php':'97546827239702b87cec0fe42e303bd204d3b66a8146f5cb877de3ce1da16617',
- 'apps/operations/packing-list-action.php':'a33483c10888ee7975b00597952054c75ac5e6b7be78a227b2d53d2a3f787e00',
- 'apps/operations/consignments.php':'005430f8ce3ca9821d77f5b6c298c4c38fd177ca783248fa680f755a79010306',
- 'assets/js/packing-list.js':'4a4847bf13f2d6e2b733a36a81da9624704647dfda382b4f443645ea2b480ec0',
- 'assets/js/orders-board.js':'0bf0a07ec2361822314fe7796650ff9caea473c75821c16a944e34db91369652',
- 'assets/css/orders-board.css':'753d23aa18e9a84be8de62b61e3216f43ec24d65a7cf72f7e06a5bb5314bebf2',
+ 'assets/css/acknowledgments.css':'699e094ef2a79496f6ba75da1251698a43ba448b715a7f94f31fca10670e251d',
+ 'assets/js/acknowledgments.js':'0834f70cc053d9e16885db240f60ebc2410cad015e6e4e73c604fba94d05a92c',
+ 'apps/acknowledgments/index.php':'c2a651765405e0cddfd7efc81cfe35c995d0498942f4b562b1e6bd888b8f5179',
 }
-NEW = ['shared/acknowledgments/Service.php','shared/acknowledgments/integration.php',
- 'assets/css/acknowledgments.css','assets/js/acknowledgments.js','assets/js/acknowledgments-popup.js',
- 'apps/acknowledgments/api.php','apps/acknowledgments/index.php']
-FILES = NEW + [p for p in BASE if p not in ['index.php','shared/header.php','shared/footer.php']] + ['shared/header.php','shared/footer.php','index.php']
+FILES = list(BASE)
 def sha(data): return hashlib.sha256(data).hexdigest() if data is not None else None
 def read(ftp,path):
  out=io.BytesIO()
