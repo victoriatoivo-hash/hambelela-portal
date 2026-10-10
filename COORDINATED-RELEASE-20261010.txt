@@ -1,0 +1,91 @@
+HAMBELELA COORDINATED RELEASE — 10 OCTOBER 2026
+
+LIVE: YES
+Main release: fd3afe390242da39a0f85912f445c55585d2eeda
+Final calendar/dropdown alignment: 57512823
+Legacy measured-quantity compatibility: cdf8d79a
+All three deployment runs completed successfully with deployed-file hash
+verification and rollback backups:
+https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/38060490397
+https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/38060814264
+https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/38060902917
+
+ACCEPTANCE RESULTS
+Acknowledgments app: PASS
+Employee popup: PASS
+Clarification conversation: PASS
+Owner personal explanation: PASS (does not sign for the employee)
+Employee acknowledgment history: PASS
+Packing List unit parsing: PASS
+Labelling/repacking instructions: PASS
+Split Payment amount editing: PASS
+One-line payment rows: PASS
+Mobile payment modal: PASS
+Existing payment calculations preserved: PASS
+Jost/current theme: PASS
+Deployed live: YES
+
+VERIFICATION SCOPE
+Acknowledgment service and existing notification/performance integration were
+tested with synthetic identities in an isolated test database: 28 assertions.
+Tests cover recipient-only visibility, Owner permissions, checkbox requirement,
+clarification, personal explanation, immutable completion, revision history,
+duplicate prevention, notification retry and no automatic score deductions.
+Browser checks covered employee popup dismissal, non-repetition, clarification,
+Owner creation drawer, desktop/mobile layout and Jost typography.
+Packing PHP/JS checks cover all eight count-unit examples, instruction rejection,
+compatible weight/volume repacking and legacy count(size) measured allocations.
+Three existing payment regression suites passed. Decimal totals, method changes,
+retained values after a simulated failed save and mobile cards were browser-tested.
+Live authenticated checks confirmed the new app/sidebar/dashboard card, employee
+selector, Packing instruction fields, payment type dropdown, split rows, editable
+amount inputs, no horizontal overflow, and Cancel dismissal. All ten changed PHP
+runtime files passed syntax checks on live PHP 7.4.33.
+Live tests were read-only: no notices sent to staff, no payment saved, no packing
+assignment changed. No claim is made that every unrelated portal feature was tested.
+
+DEPLOYED RUNTIME FILES
+index.php
+shared/header.php
+shared/footer.php
+shared/employee-features.php
+shared/acknowledgments/Service.php
+shared/acknowledgments/integration.php
+apps/acknowledgments/index.php
+apps/acknowledgments/api.php
+assets/css/acknowledgments.css
+assets/js/acknowledgments.js
+assets/js/acknowledgments-popup.js
+apps/operations/consignments.php
+apps/operations/packing-list-action.php
+assets/js/packing-list.js
+assets/js/orders-board.js
+assets/css/orders-board.css
+
+DATABASE
+database/acknowledgments.sql applied through authenticated hosting CLI.
+Created only portal_ack_instructions, portal_ack_recipients, portal_ack_events.
+All were absent before migration and empty after creation. Existing business
+tables and records were not recreated or altered by this migration.
+
+REPOSITORY SUPPORT FILES
+.github/workflows/deploy-approved-change.yml
+scripts/coordinated-snapshot.py
+scripts/deploy-coordinated.py
+database/acknowledgments.sql
+tests/acknowledgments.php
+tests/acknowledgments-integration.php
+tests/packing-quantity.php
+tests/packing-quantity.mjs
+tests/orders-payment-method-select-static.mjs
+tests/coordinated-ui-router.php (synthetic loopback-only harness; NOT deployed)
+COORDINATED-RELEASE-20261010.txt
+
+BACKUPS
+GitHub source and release artifacts expire after three days as approved.
+Local retained copies:
+C:\Users\User\Documents\New project\acknowledgments-live-baseline
+C:\Users\User\Documents\New project\acknowledgments-release-verification
+
+No force-push, unrelated portal redesign, new employee identity database,
+production test employee, real test notice or real payment transaction was used.
