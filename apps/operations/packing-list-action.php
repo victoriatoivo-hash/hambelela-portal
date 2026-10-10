@@ -38,49 +38,45 @@ function packing_unit_meta(string $unit): ?array
     if (in_array($clean, ['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'], true)) {
         return ['dimension' => 'volume', 'factor' => 1.0];
     }
-    if (in_array($clean, ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units'], true)) {
+    if (in_array($clean, ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units', 'label', 'labels', 'bottle', 'bottles', 'jar', 'jars', 'pack', 'packs', 'individualitem', 'individualitems'], true)) {
         return ['dimension' => 'count', 'factor' => 1.0];
     }
 
     return null;
 }
 
+function packing_instructions_notes(string $notes, array $fields): string
+{
+    $actions = ['pack_as_supplied','apply_labels','repack','refill','other'];
+    $action = (string)($fields['packing_action'] ?? 'pack_as_supplied');
+    if (!in_array($action, $actions, true)) throw new RuntimeException('Choose a valid packing action.');
+    $data = ['packing_action'=>$action];
+    foreach (['labelling_instructions','repacking_instructions'] as $key) {
+        $data[$key] = trim((string)($fields[$key] ?? ''));
+        if (strlen($data[$key]) > 2000) throw new RuntimeException('Keep each packing instruction under 2,000 characters.');
+    }
+    // Structured instructions live with the existing packing record. They never enter quantity calculations.
+    $notes = preg_replace('/^\\[Packing instructions v1\\] .*$(?:\\r?\\n)?/m', '', $notes);
+    return trim($notes)."\n[Packing instructions v1] ".json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
 function packing_quantity_plan_stats(string $quantityPlan): array
 {
-    $stats = [
-        'totals' => ['weight' => 0.0, 'volume' => 0.0, 'count' => 0.0],
-        'size_count' => 0,
-        'package_count' => 0.0,
-        'matched_text' => '',
-    ];
-    preg_match_all(
-        '/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*(\d+)|\(\s*(\d+)\s*\))/i',
-        $quantityPlan,
-        $matches,
-        PREG_SET_ORDER
-    );
-    foreach ($matches as $match) {
-        $meta = packing_unit_meta((string) ($match[2] ?? ''));
-        if (!$meta) {
-            continue;
-        }
-        $amount = (float) ($match[1] ?? 0);
-        $count = max(1, (int) (($match[3] ?? '') !== '' ? $match[3] : ($match[4] ?? 0)));
-        $stats['totals'][$meta['dimension']] += $amount * (float) $meta['factor'] * $count;
-        $stats['package_count'] += $count;
-        $stats['matched_text'] .= ' ' . (string) ($match[0] ?? '');
+    $empty = ['totals'=>['weight'=>0.0,'volume'=>0.0,'count'=>0.0], 'size_count'=>0, 'package_count'=>0.0, 'matched_text'=>''];
+    $stats = $empty;
+    // Parse only the dedicated quantity field, never free-text packing instructions.
+    $units = 'kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\\s+items?';
+    foreach (preg_split('/[,;\\n]+/', trim($quantityPlan)) ?: [] as $part) {
+        if (!preg_match('/^\\s*(\\d+(?:\\.\\d+)?)\\s*('.$units.')?\\s*(?:[x*]\\s*(\\d+)|\\(\\s*(\\d+)\\s*\\))?\\s*$/i', $part, $m)) return $empty;
+        $amount = (float)$m[1]; $meta = packing_unit_meta(($m[2] ?? '') ?: 'units');
+        if (!$meta || $amount <= 0) return $empty;
+        $count = (int)(($m[3] ?? '') !== '' ? $m[3] : ($m[4] ?? 1));
+        if ($count <= 0 || ($meta['dimension'] === 'count' && floor($amount) !== $amount)) return $empty;
+        $stats['totals'][$meta['dimension']] += $amount * $meta['factor'] * $count;
+        $stats['package_count'] += $meta['dimension'] === 'count' ? $amount * $count : $count;
         $stats['size_count']++;
+        $stats['matched_text'] .= ' '.$part;
     }
-
-    if ($stats['size_count'] === 0 && preg_match('/^\s*(\d+(?:\.\d+)?)(?:\s*[x*]\s*\(?\s*(\d+(?:\.\d+)?)\s*\)?)?/i', $quantityPlan, $countMatch)) {
-        $left = (float) ($countMatch[1] ?? 0);
-        $right = isset($countMatch[2]) ? (float) $countMatch[2] : 1.0;
-        $stats['package_count'] = $left * $right;
-        $stats['totals']['count'] = $stats['package_count'];
-        $stats['size_count'] = 1;
-        $stats['matched_text'] = (string) ($countMatch[0] ?? '');
-    }
-
     return $stats;
 }
 
@@ -88,8 +84,8 @@ function packing_received_stock_base(string $receivedWeight, array $planStats): 
 {
     preg_match('/(\d+(?:\.\d+)?)/', $receivedWeight, $amountMatch);
     $amount = isset($amountMatch[1]) ? (float) $amountMatch[1] : 0.0;
-    preg_match('/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i', $receivedWeight, $unitMatch);
-    $meta = isset($unitMatch[0]) ? packing_unit_meta((string) $unitMatch[0]) : null;
+    preg_match('/\d+(?:\.\d+)?\s*(kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\s+items?)\b/i', $receivedWeight, $unitMatch);
+    $meta = isset($unitMatch[1]) ? packing_unit_meta((string) $unitMatch[1]) : null;
     if (!$meta) {
         if (($planStats['totals']['volume'] ?? 0) > 0 && ($planStats['totals']['weight'] ?? 0) <= 0) {
             $meta = packing_unit_meta('l');
@@ -1480,7 +1476,7 @@ try {
         if ($assignedId <= 0) {
             $assignedId = (int) (ops_best_packer_for_packing($workload) ?? 0);
         }
-        $notes = trim(ops_post_string('notes', 1000) . ($quantityWarning !== '' ? "\nWarning: {$quantityWarning}" : ''));
+        $notes = packing_instructions_notes(trim(ops_post_string('notes', 1000) . ($quantityWarning !== '' ? "\nWarning: {$quantityWarning}" : '')), $_POST);
         $rowKey = packing_row_key([
             'item_name' => ops_post_string('item_name', 190),
             'received_weight' => $receivedWeight,
@@ -2342,6 +2338,7 @@ try {
             $originalRow = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $notes = "Invoice number: {$invoiceNumber}\nSource import ID: {$importId}\nSource line number: " . ($rowIndex + 1) . "\nOriginal extracted row: " . substr((string) $originalRow, 0, 1500);
             $rowKey = 'invoice:' . $invoiceRowKey;
+            $notes = packing_instructions_notes($notes, $row);
 
             if ($hasPackingRowKey) {
                 $duplicate = ops_rows(
@@ -2704,6 +2701,20 @@ try {
             'locked' => true,
         ]]);
         exit;
+    }
+
+    if ($action === 'save_packing_instructions') {
+        if (empty($_SESSION['packing_attachment_csrf']) || !hash_equals((string)$_SESSION['packing_attachment_csrf'], (string)($_POST['csrf_token'] ?? ''))) throw new RuntimeException('Session verification failed. Refresh the page.');
+        if (!$canManage) throw new RuntimeException('Only authorised packing managers may change instructions.');
+        $taskId = (int)($_POST['task_id'] ?? 0);
+        db()->beginTransaction();
+        $rows = ops_rows('SELECT notes FROM ops_packing_tasks WHERE id=? AND '.packing_active_where().' FOR UPDATE', [$taskId]);
+        if (!$rows) throw new RuntimeException('Packing item not found.');
+        $notes = packing_instructions_notes((string)$rows[0]['notes'], $_POST);
+        db()->prepare('UPDATE ops_packing_tasks SET notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$notes,$taskId]);
+        ops_activity_log('packing_instructions_updated','packing_task',$taskId,['previous_notes'=>$rows[0]['notes'],'notes'=>$notes,'changed_by'=>current_user()['name'] ?? 'Unknown']);
+        db()->commit();
+        echo json_encode(['ok'=>true,'notes'=>$notes]);exit;
     }
 
     if ($action === 'save_workload_override') {

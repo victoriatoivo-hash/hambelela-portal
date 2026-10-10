@@ -33,6 +33,9 @@ $portalJsVersion = is_file(BASE_PATH . '/assets/js/portal.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/portal.js')
     : $assetVersion;
 $headerUser = current_user();
+if (!empty($headerUser) && ($headerUser['role_key'] ?? 'guest') !== 'guest') {
+    $extraStylesheets[] = ['path'=>'assets/css/acknowledgments.css', 'version'=>(string)filemtime(BASE_PATH.'/assets/css/acknowledgments.css')];
+}
 $employeeSidebarUpgrade = empty($isEssDashboard)
     && empty($hidePortalSidebar)
     && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') === false
@@ -43,6 +46,7 @@ if ($employeeSidebarUpgrade) {
     $isEssDashboard = true;
     $pageUsesPortalSidebar = false;
     $essShellApps = ess_shell_apps();
+    $essShellApps[] = ['name'=>'Acknowledgments','icon'=>'clipboard-check','href'=>BASE_URL.'/apps/acknowledgments/index.php'];
     $essActiveModule = '';
     $sidebarRequestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
     foreach ($essShellApps as $sidebarApp) {

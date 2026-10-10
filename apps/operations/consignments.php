@@ -245,7 +245,10 @@ include BASE_PATH . '/shared/ess-sidebar.php';
                     <div class="packing-item-form-grid">
                         <div class="packing-item-form-field"><label>Item <span aria-hidden="true">*</span></label><input name="item_name" required placeholder="Chia Seeds"></div>
                         <div class="packing-item-form-field"><label>Received weight</label><input name="received_weight" placeholder="25kg"></div>
-                        <div class="packing-item-form-field"><label>Quantity to pack <span aria-hidden="true">*</span></label><input name="quantity_planned" required placeholder="100g(150), 500g(8), 1kg(1)"></div>
+                        <div class="packing-item-form-field"><label>Quantity to pack <span aria-hidden="true">*</span></label><input name="quantity_planned" required placeholder="49 units or 100g(150), 500g(8)"></div>
+                        <div class="packing-item-form-field"><label>Packing action</label><select name="packing_action"><option value="pack_as_supplied">Pack as supplied</option><option value="apply_labels">Apply labels</option><option value="repack">Repack into smaller units</option><option value="refill">Refill containers</option><option value="other">Other</option></select></div>
+                        <div class="packing-item-form-field"><label>Labelling instructions</label><textarea name="labelling_instructions" maxlength="2000" placeholder="Apply labels to all 49 units"></textarea></div>
+                        <div class="packing-item-form-field"><label>Repacking instructions</label><textarea name="repacking_instructions" maxlength="2000" placeholder="Repack 1 kg into ten 100 g containers; enter 100g(10) as quantity to pack"></textarea></div>
                         <div class="packing-item-form-field" data-portal-date-field><label>Date loaded</label><input id="new-packing-date-display" class="portal-date-input" type="text" data-enable-time="true" data-submit-target="#new-packing-date" placeholder="Select date and time"><input id="new-packing-date" name="date_loaded" type="hidden" value=""></div>
                     </div>
                 </section>

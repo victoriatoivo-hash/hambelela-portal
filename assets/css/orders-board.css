@@ -1374,42 +1374,44 @@ body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge__s
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge__segment[data-payment-method=dpo]{background:var(--payment-dpo)}
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge:focus-visible{position:relative;z-index:2;outline:2px solid var(--orders-600);outline-offset:-2px}
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge[aria-busy=true]{cursor:wait;opacity:.65}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:18px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(44,24,16,.42)}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog{position:relative;width:min(520px,100%);max-height:calc(100vh - 36px);overflow:auto;padding:18px;background:#fff;border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 70px rgba(44,24,16,.22)}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog header span{color:var(--orders-600);font-size:10px;font-weight:700;text-transform:uppercase}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog h2{margin:3px 0 0;color:var(--text-primary);font-size:19px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog header button,
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row>button{width:30px;height:30px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--orders-600);cursor:pointer}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__notice{padding:10px;border-left:3px solid #2563EB;background:#EFF6FF;color:#1E3A8A;font-size:11px;line-height:1.45}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__rows{display:grid;gap:8px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row{display:grid;grid-template-columns:minmax(0,1fr) minmax(120px,.7fr) 30px;gap:8px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row select,
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row label{height:36px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--text-primary);font:12px 'Jost',sans-serif}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row select{padding:0 9px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row label{display:flex;align-items:center;padding-left:9px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row input{min-width:0;width:100%;height:100%;padding:0 8px;border:0;outline:0;background:transparent}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__add{margin-top:10px;padding:8px 10px;border:1px dashed rgba(150,99,19,.35);border-radius:9px;background:var(--cream-2);color:var(--orders-600);cursor:pointer}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__totals{display:grid;gap:5px;margin-top:14px;padding:12px;background:var(--orders-50);border-radius:10px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__totals span{display:flex;justify-content:space-between;color:var(--text-secondary);font-size:12px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog footer{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog footer button{height:32px;min-height:32px;max-height:32px;padding:0 14px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--text-secondary);font-size:12px;cursor:pointer}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog footer .primary{border-color:var(--orders-600);background:var(--orders-600);color:#fff}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__error{min-height:16px;margin:8px 0 0;color:#984638;font-size:11px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row select:disabled,
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row input:disabled{opacity:1;color:var(--text-primary)}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row:has(select:disabled){grid-template-columns:minmax(0,1fr) minmax(120px,.7fr)}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog #payment-editor-title{font-weight:600}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog .payment-editor__add{font-size:12px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__type{display:grid;gap:5px;margin-bottom:12px;color:var(--text-secondary);font:700 10px/1.2 'Jost',sans-serif;text-transform:uppercase}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__type select{width:100%;height:36px;padding:0 9px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--text-primary);font:12px 'Jost',sans-serif;text-transform:none}
+/* Payment editor is portalled to body; scope it directly, not through the board. */
+body #order-payment-editor.orders-payment-modal{position:fixed;inset:0;z-index:52000;display:grid;place-items:center;padding:18px;font:400 12px/1.5 Jost,sans-serif;color:#1c2118}
+#order-payment-editor.orders-payment-modal *{box-sizing:border-box;min-width:0}
+#order-payment-editor.orders-payment-modal :is(button,input,select,output){font-family:inherit;font-size:12px}
+#order-payment-editor.orders-payment-modal .payment-editor__backdrop{position:absolute;inset:0;width:100%;height:100%;border:0;background:rgba(28,33,24,.4)}
+#order-payment-editor.orders-payment-modal .payment-editor__dialog{position:relative;width:min(640px,100%);max-height:calc(100dvh - 36px);overflow-y:auto;padding:20px;background:#fff;border:1px solid #e4e6dc;border-radius:12px;box-shadow:0 24px 70px rgba(38,49,31,.18)}
+#order-payment-editor.orders-payment-modal header{display:flex;align-items:start;justify-content:space-between;gap:12px;margin-bottom:16px}
+#order-payment-editor.orders-payment-modal header span,#order-payment-editor.orders-payment-modal .payment-editor__field-title{display:block;font-size:9.5px;font-weight:600;letter-spacing:.06em;color:#62675e;text-transform:uppercase;margin-bottom:5px}
+#order-payment-editor.orders-payment-modal h2{font:600 21px/1.25 Jost,sans-serif;margin:4px 0;color:#26311f}
+#order-payment-editor.orders-payment-modal button:where(:not(.payment-method-trigger):not(.payment-editor__backdrop)){min-height:40px;border:1px solid #d3dac6;border-radius:8px;background:white;color:#344126;padding:0 12px;cursor:pointer;transition:background .18s ease}
+#order-payment-editor.orders-payment-modal button:where(:not(.payment-method-trigger):not(.payment-editor__backdrop)):hover{background:#f2f4ec}
+#order-payment-editor.orders-payment-modal button:disabled{opacity:.55;cursor:default}
+#order-payment-editor.orders-payment-modal .payment-editor__type{display:grid;gap:5px;margin-bottom:16px;font-size:9.5px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#62675e}
+#order-payment-editor.orders-payment-modal :is(select,.payment-editor__amount label,.payment-editor__kind output){width:100%;height:40px;min-height:40px;border:1px solid #d3dac6;border-radius:8px;background:#fff;color:#26311f;font-weight:400;letter-spacing:normal;text-transform:none}
+#order-payment-editor.orders-payment-modal select{padding:0 10px}
+#order-payment-editor.orders-payment-modal .payment-editor__rows{display:grid;gap:12px}
+#order-payment-editor.orders-payment-modal .payment-editor__row{display:grid;grid-template-columns:minmax(120px,1.15fr) minmax(85px,.75fr) minmax(135px,1fr) 40px;gap:9px;align-items:end}
+#order-payment-editor.orders-payment-modal .payment-editor__row>button{width:40px;height:40px;padding:0;font-size:20px}
+#order-payment-editor.orders-payment-modal .payment-editor__kind output{display:flex;align-items:center;padding:0 10px;background:#f8f7f2;overflow-wrap:anywhere}
+#order-payment-editor.orders-payment-modal .payment-editor__amount label{display:flex;align-items:center;gap:5px;padding:0 10px}
+#order-payment-editor.orders-payment-modal .payment-editor__amount input{width:100%;min-width:0;height:38px;padding:0;border:0;outline:0;background:transparent;color:#1c2118;font-weight:400}
+#order-payment-editor.orders-payment-modal .payment-editor__amount label:focus-within{outline:2px solid #59694a;outline-offset:2px}
+#order-payment-editor.orders-payment-modal .payment-editor__add{margin-top:12px}
+#order-payment-editor.orders-payment-modal .payment-editor__totals{display:grid;gap:6px;margin-top:16px;padding:14px;background:#f2f4ec;border:1px solid #e4e6dc;border-radius:10px}
+#order-payment-editor.orders-payment-modal .payment-editor__totals>span{display:flex;justify-content:space-between;gap:12px}
+#order-payment-editor.orders-payment-modal footer{position:sticky;bottom:-20px;display:flex;justify-content:flex-end;gap:9px;margin-top:16px;padding:14px 0;background:#fff;border-top:1px solid #e4e6dc;z-index:2}
+#order-payment-editor.orders-payment-modal footer .primary{background:#59694a;border-color:#59694a;color:white}
+#order-payment-editor.orders-payment-modal footer .primary:hover{background:#344126}
+#order-payment-editor.orders-payment-modal .payment-editor__error{color:#a52c2c;font-size:12px;margin:10px 0 0;overflow-wrap:anywhere}
 @media(max-width:600px){
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge{flex-wrap:wrap}
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge__segment{min-height:28px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__row{grid-template-columns:1fr 1fr 30px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog{padding:14px}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-editor__dialog footer{position:sticky;bottom:-14px;padding:10px 0;background:#fff}}
+#order-payment-editor.orders-payment-modal .payment-editor__row{grid-template-columns:minmax(0,1fr) minmax(0,1fr);padding:12px;border:1px solid #e4e6dc;border-radius:10px}
+#order-payment-editor.orders-payment-modal .payment-editor__amount{grid-column:1}#order-payment-editor.orders-payment-modal .payment-editor__row>button{justify-self:end}
+#order-payment-editor.orders-payment-modal .payment-editor__dialog{padding:16px}#order-payment-editor.orders-payment-modal footer{bottom:-16px}
+}
+#order-payment-editor.orders-payment-modal .portal-custom-select-trigger{height:40px;min-height:40px;max-height:40px;width:100%;font:400 12px Jost,sans-serif}
+#order-payment-editor.orders-payment-modal .portal-custom-select-native{display:none!important}
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).courier-dispatch-prompt{position:fixed;inset:0;z-index:1600;display:grid;place-items:center;padding:18px;opacity:0;transition:opacity .18s ease}
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).courier-dispatch-prompt.is-visible{opacity:1}
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).courier-dispatch-prompt__backdrop{position:absolute;inset:0;border:0;background:rgba(44,24,16,.46);backdrop-filter:blur(2px)}
@@ -1436,35 +1438,35 @@ body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).courier-dispatch
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).courier-dispatch-prompt__dialog footer button{width:100%}}
 
 /* Payment method selectors reuse the portal custom listbox with Orders colours. */
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-portal-select-variant="payment-method"]{ min-width:0; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="cash"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="cash"]{ --payment-bg:#C4C4C4; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="card-swipe"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="card-swipe"]{ --payment-bg:var(--payment-card,#343434); }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="eft"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="eft"]{ --payment-bg:#784BD1; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="fnb-ewallet"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="fnb-ewallet"]{ --payment-bg:#009999; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="easywallet"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="easywallet"]{ --payment-bg:#DF2F4A; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="blue-wallet"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="blue-wallet"]{ --payment-bg:#0033A1; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="nedbank"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="nedbank"]{ --payment-bg:#008533; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="netbank-wallet"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="netbank-wallet"]{ --payment-bg:var(--payment-netbank-wallet,#5670B8); }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="pay2cell"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="pay2cell"]{ --payment-bg:#FF9900; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="paytoday"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="paytoday"]{ --payment-bg:#00FFD7; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal [data-payment-value="dpo"],
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup [data-payment-option="dpo"]{ --payment-bg:#007EB5; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal .payment-method-trigger{ width:100%;height:35px;min-height:35px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);border:1px solid var(--payment-bg,#7F5347);border-radius:8px;font:inherit;text-align:left;cursor:pointer; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal .payment-method-trigger:hover,
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal .payment-method-trigger:focus-visible,
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal .payment-method-trigger[aria-expanded="true"]{ color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);border-color:var(--payment-bg,#7F5347); }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal .payment-method-trigger:focus-visible{ outline:2px solid rgba(28,33,24,.28);outline-offset:2px;box-shadow:none; }
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal .payment-method-trigger .portal-custom-select-chevron{ color:#fff; }
+#order-payment-editor.orders-payment-modal [data-portal-select-variant="payment-method"]{ min-width:0; }
+#order-payment-editor.orders-payment-modal [data-payment-value="cash"],
+body.ess-dashboard .portal-select-popup [data-payment-option="cash"]{ --payment-bg:#C4C4C4; }
+#order-payment-editor.orders-payment-modal [data-payment-value="card-swipe"],
+body.ess-dashboard .portal-select-popup [data-payment-option="card-swipe"]{ --payment-bg:var(--payment-card,#343434); }
+#order-payment-editor.orders-payment-modal [data-payment-value="eft"],
+body.ess-dashboard .portal-select-popup [data-payment-option="eft"]{ --payment-bg:#784BD1; }
+#order-payment-editor.orders-payment-modal [data-payment-value="fnb-ewallet"],
+body.ess-dashboard .portal-select-popup [data-payment-option="fnb-ewallet"]{ --payment-bg:#009999; }
+#order-payment-editor.orders-payment-modal [data-payment-value="easywallet"],
+body.ess-dashboard .portal-select-popup [data-payment-option="easywallet"]{ --payment-bg:#DF2F4A; }
+#order-payment-editor.orders-payment-modal [data-payment-value="blue-wallet"],
+body.ess-dashboard .portal-select-popup [data-payment-option="blue-wallet"]{ --payment-bg:#0033A1; }
+#order-payment-editor.orders-payment-modal [data-payment-value="nedbank"],
+body.ess-dashboard .portal-select-popup [data-payment-option="nedbank"]{ --payment-bg:#008533; }
+#order-payment-editor.orders-payment-modal [data-payment-value="netbank-wallet"],
+body.ess-dashboard .portal-select-popup [data-payment-option="netbank-wallet"]{ --payment-bg:var(--payment-netbank-wallet,#5670B8); }
+#order-payment-editor.orders-payment-modal [data-payment-value="pay2cell"],
+body.ess-dashboard .portal-select-popup [data-payment-option="pay2cell"]{ --payment-bg:#FF9900; }
+#order-payment-editor.orders-payment-modal [data-payment-value="paytoday"],
+body.ess-dashboard .portal-select-popup [data-payment-option="paytoday"]{ --payment-bg:#00FFD7; }
+#order-payment-editor.orders-payment-modal [data-payment-value="dpo"],
+body.ess-dashboard .portal-select-popup [data-payment-option="dpo"]{ --payment-bg:#007EB5; }
+#order-payment-editor.orders-payment-modal .payment-method-trigger{ width:100%;height:40px;min-height:40px;padding:0 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);border:1px solid var(--payment-bg,#7F5347);border-radius:8px;font:inherit;text-align:left;cursor:pointer; }
+#order-payment-editor.orders-payment-modal .payment-method-trigger:hover,
+#order-payment-editor.orders-payment-modal .payment-method-trigger:focus-visible,
+#order-payment-editor.orders-payment-modal .payment-method-trigger[aria-expanded="true"]{ color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);border-color:var(--payment-bg,#7F5347); }
+#order-payment-editor.orders-payment-modal .payment-method-trigger:focus-visible{ outline:2px solid rgba(28,33,24,.28);outline-offset:2px;box-shadow:none; }
+#order-payment-editor.orders-payment-modal .payment-method-trigger .portal-custom-select-chevron{ color:#fff; }
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup[data-portal-select-variant="payment-method"]{ z-index:52010;padding:4px;max-height:270px;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 10px 26px rgba(28,33,24,.14); }
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option]{ width:100%;min-height:32px;padding:0 10px;display:flex;align-items:center;color:#fff;-webkit-text-fill-color:#fff;background:var(--payment-bg,#7F5347);border:0;border-radius:5px;font:inherit;text-align:left;cursor:pointer;opacity:1;transform:none; }
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option]+[data-payment-option]{ margin-top:3px; }
@@ -1474,7 +1476,7 @@ body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-po
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup[data-portal-select-variant="payment-method"] [data-payment-option]:focus-visible{ outline:2px solid #fff;outline-offset:-3px;box-shadow:none; }
 @media(max-width:600px){
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).portal-select-popup[data-portal-select-variant="payment-method"]{max-height:min(240px,45vh)}
-body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-payment-modal .payment-method-trigger{height:35px;min-height:35px}}
+#order-payment-editor.orders-payment-modal .payment-method-trigger{height:35px;min-height:35px}}
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge__segment[data-payment-method=cash],
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge__segment[data-payment-method=fnb-ewallet],
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).payment-badge__segment[data-payment-method=fnb-e-wallet],

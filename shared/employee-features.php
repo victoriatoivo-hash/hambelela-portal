@@ -174,6 +174,10 @@ function render_employee_coming_soon_page(string $moduleName): void
 
 function enforce_employee_feature_for_current_request(): void
 {
+    // Every authenticated employee has their own notices. The app enforces
+    // active identity and recipient ownership on every server request.
+    $ackPath = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+    if (in_array($ackPath, [BASE_URL.'/apps/acknowledgments/index.php', BASE_URL.'/apps/acknowledgments/api.php'], true)) return;
     if (normalise_portal_role(current_role_key()) === 'delivery_driver') {
         require_once __DIR__.'/delivery/EmployeeDriverSession.php';
         $path=(string)($_SERVER['SCRIPT_NAME']??'');

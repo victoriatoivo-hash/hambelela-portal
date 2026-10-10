@@ -1147,12 +1147,12 @@
   }
 
   function parsePackUnit(unit) {
-    const clean = normalize(unit || '');
+    const clean = normalize(unit || '').replace(/_/g, '');
     if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(clean)) return { dimension: 'weight', factor: 1000, assumedLabel: 'kg' };
     if (['g', 'gram', 'grams'].includes(clean)) return { dimension: 'weight', factor: 1, assumedLabel: 'g' };
     if (['l', 'lt', 'liter', 'litre', 'liters', 'litres'].includes(clean)) return { dimension: 'volume', factor: 1000, assumedLabel: 'L' };
     if (['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'].includes(clean)) return { dimension: 'volume', factor: 1, assumedLabel: 'ml' };
-    if (['pc', 'pcs', 'piece', 'pieces', 'unit', 'units'].includes(clean)) return { dimension: 'count', factor: 1, assumedLabel: 'unit' };
+    if (['pc', 'pcs', 'piece', 'pieces', 'unit', 'units', 'label', 'labels', 'bottle', 'bottles', 'jar', 'jars', 'pack', 'packs', 'individualitem', 'individualitems'].includes(clean)) return { dimension: 'count', factor: 1, assumedLabel: 'unit' };
     return null;
   }
 
@@ -1179,32 +1179,37 @@
     });
   }
 
-  function quantityPlanStats(quantityPlan) {
-    const stats = { totals: { weight: 0, volume: 0, count: 0 }, totalUnits: 0, sizeCount: 0 };
-    const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*(\d+)|\(\s*(\d+)\s*\))/gi;
-    let match;
-    while ((match = pattern.exec(String(quantityPlan || ''))) !== null) {
-      const amount = Number(match[1] || 0);
-      const unit = parsePackUnit(match[2] || '');
-      const count = Math.max(1, Number(match[3] || match[4] || 0));
-      if (!Number.isFinite(amount) || !unit) continue;
-      stats.totals[unit.dimension] += amount * unit.factor * count;
-      stats.totalUnits += count;
-      stats.sizeCount += 1;
-    }
-    return stats;
+  const packingActions = [['pack_as_supplied','Pack as supplied'],['apply_labels','Apply labels'],['repack','Repack into smaller units'],['refill','Refill containers'],['other','Other']];
+  function packingInstructions(task) {
+    try { return JSON.parse(String(task.notes || '').match(/^\[Packing instructions v1\] (.+)$/m)?.[1] || '{}'); } catch (_) { return {}; }
+  }
+  function packingInstructionFields(data, draft = false, editable = true) {
+    const attr = key => draft ? `data-draft-field="${key}"` : `data-instruction-field="${key}"`;
+    const disabled = editable ? '' : 'disabled';
+    return `<div class="packing-item-form-grid"><label class="packing-item-field">Packing action<select ${attr('packing_action')} ${disabled}>${packingActions.map(([key,label])=>`<option value="${key}" ${(data.packing_action || 'pack_as_supplied')===key?'selected':''}>${label}</option>`).join('')}</select></label><label class="packing-item-field">Labelling instructions<textarea ${attr('labelling_instructions')} maxlength="2000" ${disabled}>${esc(data.labelling_instructions || '')}</textarea></label><label class="packing-item-field">Repacking instructions<textarea ${attr('repacking_instructions')} maxlength="2000" ${disabled}>${esc(data.repacking_instructions || '')}</textarea><small>Enter output sizes in Quantity to pack, e.g. 100g(10) for 1 kg. Instructions do not change stock quantities.</small></label></div>`;
   }
 
   function quantityPlanParts(quantityPlan) {
-    const parts = [];
-    const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*|\(\s*)(\d+)\s*\)?/gi;
-    let match;
-    while ((match = pattern.exec(String(quantityPlan || ''))) !== null) {
-      const unit = parsePackUnit(match[2] || '');
-      if (!unit) continue;
-      parts.push({ amount: Number(match[1]), unit: unit.assumedLabel === 'unit' ? 'units' : unit.assumedLabel, count: Number(match[3] || match[4] || 0) });
+    const parts = [], units = 'kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\\s+items?';
+    const pattern = new RegExp('^\\s*(\\d+(?:\\.\\d+)?)\\s*('+units+')?\\s*(?:[x*]\\s*(\\d+)|\\(\\s*(\\d+)\\s*\\))?\\s*$','i');
+    for (const part of String(quantityPlan || '').trim().split(/[,;\n]+/)) {
+      const m = part.match(pattern); if (!m) return [];
+      const unit = parsePackUnit(m[2] || 'units'), amount = Number(m[1]), count = Number(m[3] || m[4] || 1);
+      if (!unit || amount <= 0 || count <= 0 || (unit.dimension === 'count' && !Number.isInteger(amount))) return [];
+      parts.push({amount, unit: unit.assumedLabel === 'unit' ? 'units' : unit.assumedLabel, count});
     }
     return parts;
+  }
+
+  function quantityPlanStats(quantityPlan) {
+    const stats = { totals: { weight: 0, volume: 0, count: 0 }, totalUnits: 0, sizeCount: 0 };
+    for (const part of quantityPlanParts(quantityPlan)) {
+      const unit = parsePackUnit(part.unit);
+      stats.totals[unit.dimension] += part.amount * unit.factor * part.count;
+      stats.totalUnits += unit.dimension === 'count' ? part.amount * part.count : part.count;
+      stats.sizeCount++;
+    }
+    return stats;
   }
 
   function quantityPlanFromParts(parts) {
@@ -1234,7 +1239,7 @@
   function parseReceivedStock(row) {
     const text = String(row.received_weight || '');
     const amount = Number(text.match(/\d+(?:\.\d+)?/)?.[0] || 0);
-    const explicitUnit = row.unit || text.match(/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i)?.[0] || '';
+    const explicitUnit = row.unit || text.match(/\d+(?:\.\d+)?\s*(kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\s+items?)\b/i)?.[1] || '';
     const unit = parsePackUnit(explicitUnit);
     return {
       amount: Number.isFinite(amount) ? amount : 0,
@@ -1245,7 +1250,7 @@
   }
 
   function detectedUnit(value) {
-    const match = String(value || '').match(/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i)?.[0] || '';
+    const match = String(value || '').match(/\d+(?:\.\d+)?\s*(kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\s+items?)\b/i)?.[1] || '';
     return parsePackUnit(match)?.assumedLabel === 'unit' ? 'units' : (parsePackUnit(match)?.assumedLabel || '');
   }
 
@@ -1678,7 +1683,7 @@
       const physical = draftPhysical(row);
       return `<tr data-draft-index="${index}" class="${accounting.valid ? '' : 'has-draft-warning'} ${statusClass}">
         <td>${esc(row.item_name || '')}</td><td>${esc(row.received_weight || '')}</td><td>${esc(row.unit || '')}</td>
-        <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"><button type="button" class="pack-builder-toggle" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close rows' : 'Edit as rows'}</button>${builder}<label class="draft-bulk-remainder">Bulk remainder <input type="number" min="0" step="0.001" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" class="leave-as-bulk" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>${accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk'}</button></td>
+        <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"><button type="button" class="pack-builder-toggle" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close rows' : 'Edit as rows'}</button>${builder}<label class="draft-bulk-remainder">Bulk remainder <input type="number" min="0" step="0.001" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" class="leave-as-bulk" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>${accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk'}</button>${packingInstructionFields(row,true)}</td>
         <td data-draft-workload><strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${esc(accounting.message)}</small></td>
         <td><select data-draft-field="priority">${priorityOptions}</select></td><td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
         <td><strong>${formatPhysical('weight', physical.weight)}</strong><small>${formatPhysical('volume', physical.volume)} · ${formatPhysical('count', physical.count)}</small></td><td><strong>${Number(row.workload || draftWorkload(row)).toFixed(1)} points</strong></td>
@@ -2786,6 +2791,7 @@
       <section class="packing-item-section"><h2 class="packing-item-section-title">Packing information</h2><div class="packing-item-info-grid">
         ${editableInfoCard('item_name', 'Item', currentTask.item_name, Boolean(currentUser.can_manage))}${editableInfoCard('received_weight', 'Received', currentTask.received_weight, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_planned', 'Quantity to pack', currentTask.quantity_planned, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_packed', 'Quantity packed', currentTask.quantity_packed, canEditOwn)}
       </div></section>
+      <section class="packing-item-section" data-packing-instructions><h2 class="packing-item-section-title">Packing instructions</h2>${packingInstructionFields(packingInstructions(currentTask),false,Boolean(currentUser.can_manage))}${currentUser.can_manage?'<button type="button" data-save-packing-instructions>Save instructions</button>':''}<p data-instructions-message role="status"></p></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Assignment and status</h2><div class="packing-item-form-grid packing-assignment-grid">
         <div class="packing-item-field"><label>Assigned</label><div class="packing-item-control">${renderPerson(currentTask)}</div></div>
         <div class="packing-item-field"><label>Packing status</label><div class="packing-item-control">${renderPackingStatus(currentTask, canEditOwn)}</div></div>
@@ -4227,6 +4233,13 @@
         return;
       }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }
+      const saveInstructions = event.target.closest('[data-save-packing-instructions]');
+      if (saveInstructions && currentTask) {
+        const holder=saveInstructions.closest('[data-packing-instructions]'), message=holder.querySelector('[data-instructions-message]');
+        if(saveInstructions.disabled)return;saveInstructions.disabled=true;message.textContent='Saving…';
+        const fields={task_id:currentTask.id,csrf_token:config.filesCsrf};holder.querySelectorAll('[data-instruction-field]').forEach(input=>{fields[input.dataset.instructionField]=input.value;});
+        try{const result=await post('save_packing_instructions',fields);currentTask.notes=result.notes;const task=tasks.find(row=>String(row.id)===String(currentTask.id));if(task)task.notes=result.notes;message.textContent='Instructions saved.';}catch(error){message.textContent=error.message;}finally{saveInstructions.disabled=false;}return;
+      }
       if (saveWorkloadOverride && currentTask) {
         const holder = saveWorkloadOverride.closest('[data-packing-workload-override]');
         const points = holder?.querySelector('[data-workload-override-points]')?.value ?? '';

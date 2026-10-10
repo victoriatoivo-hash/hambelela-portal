@@ -6,10 +6,10 @@ const portal = readFileSync(new URL('../assets/js/portal.js', import.meta.url), 
 const css = readFileSync(new URL('../assets/css/orders-board.css', import.meta.url), 'utf8');
 
 assert.match(orders, /className = 'payment-editor orders-payment-modal'/);
-assert.match(orders, /data-portal-custom-select data-portal-select-variant="payment-method"/);
+assert.match(orders, /data-portal-custom-select data-portal-custom-select-native data-portal-select-variant="payment-method"/, 'Prevent duplicate select enhancement.');
 assert.match(orders, /data-payment-option="\$\{esc\(normaliseOrderColourKey\(code\)\)\}"/);
 assert.match(orders, /window\.PortalCustomSelect\?\.initialise\(rows\)/, 'Every dynamically rendered split row must initialize through the shared listbox.');
-assert.match(orders, /payments\[index\]\.method=event\.target\.value;updateTotals\(\)/, 'Method changes must preserve the existing totals refresh.');
+assert.match(orders, /payments\[index\]\.method=event\.target\.value;[^\n]*updateTotals\(\)/, 'Method changes must preserve the existing totals refresh.');
 
 assert.match(portal, /popupElement\.dataset\.portalSelectVariant = selectVariant/);
 assert.match(portal, /button\.dataset\.paymentOption = option\.dataset\.paymentOption/);
@@ -32,7 +32,7 @@ for (const [method, colour] of Object.entries(expectedColours)) {
   assert.match(css, new RegExp(`data-payment-option=\\"${method}\\"[^}]+${colour}`, 'i'), `${method} must use ${colour}.`);
 }
 
-assert.match(css, /payment-method-trigger[^}]+height:35px[^}]+color:#fff[^}]+background:var\(--payment-bg,#7F5347\)/);
+assert.match(css, /payment-method-trigger[^}]+height:40px[^}]+color:#fff[^}]+background:var\(--payment-bg,#7F5347\)/);
 assert.match(css, /data-payment-option[^}]+color:#fff[^}]+background:var\(--payment-bg,#7F5347\)/);
 assert.doesNotMatch(css, /data-payment-option[^}]+opacity:\s*\.(?:[0-9]+)/, 'Payment options must not use translucent colours.');
 

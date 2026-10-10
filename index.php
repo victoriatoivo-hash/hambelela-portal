@@ -129,6 +129,9 @@ $deliveryNavigationEntry=\Hambelela\Delivery\Navigation::entry();
 if($deliveryNavigationEntry!==null)$apps[]=$deliveryNavigationEntry;
 
 $isEssDashboard = true;
+require_once __DIR__.'/shared/acknowledgments/integration.php';
+$ackPending = acknowledgments_pending((int)(current_user()['id'] ?? 0));
+$apps[] = ['name'=>'Acknowledgments','desc'=>'Read, clarify and acknowledge company instructions and notices.'.($ackPending ? ' '.$ackPending.' awaiting your response.' : ''),'icon'=>'clipboard-check','href'=>BASE_URL.'/apps/acknowledgments/index.php','active'=>true,'tone'=>'green','badge'=>$ackPending];
 if ($isEssDashboard) {
     $extraStylesheets[] = ['path' => 'assets/css/ess-dashboard.css', 'version' => (string) filemtime(__DIR__ . '/assets/css/ess-dashboard.css')];
 }
