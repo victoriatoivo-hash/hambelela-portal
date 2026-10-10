@@ -13,14 +13,16 @@ final class PartnerAccess
         try{
             $this->db->query('SELECT user_id FROM delivery_partner_access LIMIT 0');
             $this->db->query('SELECT user_id FROM delivery_partner_reset_tokens LIMIT 0');
+            $this->db->query('SELECT user_id FROM delivery_partner_reporting LIMIT 0');
             return;
         }catch(\PDOException $e){if($e->getCode()!=='42S02')throw $e;}
         $this->db->exec("CREATE TABLE IF NOT EXISTS delivery_partner_access (user_id BIGINT UNSIGNED PRIMARY KEY,role_key VARCHAR(30) NOT NULL DEFAULT 'partner_staff',can_create TINYINT NOT NULL DEFAULT 1,can_edit TINYINT NOT NULL DEFAULT 0,can_driver TINYINT NOT NULL DEFAULT 0,can_accounting TINYINT NOT NULL DEFAULT 0,last_login_at DATETIME NULL,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
         $this->db->exec("CREATE TABLE IF NOT EXISTS delivery_partner_reset_tokens (user_id BIGINT UNSIGNED PRIMARY KEY,token_hash CHAR(64) NOT NULL UNIQUE,expires_at DATETIME NOT NULL,created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $this->db->exec("CREATE TABLE IF NOT EXISTS delivery_partner_reporting (user_id BIGINT UNSIGNED PRIMARY KEY,shared_delivery_read TINYINT NOT NULL DEFAULT 0,updated_by_employee_id INT NOT NULL,updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
     public function identity(int $id,bool $lock=false):array
     {
-        $s=$this->db->prepare("SELECT u.id,u.partner_id,u.display_name,u.email,u.active,u.session_version,p.active partner_active,COALESCE(a.role_key,'partner_staff') role,COALESCE(a.can_create,1) can_create,COALESCE(a.can_edit,0) can_edit,COALESCE(a.can_driver,0) can_driver,COALESCE(a.can_accounting,0) can_accounting FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id LEFT JOIN delivery_partner_access a ON a.user_id=u.id WHERE u.id=?".($lock?' FOR UPDATE':''));$s->execute([$id]);$r=$s->fetch(\PDO::FETCH_ASSOC);
+        $s=$this->db->prepare("SELECT u.id,u.partner_id,u.display_name,u.email,u.active,u.session_version,p.active partner_active,COALESCE(a.role_key,'partner_staff') role,COALESCE(a.can_create,1) can_create,COALESCE(a.can_edit,0) can_edit,COALESCE(a.can_driver,0) can_driver,COALESCE(a.can_accounting,0) can_accounting,COALESCE(g.shared_delivery_read,0) can_shared_reporting FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id LEFT JOIN delivery_partner_access a ON a.user_id=u.id LEFT JOIN delivery_partner_reporting g ON g.user_id=u.id WHERE u.id=?".($lock?' FOR UPDATE':''));$s->execute([$id]);$r=$s->fetch(\PDO::FETCH_ASSOC);
         if(!$r||!(int)$r['active']||!(int)$r['partner_active'])throw new \DomainException('Partner account unavailable.');
         $r['kind']='partner';$r['id']=(int)$r['id'];$r['partner_id']=(int)$r['partner_id'];$r['active']=true;
         return $r;
@@ -29,8 +31,8 @@ final class PartnerAccess
     {
         if(($a['kind']??'')!=='partner'||empty($a['active'])||empty($a['id'])||empty($a['partner_id']))return false;
         if(!in_array($a['role']??'',['partner_staff','partner_admin'],true))return false;
-        if(in_array($permission,['driver','accounting'],true)&&$a['role']!=='partner_admin')return false;
-        return in_array($permission,['create','edit','driver','accounting'],true)&&!empty($a['can_'.$permission]);
+        if(in_array($permission,['driver','accounting','shared_reporting'],true)&&$a['role']!=='partner_admin')return false;
+        return in_array($permission,['create','edit','driver','accounting','shared_reporting'],true)&&!empty($a['can_'.$permission]);
     }
     public static function scope(array $a,string $alias='j'):array
     {
@@ -48,7 +50,7 @@ final class PartnerAccess
     public function accounts(array $owner):array
     {
         $this->owner($owner);
-        return $this->db->query("SELECT u.id,u.partner_id,u.display_name,u.email,u.active,p.name partner_name,COALESCE(a.role_key,'partner_staff') role_key,COALESCE(a.can_create,1) can_create,COALESCE(a.can_edit,0) can_edit,COALESCE(a.can_driver,0) can_driver,COALESCE(a.can_accounting,0) can_accounting,a.last_login_at FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id LEFT JOIN delivery_partner_access a ON a.user_id=u.id WHERE LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name)) IN ('tedlaser','tedlaser and engraving') ORDER BY u.id")->fetchAll(\PDO::FETCH_ASSOC);
+        return $this->db->query("SELECT u.id,u.partner_id,u.display_name,u.email,u.active,p.name partner_name,COALESCE(a.role_key,'partner_staff') role_key,COALESCE(a.can_create,1) can_create,COALESCE(a.can_edit,0) can_edit,COALESCE(a.can_driver,0) can_driver,COALESCE(a.can_accounting,0) can_accounting,COALESCE(g.shared_delivery_read,0) can_shared_reporting,a.last_login_at FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id LEFT JOIN delivery_partner_access a ON a.user_id=u.id LEFT JOIN delivery_partner_reporting g ON g.user_id=u.id WHERE LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name)) IN ('tedlaser','tedlaser and engraving') ORDER BY u.id")->fetchAll(\PDO::FETCH_ASSOC);
     }
     public function manage(array $owner,array $b):array
     {
@@ -77,6 +79,10 @@ final class PartnerAccess
                 $admin=$role==='partner_admin';
                 $this->db->prepare('INSERT INTO delivery_partner_access(user_id,role_key,can_create,can_edit,can_driver,can_accounting) VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE role_key=VALUES(role_key),can_create=VALUES(can_create),can_edit=VALUES(can_edit),can_driver=VALUES(can_driver),can_accounting=VALUES(can_accounting),updated_at=UTC_TIMESTAMP()')->execute([$id,$role,(int)!empty($b['can_create']),(int)!empty($b['can_edit']),(int)($admin&&!empty($b['can_driver'])),(int)($admin&&!empty($b['can_accounting']))]);
             }
+            if(in_array($action,['create','permissions'],true)){
+                $shared=(int)($role==='partner_admin'&&!empty($b['can_shared_reporting']));
+                $this->db->prepare('INSERT INTO delivery_partner_reporting(user_id,shared_delivery_read,updated_by_employee_id) VALUES(?,?,?) ON DUPLICATE KEY UPDATE shared_delivery_read=VALUES(shared_delivery_read),updated_by_employee_id=VALUES(updated_by_employee_id),updated_at=UTC_TIMESTAMP()')->execute([$id,$shared,$owner['id']]);
+            }
             if($action==='activate'||$action==='deactivate')$this->db->prepare('UPDATE delivery_partner_users SET active=? WHERE id=?')->execute([(int)($action==='activate'),$id]);
             // All management changes invalidate current sessions, including reset issuance.
             $this->db->prepare('UPDATE delivery_partner_users SET session_version=session_version+1 WHERE id=?')->execute([$id]);
@@ -85,7 +91,7 @@ final class PartnerAccess
                 $v=$this->db->prepare('SELECT session_version FROM delivery_partner_users WHERE id=?');$v->execute([$id]);$issuedVersion=(int)$v->fetchColumn();
                 $token=bin2hex(random_bytes(32));$this->db->prepare('INSERT INTO delivery_partner_reset_tokens(user_id,token_hash,expires_at) VALUES(?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 60 MINUTE))')->execute([$id,hash('sha256',hash('sha256',$token).':'.$issuedVersion)]);
             }
-            $this->db->prepare('INSERT INTO ops_security_events(event_type,employee_id,metadata_json) VALUES(?,?,?)')->execute(['delivery_partner_'.$action,$owner['id'],json_encode(['partner_user_id'=>$id,'sessions_revoked'=>true],JSON_THROW_ON_ERROR)]);
+            $this->db->prepare('INSERT INTO ops_security_events(event_type,employee_id,metadata_json) VALUES(?,?,?)')->execute(['delivery_partner_'.$action,$owner['id'],json_encode(['partner_user_id'=>$id,'sessions_revoked'=>true,'shared_delivery_read'=>isset($shared)?(bool)$shared:null],JSON_THROW_ON_ERROR)]);
             $this->db->commit();return ['id'=>$id,'token'=>$token];
         }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }

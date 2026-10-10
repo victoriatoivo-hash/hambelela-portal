@@ -1,0 +1,5 @@
+<?php
+declare(strict_types=1);require __DIR__.'/bootstrap.php';
+try{$actor=$partnerAuth->actor($_SESSION['partner']);if(!\Hambelela\Delivery\PartnerAccess::can($actor,'shared_reporting'))throw new DomainException();}catch(Throwable $e){http_response_code(403);exit('Pricing access denied.');}
+require_once BASE_PATH.'/shared/delivery/PartnerShell.php';\Hambelela\Delivery\PartnerShell::begin($actor);
+?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Delivery Pricing</title></head><body data-partner-admin-view="zones"><main class="delivery-main"><header class="pagehead"><div><div class="eyebrow">DELIVERY · PRICING</div><h1>Delivery Pricing</h1><p>Current delivery areas and standard fees.</p></div></header><p id="partner-admin-message" role="status"></p><section id="partner-admin-content" class="cards"></section></main><script src="<?=htmlspecialchars(BASE_URL,ENT_QUOTES)?>/assets/js/delivery-partner-admin.js?v=<?=filemtime(BASE_PATH.'/assets/js/delivery-partner-admin.js')?>"></script></body></html>

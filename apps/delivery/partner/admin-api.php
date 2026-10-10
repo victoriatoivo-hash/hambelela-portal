@@ -3,8 +3,9 @@ declare(strict_types=1);require __DIR__.'/bootstrap.php';require_once BASE_PATH.
 try{
  if(empty($_SESSION['partner']))throw new DomainException('Please sign in.');$actor=$partnerAuth->actor($_SESSION['partner']);$service=new \Hambelela\Delivery\PartnerAdminService(db());
  if($_SERVER['REQUEST_METHOD']==='GET'){
-  $view=(string)($_GET['view']??'');
-  if($view==='accounting')$result=$service->accounting($actor);
+  $view=(string)($_GET['view']??'report');
+  if($view==='accounting'||$view==='report')$result=$service->accounting($actor,$_GET);
+  elseif($view==='zones')$result=$service->pricing($actor);
   elseif($view==='driver'){$q=$_GET;$q['view']=$_GET['state']??'active';$result=$service->driver($actor,$q);}
   else throw new DomainException('Unsupported view.');
  }elseif($_SERVER['REQUEST_METHOD']==='POST'){

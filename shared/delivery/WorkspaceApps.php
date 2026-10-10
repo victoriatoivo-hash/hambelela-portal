@@ -9,10 +9,12 @@ final class WorkspaceApps
     {
         if(($actor['kind']??'')==='partner'){
             if(($actor['role']??'')!=='partner_admin'||empty($actor['active']))return [];
+            $shared=PartnerAccess::can($actor,'shared_reporting');
             $apps=[];
-            if(PartnerAccess::can($actor,'driver'))$apps[]=['driver.php','driver','Driver','View Tedlaser deliveries and their Driver progress.','Open Driver View','bike'];
+            if(PartnerAccess::can($actor,'driver'))$apps[]=['driver.php','driver','Driver',$shared?'View shared Hambelela and Tedlaser Driver deliveries.':'View Tedlaser deliveries and their Driver progress.','Open Driver View','bike'];
             $apps[]=['index.php','partner','Tedlaser','Create and manage your company’s deliveries.','Open Tedlaser','boxes'];
-            if(PartnerAccess::can($actor,'accounting'))$apps[]=['accounting.php','accounting','Delivery Accounting','View Tedlaser delivery fees, collections and settlements.','Open Delivery Accounting','wallet'];
+            if(PartnerAccess::can($actor,'accounting'))$apps[]=['accounting.php','accounting','Delivery Accounting',$shared?'View shared Delivery income, expenses, collections and balances.':'View Tedlaser delivery fees, collections and settlements.','Open Delivery Accounting','wallet'];
+            if($shared)$apps[]=['pricing.php','pricing','Delivery Pricing','View current delivery areas and fees.','View Pricing','map-pin'];
             return $apps;
         }
         $owner=($actor['role']??'')==='owner_admin';

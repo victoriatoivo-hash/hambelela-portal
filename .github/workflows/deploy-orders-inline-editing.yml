@@ -53,6 +53,7 @@ jobs:
           python3 -m py_compile scripts/deploy-delivery-single-list.py
           node --check assets/js/delivery-partner.js
           node --check assets/js/delivery-partner-admin.js
+          node --check assets/js/delivery-accounting.js
           node --check assets/js/delivery-partner-reset.js
           TEDLASER_TEST_DSN='mysql:host=127.0.0.1;port=3306' TEDLASER_TEST_PASSWORD='synthetic-ci-password' php tests/tedlaser-access-db.php
       - name: Back up and publish only approved Tedlaser files

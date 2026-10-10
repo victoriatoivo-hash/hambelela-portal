@@ -1,10 +1,20 @@
 {
   "shared/delivery/PartnerAccess.php": "d40daf544fa2817cbfe341ede7f461bdd877395b9f7721bb574c6ca6fd439973",
-  "apps/delivery/settings.php": "2d0db393dd8efabc56925a5817b812d355530c21fc9e39720aaf981395294896",
+  "shared/delivery/PartnerAdminService.php": "d08ac457f90d8a923ed1277f991eb87ae725d04583b9feba87b55d34d465ba59",
+  "shared/delivery/AccountingService.php": "965bccc4f81ab399fd7db31585df31d11afe5a77fde116b9cbd5c1449b053cfe",
+  "shared/delivery/WorkspaceApps.php": "644787dbd411a43c9f16f19b77fd247c19e8533b9b074efbbae78a5c4d8c94a5",
+  "shared/delivery/PartnerShell.php": "dd7a3e33e0c379923d8db0bc410fbac28b1add08a429d14afdd8c008e296ab77",
+  "apps/delivery/settings.php": "98556670398b2c0f03b53d762c5f449f2d573afd1a7e2c785365c3e5c20273aa",
+  "apps/delivery/partner/accounting.php": "e386a7b11d1e4c8d971fb120ca338dabf91c541150a42bc3bec2b22b354260c4",
+  "apps/delivery/partner/driver.php": "e984f690e32293a57ac596e09e57d74d8c5f9d38c0fc849c3d605fce8821f5c9",
+  "apps/delivery/partner/admin-api.php": "1a0023336b02496a851b0e85b72eea11b8de1340af886fe9b3476a097ae3fb65",
+  "apps/delivery/partner/pricing.php": null,
+  "assets/js/delivery-partner-admin.js": "33f1bf2f2795c0054ab7fbd96ae152ca7ee5756ce4d00ce68589403d5f7760a7",
+  "apps/delivery/accounting.php": "62528fafc5c6847ed6e48be91ba924ab93c251141e6eab623b2dfccb08975bb7",
+  "assets/js/delivery-accounting.js": "c2629606015c00ccce6bf12186a06ab2e889292161968e2833e0d26e95399901",
   "shared/delivery/FrontSession.php": "8f3a29e0487c1c05c8a2d7d9486dc0478fd7ade1c0a95d39c444191eb11113f6",
   "shared/delivery/DeliveryPolicy.php": "73ed69c9f4d75a24d9adac00204929442dda5e8109cac2bdc714ef64e6073200",
   "shared/delivery/PartnerAuth.php": "a56c5bd95f491855536870b126328c612d0c8ea6ff0aad89e47a61fa28da9bd5",
-  "shared/delivery/NotificationOutbox.php": "3899561bd92c0ffb077f83615abf7437d121c5ca9216fd33784482b43a12010b",
-  "shared/delivery/PartnerRouting.php": "fa14dbb756dc128f1bb0f00288c7a3e9c95bd8ebafde32a8d7d9a6406b81175b",
-  "shared/delivery/PartnerAdminService.php": "d08ac457f90d8a923ed1277f991eb87ae725d04583b9feba87b55d34d465ba59"
+  "shared/delivery/PartnerService.php": "3113419b3a37985fd546083746856fb386e96653d3e776dc2451809367ccab41",
+  "assets/css/delivery-accounting.css": "f2eb24732812d70bcd8858716c010b6994f2b3d56165090c174d1414a7aedc1f"
 }

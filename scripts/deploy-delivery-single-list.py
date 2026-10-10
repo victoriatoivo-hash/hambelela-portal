@@ -1,8 +1,8 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('shared/delivery/PartnerAccess.php', 'shared/delivery/PartnerAdminService.php', 'shared/delivery/AccountingService.php', 'shared/delivery/WorkspaceApps.php', 'shared/delivery/PartnerShell.php', 'apps/delivery/settings.php', 'apps/delivery/partner/accounting.php', 'apps/delivery/partner/driver.php', 'apps/delivery/partner/admin-api.php', 'apps/delivery/partner/pricing.php', 'assets/js/delivery-partner-admin.js')
-READ_ONLY = ('shared/delivery/FrontSession.php', 'shared/delivery/DeliveryPolicy.php', 'shared/delivery/PartnerAuth.php', 'shared/delivery/PartnerService.php', 'apps/delivery/accounting.php', 'assets/js/delivery-accounting.js', 'assets/css/delivery-accounting.css')
+FILES = ('shared/delivery/PartnerAccess.php', 'shared/delivery/PartnerAdminService.php', 'shared/delivery/AccountingService.php', 'shared/delivery/WorkspaceApps.php', 'shared/delivery/PartnerShell.php', 'apps/delivery/settings.php', 'apps/delivery/partner/accounting.php', 'apps/delivery/partner/driver.php', 'apps/delivery/partner/admin-api.php', 'apps/delivery/partner/pricing.php', 'assets/js/delivery-partner-admin.js', 'apps/delivery/accounting.php', 'assets/js/delivery-accounting.js')
+READ_ONLY = ('shared/delivery/FrontSession.php', 'shared/delivery/DeliveryPolicy.php', 'shared/delivery/PartnerAuth.php', 'shared/delivery/PartnerService.php', 'assets/css/delivery-accounting.css')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()

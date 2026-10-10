@@ -75,6 +75,18 @@ final class AccountingService
     public function report(array $actor,string $from,string $to):array
     {
         if(!DeliveryPolicy::can($actor,'delivery_accounting_view'))throw new \DomainException('Accounting access denied.');
+        return $this->readReport($from,$to,DeliveryPolicy::can($actor,'delivery_accounting_manage'),DeliveryPolicy::can($actor,'delivery_accounting_expenses_manage'));
+    }
+    public function partnerReport(array $actor,string $from,string $to):array
+    {
+        require_once __DIR__.'/PartnerAccess.php';
+        if(($actor['kind']??'')!=='partner')throw new \DomainException('Partner reporting access required.');
+        $fresh=(new PartnerAccess($this->db))->identity((int)($actor['id']??0));
+        if($fresh['partner_id']!==(int)($actor['partner_id']??0)||(int)$fresh['session_version']!==(int)($actor['session_version']??0)||!PartnerAccess::can($fresh,'shared_reporting')||!PartnerAccess::can($fresh,'accounting'))throw new \DomainException('Shared Delivery reporting is not permitted.');
+        return $this->readReport($from,$to,false,false);
+    }
+    private function readReport(string $from,string $to,bool $canSettle,bool $canExpense):array
+    {
         self::date($from);self::date($to);if($from>$to)throw new \DomainException('Date range is reversed.');
         $zone=new \DateTimeZone('Africa/Windhoek');$utc=new \DateTimeZone('UTC');
         $start=(new \DateTimeImmutable($from,$zone))->setTimezone($utc)->format('Y-m-d H:i:s');$end=(new \DateTimeImmutable($to,$zone))->modify('+1 day')->setTimezone($utc)->format('Y-m-d H:i:s');
@@ -85,7 +97,7 @@ final class AccountingService
 'deliveries'=>$this->rows("SELECT j.*,(SELECT COALESCE(SUM(l.amount_cents),0) FROM delivery_ledger l WHERE l.delivery_id=j.id AND l.account='fee_received') fee_received_cents,(SELECT COALESCE(SUM(r.order_goods_cents+r.delivery_fee_cents+r.partner_cod_cents),0) FROM delivery_receipts r WHERE r.delivery_id=j.id) collected_cents,(SELECT COUNT(*) FROM delivery_receipts r WHERE r.delivery_id=j.id AND r.status IN ('collected','issue')) pending_receipts,e.full_name driver_name,p.name partner_name FROM delivery_jobs j LEFT JOIN ops_employees e ON e.id=j.driver_employee_id LEFT JOIN delivery_partners p ON p.id=j.partner_id WHERE scheduled_date BETWEEN ? AND ? ORDER BY scheduled_date DESC,j.id DESC LIMIT 500",[$from,$to]),
             'expenses'=>$this->rows('SELECT x.*,e.full_name recorded_by FROM delivery_expenses x JOIN ops_employees e ON e.id=x.created_by_employee_id WHERE expense_date BETWEEN ? AND ? ORDER BY expense_date DESC,x.id DESC LIMIT 500',[$from,$to]),
             'partners'=>$this->rows("SELECT p.id,p.name,COALESCE(SUM(CASE WHEN l.account='fee_earned' THEN l.amount_cents ELSE 0 END),0) fee_earned,COALESCE(SUM(CASE WHEN l.account='fee_received' THEN l.amount_cents ELSE 0 END),0) fee_received,COALESCE(SUM(CASE WHEN l.account='partner_cod_held' THEN l.amount_cents WHEN l.account='partner_cod_remitted' THEN -l.amount_cents ELSE 0 END),0) cod_due,COALESCE(SUM(CASE WHEN j.fee_payer='partner' AND l.account='fee_earned' THEN l.amount_cents WHEN j.fee_payer='partner' AND l.account='fee_received' THEN -l.amount_cents ELSE 0 END),0) fee_due FROM delivery_partners p LEFT JOIN delivery_ledger l ON l.partner_id=p.id LEFT JOIN delivery_jobs j ON j.id=l.delivery_id GROUP BY p.id,p.name ORDER BY p.name"),
-            'can_settle'=>DeliveryPolicy::can($actor,'delivery_accounting_manage'),'can_expense'=>DeliveryPolicy::can($actor,'delivery_accounting_expenses_manage')];
+            'can_settle'=>$canSettle,'can_expense'=>$canExpense];
     }
     public function partnerSettlement(array $actor,string $uuid,int $partner,string $type,string $amount,string $reference,string $reason):array
     {

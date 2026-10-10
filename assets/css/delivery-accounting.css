@@ -1,0 +1,89 @@
+@font-face{font-family:Jost;src:url(../fonts/jost-variable.woff2) format("woff2");font-weight:100 900;font-display:block}
+/* Accounting uses the current portal system, not the Delivery transport theme. */
+body[data-delivery-accounting] { background:#F8F7F2; color:#1C2118; font-family:"Jost",sans-serif; }
+body[data-delivery-accounting] .delivery-accounting,
+body[data-delivery-accounting] dialog { font:400 11.5px/1.5 "Jost",sans-serif; color:#1C2118; }
+.delivery-accounting *,body[data-delivery-accounting] dialog * { box-sizing:border-box; font-family:"Jost",sans-serif; }
+.ess-dashboard #ess-main .delivery-accounting .delivery-main { min-height:0; padding:16px 0 0; margin:0; width:100%; max-width:100%; }
+body[data-delivery-accounting] #ess-main { min-width:0; }
+body[data-delivery-accounting] #ess-main .ess-topbar { position:static; min-height:68px; margin-bottom:16px; flex-wrap:wrap; gap:12px; }
+body[data-delivery-accounting] #ess-main .ess-topbar .portal-header-status { position:static; inset:auto; margin:0; transform:none; }
+body[data-delivery-accounting] #ess-main .ess-topbar-actions { flex:1 1 560px; justify-content:flex-end; flex-wrap:nowrap; }
+body[data-delivery-accounting] #ess-main .ess-search { flex:1 1 180px; min-width:120px; width:180px; }
+.delivery-accounting .pagehead { display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:20px; }
+.delivery-accounting .eyebrow { font-size:9.5px; font-weight:600; text-transform:uppercase; letter-spacing:.11em; color:#667653; }
+.delivery-accounting h1 { margin:4px 0 8px; font-size:24px; line-height:1.25; font-weight:600; color:#1C2118; }
+.delivery-accounting h2,body[data-delivery-accounting] dialog h2 { font-size:16px; line-height:1.35; font-weight:600; margin:0 0 8px; }
+.delivery-accounting p { margin:0 0 12px; color:#62675E; font-size:11.5px; font-weight:400; }
+.delivery-accounting #message:empty { display:none; }
+.delivery-accounting .panel { background:#FFF; border:1px solid #E4E6DC; border-radius:12px; padding:18px; margin-bottom:18px; min-width:0; }
+.delivery-accounting [hidden],body[data-delivery-accounting] dialog [hidden] { display:none!important; }
+.delivery-accounting .sectionhead { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+.delivery-accounting button,.delivery-accounting a.secondary,body[data-delivery-accounting] dialog button { min-height:38px; border-radius:8px; padding:10px 14px; display:inline-flex; align-items:center; justify-content:center; gap:8px; font:500 11px/1 "Jost",sans-serif; cursor:pointer; text-decoration:none; white-space:normal; transition:background 170ms,border-color 170ms,transform 170ms; }
+.delivery-accounting .primary,body[data-delivery-accounting] dialog .primary { color:#FFF; background:#59694A; border:1px solid #59694A; box-shadow:none; }
+.delivery-accounting .primary:hover,.delivery-accounting .primary:active,body[data-delivery-accounting] dialog .primary:hover,body[data-delivery-accounting] dialog .primary:active { background:#465636; border-color:#465636; color:#FFF; transform:translateY(-1px); }
+.delivery-accounting .secondary,body[data-delivery-accounting] dialog .secondary { background:#FFF; border:1px solid #D3DAC6; color:#465636; box-shadow:none; }
+.delivery-accounting .secondary:hover,body[data-delivery-accounting] dialog .secondary:hover { background:#F2F4EC; border-color:#BFC9AE; transform:translateY(-1px); }
+.delivery-accounting .danger { background:#FFF; border:1px solid #E7CBCB; color:#9A4040; }
+.delivery-accounting .danger:hover { background:#F9EEEE; transform:translateY(-1px); }
+.delivery-accounting button:disabled { opacity:.5; cursor:default; transform:none; }
+.delivery-accounting :focus-visible,body[data-delivery-accounting] dialog :focus-visible { outline:2px solid #59694A; outline-offset:2px; }
+.delivery-accounting .toolbar { display:flex; align-items:flex-end; flex-wrap:wrap; gap:12px; background:#FFF; border:1px solid #E4E6DC; border-radius:11px; padding:14px 16px; margin-bottom:18px; }
+.delivery-accounting label,body[data-delivery-accounting] dialog label { display:flex; flex-direction:column; gap:6px; color:#62675E; font:500 10px/1.4 "Jost",sans-serif; margin:0; }
+.delivery-accounting .toolbar label { flex:1 1 170px; min-width:0; }
+.delivery-accounting input,.delivery-accounting select,.delivery-accounting textarea,body[data-delivery-accounting] dialog input,body[data-delivery-accounting] dialog select,body[data-delivery-accounting] dialog textarea { width:100%; min-width:0; min-height:38px; padding:9px 11px; color:#1C2118; background:#FFF; border:1px solid #DDE1D6; border-radius:8px; font:400 11px/1.5 "Jost",sans-serif; }
+.delivery-accounting input:focus,.delivery-accounting select:focus,body[data-delivery-accounting] dialog input:focus,body[data-delivery-accounting] dialog select:focus,body[data-delivery-accounting] dialog textarea:focus { outline:none; border-color:#59694A; box-shadow:0 0 0 3px rgba(89,105,74,.10); }
+.delivery-accounting input[type=date],body[data-delivery-accounting] dialog input[type=date] { padding-right:10px; background:#FFF url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2359694A' stroke-width='1.6'%3E%3Crect x='3' y='5' width='18' height='16' rx='2'/%3E%3Cpath d='M7 3v4M17 3v4M3 10h18'/%3E%3C/svg%3E") no-repeat right 11px center; }
+body[data-delivery-accounting] input[type=date]::-webkit-calendar-picker-indicator { opacity:0; cursor:pointer; width:18px; }
+.delivery-accounting .tabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.delivery-accounting .accounting-presets .is-active { background:#59694A; border-color:#59694A; color:#FFF; }
+.delivery-accounting .accounting-presets .is-active:hover { background:#465636; color:#FFF; }
+.delivery-accounting .accounting-tabs { gap:4px; border-bottom:1px solid #E4E6DC; }
+.delivery-accounting .accounting-tabs button { background:transparent; border:0; border-bottom:2px solid transparent; border-radius:6px 6px 0 0; color:#62675E; }
+.delivery-accounting .accounting-tabs .is-active { background:#F2F4EC; color:#465636; border-bottom-color:#59694A; }
+.delivery-accounting .kpis { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; margin-bottom:18px; }
+.delivery-accounting .kpi { background:#FFF; border:1px solid #E4E6DC; border-radius:11px; padding:14px 16px; box-shadow:0 3px 12px rgba(38,49,31,.03); min-width:0; animation:accounting-enter 220ms ease both; }
+.delivery-accounting .kpi span { display:block; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.07em; color:#7C8177; }
+.delivery-accounting .kpi strong { display:block; margin-top:7px; font-size:22px; font-weight:600; line-height:1.2; color:#1C2118; font-variant-numeric:tabular-nums; }
+.delivery-accounting .tablewrap { width:100%; max-width:100%; overflow-x:auto; border:1px solid #E4E6DC; border-radius:9px; scrollbar-color:#BCC6AE #F2F4EC; scrollbar-width:thin; }
+.delivery-accounting table { width:100%; border-collapse:collapse; background:#FFF; }
+.delivery-accounting th { background:#F2F4EC; color:#596159; font-size:9px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; text-align:left; padding:12px 11px; white-space:nowrap; }
+.delivery-accounting td { height:50px; padding:10px 11px; border-top:1px solid #ECEDE7; background:#FFF; font:400 11px/1.5 "Jost",sans-serif; font-variant-numeric:tabular-nums; }
+.delivery-accounting tbody tr:hover td { background:#FAFBF7; }
+.delivery-accounting .accounting-empty { padding:24px 16px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:8px; text-align:center; color:#91968C; }
+.delivery-accounting .accounting-empty strong { color:#62675E; font-size:11.5px; font-weight:500; }
+.delivery-accounting .accounting-empty p { max-width:440px; margin:0; font-size:11px; }
+.delivery-accounting #partner-balances:has(>.accounting-empty) { border:0; }
+body[data-delivery-accounting] dialog { width:min(540px,calc(100vw - 32px)); max-height:90dvh; overflow-y:auto; background:#FFF; border:1px solid #E4E6DC; border-radius:12px; padding:24px; box-shadow:0 16px 48px #1C211826; }
+body[data-delivery-accounting] dialog::backdrop { background:rgba(28,33,24,.28); }
+body[data-delivery-accounting] dialog label { margin-bottom:12px; }
+body[data-delivery-accounting] dialog .check { flex-direction:row; align-items:center; gap:8px; }
+body[data-delivery-accounting] dialog input[type=checkbox] { width:17px; height:17px; min-height:17px; padding:0; accent-color:#59694A; }
+body[data-delivery-accounting] dialog .modalactions { display:flex; justify-content:flex-end; gap:8px; margin-top:18px; border-top:1px solid #ECEDE7; padding-top:16px; }
+body[data-delivery-accounting] .form-error { color:#9A4040; }
+@keyframes accounting-enter { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
+@media(min-width:1600px) { .delivery-accounting .kpis { grid-template-columns:repeat(6,minmax(0,1fr)); } }
+@media(max-width:700px) {
+ body[data-delivery-accounting] #ess-main .ess-topbar-actions { flex-basis:100%; flex-wrap:wrap; }
+ body[data-delivery-accounting] #ess-main .ess-topbar .portal-header-status { flex-wrap:wrap; justify-content:flex-end; }
+ .delivery-accounting .pagehead { align-items:flex-start; flex-direction:column; gap:10px; }
+ .delivery-accounting .kpis { grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
+ .delivery-accounting button,.delivery-accounting a.secondary,body[data-delivery-accounting] dialog button { min-height:42px; }
+ .delivery-accounting .toolbar { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+ .delivery-accounting .toolbar label { grid-column:1/-1; }
+ body[data-delivery-accounting] .portal-date-picker>.portal-date-field { height:42px; min-height:42px; max-height:42px; }
+ body[data-delivery-accounting] .portal-date-popup { width:calc(100vw - 20px); max-width:360px; }
+ body[data-delivery-accounting] .portal-date-day,body[data-delivery-accounting] .portal-date-clear,body[data-delivery-accounting] .portal-date-cancel,body[data-delivery-accounting] .portal-date-apply { min-height:42px; }
+ .delivery-accounting .sectionhead { flex-wrap:wrap; }
+ .delivery-accounting .tablewrap { overflow:visible; border:0; border-radius:0; }
+ .delivery-accounting table,.delivery-accounting tbody { display:block; width:100%; }
+ .delivery-accounting thead { display:none; }
+ .delivery-accounting tr { display:block; margin-bottom:10px; border:1px solid #E4E6DC; border-radius:8px; overflow:hidden; }
+ .delivery-accounting td { display:flex; justify-content:space-between; gap:14px; min-height:42px; height:auto; text-align:right; overflow-wrap:anywhere; }
+ .delivery-accounting td::before { content:attr(data-label); flex:0 0 38%; text-align:left; font-size:9px; font-weight:600; text-transform:uppercase; color:#7C8177; }
+ .delivery-accounting .empty-row td { display:block; text-align:center; }
+ .delivery-accounting .empty-row td::before { display:none; }
+ .delivery-accounting .panel { padding:14px; }
+}
+@media(max-width:360px) { .delivery-accounting .kpis { grid-template-columns:1fr; } .delivery-accounting .toolbar { grid-template-columns:1fr; } }
+@media(prefers-reduced-motion:reduce) { .delivery-accounting *,body[data-delivery-accounting] dialog *,body[data-delivery-accounting] .portal-date-popup * { animation:none!important; transition:none!important; } }
