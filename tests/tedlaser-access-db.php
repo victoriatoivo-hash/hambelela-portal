@@ -103,6 +103,31 @@ try{
  denied(function()use($auth,&$session){$auth->actor($session);},'own password change revokes sessions');
  $access->manage($owner,['action'=>'permissions','id'=>$id,'role'=>'partner_staff','can_create'=>1,'can_driver'=>1,'can_accounting'=>1]);
  denied(function()use($adminService,$admin){$adminService->accounting($admin);},'permission downgrade immediately enforced');
+ foreach([1,$id] as $tempId){
+  $role=$tempId===1?'partner_staff':'partner_admin';
+  $access->manage($owner,['action'=>'permissions','id'=>$tempId,'role'=>$role,'can_create'=>1,'can_driver'=>1,'can_accounting'=>1,'can_shared_reporting'=>1]);
+  $issued=$access->manage($owner,['action'=>'temporary','id'=>$tempId]);$secret=$issued['temporary_password'];$email=$access->identity($tempId)['email'];
+  check(strlen($secret)===24&&$db->query('SELECT password_hash FROM delivery_partner_temporary_passwords WHERE user_id='.$tempId)->fetchColumn()!==$secret,'temporary password is strong and stored only as hash');
+  $temporarySession=$auth->authenticate($email,$secret,'127.0.0.2');
+  denied(function()use($auth,&$temporarySession){$auth->actor($temporarySession);},'temporary login cannot enter workspace');
+  $pending=$auth->actor($temporarySession,true);
+  check($pending['must_change_password']===true,'first login requires password change');
+  denied(function()use($service,$pending){$service->board($pending);},'pending password cannot read deliveries');
+  denied(function()use($adminService,$pending){$adminService->accounting($pending);},'pending password cannot read accounting');
+  denied(function()use($auth,$email,$secret){$auth->authenticate($email,$secret,'127.0.0.2');},'temporary password cannot be replayed');
+  denied(function()use($access,$secret,$pending){$access->password($secret,'',$pending,$secret);},'temporary password cannot become permanent');
+  $access->password('New permanent synthetic password '.$tempId,'',$pending,$secret);
+  check(!$access->identity($tempId)['must_change_password'],'changing password clears mandatory setup');
+  denied(function()use($auth,&$temporarySession){$auth->actor($temporarySession,true);},'password change revokes temporary session');
+  $permanentSession=$auth->authenticate($email,'New permanent synthetic password '.$tempId,'127.0.0.2');
+  check($auth->actor($permanentSession)['role']===$role,'new password restores correct role');
+  $access->manage($owner,['action'=>'temporary','id'=>$tempId]);
+  denied(function()use($auth,&$permanentSession){$auth->actor($permanentSession);},'issuing temporary password revokes old session');
+  denied(function()use($auth,$email,$tempId){$auth->authenticate($email,'New permanent synthetic password '.$tempId,'127.0.0.2');},'old permanent password blocked during mandatory reset');
+  $expired=$access->manage($owner,['action'=>'temporary','id'=>$tempId]);
+  $db->exec('UPDATE delivery_partner_temporary_passwords SET expires_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND) WHERE user_id='.$tempId);
+  denied(function()use($auth,$email,$expired){$auth->authenticate($email,$expired['temporary_password'],'127.0.0.2');},'expired temporary password denied');
+ }
  $access->manage($owner,['action'=>'deactivate','id'=>1]);denied(function()use($service,$staff){$service->board($staff);},'deactivated staff access denied');
  check((int)$db->query('SELECT COUNT(*) FROM ops_employees')->fetchColumn()===2,'employee records preserved');
  echo "All Tedlaser database tests passed.\n";

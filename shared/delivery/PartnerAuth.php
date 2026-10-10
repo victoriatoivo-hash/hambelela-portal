@@ -15,16 +15,18 @@ final class PartnerAuth
   try{
    foreach($buckets as $key){$this->db->prepare('INSERT IGNORE INTO delivery_login_limits(bucket,window_start) VALUES(?,?)')->execute([$key,$now]);$s=$this->db->prepare('SELECT * FROM delivery_login_limits WHERE bucket=? FOR UPDATE');$s->execute([$key]);$r=$s->fetch(\PDO::FETCH_ASSOC);if($now-(int)$r['window_start']>=900)$this->db->prepare('UPDATE delivery_login_limits SET failures=0,window_start=? WHERE bucket=?')->execute([$now,$key]);elseif((int)$r['failures']>=5){$this->db->commit();throw new \DomainException(self::ERROR);}}
    $s=$this->db->prepare('SELECT u.*,p.active partner_active FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id WHERE u.email=? FOR UPDATE');$s->execute([$email]);$r=$s->fetch(\PDO::FETCH_ASSOC);
-   $valid=password_verify($secret,$r['password_hash']??'$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.');
-   if(!$r||!$valid||!(int)$r['active']||!(int)$r['partner_active']){foreach($buckets as $key)$this->db->prepare('UPDATE delivery_login_limits SET failures=failures+1 WHERE bucket=?')->execute([$key]);$this->db->commit();throw new \DomainException(self::ERROR);}
+   $t=$this->db->prepare('SELECT * FROM delivery_partner_temporary_passwords WHERE user_id=? FOR UPDATE');$t->execute([(int)($r['id']??0)]);$temporary=$t->fetch(\PDO::FETCH_ASSOC);
+   $valid=password_verify($secret,($temporary['password_hash']??$r['password_hash'])??'$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi.');
+   if(!$r||!$valid||($temporary&&($temporary['used_at']!==null||strtotime($temporary['expires_at'].' UTC')<=time()))||!(int)$r['active']||!(int)$r['partner_active']){foreach($buckets as $key)$this->db->prepare('UPDATE delivery_login_limits SET failures=failures+1 WHERE bucket=?')->execute([$key]);$this->db->commit();throw new \DomainException(self::ERROR);}
+   if($temporary)$this->db->prepare('UPDATE delivery_partner_temporary_passwords SET used_at=UTC_TIMESTAMP() WHERE user_id=?')->execute([$r['id']]);
    $this->db->prepare('UPDATE delivery_login_limits SET failures=0,window_start=? WHERE bucket=?')->execute([$now,hash('sha256','partner-email:'.$email)]);$this->db->prepare('INSERT INTO delivery_partner_access(user_id,last_login_at) VALUES(?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE last_login_at=UTC_TIMESTAMP()')->execute([$r['id']]);$this->db->commit();return ['id'=>(int)$r['id'],'partner_id'=>(int)$r['partner_id'],'version'=>(int)$r['session_version'],'issued'=>$now,'seen'=>$now];
   }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
  }
- public function actor(array &$session):array
+ public function actor(array &$session,bool $allowPasswordChange=false):array
  {
   if(empty($session['id'])||time()-(int)($session['issued']??0)>=28800||time()-(int)($session['seen']??0)>=1800)throw new \DomainException('Please sign in.');
   $s=$this->db->prepare('SELECT u.session_version,u.partner_id FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id WHERE u.id=? AND u.active=1 AND p.active=1');$s->execute([$session['id']]);$r=$s->fetch(\PDO::FETCH_ASSOC);
-  if(!$r||(int)$r['session_version']!==(int)($session['version']??0)||(int)$r['partner_id']!==(int)($session['partner_id']??0))throw new \DomainException('Please sign in.');$session['seen']=time();return (new PartnerAccess($this->db))->identity((int)$session['id']);
+  if(!$r||(int)$r['session_version']!==(int)($session['version']??0)||(int)$r['partner_id']!==(int)($session['partner_id']??0))throw new \DomainException('Please sign in.');$session['seen']=time();$actor=(new PartnerAccess($this->db))->identity((int)$session['id']);if(!empty($actor['must_change_password'])&&!$allowPasswordChange)throw new \DomainException('Set your own password before continuing.');return $actor;
  }
  public static function open():void
  {
