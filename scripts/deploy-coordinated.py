@@ -2,9 +2,8 @@
 import argparse, ftplib, hashlib, io, json, os, subprocess, zipfile
 
 BASE = {
- 'assets/css/acknowledgments.css':'699e094ef2a79496f6ba75da1251698a43ba448b715a7f94f31fca10670e251d',
- 'assets/js/acknowledgments.js':'0834f70cc053d9e16885db240f60ebc2410cad015e6e4e73c604fba94d05a92c',
- 'apps/acknowledgments/index.php':'c2a651765405e0cddfd7efc81cfe35c995d0498942f4b562b1e6bd888b8f5179',
+ 'apps/operations/packing-list-action.php':'0807e78ee398f7205dcd6550170c9f0c82cb81e951b6bf4b8cacf270a75a686e',
+ 'assets/js/packing-list.js':'403a7206b3bf288efcee8482f9e68770e9f953283684a3fc71c0d3a6d1c7f240',
 }
 FILES = list(BASE)
 def sha(data): return hashlib.sha256(data).hexdigest() if data is not None else None

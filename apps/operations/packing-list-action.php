@@ -66,7 +66,10 @@ function packing_quantity_plan_stats(string $quantityPlan): array
     $stats = $empty;
     // Parse only the dedicated quantity field, never free-text packing instructions.
     $units = 'kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\\s+items?';
-    foreach (preg_split('/[,;\\n]+/', trim($quantityPlan)) ?: [] as $part) {
+    // Preserve legacy count(size) and space-separated measured allocations.
+    $quantityPlan = preg_replace('/(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*('.$units.')\s*\)/i', '$2$3($1)', $quantityPlan);
+    $quantityPlan = preg_replace('/\)\s*(?=\d)/', '),', $quantityPlan);
+    foreach (preg_split('/[,;+\\n]+/', trim($quantityPlan)) ?: [] as $part) {
         if (!preg_match('/^\\s*(\\d+(?:\\.\\d+)?)\\s*('.$units.')?\\s*(?:[x*]\\s*(\\d+)|\\(\\s*(\\d+)\\s*\\))?\\s*$/i', $part, $m)) return $empty;
         $amount = (float)$m[1]; $meta = packing_unit_meta(($m[2] ?? '') ?: 'units');
         if (!$meta || $amount <= 0) return $empty;

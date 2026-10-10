@@ -7,3 +7,4 @@ for(const u of ['units','pcs','pieces','labels','bottles','jars','packs','indivi
 for(const s of ['Apply labels to all 49 units','label 49','49 labels please','100g(10) and label 49','49.5 units','-49 units','100g(0)'])assert.equal(context.quantityPlanStats(s).sizeCount,0,s);
 assert.equal(context.quantityPlanStats('100g(10)').totals.weight,1000);assert.equal(context.quantityPlanStats('250ml x4').totals.volume,1000);assert.equal(context.quantityPlanStats('49').totals.count,49);
 console.log('PASS client parser matches server count, measured units and instruction rejection');
+assert.equal(context.quantityPlanStats('20(1kg) 250g(60) 500g(30)').totals.weight,50000,'Legacy measured allocation');

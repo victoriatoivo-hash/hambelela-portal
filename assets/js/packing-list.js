@@ -1192,7 +1192,8 @@
   function quantityPlanParts(quantityPlan) {
     const parts = [], units = 'kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\\s+items?';
     const pattern = new RegExp('^\\s*(\\d+(?:\\.\\d+)?)\\s*('+units+')?\\s*(?:[x*]\\s*(\\d+)|\\(\\s*(\\d+)\\s*\\))?\\s*$','i');
-    for (const part of String(quantityPlan || '').trim().split(/[,;\n]+/)) {
+    const compatible = String(quantityPlan || '').replace(new RegExp('(\\d+)\\s*\\(\\s*(\\d+(?:\\.\\d+)?)\\s*('+units+')\\s*\\)','gi'),'$2$3($1)').replace(/\)\s*(?=\d)/g,'),');
+    for (const part of compatible.trim().split(/[,;+\n]+/)) {
       const m = part.match(pattern); if (!m) return [];
       const unit = parsePackUnit(m[2] || 'units'), amount = Number(m[1]), count = Number(m[3] || m[4] || 1);
       if (!unit || amount <= 0 || count <= 0 || (unit.dimension === 'count' && !Number.isInteger(amount))) return [];
