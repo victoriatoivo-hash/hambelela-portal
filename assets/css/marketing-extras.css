@@ -208,6 +208,7 @@ body:has(.ess-marketing-page) .portal-date-popup .portal-date-actions{border-col
 body:has(.ess-marketing-page) .portal-date-popup .portal-date-heading{color:#1C2118;font-weight:500}
 body:has(.ess-marketing-page) .portal-date-popup .portal-date-clear{color:#62675E}
 
+@media(max-width:900px){.ess-marketing-page .marketing-hero{grid-template-columns:minmax(0,1fr)}.ess-marketing-page .marketing-hero-copy{min-width:0}.ess-marketing-page .marketing-hero-visual{display:none}.ess-marketing-page .marketing-hero-actions button,.ess-marketing-page .marketing-hero-actions a{min-height:44px}}
 @keyframes marketingFadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 @keyframes marketingPopoverIn{from{opacity:0;transform:translateY(-4px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes marketingModalIn{from{opacity:0;transform:translateY(5px) scale(.985)}to{opacity:1;transform:none}}
