@@ -2,8 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('assets/js/portal.js','shared/notifications.php','api/notifications.php')
-READ_ONLY = ('assets/js/notifications-ui.js','assets/js/task-assignment-popup.js','assets/js/acknowledgments-popup.js','shared/header.php','shared/marketing.php')
+FILES = ('assets/js/portal.js','api/notifications.php')
+READ_ONLY = ('shared/notifications.php','assets/js/notifications-ui.js','assets/js/task-assignment-popup.js','assets/js/acknowledgments-popup.js','shared/header.php','shared/marketing.php')
 EXPORT_MODULES = FILES + READ_ONLY
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')

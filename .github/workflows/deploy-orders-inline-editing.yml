@@ -46,6 +46,7 @@ jobs:
         run: |
           php tests/marketing-refinement-db.php
           php tests/marketing-workspace-db.php
+          php tests/notification-session-lock.php
           node tests/marketing-countdown.mjs
           node --check assets/js/marketing-workspace.js
           node --check assets/js/marketing.js

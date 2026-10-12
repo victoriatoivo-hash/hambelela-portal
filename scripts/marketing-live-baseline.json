@@ -1,16 +1,10 @@
 {
-  "assets/js/portal.js": "a491c60070ac5f04ea6fb4519f98d5295bf5d9dde7f0b61b098d7c8136f834e6",
-  "assets/css/portal.css": "9b779161deee10e2745b07439441952e62e60b5c5cb3eea18b559a96bbfc6510",
-  "assets/js/notifications-ui.js": "5f8bb6dc2d2220a836d5b06a577a6888de7d278014419375454980bb8ddb6734",
-  "assets/css/notifications-ui.css": "68f6e7d67b53ff6bc43acfd7b506f7dc2e3ce8e03dca3a30b1a0487f8e197948",
-  "assets/js/task-assignment-popup.js": "c79f647f4c4fc33674595a497b41398489de27f9e882e1dff4b0687ff13e3e12",
-  "assets/css/task-assignment-popup.css": "6ef7505f6abc49157ca3d2be1d54a3acbfa19b1539f6b820344464c2b86f1f55",
-  "assets/js/acknowledgments-popup.js": "2cbd46b68c657493f7139e25971130dde8200882eff12e2e39af3865920dc97f",
-  "assets/css/acknowledgments.css": "5480bc336c841bccec13fb37cda40043d0b0fffaaa1dc5d9c71eb14b7f0ce000",
-  "assets/css/marketing-workspace.css": "aca4c1890e3781ac7d992ae069ef27de58d0a9bd1645e701a63676cd34c82d54",
-  "shared/header.php": "1c3901875dc0a51ed4e6c439de7be1d81ad7a126d2626cca36d0326eeb85b30b",
-  "shared/sidebar.php": "e4f55e872dd4a14252f8bcd5099c8fdc6fc01dea0c934e9c6b847fd6acda97b6",
-  "shared/ess-sidebar.php": "ad45744451fa6180977a311f7abd3da5b5a82500606b30fc32228fb6dc2a46e6",
-  "shared/portal-policy-popup.php": "8eea3266a99746599c446f3edc06fefb3957f1f86833eb0c1fa3df42f33699fc",
-  "assets/css/portal-notices.css": null
+  "assets/js/portal.js": "80da9bca920b55066cdf14d328e2ed4714410d1a38cfb0e6fcf7566fb0dcefe3",
+  "shared/notifications.php": "57cabe89c3a5b3ae30f4edbf92a99f0fe91bba48a4aac85aefac06a2996229f2",
+  "api/notifications.php": "a6dfc41c460705f326e717299439c32e79269e15049271051814ba8d958597c6",
+  "assets/js/notifications-ui.js": "4757cabf2c69aa8c31a216cfa969f84a691252ea73f062d5650bb4c56ec502e0",
+  "assets/js/task-assignment-popup.js": "974e2af511b4bfa9e09c60a380aea070f43ebf591f8081d7267bc00f2a8fee62",
+  "assets/js/acknowledgments-popup.js": "087b5240a6bc234e60d60a5e43e1e210250a3531eadba8cc405a94c246ea4b92",
+  "shared/header.php": "e83ff644cd1bff735da855a2a598e03fe81d286db205993870eee6bef8e80833",
+  "shared/marketing.php": "8df13c0346c65fd0899f68ebe2dfde8576b1720e83f0f5237abe41d52838bc49"
 }

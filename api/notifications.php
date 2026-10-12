@@ -8,6 +8,11 @@ require_once BASE_PATH . '/shared/notifications.php';
 
 require_login();
 
+// Persist the token before releasing the session lock. A slow summary/HR sync
+// must not block a concurrent dismissal from this employee's other tab.
+if (empty($_SESSION['marketing_popup_csrf'])) $_SESSION['marketing_popup_csrf'] = bin2hex(random_bytes(24));
+if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+
 // Notification acknowledgements must not wait for unrelated HR policy synchronization.
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') try {
     require_once BASE_PATH.'/shared/portal-policy-notifications.php';
@@ -85,7 +90,6 @@ try {
 
     notifications_recover_task_assignments();
     $summary = notifications_summary_for_current_user(5);
-    if(empty($_SESSION['marketing_popup_csrf']))$_SESSION['marketing_popup_csrf']=bin2hex(random_bytes(24));
     $summary['marketing_popup_csrf']=$_SESSION['marketing_popup_csrf'];
     $summary['marketing_popups']=notifications_marketing_popups();
     $summary['task_popups'] = notifications_task_popups((int)($_GET['active_task_notification'] ?? 0));

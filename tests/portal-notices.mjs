@@ -22,3 +22,29 @@ gate.release('tasks');assert.equal(events,0);gate.release('marketing');assert.eq
 assert.equal(gate.acquire('tasks'),true);gate.release('tasks');open=true;assert.equal(gate.acquire('marketing'),false);
 for(const file of ['assets/js/task-assignment-popup.js','assets/js/acknowledgments-popup.js'])assert.match(read(file),/PortalNoticeGate/);
 console.log('PASS shared module palette, initial-load CSS, Jost, safe area, unread badge and cross-renderer modal gate');
+
+// A lost claim or an acknowledgement arriving during the claim must release
+// the shared gate so Tasks and Acknowledgments are not left blocked.
+const claimStart=portal.indexOf('    const showPortalToast = async (notification) => {');
+const claimEnd=portal.indexOf('      const container = ensureToastContainer();',claimStart);
+for(const scenario of ['lost-claim','acknowledged-during-claim']) {
+ let seen=false;
+ const claimContext=vm.createContext({
+  document:{querySelector:()=>false}, Event:class{},
+  window:{dispatchEvent:()=>{}},
+  fetch:async()=>{if(scenario==='acknowledged-during-claim')seen=true;return {json:async()=>({claimed:scenario!=='lost-claim'})};},
+  apiUrl:'/api/notifications.php', URLSearchParams,
+  marketingAcknowledgements:{has:()=>seen}, marketingQueued:new Set([41]),
+  marketingModalActive:true,visibleNotificationToasts:1,drainNotificationToasts:()=>{}
+ });
+ vm.runInContext(ui.slice(ui.indexOf('let modalOwner=null;'),ui.indexOf('const pageModule=')),claimContext);
+ assert.equal(claimContext.window.PortalNoticeGate.acquire('marketing'),true);
+ vm.runInContext(portal.slice(claimStart,claimEnd)+'}; var finished=showPortalToast({id:41,related_type:"marketing_assignment"});',claimContext);
+ await claimContext.finished;
+ assert.equal(claimContext.marketingModalActive,false,scenario);
+ assert.equal(claimContext.visibleNotificationToasts,0,scenario);
+ assert.equal(claimContext.window.PortalNoticeGate.acquire('tasks'),true,scenario);
+ claimContext.window.PortalNoticeGate.release('tasks');
+ assert.equal(claimContext.window.PortalNoticeGate.acquire('policy'),true,scenario);
+}
+console.log('PASS failed/stale Marketing claims release Task and Acknowledgment popup gate');

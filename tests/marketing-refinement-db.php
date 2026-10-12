@@ -62,6 +62,14 @@ ok(count(notifications_marketing_popups())===0,'acknowledgement stops popup with
 ok(db()->query('SELECT read_at FROM notification_recipients WHERE notification_id=1')->fetchColumn()===null,'popup acknowledgement preserves separate unread status');
 $actor=3;ok(count(notifications_marketing_popups())===1,'another employee still receives new assignment');$actor=2;
 ok(count(notifications_marketing_popups())===0,'fresh employee context retains server acknowledgement');
+ok(!notifications_claim_task_delivery(1),'stale poll cannot reclaim an acknowledged popup');
+db()->exec("INSERT INTO marketing_work_items(id,title,assigned_employee_id,status,priority) VALUES(3,'Genuinely new assignment',2,'brief','normal');
+INSERT INTO notifications VALUES(3,'New assignment','New work',NOW(),3,'marketing_assignment','/apps/marketing/execution.php?id=3','assigned');
+INSERT INTO notification_recipients(notification_id,employee_id) VALUES(3,2)");
+ok(array_map('intval',array_column(notifications_marketing_popups(),'id'))===[3],'same employee receives a new assignment while previous popup stays dismissed');
+ok(notifications_claim_task_delivery(3)&&notifications_marketing_seen(3),'new assignment can be displayed and dismissed independently');
+ok(count(notifications_marketing_popups())===0,'both persisted dismissals survive another poll');
+db()->exec('DELETE FROM notification_recipients WHERE notification_id=3; DELETE FROM notifications WHERE id=3; DELETE FROM marketing_work_items WHERE id=3');
 db()->exec('UPDATE notification_recipients SET read_at=NULL,popup_seen_at=NULL WHERE notification_id=1 AND employee_id=2');
 ok(notifications_marketing_remind(1)&&count(notifications_marketing_popups())===0,'Remind Me Later snoozes the existing recipient record');
 db()->exec('UPDATE notification_recipients SET next_reminder_at=DATE_SUB(NOW(),INTERVAL 1 MINUTE) WHERE notification_id=1');

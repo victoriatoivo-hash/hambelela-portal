@@ -570,7 +570,7 @@ window.addEventListener('DOMContentLoaded', () => {
       close();
     }, { once:true });
     container.prepend(toast);
-    closeTimer = window.setTimeout(close, Math.max(type==='error'?12000:1000, Number(duration) || 5000));
+    if(duration!==0)closeTimer = window.setTimeout(close, Math.max(type==='error'?12000:1000, Number(duration) || 5000));
     return { toast, close };
   };
 
@@ -712,8 +712,8 @@ window.addEventListener('DOMContentLoaded', () => {
         claimed = Boolean((await claimResponse.json()).claimed);
       } catch (_) { claimed = false; }
       if (!claimed && !isMarketing) { marketingQueued.delete(Number(notification.id)); visibleNotificationToasts--; drainNotificationToasts(); return; }
-      if(isMarketing&&!claimed){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;drainNotificationToasts();return;}
-      if(isMarketing&&marketingAcknowledgements.has(notification.id)){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;drainNotificationToasts();return;}
+      if(isMarketing&&!claimed){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;window.PortalNoticeGate?.release('marketing');drainNotificationToasts();return;}
+      if(isMarketing&&marketingAcknowledgements.has(notification.id)){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;window.PortalNoticeGate?.release('marketing');drainNotificationToasts();return;}
       const container = ensureToastContainer();
       const toast = document.createElement(isMarketing?'dialog':'div');
       toast.className = isMarketing ? 'mk-marketing-popup hb-portal-notice hb-notice-modal' : 'portal-toast hb-portal-notice';
