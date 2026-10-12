@@ -1,8 +1,8 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('shared/delivery/PartnerAccess.php', 'shared/delivery/PartnerAuth.php', 'apps/delivery/partner/bootstrap.php', 'apps/delivery/partner/login.php', 'apps/delivery/partner/password.php', 'apps/delivery/settings.php')
-READ_ONLY = ('shared/delivery/PartnerService.php', 'shared/delivery/PartnerAdminService.php', 'shared/delivery/AccountingService.php', 'assets/js/delivery-partner-reset.js')
+FILES = ('shared/employee-account-editor.php', 'apps/operations/employee-account.php', 'assets/css/employee-account-editor.css', 'assets/js/employee-account-editor.js', 'apps/operations/my-account.php')
+READ_ONLY = ('shared/auth.php', 'shared/login-security.php', 'apps/operations/operations.php', 'apps/hr-portal/portal-login.php', 'shared/hr-sso.php', 'shared/temporary-access-codes.php')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
