@@ -52,6 +52,7 @@ jobs:
           node --check assets/js/portal.js
           node tests/marketing-notification-sound.mjs
           node tests/marketing-acknowledgement.mjs
+          node tests/marketing-media-upload.mjs
       - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

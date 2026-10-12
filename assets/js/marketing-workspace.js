@@ -28,7 +28,91 @@
  window.addEventListener('message',event=>{if(event.origin===location.origin&&drawer&&event.source===drawer.querySelector('iframe').contentWindow&&event.data?.type==='marketing-work-saved')drawer.dataset.updated='1';});
  if(document.body.dataset.marketingSaved==='1'&&parent!==window)parent.postMessage({type:'marketing-work-saved'},location.origin);
  document.querySelectorAll('video,audio').forEach(media=>media.addEventListener('loadedmetadata',()=>{const label=media.parentElement.querySelector('[data-media-duration]');if(label&&Number.isFinite(media.duration))label.textContent=Math.floor(media.duration/60)+':'+String(Math.floor(media.duration%60)).padStart(2,'0');}));
- document.querySelectorAll('[data-copy-media]').forEach(b=>b.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(new URL(b.dataset.copyMedia,location.href).href);b.textContent='Link copied';}catch(_){b.textContent='Copy unavailable';}}));
- document.querySelectorAll('[data-preview-media]').forEach(b=>b.addEventListener('click',()=>{const card=b.closest('.mk-media-card'),viewer=document.querySelector('#mk-media-viewer');viewer.querySelector('[data-preview-title]').textContent=card.querySelector('h3').textContent;const target=viewer.querySelector('[data-preview-body]');target.replaceChildren();const media=card.querySelector('img,video,audio');if(media){const copy=media.cloneNode(true);if(copy.tagName!=='IMG')copy.controls=true;target.append(copy);}viewer.showModal();}));
- const viewer=document.querySelector('#mk-media-viewer');viewer?.querySelector('[data-close-preview]').addEventListener('click',()=>viewer.close());viewer?.addEventListener('close',()=>{viewer.querySelectorAll('audio,video').forEach(m=>m.pause());viewer.querySelector('[data-preview-body]').replaceChildren();});
+
+})();
+
+(()=>{
+ 'use strict';
+ const root=document.querySelector('.hb-marketing-media');if(!root)return;
+ const filters=root.querySelector('[data-media-filters]'),upload=root.querySelector('#media-upload'),form=root.querySelector('#media-upload-form'),picker=root.querySelector('#media-files'),zone=root.querySelector('[data-media-dropzone]'),queue=root.querySelector('[data-upload-queue]'),submit=root.querySelector('[data-upload-submit]'),preview=root.querySelector('#media-preview');
+ let filterTimer,filterController,filterSequence=0,busy=false,nextId=0;const jobs=[];
+ const icons=()=>window.lucide?.createIcons({strokeWidth:1.8});
+ const message=(text)=>{const el=root.querySelector('.media-message');el.textContent=text;el.hidden=!text;};
+ const refreshLibrary=async()=>{
+  const sequence=++filterSequence;filterController?.abort();filterController=new AbortController();
+  const query=new URLSearchParams(new FormData(filters));query.set('fragment','1');
+  const active=filters.elements.trash.value==='1'?'trash':filters.elements.type.value;
+  root.querySelectorAll('[data-media-tab]').forEach(tab=>{if(tab.dataset.mediaTab===active)tab.setAttribute('aria-current','page');else tab.removeAttribute('aria-current');});
+  root.querySelector('[data-media-results]').setAttribute('aria-busy','true');
+  try{
+   const response=await fetch('media.php?'+query,{credentials:'same-origin',signal:filterController.signal,headers:{Accept:'text/html'}});
+   if(!response.ok)throw Error('Unable to load files. Please try again.');
+   const page=new DOMParser().parseFromString(await response.text(),'text/html'),results=page.querySelector('[data-media-results]');
+   if(!results)throw Error('Your session may have expired. Refresh to sign in again.');
+   if(sequence!==filterSequence)return;
+   root.querySelector('[data-media-results]').replaceWith(results);root.querySelector('[data-media-count]').textContent=results.dataset.resultCount+' files';
+   query.delete('fragment');history.replaceState(null,'','?'+query);icons();
+  }catch(error){if(error.name!=='AbortError')message(error.message);}finally{if(sequence===filterSequence)root.querySelector('[data-media-results]').removeAttribute('aria-busy');}
+ };
+ filters.addEventListener('submit',event=>{event.preventDefault();clearTimeout(filterTimer);refreshLibrary();});
+ filters.elements.q.addEventListener('input',()=>{clearTimeout(filterTimer);filterTimer=setTimeout(refreshLibrary,350);});
+ filters.addEventListener('change',()=>{clearTimeout(filterTimer);refreshLibrary();});
+ const renderQueue=()=>{
+  queue.replaceChildren();
+  jobs.forEach(job=>{
+   const row=document.createElement('div');row.className='media-upload-file'+(job.state==='error'||job.state==='uncertain'?' is-error':'');
+   const copy=document.createElement('div'),name=document.createElement('strong'),meta=document.createElement('small'),status=document.createElement('span'),progress=document.createElement('progress');
+   name.textContent=job.file.name;meta.textContent=(job.file.size/1024/1024).toFixed(2)+' MB · '+(job.file.type||job.file.name.split('.').pop().toUpperCase());status.dataset.fileStatus='1';status.textContent=job.message;
+   copy.append(name,meta,status);row.append(copy);
+   if(!busy&&job.state!=='uploaded'){const remove=document.createElement('button');remove.type='button';remove.className='media-icon-button';remove.textContent='×';remove.setAttribute('aria-label','Remove '+job.file.name);remove.onclick=()=>{jobs.splice(jobs.indexOf(job),1);renderQueue();};row.append(remove);}
+   progress.max=100;progress.value=job.percent;progress.setAttribute('aria-label','Upload progress for '+job.file.name);row.append(progress);queue.append(row);
+  });
+  submit.disabled=busy||!jobs.some(job=>job.state==='queued');zone.disabled=busy;form.elements.item_id.disabled=busy;
+  submit.textContent=busy?'Uploading…':'Upload Files';
+  root.querySelector('.media-upload-footer [data-close-upload]').textContent=busy?'Hide':jobs.some(job=>job.state==='uploaded')?'Close':'Cancel';
+ };
+ const addFiles=files=>{
+  if(busy)return;
+  for(const file of files){
+   if(jobs.some(job=>job.file.name===file.name&&job.file.size===file.size&&job.file.lastModified===file.lastModified))continue;
+   const valid=file.size>0&&file.size<=Number(form.dataset.uploadLimit);
+   jobs.push({id:++nextId,file,state:valid?'queued':'error',percent:0,message:valid?'Ready to upload':'File is empty or exceeds the server file-size limit.'});
+  }renderQueue();
+ };
+ zone.addEventListener('click',()=>picker.click());picker.addEventListener('change',()=>{addFiles(picker.files);picker.value='';});
+ ['dragenter','dragover'].forEach(type=>zone.addEventListener(type,event=>{event.preventDefault();if(!busy)zone.classList.add('is-dragover');}));
+ ['dragleave','drop'].forEach(type=>zone.addEventListener(type,event=>{event.preventDefault();zone.classList.remove('is-dragover');}));
+ zone.addEventListener('drop',event=>addFiles(event.dataTransfer.files));
+ const uploadFile=(job,assignment)=>new Promise(resolve=>{
+  const data=new FormData();data.append('csrf',form.elements.csrf.value);data.append('action','upload');data.append('item_id',assignment);data.append('asset',job.file);
+  const xhr=new XMLHttpRequest();xhr.open('POST','media.php');xhr.setRequestHeader('Accept','application/json');xhr.timeout=180000;
+  job.state='uploading';job.message='Uploading…';renderQueue();
+  xhr.upload.onprogress=event=>{if(event.lengthComputable){job.percent=Math.round(event.loaded/event.total*100);job.message=job.percent===100?'Processing securely…':'Uploading '+job.percent+'%';renderQueue();}};
+  const uncertain=()=>{job.state='uncertain';job.message='Upload could not be confirmed. Check the library before uploading again.';renderQueue();resolve();};
+  xhr.onerror=uncertain;xhr.ontimeout=uncertain;xhr.onabort=uncertain;
+  xhr.onload=()=>{let result;try{result=JSON.parse(xhr.responseText);}catch(_){uncertain();return;}
+   if(xhr.status>=200&&xhr.status<300&&result.ok){job.state='uploaded';job.percent=100;job.message='Uploaded';}
+   else {job.state='error';job.message=result.message||'Upload rejected. Check the file and try again.';}
+   renderQueue();resolve();
+  };xhr.send(data);
+ });
+ form.addEventListener('submit',async event=>{
+  event.preventDefault();if(busy)return;const pending=jobs.filter(job=>job.state==='queued');if(!pending.length)return;
+  const assignment=form.elements.item_id.value;busy=true;renderQueue();
+  try{for(const job of pending)await uploadFile(job,assignment);}finally{busy=false;renderQueue();}
+  const status=root.querySelector('[data-upload-message]');status.hidden=false;status.textContent=jobs.filter(job=>job.state==='uploaded').length+' file(s) uploaded. '+(jobs.some(job=>['error','uncertain'].includes(job.state))?'Review the file messages above.':'Files are ready in your library.');
+  await refreshLibrary();
+ });
+ const closePreview=()=>preview.close();
+ preview.addEventListener('close',()=>{preview.querySelectorAll('audio,video').forEach(media=>media.pause());preview.querySelector('[data-media-preview-body]').replaceChildren();});
+ root.addEventListener('click',async event=>{
+  if(event.target.closest('[data-open-upload]')){upload.showModal();return;}
+  if(event.target.closest('[data-close-upload]')){upload.close();return;}
+  if(event.target.closest('[data-close-media-preview]')){closePreview();return;}
+  const tab=event.target.closest('[data-media-tab]');if(tab){event.preventDefault();clearTimeout(filterTimer);filters.elements.trash.value=tab.dataset.mediaTab==='trash'?'1':'0';filters.elements.type.value=tab.dataset.mediaTab==='trash'?'all':tab.dataset.mediaTab;refreshLibrary();return;}
+  if(event.target.closest('[data-clear-media-filters]')){filters.elements.q.value='';filters.elements.type.value='all';refreshLibrary();return;}
+  const open=event.target.closest('[data-media-open]');if(open){const template=root.querySelector('#media-detail-'+open.dataset.mediaOpen);if(!template)return;preview.querySelector('[data-media-preview-body]').replaceChildren(template.content.cloneNode(true));preview.showModal();icons();return;}
+  const copy=event.target.closest('[data-copy-media]');if(copy){try{await navigator.clipboard.writeText(new URL(copy.dataset.copyMedia,location.href).href);copy.textContent='Link copied';}catch(_){copy.textContent='Copy unavailable';}}
+ });
+ root.addEventListener('loadedmetadata',event=>{const media=event.target;if(!media.matches('audio,video'))return;const label=media.parentElement.querySelector('[data-media-duration]');if(label&&Number.isFinite(media.duration))label.textContent=Math.floor(media.duration/60)+':'+String(Math.floor(media.duration%60)).padStart(2,'0');},true);
 })();

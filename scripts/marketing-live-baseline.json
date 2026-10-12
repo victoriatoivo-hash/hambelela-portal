@@ -1,5 +1,5 @@
 {
-  "assets/js/portal.js": "2e7cbaab61e32de4a2e82df6770ac50fbc7146b29aa4b1f2c92087981fec1872",
-  "shared/notifications.php": "7615e151c70446bbb8b82b741641e3ec870376158f7cf70b677ba80a3da458aa",
-  "api/notifications.php": "43f594de3c2a38fc3838791a8a14060818ed0122e624188c9ab0bc1e7823cf87"
+  "apps/marketing/media.php": "22aa3649a9e5252552f0084a5047a48cba5169f17af15132d4bbfb5f963abf34",
+  "assets/css/marketing-workspace.css": "9ba458fedbbe5c80346c40c154239e1ff5a0aff9dd32ea0b7d71a4e5e461a608",
+  "assets/js/marketing-workspace.js": "01ce988a79a43bfd4447a2ca470cb4eb00c0c30a21ca4050e0d087d350f36a24"
 }
