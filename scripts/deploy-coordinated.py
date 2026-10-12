@@ -2,7 +2,7 @@
 import argparse, ftplib, hashlib, io, json, os, subprocess, zipfile
 
 BASE = {
- 'assets/css/acknowledgments.css':'e1d00cc6d5ebeab166ed857f1e1ba8cf93cca45a4e16ea365aaa3655f658680f',
+ 'assets/css/acknowledgments.css':'a98305bc0a773788085f4c1c857fcc976c8d49b4adfadc0ba9631206ef73d8ed',
 }
 FILES = list(BASE)
 def sha(data): return hashlib.sha256(data).hexdigest() if data is not None else None

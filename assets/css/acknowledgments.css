@@ -1,6 +1,15 @@
 @font-face{font-family:Jost;src:url('../fonts/jost-variable.woff2') format('woff2');font-weight:100 900;font-display:swap}
 /* Theme the existing portal calendar only inside this application. */
 .hb-ack-page .portal-custom-select-trigger{height:40px;background:#fff;border:1px solid #d3dac6;color:#344126;font-weight:400}.hb-ack-page .portal-custom-select-trigger:hover{background:#f2f4ec}
+/* Shared mobile rules set native inputs to 100%!important; keep the hidden
+   backing select at its accessible one-pixel size, not outside the viewport. */
+.hb-ack-page .portal-custom-select-native{width:1px!important;max-width:1px!important;min-width:0!important;height:1px!important;min-height:0!important;padding:0!important}
+.hb-ack-page .portal-custom-select-menu{border-color:#e4e6dc;box-shadow:0 12px 30px #26311f18}
+.hb-ack-page .portal-custom-select-option{font-family:Jost,sans-serif;color:#1c2118}
+.hb-ack-page .portal-custom-select-option:hover,.hb-ack-page .portal-custom-select-option.is-active,.hb-ack-page .portal-custom-select-option[aria-selected=true]{background:#f2f4ec;color:#344126;transform:none}
+.hb-ack-page .portal-custom-select.is-open .portal-custom-select-trigger{border-color:#59694a;box-shadow:0 0 0 2px #59694a22}
+.hb-ack-page .portal-custom-select-menu::-webkit-scrollbar-thumb{background:#aab59e}
+
 .hb-ack-page .portal-date-picker>.portal-date-field{height:40px;min-height:40px;max-height:40px;font:400 12px Jost,sans-serif;background:#fff;border:1px solid #d3dac6;color:#26311f}
 .hb-ack-page .portal-date-icon{color:#59694a}.hb-ack-page .portal-date-picker.is-empty .portal-date-value{color:#62675e}
 .hb-ack-page .portal-date-picker:focus-within>.portal-date-field,.hb-ack-page .portal-date-picker.is-open>.portal-date-field{border-color:#59694a;box-shadow:0 0 0 2px #59694a22}
