@@ -47,7 +47,8 @@ try{
  marketing_content_action(1,'start');ok(marketing_execution_item(1)['work_started_at']===$started['work_started_at'],'Start Work retry is idempotent');
  rejects(fn()=>marketing_content_action(2,'start'),'cannot start another employee assignment');
  rejects(fn()=>marketing_content_action(1,'approve'),'employee cannot approve');
- db()->exec("UPDATE marketing_channel_execution SET prepared=1 WHERE item_id=1");
+ rejects(fn()=>marketing_content_action(1,'submit'),'unprepared channel prevents submission');
+ db()->exec("INSERT INTO marketing_channel_execution(item_id,channel_key,prepared) VALUES(1,'legacy',1) ON DUPLICATE KEY UPDATE prepared=1");
  marketing_content_action(1,'submit','Ready to review');$submitted=marketing_execution_item(1);ok($submitted['status']==='ready_for_review'&&(int)$submitted['review_submitted_by']===2&&$submitted['review_version_ids'],'submission preserves timestamp and version IDs without requiring published URL');
  $noticeCount=db()->query('SELECT COUNT(*) FROM test_notices')->fetchColumn();marketing_content_action(1,'submit');ok(db()->query('SELECT COUNT(*) FROM test_notices')->fetchColumn()===$noticeCount,'submission retry creates no duplicate notice');
  $owner=true;rejects(fn()=>marketing_content_action(1,'request_changes',''),'change request requires reason');marketing_content_action(1,'request_changes','Please revise');ok(marketing_execution_item(1)['status']==='changes_requested','Owner requests changes');
