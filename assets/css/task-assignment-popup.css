@@ -38,4 +38,10 @@
 .marketing-assignment-popup .portal-toast-actions button:hover{background:#F2F4EC}
 .marketing-assignment-popup .portal-toast-actions [data-marketing-view]:hover{background:#344126}
 @media(max-width:600px){.marketing-assignment-popup .portal-toast-actions button{min-height:44px;flex:1}}
+.marketing-assignment-popup .nt-source-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:11px;background:#F2F4EC;color:#59694A;margin-bottom:12px}
+.marketing-assignment-popup .nt-source-icon svg{width:21px;height:21px;fill:none;stroke:currentColor}
+.marketing-assignment-popup .portal-notification__status svg{width:12px;height:12px;fill:none;stroke:currentColor}
+.marketing-assignment-popup .portal-toast-close{position:absolute;top:12px;right:12px;width:30px;height:30px;padding:6px;border:1px solid #E4E6DC;border-radius:8px;background:white;color:#344126}
+.marketing-assignment-popup .portal-toast-close svg{width:16px;height:16px;fill:none;stroke:currentColor}
+
 

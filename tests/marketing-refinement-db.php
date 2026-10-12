@@ -57,4 +57,17 @@ ok(count(notifications_marketing_popups())===1,'snoozed assignment returns witho
 db()->exec('UPDATE marketing_work_items SET assigned_employee_id=3 WHERE id=1');
 ok(count(notifications_marketing_popups())===0&&!notifications_claim_task_delivery(1),'reassignment revokes former employee popup eligibility');
 ok((int)db()->query('SELECT COUNT(*) FROM notifications')->fetchColumn()===2,'no duplicate notification records');
+$owner=true;$all=[];foreach($keys as$key)$all[$key]=['completed'=>1];
+marketing_execution_save(['id'=>1,'channels'=>$all,'execution_status'=>'published']);
+ok(marketing_execution_item(1)['status']==='published','completion succeeds after every required channel is complete');
+marketing_execution_requirements(1,array_merge($keys,['website']),[]);
+ok(marketing_execution_item(1)['status']==='in_progress','adding unfinished requirements reopens completed work');
+db()->exec("ALTER TABLE notifications MODIFY id INT AUTO_INCREMENT, ADD module VARCHAR(60),ADD priority VARCHAR(20),ADD deadline_state VARCHAR(30),ADD scheduled_at DATETIME,ADD deduplication_key VARCHAR(190) UNIQUE,ADD created_by INT");
+$start=strpos($source,'function notifications_create(');$end=strpos($source,"\nfunction ",$start+1);eval(substr($source,$start,$end-$start));
+define('BASE_URL','');
+$marketingSource=file_get_contents(__DIR__.'/../shared/marketing.php');$start=strpos($marketingSource,'function marketing_notify_assignment(');$end=strpos($marketingSource,"\nfunction ",$start+1);
+$function=str_replace("require_once BASE_PATH.'/shared/notifications.php';",'/* dependencies isolated above */',substr($marketingSource,$start,$end-$start));eval($function);
+marketing_notify_assignment(1,3,'Synthetic assignment');marketing_notify_assignment(1,3,'Synthetic assignment');
+ok((int)db()->query("SELECT COUNT(*) FROM notifications WHERE related_type='marketing_assignment' AND deduplication_key IS NOT NULL")->fetchColumn()===1,'assignment event retries reuse one notification');
+
 }finally{db()->exec('DROP DATABASE '.$database);}

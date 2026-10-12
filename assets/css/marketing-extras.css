@@ -55,7 +55,7 @@
 .ess-marketing-page .marketing-hero{min-height:210px;display:grid;grid-template-columns:minmax(0,1.05fr) minmax(390px,.95fr);gap:0;padding:0;overflow:hidden;border:1px solid var(--border);border-radius:15px;background:#FBFAF7;box-shadow:0 5px 18px rgba(28,33,24,.05);margin-bottom:14px;animation:marketingFadeUp 260ms ease both}
 .ess-marketing-page .marketing-hero-copy{display:flex;flex-direction:column;justify-content:center;align-items:flex-start;padding:30px 34px}
 .ess-marketing-page .marketing-eyebrow{margin:0 0 10px;font-size:9px;font-weight:600;letter-spacing:.09em;color:var(--marketing-600)}
-.ess-marketing-page .marketing-hero-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:.18em;margin:0;font-family:Jost,sans-serif;font-size:24px;line-height:1.2;font-weight:500;letter-spacing:normal;color:#1C2118}
+.ess-marketing-page .marketing-hero-title{display:flex;flex-wrap:wrap;align-items:baseline;gap:.18em;margin:0;font-family:Jost,sans-serif;font-size:24px;line-height:1.2;font-weight:600;letter-spacing:normal;color:#1C2118}
 .ess-marketing-page .marketing-hero-title>span{display:inline;margin:0;font:inherit;letter-spacing:inherit;color:inherit;white-space:nowrap}
 .ess-marketing-page .marketing-hero-title .is-olive{color:var(--olive-800,#465636)}
 .ess-marketing-page .marketing-hero-title .is-marketing{color:var(--marketing-600)}
@@ -80,7 +80,7 @@
 .ess-marketing-page .marketing-kpi-icon svg{width:20px;height:20px}
 .ess-marketing-page .marketing-kpi-label{display:block;color:var(--text-secondary);font-size:8.5px;font-weight:500;letter-spacing:.04em;text-transform:uppercase}
 .ess-marketing-page .marketing-kpi-card strong{display:block;margin:5px 0;color:var(--text-primary);font-size:22px;line-height:1.15;font-weight:500;font-variant-numeric:tabular-nums}
-.ess-marketing-page .marketing-kpi-card small{color:var(--text-muted);font-size:9px;font-weight:400}
+.ess-marketing-page .marketing-kpi-card small{color:var(--text-muted);font-size:10.5px;font-weight:400}
 .ess-marketing-page .marketing-main-grid{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:stretch}
 .ess-marketing-page :is(.marketing-home-stack,.marketing-home-aside){display:contents}
 .ess-marketing-page .marketing-home-stack>.marketing-panel:first-child{grid-area:1/1}
@@ -91,7 +91,7 @@
 .ess-marketing-page .marketing-panel-header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 14px 12px}
 .ess-marketing-page .marketing-panel-header h2{display:flex;align-items:center;gap:7px;margin:0;color:var(--text-primary);font-size:13px;font-weight:500}
 .ess-marketing-page .marketing-panel-header h2 svg{width:17px;height:17px;color:var(--olive-700,#59694A)}
-.ess-marketing-page .marketing-panel-header p{margin:5px 0 0;color:var(--text-muted);font-size:9px;font-weight:400;line-height:1.5}
+.ess-marketing-page .marketing-panel-header p{margin:5px 0 0;color:var(--text-muted);font-size:10.5px;font-weight:400;line-height:1.5}
 .ess-marketing-page .marketing-panel-link{display:inline-flex;align-items:center;gap:5px;color:var(--marketing-700);font-size:9px;white-space:nowrap}
 .ess-marketing-page .marketing-panel-link svg{width:13px;height:13px}
 .ess-marketing-page .marketing-app-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:0 12px 12px}
@@ -148,9 +148,9 @@
 .ess-marketing-page .marketing-dialog{border-color:var(--border);color:var(--text-primary)}
 .ess-marketing-page .marketing-dialog h2{color:var(--text-primary)}
 .ess-marketing-page .marketing-dialog header p{color:var(--marketing-600)}
-.ess-marketing-page .marketing-create-dialog{width:min(900px,94vw);max-height:90vh;padding:0;border:0;border-radius:14px;background:#F8F7F2;overflow:hidden;box-shadow:0 22px 65px rgba(28,33,24,.20)}
+.ess-marketing-page .marketing-create-dialog{width:min(900px,94vw);max-height:calc(100dvh - 32px);padding:0;border:0;border-radius:14px;background:#F8F7F2;overflow:hidden;box-shadow:0 22px 65px rgba(28,33,24,.20)}
 .ess-marketing-page .marketing-create-dialog[open]{animation:marketingModalIn 220ms ease backwards}
-.ess-marketing-page .marketing-create-dialog>form{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:90vh}
+.ess-marketing-page .marketing-create-dialog>form{display:grid;grid-template-rows:auto minmax(0,1fr) auto;max-height:calc(100dvh - 32px)}
 .ess-marketing-page .marketing-create-dialog header{position:sticky;top:0;z-index:2;display:flex;gap:12px;padding:16px 18px;background:#fff;border-bottom:1px solid var(--border-soft)}
 .ess-marketing-page .marketing-create-dialog header>div{flex:1;min-width:0}
 .ess-marketing-page .marketing-create-dialog header h2{font-size:18px;font-weight:500}
@@ -164,10 +164,10 @@
 .ess-marketing-page .marketing-form-heading{margin-bottom:14px}
 .ess-marketing-page .marketing-form-heading h3{display:flex;align-items:center;gap:7px;margin:0;color:var(--text-primary);font-size:12px;font-weight:500}
 .ess-marketing-page .marketing-form-heading h3 svg{width:25px;height:25px;padding:4px;border-radius:6px;background:var(--marketing-50);color:var(--marketing-600)}
-.ess-marketing-page .marketing-form-heading p{margin:4px 0 0;color:var(--text-muted);font-size:9px;font-weight:400}
+.ess-marketing-page .marketing-form-heading p{margin:4px 0 0;color:var(--text-muted);font-size:10.5px;font-weight:400}
 .ess-marketing-page .marketing-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:0;max-height:none;overflow:visible}
 .ess-marketing-page .marketing-form-grid label{min-width:0;padding:0;margin:0}
-.ess-marketing-page :is(.marketing-form-grid label,.marketing-dialog>form>label,.marketing-filterbar label){color:var(--text-secondary);font-size:9px;font-weight:400;letter-spacing:.02em}
+.ess-marketing-page :is(.marketing-form-grid label,.marketing-dialog>form>label,.marketing-filterbar label){color:var(--text-secondary);font-size:10.5px;font-weight:500;letter-spacing:normal}
 .ess-marketing-page :is(.marketing-input,.marketing-dialog input:not([type=checkbox]):not([type=hidden]),.marketing-dialog textarea,.marketing-dialog select){width:100%;height:40px;padding:0 11px;border:1px solid var(--border);border-radius:9px;background:#fff;color:var(--text-primary);font:400 12px Jost,sans-serif;outline:0;transition:border-color 180ms,box-shadow 180ms}
 .ess-marketing-page .marketing-dialog textarea{min-height:96px;height:auto;padding:10px 11px;resize:vertical}
 .ess-marketing-page .marketing-dialog :is(input,textarea):focus{border-color:var(--marketing-500);box-shadow:0 0 0 3px var(--marketing-focus)}
@@ -276,7 +276,7 @@ body:has(.ess-marketing-page) .portal-date-popup .portal-date-clear{color:#62675
 .ess-marketing-page .marketing-pagination label{display:flex;align-items:center;gap:8px;margin-right:auto;font-size:10px}
 .ess-marketing-page .marketing-pagination .marketing-select{width:75px}
 .ess-marketing-page .marketing-pagination button:disabled{opacity:.45;cursor:default}
-.ess-marketing-page .marketing-status{display:inline-flex;align-items:center;white-space:nowrap;padding:4px 8px;border-radius:6px;font-size:9px;font-weight:400;background:var(--olive-100);color:var(--olive-800)}
+.ess-marketing-page .marketing-status{display:inline-flex;align-items:center;white-space:nowrap;padding:4px 8px;border-radius:6px;font-size:10.5px;font-weight:400;background:var(--olive-100);color:var(--olive-800)}
 .ess-marketing-page .marketing-status:is(.published,.approved,.completed){background:#E8F2E6;color:#376A3E}
 .ess-marketing-page .marketing-status:is(.changes_requested,.ready_for_review,.submitted){background:#FBF0D9;color:#916819}
 .ess-marketing-page .marketing-status:is(.cancelled,.rejected){background:#FBE7E7;color:#9E3939}
@@ -316,13 +316,13 @@ body:has(.ess-marketing-page) .portal-date-popup .portal-date-clear{color:#62675
 .ess-marketing-page .marketing-review-form{padding:16px}
 .ess-marketing-page .marketing-review-form textarea{min-height:120px;max-height:120px;width:100%;resize:none}
 .ess-marketing-page .marketing-alerts .marketing-empty{min-height:150px;box-sizing:border-box;margin:0}
-.ess-marketing-page .marketing-dialog{width:min(900px,94vw);max-height:90dvh;padding:0;background:#F8F7F2;color:#1C2118;border:1px solid #E4E6DC;border-radius:16px;box-shadow:0 24px 70px #26311F26}
+.ess-marketing-page .marketing-dialog{width:min(900px,94vw);max-height:calc(100dvh - 32px);padding:0;background:#F8F7F2;color:#1C2118;border:1px solid #E4E6DC;border-radius:16px;box-shadow:0 24px 70px #26311F26}
 .ess-marketing-page .marketing-dialog[open]{animation:marketingModalIn 220ms ease backwards}
 .ess-marketing-page .marketing-dialog::backdrop{background:#26311F66;backdrop-filter:blur(3px)}
 .ess-marketing-page .marketing-dialog form{padding:0}
 .ess-marketing-page .marketing-dialog form>header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:20px;background:#fff;border-bottom:1px solid #E4E6DC;position:sticky;top:0;z-index:3}
 .ess-marketing-page .marketing-dialog header h2{font-size:21px;font-weight:600;margin:2px 0;color:#1C2118}
-.ess-marketing-page .marketing-dialog header p{font-size:9px;letter-spacing:.08em;color:var(--marketing-600);margin:0}
+.ess-marketing-page .marketing-dialog header p{font-size:9.5px;letter-spacing:.08em;color:var(--marketing-600);margin:0}
 .ess-marketing-page .marketing-dialog header span{font-size:11px;color:#62675E}
 .ess-marketing-page .marketing-dialog header [data-close]{width:32px;height:32px;border:1px solid #E4E6DC;border-radius:8px;background:#fff;color:#62675E;font-size:20px}
 .ess-marketing-page .marketing-dialog .marketing-modal-body{padding:18px;display:grid;gap:12px}

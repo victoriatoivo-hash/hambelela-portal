@@ -149,6 +149,16 @@ function marketing_execution_requirements(int $id, array $keys, array $instructi
         db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,scheduled_at) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE instructions=VALUES(instructions),scheduled_at=VALUES(scheduled_at),is_required=1')
             ->execute([$id,$key,trim((string)($instructions[$key] ?? '')),$when ?: null]);
     }
+    // Preserve unselected draft instructions as inactive rows, never erase proof.
+    foreach (array_diff(array_keys(marketing_execution_channels()), $keys) as $key) {
+        if (!array_key_exists($key, $instructions)) continue;
+        db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,is_required) VALUES (?,?,?,0) ON DUPLICATE KEY UPDATE instructions=VALUES(instructions)')
+            ->execute([$id,$key,trim((string)$instructions[$key])]);
+    }
+    $progress=marketing_execution_progress(marketing_execution_rows(marketing_execution_item($id)));
+    if ($progress['complete'] < $progress['total']) {
+        db()->prepare("UPDATE marketing_work_items SET status='in_progress' WHERE id=? AND status='published'")->execute([$id]);
+    }
     if ($ownsTransaction) db()->commit();
     } catch (Throwable $error) { if ($ownsTransaction && db()->inTransaction()) db()->rollBack(); throw $error; }
     // Deselected requirements keep their evidence and progress for later restoration.
