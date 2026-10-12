@@ -2,7 +2,7 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('assets/js/portal.js','shared/notifications.php','api/notifications.php')
+FILES = ("assets/js/portal.js","assets/css/portal.css","assets/js/notifications-ui.js","assets/css/notifications-ui.css","assets/js/task-assignment-popup.js","assets/css/task-assignment-popup.css","assets/js/acknowledgments-popup.js","assets/css/acknowledgments.css","assets/css/marketing-workspace.css","shared/header.php","shared/sidebar.php","shared/ess-sidebar.php","shared/portal-policy-popup.php")
 READ_ONLY = ()
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
