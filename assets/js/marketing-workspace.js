@@ -20,7 +20,8 @@
   document.querySelectorAll('[data-work-start]').forEach(el=>{const start=Date.parse(el.dataset.workStart),end=Date.parse(el.dataset.workEnd),minutes=Math.max(0,Math.floor(((Number.isFinite(end)?end:Date.now())-start)/60000));el.textContent=Number.isFinite(minutes)?String(Math.floor(minutes/60)).padStart(2,'0')+'h '+String(minutes%60).padStart(2,'0')+'m':'Not recorded';});
  };refresh();timeLabels();setInterval(()=>{refresh();timeLabels();},30000);
  document.querySelectorAll('.mk-work').forEach(root=>{
-  const select=tab=>{root.querySelectorAll('[data-work-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.workTab===tab)));let count=0;root.querySelectorAll('[data-work-group]').forEach(card=>{card.hidden=tab!=='history'&&card.dataset.workGroup!==tab;if(!card.hidden)count++;});root.querySelector('[data-work-empty]').hidden=count>0;};
+  const select=tab=>{root.querySelectorAll('[data-work-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.workTab===tab)));const term=(root.querySelector('[data-work-search]')?.value||'').trim().toLowerCase();let count=0;root.querySelectorAll('[data-work-group]').forEach(card=>{card.hidden=(tab!=='history'&&card.dataset.workGroup!==tab)||!card.textContent.toLowerCase().includes(term);if(!card.hidden)count++;});root.querySelector('[data-work-empty]').hidden=count>0;};
+  root.querySelector('[data-work-search]')?.addEventListener('input',()=>select(root.querySelector('[aria-selected=true]')?.dataset.workTab||'active'));
   root.querySelectorAll('[data-work-tab]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.workTab)));select(root.querySelector('[aria-selected=true]')?.dataset.workTab||'active');
  });
  let drawer;

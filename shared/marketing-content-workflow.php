@@ -73,7 +73,7 @@ function marketing_content_table(array $items,string $active='active'): void {
     $now=marketing_now();usort($items,fn($a,$b)=>marketing_content_rank($a,$now)<=>marketing_content_rank($b,$now));
     echo '<section class="hb-marketing mk-work mw-work"><nav class="mk-tabs" aria-label="Assignment views">';
     foreach(['active'=>'Active Tasks','review'=>'Awaiting Review','scheduled'=>'Scheduled','completed'=>'Completed','history'=>'History']as$key=>$label)echo '<button type="button" data-work-tab="'.$key.'" aria-selected="'.($active===$key?'true':'false').'">'.$label.'</button>';
-    echo '</nav><div class="marketing-table-wrap"><table class="mw-table"><thead><tr>';foreach(['Content','Assigned To','Status','Due','Time Left','Progress','Files','Actions']as$h)echo '<th>'.$h.'</th>';echo '</tr></thead><tbody>';
+    echo '</nav><label class="mk-form-row">Search assignments<input type="search" data-work-search placeholder="Content, employee or channel…"></label><div class="marketing-table-wrap"><table class="mw-table"><thead><tr>';foreach(['Content','Assigned To','Status','Due','Time Left','Progress','Files','Actions']as$h)echo '<th>'.$h.'</th>';echo '</tr></thead><tbody>';
     foreach($items as$i){
         $rows=$i['execution_channels']??marketing_execution_rows($i);$p=marketing_execution_progress($rows);$group=['published'=>'completed','cancelled'=>'history','ready_for_review'=>'review','scheduled'=>'scheduled'][$i['status']]??'active';
         $names=array_map(fn($r)=>marketing_execution_channels()[$r['channel_key']]??'Assigned channel',$rows);
