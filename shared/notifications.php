@@ -454,8 +454,8 @@ function notifications_claim_task_delivery(int $notificationId): bool
     $typeStmt = db()->prepare('SELECT related_type FROM notifications WHERE id=? LIMIT 1');
     $typeStmt->execute([$notificationId]);
     $relatedType = (string)$typeStmt->fetchColumn();
-    if ($relatedType === 'marketing_assignment') {
-        $stmt=db()->prepare("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id JOIN marketing_work_items w ON w.id=n.related_id SET nr.delivered_at=NOW() WHERE n.id=? AND nr.employee_id=? AND w.assigned_employee_id=nr.employee_id AND w.cancelled_at IS NULL AND w.status NOT IN ('published','cancelled') AND nr.popup_seen_at IS NULL AND (nr.delivered_at IS NULL OR nr.delivered_at<DATE_SUB(NOW(),INTERVAL 2 MINUTE)) AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())");
+    if (in_array($relatedType,['marketing_assignment','marketing_review'],true)) {
+        $stmt=db()->prepare("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id JOIN marketing_work_items w ON w.id=n.related_id SET nr.delivered_at=NOW() WHERE n.id=? AND nr.employee_id=? AND ((n.related_type='marketing_assignment' AND w.assigned_employee_id=nr.employee_id) OR (n.related_type='marketing_review' AND w.status='ready_for_review' AND EXISTS(SELECT 1 FROM ops_employees me JOIN ops_roles mr ON mr.id=me.role_id WHERE me.id=nr.employee_id AND me.status='active' AND mr.role_key='owner_admin'))) AND w.cancelled_at IS NULL AND w.status NOT IN ('published','cancelled') AND nr.popup_seen_at IS NULL AND (nr.delivered_at IS NULL OR nr.delivered_at<DATE_SUB(NOW(),INTERVAL 2 MINUTE)) AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())");
         $stmt->execute([$notificationId,$employeeId]);return $stmt->rowCount()>0;
     }
     if ($relatedType !== 'checklist_task') {
@@ -1063,7 +1063,7 @@ function notifications_marketing_popups(): array
         (SELECT GROUP_CONCAT(c.channel_key ORDER BY c.channel_key SEPARATOR ' · ') FROM marketing_channel_execution c WHERE c.item_id=w.id AND c.is_required=1) AS channels
         FROM notifications n JOIN notification_recipients nr ON nr.notification_id=n.id
         JOIN marketing_work_items w ON w.id=n.related_id
-        WHERE n.related_type='marketing_assignment' AND nr.employee_id=? AND w.assigned_employee_id=nr.employee_id
+        WHERE ((n.related_type='marketing_assignment' AND w.assigned_employee_id=nr.employee_id) OR (n.related_type='marketing_review' AND w.status='ready_for_review' AND EXISTS(SELECT 1 FROM ops_employees me JOIN ops_roles mr ON mr.id=me.role_id WHERE me.id=nr.employee_id AND me.status='active' AND mr.role_key='owner_admin'))) AND nr.employee_id=?
         AND w.cancelled_at IS NULL AND w.status NOT IN ('published','cancelled')
         AND nr.popup_seen_at IS NULL AND nr.read_at IS NULL AND nr.cleared_at IS NULL
         AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())
@@ -1085,10 +1085,10 @@ function notifications_marketing_seen(int $id): bool
     $q=db()->prepare("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id
         JOIN marketing_work_items w ON w.id=n.related_id
         SET nr.popup_seen_at=COALESCE(nr.popup_seen_at,NOW()),nr.next_reminder_at=NULL
-        WHERE n.id=? AND n.related_type='marketing_assignment' AND nr.employee_id=? AND w.assigned_employee_id=nr.employee_id");
+        WHERE n.id=? AND nr.employee_id=? AND ((n.related_type='marketing_assignment' AND w.assigned_employee_id=nr.employee_id) OR (n.related_type='marketing_review' AND w.status='ready_for_review' AND EXISTS(SELECT 1 FROM ops_employees me JOIN ops_roles mr ON mr.id=me.role_id WHERE me.id=nr.employee_id AND me.status='active' AND mr.role_key='owner_admin')))");
     $q->execute([$id,$employeeId]);
     $check=db()->prepare("SELECT 1 FROM notification_recipients nr JOIN notifications n ON n.id=nr.notification_id
-        WHERE n.id=? AND n.related_type='marketing_assignment' AND nr.employee_id=? AND nr.popup_seen_at IS NOT NULL");
+        WHERE n.id=? AND n.related_type IN ('marketing_assignment','marketing_review') AND nr.employee_id=? AND nr.popup_seen_at IS NOT NULL");
     $check->execute([$id,$employeeId]);
     return (bool)$check->fetchColumn();
 }

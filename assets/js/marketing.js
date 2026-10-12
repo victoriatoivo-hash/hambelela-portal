@@ -18,19 +18,7 @@
     if(event.target.closest('[data-open-campaign]')&&campaign){campaign.showModal();return;}
     if(event.target.closest('[data-open-ad]')&&ad){ad.showModal();return;}
     const open=event.target.closest('[data-open-item]');
-    if(open){
-      const row=JSON.parse(open.dataset.openItem);
-      item.querySelector('[data-item-title]').textContent=row.title;
-      item.querySelectorAll('[name=id]').forEach(el=>el.value=row.id);
-      item.querySelector('[name=status]').value=row.status;
-      item.querySelector('[name=status]').dispatchEvent(new Event('change',{bubbles:true}));
-      const reason=item.querySelector('[name=change_request_reason]');
-      if(reason)reason.value=row.change_request_reason||'';
-      item.querySelector('[name=published_url]').value=row.published_url||'';
-      item.querySelector('[data-item-detail]').innerHTML=`<div><span>Type</span><strong>${escapeHtml(String(row.content_type).replaceAll('_',' '))}</strong></div><div><span>Platform</span><strong>${escapeHtml(row.platform||'Not set')}</strong></div><div><span>Due</span><strong>${escapeHtml(row.due_at||'Not set')}</strong></div><div><span>Publish</span><strong>${escapeHtml(row.publish_at||'Not set')}</strong></div><div><span>Files</span><strong>${row.version_count||0}</strong></div><p>${escapeHtml(row.brief||'No brief added.')}</p>`;
-      const executionLink=document.createElement('a');executionLink.className='marketing-btn-secondary';executionLink.href='execution.php?id='+encodeURIComponent(row.id);executionLink.textContent='Channel execution & requirements';item.querySelector('[data-item-detail]').append(executionLink);const editLink=document.createElement('a');editLink.href='index.php?edit='+encodeURIComponent(row.id);editLink.className='marketing-btn-secondary';editLink.textContent='Edit Content';item.querySelector('[data-item-detail]').append(editLink);
-      item.showModal();return;
-    }
+    if(open){const row=JSON.parse(open.dataset.openItem);location.href='execution.php?id='+encodeURIComponent(row.id);return;}
     const productButton=event.target.closest('[data-product]');
     if(productButton&&product){
       const row=JSON.parse(productButton.dataset.product);

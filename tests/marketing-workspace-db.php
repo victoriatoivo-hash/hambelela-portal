@@ -7,6 +7,7 @@ function db(){global $pdo;return $pdo;}function marketing_employee_id(){global $
 function marketing_column_exists($table,$column){$q=db()->prepare('SELECT COUNT(*) FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=? AND column_name=?');$q->execute([$table,$column]);return(bool)$q->fetchColumn();}
 function notifications_role_recipients($roles){return [99];}function notifications_create($data,$recipients){db()->prepare('INSERT INTO test_notices(dedup,recipient)VALUES(?,?)')->execute([$data['deduplication_key'],implode(',',$recipients)]);return(int)db()->lastInsertId();}
 function ok($v,$m){if(!$v)throw new RuntimeException($m);echo 'PASS '.$m."\n";}function rejects($f,$m){try{$f();}catch(RuntimeException $e){ok(true,$m);return;}throw new RuntimeException('Unexpected acceptance '.$m);}
+function notifications_schema_ready(){return true;}
 require __DIR__.'/../shared/marketing-execution.php';require __DIR__.'/../shared/marketing-workspace.php';
 try{
  db()->exec("CREATE TABLE marketing_work_items(id INT PRIMARY KEY,title VARCHAR(190),assigned_employee_id INT,cancelled_at DATETIME NULL,status VARCHAR(30),approval_required INT,caption TEXT,published_at DATETIME NULL,content_type VARCHAR(30),platform VARCHAR(80),published_url VARCHAR(500),due_at DATETIME,priority VARCHAR(30));
@@ -39,4 +40,16 @@ try{
  rejects(fn()=>marketing_media_validate($path2,'large.png',31*1024*1024),'oversized media rejected');
  ok(marketing_media_type('audio/mp4')==='audio'&&marketing_media_type('video/webm')==='videos','audio and video have appropriate preview types');
  $safe=marketing_safe_brief('<p>Hello <strong>bold</strong></p><script>alert(1)</script><img src=x onerror=alert(1)>');ok(strpos($safe,'<strong>bold</strong>')!==false&&strpos($safe,'script')===false&&strpos($safe,'onerror')===false,'brief formatting preserved without executable markup');
+ require __DIR__.'/../shared/marketing-content-workflow.php';marketing_content_schema();marketing_content_schema();
+ db()->exec("UPDATE marketing_work_items SET status='brief' WHERE id=1");$owner=false;
+ $initial=marketing_execution_item(1);ok($initial['work_started_at']===null,'opening instructions does not start work');
+ marketing_content_action(1,'start');$started=marketing_execution_item(1);ok($started['status']==='in_progress'&&(int)$started['work_started_by']===2&&$started['work_started_at'],'Start Work persists authenticated actor and timestamp');
+ marketing_content_action(1,'start');ok(marketing_execution_item(1)['work_started_at']===$started['work_started_at'],'Start Work retry is idempotent');
+ rejects(fn()=>marketing_content_action(2,'start'),'cannot start another employee assignment');
+ rejects(fn()=>marketing_content_action(1,'approve'),'employee cannot approve');
+ db()->exec("UPDATE marketing_channel_execution SET prepared=1 WHERE item_id=1");
+ marketing_content_action(1,'submit','Ready to review');$submitted=marketing_execution_item(1);ok($submitted['status']==='ready_for_review'&&(int)$submitted['review_submitted_by']===2&&$submitted['review_version_ids'],'submission preserves timestamp and version IDs without requiring published URL');
+ $noticeCount=db()->query('SELECT COUNT(*) FROM test_notices')->fetchColumn();marketing_content_action(1,'submit');ok(db()->query('SELECT COUNT(*) FROM test_notices')->fetchColumn()===$noticeCount,'submission retry creates no duplicate notice');
+ $owner=true;rejects(fn()=>marketing_content_action(1,'request_changes',''),'change request requires reason');marketing_content_action(1,'request_changes','Please revise');ok(marketing_execution_item(1)['status']==='changes_requested','Owner requests changes');
+ $owner=false;marketing_content_action(1,'submit');$owner=true;marketing_content_action(1,'approve');$approved=marketing_execution_item(1);ok($approved['status']==='approved'&&$approved['published_at']===null,'approval records reviewer without publishing');
 }finally{db()->exec('DROP DATABASE '.$database);foreach(glob($fixture.'/*')as$f)if(is_file($f))unlink($f);unlink($fixture.'/shared/notifications.php');rmdir($fixture.'/shared');rmdir($fixture);}

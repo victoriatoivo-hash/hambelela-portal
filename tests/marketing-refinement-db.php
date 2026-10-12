@@ -30,6 +30,7 @@ CREATE TABLE notifications(id INT PRIMARY KEY,title VARCHAR(190),message TEXT,cr
 CREATE TABLE notification_recipients(notification_id INT,employee_id INT,delivered_at DATETIME NULL,read_at DATETIME NULL,cleared_at DATETIME NULL,popup_seen_at DATETIME NULL,next_reminder_at DATETIME NULL,PRIMARY KEY(notification_id,employee_id));
 INSERT INTO notifications VALUES(1,'Assigned','Work',NOW(),1,'marketing_assignment','/apps/marketing/execution.php?id=1','assigned'),(2,'Other','Work',NOW(),2,'marketing_assignment','/apps/marketing/execution.php?id=2','assigned');
 INSERT INTO notification_recipients(notification_id,employee_id) VALUES(1,2),(2,3);");
+db()->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(50));CREATE TABLE ops_employees(id INT PRIMARY KEY,role_id INT,status VARCHAR(20));INSERT INTO ops_roles VALUES(1,'owner_admin');INSERT INTO ops_employees VALUES(99,1,'active');");
 marketing_execution_schema_ready();$owner=true;
 db()->exec('ALTER TABLE marketing_work_items ADD created_by INT DEFAULT 1');
 $keys=['instagram','facebook','tiktok','whatsapp'];

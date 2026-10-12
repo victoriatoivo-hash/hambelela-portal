@@ -2,9 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ("assets/css/portal-notices.css","assets/js/portal.js","assets/css/portal.css","assets/js/notifications-ui.js","assets/css/notifications-ui.css","assets/js/task-assignment-popup.js","assets/css/task-assignment-popup.css","assets/js/acknowledgments-popup.js","assets/css/acknowledgments.css","assets/css/marketing-workspace.css","shared/header.php","shared/sidebar.php","shared/portal-policy-popup.php")
-FILES += ("assets/js/orders-board.js","assets/js/packing-list.js","assets/js/accounts-amendments.js","assets/js/asset-register.js","assets/js/input-vat.js","assets/js/output-vat.js","assets/js/import-vat.js","assets/js/sage-reconciliation.js","assets/js/cost-workbook.js","assets/js/cost-workbook-pages.js","assets/js/cost-workbook-phase2.js","assets/js/miv-shipping.js","apps/operations/courier.php",)
-READ_ONLY = ()
+FILES = ("shared/marketing-content-workflow.php","shared/marketing.php","shared/marketing-workspace.php","shared/marketing-execution.php","shared/notifications.php","assets/js/portal.js","assets/js/marketing.js","assets/js/marketing-workspace.js","assets/css/marketing-workspace.css","apps/marketing/execution.php","apps/marketing/index.php")
+READ_ONLY = ("api/notifications.php",)
 EXPORT_MODULES = ("shared/marketing.php","shared/marketing-workspace.php","shared/marketing-execution.php","apps/marketing/index.php","apps/marketing/execution.php","apps/marketing/employee-workspace.php","assets/js/marketing.js","assets/js/marketing-workspace.js","assets/css/marketing-workspace.css","assets/css/marketing-execution.css","shared/notifications.php","api/notifications.php")
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')

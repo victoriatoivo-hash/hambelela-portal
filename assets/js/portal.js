@@ -693,8 +693,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const drainNotificationToasts = () => {
       const limit = window.matchMedia('(max-width:600px)').matches ? 2 : 3;
       while (notificationToastQueue.length && visibleNotificationToasts < limit) {
-        if(notificationToastQueue[0].related_type==='marketing_assignment'&&(marketingModalActive||document.querySelector('dialog[open]')))break;
-        if(notificationToastQueue[0].related_type==='marketing_assignment'){if(!window.PortalNoticeGate?.acquire('marketing'))break;marketingModalActive=true;}
+        if(['marketing_assignment','marketing_review'].includes(notificationToastQueue[0].related_type)&&(marketingModalActive||document.querySelector('dialog[open]')))break;
+        if(['marketing_assignment','marketing_review'].includes(notificationToastQueue[0].related_type)){if(!window.PortalNoticeGate?.acquire('marketing'))break;marketingModalActive=true;}
         visibleNotificationToasts++;
         showPortalToast(notificationToastQueue.shift());
       }
@@ -703,7 +703,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const queuePortalToast = notification => { notificationToastQueue.push(notification); drainNotificationToasts(); };
     const showPortalToast = async (notification) => {
       const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
-      const isMarketing = notification.related_type === 'marketing_assignment';
+      const isMarketing = ['marketing_assignment','marketing_review'].includes(notification.related_type);
       const isLoanAgreement = String(notification.related_type || '').startsWith('loan_agreement_');
       if(isMarketing&&marketingAcknowledgements.has(notification.id)){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;window.PortalNoticeGate?.release('marketing');drainNotificationToasts();return;}
       let claimed = false;
@@ -722,12 +722,12 @@ window.addEventListener('DOMContentLoaded', () => {
       toast.dataset.module=notificationSource;
       toast.dataset.source = notificationSource;
       const state = notification.deadline_state && notification.deadline_state !== 'normal' ? notification.deadline_state : (notification.priority === 'urgent' ? 'urgent' : 'normal');
-      const stateLabel = isMarketing ? 'New Marketing Assignment' : isLoanAgreement ? 'Loan Agreement' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
+      const stateLabel = isMarketing ? (notification.related_type==='marketing_review'?'Marketing Content Ready for Review':'New Marketing Assignment') : isLoanAgreement ? 'Loan Agreement' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
       const stateIcon = window.PortalNotificationUI?.icon('check') || '';
       if (isLoanAgreement) toast.classList.add('portal-notification--hr');
       toast.dataset.deadlineState = state;
       toast.setAttribute('role', isMarketing?'dialog':(state === 'urgent' ? 'alert' : 'status'));
-      if(isMarketing){toast.setAttribute('aria-label','New Marketing Assignment');toast.setAttribute('aria-modal','true');}
+      if(isMarketing){toast.setAttribute('aria-label',stateLabel);toast.setAttribute('aria-modal','true');}
       toast.setAttribute('aria-live', state === 'urgent' ? 'assertive' : 'polite');
       toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">${window.PortalNotificationUI?.icon('close') || '×'}</button><span class="nt-source-icon" aria-hidden="true">${window.PortalNotificationUI?.icon(notificationSource) || ''}</span>
         <span class="portal-notification__status"><span aria-hidden="true">${stateIcon}</span> ${escapeHtml(stateLabel)}</span>
@@ -737,7 +737,7 @@ window.addEventListener('DOMContentLoaded', () => {
         ${notification.due_at ? `<span class="portal-toast-due">Due ${escapeHtml(notification.due_at)}</span>` : ''}`;
       if (isMarketing) {
         if(notification.channels)toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Required channels: ${escapeHtml(notification.channels)}</p>`);
-        toast.insertAdjacentHTML('beforeend','<div class="portal-toast-actions"><button type="button" data-marketing-ack>Got It</button><button type="button" data-marketing-view>View Assignment</button></div>');
+        toast.insertAdjacentHTML('beforeend',`<div class="portal-toast-actions"><button type="button" data-marketing-ack>Got It</button><button type="button" data-marketing-view>${notification.related_type==='marketing_review'?'Review Content':'View Assignment'}</button></div>`);
       }
       if(isMarketing)toast.insertAdjacentHTML('beforeend','<p class="portal-toast-message">Priority: '+escapeHtml(notification.priority||'normal')+'</p><button type="button" data-marketing-sound>Enable Notification Sounds</button>');
       if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><select data-toast-snooze aria-label="Snooze reminder"><option value="">Snooze</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="tomorrow">Tomorrow</option></select><button type="button" data-toast-read>Mark Read</button><button type="button" data-toast-view>View Task</button></div>');
@@ -882,7 +882,7 @@ window.addEventListener('DOMContentLoaded', () => {
           .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
           .forEach((notification) => {
             const id = Number(notification.id || 0);
-            if (['checklist_task','marketing_assignment'].includes(notification.related_type)) return;
+            if (['checklist_task','marketing_assignment','marketing_review'].includes(notification.related_type)) return;
             if (id > lastSeenLatestId) {
               queuePortalToast(notification);
               lastSeenLatestId = id;

@@ -6,6 +6,7 @@ require_once BASE_PATH.'/shared/employee-features.php';
 require_once BASE_PATH.'/shared/marketing-phase3.php';
 require_once BASE_PATH.'/shared/marketing-execution.php';
 require_once BASE_PATH.'/shared/marketing-workspace.php';
+require_once BASE_PATH.'/shared/marketing-content-workflow.php';
 
 function marketing_schema_ready():void{
  static $ready=false;if($ready)return;
@@ -17,6 +18,7 @@ function marketing_schema_ready():void{
  marketing_phase3_schema_ready();
  marketing_execution_schema_ready();
  marketing_workspace_schema();
+ marketing_content_schema();
  if(marketing_table_exists('cw_product_snapshots')){
   $columns=['description_html'=>'ADD COLUMN description_html MEDIUMTEXT NULL AFTER permalink','short_description_html'=>'ADD COLUMN short_description_html TEXT NULL AFTER description_html','image_count'=>'ADD COLUMN image_count INT NOT NULL DEFAULT 0 AFTER short_description_html','seo_title'=>'ADD COLUMN seo_title VARCHAR(255) NULL AFTER image_count','meta_description'=>'ADD COLUMN meta_description VARCHAR(500) NULL AFTER seo_title'];
   foreach($columns as$name=>$definition)if(!marketing_column_exists('cw_product_snapshots',$name))db()->exec('ALTER TABLE cw_product_snapshots '.$definition);

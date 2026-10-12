@@ -77,7 +77,7 @@ function marketing_work_matches_app(array $item, string $app, bool $pendingOnly 
 
 function marketing_employee_work(): array
 {
-    $q = db()->prepare('SELECT id,title,content_type,platform,priority,status,approval_required,due_at,publish_at,published_at,published_url FROM marketing_work_items WHERE assigned_employee_id=? ORDER BY COALESCE(due_at,publish_at,"9999-12-31"),id DESC');
+    $q = db()->prepare('SELECT * FROM marketing_work_items WHERE assigned_employee_id=? ORDER BY COALESCE(due_at,publish_at,"9999-12-31"),id DESC');
     $q->execute([marketing_employee_id()]);
     $items = $q->fetchAll();
     // Fetch channel requirements in one scoped query, not one request per tile/item.
@@ -201,6 +201,7 @@ function marketing_execution_save(array $input): void
             $completed = !empty($value['completed']);
             if ($completed && !$owner && !marketing_execution_ready_to_publish($item)) throw new RuntimeException('Owner approval is required before publishing channel work.');
             $url = trim((string)($value['proof_url'] ?? ''));
+            if ($completed && $url==='' && trim((string)($value['note']??''))==='') throw new RuntimeException('Add a proof link or completion evidence note for each completed channel.');
             if ($url !== '' && (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower((string)parse_url($url,PHP_URL_SCHEME)), ['https','http'], true) || strlen($url)>500)) throw new RuntimeException('Use a valid web link for proof.');
             $prepared = !empty($value['prepared']) || $completed;
             db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,prepared,completed,proof_url,completion_note,updated_by) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE prepared=VALUES(prepared),completed=VALUES(completed),proof_url=VALUES(proof_url),completion_note=VALUES(completion_note),updated_by=VALUES(updated_by)')
@@ -212,6 +213,7 @@ function marketing_execution_save(array $input): void
             $saved[] = ['completed'=>$completed];
         }
         $status = (string)($input['execution_status'] ?? $item['status']);
+        if(function_exists('marketing_content_action') && $status!==$item['status'] && in_array($status,['in_progress','ready_for_review','approved','changes_requested'],true)) throw new RuntimeException('Use the assignment Start Work, Submit for Review or Owner review action.');
         $employeeStatuses = ['in_progress','ready_for_review','published'];
         if (!$owner && $status!==$item['status'] && !in_array($status,$employeeStatuses,true)) throw new RuntimeException('Choose an execution status.');
         if (!in_array($status,marketing_statuses(),true)) throw new RuntimeException('Choose a valid status.');
