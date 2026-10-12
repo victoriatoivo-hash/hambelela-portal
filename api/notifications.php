@@ -8,6 +8,12 @@ require_once BASE_PATH . '/shared/notifications.php';
 
 require_login();
 
+try {
+    require_once BASE_PATH.'/shared/portal-policy-notifications.php';
+    $policyHr=ops_hr_db();
+    if($policyHr){hrPolicyAssignCurrent($policyHr);portal_policy_sync(db(),$policyHr);}
+} catch(Throwable $error){error_log('Policy notification refresh unavailable: '.$error->getMessage());}
+
 header('Content-Type: application/json');
 
 try {
@@ -63,7 +69,9 @@ try {
         exit;
     }
 
+    notifications_recover_task_assignments();
     $summary = notifications_summary_for_current_user(5);
+    $summary['task_popups'] = notifications_task_popups((int)($_GET['active_task_notification'] ?? 0));
     $summary['sidebar_counts'] = notifications_sidebar_counts_for_current_user();
     $summary['packing_list_unread_count'] = notifications_packing_assignment_unread_count();
     $summary['packing_list_unread_ids'] = notifications_packing_assignment_unread_ids();

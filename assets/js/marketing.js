@@ -28,6 +28,7 @@
       if(reason)reason.value=row.change_request_reason||'';
       item.querySelector('[name=published_url]').value=row.published_url||'';
       item.querySelector('[data-item-detail]').innerHTML=`<div><span>Type</span><strong>${escapeHtml(String(row.content_type).replaceAll('_',' '))}</strong></div><div><span>Platform</span><strong>${escapeHtml(row.platform||'Not set')}</strong></div><div><span>Due</span><strong>${escapeHtml(row.due_at||'Not set')}</strong></div><div><span>Publish</span><strong>${escapeHtml(row.publish_at||'Not set')}</strong></div><div><span>Files</span><strong>${row.version_count||0}</strong></div><p>${escapeHtml(row.brief||'No brief added.')}</p>`;
+      const executionLink=document.createElement('a');executionLink.className='marketing-btn-secondary';executionLink.href='execution.php?id='+encodeURIComponent(row.id);executionLink.textContent='Channel execution & requirements';item.querySelector('[data-item-detail]').append(executionLink);
       item.showModal();return;
     }
     const productButton=event.target.closest('[data-product]');
