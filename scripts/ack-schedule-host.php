@@ -21,7 +21,10 @@ foreach(['/usr/local/bin/php','/opt/cpanel/ea-php82/root/usr/bin/php','/usr/bin/
 if(!$php)throw new RuntimeException('No verified PHP CLI with pdo_mysql available.');
 $line='* * * * * '.escapeshellarg($php).' '.escapeshellarg(BASE_PATH.'/scripts/ack-scheduled-release.php').' >/dev/null 2>&1 # portal-ack-schedule';
 $installed=in_array($line,preg_split('/\r?\n/',$cron),true);
-if(ACK_DEPLOY_MODE==='inspect')return ['cron_available'=>true,'php_cli_verified'=>true,'worker_installed'=>$installed,'existing_cron_count'=>count(array_filter(preg_split('/\r?\n/',$cron)))];
+if(ACK_DEPLOY_MODE==='inspect'){
+    $health=dirname(BASE_PATH).'/.portal-ack-scheduler-health.json';
+    return ['cron_available'=>true,'php_cli_verified'=>true,'worker_installed'=>$installed,'existing_cron_count'=>count(array_filter(preg_split('/\r?\n/',$cron))),'worker_health'=>is_file($health)?json_decode(file_get_contents($health),true):null];
+}
 if(ACK_DEPLOY_MODE==='migrate'){
     require_once BASE_PATH.'/shared/acknowledgments/migrate-scheduling.php';acknowledgments_migrate_scheduling($db);
     return ['schema'=>'additive_migration_verified'];
