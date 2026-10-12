@@ -1890,14 +1890,7 @@ include BASE_PATH.'/shared/ess-sidebar.php';
     }
 
     function askConfirmation(title, message, acceptLabel) {
-        if (!confirmShell) return Promise.resolve(false);
-        confirmShell.querySelector('[data-courier-confirm-title]').textContent = title;
-        confirmShell.querySelector('[data-courier-confirm-message]').textContent = message;
-        confirmShell.querySelector('[data-courier-confirm-accept]').textContent = acceptLabel;
-        confirmReturnFocus = document.activeElement;
-        confirmShell.hidden = false;
-        confirmShell.querySelector('[data-courier-confirm-accept]').focus();
-        return new Promise((resolve) => { confirmResolver = resolve; });
+        return window.PortalNotice.confirm(message, {title, confirmText: acceptLabel, module: 'courier'});
     }
 
     function settleConfirmation(accepted) {

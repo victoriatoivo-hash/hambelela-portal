@@ -570,7 +570,7 @@ window.addEventListener('DOMContentLoaded', () => {
       close();
     }, { once:true });
     container.prepend(toast);
-    closeTimer = window.setTimeout(close, Math.max(type==='error'?12000:1000, Number(duration) || 5000));
+    if(duration!==0)closeTimer = window.setTimeout(close, Math.max(type==='error'?12000:1000, Number(duration) || 5000));
     return { toast, close };
   };
 

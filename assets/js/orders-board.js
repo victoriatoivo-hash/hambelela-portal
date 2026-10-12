@@ -2837,26 +2837,11 @@
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
+  let paidFeedback = null;
   function showPaidFeedback(message, isError = false, saving = false) {
-    let notice = document.getElementById('orders-paid-feedback');
-    if (!notice) {
-      notice = document.createElement('div');
-      notice.id = 'orders-paid-feedback';
-      notice.className = 'orders-paid-feedback';
-      const text = document.createElement('span');
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.textContent = '×';
-      dismiss.setAttribute('aria-label', 'Dismiss Paid confirmation message');
-      dismiss.addEventListener('click', () => { notice.hidden = true; });
-      notice.append(text, dismiss);
-      document.body.appendChild(notice);
-    }
-    notice.firstElementChild.textContent = message;
-    notice.setAttribute('role', isError ? 'alert' : 'status');
-    notice.classList.toggle('is-error', isError);
-    notice.lastElementChild.hidden = saving;
-    notice.hidden = false;
+    paidFeedback?.close();
+    paidFeedback = window.showPortalToast({title:saving?'Saving Paid confirmation':'Paid confirmation',message,type:isError?'error':'success',module:'orders',duration:0});
+    paidFeedback.toast.querySelector('.portal-toast-close').hidden=saving;
   }
 
   async function togglePaidCell(paidCell) {
