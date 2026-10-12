@@ -106,7 +106,11 @@ function marketing_media_delete(int $id): void {
 }
 function marketing_assignment_media(int $id): array {
     marketing_workspace_item($id);
-    $q=db()->prepare("SELECT DISTINCT v.*,COALESCE(NULLIF(v.channel_key,''),(SELECT NULLIF(ml.channel_key,'') FROM marketing_media_links ml WHERE ml.version_id=v.id AND ml.item_id=? LIMIT 1)) AS linked_channel FROM marketing_item_versions v WHERE v.deleted_at IS NULL AND (v.item_id=? OR EXISTS(SELECT 1 FROM marketing_media_links ml WHERE ml.version_id=v.id AND ml.item_id=?)) ORDER BY v.id DESC");$q->execute([$id,$id,$id]);return $q->fetchAll();
+    $q=db()->prepare("SELECT v.* FROM marketing_item_versions v WHERE v.deleted_at IS NULL AND (v.item_id=? OR EXISTS(SELECT 1 FROM marketing_media_links ml WHERE ml.version_id=v.id AND ml.item_id=?)) ORDER BY v.id DESC");$q->execute([$id,$id]);$files=$q->fetchAll();
+    $links=db()->prepare('SELECT version_id,channel_key FROM marketing_media_links WHERE item_id=?');$links->execute([$id]);$channels=[];
+    foreach($links->fetchAll() as $link)$channels[(int)$link['version_id']][]=$link['channel_key'];
+    foreach($files as &$file){$keys=$channels[(int)$file['id']]??[];if((int)$file['item_id']===$id)$keys[]=$file['channel_key']??'';$file['linked_channels']=array_values(array_unique($keys));}unset($file);
+    return $files;
 }
 function marketing_media_player(array $file,bool $large=false): void {
     $url=BASE_URL.'/apps/marketing/file.php?id='.(int)$file['id'].'&inline=1';$type=marketing_media_type($file['mime_type']);

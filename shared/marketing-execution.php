@@ -81,7 +81,7 @@ function marketing_employee_work(): array
     $q->execute([marketing_employee_id()]);
     $items = $q->fetchAll();
     // Fetch channel requirements in one scoped query, not one request per tile/item.
-    $q = db()->prepare('SELECT c.* FROM marketing_channel_execution c JOIN marketing_work_items w ON w.id=c.item_id WHERE w.assigned_employee_id=? AND w.cancelled_at IS NULL AND c.is_required=1 ORDER BY c.channel_key');
+    $q = db()->prepare('SELECT c.* FROM marketing_channel_execution c JOIN marketing_work_items w ON w.id=c.item_id WHERE w.assigned_employee_id=? AND c.is_required=1 ORDER BY c.channel_key');
     $q->execute([marketing_employee_id()]);
     $channels = [];
     foreach ($q->fetchAll() as $row) $channels[$row['item_id']][] = $row;
@@ -205,6 +205,10 @@ function marketing_execution_save(array $input): void
             $prepared = !empty($value['prepared']) || $completed;
             db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,prepared,completed,proof_url,completion_note,updated_by) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE prepared=VALUES(prepared),completed=VALUES(completed),proof_url=VALUES(proof_url),completion_note=VALUES(completion_note),updated_by=VALUES(updated_by)')
                 ->execute([$item['id'],$key,$row['instructions'],(int)$prepared,(int)$completed,$url ?: null,trim((string)($value['note'] ?? '')),marketing_employee_id()]);
+            if((bool)$row['prepared']!==$prepared||(bool)$row['completed']!==$completed){
+                $channelLabel=marketing_execution_channels()[$key]??'Assigned channel';
+                db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name)VALUES(?,?,?,?,?,?)')->execute([$item['id'],$item['status'],$item['status'],$channelLabel.': '.($completed?'Completed':($prepared?'In Progress':'Pending')),marketing_employee_id(),(string)(current_user()['name']??'')]);
+            }
             $saved[] = ['completed'=>$completed];
         }
         $status = (string)($input['execution_status'] ?? $item['status']);
@@ -219,7 +223,7 @@ function marketing_execution_save(array $input): void
         $caption = trim((string)($input['caption'] ?? $item['caption']));
         if ($status==='ready_for_review' && $item['content_type']!=='idea') {
             $files=db()->prepare('SELECT COUNT(*) FROM marketing_item_versions WHERE item_id=?');$files->execute([$item['id']]);
-            if (!(int)$files->fetchColumn()) throw new RuntimeException('Upload the finished content before submitting it for review.');
+            if (!(function_exists('marketing_assignment_media') ? count(marketing_assignment_media((int)$item['id'])) : (int)$files->fetchColumn())) throw new RuntimeException('Upload the finished content before submitting it for review.');
             if ($caption==='' && !in_array($item['content_type'],['website_update','product_image','product_listing'],true)) throw new RuntimeException('Add the caption or copy before submitting it for review.');
         }
         db()->prepare('UPDATE marketing_work_items SET caption=?,status=?,published_at=IF(?="published",COALESCE(published_at,NOW()),published_at) WHERE id=?')

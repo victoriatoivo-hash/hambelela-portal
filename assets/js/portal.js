@@ -747,7 +747,7 @@ window.addEventListener('DOMContentLoaded', () => {
       });
       toast.querySelector('[data-toast-loan]')?.addEventListener('click', async () => { await markState('viewed'); window.location.assign(notification.action_link); });
       const acknowledgeMarketing=async(view=false)=>{
-        try{const response=await markState('viewed');if(!response?.ok||!(await response.json()).ok)throw new Error();close();if(view)window.location.assign('/apps/marketing/execution.php?id='+encodeURIComponent(notification.related_id));}
+        try{const response=await markState('viewed');if(!response?.ok||!(await response.json()).ok){const check=await fetch(apiUrl,{credentials:'same-origin',cache:'no-store'});const current=await check.json();if(!check.ok||!current.ok||(current.marketing_popups||[]).some(n=>Number(n.id)===Number(notification.id)))throw new Error();}close();if(view)window.location.assign('/apps/marketing/execution.php?id='+encodeURIComponent(notification.related_id));}
         catch(_){toast.querySelector('.portal-toast-message').textContent='Acknowledgement could not be saved. Please try again.';}
       };
       toast.querySelector('[data-marketing-ack]')?.addEventListener('click',()=>acknowledgeMarketing());

@@ -28,6 +28,9 @@ try{
  marketing_media_attach(3,1);marketing_media_attach(3,1);ok((int)db()->query('SELECT COUNT(*) FROM marketing_media_links')->fetchColumn()===1,'attach reuses existing file with no duplicate link');
  rejects(fn()=>marketing_media_attach(3,2),'cannot attach to another employee assignment');
  ok(marketing_execution_item(1)===$before,'media attachment does not complete assignment');
+ ok(count(marketing_assignment_media(1))===2,'attached and original files appear together for assignment review');
+ db()->exec("INSERT INTO marketing_media_links(version_id,item_id,channel_key,linked_by,linked_at)VALUES(3,1,'instagram',2,NOW()),(3,1,'tiktok',2,NOW())");
+ $media=marketing_assignment_media(1);ok(in_array('instagram',$media[0]['linked_channels'],true)&&in_array('tiktok',$media[0]['linked_channels'],true),'same file appears on every linked channel without duplicating media');
  $owner=true;marketing_media_delete(1);ok((int)db()->query('SELECT COUNT(*) FROM marketing_item_versions')->fetchColumn()===3,'authorised removal preserves original versions');
  rejects(fn()=>marketing_media_get(1),'removed media is no longer served');
  $path=$fixture.'/fake.jpg';file_put_contents($path,'<?php echo "bad";');rejects(fn()=>marketing_media_validate($path,'fake.jpg',filesize($path)),'executable disguised as an image rejected');
