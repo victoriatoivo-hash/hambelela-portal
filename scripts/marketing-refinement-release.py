@@ -4,6 +4,7 @@ from pathlib import Path
 
 FILES = ("assets/css/portal-notices.css","assets/js/portal.js","assets/css/portal.css","assets/js/notifications-ui.js","assets/css/notifications-ui.css","assets/js/task-assignment-popup.js","assets/css/task-assignment-popup.css","assets/js/acknowledgments-popup.js","assets/css/acknowledgments.css","assets/css/marketing-workspace.css","shared/header.php","shared/sidebar.php","shared/portal-policy-popup.php")
 READ_ONLY = ()
+EXPORT_MODULES = ("assets/js/orders-board.js","assets/js/packing-list.js","assets/js/delivery-core.js","assets/js/delivery-accounting.js","assets/js/delivery-back-capture.js","assets/js/courier-essentials.js","apps/operations/courier.php","assets/js/accounts-amendments.js","assets/js/asset-register.js","assets/js/input-vat.js","assets/js/output-vat.js","assets/js/import-vat.js","assets/js/sage-reconciliation.js","assets/js/cost-workbook.js","assets/js/cost-workbook-pages.js","assets/js/cost-workbook-phase2.js","assets/js/miv-shipping.js")
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 if subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=sha: raise SystemExit('Exact checkout SHA required')
@@ -33,7 +34,7 @@ def put(path,data):
         ftp.mkd('uploads/marketing')
     ftp.storbinary('STOR '+path,io.BytesIO(data))
 try:
-    before={p:read(p) for p in FILES+READ_ONLY}
+    before={p:read(p) for p in (EXPORT_MODULES if mode=='export' else FILES+READ_ONLY)}
     report['before']={p:digest(d) for p,d in before.items()}
     if mode=='export':
         with zipfile.ZipFile('marketing-live-source.zip','w') as z:
