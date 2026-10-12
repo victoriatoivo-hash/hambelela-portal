@@ -374,9 +374,9 @@ body:has(.ess-marketing-page) .portal-date-popup .portal-date-clear{color:#62675
 .ess-marketing-page .marketing-publish-timing fieldset{margin:0;padding:0;border:0;min-width:0}
 .ess-marketing-page .marketing-publish-timing legend{font-size:11px;margin-bottom:8px;color:var(--marketing-800)}
 .ess-marketing-page .marketing-publish-options{display:flex;flex-wrap:wrap;gap:6px}
-.ess-marketing-page .marketing-publish-options label{display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 10px;border:1px solid var(--marketing-200);border-radius:8px;background:#fff;cursor:pointer;font-size:11px}
-.ess-marketing-page .marketing-publish-options label:has(input:checked){background:var(--marketing-100);border-color:var(--marketing-600);color:var(--marketing-800)}
-.ess-marketing-page .marketing-publish-options input{width:15px;height:15px;min-height:0;margin:0;accent-color:var(--marketing-600)}
+.ess-marketing-page .marketing-publish-timing .marketing-publish-options label{display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 10px;border:1px solid var(--marketing-200);border-radius:8px;background:#fff;cursor:pointer;font-size:11px}
+.ess-marketing-page .marketing-publish-timing .marketing-publish-options label:has(input:checked){background:var(--marketing-100);border-color:var(--marketing-600);color:var(--marketing-800)}
+.ess-marketing-page .marketing-publish-timing .marketing-publish-options input[type="radio"]{appearance:auto;width:15px;height:15px;min-width:15px;min-height:15px;flex:0 0 15px;padding:0;margin:0;accent-color:var(--marketing-600)}
 .ess-marketing-page .marketing-publish-timing small{font-size:10.5px;line-height:1.5;color:#62675e}
 .ess-marketing-page .marketing-publish-timing [hidden]{display:none!important}
 .ess-marketing-page .marketing-publish-now-label{font-weight:600;color:var(--marketing-800)}
