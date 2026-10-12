@@ -13,4 +13,20 @@ $('#ack-content').addEventListener('change',e=>{if(e.target.id==='ack-understood
 $('#ack-content').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;if(b.dataset.format){$('#ack-editor').focus();document.execCommand(b.dataset.format,false,null);}if(b.hasAttribute('data-revise'))create(record);if(b.hasAttribute('data-clarify')){$('#ack-respond').innerHTML='<h2>Request Clarification</h2><p>Tell management which part of the instruction you do not understand.</p><label>Your question<textarea name="message" required maxlength="6000"></textarea></label><button class="ack-action">Send Clarification Request</button>';$('#ack-respond').dataset.action='clarify';}});
 $('#ack-content').addEventListener('submit',async e=>{e.preventDefault();if(busy)return;const f=e.target,b=e.submitter;let action='respond',body={request_key:f.dataset.key,recipient_id:Number(record?.id),action:f.dataset.action||f.elements.action?.value,message:f.elements.message?.value||'',understood:!!$('#ack-understood')?.checked};if(f.id==='ack-create'){action='send';body={request_key:f.dataset.key,title:f.elements.title.value,message_html:$('#ack-editor').innerHTML,recipients:[...f.querySelectorAll('[name=recipient]:checked')].map(c=>Number(c.value)),deadline:f.elements.deadline.value,required:f.elements.required.checked,notify_immediately:f.elements.notify_immediately.checked,revise_instruction:Number(f.dataset.revision)||null};}busy=true;b.disabled=true;const label=b.textContent;b.textContent='Saving…';try{await api(action,body);await load();if(action==='send'){drawer.close();$('#ack-message').textContent='Acknowledgment sent. Each recipient has an independent response record.';}else await detail(body.recipient_id);}catch(err){$('#ack-error').textContent=err.message;}finally{busy=false;b.disabled=false;b.textContent=label;}});
 document.addEventListener('click',e=>{if(e.target.closest('[data-ack-close]'))drawer.close();});$('#ack-new').onclick=()=>create();$('#ack-table').onclick=e=>{const b=e.target.closest('[data-view]');if(b)detail(Number(b.dataset.view));};$('#ack-tabs').onclick=e=>{const b=e.target.closest('[data-tab]');if(b){tab=b.dataset.tab;page=1;render();}};$('#ack-search').oninput=$('#ack-sort').onchange=$('#ack-deadline-filter').onchange=()=>{page=1;render();};$('#ack-clear').onclick=()=>{$('#ack-search').value='';$('#ack-deadline-filter').value='';$('#ack-sort').value='latest';tab='All';render();};$('#ack-prev').onclick=()=>{page--;render();};$('#ack-next').onclick=()=>{page++;render();};load().then(()=>{const id=Number(new URLSearchParams(location.search).get('record'));if(id&&data)detail(id);});
+// Keep the shared calendar clear of this drawer's sticky header and action footer.
+let calendarFrame=0;
+function fitCalendar(){
+ calendarFrame=0;const cal=drawer.querySelector('.portal-date-popup.is-open');if(!cal)return;
+ const header=drawer.querySelector('header').getBoundingClientRect(),footer=drawer.querySelector('.ack-footer')?.getBoundingClientRect();
+ const topLimit=Math.max(10,header.bottom+8),bottomLimit=Math.min(innerHeight-10,footer?.top||innerHeight-10);
+ const maxHeight=Math.max(120,bottomLimit-topLimit-8);
+ if(cal.style.maxHeight!==maxHeight+'px')cal.style.maxHeight=maxHeight+'px';
+ const bounds=cal.getBoundingClientRect();
+ const wanted=Math.max(topLimit,Math.min(bounds.top,bottomLimit-bounds.height-8));
+ if(Math.abs(wanted-bounds.top)>1)cal.style.top=(parseFloat(cal.style.top)||bounds.top)+wanted-bounds.top+'px';
+}
+function queueCalendar(){if(!calendarFrame)calendarFrame=requestAnimationFrame(fitCalendar);}
+new MutationObserver(queueCalendar).observe(drawer,{childList:true,subtree:true,attributes:true,attributeFilter:['style','class']});
+drawer.addEventListener('scroll',queueCalendar);window.addEventListener('resize',queueCalendar);
+
 })();
