@@ -7,7 +7,8 @@
   if(['ready_for_review','approved','scheduled'].includes(status)&&submitted){const onTime=!Number.isFinite(end)||Date.parse(submitted)<=end;return {text:(status==='ready_for_review'?'Awaiting Owner Review':'Submitted')+' · '+(onTime?'On time':'After deadline'),state:''};}
   if(status==='ready_for_review')return {text:'Awaiting Owner Review',state:''};
   if(!Number.isFinite(end))return {text:'No deadline set',state:''};
-  const diff=end-now,minutes=Math.max(1,Math.ceil(Math.abs(diff)/60000));
+  const diff=end-now;if(diff===0)return {text:'Due Now',state:'is-due-soon'};
+  const minutes=Math.max(1,Math.ceil(Math.abs(diff)/60000));
   const days=Math.floor(minutes/1440),hours=Math.floor(minutes%1440/60),mins=minutes%60;
   const duration=[days?days+'d':'',hours?hours+'h':'',mins?mins+'m':''].filter(Boolean).join(' ');
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek'}).format(new Date(now))===new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek'}).format(new Date(end));

@@ -47,6 +47,7 @@ jobs:
           php tests/marketing-refinement-db.php
           php tests/marketing-workspace-db.php
           node tests/marketing-countdown.mjs
+          php tests/marketing-timezone.php
           node --check assets/js/marketing-workspace.js
           node --check assets/js/marketing.js
           node --check assets/js/portal.js

@@ -10,13 +10,22 @@ function marketing_workspace_schema(): void {
     db()->exec("CREATE TABLE IF NOT EXISTS marketing_notes(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,item_id BIGINT UNSIGNED NOT NULL,actor_id INT NOT NULL,actor_name VARCHAR(190) NOT NULL,is_owner TINYINT NOT NULL,body TEXT NOT NULL,request_key VARCHAR(64) NOT NULL,created_at DATETIME NOT NULL,UNIQUE KEY note_retry(item_id,actor_id,request_key),KEY note_thread(item_id,id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 function marketing_now(): string { return (new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s'); }
+/** Marketing DATETIME values are Namibia wall time, never browser-local or UTC. */
+function marketing_local_datetime(?string $value): ?string {
+    $value=trim((string)$value);if($value==='')return null;
+    $normal=str_replace('T',' ',$value);
+    if(strlen($normal)===16)$normal.=':00';
+    $date=DateTimeImmutable::createFromFormat('!Y-m-d H:i:s',$normal,new DateTimeZone('Africa/Windhoek'));
+    if(!$date||$date->format('Y-m-d H:i:s')!==$normal)throw new RuntimeException('Enter a valid date and time in Namibia time (Africa/Windhoek).');
+    return $normal;
+}
 function marketing_time_iso(?string $value): string {
     if (!$value) return '';
-    try { return (new DateTimeImmutable($value,new DateTimeZone('Africa/Windhoek')))->format(DateTimeInterface::ATOM); } catch(Throwable $e) { return ''; }
+    try { return (new DateTimeImmutable($value,new DateTimeZone('Africa/Windhoek')))->setTimezone(new DateTimeZone('Africa/Windhoek'))->format(DateTimeInterface::ATOM); } catch(Throwable $e) { return ''; }
 }
 function marketing_display_time(?string $value): string {
     if (!$value) return 'Not set';
-    try { return (new DateTimeImmutable($value,new DateTimeZone('Africa/Windhoek')))->format('d M Y · H:i'); } catch(Throwable $e) { return 'Not set'; }
+    try { return (new DateTimeImmutable(marketing_time_iso($value)))->format('d M Y · H:i'); } catch(Throwable $e) { return 'Not set'; }
 }
 function marketing_activity(array $item,string $message): void {
     db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name)VALUES(?,?,?,?,?,?)')->execute([$item['id'],$item['status'],$item['status'],$message,marketing_employee_id(),(string)(current_user()['name']??'')]);

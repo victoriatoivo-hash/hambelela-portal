@@ -3,7 +3,8 @@ import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
 FILES = ("shared/marketing-content-workflow.php","shared/marketing.php","shared/marketing-workspace.php","shared/marketing-execution.php","shared/notifications.php","assets/js/portal.js","assets/js/marketing.js","assets/js/marketing-workspace.js","assets/css/marketing-workspace.css","apps/marketing/execution.php","apps/marketing/index.php")
-READ_ONLY = ("api/notifications.php",)
+FILES = ("shared/marketing-workspace.php","assets/js/marketing-workspace.js","apps/marketing/index.php")
+READ_ONLY = ()
 EXPORT_MODULES = ("shared/marketing.php","shared/marketing-workspace.php","shared/marketing-execution.php","apps/marketing/index.php","apps/marketing/execution.php","apps/marketing/employee-workspace.php","assets/js/marketing.js","assets/js/marketing-workspace.js","assets/css/marketing-workspace.css","assets/css/marketing-execution.css","shared/notifications.php","api/notifications.php")
 EXPORT_MODULES = EXPORT_MODULES + ("assets/js/portal.js",)
 mode, sha = sys.argv[1:3]

@@ -10,3 +10,8 @@ assert.equal(context.countdown('','','cancelled',now).text,'Cancelled');
 assert.match(context.countdown('2026-10-14T15:00:00+02:00','2026-10-17T15:00:00+02:00','published',now,'2026-10-14T14:00:00+02:00').text,/On time/);
 assert.match(context.countdown('2026-10-15T00:30:00+02:00','','brief',Date.parse('2026-10-14T22:00:00Z')).text,/Due Today/);
 console.log('PASS countdown, overdue, Namibia midnight and immutable completion timing');
+const deadline='2026-10-12T17:00:00+02:00';
+assert.match(context.countdown(deadline,'','brief',Date.parse('2026-10-12T16:40:00+02:00')).text,/20m remaining/);
+assert.equal(context.countdown(deadline,'','brief',Date.parse(deadline)).text,'Due Now');
+assert.equal(context.countdown(deadline,'','brief',Date.parse('2026-10-12T17:01:00+02:00')).text,'Overdue by 1m');
+console.log('PASS 16:40, 17:00 and 17:01 Namibia deadline boundaries');
