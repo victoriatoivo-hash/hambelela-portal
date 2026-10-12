@@ -49,6 +49,7 @@ jobs:
           php -l scripts/ack-scheduled-release.php
           php -l scripts/ack-schedule-host.php
           node --check assets/js/acknowledgments.js
+          node tests/acknowledgments-schedule-ui.mjs
           python3 -m py_compile scripts/ack-schedule-release.py
       - name: Inspect or publish isolated source files
         env:
