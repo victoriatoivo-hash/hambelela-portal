@@ -755,7 +755,7 @@
     }
 
     if (deleteFile) {
-      if (!confirm('Remove this attachment?')) return;
+      if (!await window.PortalNotice.confirm('Remove this attachment?')) return;
       await request('delete_attachment', {attachment_id: deleteFile.dataset.deleteFile}); monthlyResponseCache.clear();
       await load();
       showToast('Attachment removed.', 'success');

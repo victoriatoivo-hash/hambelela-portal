@@ -1771,16 +1771,8 @@ include BASE_PATH.'/shared/ess-sidebar.php';
         sent_this_month: document.querySelector('[data-stat="sent_this_month"]')
     };
 
-    let courierToastTimer = null;
     function showToast(message, type = 'success') {
-        if (!toast) return;
-        toast.textContent = message;
-        toast.classList.remove('is-success', 'is-error');
-        toast.classList.add(type === 'error' ? 'is-error' : 'is-success');
-        toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
-        toast.classList.add('is-visible');
-        if (courierToastTimer) window.clearTimeout(courierToastTimer);
-        courierToastTimer = window.setTimeout(() => toast.classList.remove('is-visible'), 3200);
+        window.PortalNotice.notify(message, {type, module: 'courier'});
     }
 
     function refreshIcons() {

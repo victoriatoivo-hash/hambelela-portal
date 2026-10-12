@@ -53,6 +53,18 @@ jobs:
           node tests/marketing-notification-sound.mjs
           node tests/marketing-acknowledgement.mjs
           node tests/portal-notices.mjs
+          node --check assets/js/orders-board.js
+          node --check assets/js/packing-list.js
+          node --check assets/js/accounts-amendments.js
+          node --check assets/js/asset-register.js
+          node --check assets/js/input-vat.js
+          node --check assets/js/output-vat.js
+          node --check assets/js/import-vat.js
+          node --check assets/js/sage-reconciliation.js
+          node --check assets/js/cost-workbook.js
+          node --check assets/js/cost-workbook-pages.js
+          node --check assets/js/cost-workbook-phase2.js
+          node --check assets/js/miv-shipping.js
           node tests/sidebar-notification-badges-static.mjs
           node --check assets/js/task-assignment-popup.js
           node --check assets/js/acknowledgments-popup.js

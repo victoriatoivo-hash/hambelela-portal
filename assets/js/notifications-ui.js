@@ -39,6 +39,35 @@ window.PortalNoticeGate={
  release(owner){if(modalOwner!==owner)return;modalOwner=null;window.dispatchEvent(new Event('portal:notice-closed'));}
 };
 const pageModule=()=>source({module:location.pathname});
+let confirmations=Promise.resolve();
+const confirmNotice=(message,options={})=>{
+ const run=()=>new Promise((resolve,reject)=>{
+  const opener=document.activeElement;
+  const dialog=document.createElement('dialog');
+  dialog.className='hb-portal-notice hb-notice-modal';
+  dialog.dataset.module=options.module||pageModule();
+  dialog.setAttribute('aria-label',options.title||'Please confirm');
+  const eyebrow=document.createElement('span');eyebrow.className='portal-notification__status';eyebrow.textContent='Confirmation';
+  const heading=document.createElement('h2');heading.textContent=options.title||'Please confirm';
+  const body=document.createElement('p');body.className='portal-toast-message';body.style.whiteSpace='pre-wrap';body.textContent=String(message||'');
+  const footer=document.createElement('footer');
+  const cancel=document.createElement('button');cancel.type='button';cancel.textContent=options.cancelText||'Cancel';cancel.autofocus=true;
+  const approve=document.createElement('button');approve.type='button';approve.className='hb-notice-primary';approve.textContent=options.confirmText||'Confirm';
+  let accepted=false;
+  cancel.addEventListener('click',()=>dialog.close());
+  approve.addEventListener('click',()=>{accepted=true;dialog.close();});
+  dialog.addEventListener('close',()=>{dialog.remove();if(opener?.isConnected)opener.focus();resolve(accepted);window.dispatchEvent(new Event('portal:notice-closed'));},{once:true});
+  footer.append(cancel,approve);dialog.append(eyebrow,heading,body,footer);document.body.append(dialog);
+  try{dialog.showModal();cancel.focus();}catch(error){dialog.remove();reject(error);}
+ });
+ const result=confirmations.then(run,run);confirmations=result.catch(()=>false);return result;
+};
+const notify=(message,options={})=>{
+ const show=()=>window.showPortalToast({title:options.title||'Notification',message:String(message||''),type:options.type||'info',module:options.module||pageModule(),...options});
+ if(typeof window.showPortalToast==='function')return show();
+ document.addEventListener('DOMContentLoaded',show,{once:true});
+};
+window.PortalNotice={confirm:confirmNotice,notify};
 window.PortalNotificationUI={source,labels,icon,escape,href,enhanceSelect,pageModule};
 // Reuse the existing signed-in recipient count for navigation and app cards.
 document.querySelectorAll('a[href$="/notifications.php"]').forEach(link=>{

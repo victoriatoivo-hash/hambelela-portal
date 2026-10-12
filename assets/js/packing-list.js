@@ -919,7 +919,7 @@
           <span>${esc(formatDate(task.date_loaded))}</span>
           <span data-mobile-date-completed="${esc(task.id)}" class="${task.date_completed ? '' : 'is-empty'}">${esc(task.date_completed ? formatDate(task.date_completed) : '')}</span>
           <span>${esc(task.received_weight || 'No weight')}</span>
-          <span>${esc(task.quantity_planned || 'No plan')}</span>
+          <span>${esc(readablePackingPlan(task.quantity_planned) || 'No plan')}</span>
           <span>Person: ${esc(task.assigned_name || 'Unassigned')}</span>
         </div>
       </article>
@@ -1147,12 +1147,12 @@
   }
 
   function parsePackUnit(unit) {
-    const clean = normalize(unit || '');
+    const clean = normalize(unit || '').replace(/_/g, '');
     if (['kg', 'kgs', 'kilogram', 'kilograms'].includes(clean)) return { dimension: 'weight', factor: 1000, assumedLabel: 'kg' };
     if (['g', 'gram', 'grams'].includes(clean)) return { dimension: 'weight', factor: 1, assumedLabel: 'g' };
     if (['l', 'lt', 'liter', 'litre', 'liters', 'litres'].includes(clean)) return { dimension: 'volume', factor: 1000, assumedLabel: 'L' };
     if (['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'].includes(clean)) return { dimension: 'volume', factor: 1, assumedLabel: 'ml' };
-    if (['pc', 'pcs', 'piece', 'pieces', 'unit', 'units'].includes(clean)) return { dimension: 'count', factor: 1, assumedLabel: 'unit' };
+    if (['pc', 'pcs', 'piece', 'pieces', 'unit', 'units', 'label', 'labels', 'bottle', 'bottles', 'jar', 'jars', 'pack', 'packs', 'individualitem', 'individualitems', 'pouch', 'pouches', 'teabag', 'teabags'].includes(clean)) return { dimension: 'count', factor: 1, assumedLabel: 'unit' };
     return null;
   }
 
@@ -1179,32 +1179,52 @@
     });
   }
 
-  function quantityPlanStats(quantityPlan) {
-    const stats = { totals: { weight: 0, volume: 0, count: 0 }, totalUnits: 0, sizeCount: 0 };
-    const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*(\d+)|\(\s*(\d+)\s*\))/gi;
-    let match;
-    while ((match = pattern.exec(String(quantityPlan || ''))) !== null) {
-      const amount = Number(match[1] || 0);
-      const unit = parsePackUnit(match[2] || '');
-      const count = Math.max(1, Number(match[3] || match[4] || 0));
-      if (!Number.isFinite(amount) || !unit) continue;
-      stats.totals[unit.dimension] += amount * unit.factor * count;
-      stats.totalUnits += count;
-      stats.sizeCount += 1;
-    }
-    return stats;
+  const packingActions = [['pack_as_supplied','Pack as supplied'],['apply_labels','Apply labels'],['repack','Repack into smaller units'],['refill','Refill containers'],['other','Other']];
+  function packingInstructions(task) {
+    try { return JSON.parse(String(task.notes || '').match(/^\[Packing instructions v1\] (.+)$/m)?.[1] || '{}'); } catch (_) { return {}; }
+  }
+  function packingInstructionFields(data, draft = false, editable = true) {
+    const attr = key => draft ? `data-draft-field="${key}"` : `data-instruction-field="${key}"`;
+    const disabled = editable ? '' : 'disabled';
+    return `<div class="packing-item-form-grid"><label class="packing-item-field">Packing action<select ${attr('packing_action')} ${disabled}>${packingActions.map(([key,label])=>`<option value="${key}" ${(data.packing_action || 'pack_as_supplied')===key?'selected':''}>${label}</option>`).join('')}</select></label><label class="packing-item-field">General packing instructions<textarea ${attr('general_instructions')} maxlength="2000" ${disabled}>${esc(data.general_instructions || '')}</textarea></label><label class="packing-item-field">Labelling instructions<textarea ${attr('labelling_instructions')} maxlength="2000" ${disabled}>${esc(data.labelling_instructions || '')}</textarea></label><label class="packing-item-field">Repacking instructions<textarea ${attr('repacking_instructions')} maxlength="2000" ${disabled}>${esc(data.repacking_instructions || '')}</textarea><small>Enter output sizes in Quantity to pack, e.g. 100g(10) for 1 kg. Instructions do not change stock quantities.</small></label></div>`;
   }
 
   function quantityPlanParts(quantityPlan) {
-    const parts = [];
-    const pattern = /(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*|\(\s*)(\d+)\s*\)?/gi;
-    let match;
-    while ((match = pattern.exec(String(quantityPlan || ''))) !== null) {
-      const unit = parsePackUnit(match[2] || '');
-      if (!unit) continue;
-      parts.push({ amount: Number(match[1]), unit: unit.assumedLabel === 'unit' ? 'units' : unit.assumedLabel, count: Number(match[3] || match[4] || 0) });
+    const parts = [], units = 'kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|pouch(?:es)?|tea\\s*bags?|individual\\s+items?';
+    const containers = 'pouch(?:es)?|packs?|bags?|bottles?|jars?';
+    let text = String(quantityPlan || '').replace(/×/g,'x').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1');
+    // Explicit “per” prose identifies both operands; never infer two unrelated numbers.
+    text = text.replace(new RegExp('(\\d+)\\s*(?:units?|pieces?|tea\\s*bags?|labels?|bottles?|jars?)\\s+per\\s+(?:'+containers+')\\s*,?\\s*(\\d+)\\s*(?:'+containers+')','gi'),'$1 units($2)');
+    text = text.replace(new RegExp('(\\d+)\\s*\\(\\s*(\\d+(?:\\.\\d+)?)\\s*('+units+')\\s*\\)','gi'),'$2$3($1)').replace(/\)\s*(?=\d)/g,'),');
+    const pattern = new RegExp('^\\s*(?:('+units+')\\s+)?(\\d+(?:\\.\\d+)?)\\s*('+units+')?\\s*(?:[x*]\\s*(\\d+)\\s*(?:'+containers+')?|\\(\\s*(\\d+)\\s*\\))?\\s*$','i');
+    for (const textPart of text.trim().split(/[,;+\n]+/)) {
+      const m = textPart.match(pattern); if (!m || (m[1] && m[3])) return [];
+      const unit = parsePackUnit(m[3] || m[1] || 'units'); let amount=Number(m[2]),count=Number(m[4] || m[5] || 1);
+      if (!unit || !Number.isFinite(amount*count) || !Number.isSafeInteger(count) || amount<=0 || count<=0 || (unit.dimension==='count' && (!Number.isSafeInteger(amount) || !Number.isSafeInteger(amount*count)))) return [];
+      // A bare count denotes individual items; explicit size(count) denotes finished packages.
+      if(unit.dimension==='count' && !m[4] && !m[5]) { count=amount; amount=1; }
+      parts.push({amount,unit:unit.assumedLabel==='unit'?'units':unit.assumedLabel,count});
     }
     return parts;
+  }
+
+  function readablePackingPlan(plan) {
+    const parts=quantityPlanParts(plan);
+    if(!parts.length) return String(plan || '');
+    const breakdown = parts.map(p=>`${p.count} ${p.unit==='units'&&p.amount===1?'individual items':`packs × ${p.amount} ${p.unit}`}`).join('; ');
+    const totals = quantityPlanStats(plan).totals;
+    return breakdown + ' — Total: ' + Object.entries(totals).filter(([,value])=>value>0).map(([dimension,value])=>formatPhysical(dimension,value)).join(', ');
+  }
+
+  function quantityPlanStats(quantityPlan) {
+    const stats = { totals: { weight: 0, volume: 0, count: 0 }, totalUnits: 0, sizeCount: 0 };
+    for (const part of quantityPlanParts(quantityPlan)) {
+      const unit = parsePackUnit(part.unit);
+      stats.totals[unit.dimension] += part.amount * unit.factor * part.count;
+      stats.totalUnits += part.count;
+      stats.sizeCount++;
+    }
+    return stats;
   }
 
   function quantityPlanFromParts(parts) {
@@ -1232,9 +1252,9 @@
   }
 
   function parseReceivedStock(row) {
-    const text = String(row.received_weight || '');
+    const text = String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1');
     const amount = Number(text.match(/\d+(?:\.\d+)?/)?.[0] || 0);
-    const explicitUnit = row.unit || text.match(/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i)?.[0] || '';
+    const explicitUnit = row.unit || text.match(/\d+(?:\.\d+)?\s*(kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\s+items?)\b/i)?.[1] || '';
     const unit = parsePackUnit(explicitUnit);
     return {
       amount: Number.isFinite(amount) ? amount : 0,
@@ -1245,13 +1265,13 @@
   }
 
   function detectedUnit(value) {
-    const match = String(value || '').match(/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i)?.[0] || '';
+    const match = String(value || '').match(/\d+(?:\.\d+)?\s*(kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\s+items?)\b/i)?.[1] || '';
     return parsePackUnit(match)?.assumedLabel === 'unit' ? 'units' : (parsePackUnit(match)?.assumedLabel || '');
   }
 
   function receivedQuantityState(row) {
     const received = parseReceivedStock(row);
-    if (!String(row.received_weight || '').match(/\d+(?:\.\d+)?/)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity missing', received };
+    if (!String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1').match(/\d+(?:\.\d+)?/)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity missing', received };
     if (!row.unit || !received.dimension) return { valid: false, status: 'unit_missing', message: 'Unit required', received };
     if (!(received.amount > 0) || !(received.base > 0)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity must be greater than zero', received };
     return { valid: true, status: row.quantity_confirmed === true ? 'confirmed' : 'needs_confirmation', message: row.quantity_confirmed === true ? 'Confirmed' : 'Needs confirmation', received };
@@ -1271,13 +1291,13 @@
     const accountedBase = plannedBase + remainderBase;
     const difference = received.base - accountedBase;
     let status = 'fully_allocated';
-    let message = 'Fully allocated';
+    let message = 'Balanced — 0 remaining';
     if (!row.unit || !received.dimension) { status = 'unit_missing'; message = 'Unit required'; }
     else if (!String(row.quantity_planned || '').trim()) { status = 'invalid_quantity'; message = 'Quantity to pack is required.'; }
-    else if (plan.sizeCount === 0) { status = 'invalid_quantity'; message = `Could not understand: “${String(row.quantity_planned || '').trim()}”. Use 100g(20), 100g x20, or Edit as rows.`; }
+    else if (plan.sizeCount === 0) { status = 'invalid_quantity'; message = 'Enter size × pack count, e.g. 50 units(20) or 100g(20). Keep unrelated numbers in Notes.'; }
     else if (otherDimensions.length) { status = 'unit_mismatch'; message = `Unit mismatch: ${received.dimension} received quantity cannot be validated against ${otherDimensions[0][0]} pack sizes.`; }
-    else if (difference > 0.0001) { status = 'under_allocated'; message = `Under allocated by ${formatPhysical(received.dimension, difference)}`; }
-    else if (difference < -0.0001) { status = 'over_allocated'; message = `Over allocated by ${formatPhysical(received.dimension, Math.abs(difference))}`; }
+    else if (difference > 0.0001) { status = 'under_allocated'; message = `Underallocated — ${formatPhysical(received.dimension, difference)} remaining`; }
+    else if (difference < -0.0001) { status = 'over_allocated'; message = `Overallocated — ${formatPhysical(received.dimension, Math.abs(difference))}`; }
     return { plan, received, plannedBase, remainderBase, accountedBase, difference, status, message, valid: status === 'fully_allocated' };
   }
 
@@ -1435,7 +1455,7 @@
 
   function renderDistributionReview() {
     if (!distributionReview || !distributionBody || !distributionSummary) return;
-    distributionReview.hidden = packingDraftMode !== 'invoice' || !distributionReviewOpen;
+    distributionReview.hidden = packingDraftMode === 'manual' ? !receivedReviewComplete() : !distributionReviewOpen;
     if (distributionReview.hidden) return;
     const eligible = new Map(packers.map((packer) => [String(packer.id), packer]));
     const options = '<option value="">Choose packer</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
@@ -1453,10 +1473,10 @@
       }
       const status = !packer ? 'Under allocated' : accounting.status === 'under_allocated' ? 'Under allocated' : accounting.status === 'over_allocated' ? 'Over allocated' : accounting.valid ? 'Balanced' : accounting.message;
       const statusClass = status === 'Balanced' ? 'is-balanced' : status === 'Over allocated' ? 'is-over' : 'is-under';
-      return `<tr data-review-index="${index}"><td data-label="Product / item"><strong>${esc(row.item_name || 'Unnamed item')}</strong></td><td data-label="Variation / packing plan">${esc(row.quantity_planned || '—')}</td><td data-label="Invoice quantity">${esc(row.received_weight || '—')}</td><td data-label="Packer"><select data-review-packer="${index}" aria-label="Packer for ${esc(row.item_name || `row ${index + 1}`)}">${options}</select></td><td data-label="Allocated">${packer ? esc(row.received_weight || '—') : '0'}</td><td data-label="Status"><span class="packing-distribution-status ${statusClass}">${esc(status)}</span></td></tr>`;
+      return `<tr data-review-index="${index}"><td data-label="Product / item"><strong>${esc(row.item_name || 'Unnamed item')}</strong></td><td data-label="Variation / packing plan">${esc(readablePackingPlan(row.quantity_planned) || '—')}</td><td data-label="Invoice quantity">${esc(row.received_weight || '—')}</td><td data-label="Packer"><select data-review-packer="${index}" aria-label="Packer for ${esc(row.item_name || `row ${index + 1}`)}">${options}</select></td><td data-label="Allocated">${packer ? esc(row.received_weight || '—') : '0'}</td><td data-label="Status"><span class="packing-distribution-status ${statusClass}">${esc(status)}</span></td></tr>`;
     }).join('');
     distributionBody.querySelectorAll('[data-review-packer]').forEach((select) => { select.value = String(invoiceDraftRows[Number(select.dataset.reviewPacker)]?.assigned_employee_id || ''); });
-    distributionSummary.innerHTML = [...totals.values()].map((item) => `<div class="packing-distribution-card"><span>${esc(item.name)}</span><strong>${item.units} units</strong><small>${invoiceUnits ? Math.round(item.units / invoiceUnits * 100) : 0}% of invoice · ${item.rows} complete row${item.rows === 1 ? '' : 's'} · ${item.points.toFixed(1)} workload points</small></div>`).join('');
+    distributionSummary.innerHTML = [...totals.values()].map((item) => `<div class="packing-distribution-card"><span>${esc(item.name)}</span><strong>${item.units} finished packs</strong><small>${invoiceUnits ? Math.round(item.units / invoiceUnits * 100) : 0}% of invoice · ${item.rows} complete row${item.rows === 1 ? '' : 's'} · ${item.points.toFixed(1)} workload points</small></div>`).join('');
     const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
     if (finalButton) finalButton.disabled = !allPackingAllocationsComplete() || invoiceDraftRows.some((row) => !eligible.has(String(row.assigned_employee_id || '')));
   }
@@ -1600,20 +1620,51 @@
   }
 
   function updateDraftWorkloadCell(input, row) {
-    const cell = input.closest('tr')?.querySelector('[data-draft-workload]');
-    if (cell) {
-      const accounting = quantityAccounting(row);
-      const statusClass = accounting.valid ? (row.quantity_confirmed === true ? 'is-confirmed' : 'is-valid') : `is-${accounting.status}`;
-      const statusText = row.quantity_confirmed === true ? '✓ Quantity confirmed' : (accounting.valid ? 'Valid — confirmation required' : accounting.message);
-      input.closest('tr')?.classList.toggle('has-draft-warning', !accounting.valid);
-      cell.innerHTML = `<strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${esc(statusText)}</small>`;
-      const bulkButton = input.closest('tr')?.querySelector('[data-leave-as-bulk]');
-      if (bulkButton) {
-        bulkButton.hidden = accounting.status !== 'under_allocated';
-        bulkButton.textContent = accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk';
-      }
+    const tr = input.closest('tr');
+    const accounting = quantityAccounting(row);
+    const cell = tr?.querySelector('[data-draft-workload]');
+    if (cell) cell.textContent = formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase);
+    const remaining = tr?.querySelector('[data-draft-remaining]');
+    if (remaining) remaining.innerHTML = packingBalanceMarkup(accounting);
+    tr?.classList.toggle('has-draft-warning', !accounting.valid);
+    const bulkButton = tr?.querySelector('[data-leave-as-bulk]');
+    if (bulkButton) {
+      bulkButton.hidden = accounting.status !== 'under_allocated';
+      bulkButton.textContent = `Leave ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))} as Bulk`;
     }
+    const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
+    if (finalButton) finalButton.disabled = !allPackingAllocationsComplete();
   }
+
+  function packingBalanceMarkup(accounting) {
+    return `<strong>${formatPhysical(accounting.received.dimension || 'count', Math.abs(accounting.difference || 0))}</strong><small class="pack-balance is-${accounting.status}" role="status">${esc(accounting.message)}</small>`;
+  }
+
+  function openDraftNotes(index) {
+    const row = invoiceDraftRows[index];
+    if (!row) return;
+    let dialog = document.querySelector('#packing-row-notes');
+    if (!dialog) {
+      dialog = document.createElement('dialog');
+      dialog.id = 'packing-row-notes';
+      dialog.className = 'pack-notes-popover';
+      dialog.setAttribute('aria-labelledby', 'packing-notes-title');
+      document.body.append(dialog);
+    }
+    dialog.innerHTML = `<h3 id="packing-notes-title">Notes — ${esc(row.item_name || 'Packing item')}</h3><p>Optional instructions. Quantities and assignments stay in the packing review.</p><label>Packing action<select data-note-field="packing_action">${packingActions.map(([key,label]) => `<option value="${key}" ${(row.packing_action || 'pack_as_supplied') === key ? 'selected' : ''}>${label}</option>`).join('')}</select></label>${[['general_instructions','General packing instructions'],['labelling_instructions','Labelling notes'],['repacking_instructions','Repacking notes']].map(([key,label]) => `<label>${label}<textarea data-note-field="${key}" maxlength="2000">${esc(row[key] || '')}</textarea></label>`).join('')}<div class="pack-notes-popover-footer"><button type="button" data-cancel-notes>Cancel</button><button type="button" data-save-notes>Save notes</button></div>`;
+    dialog.querySelector('[data-cancel-notes]').onclick = () => dialog.close();
+    dialog.querySelector('[data-save-notes]').onclick = () => {
+      dialog.querySelectorAll('[data-note-field]').forEach(field => { row[field.dataset.noteField] = field.value; });
+      dialog.close();
+      renderInvoiceDraft();
+      invoiceDraftBody.querySelector(`[data-open-draft-notes="${index}"]`)?.focus();
+    };
+    dialog.showModal();
+  }
+  document.addEventListener('click', event => {
+    const button = event.target.closest('[data-open-draft-notes]');
+    if (button) openDraftNotes(Number(button.dataset.openDraftNotes));
+  });
 
   function parseManualDraft(text) {
     return String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
@@ -1652,9 +1703,10 @@
     const priorityOptions = priorities.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join('');
     const unitOptions = [['','Unit required'],['kg','kg'],['g','g'],['L','L'],['ml','ml'],['units','units']].map(([value,label])=>`<option value="${value}">${label}</option>`).join('');
     const stageTwo = receivedReviewComplete();
+    invoiceDraftBody.closest('table')?.classList.toggle('hb-packing-load', stageTwo);
     document.querySelectorAll('[data-invoice-review-stage]').forEach((step) => step.classList.toggle('is-active', step.dataset.invoiceReviewStage === (distributionReviewOpen ? 'distribution' : stageTwo ? 'instructions' : 'received')));
     if (head) head.innerHTML = stageTwo
-      ? '<th data-col-key="item">Item</th><th data-col-key="received">Received</th><th data-col-key="unit">Unit</th><th data-col-key="packing">Quantity to pack</th><th data-col-key="allocated">Allocated / remaining</th><th data-col-key="priority">Priority</th><th data-col-key="assigned">Assigned</th><th data-col-key="physical">Physical workload</th><th data-col-key="weighted">Weighted workload</th><th data-col-key="actions">Actions</th>'
+      ? '<th data-col-key="item">Product</th><th data-col-key="received">Received</th><th data-col-key="unit">Unit</th><th data-col-key="packing">Quantity to Pack</th><th data-col-key="allocated">Allocated</th><th data-col-key="remaining">Remaining</th><th data-col-key="priority">Priority</th><th data-col-key="notes">Notes</th>'
       : `<th data-col-key="item">Item</th><th data-col-key="received">${packingDraftMode === 'manual' ? 'Received quantity' : 'Extracted quantity'}</th><th data-col-key="unit">Unit *</th><th data-col-key="normalised">Normalised quantity</th><th data-col-key="status">Status</th><th data-col-key="actions">Action</th>`;
     if (!stageTwo) {
       invoiceDraftBody.innerHTML = invoiceDraftRows.map((row, index) => {
@@ -1662,7 +1714,7 @@
         const statusClass = `is-${state.status}`;
         return `<tr data-draft-index="${index}" class="packing-received-row ${state.valid ? '' : 'has-draft-warning'} ${statusClass}">
           <td><input data-draft-field="item_name" aria-label="Item name" value="${esc(row.item_name || '')}"></td>
-          <td><input data-draft-field="received_weight" value="${esc(String(row.received_weight || '').match(/\d+(?:\.\d+)?/)?.[0] || '')}" inputmode="decimal" aria-label="Received quantity"></td>
+          <td><input data-draft-field="received_weight" value="${esc(String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1').match(/\d+(?:\.\d+)?/)?.[0] || '')}" inputmode="decimal" aria-label="Received quantity"></td>
           <td><select data-draft-field="unit" required>${unitOptions}</select></td>
           <td><strong>${state.valid ? formatPhysical(state.received.dimension, state.received.base) : '—'}</strong></td>
           <td><small class="quantity-row-status ${statusClass}">${esc(state.message)}</small></td>
@@ -1675,14 +1727,14 @@
       const parts = Array.isArray(row.pack_parts) ? row.pack_parts : quantityPlanParts(row.quantity_planned || ''); row.pack_parts = parts;
       const statusClass = `is-${accounting.status}`;
       const builder = row.builder_open ? `<div class="pack-size-builder" data-pack-builder="${index}"><div class="pack-size-builder-head"><span>Pack size</span><span>Quantity</span><span></span></div>${parts.map((part, partIndex) => `<div class="pack-size-builder-row"><div><input type="number" min="0" step="0.001" data-pack-part-field="amount" data-pack-part-index="${partIndex}" value="${esc(part.amount)}"><select data-pack-part-field="unit" data-pack-part-index="${partIndex}">${['g','kg','ml','L','units'].map((unit) => `<option value="${unit}" ${unit === part.unit ? 'selected' : ''}>${unit}</option>`).join('')}</select></div><input type="number" min="1" step="1" data-pack-part-field="count" data-pack-part-index="${partIndex}" value="${esc(part.count)}"><button type="button" data-remove-pack-part="${partIndex}" data-row-index="${index}" aria-label="Remove pack size"><i data-lucide="x"></i></button></div>`).join('')}<button type="button" class="pack-size-add" data-add-pack-part="${index}"><i data-lucide="plus"></i> Add Pack Size</button></div>` : '';
-      const physical = draftPhysical(row);
-      return `<tr data-draft-index="${index}" class="${accounting.valid ? '' : 'has-draft-warning'} ${statusClass}">
-        <td>${esc(row.item_name || '')}</td><td>${esc(row.received_weight || '')}</td><td>${esc(row.unit || '')}</td>
-        <td><input data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="100g(20), 250g(8)"><button type="button" class="pack-builder-toggle" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close rows' : 'Edit as rows'}</button>${builder}<label class="draft-bulk-remainder">Bulk remainder <input type="number" min="0" step="0.001" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" class="leave-as-bulk" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>${accounting.status === 'under_allocated' ? `Leave ${formatPhysical(accounting.received.dimension, accounting.difference)} as Bulk` : 'Leave as Bulk'}</button></td>
-        <td data-draft-workload><strong>Allocated: ${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</strong><small>Remaining: ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))}</small><small class="quantity-row-status ${statusClass}">${esc(accounting.message)}</small></td>
-        <td><select data-draft-field="priority">${priorityOptions}</select></td><td><select data-draft-field="assigned_employee_id">${personOptions}</select></td>
-        <td><strong>${formatPhysical('weight', physical.weight)}</strong><small>${formatPhysical('volume', physical.volume)} · ${formatPhysical('count', physical.count)}</small></td><td><strong>${Number(row.workload || draftWorkload(row)).toFixed(1)} points</strong></td>
-        <td class="draft-row-actions"><button type="button" title="Split row" data-split-draft-row="${index}"><i data-lucide="copy-plus"></i></button><button type="button" title="Remove row" data-remove-draft-row="${index}"><i data-lucide="trash-2"></i></button></td>
+      const hasNotes = ['general_instructions','labelling_instructions','repacking_instructions'].some(key => String(row[key] || '').trim()) || (row.packing_action && row.packing_action !== 'pack_as_supplied');
+      return `<tr data-draft-index="${index}" class="pack-item-row ${accounting.valid ? '' : 'has-draft-warning'} ${statusClass}">
+        <td class="pack-item-name" data-label="Product">${esc(row.item_name || '')}</td><td data-label="Received">${esc(row.received_weight || '')}</td><td data-label="Unit">${esc(row.unit || '')}</td>
+        <td data-label="Quantity to Pack"><input class="pack-quantity-input" aria-label="Quantity to pack for ${esc(row.item_name || 'item')}" data-draft-field="quantity_planned" value="${esc(row.quantity_planned || '')}" placeholder="50(20) or 100g(10)"><details class="pack-options" ${row.builder_open ? 'open' : ''}><summary>Options</summary><div class="pack-options-panel"><button type="button" class="pack-builder-toggle" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close rows' : 'Edit as rows'}</button>${builder}<label class="draft-bulk-remainder">Bulk remainder (${esc(row.unit)}) <input type="number" min="0" step="0.001" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" class="leave-as-bulk" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>Leave ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))} as Bulk</button><div class="draft-row-actions"><button type="button" data-split-draft-row="${index}">Split row</button><button type="button" data-remove-draft-row="${index}">Remove row</button></div></div></details></td>
+        <td data-label="Allocated" data-draft-workload>${formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)}</td>
+        <td data-label="Remaining" data-draft-remaining>${packingBalanceMarkup(accounting)}</td>
+        <td data-label="Priority"><select aria-label="Priority for ${esc(row.item_name || 'item')}" data-draft-field="priority">${priorityOptions}</select></td>
+        <td data-label="Notes"><button type="button" class="pack-notes-button" data-open-draft-notes="${index}" aria-label="Notes for ${esc(row.item_name || 'item')}${hasNotes ? ', notes saved' : ''}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M13 4H5v16h14v-8M10 14l1-4 8-8 3 3-8 8-4 1Z"/></svg>Notes${hasNotes ? '<span class="pack-note-dot" aria-hidden="true"></span>' : ''}</button></td>
       </tr>`;
     }).join('');
     invoiceDraftBody.querySelectorAll('[data-draft-field="assigned_employee_id"]').forEach((select) => {
@@ -2001,7 +2053,7 @@
           <td class="task-cell col-item" data-column-key="item">${renderItemCell(task)}</td>
           <td class="col-dateloaded packing-editable-date-cell" data-column-key="date_loaded">${renderPackingDate(task, 'date_loaded', currentUser.can_manage)}</td>
           <td class="col-priority" data-column-key="priority">${priorityCell}</td>
-          <td class="col-qty" data-column-key="quantity_to_pack">${currentUser.can_manage ? renderEditableCell(task, 'quantity_planned', 'Quantity to pack') : esc(task.quantity_planned || '')}</td>
+          <td class="col-qty" data-column-key="quantity_to_pack">${currentUser.can_manage ? renderEditableCell(task, 'quantity_planned', 'Quantity to pack') : esc(readablePackingPlan(task.quantity_planned))}</td>
           <td class="col-person" data-column-key="person">${renderPerson(task)}</td>
           <td class="col-qtypacked" data-column-key="quantity_packed">${canEditOwn ? renderEditableCell(task, 'quantity_packed', 'Quantity packed', 'Enter packed quantity') : esc(task.quantity_packed || '')}</td>
           <td class="col-datecompleted packing-editable-date-cell" data-column-key="date_completed">${renderPackingDate(task, 'date_completed', canEditOwn)}</td>
@@ -2770,7 +2822,7 @@
     const overview = panel.querySelector('[data-packing-overview]');
     if (overview) overview.innerHTML = `<section class="packing-item-section"><h2 class="packing-item-section-title">Packing overview</h2><div class="packing-item-info-grid">${[
       ['Item',currentTask.item_name],['Priority',labelText(priorities,currentTask.priority)],
-      ['Quantity required',currentTask.quantity_planned],['Quantity packed',currentTask.quantity_packed],
+      ['Quantity required',readablePackingPlan(currentTask.quantity_planned)],['Quantity packed',currentTask.quantity_packed],
       ['Person responsible',currentTask.assigned_name || 'Unassigned'],['Packing status',labelText(statuses,currentTask.packing_status)],
       ['Date loaded',formatDate(currentTask.date_loaded)],['Date completed',currentTask.date_completed ? formatDate(currentTask.date_completed) : 'Not complete'],
       ['Website status',Number(currentTask.packing_website_confirmed || 0) === 1 ? 'Updated' : 'Not updated'],['Notes',currentTask.packer_notes || 'No notes']
@@ -2786,6 +2838,7 @@
       <section class="packing-item-section"><h2 class="packing-item-section-title">Packing information</h2><div class="packing-item-info-grid">
         ${editableInfoCard('item_name', 'Item', currentTask.item_name, Boolean(currentUser.can_manage))}${editableInfoCard('received_weight', 'Received', currentTask.received_weight, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_planned', 'Quantity to pack', currentTask.quantity_planned, Boolean(currentUser.can_manage))}${editableInfoCard('quantity_packed', 'Quantity packed', currentTask.quantity_packed, canEditOwn)}
       </div></section>
+      <section class="packing-item-section" data-packing-instructions><h2 class="packing-item-section-title">Packing instructions</h2>${packingInstructionFields(packingInstructions(currentTask),false,Boolean(currentUser.can_manage))}${currentUser.can_manage?'<button type="button" data-save-packing-instructions>Save instructions</button>':''}<p data-instructions-message role="status"></p></section>
       <section class="packing-item-section"><h2 class="packing-item-section-title">Assignment and status</h2><div class="packing-item-form-grid packing-assignment-grid">
         <div class="packing-item-field"><label>Assigned</label><div class="packing-item-control">${renderPerson(currentTask)}</div></div>
         <div class="packing-item-field"><label>Packing status</label><div class="packing-item-control">${renderPackingStatus(currentTask, canEditOwn)}</div></div>
@@ -2982,7 +3035,7 @@
     const retry = event.target.closest('[data-retry-packing-file]');
     if (retry && activePackingFileItemId) { const file = failedPackingFiles.get(retry.dataset.retryPackingFile); if (file) uploadPackingItemFiles(activePackingFileItemId, [file]); return; }
     const remove = event.target.closest('[data-delete-packing-file]');
-    if (!remove || !activePackingFileItemId || !window.confirm('Delete this file?')) return;
+    if (!remove || !activePackingFileItemId || !await window.PortalNotice.confirm('Delete this file?')) return;
     const deleteItemId = String(activePackingFileItemId);
     const data = new FormData(); data.append('action','delete'); data.append('item_id',deleteItemId); data.append('attachment_id',remove.dataset.deletePackingFile); data.append('csrf_token',String(config.filesCsrf || ''));
     const response = await fetch(config.filesUrl, {method:'POST', credentials:'same-origin', body:data});
@@ -3030,7 +3083,7 @@
     if (field === 'quantity_packed') {
       const packed = packingPanelNumber(value);
       const planned = packingPanelNumber(currentTask.quantity_planned);
-      if (Number.isFinite(planned) && packed > planned && !window.confirm('Quantity Packed exceeds Quantity to Pack. Save anyway?')) return;
+      if (Number.isFinite(planned) && packed > planned && !await window.PortalNotice.confirm('Quantity Packed exceeds Quantity to Pack. Save anyway?')) return;
     }
     const taskId = String(currentTask.id);
     const activeTab = document.querySelector('[data-packing-panel-tab].is-active')?.dataset.packingPanelTab || 'details';
@@ -3123,8 +3176,8 @@
     if (action === 'close') { clearPackingSelection(); return; }
     if (!selected.size) return;
     if (action === 'export') { exportSelectedPacking(); return; }
-    if (action === 'archive' && !window.confirm(`Archive ${selected.size} selected item${selected.size === 1 ? '' : 's'}?`)) return;
-    if (action === 'delete' && !window.confirm(`Delete ${selected.size} selected item${selected.size === 1 ? '' : 's'} permanently?`)) return;
+    if (action === 'archive' && !await window.PortalNotice.confirm(`Archive ${selected.size} selected item${selected.size === 1 ? '' : 's'}?`)) return;
+    if (action === 'delete' && !await window.PortalNotice.confirm(`Delete ${selected.size} selected item${selected.size === 1 ? '' : 's'} permanently?`)) return;
     const actionMap = { duplicate: 'bulk_duplicate', archive: 'bulk_archive', delete: 'bulk_delete' };
     if (!actionMap[action]) return;
     await post(actionMap[action], { task_ids: [...selected].join(',') });
@@ -3350,7 +3403,7 @@
       const submittedRows = invoiceDraftRows.map((row) => ({
         ...row,
         assignment_source: manualMode ? row.assignment_source : 'manual',
-        received_weight: `${String(row.received_weight || '').match(/\d+(?:\.\d+)?/)?.[0] || ''}${row.unit || ''}`,
+        received_weight: `${String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1').match(/\d+(?:\.\d+)?/)?.[0] || ''}${row.unit || ''}`,
         allocation: quantityAccounting(row),
       }));
       const result = await post('create_invoice_rows', {
@@ -3505,7 +3558,7 @@
         resolve(payload);
       };
 
-      overlay.addEventListener('click', (event) => {
+      overlay.addEventListener('click', async (event) => {
         if (event.target === overlay || event.target.closest('[data-duplicate-close]') || event.target.closest('[data-duplicate-cancel]')) {
           close(null);
           return;
@@ -3523,7 +3576,7 @@
           }
           const preview = selected.deleteLabels.slice(0, 12).join('\n');
           const suffix = selected.deleteLabels.length > 12 ? `\n...and ${selected.deleteLabels.length - 12} more` : '';
-          const ok = window.confirm(`You are about to delete ${selected.deleteIds.length} duplicate rows. Please review the selected items below.\n\n${preview}${suffix}\n\nThis is permanent. Continue?`);
+          const ok = await window.PortalNotice.confirm(`You are about to delete ${selected.deleteIds.length} duplicate rows. Please review the selected items below.\n\n${preview}${suffix}\n\nThis is permanent. Continue?`);
           if (ok) close({ action: 'delete', ids: selected.deleteIds });
         }
       });
@@ -3621,7 +3674,7 @@
       if (packingTrashBulkInFlight || packingTrashSelection.size === 0) return;
       const ids = [...packingTrashSelection];
       const operation = trashBulk.dataset.trashBulk;
-      if (operation === 'delete' && !window.confirm(`Permanently delete ${ids.length} selected item${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+      if (operation === 'delete' && !await window.PortalNotice.confirm(`Permanently delete ${ids.length} selected item${ids.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
       packingTrashBulkInFlight = true;
       document.querySelectorAll('[data-trash-bulk], [data-trash-clear-selection], [data-trash-select], [data-trash-select-all]').forEach((control) => { control.disabled = true; });
       trashBulk.classList.add('is-processing');
@@ -4227,6 +4280,13 @@
         return;
       }
       if (panelButton) { openPanel(panelButton.dataset.packingOpenPanel); return; }
+      const saveInstructions = event.target.closest('[data-save-packing-instructions]');
+      if (saveInstructions && currentTask) {
+        const holder=saveInstructions.closest('[data-packing-instructions]'), message=holder.querySelector('[data-instructions-message]');
+        if(saveInstructions.disabled)return;saveInstructions.disabled=true;message.textContent='Saving…';
+        const fields={task_id:currentTask.id,csrf_token:config.filesCsrf};holder.querySelectorAll('[data-instruction-field]').forEach(input=>{fields[input.dataset.instructionField]=input.value;});
+        try{const result=await post('save_packing_instructions',fields);currentTask.notes=result.notes;const task=tasks.find(row=>String(row.id)===String(currentTask.id));if(task)task.notes=result.notes;message.textContent='Instructions saved.';}catch(error){message.textContent=error.message;}finally{saveInstructions.disabled=false;}return;
+      }
       if (saveWorkloadOverride && currentTask) {
         const holder = saveWorkloadOverride.closest('[data-packing-workload-override]');
         const points = holder?.querySelector('[data-workload-override-points]')?.value ?? '';
