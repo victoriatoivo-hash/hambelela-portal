@@ -5,6 +5,7 @@ from pathlib import Path
 FILES = ("shared/marketing-content-workflow.php","shared/marketing.php","shared/marketing-workspace.php","shared/marketing-execution.php","shared/notifications.php","assets/js/portal.js","assets/js/marketing.js","assets/js/marketing-workspace.js","assets/css/marketing-workspace.css","apps/marketing/execution.php","apps/marketing/index.php")
 READ_ONLY = ("api/notifications.php",)
 EXPORT_MODULES = ("shared/marketing.php","shared/marketing-workspace.php","shared/marketing-execution.php","apps/marketing/index.php","apps/marketing/execution.php","apps/marketing/employee-workspace.php","assets/js/marketing.js","assets/js/marketing-workspace.js","assets/css/marketing-workspace.css","assets/css/marketing-execution.css","shared/notifications.php","api/notifications.php")
+EXPORT_MODULES = EXPORT_MODULES + ("assets/js/portal.js",)
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 if subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=sha: raise SystemExit('Exact checkout SHA required')
