@@ -167,7 +167,7 @@
   });
   root.querySelectorAll('.marketing-table-wrap').forEach(wrap=>{
     // Analytics refreshes its own rows; use the same design without retaining stale row references.
-    if(wrap.closest('[data-marketing-analytics]'))return;
+    if(wrap.closest('[data-marketing-analytics],.mw-work'))return;
     const table=wrap.querySelector('table'),body=table?.tBodies[0];
     if(!body)return;
     const rows=[...body.rows].filter(row=>!row.querySelector('.marketing-empty'));
