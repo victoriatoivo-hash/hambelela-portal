@@ -1,0 +1,93 @@
+/* Opt-in comes from verified employee ID + Driver role. Desktop keeps its existing UI. */
+.driver-dashboard-heading,.driver-dashboard-apps,.driver-mobile-account,#driver-mobile-filters{display:none}
+body.is-driver-mobile .driver-mobile-nav{display:none}
+@media(max-width:767px){
+ body.is-driver-mobile{--dm-olive:#59694A;--dm-dark:#344126;--dm-cream:#F8F7F2;--dm-soft:#F2F4EC;--dm-text:#1C2118;--dm-secondary:#62675E;--dm-border:#E4E6DC;font-family:"Jost",sans-serif;background:var(--dm-cream);color:var(--dm-text)}
+ body.is-driver-mobile *,body.is-driver-mobile *::before,body.is-driver-mobile *::after{box-sizing:border-box}
+ body.is-driver-mobile .ess-search,body.is-driver-mobile [data-portal-online-widget],body.is-driver-mobile .portal-header-clock,body.is-driver-mobile .portal-header-account,body.is-driver-mobile .portal-header-logout{display:none!important}
+ body.is-driver-mobile .ess-topbar>:not(.ess-topbar-actions){display:none}
+ body.is-driver-mobile .ess-topbar{display:flex;justify-content:flex-end;align-items:center;min-height:48px;margin:0 0 6px;padding:0;border:0;gap:0}
+ body.is-driver-mobile .ess-topbar-actions,body.is-driver-mobile .ess-account-slot{display:flex;align-items:center;gap:4px;width:auto;margin:0;padding:0}
+ body.is-driver-mobile [data-portal-header-status]{position:static;width:auto;max-width:100%;padding:0;margin:0;box-shadow:none;border:0;min-height:44px}
+ body.is-driver-mobile .portal-header-actions{display:flex;align-items:center;gap:4px;flex-wrap:nowrap;padding:0}
+ body.is-driver-mobile .driver-mobile-account{display:flex;align-items:center;gap:2px;order:2}
+ body.is-driver-mobile .driver-mobile-account a{display:grid;place-items:center;width:44px;height:44px;color:var(--dm-dark);text-decoration:none}
+ body.is-driver-mobile .driver-mobile-account svg{width:18px;height:18px}
+ body.is-driver-mobile .portal-notification-button{min-width:44px;min-height:44px}
+ body.is-driver-mobile .ess-dashboard-main{min-width:0;max-width:100%;padding:8px 12px 92px!important;margin-left:0}
+ body.is-driver-mobile .delivery-content,body.is-driver-mobile .delivery-main{padding:0!important;margin:0;min-width:0;max-width:100%;width:100%}
+ body.is-driver-mobile .delivery-main>.pagehead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:0;margin:0 0 12px}
+ body.is-driver-mobile .pagehead h1{font:600 20px/1.2 "Jost",sans-serif;margin:3px 0;color:var(--dm-text)}
+ body.is-driver-mobile .pagehead p{font:400 10.5px/1.4 "Jost",sans-serif;margin:3px 0;color:var(--dm-secondary)}
+ body.is-driver-mobile .pagehead .eyebrow{font:500 9px/1.3 "Jost",sans-serif;color:var(--dm-olive);letter-spacing:.1em}
+ body.is-driver-mobile .pagehead .actions{display:flex;flex:0 0 44px;margin:0;gap:0}
+ body.is-driver-mobile #refresh{width:44px;height:44px;padding:0;display:grid;place-items:center;border:1px solid var(--dm-border);border-radius:9px;background:#fff;color:var(--dm-dark)}
+ body.is-driver-mobile #refresh svg{width:19px;height:19px}
+ body.is-driver-mobile #message:empty{display:none}
+ body.is-driver-mobile #delivery-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:0 0 12px}
+ body.is-driver-mobile #delivery-totals .summary-pill{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-width:0;padding:10px;border:1px solid var(--dm-border);border-radius:10px;background:#fff}
+ body.is-driver-mobile #delivery-totals .summary-pill>span{font:400 9.5px/1.3 "Jost",sans-serif;color:var(--dm-secondary)}
+ body.is-driver-mobile #delivery-totals strong{font:600 19px/1 "Jost",sans-serif;color:var(--dm-text)}
+ body.is-driver-mobile .delivery-primary-tabs{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin:0 0 8px}
+ body.is-driver-mobile .delivery-primary-tabs button{min-height:44px;font:500 11.5px "Jost",sans-serif;padding:8px;border:1px solid var(--dm-border);border-radius:9px;background:#fff;color:var(--dm-dark)}
+ body.is-driver-mobile .delivery-primary-tabs button[aria-pressed=true]{background:var(--dm-olive);border-color:var(--dm-olive);color:#fff}
+ body.is-driver-mobile .delivery-filters,body.is-driver-mobile .delivery-board-pagination{display:none!important}
+ body.is-driver-mobile #driver-mobile-filters{display:flex;gap:5px;overflow-x:auto;margin:0 0 10px;max-width:100%;padding:0 0 2px}
+ body.is-driver-mobile #driver-mobile-filters button{min-height:44px;flex:1 0 auto;padding:6px 9px;font:500 10.5px "Jost",sans-serif;border:1px solid var(--dm-border);border-radius:8px;background:#fff;color:var(--dm-secondary)}
+ body.is-driver-mobile #driver-mobile-filters button[aria-pressed=true]{border-color:var(--dm-olive);background:var(--dm-soft);color:var(--dm-dark)}
+ body.is-driver-mobile #jobs.driver-delivery-list{display:block;min-width:0;width:100%;border:1px solid var(--dm-border);border-radius:12px;background:#fff;overflow:hidden}
+ body.is-driver-mobile .driver-delivery-row{display:grid;grid-template-columns:30px minmax(0,1fr) 12px;align-items:center;gap:8px;width:100%;min-height:74px;padding:10px;border:0;border-bottom:1px solid var(--dm-border);border-radius:0;background:#fff;color:var(--dm-text);text-align:left;font-family:"Jost",sans-serif;cursor:pointer}
+ body.is-driver-mobile .driver-delivery-row:last-child{border-bottom:0}
+ body.is-driver-mobile .driver-delivery-row:active{background:var(--dm-soft)}
+ body.is-driver-mobile .driver-delivery-row:focus-visible{outline:2px solid var(--dm-olive);outline-offset:-3px}
+ body.is-driver-mobile .driver-delivery-row.is-urgent{border-left:3px solid #a44836;padding-left:7px}
+ body.is-driver-mobile .driver-row-icon{display:grid;place-items:center;width:30px;height:34px;background:var(--dm-soft);color:var(--dm-olive);border-radius:8px}
+ body.is-driver-mobile .driver-row-icon svg{width:18px;height:18px}
+ body.is-driver-mobile .driver-row-content{display:block;min-width:0}
+ body.is-driver-mobile .driver-row-reference{display:flex;align-items:center;flex-wrap:wrap;gap:5px;font:600 12.5px/1.3 "Jost",sans-serif}
+ body.is-driver-mobile .driver-source{font:400 9px "Jost",sans-serif;color:var(--dm-secondary)}
+ body.is-driver-mobile .driver-urgent{padding:2px 5px;background:#f9ece7;border-radius:4px;color:#943d2e;font:500 9px "Jost",sans-serif}
+ body.is-driver-mobile .driver-row-customer{display:block;margin-top:3px;font:500 11.5px/1.3 "Jost",sans-serif;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ body.is-driver-mobile .driver-row-meta{display:block;margin-top:3px;font:400 10px/1.3 "Jost",sans-serif;color:var(--dm-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ body.is-driver-mobile .driver-chevron{font-size:20px;color:var(--dm-olive)}
+ body.is-driver-mobile.driver-day-view .delivery-primary-tabs,body.is-driver-mobile.driver-day-view #driver-mobile-filters{display:none}
+ body.is-driver-mobile .driver-activity-heading{padding:12px;border-bottom:1px solid var(--dm-border)}
+ body.is-driver-mobile .driver-activity-heading h2{font-size:14px;font-weight:600;margin:0}
+ body.is-driver-mobile .driver-activity-heading span,body.is-driver-mobile .driver-review-note{font-size:10.5px;color:var(--dm-secondary)}
+ body.is-driver-mobile .driver-review-note{padding:0 12px}
+ body.is-driver-mobile .driver-timeline-row{display:grid;grid-template-columns:1fr 1fr;gap:4px;text-align:left;width:100%;padding:12px;border:0;border-bottom:1px solid var(--dm-border);border-radius:0;background:#fff;color:var(--dm-text);font:400 11.5px "Jost",sans-serif;min-height:64px}
+ body.is-driver-mobile .driver-timeline-row strong{font-weight:600}
+ body.is-driver-mobile .driver-timeline-row time{grid-column:1/-1;color:var(--dm-secondary);font-size:10px}
+ body.is-driver-mobile .empty-state{padding:18px 12px;font-size:11.5px}
+ body.is-driver-mobile dialog.driver-detail-sheet{position:fixed;inset:0;width:100vw;max-width:100vw;height:100dvh;max-height:100dvh;margin:0;padding:0;border:0;border-radius:0;background:var(--dm-cream);color:var(--dm-text);overflow:auto}
+ body.is-driver-mobile dialog.driver-detail-sheet>header{position:sticky;top:0;z-index:2;display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:#fff;border-bottom:1px solid var(--dm-border)}
+ body.is-driver-mobile dialog.driver-detail-sheet>header h2{font:600 19px "Jost",sans-serif;margin:0}
+ body.is-driver-mobile #delivery-details-content{padding:12px 12px calc(20px + env(safe-area-inset-bottom))}
+ body.is-driver-mobile #delivery-details-content .card{padding:12px;border:1px solid var(--dm-border);border-radius:10px;background:#fff;box-shadow:none}
+ body.is-driver-mobile #delivery-details-content h4{margin:14px 0 4px;font:600 12px "Jost",sans-serif;color:var(--dm-dark)}
+ body.is-driver-mobile #delivery-details-content :is(p,li,dt,dd){font:400 11.5px/1.5 "Jost",sans-serif;overflow-wrap:anywhere}
+ body.is-driver-mobile #delivery-details-content p{margin:4px 0 8px}
+ body.is-driver-mobile #delivery-details-content .delivery-customer{font:500 14px "Jost",sans-serif;margin:0}
+ body.is-driver-mobile #delivery-details-content .delivery-notes{white-space:pre-wrap}
+ body.is-driver-mobile #delivery-details-content .actions{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+ body.is-driver-mobile #delivery-details-content .actions>*{flex:1 1 44%;min-height:44px;font:500 11.5px "Jost",sans-serif;text-align:center;display:flex;align-items:center;justify-content:center;border-radius:9px;padding:9px}
+ body.is-driver-mobile dialog :is(button,.secondary){min-height:44px;font-family:"Jost",sans-serif}
+ body.is-driver-mobile dialog .primary{background:var(--dm-olive);color:#fff;border-color:var(--dm-olive)}
+ body.is-driver-mobile dialog .secondary{background:#fff;color:var(--dm-dark);border:1px solid var(--dm-border)}
+ body.is-driver-mobile #delivery-details-content .payment-box strong{font-size:18px}
+ body.is-driver-mobile .driver-dashboard>:not(.ess-topbar):not(.driver-dashboard-heading):not(.driver-dashboard-apps){display:none}
+ body.is-driver-mobile .driver-dashboard-heading{display:block;margin:0 0 14px}
+ body.is-driver-mobile .driver-dashboard-heading>span{font:500 9.5px "Jost",sans-serif;letter-spacing:.09em;color:var(--dm-olive)}
+ body.is-driver-mobile .driver-dashboard-heading h1{font:600 20px "Jost",sans-serif;margin:4px 0}
+ body.is-driver-mobile .driver-dashboard-heading p{font:400 11px "Jost",sans-serif;color:var(--dm-secondary);margin:0}
+ body.is-driver-mobile .driver-dashboard-apps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ body.is-driver-mobile .driver-dashboard-app{min-height:116px;padding:13px;background:#fff;color:var(--dm-text);border:1px solid var(--dm-border);border-radius:12px;text-decoration:none}
+ body.is-driver-mobile .driver-dashboard-app svg{width:22px;height:22px;color:var(--dm-olive)}
+ body.is-driver-mobile .driver-dashboard-app h2{font:600 12px/1.3 "Jost",sans-serif;margin:8px 0 4px}
+ body.is-driver-mobile .driver-dashboard-app p{font:400 10px/1.4 "Jost",sans-serif;margin:0;color:var(--dm-secondary)}
+ body.is-driver-mobile .ess-mobile-nav:not(.driver-mobile-nav){display:none}
+ body.is-driver-mobile .driver-mobile-nav{display:flex;position:fixed;bottom:0;left:0;right:0;z-index:100;background:var(--dm-dark);padding:5px 3px calc(5px + env(safe-area-inset-bottom));justify-content:space-around}
+ body.is-driver-mobile .driver-mobile-nav a{min-width:0;flex:1;min-height:48px;padding:5px 2px;font:400 9px/1.2 "Jost",sans-serif;text-align:center;color:#fff;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:5px;text-decoration:none}
+ body.is-driver-mobile .driver-mobile-nav svg{width:18px;height:18px}
+}
+@media(max-width:767px) and (prefers-reduced-motion:reduce){body.is-driver-mobile *,body.is-driver-mobile *::before,body.is-driver-mobile *::after{animation-duration:.001ms!important;transition-duration:.001ms!important}}

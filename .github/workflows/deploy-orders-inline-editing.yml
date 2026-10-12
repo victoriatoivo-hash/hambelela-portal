@@ -1,10 +1,10 @@
-name: Deploy Packing List allocation delta
+name: Deploy Israel Driver mobile delta
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Export, preflight or deploy the isolated Packing List allocation change
+        description: Export, preflight or deploy the isolated Israel Driver mobile change
         required: true
         type: choice
         options:
@@ -48,13 +48,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Validate packing calculations and syntax
+      - name: Validate Driver profile scope and mobile behavior
         run: |
           python3 -m py_compile scripts/deploy-delivery-single-list.py
-          node --check assets/js/packing-list.js
-          node tests/packing-unit-allocation.js
-          node tests/packing-unit-allocation.js --cases | php tests/packing-unit-allocation.php
-      - name: Back up and publish only approved Packing List files
+          node --check assets/js/delivery-core.js
+          node tests/driver-mobile-view.js
+          php tests/driver-mobile-scope.php
+      - name: Back up and publish only approved Driver mobile interface files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

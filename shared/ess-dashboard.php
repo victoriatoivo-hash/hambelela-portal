@@ -20,25 +20,42 @@ $essQuickLinks = [
 ];
 if ($roleKey !== 'owner_admin') {
     // Use exactly the current profile's already-filtered dashboard destinations.
-    $essShellApps = $apps;
+    $essShellApps = ess_shell_apps();
     $essAllowedPaths = array_column($apps, 'href');
     $essQuickLinks = array_values(array_filter($essQuickLinks, static fn(array $link): bool =>
         $link[1] === '/apps/operations/my-account.php' || in_array(BASE_URL.$link[1], $essAllowedPaths, true)));
 }
 ?>
+<?php if($roleKey==='delivery_driver'){$essQuickLinks=[['My deliveries','/apps/delivery/index.php','bike'],['Notifications','/notifications.php','bell'],['My account','/profile.php','user-round']];} ?>
 <?php include __DIR__.'/ess-sidebar.php'; ?>
-<main id="ess-main" class="workspace ess-dashboard-main" tabindex="-1">
+<main id="ess-main" class="workspace ess-dashboard-main<?= !empty($driverMobileProfile) ? ' driver-dashboard' : '' ?>" tabindex="-1">
     <?php include __DIR__.'/ess-topbar.php'; ?>
+    <?php if (!empty($driverMobileProfile)): ?>
+    <header class="driver-dashboard-heading"><span>HAMBELELA DELIVERY</span><h1>My Dashboard</h1><p>Your deliveries, updates and account.</p></header>
+    <section class="driver-dashboard-apps" aria-label="Driver applications">
+    <?php foreach (\Hambelela\Delivery\DriverMobile::links() as [$label,$path,$icon,$description]): if ($label === 'Dashboard') continue; ?>
+      <a class="driver-dashboard-app" href="<?= $essEscape(BASE_URL.$path) ?>"><i data-lucide="<?= $essEscape($icon) ?>" aria-hidden="true"></i><h2><?= $essEscape($label) ?></h2><p><?= $essEscape($description) ?></p></a>
+    <?php endforeach; ?>
+    </section>
+    <?php endif; ?>
     <section class="ess-hero ess-single-thought" aria-label="Today’s Thought" data-ess-inspiration data-date="<?= $essNow->format('Y-m-d') ?>">
         <div class="ess-inspiration-block" data-ess-verse-panel<?= $essInspiration['type'] !== 'verse' ? ' hidden' : '' ?>><div class="ess-inspiration-label">TODAY’S THOUGHT</div><blockquote class="ess-daily-verse" data-ess-verse>“<?= $essEscape($essInspiration['verse']['text']) ?>”</blockquote><div class="ess-verse-reference" data-ess-reference><?= $essEscape($essInspiration['verse']['reference']) ?> · KJV</div></div>
         <div class="ess-inspiration-block" data-ess-quote-panel<?= $essInspiration['type'] !== 'quote' ? ' hidden' : '' ?>><div class="ess-inspiration-label">TODAY’S THOUGHT</div><blockquote class="ess-daily-verse" data-ess-quote>“<?= $essEscape($essInspiration['quote']['text']) ?>”</blockquote><a class="ess-quote-author" data-ess-author href="<?= $essEscape($essInspiration['quote']['source']) ?>" target="_blank" rel="noopener noreferrer"><?= $essEscape($essInspiration['quote']['author']) ?></a></div>
     </section>
+    <?php if($roleKey==='delivery_driver'): ?>
+    <section class="ess-panel ess-performance" aria-labelledby="driver-summary-title"><header class="ess-panel-header"><h2 id="driver-summary-title" class="ess-panel-title">My delivery day</h2><a class="ess-panel-link" href="<?=BASE_URL?>/apps/delivery/index.php">Open Delivery</a></header>
+    <?php if($dashboardDelivery!==null): ?><div class="ess-performance-grid">
+    <?php foreach(['today'=>'Today','urgent'=>'Urgent','out_for_delivery'=>'Out for delivery','awaiting_reconciliation'=>'Awaiting handover','completed_today'=>'Completed today'] as $key=>$label): ?><article class="ess-stat"><span class="ess-stat-icon"><i data-lucide="bike" aria-hidden="true"></i></span><div><div class="ess-stat-label"><?=$essEscape($label)?></div><div class="ess-stat-value"><?=(int)$dashboardDelivery['metrics'][$key]?></div></div></article><?php endforeach; ?></div>
+    <div class="ess-activity-list"><?php foreach($dashboardDelivery['activity'] as $event): ?><a class="ess-activity-item" href="<?=BASE_URL?>/apps/delivery/index.php"><span><?=$essEscape($event['public_reference'])?> · <?=$essEscape(str_replace('_',' ',$event['event_type']))?></span><time class="ess-activity-time"><?=$essEscape((new DateTimeImmutable($event['created_at'],new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Africa/Windhoek'))->format('d M H:i'))?></time></a><?php endforeach; ?><?php if(!$dashboardDelivery['activity']):?><p class="ess-empty">No delivery activity yet.</p><?php endif; ?></div>
+    <?php else: ?><p class="ess-empty">Your delivery summary is unavailable. Contact your administrator.</p><?php endif; ?></section>
+    <?php endif; ?>
     <div class="ess-section-heading"><h2>Business modules</h2><span>Everything you need, in one place</span></div>
     <section class="ess-module-grid" id="ess-modules" aria-label="Business apps">
         <?php foreach ($apps as $index => $app): ?>
         <a class="ess-module-card" data-ess-module data-ess-accent="<?= $essEscape($app['name']) ?>" data-search="<?= $essEscape($app['name'] . ' ' . $app['desc']) ?>" href="<?= $essEscape($app['href']) ?>" style="--ess-order:<?= (int) $index ?>" aria-label="<?= $essEscape($app['name'] . ' — ' . $app['desc']) ?>">
             <span class="ess-module-icon"><i data-lucide="<?= $essEscape($app['icon']) ?>" aria-hidden="true"></i></span>
             <h3><?= $essEscape($app['name']) ?></h3><p><?= $essEscape($app['desc']) ?></p>
+            <?php if ($app['name'] === 'Marketing' && !empty($dashboardMarketingAssigned)): ?><span class="ess-module-badge" aria-label="<?= (int)$dashboardMarketingAssigned ?> assigned Marketing items"><?= (int)$dashboardMarketingAssigned ?></span><?php endif; ?>
             <?php if ($app['name'] === 'Tasks' && !empty($dashboardTaskCount)): ?><span class="ess-module-badge" aria-label="<?= (int)$dashboardTaskCount ?> incomplete tasks"><?= $dashboardTaskCount > 99 ? '99+' : (int)$dashboardTaskCount ?></span><?php endif; ?>
             <?php if ($app['name'] === 'Packing List'): ?><span class="ess-module-badge<?= $dashboardPackingUnread > 0 ? '' : ' is-hidden' ?>" data-packing-unread-badge<?= $dashboardPackingUnread > 0 ? '' : ' hidden' ?> aria-label="<?= $dashboardPackingUnread ?> unread Packing List items"><?= $dashboardPackingUnread > 99 ? '99+' : $dashboardPackingUnread ?></span><?php endif; ?>
             <?php if ($app['name'] === 'System Issues Log' && !empty($app['badge'])): ?><span class="ess-module-badge<?= !empty($app['needs_information']) ? ' ess-needs-information' : '' ?>" aria-label="<?= (int) $app['badge'] ?> open system issues<?= !empty($app['needs_information']) ? ', information requested' : '' ?>"><?= (int) $app['badge'] > 99 ? '99+' : (int) $app['badge'] ?></span><?php endif; ?>

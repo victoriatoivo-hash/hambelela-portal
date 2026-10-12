@@ -1,8 +1,8 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('index.php', 'shared/delivery/PortalShell.php', 'shared/delivery/CoreView.php', 'assets/js/delivery-core.js', 'assets/css/delivery-operations.css')
-READ_ONLY = ('shared/delivery/EmployeeDashboard.php', 'shared/delivery/CoreApi.php', 'shared/ess-dashboard.php', 'assets/css/driver-mobile.css', 'shared/delivery/DriverMobile.php', 'shared/delivery/EmployeeDriverSession.php', 'shared/delivery/DriverService.php', 'apps/delivery/driver/api.php', 'shared/ess-topbar.php', 'shared/ess-mobile-navigation.php', 'shared/header.php', 'shared/delivery/PortalHeading.php', 'apps/delivery/index.php', 'assets/css/delivery-core.css', 'assets/css/delivery-controls.css', 'shared/ess-navigation.php')
+FILES = ('shared/delivery/DriverMobile.php', 'assets/css/driver-mobile.css', 'assets/js/delivery-core.js', 'shared/header.php', 'shared/ess-dashboard.php', 'shared/ess-mobile-navigation.php')
+READ_ONLY = ('index.php', 'shared/delivery/PortalShell.php', 'shared/delivery/CoreView.php', 'assets/css/delivery-operations.css', 'shared/delivery/EmployeeDashboard.php', 'shared/delivery/CoreApi.php', 'shared/delivery/EmployeeDriverSession.php', 'shared/delivery/DriverService.php', 'apps/delivery/driver/api.php', 'shared/ess-topbar.php', 'shared/delivery/PortalHeading.php', 'apps/delivery/index.php', 'assets/css/delivery-core.css', 'assets/css/delivery-controls.css', 'shared/ess-navigation.php')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
