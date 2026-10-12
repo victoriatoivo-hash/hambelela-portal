@@ -16,12 +16,21 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') try {
 } catch(Throwable $error){error_log('Policy notification refresh unavailable: '.$error->getMessage());}
 
 header('Content-Type: application/json');
+header('Cache-Control: private, no-store');
 
 try {
     $mode = (string) ($_GET['mode'] ?? 'summary');
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string) ($_POST['action'] ?? '');
+        if ($action === 'marketing_seen') {
+            if (empty($_SESSION['marketing_popup_csrf']) || !hash_equals((string)$_SESSION['marketing_popup_csrf'], (string)($_POST['csrf']??''))) {
+                http_response_code(403);echo json_encode(['ok'=>false,'message'=>'Session verification expired. Refresh and try again.']);exit;
+            }
+            $ok=notifications_marketing_seen((int)($_POST['notification_id']??0));
+            if(!$ok)http_response_code(404);
+            echo json_encode(['ok'=>$ok,'message'=>$ok?'Popup acknowledged.':'Notification is not available for this employee.']);exit;
+        }
         if ($action === 'marketing_remind') {
             if (!hash_equals((string)($_SESSION['marketing_popup_csrf']??''),(string)($_POST['csrf']??'')) || empty($_SESSION['marketing_popup_csrf'])) { http_response_code(403);echo json_encode(['ok'=>false]);exit; }
             echo json_encode(['ok'=>notifications_marketing_remind((int)($_POST['notification_id']??0))]);exit;

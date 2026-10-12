@@ -20,14 +20,14 @@ function rejected($fn,$message){try{$fn();}catch(RuntimeException $e){ok(true,$m
 require __DIR__.'/../shared/marketing-execution.php';
 // Exercise the actual notification functions without bootstrapping production config.
 $source=file_get_contents(__DIR__.'/../shared/notifications.php');
-foreach(['notifications_claim_task_delivery','notifications_marketing_popups','notifications_marketing_remind','notifications_mark_task_state'] as $name){$start=strpos($source,'function '.$name.'(');$end=strpos($source,"\nfunction ",$start+1);eval(substr($source,$start,$end===false?null:$end-$start));}
+foreach(['notifications_claim_task_delivery','notifications_marketing_popups','notifications_marketing_remind','notifications_mark_task_state','notifications_marketing_seen'] as $name){$start=strpos($source,'function '.$name.'(');$end=strpos($source,"\nfunction ",$start+1);eval(substr($source,$start,$end===false?null:$end-$start));}
 try{
 db()->exec("CREATE TABLE marketing_work_items(id INT PRIMARY KEY,title VARCHAR(190),assigned_employee_id INT,cancelled_at DATETIME NULL,status VARCHAR(30),approval_required INT,caption TEXT,published_at DATETIME NULL,content_type VARCHAR(30),platform VARCHAR(80),published_url VARCHAR(500),due_at DATETIME,priority VARCHAR(30));
 INSERT INTO marketing_work_items VALUES(1,'Synthetic content',2,NULL,'approved',1,'Test',NULL,'social_post','',NULL,'2026-10-14 15:00:00','normal'),(2,'Other employee',3,NULL,'approved',1,'Other',NULL,'social_post','',NULL,NULL,'normal');
 CREATE TABLE marketing_item_history(id INT AUTO_INCREMENT PRIMARY KEY,item_id INT,old_status VARCHAR(30),new_status VARCHAR(30),note TEXT,actor_id INT,actor_name VARCHAR(100));
 CREATE TABLE marketing_item_versions(id INT AUTO_INCREMENT PRIMARY KEY,item_id INT);
 CREATE TABLE notifications(id INT PRIMARY KEY,title VARCHAR(190),message TEXT,created_at DATETIME,related_id INT,related_type VARCHAR(80),action_link VARCHAR(255),sound_key VARCHAR(30));
-CREATE TABLE notification_recipients(notification_id INT,employee_id INT,delivered_at DATETIME NULL,read_at DATETIME NULL,cleared_at DATETIME NULL,next_reminder_at DATETIME NULL,PRIMARY KEY(notification_id,employee_id));
+CREATE TABLE notification_recipients(notification_id INT,employee_id INT,delivered_at DATETIME NULL,read_at DATETIME NULL,cleared_at DATETIME NULL,popup_seen_at DATETIME NULL,next_reminder_at DATETIME NULL,PRIMARY KEY(notification_id,employee_id));
 INSERT INTO notifications VALUES(1,'Assigned','Work',NOW(),1,'marketing_assignment','/apps/marketing/execution.php?id=1','assigned'),(2,'Other','Work',NOW(),2,'marketing_assignment','/apps/marketing/execution.php?id=2','assigned');
 INSERT INTO notification_recipients(notification_id,employee_id) VALUES(1,2),(2,3);");
 marketing_execution_schema_ready();$owner=true;
@@ -54,12 +54,15 @@ ok(!notifications_claim_task_delivery(2),'cannot claim another employee notifica
 ok(notifications_claim_task_delivery(1)&&!notifications_claim_task_delivery(1),'notification claim prevents repeated sounds across tabs');
 ok(count(notifications_marketing_popups())===1,'delivered but unacknowledged assignment survives refresh');
 $beforeAck=marketing_execution_item(1);
-ok(notifications_mark_task_state(1,'viewed'),'employee acknowledges own assignment through actual notification state function');
-ok(notifications_mark_task_state(1,'viewed'),'retry or second-tab acknowledgement succeeds idempotently');
-ok(!notifications_mark_task_state(2,'viewed'),'cannot acknowledge another employee notification');
+ok(notifications_marketing_seen(1),'employee acknowledges own assignment through actual notification state function');
+ok(notifications_marketing_seen(1),'retry or second-tab acknowledgement succeeds idempotently');
+ok(!notifications_marketing_seen(2),'cannot acknowledge another employee notification');
 ok(marketing_execution_item(1)===$beforeAck,'acknowledgement preserves every assignment field');
 ok(count(notifications_marketing_popups())===0,'acknowledgement stops popup without changing assignment');
-db()->exec('UPDATE notification_recipients SET read_at=NULL WHERE notification_id=1 AND employee_id=2');
+ok(db()->query('SELECT read_at FROM notification_recipients WHERE notification_id=1')->fetchColumn()===null,'popup acknowledgement preserves separate unread status');
+$actor=3;ok(count(notifications_marketing_popups())===1,'another employee still receives new assignment');$actor=2;
+ok(count(notifications_marketing_popups())===0,'fresh employee context retains server acknowledgement');
+db()->exec('UPDATE notification_recipients SET read_at=NULL,popup_seen_at=NULL WHERE notification_id=1 AND employee_id=2');
 ok(notifications_marketing_remind(1)&&count(notifications_marketing_popups())===0,'Remind Me Later snoozes the existing recipient record');
 db()->exec('UPDATE notification_recipients SET next_reminder_at=DATE_SUB(NOW(),INTERVAL 1 MINUTE) WHERE notification_id=1');
 ok(count(notifications_marketing_popups())===1,'snoozed assignment returns without new notification rows');
