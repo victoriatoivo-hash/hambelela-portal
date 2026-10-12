@@ -2,8 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('shared/marketing-execution.php','apps/marketing/index.php','apps/marketing/execution.php','assets/js/marketing.js','assets/css/marketing-extras.css')
-READ_ONLY = ('apps/marketing/bootstrap.php','apps/marketing/employee-workspace.php')
+FILES = ('shared/marketing-workspace.php','assets/css/marketing-workspace.css','assets/js/marketing-workspace.js','apps/marketing/media.php','shared/marketing-execution.php','shared/marketing.php','apps/marketing/index.php','apps/marketing/employee-workspace.php','apps/marketing/execution.php','apps/marketing/file.php','assets/js/portal.js','uploads/marketing/.htaccess')
+READ_ONLY = ('apps/marketing/app-shell.php','shared/notifications.php','api/notifications.php','assets/css/marketing-extras.css','assets/css/marketing-execution.css','assets/css/portal.css')
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 if subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=sha: raise SystemExit('Exact checkout SHA required')
