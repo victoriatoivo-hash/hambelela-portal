@@ -45,6 +45,9 @@ jobs:
           MARKETING_TEST_PASSWORD: synthetic-ci-password
         run: |
           php tests/marketing-refinement-db.php
+          php tests/marketing-workspace-db.php
+          node tests/marketing-countdown.mjs
+          node --check assets/js/marketing-workspace.js
           node --check assets/js/marketing.js
           node --check assets/js/portal.js
           node tests/marketing-notification-sound.mjs

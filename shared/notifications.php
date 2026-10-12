@@ -1059,7 +1059,7 @@ function notifications_marketing_popups(): array
         JOIN marketing_work_items w ON w.id=n.related_id
         WHERE n.related_type='marketing_assignment' AND nr.employee_id=? AND w.assigned_employee_id=nr.employee_id
         AND w.cancelled_at IS NULL AND w.status NOT IN ('published','cancelled')
-        AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND nr.delivered_at IS NULL
+        AND nr.read_at IS NULL AND nr.cleared_at IS NULL
         AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())
         ORDER BY n.id LIMIT 100",[$employeeId]);
 }

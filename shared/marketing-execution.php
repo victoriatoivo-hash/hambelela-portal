@@ -51,7 +51,7 @@ function marketing_require_owner(): void
 function marketing_employee_view_allowed(string $view): bool
 {
     return in_array($view, ['dashboard','apps','tasks','calendar','social','reels','whatsapp',
-        'blog','newsletter','website','library'], true);
+        'blog','newsletter','website','library','media'], true);
 }
 
 function marketing_employee_action_allowed(string $action): bool
@@ -77,7 +77,7 @@ function marketing_work_matches_app(array $item, string $app, bool $pendingOnly 
 
 function marketing_employee_work(): array
 {
-    $q = db()->prepare('SELECT id,title,content_type,platform,priority,status,approval_required,due_at,publish_at,published_at,published_url FROM marketing_work_items WHERE assigned_employee_id=? AND cancelled_at IS NULL ORDER BY COALESCE(due_at,publish_at,"9999-12-31"),id DESC');
+    $q = db()->prepare('SELECT id,title,content_type,platform,priority,status,approval_required,due_at,publish_at,published_at,published_url FROM marketing_work_items WHERE assigned_employee_id=? ORDER BY COALESCE(due_at,publish_at,"9999-12-31"),id DESC');
     $q->execute([marketing_employee_id()]);
     $items = $q->fetchAll();
     // Fetch channel requirements in one scoped query, not one request per tile/item.

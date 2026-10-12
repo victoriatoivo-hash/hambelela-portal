@@ -1,0 +1,11 @@
+import fs from 'node:fs';import vm from 'node:vm';import assert from 'node:assert/strict';
+const source=fs.readFileSync('assets/js/marketing-workspace.js','utf8');const a=source.indexOf(' function countdown('),b=source.indexOf(' const refresh=',a);const context={Date,Intl};vm.createContext(context);vm.runInContext(source.slice(a,b)+';this.countdown=countdown;',context);
+const now=Date.parse('2026-10-14T15:00:00+02:00');
+assert.match(context.countdown('2026-10-14T12:45:00+02:00','','in_progress',now).text,/Overdue by 2h 15m/);
+assert.match(context.countdown('2026-10-14T16:00:00+02:00','','brief',now).text,/Due Today/);
+assert.match(context.countdown('2026-10-14T15:00:00+02:00','2026-10-14T15:01:00+02:00','published',now).text,/Late/);
+assert.match(context.countdown('2026-10-14T15:00:00+02:00','2026-10-14T14:59:00+02:00','published',now).text,/On time/);
+assert.equal(context.countdown('','','brief',now).text,'No deadline set');
+assert.equal(context.countdown('','','cancelled',now).text,'Cancelled');
+assert.match(context.countdown('2026-10-15T00:30:00+02:00','','brief',Date.parse('2026-10-14T22:00:00Z')).text,/Due Today/);
+console.log('PASS countdown, overdue, Namibia midnight and immutable completion timing');

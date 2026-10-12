@@ -627,7 +627,11 @@ window.addEventListener('DOMContentLoaded', () => {
       });
       testButton?.addEventListener('click', async () => { await save(false); play('assigned'); });
     }
-    return { configure, play };
+    const enable = async () => {
+      enabled=true;play('assigned');
+      await fetch('/notifications-api.php',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({action:'save_preferences',sound_enabled:'1',sound_volume:String(Math.round(volume*100)),sound_prompt_seen:'1'})}).catch(()=>{});
+    };
+    return { configure, play, enable };
   })();
 
   const portalNotificationPoller = (() => {
@@ -638,6 +642,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const marketingQueued=new Set();
     const marketingPageStarted=Date.now();
     let marketingPopupCsrf='';
+    let marketingModalActive=false;
 
     try {
       lastSeenLatestId = Number(window.localStorage?.getItem(storageKey) || 0);
@@ -667,6 +672,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const drainNotificationToasts = () => {
       const limit = window.matchMedia('(max-width:600px)').matches ? 2 : 3;
       while (notificationToastQueue.length && visibleNotificationToasts < limit) {
+        if(notificationToastQueue[0].related_type==='marketing_assignment'&&marketingModalActive)break;
+        if(notificationToastQueue[0].related_type==='marketing_assignment')marketingModalActive=true;
         visibleNotificationToasts++;
         showPortalToast(notificationToastQueue.shift());
       }
@@ -681,10 +688,15 @@ window.addEventListener('DOMContentLoaded', () => {
         const claimResponse = await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(notification.id)})});
         claimed = Boolean((await claimResponse.json()).claimed);
       } catch (_) { claimed = false; }
-      if (!claimed) { marketingQueued.delete(Number(notification.id)); visibleNotificationToasts--; drainNotificationToasts(); return; }
+      if (!claimed && !isMarketing) { marketingQueued.delete(Number(notification.id)); visibleNotificationToasts--; drainNotificationToasts(); return; }
+      if(isMarketing&&!claimed){
+        try{const response=await fetch(apiUrl,{credentials:'same-origin',cache:'no-store'});const current=await response.json();if(!response.ok||!current.ok||!(current.marketing_popups||[]).some(n=>Number(n.id)===Number(notification.id)))throw new Error();}
+        catch(_){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;drainNotificationToasts();return;}
+      }
       const container = ensureToastContainer();
-      const toast = document.createElement('div');
-      toast.className = isMarketing ? 'portal-toast marketing-assignment-popup' : 'portal-toast';
+      const toast = document.createElement(isMarketing?'dialog':'div');
+      toast.className = isMarketing ? 'mk-marketing-popup' : 'portal-toast';
+      if(isMarketing&&!document.querySelector('[data-marketing-popup-style]')){const style=document.createElement('link');style.rel='stylesheet';style.href='/assets/css/marketing-workspace.css?v=workspace-1';style.dataset.marketingPopupStyle='1';document.head.append(style);}
       const notificationSource = window.PortalNotificationUI?.source(notification) || 'system';
       toast.dataset.source = notificationSource;
       const state = notification.deadline_state && notification.deadline_state !== 'normal' ? notification.deadline_state : (notification.priority === 'urgent' ? 'urgent' : 'normal');
@@ -692,7 +704,8 @@ window.addEventListener('DOMContentLoaded', () => {
       const stateIcon = window.PortalNotificationUI?.icon('check') || '';
       if (isLoanAgreement) toast.classList.add('portal-notification--hr');
       toast.dataset.deadlineState = state;
-      toast.setAttribute('role', state === 'urgent' ? 'alert' : 'status');
+      toast.setAttribute('role', isMarketing?'dialog':(state === 'urgent' ? 'alert' : 'status'));
+      if(isMarketing){toast.setAttribute('aria-label','New Marketing Assignment');toast.setAttribute('aria-modal','true');}
       toast.setAttribute('aria-live', state === 'urgent' ? 'assertive' : 'polite');
       toast.innerHTML = `<button type="button" class="portal-toast-close" aria-label="Close notification">${window.PortalNotificationUI?.icon('close') || '×'}</button><span class="nt-source-icon" aria-hidden="true">${window.PortalNotificationUI?.icon(notificationSource) || ''}</span>
         <span class="portal-notification__status"><span aria-hidden="true">${stateIcon}</span> ${escapeHtml(stateLabel)}</span>
@@ -702,8 +715,9 @@ window.addEventListener('DOMContentLoaded', () => {
         ${notification.due_at ? `<span class="portal-toast-due">Due ${escapeHtml(notification.due_at)}</span>` : ''}`;
       if (isMarketing) {
         if(notification.channels)toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Required channels: ${escapeHtml(notification.channels)}</p>`);
-        toast.insertAdjacentHTML('beforeend','<div class="portal-toast-actions"><button type="button" data-marketing-later>Remind Me Later</button><button type="button" data-marketing-view>View Assignment</button></div>');
+        toast.insertAdjacentHTML('beforeend','<div class="portal-toast-actions"><button type="button" data-marketing-ack>Acknowledge / Got It</button><button type="button" data-marketing-view>View Assignment</button></div>');
       }
+      if(isMarketing)toast.insertAdjacentHTML('beforeend','<p class="portal-toast-message">Priority: '+escapeHtml(notification.priority||'normal')+'</p><button type="button" data-marketing-sound>Enable Notification Sounds</button>');
       if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><select data-toast-snooze aria-label="Snooze reminder"><option value="">Snooze</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="tomorrow">Tomorrow</option></select><button type="button" data-toast-read>Mark Read</button><button type="button" data-toast-view>View Task</button></div>');
       if (isLoanAgreement) toast.insertAdjacentHTML('beforeend', `<div class="portal-toast-actions"><button type="button" class="portal-toast-hr-action" data-toast-loan>${notification.related_type === 'loan_agreement_owner_signature' ? 'Review &amp; Sign' : (notification.related_type === 'loan_agreement_completed' ? 'View Agreement' : 'Review Agreement')}</button></div>`);
       const markState = (state) => fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:`notification_${state}`, notification_id:String(notification.id)}) }).catch(() => {});
@@ -712,12 +726,12 @@ window.addEventListener('DOMContentLoaded', () => {
       const close = () => {
         if (toastClosed) return;
         toastClosed = true;
-        if(isMarketing)marketingQueued.delete(Number(notification.id));
+        if(isMarketing){marketingQueued.delete(Number(notification.id));marketingModalActive=false;toast.close();}
         toast.classList.add('is-leaving');
         window.setTimeout(() => { toast.remove(); visibleNotificationToasts--; drainNotificationToasts(); }, 180);
       };
 
-      toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { if(isMarketing){toast.querySelector('[data-marketing-later]').click();return;} if (!isLoanAgreement) markState('dismissed'); close(); });
+      toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { if(isMarketing){toast.querySelector('[data-marketing-ack]').click();return;} if (!isLoanAgreement) markState('dismissed'); close(); });
       toast.querySelector('[data-toast-dismiss]')?.addEventListener('click', () => { markState('dismissed'); close(); });
       toast.querySelector('[data-toast-read]')?.addEventListener('click', () => { markState('viewed'); close(); });
       toast.querySelector('[data-toast-snooze]')?.addEventListener('change', async (event) => {
@@ -732,17 +746,18 @@ window.addEventListener('DOMContentLoaded', () => {
         else window.location.assign(notification.action_link || `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(taskId)}`);
       });
       toast.querySelector('[data-toast-loan]')?.addEventListener('click', async () => { await markState('viewed'); window.location.assign(notification.action_link); });
-      toast.querySelector('[data-marketing-later]')?.addEventListener('click',async()=>{
-        const response=await fetch(apiUrl,{method:'POST',credentials:'same-origin',body:new URLSearchParams({action:'marketing_remind',notification_id:String(notification.id),csrf:marketingPopupCsrf})}).catch(()=>null);
-        if(response?.ok && (await response.json()).ok)close();
-        else toast.querySelector('.portal-toast-message').textContent='Unable to save the reminder. Please try again.';
-      });
-      toast.querySelector('[data-marketing-view]')?.addEventListener('click',async()=>{
-        await markState('viewed');window.location.assign('/apps/marketing/execution.php?id='+encodeURIComponent(notification.related_id));
-      });
+      const acknowledgeMarketing=async(view=false)=>{
+        try{const response=await markState('viewed');if(!response?.ok||!(await response.json()).ok)throw new Error();close();if(view)window.location.assign('/apps/marketing/execution.php?id='+encodeURIComponent(notification.related_id));}
+        catch(_){toast.querySelector('.portal-toast-message').textContent='Acknowledgement could not be saved. Please try again.';}
+      };
+      toast.querySelector('[data-marketing-ack]')?.addEventListener('click',()=>acknowledgeMarketing());
+      toast.querySelector('[data-marketing-view]')?.addEventListener('click',()=>acknowledgeMarketing(true));
+      toast.querySelector('[data-marketing-sound]')?.addEventListener('click',async()=>{await taskReminderSound.enable();toast.querySelector('[data-marketing-sound]').textContent='Sounds enabled';});
+      if(isMarketing)toast.addEventListener('cancel',event=>{event.preventDefault();acknowledgeMarketing();});
       container.prepend(toast);
-      // Initial page load/refresh is silent; a claimed new arrival sounds once.
-      if (claimed && notification.sound_key && (!isMarketing || new Date(String(notification.created_at).replace(' ','T')+'+02:00').getTime()>marketingPageStarted)) taskReminderSound.play(notification.sound_key);
+      if(isMarketing)toast.showModal();
+      // The persisted delivery claim allows one sound attempt; unread Marketing remains visible until acknowledged.
+      if (claimed && notification.sound_key) taskReminderSound.play(notification.sound_key);
       if (claimed && document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
         const desktop = new Notification(notification.title || stateLabel, {body:notification.message || '', tag:`task-${notification.related_id}-${state}`, renotify:false, silent:true});
         desktop.onclick = () => { window.focus(); window.location.assign(notification.action_link); desktop.close(); };

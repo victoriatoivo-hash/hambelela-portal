@@ -51,7 +51,11 @@ ok(array_column(marketing_execution_rows(marketing_execution_item(1)),'completed
 $owner=false;
 ok(count(notifications_marketing_popups())===1,'popup is scoped to assigned employee');
 ok(!notifications_claim_task_delivery(2),'cannot claim another employee notification');
-ok(notifications_claim_task_delivery(1)&&!notifications_claim_task_delivery(1),'notification claim prevents duplicate popups and sounds across tabs');
+ok(notifications_claim_task_delivery(1)&&!notifications_claim_task_delivery(1),'notification claim prevents repeated sounds across tabs');
+ok(count(notifications_marketing_popups())===1,'delivered but unacknowledged assignment survives refresh');
+db()->exec('UPDATE notification_recipients SET read_at=NOW() WHERE notification_id=1 AND employee_id=2');
+ok(count(notifications_marketing_popups())===0,'acknowledgement stops popup without changing assignment');
+db()->exec('UPDATE notification_recipients SET read_at=NULL WHERE notification_id=1 AND employee_id=2');
 ok(notifications_marketing_remind(1)&&count(notifications_marketing_popups())===0,'Remind Me Later snoozes the existing recipient record');
 db()->exec('UPDATE notification_recipients SET next_reminder_at=DATE_SUB(NOW(),INTERVAL 1 MINUTE) WHERE notification_id=1');
 ok(count(notifications_marketing_popups())===1,'snoozed assignment returns without new notification rows');

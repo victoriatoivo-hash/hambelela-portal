@@ -10,7 +10,9 @@ const context={Audio:FakeAudio,document:{querySelector:()=>null},window:{},conso
 vm.createContext(context);vm.runInContext(source.slice(start,end)+'\nglobalThis.sound=taskReminderSound;',context);
 context.sound.configure({sound_enabled:0,sound_prompt_seen:1});context.sound.play('assigned');assert.equal(played,0);
 context.sound.configure({sound_enabled:1,sound_prompt_seen:1,sound_volume:25});context.sound.play('assigned');assert.equal(played,1);assert.equal(volume,.25);
-const condition=source.match(/if \((claimed && notification.sound_key && \(!isMarketing[^\n]+)\) taskReminderSound.play\(notification.sound_key\);/)[1];
-function eligible(created,claimed=true){return vm.runInNewContext(condition,{claimed,notification:{sound_key:'assigned',created_at:created},isMarketing:true,marketingPageStarted:Date.parse('2026-10-12T12:00:00+02:00')});}
-assert.equal(eligible('2026-10-12 11:59:00'),false);assert.equal(eligible('2026-10-12 12:01:00'),true);assert.equal(eligible('2026-10-12 12:01:00',false),false);
-console.log('PASS sound preference/volume, silent refresh, new-arrival sound and claim gate');
+assert.match(source,/if \(claimed && notification.sound_key\) taskReminderSound.play/);
+assert.match(source,/if\(!isMarketing\)window.setTimeout\(close, 5000\)/);
+assert.match(source,/if \(!claimed && !isMarketing\)/);
+assert.match(source,/data-marketing-ack/);
+assert.match(source,/toast.showModal\(\)/);
+console.log('PASS sound preference/volume, single delivery claim and persistent centred acknowledgement');
