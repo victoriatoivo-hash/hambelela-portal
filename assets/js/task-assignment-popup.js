@@ -25,7 +25,7 @@
   };
   const updateCount=()=>{const el=card?.querySelector('.task-popup-queue');if(el)el.textContent=queue.length?`1 of ${queue.length+1}`:'';};
   const close=()=>{
-    card?.remove();card=null;active=null;void drain();
+    card?.close();card?.remove();card=null;active=null;window.PortalNoticeGate?.release('tasks');void drain();
   };
   const navigate=async intent=>{
     if(!active)return;
@@ -46,9 +46,12 @@
     }catch(error){card?.querySelector('.task-popup-message')?.replaceChildren(document.createTextNode(error.message));btns.forEach(b=>b.disabled=false);}
   };
   const render=notification=>{
-    card=node('aside','task-assignment-popup is-entering');
+    card=node('dialog','task-assignment-popup hb-portal-notice hb-notice-modal');
+    card.dataset.module='tasks';
+    card.setAttribute('aria-label','Task assignment');
+    card.addEventListener('cancel',event=>{event.preventDefault();close();});
     const urgent=notification.priority==='urgent';card.classList.toggle('is-urgent',urgent);
-    card.setAttribute('role',urgent?'alert':'status');card.setAttribute('aria-live',urgent?'assertive':'polite');
+    card.setAttribute('role','dialog');
     card.setAttribute('aria-atomic','true');card.dataset.notificationId=String(notification.id);
     const header=node('header','task-popup-header'),bell=node('span','task-popup-icon');bell.append(icon('bell'));
     const heading=node('div','task-popup-heading');
@@ -67,11 +70,12 @@
     if(notification.status==='new')actions.append(button('task-popup-start','Start Task','play',()=>navigate('start')));
     footer.append(actions);const queueLine=node('div','task-popup-queue-line');queueLine.append(node('span','task-popup-queue',''));
     queueLine.append(button('task-popup-next',queue.length?'Next task':'Dismiss',queue.length?'next':null,close));footer.append(queueLine);card.append(footer);
-    document.body.append(card);updateCount();
+    document.body.append(card);card.showModal();updateCount();
     window.dispatchEvent(new CustomEvent('portal:task-update',{detail:notification}));
   };
   async function drain(){
-    if(opening||active||document.visibilityState==='hidden')return;
+    if(opening||active||document.visibilityState==='hidden'||document.querySelector('dialog[open]'))return;
+    if(!queue.length||!window.PortalNoticeGate?.acquire('tasks'))return;
     opening=true;
     try{
       while(queue.length&&!active){
@@ -82,16 +86,17 @@
         if(result.claimed){active=item;render(item);}
       }
     }catch(error){console.warn('Task popup delivery will retry on the next portal tick.',error);}
-    finally{opening=false;}
+    finally{opening=false;if(!active)window.PortalNoticeGate?.release('tasks');}
   }
   window.HambelelaTaskPopups={
     activeId:()=>active?.id||0,
     accept(items){
       if(!Array.isArray(items))return;
-      if(active&&!items.some(n=>Number(n.id)===Number(active.id))){card?.remove();card=null;active=null;}
+      if(active&&!items.some(n=>Number(n.id)===Number(active.id))){card?.remove();card=null;active=null;window.PortalNoticeGate?.release('tasks');}
       queue=items.filter(n=>!n.delivered_at&&Number(n.id)!==Number(active?.id));
       updateCount();void drain();
     },
   };
+  window.addEventListener('portal:notice-closed',()=>void drain());
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')void drain();});
 })();

@@ -12,6 +12,12 @@ if (!empty($hidePortalSidebar) || $isFrontDashboard || $isHrPortal) {
     return;
 }
 
+// These employee pages render only the shared olive sidebar, never both versions.
+if (!empty($employeeSidebarUpgrade)) {
+    include __DIR__ . '/ess-sidebar.php';
+    return;
+}
+
 if (!function_exists('notifications_summary_for_current_user')) {
     $notificationsPath = __DIR__ . '/notifications.php';
     if (is_file($notificationsPath)) {
@@ -109,7 +115,6 @@ $portalNavItems = [
 ];
 if ($packingSidebarRoleKey === 'owner_admin') {
     array_splice($portalNavItems, 3, 0, [['id'=>'budgeting','label'=>'Budgeting','icon'=>'bookkeeping','href'=>BASE_URL.'/apps/operations/budget-planning.php','match'=>['/apps/operations/budget-planning.php','/apps/operations/budgeting.php']]]);
-    array_splice($portalNavItems, 4, 0, [['id'=>'miv-shipping','label'=>'MIV Shipping','icon'=>'miv-shipping','href'=>BASE_URL.'/apps/miv-shipping/index.php','match'=>['/apps/miv-shipping/index.php']]]);
 }
 if ($packingSidebarRoleKey === 'accountant') {
     $portalNavItems = [
@@ -127,7 +132,6 @@ $featureByNavId = [
     'operations-orders' => 'orders',
     'operations-bookkeeping' => 'bookkeeping',
     'marketing' => 'marketing',
-    'miv-shipping' => 'miv_shipping',
     'accounts' => 'accounts',
     'input-vat' => 'input_vat',
     'output-vat' => 'output_vat',
@@ -206,7 +210,6 @@ function getSidebarIcon(string $id): string
         'operations-dashboard' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>',
         'operations-orders' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>',
         'operations-bookkeeping' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>',
-        'miv-shipping' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h11v10H3z"/><path d="M14 10h4l3 3v4h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M5 4h6"/></svg>',
         'marketing' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 14v-3Z"/><path d="M11.6 15.9 13 21H7l-1.4-6.2"/><path d="M21 10v4"/></svg>',
         'accounts' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M8 15h2"/></svg>',
         'input-vat' => '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 2h12v20l-2-1.5L14 22l-2-1.5L10 22l-2-1.5L6 22V2Z"/><path d="M9 7h6M9 11h6M9 15h3"/></svg>',
@@ -260,7 +263,7 @@ $isActiveItem = static function (array $item) use ($currentPath, $activeApp): bo
 .ps-nav-badge[hidden],.ps-nav-badge.is-hidden,.ps-nav-badge:empty{display:none!important}
 </style>
 <style id="portal-sidebar-notification-badge">
-.ps-notification-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#AB3619;color:#fff;font-size:11px;font-weight:400;line-height:20px;text-align:center;box-shadow:0 6px 14px rgba(171,54,25,.18);box-sizing:border-box;flex-shrink:0}.ps-notification-badge.is-hidden{display:none}.portal-sidebar.collapsed .ps-nav-item--notify{position:relative;width:44px;height:44px;padding:0;margin:0 auto;justify-content:center;overflow:visible}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:4px;right:6px;min-width:15px;width:auto;height:15px;padding:0 4px;border-radius:999px;font-size:9px;line-height:15px;z-index:5;opacity:1;transform:translate(35%,-20%);pointer-events:none}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge.is-hidden,.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge:empty{display:none}
+.ps-notification-badge{margin-left:auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:#59694A;color:#fff;font:600 9px Jost,sans-serif;line-height:20px;text-align:center;box-sizing:border-box;flex-shrink:0}.ps-notification-badge.is-hidden{display:none}.portal-sidebar.collapsed .ps-nav-item--notify{position:relative;width:44px;height:44px;padding:0;margin:0 auto;justify-content:center;overflow:visible}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge{display:inline-flex;align-items:center;justify-content:center;position:absolute;top:4px;right:6px;min-width:15px;width:auto;height:15px;padding:0 4px;border-radius:999px;font-size:9px;line-height:15px;z-index:5;opacity:1;transform:translate(35%,-20%);pointer-events:none}.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge.is-hidden,.portal-sidebar.collapsed .ps-nav-item--notify .ps-notification-badge:empty{display:none}
 </style>
 <style id="portal-shared-full-width-layout">
 .portal-mobile-header{display:none}

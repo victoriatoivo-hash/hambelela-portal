@@ -11,9 +11,9 @@ const source=item=>{
  if(/task|checklist/.test(text))return 'tasks';
  if(/order/.test(text))return 'orders';
  if(/book|cash|account|financ/.test(text))return 'accounts';
- if(/courier|waybill/.test(text))return 'courier';
+ if(/courier|waybill|delivery/.test(text))return 'courier';
  if(/hr|loan|leave/.test(text))return 'hr';
- return 'system';
+ return 'general';
 };
 const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=name=>'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(icons[name]||icons.all)+'</svg>';
@@ -33,7 +33,21 @@ const enhanceSelect=select=>{
  menu.addEventListener('keydown',event=>{const options=[...menu.querySelectorAll('button:not(:disabled)')],i=options.indexOf(document.activeElement);if(['ArrowDown','ArrowUp','Home','End'].includes(event.key)){event.preventDefault();options[event.key==='Home'?0:event.key==='End'?options.length-1:(i+(event.key==='ArrowDown'?1:-1)+options.length)%options.length]?.focus();}if(event.key==='Escape'){menu.hidePopover();trigger.focus();}});
  select.addEventListener('change',sync);select.form?.addEventListener('reset',()=>setTimeout(sync,0));sync();
 };
-window.PortalNotificationUI={source,labels,icon,escape,href,enhanceSelect};
+let modalOwner=null;
+window.PortalNoticeGate={
+ acquire(owner){if(modalOwner&&modalOwner!==owner||document.querySelector('dialog[open]'))return false;modalOwner=owner;return true;},
+ release(owner){if(modalOwner!==owner)return;modalOwner=null;window.dispatchEvent(new Event('portal:notice-closed'));}
+};
+const pageModule=()=>source({module:location.pathname});
+window.PortalNotificationUI={source,labels,icon,escape,href,enhanceSelect,pageModule};
+// Reuse the existing signed-in recipient count for navigation and app cards.
+document.querySelectorAll('a[href$="/notifications.php"]').forEach(link=>{
+ if(!link.matches('.ess-module-card,.ess-nav-item,.ess-mobile-nav a'))return;
+ let badge=link.querySelector('[data-notification-count]');
+ if(!badge){badge=document.createElement('span');badge.dataset.notificationCount='';badge.hidden=true;link.append(badge);}
+ badge.classList.add('hb-notification-sidebar-badge');
+});
+document.querySelectorAll('.ps-notification-badge').forEach(b=>b.classList.add('hb-notification-sidebar-badge'));
 // Keep only this anchored popover inside the content shell. Do not offset modals.
 const notificationControl=document.querySelector('.portal-notification-control');
 const notificationPanel=notificationControl?.querySelector('.portal-notification-preview');

@@ -394,76 +394,6 @@ video {
   font-weight: 700;
 }
 
-.portal-toast-container {
-  position: fixed;
-  top: 18px;
-  right: 18px;
-  width: min(360px, calc(100vw - 32px));
-  z-index: 99999;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  pointer-events: none;
-}
-
-.portal-toast {
-  pointer-events: auto;
-  background: #ffffff;
-  border: 1px solid #EDE3D8;
-  border-left: 4px solid #AB3619;
-  border-radius: 14px;
-  box-shadow: 0 10px 26px rgba(114, 27, 26, .12);
-  padding: 12px 38px 12px 14px;
-  position: relative;
-  overflow: hidden;
-  animation: portalToastIn .26s ease-out both;
-}
-
-.portal-toast::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(135deg, rgba(240,116,32,.08), rgba(168,202,25,.06));
-  pointer-events: none;
-}
-
-.portal-toast-title,
-.portal-toast-message,
-.portal-toast-close {
-  position: relative;
-  z-index: 1;
-}
-
-.portal-toast-title {
-  margin: 0 0 4px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #721B1A;
-}
-
-.portal-toast-message {
-  margin: 0;
-  font-size: 12px;
-  line-height: 1.35;
-  color: #6B4C3B;
-}
-
-.portal-toast-close {
-  position: absolute;
-  top: 8px;
-  right: 10px;
-  border: 0;
-  background: transparent;
-  color: #AB3619;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.portal-toast.is-leaving {
-  animation: portalToastOut .22s ease-in both;
-}
-
 @keyframes portalToastIn {
   from {
     opacity: 0;
@@ -487,17 +417,6 @@ video {
 }
 
 @media (max-width: 700px) {
-  .portal-toast-container {
-    top: auto;
-    right: 12px;
-    left: 12px;
-    bottom: 14px;
-    width: auto;
-  }
-
-  .portal-toast {
-    border-radius: 12px;
-  }
 }
 
 .profit-engine {
@@ -4735,10 +4654,6 @@ textarea {
 }
 
 @media (max-width:600px){.task-section-tabs{width:100%;padding-inline:5px}.task-section-tab{min-height:40px;padding-inline:9px;font-size:11px}.task-section-tab__icon,.task-section-tab__icon svg{width:13px;height:13px}}
-
-.portal-toast-actions { position: relative; z-index: 1; display: flex; justify-content: flex-end; gap: 7px; margin-top: 10px; }
-.portal-toast-actions button { min-height: 28px; padding: 0 10px; border: 1px solid rgba(171,54,25,.22); border-radius: 8px; background: #FFFFFF; color: #AB3619; font: 600 10px/1 Figtree,sans-serif; cursor: pointer; }
-.portal-toast-actions button:last-child { border-color: #AB3619; background: #AB3619; color: #FFFFFF; }
 
 /* Error Log: make a newly saved record easy to locate after the targeted refresh. */
 .error-log-page .error-board-row--just-saved {
@@ -28716,22 +28631,12 @@ html:has(body.login-page),body.login-page{min-height:100%;background:#FFFFFF!imp
 .task-details-badge--due-today { color: #b94f08; background: rgba(240,116,32,.12); }
 .task-details-badge--overdue { color: #9f171c; background: rgba(187,27,33,.11); }
 .task-details-badge--upcoming { color: #617600; background: rgba(174,207,36,.14); }
-
-.portal-toast[data-deadline-state="due_today"] { border-left: 4px solid #f07420; background: #fff8f2; }
-.portal-toast[data-deadline-state="overdue"] { border-left: 4px solid #bb1b21; background: #fff5f5; }
-.portal-toast[data-deadline-state="upcoming"] { border-left: 4px solid #a8ca19; background: rgba(168,202,25,.09); }
-.portal-toast[data-deadline-state="urgent"] { border-left:4px solid #721b1a; background:rgba(114,27,26,.09); }
 .portal-notification__status { display:inline-flex; align-items:center; gap:5px; margin-bottom:5px; color:#721b1a; font-size:10px; font-weight:800; letter-spacing:.05em; text-transform:uppercase; }
-.portal-toast[data-deadline-state="due_today"] .portal-notification__status { color:#ab3619; }
-.portal-toast[data-deadline-state="overdue"] .portal-notification__status { color:#bb1b21; }
-@media (prefers-reduced-motion:reduce) { .portal-toast { transition:none !important; animation:none !important; } }
-@media (max-width:600px) { .portal-toast { width:calc(100vw - 20px); padding:11px; } .portal-toast-actions { width:100%; justify-content:flex-start; flex-wrap:wrap; } }
-.portal-toast.portal-notification--hr{width:min(400px,calc(100vw - 20px));border:1px solid #B7E4C7;border-left:4px solid #2D6A4F;background:#F8FCF9;box-shadow:0 16px 36px rgba(17,28,22,.16)}
-.portal-notification--hr .portal-notification__status{color:#2D6A4F}.portal-notification--hr .portal-notification__status svg{width:16px;height:16px;flex:0 0 16px}.portal-notification--hr .portal-toast-title{color:#1A2E22;font-size:15px;font-weight:600}.portal-notification--hr .portal-toast-message{color:#4A6355;font-size:12px;line-height:1.5}.portal-toast-hr-action{min-height:34px;padding:0 13px;color:#fff!important;background:#2D6A4F!important;border:1px solid #2D6A4F!important;border-radius:8px;font-size:12px;font-weight:600;transition:background-color .18s ease,transform .18s ease}.portal-toast-hr-action:hover{background:#40916C!important;transform:translateY(-1px)}
-@media(max-width:390px){.portal-toast.portal-notification--hr{right:10px;left:10px;width:auto;max-width:calc(100vw - 20px)}}
-@media(prefers-reduced-motion:reduce){.portal-toast-hr-action{transition:none}.portal-toast-hr-action:hover{transform:none}}
-.portal-toast-assignee, .portal-toast-due { display:block; margin-top:3px; color:#5f6368; font-size:11px; }
-.portal-toast-actions select { min-height:30px; border:1px solid #ead7cf; border-radius:7px; background:#fff; font-size:11px; }
+@media (prefers-reduced-motion:reduce) { }
+@media (max-width:600px) { }
+.portal-notification--hr .portal-notification__status{color:#2D6A4F}.portal-notification--hr .portal-notification__status svg{width:16px;height:16px;flex:0 0 16px}
+@media(max-width:390px){}
+@media(prefers-reduced-motion:reduce){}
 .notification-popover .notification-sound-settings,
 .portal-notification-preview .notification-sound-settings { width:100%; margin:8px 0 5px; padding:8px 10px; color:#765047; font-family:inherit; background:rgba(253,246,238,.58); border:0; border-radius:9px; box-shadow:none; }
 .notification-sound-settings__toggles { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); align-items:center; column-gap:18px; min-height:24px; }

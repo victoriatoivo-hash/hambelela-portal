@@ -530,6 +530,7 @@ window.addEventListener('DOMContentLoaded', () => {
     message = '',
     duration = 5000,
     actionsHtml = '',
+    module = window.PortalNotificationUI?.pageModule() || 'general',
     onDismiss = null,
   } = {}) => {
     let container = document.querySelector('.portal-toast-container');
@@ -541,7 +542,8 @@ window.addEventListener('DOMContentLoaded', () => {
       document.body.appendChild(container);
     }
     const toast = document.createElement('article');
-    toast.className = `portal-toast is-${type}`;
+    toast.className = `portal-toast hb-portal-notice is-${type}`;
+    toast.dataset.module=module;
     toast.setAttribute('role', type === 'error' ? 'alert' : 'status');
     const closeButton = document.createElement('button');
     closeButton.type = 'button';
@@ -568,7 +570,7 @@ window.addEventListener('DOMContentLoaded', () => {
       close();
     }, { once:true });
     container.prepend(toast);
-    closeTimer = window.setTimeout(close, Math.max(1000, Number(duration) || 5000));
+    closeTimer = window.setTimeout(close, Math.max(type==='error'?12000:1000, Number(duration) || 5000));
     return { toast, close };
   };
 
@@ -691,18 +693,19 @@ window.addEventListener('DOMContentLoaded', () => {
     const drainNotificationToasts = () => {
       const limit = window.matchMedia('(max-width:600px)').matches ? 2 : 3;
       while (notificationToastQueue.length && visibleNotificationToasts < limit) {
-        if(notificationToastQueue[0].related_type==='marketing_assignment'&&marketingModalActive)break;
-        if(notificationToastQueue[0].related_type==='marketing_assignment')marketingModalActive=true;
+        if(notificationToastQueue[0].related_type==='marketing_assignment'&&(marketingModalActive||document.querySelector('dialog[open]')))break;
+        if(notificationToastQueue[0].related_type==='marketing_assignment'){if(!window.PortalNoticeGate?.acquire('marketing'))break;marketingModalActive=true;}
         visibleNotificationToasts++;
         showPortalToast(notificationToastQueue.shift());
       }
     };
+    window.addEventListener('portal:notice-closed',drainNotificationToasts);
     const queuePortalToast = notification => { notificationToastQueue.push(notification); drainNotificationToasts(); };
     const showPortalToast = async (notification) => {
       const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
       const isMarketing = notification.related_type === 'marketing_assignment';
       const isLoanAgreement = String(notification.related_type || '').startsWith('loan_agreement_');
-      if(isMarketing&&marketingAcknowledgements.has(notification.id)){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;drainNotificationToasts();return;}
+      if(isMarketing&&marketingAcknowledgements.has(notification.id)){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;window.PortalNoticeGate?.release('marketing');drainNotificationToasts();return;}
       let claimed = false;
       try {
         const claimResponse = await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(notification.id)})});
@@ -713,9 +716,10 @@ window.addEventListener('DOMContentLoaded', () => {
       if(isMarketing&&marketingAcknowledgements.has(notification.id)){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;drainNotificationToasts();return;}
       const container = ensureToastContainer();
       const toast = document.createElement(isMarketing?'dialog':'div');
-      toast.className = isMarketing ? 'mk-marketing-popup' : 'portal-toast';
+      toast.className = isMarketing ? 'mk-marketing-popup hb-portal-notice hb-notice-modal' : 'portal-toast hb-portal-notice';
       if(isMarketing&&!document.querySelector('[data-marketing-popup-style]')){const style=document.createElement('link');style.rel='stylesheet';style.href='/assets/css/marketing-workspace.css?v=workspace-1';style.dataset.marketingPopupStyle='1';document.head.append(style);}
-      const notificationSource = window.PortalNotificationUI?.source(notification) || 'system';
+      const notificationSource = window.PortalNotificationUI?.source(notification) || 'general';
+      toast.dataset.module=notificationSource;
       toast.dataset.source = notificationSource;
       const state = notification.deadline_state && notification.deadline_state !== 'normal' ? notification.deadline_state : (notification.priority === 'urgent' ? 'urgent' : 'normal');
       const stateLabel = isMarketing ? 'New Marketing Assignment' : isLoanAgreement ? 'Loan Agreement' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
@@ -733,18 +737,19 @@ window.addEventListener('DOMContentLoaded', () => {
         ${notification.due_at ? `<span class="portal-toast-due">Due ${escapeHtml(notification.due_at)}</span>` : ''}`;
       if (isMarketing) {
         if(notification.channels)toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Required channels: ${escapeHtml(notification.channels)}</p>`);
-        toast.insertAdjacentHTML('beforeend','<div class="portal-toast-actions"><button type="button" data-marketing-ack>Acknowledge / Got It</button><button type="button" data-marketing-view>View Assignment</button></div>');
+        toast.insertAdjacentHTML('beforeend','<div class="portal-toast-actions"><button type="button" data-marketing-ack>Got It</button><button type="button" data-marketing-view>View Assignment</button></div>');
       }
       if(isMarketing)toast.insertAdjacentHTML('beforeend','<p class="portal-toast-message">Priority: '+escapeHtml(notification.priority||'normal')+'</p><button type="button" data-marketing-sound>Enable Notification Sounds</button>');
       if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><select data-toast-snooze aria-label="Snooze reminder"><option value="">Snooze</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="tomorrow">Tomorrow</option></select><button type="button" data-toast-read>Mark Read</button><button type="button" data-toast-view>View Task</button></div>');
       if (isLoanAgreement) toast.insertAdjacentHTML('beforeend', `<div class="portal-toast-actions"><button type="button" class="portal-toast-hr-action" data-toast-loan>${notification.related_type === 'loan_agreement_owner_signature' ? 'Review &amp; Sign' : (notification.related_type === 'loan_agreement_completed' ? 'View Agreement' : 'Review Agreement')}</button></div>`);
+      if(isMarketing){toast.querySelector('.portal-toast-title').setAttribute('role','heading');toast.querySelector('.portal-toast-title').setAttribute('aria-level','2');toast.append(toast.querySelector('.portal-toast-actions'));}
       const markState = (state) => fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:`notification_${state}`, notification_id:String(notification.id)}) }).catch(() => {});
 
       let toastClosed = false;
       const close = () => {
         if (toastClosed) return;
         toastClosed = true;
-        if(isMarketing){marketingQueued.delete(Number(notification.id));marketingModalActive=false;toast.close();}
+        if(isMarketing){marketingQueued.delete(Number(notification.id));marketingModalActive=false;toast.close();window.PortalNoticeGate?.release('marketing');}
         toast.classList.add('is-leaving');
         window.setTimeout(() => { toast.remove(); visibleNotificationToasts--; drainNotificationToasts(); }, 180);
       };
@@ -799,6 +804,8 @@ window.addEventListener('DOMContentLoaded', () => {
     const updateSidebarNotificationBadges = (unreadCount) => {
       const countValue = Number(unreadCount || 0);
       document.querySelectorAll('[data-notification-count]').forEach((badge) => {
+        badge.hidden=countValue<=0;
+        badge.setAttribute('aria-label',`${countValue} unread notifications`);
         if (countValue <= 0) {
           badge.classList.add('is-hidden');
           badge.textContent = '';
