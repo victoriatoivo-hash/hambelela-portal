@@ -33,6 +33,7 @@ jobs:
           node tests/orders-payment-sync-static.mjs
           node --check assets/js/acknowledgments.js
           node --check assets/js/acknowledgments-popup.js
+          node tests/ack-refinement.mjs
       - name: Back up and publish exact coordinated delta
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
