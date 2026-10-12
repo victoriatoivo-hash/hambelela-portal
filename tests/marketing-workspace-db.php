@@ -51,6 +51,7 @@ try{
  db()->exec("INSERT INTO marketing_channel_execution(item_id,channel_key,prepared) VALUES(1,'legacy',1) ON DUPLICATE KEY UPDATE prepared=1");
  marketing_content_action(1,'submit','Ready to review');$submitted=marketing_execution_item(1);ok($submitted['status']==='ready_for_review'&&(int)$submitted['review_submitted_by']===2&&$submitted['review_version_ids'],'submission preserves timestamp and version IDs without requiring published URL');
  $noticeCount=db()->query('SELECT COUNT(*) FROM test_notices')->fetchColumn();marketing_content_action(1,'submit');ok(db()->query('SELECT COUNT(*) FROM test_notices')->fetchColumn()===$noticeCount,'submission retry creates no duplicate notice');
+ $owner=true;rejects(fn()=>marketing_media_delete(3),'submitted file version cannot be removed');$owner=false;
  $owner=true;rejects(fn()=>marketing_content_action(1,'request_changes',''),'change request requires reason');marketing_content_action(1,'request_changes','Please revise');ok(marketing_execution_item(1)['status']==='changes_requested','Owner requests changes');
  $owner=false;marketing_content_action(1,'submit');$owner=true;marketing_content_action(1,'approve');$approved=marketing_execution_item(1);ok($approved['status']==='approved'&&$approved['published_at']===null,'approval records reviewer without publishing');
 }finally{db()->exec('DROP DATABASE '.$database);foreach(glob($fixture.'/*')as$f)if(is_file($f))unlink($f);unlink($fixture.'/shared/notifications.php');rmdir($fixture.'/shared');rmdir($fixture);}

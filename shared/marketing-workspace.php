@@ -101,6 +101,11 @@ function marketing_media_attach(int $fileId,int $itemId,string $channel=''): voi
 }
 function marketing_media_delete(int $id): void {
     marketing_require_owner();$file=marketing_media_get($id);
+    if(marketing_column_exists('marketing_work_items','review_version_ids')) {
+        $q=db()->prepare("SELECT review_version_ids FROM marketing_work_items WHERE review_version_ids IS NOT NULL AND (id=? OR id IN (SELECT item_id FROM marketing_media_links WHERE version_id=?))");
+        $q->execute([(int)$file['item_id'],$id]);
+        foreach($q->fetchAll() as $submission)if(in_array($id,array_map('intval',json_decode($submission['review_version_ids'],true)?:[]),true))throw new RuntimeException('This version is preserved as submitted review evidence. Upload a new version instead.');
+    }
     // Reversible library removal: bytes, version history and assignment evidence are retained.
     db()->prepare('UPDATE marketing_item_versions SET deleted_at=? WHERE id=?')->execute([marketing_now(),$id]);
 }

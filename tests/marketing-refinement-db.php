@@ -109,4 +109,18 @@ $owner=false;$actor=3;
 rejected(fn()=>marketing_execution_save(['id'=>1,'channels'=>['instagram'=>['completed'=>1]]]),'Publish now does not bypass Owner approval');
 ok(marketing_execution_item(1)['status']==='brief','Publish now does not falsely mark content published');
 
+db()->exec("UPDATE marketing_work_items SET status='ready_for_review' WHERE id=1");
+$reviewId=notifications_create(['title'=>'Ready for review','message'=>'Synthetic submission','related_type'=>'marketing_review','related_id'=>1,'deduplication_key'=>'review-test-1'],[99]);
+$actor=99;$owner=true;
+ok(count(notifications_marketing_popups())===1,'Owner receives centred review popup');
+ok(notifications_claim_task_delivery($reviewId)&&!notifications_claim_task_delivery($reviewId),'Owner review sound claim prevents duplicate delivery');
+ok(notifications_marketing_seen($reviewId),'Owner review acknowledgement is persisted');
+ok(count(notifications_marketing_popups())===0,'Owner refresh does not repeat acknowledged review');
+ok(marketing_execution_item(1)['status']==='ready_for_review','dismissing review does not approve assignment');
+$actor=3;$owner=false;ok(!notifications_marketing_seen($reviewId),'employee cannot acknowledge Owner review');
+$actor=99;$owner=true;db()->exec("UPDATE ops_employees SET status='inactive' WHERE id=99");
+notifications_create(['title'=>'New review','message'=>'Synthetic resubmission','related_type'=>'marketing_review','related_id'=>1,'deduplication_key'=>'review-test-2'],[99]);
+ok(count(notifications_marketing_popups())===0,'revoked Owner cannot receive review popup');
+db()->exec("UPDATE ops_employees SET status='active' WHERE id=99");
+ok(count(notifications_marketing_popups())===1,'new review still produces its own popup');
 }finally{db()->exec('DROP DATABASE '.$database);}

@@ -52,7 +52,7 @@ function marketing_content_action(int $id,string $action,string $note=''): void 
         db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name)VALUES(?,?,?,?,?,?)')->execute([$id,$status,$next,$title.($note?': '.$note:'').($action==='submit'?' · Submitted versions: '.implode(', ',array_column($files,'id')):''),$actor,(string)(current_user()['name']??'')]);
         $event=(int)db()->lastInsertId();
         $recipients=$owner?array_filter([(int)$item['assigned_employee_id']]):notifications_role_recipients(['owner_admin']);
-        if ($recipients && !notifications_create(['title'=>$title,'message'=>$item['title'].' · '.(current_user()['name']??'Employee'),'module'=>'marketing','related_type'=>$owner?'marketing_assignment':'marketing_review','related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id,'required_delivery'=>true,'deduplication_key'=>'marketing-workflow:'.$event],array_values($recipients))) throw new RuntimeException('The workflow notification could not be saved. Please retry.');
+        if ($recipients && !notifications_create(['title'=>$title,'message'=>$item['title'].' · '.(current_user()['name']??'Employee'),'module'=>'marketing','related_type'=>$owner?'marketing_assignment':($action==='submit'?'marketing_review':'marketing_update'),'related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id,'required_delivery'=>true,'deduplication_key'=>'marketing-workflow:'.$event],array_values($recipients))) throw new RuntimeException('The workflow notification could not be saved. Please retry.');
         db()->commit();
     } catch(Throwable $e) {if(db()->inTransaction())db()->rollBack();throw $e;}
 }
