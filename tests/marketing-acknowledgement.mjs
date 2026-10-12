@@ -1,0 +1,22 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync('assets/js/portal.js','utf8');
+const helper=source.slice(source.indexOf('function createMarketingAcknowledgements('),source.indexOf('function initialisePortalDatePickers('));
+const context=vm.createContext({});vm.runInContext(helper,context);
+const stored=new Map(),storage={getItem:k=>stored.get(k),setItem:(k,v)=>stored.set(k,v)};
+let attempts=0;
+const queue=context.createMarketingAcknowledgements(storage,'employee-2',async()=>{attempts++;throw Error('offline');});
+queue.remember(41);assert.equal(queue.has(41),true);await queue.flush();assert.equal(attempts,1);assert.equal(queue.has(41),true);
+const refreshed=context.createMarketingAcknowledgements(storage,'employee-2',async()=>true);
+assert.equal(refreshed.has(41),true);await refreshed.flush();assert.equal(refreshed.has(41),true);
+assert.deepEqual(JSON.parse(stored.get('employee-2')).pending,[]);
+assert.equal(context.createMarketingAcknowledgements(storage,'employee-3',async()=>true).has(41),false);
+// Execute the real click handler against a permanently pending server request.
+let closed=0,remembered=0,flushed=0;
+const clickContext=vm.createContext({notification:{id:77,related_id:9},marketingAcknowledgements:{remember:()=>remembered++,flush:()=>{flushed++;return new Promise(()=>{});}},close:()=>closed++,window:{location:{assign:()=>{}}}});
+const start=source.indexOf('      const acknowledgeMarketing=');const end=source.indexOf("      toast.querySelector('[data-marketing-ack]')",start);
+vm.runInContext(source.slice(start,end)+'\nacknowledgeMarketing();',clickContext);
+assert.equal(closed,1);assert.equal(remembered,1);assert.equal(flushed,1);
+assert.match(source,/marketingQueued.has\(id\)\|\|marketingAcknowledgements.has\(id\)/);
+console.log('PASS immediate close during stalled request, durable retry after reload, stale-poll suppression and account isolation');

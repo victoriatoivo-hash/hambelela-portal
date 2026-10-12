@@ -1,20 +1,5 @@
 {
-  "shared/marketing-workspace.php": null,
-  "assets/css/marketing-workspace.css": null,
-  "assets/js/marketing-workspace.js": null,
-  "apps/marketing/media.php": null,
-  "shared/marketing-execution.php": "8d185d025b370ab17bbb68613c384cec8ff3773b895683175d740416c852ba35",
-  "shared/marketing.php": "190a904859d3046f5a1eaeaf6fac0e270b643762d28feebeb12578cd1b13b6cd",
-  "apps/marketing/index.php": "1dd9b0d903ca662e12267838bf556b54b210b4e1c123efa914363651cf44e491",
-  "apps/marketing/employee-workspace.php": "76f33e3e3b48f59263cc369ea1318ec76414c59dcee8f2b96e9ec614ee0ce4e7",
-  "apps/marketing/execution.php": "9d28fde13387cbb3682cbb11b0c6129c53d865565174d44d4ec34878720a5c74",
-  "apps/marketing/file.php": "804aacef7fc73074e366851258a2645cb5360f1fa1e2f095970d337375a207ee",
-  "assets/js/portal.js": "c406f3f32b5d8628c3cfed07e4dad0ffe45c962a67ac473524cc57cc820b48a8",
-  "shared/notifications.php": "c73b0c27debb77b6391523ff4b8b414b46257c4d4d1d59293fa45c1aaa6f4555",
-  "uploads/marketing/.htaccess": null,
-  "apps/marketing/app-shell.php": "2338969520e6a44682993465860a2cf984a8dcb47c88cf1d3491088b1a19878e",
-  "api/notifications.php": "43f594de3c2a38fc3838791a8a14060818ed0122e624188c9ab0bc1e7823cf87",
-  "assets/css/marketing-extras.css": "58b15350b812340f4745aa9434250d120425f86322b8e9a9a3565fc6c8168a03",
-  "assets/css/marketing-execution.css": "d3c446f647e0a9075d8c554498d172dd47dd40cf9d53b866ed9c15e29be833ca",
-  "assets/css/portal.css": "9b779161deee10e2745b07439441952e62e60b5c5cb3eea18b559a96bbfc6510"
+  "assets/js/portal.js": "2e7cbaab61e32de4a2e82df6770ac50fbc7146b29aa4b1f2c92087981fec1872",
+  "shared/notifications.php": "7615e151c70446bbb8b82b741641e3ec870376158f7cf70b677ba80a3da458aa",
+  "api/notifications.php": "43f594de3c2a38fc3838791a8a14060818ed0122e624188c9ab0bc1e7823cf87"
 }

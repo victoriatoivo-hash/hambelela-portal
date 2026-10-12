@@ -1,3 +1,15 @@
+// Keep an explicit acknowledgement durable while the server is temporarily unavailable.
+// Keys are scoped to the signed-in account; retries never complete the assignment.
+function createMarketingAcknowledgements(storage,key,send) {
+  let memory={pending:[],confirmed:[]},flushing=false;
+  const read=()=>{try{const value=JSON.parse(storage.getItem(key)||'null');if(value&&Array.isArray(value.pending)&&Array.isArray(value.confirmed))memory=value;}catch(_){}return memory;};
+  const save=value=>{memory=value;try{storage.setItem(key,JSON.stringify(value));}catch(_){}};
+  const has=id=>{const state=read();return state.pending.includes(Number(id))||state.confirmed.includes(Number(id));};
+  const remember=id=>{id=Number(id);if(id>0&&!has(id)){const state=read();state.pending.push(id);save(state);}};
+  const flush=async()=>{if(flushing)return;flushing=true;try{for(const id of [...read().pending].slice(0,10)){try{if(!await send(id))continue;const state=read();state.pending=state.pending.filter(value=>value!==id);if(!state.confirmed.includes(id))state.confirmed.push(id);state.confirmed=state.confirmed.slice(-500);save(state);}catch(_){/* Retain intent and retry on the next poll or login. */}}}finally{flushing=false;}};
+  return {has,remember,flush};
+}
+
 function initialisePortalDatePickers(root = document) {
   window.PortalDatePicker?.initialise(root);
 }
@@ -639,6 +651,10 @@ window.addEventListener('DOMContentLoaded', () => {
     const portalUser = window.HambelelaPortalUser || { id: 0, role: 'guest' };
     const storageKey = `portal_last_seen_notification_id_${portalUser.id}_${portalUser.role}`;
     let lastSeenLatestId = 0;
+    const marketingAcknowledgements=createMarketingAcknowledgements({getItem:key=>window.localStorage.getItem(key),setItem:(key,value)=>window.localStorage.setItem(key,value)},`marketing_ack_${portalUser.id}_${portalUser.role}`,async id=>{
+      const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),6000);
+      try{const response=await fetch(apiUrl,{method:'POST',credentials:'same-origin',signal:controller.signal,headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({action:'notification_viewed',notification_id:String(id)})});return response.ok&&(await response.json()).ok===true;}finally{clearTimeout(timer);}
+    });
     const marketingQueued=new Set();
     const marketingPageStarted=Date.now();
     let marketingPopupCsrf='';
@@ -683,6 +699,7 @@ window.addEventListener('DOMContentLoaded', () => {
       const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
       const isMarketing = notification.related_type === 'marketing_assignment';
       const isLoanAgreement = String(notification.related_type || '').startsWith('loan_agreement_');
+      if(isMarketing&&marketingAcknowledgements.has(notification.id)){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;drainNotificationToasts();return;}
       let claimed = false;
       try {
         const claimResponse = await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(notification.id)})});
@@ -693,6 +710,7 @@ window.addEventListener('DOMContentLoaded', () => {
         try{const response=await fetch(apiUrl,{credentials:'same-origin',cache:'no-store'});const current=await response.json();if(!response.ok||!current.ok||!(current.marketing_popups||[]).some(n=>Number(n.id)===Number(notification.id)))throw new Error();}
         catch(_){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;drainNotificationToasts();return;}
       }
+      if(isMarketing&&marketingAcknowledgements.has(notification.id)){marketingQueued.delete(Number(notification.id));marketingModalActive=false;visibleNotificationToasts--;drainNotificationToasts();return;}
       const container = ensureToastContainer();
       const toast = document.createElement(isMarketing?'dialog':'div');
       toast.className = isMarketing ? 'mk-marketing-popup' : 'portal-toast';
@@ -746,9 +764,11 @@ window.addEventListener('DOMContentLoaded', () => {
         else window.location.assign(notification.action_link || `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(taskId)}`);
       });
       toast.querySelector('[data-toast-loan]')?.addEventListener('click', async () => { await markState('viewed'); window.location.assign(notification.action_link); });
-      const acknowledgeMarketing=async(view=false)=>{
-        try{const response=await markState('viewed');if(!response?.ok||!(await response.json()).ok){const check=await fetch(apiUrl,{credentials:'same-origin',cache:'no-store'});const current=await check.json();if(!check.ok||!current.ok||(current.marketing_popups||[]).some(n=>Number(n.id)===Number(notification.id)))throw new Error();}close();if(view)window.location.assign('/apps/marketing/execution.php?id='+encodeURIComponent(notification.related_id));}
-        catch(_){toast.querySelector('.portal-toast-message').textContent='Acknowledgement could not be saved. Please try again.';}
+      const acknowledgeMarketing=(view=false)=>{
+        marketingAcknowledgements.remember(notification.id);
+        close();
+        void marketingAcknowledgements.flush();
+        if(view)window.location.assign('/apps/marketing/execution.php?id='+encodeURIComponent(notification.related_id));
       };
       toast.querySelector('[data-marketing-ack]')?.addEventListener('click',()=>acknowledgeMarketing());
       toast.querySelector('[data-marketing-view]')?.addEventListener('click',()=>acknowledgeMarketing(true));
@@ -816,6 +836,7 @@ window.addEventListener('DOMContentLoaded', () => {
     };
 
     const fetchNotifications = async () => {
+      void marketingAcknowledgements.flush();
       try {
         const response = await fetch(`${apiUrl}?mode=summary&active_task_notification=${encodeURIComponent(window.HambelelaTaskPopups?.activeId() || 0)}`, {
           credentials: 'same-origin',
@@ -832,7 +853,7 @@ window.addEventListener('DOMContentLoaded', () => {
         window.HambelelaTaskPopups?.accept(data.task_popups || []);
         marketingPopupCsrf=data.marketing_popup_csrf||'';
         for(const notification of data.marketing_popups||[]){
-          const id=Number(notification.id);if(marketingQueued.has(id))continue;
+          const id=Number(notification.id);if(marketingQueued.has(id)||marketingAcknowledgements.has(id))continue;
           marketingQueued.add(id);queuePortalToast(notification);
         }
         const latest = Array.isArray(data.latest) ? data.latest : [];

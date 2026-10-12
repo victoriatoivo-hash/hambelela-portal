@@ -8,7 +8,8 @@ require_once BASE_PATH . '/shared/notifications.php';
 
 require_login();
 
-try {
+// Notification acknowledgements must not wait for unrelated HR policy synchronization.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') try {
     require_once BASE_PATH.'/shared/portal-policy-notifications.php';
     $policyHr=ops_hr_db();
     if($policyHr){hrPolicyAssignCurrent($policyHr);portal_policy_sync(db(),$policyHr);}

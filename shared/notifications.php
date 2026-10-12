@@ -438,7 +438,11 @@ function notifications_mark_task_state(int $notificationId, string $state): bool
     if ($column === '') return false;
     $stmt = db()->prepare("UPDATE notification_recipients SET {$column}=COALESCE({$column},NOW()) WHERE notification_id=? AND employee_id=?");
     $stmt->execute([$notificationId, $employeeId]);
-    return $stmt->rowCount() > 0;
+    if ($stmt->rowCount() > 0) return true;
+    // Repeated acknowledgements from another tab or a retried request are successful.
+    $existing = db()->prepare("SELECT 1 FROM notification_recipients WHERE notification_id=? AND employee_id=? AND {$column} IS NOT NULL");
+    $existing->execute([$notificationId,$employeeId]);
+    return (bool)$existing->fetchColumn();
 }
 
 function notifications_claim_task_delivery(int $notificationId): bool
