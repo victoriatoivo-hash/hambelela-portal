@@ -2,9 +2,9 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ("assets/css/portal-notices.css","assets/js/portal.js","assets/css/portal.css","assets/js/notifications-ui.js","assets/css/notifications-ui.css","assets/js/task-assignment-popup.js","assets/css/task-assignment-popup.css","assets/js/acknowledgments-popup.js","assets/css/acknowledgments.css","assets/css/marketing-workspace.css","shared/header.php","shared/sidebar.php","shared/portal-policy-popup.php")
-READ_ONLY = ()
-EXPORT_MODULES = ("assets/js/orders-board.js","assets/js/packing-list.js","assets/js/delivery-core.js","assets/js/delivery-accounting.js","assets/js/delivery-back-capture.js","assets/js/courier-essentials.js","apps/operations/courier.php","assets/js/accounts-amendments.js","assets/js/asset-register.js","assets/js/input-vat.js","assets/js/output-vat.js","assets/js/import-vat.js","assets/js/sage-reconciliation.js","assets/js/cost-workbook.js","assets/js/cost-workbook-pages.js","assets/js/cost-workbook-phase2.js","assets/js/miv-shipping.js")
+FILES = ('assets/js/portal.js','shared/notifications.php','api/notifications.php')
+READ_ONLY = ('assets/js/notifications-ui.js','assets/js/task-assignment-popup.js','assets/js/acknowledgments-popup.js','shared/header.php','shared/marketing.php')
+EXPORT_MODULES = ()
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 if subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=sha: raise SystemExit('Exact checkout SHA required')
