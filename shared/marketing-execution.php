@@ -199,7 +199,7 @@ function marketing_execution_save(array $input): void
             $value = $submitted[$key];
             if (!is_array($value)) throw new RuntimeException('Invalid channel update.');
             $completed = !empty($value['completed']);
-            if ($completed && !$owner && !marketing_execution_ready_to_publish($item)) throw new RuntimeException('Owner approval is required before publishing channel work.');
+            if ($completed && !marketing_execution_ready_to_publish($item)) throw new RuntimeException('Owner approval is required before publishing channel work.');
             $url = trim((string)($value['proof_url'] ?? ''));
             if ($completed && $url==='' && trim((string)($value['note']??''))==='') throw new RuntimeException('Add a proof link or completion evidence note for each completed channel.');
             if ($url !== '' && (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower((string)parse_url($url,PHP_URL_SCHEME)), ['https','http'], true) || strlen($url)>500)) throw new RuntimeException('Use a valid web link for proof.');

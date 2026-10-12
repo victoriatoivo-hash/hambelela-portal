@@ -2,7 +2,7 @@
  'use strict';
  function countdown(due,completed,status,now=Date.now(),submitted){
   if(status==='cancelled')return {text:'Cancelled',state:''};
-  const end=Date.parse(due),done=Date.parse(completed);
+  const end=Date.parse(due),done=Date.parse(submitted||completed);
   if(status==='published')return {text:'Completed'+(Number.isFinite(done)&&Number.isFinite(end)?(done<=end?' · On time':' · Late'):''),state:''};
   if(['ready_for_review','approved','scheduled'].includes(status)&&submitted){const onTime=!Number.isFinite(end)||Date.parse(submitted)<=end;return {text:(status==='ready_for_review'?'Awaiting Owner Review':'Submitted')+' · '+(onTime?'On time':'After deadline'),state:''};}
   if(status==='ready_for_review')return {text:'Awaiting Owner Review',state:''};

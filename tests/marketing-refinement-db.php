@@ -72,6 +72,9 @@ ok(count(notifications_marketing_popups())===0&&!notifications_claim_task_delive
 ok((int)db()->query('SELECT COUNT(*) FROM notifications')->fetchColumn()===2,'no duplicate notification records');
 $owner=true;$all=[];foreach($keys as$key)$all[$key]=['completed'=>1];
 db()->exec("UPDATE marketing_work_items SET status='approved' WHERE id=1");
+try { marketing_execution_save(['id'=>1,'channels'=>$all,'execution_status'=>'published']); throw new LogicException('Missing evidence was accepted'); }
+catch(RuntimeException $e) { ok(strpos($e->getMessage(),'evidence')!==false,'completion requires evidence'); }
+foreach($keys as$key)$all[$key]['note']='Synthetic completion evidence for '.$key;
 marketing_execution_save(['id'=>1,'channels'=>$all,'execution_status'=>'published']);
 ok(marketing_execution_item(1)['status']==='published','completion succeeds after every required channel is complete');
 marketing_execution_requirements(1,array_merge($keys,['website']),[]);
