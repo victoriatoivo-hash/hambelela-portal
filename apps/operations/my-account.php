@@ -835,8 +835,8 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                     <div class="settings-card">
                         <h2>Employee accounts</h2>
                         <p class="card-sub">Manual assignment controls who appears in Packing selectors. Automatic distribution is a separate, narrower workload pool.</p>
-                        <div class="settings-table-wrap">
-                            <table class="settings-table">
+                        <div class="settings-table-wrap hb-employee-settings">
+                            <table class="es-employee-table">
                                 <thead>
                                     <tr>
                                         <th>Name</th>
@@ -865,8 +865,8 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         <td><?= htmlspecialchars((string) $managedEmployee['email'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars($managedEmployee['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
-                                            <div class="settings-hr-access" data-hr-access-employee="<?= (int) $managedEmployee['id'] ?>" data-hr-access-state="<?= htmlspecialchars($health['state'], ENT_QUOTES, 'UTF-8') ?>">
-                                            <span class="settings-pill <?= $health['state'] === 'ready' ? 'is-linked' : ($health['state'] === 'conflict' ? 'is-conflict' : ($health['state'] === 'not_linked' ? 'is-muted' : 'is-warning')) ?>"><?= htmlspecialchars($health['label'], ENT_QUOTES, 'UTF-8') ?></span>
+                                            <div class="es-hr-access" data-hr-access-employee="<?= (int) $managedEmployee['id'] ?>" data-hr-access-state="<?= htmlspecialchars($health['state'], ENT_QUOTES, 'UTF-8') ?>">
+                                            <span class="es-status <?= $health['state'] === 'ready' ? 'is-linked' : ($health['state'] === 'conflict' ? 'is-conflict' : ($health['state'] === 'not_linked' ? 'is-muted' : 'is-warning')) ?>"><?= htmlspecialchars($health['label'], ENT_QUOTES, 'UTF-8') ?></span>
                                             <?php if ($hr): ?>
                                                 <small><a href="<?= htmlspecialchars(BASE_URL . '/apps/hr-portal/employees.php?view=' . (int) $link['hr_employee_id'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($hr['full_name'], ENT_QUOTES, 'UTF-8') ?></a></small>
                                             <?php endif; ?>
@@ -874,31 +874,31 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                             <form method="post">
                                                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) $_SESSION['settings_csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
-                                                <button class="btn-secondary" type="submit" name="action" value="test_hr_access">Test HR Access</button>
+                                                <button class="es-table-control" type="submit" name="action" value="test_hr_access">Test HR Access</button>
                                                 <?php if ($health['state'] === 'account_missing'): ?>
-                                                    <button class="btn-secondary" type="submit" name="action" value="repair_hr_access">Set Up HR Access</button>
+                                                    <button class="es-table-control" type="submit" name="action" value="repair_hr_access">Set Up HR Access</button>
                                                 <?php endif; ?>
                                             </form>
                                             </div>
                                         </td>
                                         <td>
                                             <?php if ($leave): ?>
-                                                <span class="settings-pill <?= (string) ($leave['status'] ?? '') === 'pending' ? 'is-warning' : 'is-linked' ?>"><?= htmlspecialchars((string) $leave['status'], ENT_QUOTES, 'UTF-8') ?></span>
+                                                <span class="es-status <?= (string) ($leave['status'] ?? '') === 'pending' ? 'is-warning' : 'is-linked' ?>"><?= htmlspecialchars((string) $leave['status'], ENT_QUOTES, 'UTF-8') ?></span>
                                                 <small><?= htmlspecialchars((string) ($leave['leave_type'] ?? 'Leave'), ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(date('d M', strtotime((string) $leave['start_date'])), ENT_QUOTES, 'UTF-8') ?>-<?= htmlspecialchars(date('d M', strtotime((string) $leave['end_date'])), ENT_QUOTES, 'UTF-8') ?></small>
                                             <?php elseif ($hr): ?>
-                                                <span class="settings-pill is-muted">none</span>
+                                                <span class="es-status is-muted">none</span>
                                             <?php else: ?>
-                                                <span class="settings-pill is-warning">unknown</span>
+                                                <span class="es-status is-warning">unknown</span>
                                             <?php endif; ?>
                                         </td>
-                                        <td><span class="settings-pill <?= (string) ($managedEmployee['status'] ?? '') === 'active' ? 'is-linked' : 'is-muted' ?>"><?= htmlspecialchars($managedEmployee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                                        <td><span class="es-status <?= (string) ($managedEmployee['status'] ?? '') === 'active' ? 'is-linked' : 'is-muted' ?>"><?= htmlspecialchars($managedEmployee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
                                         <td>
                                             <form method="post">
                                                 <input type="hidden" name="action" value="save_packing_eligibility">
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
                                                 <input type="hidden" name="eligibility_field" value="packing_assignable">
                                                 <input type="hidden" name="eligibility_value" value="<?= !empty($managedEmployee['packing_assignable']) ? '0' : '1' ?>">
-                                                <button class="btn-secondary" type="submit"><?= !empty($managedEmployee['packing_assignable']) ? 'Eligible' : 'Not eligible' ?></button>
+                                                <button class="es-table-control" type="submit"><?= !empty($managedEmployee['packing_assignable']) ? 'Eligible' : 'Not eligible' ?></button>
                                             </form>
                                         </td>
                                         <td>
@@ -907,12 +907,12 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
                                                 <input type="hidden" name="eligibility_field" value="packing_auto_assignable">
                                                 <input type="hidden" name="eligibility_value" value="<?= !empty($managedEmployee['packing_auto_assignable']) ? '0' : '1' ?>">
-                                                <button class="btn-secondary" type="submit"><?= !empty($managedEmployee['packing_auto_assignable']) ? 'Included' : 'Excluded' ?></button>
+                                                <button class="es-table-control" type="submit"><?= !empty($managedEmployee['packing_auto_assignable']) ? 'Included' : 'Excluded' ?></button>
                                             </form>
                                         </td>
                                         <td>
                                             <button
-                                                class="btn-secondary"
+                                                class="es-table-control"
                                                 type="button"
                                                 data-create-temporary-code
                                                 data-employee-id="<?= (int) $managedEmployee['id'] ?>"
@@ -921,16 +921,17 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         </td>
                                         <td><?= htmlspecialchars((string) $managedEmployee['created_at'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
-                                            <button type="button" class="btn-secondary" data-edit-employee="<?= (int) $managedEmployee['id'] ?>" aria-label="Edit <?= htmlspecialchars($managedEmployee['full_name'], ENT_QUOTES, 'UTF-8') ?>"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5L16 3Z M14 5l5 5"/></svg> Edit</button>
+                                            <div class="es-table-actions"><button type="button" class="es-table-action" data-edit-employee="<?= (int) $managedEmployee['id'] ?>" aria-label="Edit <?= htmlspecialchars($managedEmployee['full_name'], ENT_QUOTES, 'UTF-8') ?>"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5L16 3Z M14 5l5 5"/></svg> Edit</button>
                                             <?php if ((int) $managedEmployee['id'] !== (int) (current_user()['id'] ?? 0)): ?>
                                                 <form method="post" onsubmit="return confirm('Permanently delete this employee account? Old operational records will stay, but the employee link will be cleared.');">
                                                     <input type="hidden" name="action" value="delete_employee">
                                                     <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
-                                                    <button class="btn-danger" type="submit">Delete</button>
+                                                    <button class="es-table-action is-delete" type="submit">Delete</button>
                                                 </form>
                                             <?php else: ?>
-                                                <span class="settings-pill is-muted">current user</span>
+                                                <span class="es-status is-muted">current user</span>
                                             <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -1389,9 +1390,9 @@ if (initialSettingsSection) {
 </script>
 <?php if ($canManagePortal): ?>
 <link rel="stylesheet" href="<?=BASE_URL?>/assets/css/employee-account-editor.css?v=<?=filemtime(BASE_PATH.'/assets/css/employee-account-editor.css')?>">
-<dialog class="hb-employee-edit hb-employee-edit__drawer" id="employee-edit" aria-labelledby="employee-edit-title" data-csrf="<?=htmlspecialchars($_SESSION['settings_csrf_token'],ENT_QUOTES)?>">
-<header class="hb-employee-edit__header"><div><small>EMPLOYEE ACCOUNTS</small><h2 class="hb-employee-edit__title" id="employee-edit-title">Edit Employee</h2></div><button type="button" class="hb-employee-edit__button" data-edit-close aria-label="Close employee editor">×</button></header>
-<form id="employee-edit-form"><div class="hb-employee-edit__body" id="employee-edit-body"></div><footer class="hb-employee-edit__footer"><p id="employee-edit-message" role="status"></p><button type="button" class="hb-employee-edit__button hb-employee-edit__button--secondary" data-edit-close>Cancel</button><button type="submit" class="hb-employee-edit__button hb-employee-edit__button--primary">Save Changes</button></footer></form></dialog>
+<dialog class="hb-employee-settings es-edit-drawer" id="employee-edit" aria-labelledby="employee-edit-title" data-csrf="<?=htmlspecialchars($_SESSION['settings_csrf_token'],ENT_QUOTES)?>">
+<header class="es-edit-header"><div><small class="es-edit-eyebrow">EMPLOYEE ACCOUNTS</small><h2 class="es-edit-title" id="employee-edit-title">Edit Employee</h2></div><button type="button" class="es-close" data-edit-close aria-label="Close employee editor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+<form id="employee-edit-form"><div class="es-edit-body" id="employee-edit-body"></div><footer class="es-edit-footer"><p id="employee-edit-message" role="status"></p><button type="button" class="es-button es-button-secondary" data-edit-close>Cancel</button><button type="submit" class="es-button es-button-primary">Save Changes</button></footer></form></dialog>
 <script defer src="<?=BASE_URL?>/assets/js/employee-account-editor.js?v=<?=filemtime(BASE_PATH.'/assets/js/employee-account-editor.js')?>"></script>
 <?php endif; ?>
 <?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?><script defer src="<?=BASE_URL?>/assets/js/ess-dashboard.js?v=<?=filemtime(BASE_PATH.'/assets/js/ess-dashboard.js')?>"></script><?php include BASE_PATH . '/shared/footer.php'; ?>

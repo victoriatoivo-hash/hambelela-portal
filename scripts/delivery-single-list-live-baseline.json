@@ -1,13 +1,10 @@
 {
+  "assets/css/employee-account-editor.css": "6f66d9d544946d25a02d59c18332e5e89d5895fff04f7975ba9d076a835df72c",
+  "assets/js/employee-account-editor.js": "96306cd93ba47a8534122702a6ce68564f52c46dc414ef3d477182f398c5f948",
+  "apps/operations/my-account.php": "baa3e6146e78eef8e178b9675db49c906e0a2e1541fcb8f299b9f25bc830abee",
   "shared/employee-account-editor.php": "78ec4a3e787ca32274c4420e8b950fe32cc1e23526835502d5943c901ba30b9f",
   "apps/operations/employee-account.php": "a92f95c506e8e2b0625f385d445d512848b2d1eaf35f546862f2a24e29f1a24a",
-  "assets/css/employee-account-editor.css": "6f66d9d544946d25a02d59c18332e5e89d5895fff04f7975ba9d076a835df72c",
-  "assets/js/employee-account-editor.js": "5a8c5259e0c1a7f9317c8bcf34936642bdaa76f5caeca8c7ef4c5e3d4481a464",
-  "apps/operations/my-account.php": "baa3e6146e78eef8e178b9675db49c906e0a2e1541fcb8f299b9f25bc830abee",
   "shared/auth.php": "79d3f6f913c68ffee884886762c1ee14a15705b3f037a64128dd3cb415ed5bb3",
   "apps/operations/operations.php": "709868816a9b3ba6f7db87452ee120f903974bcbfb9b714918c95dec0907b21f",
-  "shared/login-security.php": "750e55cb6323b434d32acdec0cade98ae333fcac520c3785f2a2913c92d4fd91",
-  "apps/hr-portal/portal-login.php": "5e52f9b02187b5454f45908d67e6d0ff23bb1dffd9336e3c70015a9b6fd6d32b",
-  "shared/hr-access.php": "23ad2950de399bae3d244f2fe88f3f54b7d05f3de766ba52402bca5928989b06",
-  "shared/temporary-access-codes.php": "321b2045b17a867d74efb0485f50a25edb4571b58510831d9aaf0cc51d1f7413"
+  "shared/hr-access.php": "23ad2950de399bae3d244f2fe88f3f54b7d05f3de766ba52402bca5928989b06"
 }
