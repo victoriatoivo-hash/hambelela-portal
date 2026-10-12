@@ -4,9 +4,9 @@
   "apps/marketing/index.php": "242efd2f02003e900ef0cce7b363bbb078cac2b1b961d916a350b0e6df4f55e4",
   "apps/marketing/execution.php": "9c0414ac3f0d61c366fab538b9cb46068a14713c326fb1f3eb528a629dfa56e6",
   "apps/marketing/employee-workspace.php": "6331243d57bc47ee4bdfa6292035abe68060d9f4211741141321aa73f41604ce",
-  "assets/css/marketing.css": "7fd7c1c4ab2e2be86d921f4bd776b5d33544a1e16cbc3340942e9db705ebff50",
-  "assets/css/marketing-extras.css": "67a526f9d45004145f33a1d77a3a7a25f71fe00f83b26a4f2f91335b42ec318a",
-  "assets/css/marketing-execution.css": "7eed05d5d2bbeeed0348258ce2af8e689836633c03c2aaebc67495caab245a49",
+  "assets/css/marketing.css": "1de506791e6f7a8e589cdecf46332b0ae4fd30a433a639c9fed095c61854cb9d",
+  "assets/css/marketing-extras.css": "f8246e198384ee4882519fa159a4f60eac9d7d7204d7017b27c38dee6d03647a",
+  "assets/css/marketing-execution.css": "8336397da779d37f005ee688ca29ca8b9c49cd4f87bf2dd175ce23c93f6022bd",
   "assets/js/marketing.js": "f60561639fa8d71509ba039e734fd8bb7382b3a23ea4e5f05f5160e47264cc02",
   "shared/header.php": "e5e3397a91871089878053cf07a66e5c3988973e3c909971be485df007c5b225",
   "api/notifications.php": "5ed5dc34be8a627009a9791d505a8cc69bffc5267f9de010a858a7707b6b1f99",
@@ -18,7 +18,7 @@
   "shared/footer.php": "1de3c8a3bb40ed23a8a36a37aaec3336c4390b2f4115944b67612649e819b817",
   "shared/task-reminders.php": "fa6f9a3b005a7e1adea1e2cf51c336e166114d8aadb2e850b3ad72ce4cf1f130",
   "assets/js/task-assignment-popup.js": "c79f647f4c4fc33674595a497b41398489de27f9e882e1dff4b0687ff13e3e12",
-  "assets/css/task-assignment-popup.css": "3c82adbc3f95fca18df6908c40b18a6987e9b37951947331fbe246ec38c62d65",
+  "assets/css/task-assignment-popup.css": "6e26c634e9b1bbd401c01699dcfc5041a4b78e044c8a1f6f0b6a17bc944ea1f7",
   "assets/js/notifications-ui.js": "5f8bb6dc2d2220a836d5b06a577a6888de7d278014419375454980bb8ddb6734",
   "notifications-api.php": "9ce36cb7b1b0be5fc9f664dade99f510078c7a4819b8db6ffa70290760c916f8"
 }
