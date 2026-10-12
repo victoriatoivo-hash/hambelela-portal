@@ -21,6 +21,9 @@ function marketing_execution_schema_ready(): void
     if (!marketing_column_exists('marketing_channel_execution', 'scheduled_at')) {
         db()->exec('ALTER TABLE marketing_channel_execution ADD COLUMN scheduled_at DATETIME NULL');
     }
+    if (!marketing_column_exists('marketing_channel_execution', 'publish_timing')) {
+        db()->exec('ALTER TABLE marketing_channel_execution ADD COLUMN publish_timing VARCHAR(16) NULL');
+    }
     // Upgrade the earlier local draft without deleting channel evidence.
     if (!marketing_column_exists('marketing_channel_execution', 'is_required')) {
         db()->exec('ALTER TABLE marketing_channel_execution ADD COLUMN is_required TINYINT(1) NOT NULL DEFAULT 1');
@@ -128,7 +131,7 @@ function marketing_execution_legacy_rows(array $item): array
     return $rows;
 }
 
-function marketing_execution_requirements(int $id, array $keys, array $instructions, array $schedule = []): void
+function marketing_execution_requirements(int $id, array $keys, array $instructions, array $schedule = [], array $timing = []): void
 {
     marketing_require_owner();
     if (!$keys) throw new RuntimeException('Select at least one required channel.');
@@ -141,13 +144,17 @@ function marketing_execution_requirements(int $id, array $keys, array $instructi
     db()->prepare('UPDATE marketing_channel_execution SET is_required=0 WHERE item_id=?')->execute([$id]);
     foreach ($keys as $key) {
         $when = trim((string)($schedule[$key] ?? ''));
+        $mode = (string)($timing[$key] ?? ($when !== '' ? 'later' : 'unspecified'));
+        if (!in_array($mode, ['now','later','unspecified'], true)) throw new RuntimeException('Choose a valid publishing option.');
+        if ($mode === 'later' && $when === '') throw new RuntimeException('Choose a date and time for scheduled publishing.');
+        if ($mode !== 'later') $when = '';
         if ($when !== '') {
             $date = DateTimeImmutable::createFromFormat('!Y-m-d\\TH:i', $when, new DateTimeZone('Africa/Windhoek'));
             if (!$date || $date->format('Y-m-d\\TH:i') !== $when) throw new RuntimeException('Use a valid channel schedule.');
             $when = $date->format('Y-m-d H:i:s');
         }
-        db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,scheduled_at) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE instructions=VALUES(instructions),scheduled_at=VALUES(scheduled_at),is_required=1')
-            ->execute([$id,$key,trim((string)($instructions[$key] ?? '')),$when ?: null]);
+        db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,scheduled_at,publish_timing) VALUES (?,?,?,?,?) ON DUPLICATE KEY UPDATE instructions=VALUES(instructions),scheduled_at=VALUES(scheduled_at),publish_timing=VALUES(publish_timing),is_required=1')
+            ->execute([$id,$key,trim((string)($instructions[$key] ?? '')),$when ?: null,$mode]);
     }
     // Preserve unselected draft instructions as inactive rows, never erase proof.
     foreach (array_diff(array_keys(marketing_execution_channels()), $keys) as $key) {
@@ -235,6 +242,7 @@ function marketing_channel_cards(array $rows = []): void
         $row = $byKey[$key] ?? [];
         $selected = (!empty($row) && !isset($row['is_required'])) || !empty($row['is_required']);
         $icon = ['instagram'=>'camera','facebook'=>'thumbs-up','tiktok'=>'music-2','whatsapp'=>'message-circle'][$key] ?? 'globe';
+        $timing = $row['publish_timing'] ?? (!empty($row['scheduled_at']) ? 'later' : 'unspecified');
         $state = !empty($row['completed']) ? 'Completed' : (!empty($row['prepared']) ? 'In Progress' : 'Pending');
         ?>
         <div class="marketing-channel-card <?=$selected?'is-selected':''?>">
@@ -243,7 +251,14 @@ function marketing_channel_cards(array $rows = []): void
           </label>
           <div class="marketing-channel-instructions" id="channel-<?=$key?>" <?=$selected?'':'hidden'?>>
             <label><?=marketing_e($label)?> instructions<textarea name="channel_instructions[<?=$key?>]"><?=marketing_e((string)($row['instructions']??''))?></textarea></label>
-            <label>Scheduled date/time (optional)<input type="datetime-local" name="channel_schedule[<?=$key?>]" value="<?=marketing_e(substr(str_replace(' ','T',(string)($row['scheduled_at']??'')),0,16))?>"></label>
+            <div class="marketing-publish-timing">
+              <fieldset><legend><?=marketing_e($label)?> publishing</legend><div class="marketing-publish-options">
+              <?php foreach(['unspecified'=>'Not set','now'=>'Publish now','later'=>'Schedule for later'] as $mode=>$modeLabel): ?>
+                <label><input type="radio" name="channel_timing[<?=$key?>]" value="<?=$mode?>" <?=$timing===$mode?'checked':''?>><span><?=$modeLabel?></span></label>
+              <?php endforeach; ?></div></fieldset>
+              <label data-channel-date>Scheduled date/time (Namibia)<input type="datetime-local" name="channel_schedule[<?=$key?>]" value="<?=marketing_e(substr(str_replace(' ','T',(string)($row['scheduled_at']??'')),0,16))?>"></label>
+              <small data-publish-now-note <?=$timing==='now'?'':'hidden'?>>Publish as soon as required approval is complete. Record completion after publishing.</small>
+            </div>
           </div>
         </div>
         <?php

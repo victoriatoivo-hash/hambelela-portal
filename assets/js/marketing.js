@@ -278,7 +278,14 @@
 
   root.querySelectorAll('.marketing-channel-card').forEach(card=>{
     const check=card.querySelector('[name="required_channels[]"]'), body=card.querySelector('.marketing-channel-instructions');
-    const update=()=>{card.classList.toggle('is-selected',check.checked);body.hidden=!check.checked;check.setAttribute('aria-expanded',String(check.checked));};
+    const update=()=>{
+      card.classList.toggle('is-selected',check.checked);body.hidden=!check.checked;check.setAttribute('aria-expanded',String(check.checked));
+      const mode=card.querySelector('[name^="channel_timing["]:checked')?.value;
+      const date=card.querySelector('[data-channel-date]'),input=date?.querySelector('input'),note=card.querySelector('[data-publish-now-note]');
+      if(date){date.hidden=mode!=='later';input.disabled=!check.checked||mode!=='later';input.required=check.checked&&mode==='later';}
+      if(note)note.hidden=mode!=='now';
+    };
+    card.querySelectorAll('[name^="channel_timing["]').forEach(input=>input.addEventListener('change',update));
     check.addEventListener('change',update);update();
   });
   root.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{

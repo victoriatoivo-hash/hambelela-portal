@@ -368,3 +368,15 @@ body:has(.ess-marketing-page) .portal-date-popup .portal-date-clear{color:#62675
 @keyframes marketingFadeUp{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
 @media(max-width:650px){.ess-marketing-page .marketing-calendar-day{min-height:65px;padding:4px}.ess-marketing-page .marketing-calendar-event{font-size:8px}.ess-marketing-page .marketing-month-grid{padding:0;border-width:6px}.ess-marketing-page .marketing-table-wrap tr{margin:0;padding:0;border-radius:0;border:0}}
 @media(prefers-reduced-motion:reduce){.ess-marketing-page *{animation:none!important;transition:none!important}}
+
+/* Publishing intent is separate from completion and approval. */
+.ess-marketing-page .marketing-publish-timing{display:grid;gap:12px;align-content:start;min-width:0}
+.ess-marketing-page .marketing-publish-timing fieldset{margin:0;padding:0;border:0;min-width:0}
+.ess-marketing-page .marketing-publish-timing legend{font-size:11px;margin-bottom:8px;color:var(--marketing-800)}
+.ess-marketing-page .marketing-publish-options{display:flex;flex-wrap:wrap;gap:6px}
+.ess-marketing-page .marketing-publish-options label{display:flex;align-items:center;gap:6px;min-height:44px;padding:8px 10px;border:1px solid var(--marketing-200);border-radius:8px;background:#fff;cursor:pointer;font-size:11px}
+.ess-marketing-page .marketing-publish-options label:has(input:checked){background:var(--marketing-100);border-color:var(--marketing-600);color:var(--marketing-800)}
+.ess-marketing-page .marketing-publish-options input{width:15px;height:15px;min-height:0;margin:0;accent-color:var(--marketing-600)}
+.ess-marketing-page .marketing-publish-timing small{font-size:10.5px;line-height:1.5;color:#62675e}
+.ess-marketing-page .marketing-publish-timing [hidden]{display:none!important}
+.ess-marketing-page .marketing-publish-now-label{font-weight:600;color:var(--marketing-800)}

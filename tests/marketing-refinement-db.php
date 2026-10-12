@@ -72,4 +72,26 @@ $function=str_replace("require_once BASE_PATH.'/shared/notifications.php';",'/* 
 marketing_notify_assignment(1,3,'Synthetic assignment');marketing_notify_assignment(1,3,'Synthetic assignment');
 ok((int)db()->query("SELECT COUNT(*) FROM notifications WHERE related_type='marketing_assignment' AND deduplication_key IS NOT NULL")->fetchColumn()===1,'assignment event retries reuse one notification');
 
+
+$owner=true;
+$allKeys=array_keys(marketing_execution_channels());
+$beforeProof=db()->query('SELECT channel_key,prepared,completed,proof_url,completion_note FROM marketing_channel_execution WHERE item_id=1 ORDER BY channel_key')->fetchAll();
+marketing_execution_requirements(1,$allKeys,[],array_fill_keys($allKeys,'2026-11-01T10:00'),array_fill_keys($allKeys,'now'));
+$nowRows=marketing_execution_rows(marketing_execution_item(1));
+ok(count($nowRows)===8 && count(array_filter($nowRows,fn($r)=>$r['publish_timing']==='now' && $r['scheduled_at']===null))===8,'Publish now persists for all eight channels and clears stale schedules');
+$afterProof=db()->query('SELECT channel_key,prepared,completed,proof_url,completion_note FROM marketing_channel_execution WHERE item_id=1 ORDER BY channel_key')->fetchAll();
+foreach($beforeProof as $proof)ok(in_array($proof,$afterProof,true),'publishing intent preserves existing completion evidence for '.$proof['channel_key']);
+marketing_execution_requirements(1,$allKeys,[],['instagram'=>'2026-11-01T10:00'],['instagram'=>'later']);
+$byKey=array_column(marketing_execution_rows(marketing_execution_item(1)),null,'channel_key');
+ok($byKey['instagram']['scheduled_at']==='2026-11-01 10:00:00' && $byKey['instagram']['publish_timing']==='later','Schedule for later persists Namibia date and time');
+rejected(fn()=>marketing_execution_requirements(1,$allKeys,[],[],['instagram'=>'later']),'later requires a date on the server');
+rejected(fn()=>marketing_execution_requirements(1,$allKeys,[],[],['instagram'=>'invalid']),'server rejects invalid publishing intent');
+$byKey=array_column(marketing_execution_rows(marketing_execution_item(1)),null,'channel_key');
+ok($byKey['instagram']['scheduled_at']==='2026-11-01 10:00:00','invalid changes roll back without losing schedule');
+marketing_execution_requirements(1,$allKeys,[],[],array_fill_keys($allKeys,'now'));
+db()->exec("UPDATE marketing_work_items SET status='brief',approval_required=1 WHERE id=1");
+$owner=false;$actor=3;
+rejected(fn()=>marketing_execution_save(['id'=>1,'channels'=>['instagram'=>['completed'=>1]]]),'Publish now does not bypass Owner approval');
+ok(marketing_execution_item(1)['status']==='brief','Publish now does not falsely mark content published');
+
 }finally{db()->exec('DROP DATABASE '.$database);}
