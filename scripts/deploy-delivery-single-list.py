@@ -1,8 +1,8 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES = ('assets/js/packing-list.js', 'assets/css/packing-essentials.css', 'apps/operations/consignments.php', 'apps/operations/packing-list-action.php', 'apps/operations/packing-list-data.php')
-READ_ONLY = ('apps/operations/operations.php', 'shared/packing-notifications.php')
+FILES = ('assets/js/packing-list.js', 'assets/css/packing-essentials.css', 'apps/operations/consignments.php', 'apps/operations/packing-list-action.php')
+READ_ONLY = ('apps/operations/packing-list-data.php', 'apps/operations/operations.php', 'shared/packing-notifications.php')
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()

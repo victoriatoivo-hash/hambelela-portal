@@ -38,58 +38,55 @@ function packing_unit_meta(string $unit): ?array
     if (in_array($clean, ['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'], true)) {
         return ['dimension' => 'volume', 'factor' => 1.0];
     }
-    if (in_array($clean, ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units'], true)) {
+    if (in_array($clean, ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units', 'label', 'labels', 'bottle', 'bottles', 'jar', 'jars', 'pack', 'packs', 'individualitem', 'individualitems', 'pouch', 'pouches', 'teabag', 'teabags'], true)) {
         return ['dimension' => 'count', 'factor' => 1.0];
     }
 
     return null;
 }
 
+function packing_instructions_notes(string $notes, array $fields): string
+{
+    $actions = ['pack_as_supplied','apply_labels','repack','refill','other'];
+    $action = (string)($fields['packing_action'] ?? 'pack_as_supplied');
+    if (!in_array($action, $actions, true)) throw new RuntimeException('Choose a valid packing action.');
+    $data = ['packing_action'=>$action];
+    foreach (['general_instructions','labelling_instructions','repacking_instructions'] as $key) {
+        $data[$key] = trim((string)($fields[$key] ?? ''));
+        if (strlen($data[$key]) > 2000) throw new RuntimeException('Keep each packing instruction under 2,000 characters.');
+    }
+    // Structured instructions live with the existing packing record. They never enter quantity calculations.
+    $notes = preg_replace('/^\\[Packing instructions v1\\] .*$(?:\\r?\\n)?/m', '', $notes);
+    return trim($notes)."\n[Packing instructions v1] ".json_encode($data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+}
+
 function packing_quantity_plan_stats(string $quantityPlan): array
 {
-    $stats = [
-        'totals' => ['weight' => 0.0, 'volume' => 0.0, 'count' => 0.0],
-        'size_count' => 0,
-        'package_count' => 0.0,
-        'matched_text' => '',
-    ];
-    preg_match_all(
-        '/(\d+(?:\.\d+)?)\s*(kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?)\s*(?:[x*]\s*(\d+)|\(\s*(\d+)\s*\))/i',
-        $quantityPlan,
-        $matches,
-        PREG_SET_ORDER
-    );
-    foreach ($matches as $match) {
-        $meta = packing_unit_meta((string) ($match[2] ?? ''));
-        if (!$meta) {
-            continue;
-        }
-        $amount = (float) ($match[1] ?? 0);
-        $count = max(1, (int) (($match[3] ?? '') !== '' ? $match[3] : ($match[4] ?? 0)));
-        $stats['totals'][$meta['dimension']] += $amount * (float) $meta['factor'] * $count;
-        $stats['package_count'] += $count;
-        $stats['matched_text'] .= ' ' . (string) ($match[0] ?? '');
-        $stats['size_count']++;
+    $empty=['totals'=>['weight'=>0.0,'volume'=>0.0,'count'=>0.0],'size_count'=>0,'package_count'=>0.0,'matched_text'=>''];$stats=$empty;
+    $units='kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|pouch(?:es)?|tea\s*bags?|individual\s+items?';
+    $containers='pouch(?:es)?|packs?|bags?|bottles?|jars?';
+    $text=preg_replace('/(\d),(?=\d{3}(?:\D|$))/', '$1', str_replace('×','x',$quantityPlan));
+    $text=preg_replace('/(\d+)\s*(?:units?|pieces?|tea\s*bags?|labels?|bottles?|jars?)\s+per\s+(?:'.$containers.')\s*,?\s*(\d+)\s*(?:'.$containers.')/i','$1 units($2)',$text);
+    $text=preg_replace('/(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*('.$units.')\s*\)/i','$2$3($1)',$text);
+    $text=preg_replace('/\)\s*(?=\d)/','),',$text);
+    foreach(preg_split('/[,;+\n]+/',trim($text))?:[] as $part){
+        if(!preg_match('/^\s*(?:('.$units.')\s+)?(\d+(?:\.\d+)?)\s*('.$units.')?\s*(?:[x*]\s*(\d+)\s*(?:'.$containers.')?|\(\s*(\d+)\s*\))?\s*$/i',$part,$m)||(!empty($m[1])&&!empty($m[3])))return $empty;
+        $meta=packing_unit_meta(($m[3]??'')?:($m[1]?:'units'));$amount=(float)$m[2];$count=(int)(($m[4]??'')?:($m[5]??1));
+        if(!$meta||!is_finite($amount*$count)||$amount<=0||$count<=0||$count>9007199254740991||($meta['dimension']==='count'&&(floor($amount)!==$amount||floor($amount*$count)!==$amount*$count||$amount*$count>9007199254740991)))return $empty;
+        if($meta['dimension']==='count'&&empty($m[4])&&empty($m[5])){$count=$amount;$amount=1;}
+        $stats['totals'][$meta['dimension']]+=$amount*$meta['factor']*$count;
+        $stats['package_count']+=$count;$stats['size_count']++;$stats['matched_text'].=' '.$part;
     }
-
-    if ($stats['size_count'] === 0 && preg_match('/^\s*(\d+(?:\.\d+)?)(?:\s*[x*]\s*\(?\s*(\d+(?:\.\d+)?)\s*\)?)?/i', $quantityPlan, $countMatch)) {
-        $left = (float) ($countMatch[1] ?? 0);
-        $right = isset($countMatch[2]) ? (float) $countMatch[2] : 1.0;
-        $stats['package_count'] = $left * $right;
-        $stats['totals']['count'] = $stats['package_count'];
-        $stats['size_count'] = 1;
-        $stats['matched_text'] = (string) ($countMatch[0] ?? '');
-    }
-
     return $stats;
 }
 
 function packing_received_stock_base(string $receivedWeight, array $planStats): array
 {
+    $receivedWeight=preg_replace('/(\d),(?=\d{3}(?:\D|$))/', '$1', $receivedWeight);
     preg_match('/(\d+(?:\.\d+)?)/', $receivedWeight, $amountMatch);
     $amount = isset($amountMatch[1]) ? (float) $amountMatch[1] : 0.0;
-    preg_match('/kg|kgs|g|gram|grams|ml|l|lt|liter|litre|liters|litres|pcs?|pieces?|units?/i', $receivedWeight, $unitMatch);
-    $meta = isset($unitMatch[0]) ? packing_unit_meta((string) $unitMatch[0]) : null;
+    preg_match('/\d+(?:\.\d+)?\s*(kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\s+items?)\b/i', $receivedWeight, $unitMatch);
+    $meta = isset($unitMatch[1]) ? packing_unit_meta((string) $unitMatch[1]) : null;
     if (!$meta) {
         if (($planStats['totals']['volume'] ?? 0) > 0 && ($planStats['totals']['weight'] ?? 0) <= 0) {
             $meta = packing_unit_meta('l');
@@ -194,7 +191,7 @@ function packing_invoice_allocation_validation(array $row): array
     if (!$unit) {
         return ['valid' => false, 'message' => 'Unit required.'];
     }
-    $receivedText = (string) ($row['received_weight'] ?? '');
+    $receivedText = preg_replace('/(\d),(?=\d{3}(?:\D|$))/', '$1', (string) ($row['received_weight'] ?? ''));
     preg_match('/\d+(?:\.\d+)?/', $receivedText, $amountMatch);
     $receivedAmount = isset($amountMatch[0]) ? (float) $amountMatch[0] : 0.0;
     if ($receivedAmount <= 0) {
@@ -203,7 +200,7 @@ function packing_invoice_allocation_validation(array $row): array
     $plan = packing_quantity_plan_stats((string) ($row['quantity_planned'] ?? ''));
     if ((int) ($plan['size_count'] ?? 0) <= 0) {
         $planText = trim((string) ($row['quantity_planned'] ?? ''));
-        return ['valid' => false, 'message' => $planText === '' ? 'Quantity to pack is required.' : "Could not understand: “{$planText}”. Include a pack-size unit and quantity count, for example 100g(20) or 100g x20."];
+        return ['valid' => false, 'message' => $planText === '' ? 'Quantity to pack is required.' : "Could not understand: “{$planText}”. Use size × pack count, for example 50 units(20) or 100g(20). Put unrelated numbers in Notes."];
     }
     $dimension = (string) $unit['dimension'];
     foreach ((array) $plan['totals'] as $planDimension => $value) {
@@ -1105,6 +1102,7 @@ function packing_import_monday_row(array $row, int $employeeId): int
     $newId = (int) db()->lastInsertId();
     packing_store_workload_components($newId, (string) ($row['received_weight'] ?? ''), (string) ($row['quantity_planned'] ?? ''), (string) ($row['priority'] ?? 'high'));
     packing_publish_assignment($newId, null, !empty($row['assigned_employee_id']) ? (int) $row['assigned_employee_id'] : null, $employeeId);
+    ops_activity_log('packing_item_created', 'packing_task', $newId);
     notifications_notify_packing_loaded($newId);
     return $newId;
 }
@@ -1479,7 +1477,7 @@ try {
         if ($assignedId <= 0) {
             $assignedId = (int) (ops_best_packer_for_packing($workload) ?? 0);
         }
-        $notes = trim(ops_post_string('notes', 1000) . ($quantityWarning !== '' ? "\nWarning: {$quantityWarning}" : ''));
+        $notes = packing_instructions_notes(trim(ops_post_string('notes', 1000) . ($quantityWarning !== '' ? "\nWarning: {$quantityWarning}" : '')), $_POST);
         $rowKey = packing_row_key([
             'item_name' => ops_post_string('item_name', 190),
             'received_weight' => $receivedWeight,
@@ -1532,6 +1530,7 @@ try {
         $newId = (int) db()->lastInsertId();
         packing_store_workload_components($newId, $receivedWeight, $quantityPlan, $priority);
         packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
+        ops_activity_log('packing_item_created', 'packing_task', $newId);
         notifications_notify_packing_loaded($newId);
 
         echo json_encode(['ok' => true, 'message' => $quantityWarning !== '' ? 'Packing item created. Quantity-to-pack warning added.' : 'Packing item created.', 'warning' => $quantityWarning]);
@@ -2201,6 +2200,14 @@ try {
             throw new RuntimeException('A valid invoice import reference is required. Re-extract the invoice and try again.');
         }
 
+        $distributionReviewed = (string) ($_POST['distribution_reviewed'] ?? '0') === '1';
+        $reviewedAssignments = $distributionReviewed
+            ? json_decode((string) ($_POST['reviewed_assignments_json'] ?? '[]'), true)
+            : [];
+        if ($distributionReviewed && (!is_array($reviewedAssignments) || count($reviewedAssignments) !== $submittedCount)) {
+            throw new RuntimeException('The reviewed distribution does not include every invoice row. Review it again before creating.');
+        }
+
         $invoiceNumber = ops_post_string('invoice_number', 120);
         $invoiceDate = ops_post_string('invoice_date', 40);
         $supplierName = ops_post_string('supplier_name', 190);
@@ -2258,6 +2265,18 @@ try {
             }
             $validationAssignmentSource = (string) ($row['assignment_source'] ?? 'auto') === 'manual' ? 'manual' : 'auto';
             $validationAssignedId = (int) ($row['assigned_employee_id'] ?? 0);
+            if ($distributionReviewed) {
+                $review = $reviewedAssignments[$rowIndex] ?? null;
+                if (!is_array($review)
+                    || (int) ($review['index'] ?? -1) !== $rowIndex
+                    || trim((string) ($review['item_name'] ?? '')) !== trim((string) ($row['item_name'] ?? ''))
+                    || trim((string) ($review['received_weight'] ?? '')) !== trim((string) ($row['received_weight'] ?? ''))
+                    || trim((string) ($review['quantity_planned'] ?? '')) !== trim((string) ($row['quantity_planned'] ?? ''))
+                    || (int) ($review['assigned_employee_id'] ?? 0) !== $validationAssignedId
+                    || $validationAssignmentSource !== 'manual') {
+                    $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => 'The submitted item or packer no longer matches the reviewed distribution. Review it again.'];
+                }
+            }
             if ($validationAssignmentSource === 'manual' && ($validationAssignedId <= 0 || !ops_employee_can_receive_packing($validationAssignedId, false))) {
                 $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => 'Choose an active employee eligible for manual Packing assignment.'];
             }
@@ -2320,6 +2339,7 @@ try {
             $originalRow = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $notes = "Invoice number: {$invoiceNumber}\nSource import ID: {$importId}\nSource line number: " . ($rowIndex + 1) . "\nOriginal extracted row: " . substr((string) $originalRow, 0, 1500);
             $rowKey = 'invoice:' . $invoiceRowKey;
+            $notes = packing_instructions_notes($notes, $row);
 
             if ($hasPackingRowKey) {
                 $duplicate = ops_rows(
@@ -2434,6 +2454,7 @@ try {
             $newId = (int) db()->lastInsertId();
             packing_store_workload_components($newId, $receivedWeight, $quantityPlan, $priority);
             packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
+            ops_activity_log('packing_item_created', 'packing_task', $newId);
             notifications_notify_packing_loaded($newId);
             $insertedIds[] = $newId;
             $acceptedIds[] = $newId;
@@ -2549,6 +2570,27 @@ try {
             ]);
         }
 
+        if ($distributionReviewed) {
+            ops_activity_log('packing_distribution_reviewed', 'packing_import', 0, [
+                'invoice_number' => $invoiceNumber,
+                'import_id' => $importId,
+                'row_count' => $submittedCount,
+                'assignments' => array_map(static fn(array $review): array => [
+                    'item_name' => (string) ($review['item_name'] ?? ''),
+                    'employee_id' => (int) ($review['assigned_employee_id'] ?? 0),
+                ], $reviewedAssignments),
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+            if ((string) ($_POST['distribution_manually_adjusted'] ?? '0') === '1') {
+                ops_activity_log('packing_distribution_manually_adjusted', 'packing_import', 0, [
+                    'invoice_number' => $invoiceNumber,
+                    'import_id' => $importId,
+                    'row_count' => $submittedCount,
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
+            }
+        }
+
         ops_activity_log('packing_invoice_rows_created', 'packing_import', 0, [
             'invoice_number' => $invoiceNumber,
             'import_id' => $importId,
@@ -2608,8 +2650,8 @@ try {
     if ($action === 'confirm_frontdesk_website_update') {
         $taskId = (int) ($_POST['task_id'] ?? 0);
         $employeeId = ops_current_employee_id();
-        if (!user_has_role('front_desk_admin', 'front_desk_admin_employee')) {
-            throw new RuntimeException('Only an authenticated Front Desk employee may confirm this website update.');
+        if (!user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'marketing_sales')) {
+            throw new RuntimeException('Only admin, Front Desk or Marketing employees may confirm this website update.');
         }
         if ($taskId <= 0 || !$employeeId) {
             throw new RuntimeException('The packing item or authenticated employee could not be identified.');
@@ -2621,7 +2663,7 @@ try {
         $confirmedAt = (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
         $itemRows = ops_rows('SELECT item_name FROM ops_packing_tasks WHERE id = ? LIMIT 1', [$taskId]);
         $itemName = (string) ($itemRows[0]['item_name'] ?? 'Packing item');
-        $stmt = db()->prepare('UPDATE ops_packing_tasks SET frontdesk_website_updated = 1, frontdesk_website_updated_at = ?, frontdesk_website_updated_by = ?, updated_at = ? WHERE id = ? AND frontdesk_website_updated = 0');
+        $stmt = db()->prepare('UPDATE ops_packing_tasks SET frontdesk_website_updated = 1, frontdesk_website_updated_at = ?, frontdesk_website_updated_by = ?, updated_at = ? WHERE id = ? AND COALESCE(frontdesk_website_updated, 0) = 0');
         $stmt->execute([$confirmedAt, $employeeId, $confirmedAt, $taskId]);
         if ($stmt->rowCount() !== 1) {
             http_response_code(409);
@@ -2660,6 +2702,20 @@ try {
             'locked' => true,
         ]]);
         exit;
+    }
+
+    if ($action === 'save_packing_instructions') {
+        if (empty($_SESSION['packing_attachment_csrf']) || !hash_equals((string)$_SESSION['packing_attachment_csrf'], (string)($_POST['csrf_token'] ?? ''))) throw new RuntimeException('Session verification failed. Refresh the page.');
+        if (!$canManage) throw new RuntimeException('Only authorised packing managers may change instructions.');
+        $taskId = (int)($_POST['task_id'] ?? 0);
+        db()->beginTransaction();
+        $rows = ops_rows('SELECT notes FROM ops_packing_tasks WHERE id=? AND '.packing_active_where().' FOR UPDATE', [$taskId]);
+        if (!$rows) throw new RuntimeException('Packing item not found.');
+        $notes = packing_instructions_notes((string)$rows[0]['notes'], $_POST);
+        db()->prepare('UPDATE ops_packing_tasks SET notes=?,updated_at=CURRENT_TIMESTAMP WHERE id=?')->execute([$notes,$taskId]);
+        ops_activity_log('packing_instructions_updated','packing_task',$taskId,['previous_notes'=>$rows[0]['notes'],'notes'=>$notes,'changed_by'=>current_user()['name'] ?? 'Unknown']);
+        db()->commit();
+        echo json_encode(['ok'=>true,'notes'=>$notes]);exit;
     }
 
     if ($action === 'save_workload_override') {
