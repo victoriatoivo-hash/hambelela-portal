@@ -2,7 +2,7 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('assets/images/marketing-botanical.svg',)
+FILES = ('assets/images/marketing-botanical.svg','apps/marketing/index.php','apps/marketing/employee-workspace.php')
 READ_ONLY = ('shared/header.php','apps/marketing/employee-workspace.php','apps/marketing/app-shell.php','apps/marketing/employee-calendar.php','apps/marketing/phase3-view.php','shared/footer.php','shared/task-reminders.php','assets/js/task-assignment-popup.js','assets/js/notifications-ui.js','notifications-api.php')
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')

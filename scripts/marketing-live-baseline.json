@@ -1,8 +1,8 @@
 {
-  "assets/images/marketing-botanical.svg": null,
+  "assets/images/marketing-botanical.svg": "df228c4541879d8e274fd15ac15f2f68d3549f36e6182e8f7c0679bd94f083c2",
   "shared/marketing.php": "30dbf8affe7e23fdbfd365fa9364e20ad995b96e3476193a55c7ee2ee1652754",
   "shared/marketing-execution.php": "f5d876b0a07bd6968ec7405a6ae01466eee454e008e32bcd767e704ea68b8135",
-  "apps/marketing/index.php": "242efd2f02003e900ef0cce7b363bbb078cac2b1b961d916a350b0e6df4f55e4",
+  "apps/marketing/index.php": "8ebfa85de0e131bcd8bf12465b76a3c7f4acb8f8bbdcb4a146ef63b258903efc",
   "apps/marketing/execution.php": "9c0414ac3f0d61c366fab538b9cb46068a14713c326fb1f3eb528a629dfa56e6",
   "apps/marketing/employee-workspace.php": "6331243d57bc47ee4bdfa6292035abe68060d9f4211741141321aa73f41604ce",
   "assets/css/marketing.css": "1de506791e6f7a8e589cdecf46332b0ae4fd30a433a639c9fed095c61854cb9d",
