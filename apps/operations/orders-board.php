@@ -53,6 +53,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
                 <button type="button" class="orders-tools-trigger" data-orders-tools-open><i data-lucide="wrench"></i><span>Orders tools</span></button>
                 <?php endif; ?>
                 <button type="button" class="invite-btn packing-btn packing-btn-secondary orders-export-button" data-export-excel><i data-lucide="download"></i> Export Excel</button>
+                <?php if (portal_user_can_access_feature("payment_reconciliation")): ?><a class="invite-btn packing-btn packing-btn-secondary" data-payment-reconciliation href="../accounts/payment-reconciliation.php">Payment Reconciliation</a><?php endif; ?>
                 <span class="board-state" id="board-sync-state" aria-live="polite"></span>
             </div>
         </header>

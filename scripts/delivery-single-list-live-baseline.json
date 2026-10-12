@@ -1,10 +1,14 @@
 {
-  "assets/css/employee-account-editor.css": "6f66d9d544946d25a02d59c18332e5e89d5895fff04f7975ba9d076a835df72c",
-  "assets/js/employee-account-editor.js": "96306cd93ba47a8534122702a6ce68564f52c46dc414ef3d477182f398c5f948",
-  "apps/operations/my-account.php": "baa3e6146e78eef8e178b9675db49c906e0a2e1541fcb8f299b9f25bc830abee",
-  "shared/employee-account-editor.php": "78ec4a3e787ca32274c4420e8b950fe32cc1e23526835502d5943c901ba30b9f",
-  "apps/operations/employee-account.php": "a92f95c506e8e2b0625f385d445d512848b2d1eaf35f546862f2a24e29f1a24a",
-  "shared/auth.php": "79d3f6f913c68ffee884886762c1ee14a15705b3f037a64128dd3cb415ed5bb3",
-  "apps/operations/operations.php": "709868816a9b3ba6f7db87452ee120f903974bcbfb9b714918c95dec0907b21f",
-  "shared/hr-access.php": "23ad2950de399bae3d244f2fe88f3f54b7d05f3de766ba52402bca5928989b06"
+  "apps/operations/orders-board.php": "ac480bb10b9124a7a13121205a1c7dbaa1a1d0a7a927c6c58a8532e83630877b",
+  "apps/accounts/index.php": "ee35aa3bafa77a941b5682ed56662fb9668749b7719a0cfc6e7de0eb84a189dc",
+  "apps/accounts/payment-reconciliation.php": "9501e316311c7e90cf6a2fef8f44355ea1e6800a4730c1d49f21dc65691c7e58",
+  "shared/employee-features.php": "0b129aa443ad1628eef626148a3f6e4554e7a62b887cc6c9f1ad8d89dc6ca44f",
+  "apps/accounts/payment-reconciliation-api.php": "a7a0f78949b4f3019f3bf2266ed5e20dc0fdd55d581dc4b6ed232c38463a9391",
+  "shared/reconciliation/Reconciliation.php": "fb9d0423e1c9600f11ba73e8d318d4546f4dca42bf5e3654f6f5c7e72fb191a2",
+  "shared/accounts-input-vat.php": "5cd49c3e397e52a305025952c1ca9de88403633bce3c0df2f64c21c03a4f00c4",
+  "shared/sidebar.php": "e4f55e872dd4a14252f8bcd5099c8fdc6fc01dea0c934e9c6b847fd6acda97b6",
+  "shared/ess-navigation.php": "9ed3e5c8446982d857cba10278b12e7d3699ff0a1500a659bbd900a6934c1d82",
+  "shared/ess-mobile-navigation.php": "10890d4d8eda6f2ae7bdae9d74290bef034dcdb6a2965e55ef8cbe2822c38aa9",
+  "index.php": "e66e8b4a2af80e699df39d2c6aa123febf088f76c62d4e3e2e8a42440f3a4f11",
+  "shared/auth.php": "79d3f6f913c68ffee884886762c1ee14a15705b3f037a64128dd3cb415ed5bb3"
 }

@@ -1,10 +1,10 @@
-name: Deploy Employee editor delta
+name: Deploy Owner-only reconciliation delta
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Export, preflight or deploy the isolated Employee editor change
+        description: Export, preflight or deploy the isolated Owner-only reconciliation change
         required: true
         type: choice
         options:
@@ -48,12 +48,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Validate employee editor
+      - name: Validate reconciliation permissions
         run: |
           python3 -m py_compile scripts/deploy-delivery-single-list.py
+          php tests/payment-reconciliation-owner-access.php
           node --check assets/js/employee-account-editor.js
           TEDLASER_TEST_DSN='mysql:host=127.0.0.1;port=3306' TEDLASER_TEST_PASSWORD='synthetic-ci-password' php tests/employee-account-editor-db.php
-      - name: Back up and publish only approved Employee editor files
+      - name: Back up and publish only approved reconciliation access files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
