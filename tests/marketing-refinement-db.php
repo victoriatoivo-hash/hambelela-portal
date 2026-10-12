@@ -31,6 +31,7 @@ CREATE TABLE notification_recipients(notification_id INT,employee_id INT,deliver
 INSERT INTO notifications VALUES(1,'Assigned','Work',NOW(),1,'marketing_assignment','/apps/marketing/execution.php?id=1','assigned'),(2,'Other','Work',NOW(),2,'marketing_assignment','/apps/marketing/execution.php?id=2','assigned');
 INSERT INTO notification_recipients(notification_id,employee_id) VALUES(1,2),(2,3);");
 marketing_execution_schema_ready();$owner=true;
+db()->exec('ALTER TABLE marketing_work_items ADD created_by INT DEFAULT 1');
 $keys=['instagram','facebook','tiktok','whatsapp'];
 marketing_execution_requirements(1,$keys,array_combine($keys,['IG','FB','TT','WA']),['tiktok'=>'2026-10-14T14:00']);
 $rows=marketing_execution_rows(marketing_execution_item(1));
@@ -58,6 +59,7 @@ db()->exec('UPDATE marketing_work_items SET assigned_employee_id=3 WHERE id=1');
 ok(count(notifications_marketing_popups())===0&&!notifications_claim_task_delivery(1),'reassignment revokes former employee popup eligibility');
 ok((int)db()->query('SELECT COUNT(*) FROM notifications')->fetchColumn()===2,'no duplicate notification records');
 $owner=true;$all=[];foreach($keys as$key)$all[$key]=['completed'=>1];
+db()->exec("UPDATE marketing_work_items SET status='approved' WHERE id=1");
 marketing_execution_save(['id'=>1,'channels'=>$all,'execution_status'=>'published']);
 ok(marketing_execution_item(1)['status']==='published','completion succeeds after every required channel is complete');
 marketing_execution_requirements(1,array_merge($keys,['website']),[]);
