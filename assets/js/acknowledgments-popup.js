@@ -41,7 +41,7 @@ async function check(){
   };
   dialog.addEventListener('cancel',e=>{if(saving)e.preventDefault();});
   dialog.addEventListener('close',()=>{dialog.remove();window.PortalNoticeGate?.release('acknowledgments');});
- }catch(e){/* Leave the existing notification centre available on network failure. */}finally{running=false;}
+ }catch(e){window.PortalNoticeGate?.release('acknowledgments');/* Leave the existing notification centre available on network failure. */}finally{running=false;}
 }
 window.addEventListener('portal:notice-closed',check);
 check();setInterval(check,60000);document.addEventListener('visibilitychange',check);
