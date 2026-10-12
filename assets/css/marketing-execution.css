@@ -1,5 +1,9 @@
 .marketing-execution-workspace{--execution-accent:#9B477E;display:flex;flex-direction:column;gap:20px;font:400 12px/1.5 "Jost",sans-serif}
 .marketing-execution-workspace :is(button,input,select,textarea){font:inherit}
+.marketing-execution-workspace h1{font:600 24px/1.2 Jost,sans-serif;color:#1C2118;margin:0}
+.marketing-execution-workspace h2{font:600 15px/1.3 Jost,sans-serif;color:#1C2118}
+.marketing-execution-workspace input[type=file]::file-selector-button{min-height:38px;margin-right:10px;padding:0 12px;border:1px solid #E4E6DC;border-radius:8px;background:#fff;color:#1C2118;font:500 11px Jost,sans-serif;cursor:pointer}
+.marketing-execution-workspace input[type=file]::file-selector-button:hover{background:#F9F2F7;border-color:#D9AFCA}
 .marketing-execution-workspace .marketing-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
 .marketing-execution-workspace .marketing-panel{padding:22px}
 .marketing-execution-workspace :is(form,label){min-width:0}
