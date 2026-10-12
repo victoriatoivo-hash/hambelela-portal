@@ -12,6 +12,7 @@ require_once BASE_PATH . '/shared/task-instructions.php';
 require_once BASE_PATH . '/shared/employee-features.php';
 require_once BASE_PATH . '/shared/packing-notifications.php';
 require_once BASE_PATH . '/shared/epi/bootstrap.php';
+require_once BASE_PATH . '/shared/delivery/OrderSyncReview.php';
 
 const OPS_ORDER_STATUSES = [
     'new_order' => 'New Order',
@@ -65,16 +66,7 @@ function ops_website_payment_methods(): array
     ];
 }
 
-function ops_payment_method_map(): array
-{
-    return [
-        'cash' => 'Cash', 'card_swipe' => 'Swipe', 'eft' => 'EFT',
-        'fnb_ewallet' => 'FNB eWallet', 'easywallet' => 'EasyWallet',
-        'blue_wallet' => 'Blue Wallet', 'nedbank' => 'Nedbank',
-        'netbank_wallet' => 'NetBank Wallet', 'pay2cell' => 'Pay2Cell',
-        'paytoday' => 'PayToday', 'dpo' => 'DPO',
-    ];
-}
+require_once BASE_PATH . '/shared/order-payment-methods.php';
 
 function ops_normalize_payment_code(string $value): string
 {
@@ -362,18 +354,46 @@ function ops_wc_payment_source(array $order): string
 function ops_sync_order_payment_allocations(int $orderId, array $allocations, string $source, string $version): void
 {
     if (!$allocations) return;
-    $current = ops_row('SELECT payment_source, payment_version FROM ops_orders WHERE id = ? LIMIT 1', [$orderId]);
+    $ownsTransaction = !db()->inTransaction();
+    if ($ownsTransaction) {
+        if (!ops_ensure_order_payment_schema()) throw new RuntimeException('Payment storage unavailable.');
+        db()->beginTransaction();
+    }
+    try {
+    $current = ops_row('SELECT payment_source, payment_version FROM ops_orders WHERE id = ? FOR UPDATE', [$orderId]);
+    if (!$current) throw new RuntimeException('Order not found.');
     $currentSource = (string) ($current['payment_source'] ?? 'woocommerce');
+    // Driver receipts are additive local financial events, not replaceable snapshots.
+    // A later external snapshot requires explicit reconciliation, never blind replacement.
+    if ($currentSource === 'delivery') return;
     if ((string) ($current['payment_version'] ?? '') === $version) return;
     if ($source === 'woocommerce' && in_array($currentSource, ['pos', 'order_list'], true)) return;
     if ($source === 'order_list' && $currentSource === 'pos' && (string) ($current['payment_version'] ?? '') !== $version) return;
     ops_replace_order_payment_allocations($orderId, $allocations, $source, $version);
+    } catch (Throwable $error) {
+        if ($ownsTransaction && db()->inTransaction()) db()->rollBack();
+        throw $error;
+    } finally {
+        if ($ownsTransaction && db()->inTransaction()) db()->commit();
+    }
 }
 
 function ops_replace_order_payment_allocations(int $orderId, array $allocations, string $source, string $version, ?int $employeeId = null): void
 {
-    if ($orderId <= 0 || !$allocations || !ops_ensure_order_payment_schema()) return;
-    $previous = ops_order_payment_allocations($orderId);
+    if ($orderId <= 0 || !$allocations) return;
+    if (!db()->inTransaction()) throw new LogicException('Payment replacement requires a transaction.');
+    // Caller preflights schema BEFORE opening the transaction. No runtime DDL here.
+    $lockedOrder = ops_row('SELECT payment_source FROM ops_orders WHERE id = ? FOR UPDATE', [$orderId]);
+    if (!$lockedOrder) throw new RuntimeException('Order not found.');
+    if (($lockedOrder['payment_source'] ?? '') === 'delivery') {
+        throw new RuntimeException('This order includes reconciled Driver payments. Use Delivery reconciliation to review changes.');
+    }
+    $previousRows = ops_rows('SELECT payment_method, amount_cents, transaction_reference, source, source_version, updated_at FROM order_payment_allocations WHERE order_id = ? ORDER BY id FOR UPDATE', [$orderId]);
+    $previous = array_map(static fn(array $row): array => [
+        'method'=>(string)$row['payment_method'], 'label'=>ops_payment_label((string)$row['payment_method']),
+        'amount_cents'=>(int)$row['amount_cents'], 'transaction_reference'=>(string)($row['transaction_reference']??''),
+        'source'=>(string)$row['source'], 'version'=>(string)$row['source_version'], 'updated_at'=>(string)$row['updated_at'],
+    ], $previousRows);
     db()->prepare('DELETE FROM order_payment_allocations WHERE order_id = ?')->execute([$orderId]);
     $insert = db()->prepare('INSERT INTO order_payment_allocations (order_id, payment_method, amount_cents, transaction_reference, source, source_version, updated_by_employee_id) VALUES (?, ?, ?, ?, ?, ?, ?)');
     foreach ($allocations as $allocation) {
@@ -913,6 +933,13 @@ function ops_activity_log(string $action, string $entityType, int $entityId, arr
     } catch (Throwable $e) {
         // V2 intelligence must never block operational work.
     }
+    try {
+        require_once dirname(__DIR__, 2) . '/shared/epi/PerformanceRefreshRuntime.php';
+        \Hambelela\EPI\PerformanceRefreshRuntime::invalidate(db(), $entityType . ':' . $action);
+    } catch (Throwable $e) {
+        // Scheduled reconciliation retries invalidation; operational writes remain independent.
+        error_log('Employee Performance refresh invalidation failed: ' . $e->getMessage());
+    }
 }
 
 function ops_log_order_stage_event(int $orderId, string $stageKey, array $metadata = [], ?int $employeeId = null): void
@@ -985,11 +1012,31 @@ function ops_secilia_front_desk_employee_id(): ?int
     return count($rows) === 1 ? (int) $rows[0]['id'] : null;
 }
 
-function ops_initial_order_packer_id(string $customerName, string $customerContact, string $orderType = ''): ?int
+/** Verified metadata is written by the POS identity plugin, never inferred from names. */
+function ops_wc_verified_creator(array $order): ?array
 {
-    return ops_is_walk_in_order($customerName, $customerContact, $orderType)
-        ? ops_secilia_front_desk_employee_id()
-        : null;
+    $matches = [];
+    foreach ((array) ($order['meta_data'] ?? []) as $meta) {
+        if (($meta['key'] ?? '') === '_hpos_portal_creator') $matches[] = $meta['value'] ?? null;
+    }
+    if (count($matches) !== 1 || !is_array($matches[0])) return null;
+    $creator = $matches[0];
+    if (($creator['origin'] ?? '') !== 'https://portal.hambelelaorganic.com'
+        || ($creator['verified'] ?? null) !== 1
+        || !is_int($creator['employee_id'] ?? null) || $creator['employee_id'] <= 0) return null;
+    static $employees = [];
+    $id = $creator['employee_id'];
+    if (!array_key_exists($id, $employees)) {
+        $employees[$id] = ops_row('SELECT id, full_name FROM ops_employees WHERE id = ? LIMIT 1', [$id]);
+    }
+    return $employees[$id] ?: null;
+}
+
+function ops_initial_order_packer_id(string $customerName, string $customerContact, string $orderType = '', ?array $creator = null): ?int
+{
+    // Only the mobile-field marker authorizes this special assignment rule.
+    $contact = preg_replace('/[^a-z0-9]+/', '', strtolower(trim($customerContact))) ?? '';
+    return $contact === 'walkincustomer' && !empty($creator['id']) ? (int) $creator['id'] : null;
 }
 
 function ops_log_initial_order_assignment(int $orderId, ?int $packerId, string $source): void
@@ -997,14 +1044,16 @@ function ops_log_initial_order_assignment(int $orderId, ?int $packerId, string $
     if ($orderId <= 0 || !$packerId) {
         return;
     }
+    $employee = ops_row('SELECT full_name FROM ops_employees WHERE id = ? LIMIT 1', [$packerId]);
+    $name = (string) ($employee['full_name'] ?? 'Verified POS employee');
     $metadata = [
         'source' => $source,
         'previous_packer_id' => null,
         'previous_value' => 'Unassigned',
         'assigned_packer_id' => $packerId,
-        'new_value' => 'Secilia Shiweda',
+        'new_value' => $name,
         'reason' => 'Walk-in Customer',
-        'message' => 'Order automatically assigned to Secilia Shiweda (Walk-in Customer).',
+        'message' => 'Order automatically assigned to ' . $name . ' (verified POS creator; Walk-in Customer).',
     ];
     ops_log_order_stage_event($orderId, 'assigned', $metadata, $packerId);
     ops_activity_log('walk_in_auto_assigned', 'order', $orderId, $metadata);
@@ -1210,6 +1259,7 @@ function ops_staff_text_key(array $employee): string
 
 function ops_is_cecilia_employee(array $employee): bool
 {
+    if (ops_employee_manually_edited((int) ($employee['id'] ?? $employee['employee_id'] ?? 0))) return false;
     $text = ops_staff_text_key($employee);
 
     return strpos($text, 'cecil') !== false
@@ -1219,6 +1269,7 @@ function ops_is_cecilia_employee(array $employee): bool
 
 function ops_is_generic_front_desk_employee(array $employee): bool
 {
+    if (ops_employee_manually_edited((int) ($employee['id'] ?? $employee['employee_id'] ?? 0))) return false;
     $roleKey = strtolower(trim((string) ($employee['role_key'] ?? '')));
     if ($roleKey !== 'front_desk_admin') {
         return false;
@@ -1233,8 +1284,18 @@ function ops_is_generic_front_desk_employee(array $employee): bool
         || strpos($text, 'adminemployee') !== false;
 }
 
+function ops_employee_manually_edited(int $id): bool
+{
+    require_once BASE_PATH . '/shared/employee-account-editor.php';
+    if ($id <= 0) return false;
+    static $edited = [];
+    if (!array_key_exists($id, $edited)) { try { $edited[$id] = employee_account_has_edits(db(), $id); } catch (Throwable $e) { $edited[$id] = true; } }
+    return $edited[$id];
+}
+
 function ops_staff_display_name(array $employee): string
 {
+    if (ops_employee_manually_edited((int) ($employee['id'] ?? $employee['employee_id'] ?? 0))) return trim((string) ($employee['full_name'] ?? $employee['name'] ?? $employee['employee_name'] ?? ''));
     $text = ops_staff_text_key($employee);
     if (ops_is_cecilia_employee($employee) || ops_is_generic_front_desk_employee($employee)) {
         return 'Secilia Shiweda';
@@ -1254,6 +1315,7 @@ function ops_staff_display_name(array $employee): string
 
 function ops_is_owner_employee(array $employee): bool
 {
+    if (ops_employee_manually_edited((int) ($employee['id'] ?? $employee['employee_id'] ?? 0))) return (string) ($employee['role_key'] ?? '') === 'owner_admin';
     return (string) ($employee['role_key'] ?? '') === 'owner_admin'
         || strpos(ops_staff_text_key($employee), 'victoria') !== false;
 }
@@ -1352,6 +1414,7 @@ function ops_reconcile_front_desk_employee(): void
         $genericIds = [];
         foreach ($rows as $row) {
             $id = (int) $row['id'];
+            if (ops_employee_manually_edited($id)) continue;
             if (ops_is_cecilia_employee($row) && !ops_is_generic_front_desk_employee($row)) {
                 $ceciliaId = $id;
             } elseif (ops_is_generic_front_desk_employee($row)) {
@@ -1474,6 +1537,7 @@ function ops_reconcile_core_staff(): void
             }
 
             $employeeId = (int) $rows[0]['id'];
+            if (ops_employee_manually_edited($employeeId)) continue;
             $roleRows = ops_rows('SELECT id FROM ops_roles WHERE role_key = ? LIMIT 1', [$target['role']]);
             $roleId = $roleRows ? (int) $roleRows[0]['id'] : 0;
             $sets = ["full_name = ?", "status = 'active'"];
@@ -1501,7 +1565,7 @@ function ops_reconcile_core_staff(): void
         }
 
         if (ops_column_exists('ops_employees', 'email')) {
-            $stmt = db()->prepare("UPDATE ops_employees SET status = 'active' WHERE LOWER(email) = LOWER(?)");
+            $stmt = db()->prepare("UPDATE ops_employees SET status = 'active' WHERE LOWER(email) = LOWER(?) AND NOT EXISTS (SELECT 1 FROM ops_security_events se WHERE se.employee_id=ops_employees.id AND se.event_type='employee_account_updated')");
             $stmt->execute(['shiwedasecilia3@gmail.com']);
             $stmt->closeCursor();
         }

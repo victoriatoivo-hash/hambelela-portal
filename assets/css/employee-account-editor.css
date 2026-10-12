@@ -1,0 +1,169 @@
+
+
+/* HAMBELELA — EMPLOYEE EDIT DRAWER */
+
+.hb-employee-edit {
+  --edit-olive: #59694A;
+  --edit-dark: #344126;
+  --edit-cream: #F8F7F2;
+  --edit-text: #1C2118;
+  --edit-secondary: #62675E;
+  --edit-border: #E4E6DC;
+
+  font-family: "Jost", sans-serif;
+  color: var(--edit-text);
+}
+
+.hb-employee-edit,
+.hb-employee-edit * {
+  box-sizing: border-box;
+}
+
+.hb-employee-edit :is(
+  button, input, select, textarea
+) {
+  font-family: inherit;
+}
+
+.hb-employee-edit__drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 6000;
+
+  width: min(580px, 100vw);
+  height: 100dvh;
+
+  display: grid;
+  grid-template-rows: auto minmax(0,1fr) auto;
+
+  background: var(--edit-cream);
+  border-left: 1px solid var(--edit-border);
+  box-shadow: -18px 0 55px rgba(38,49,31,.14);
+  overflow: hidden;
+}
+
+.hb-employee-edit__header {
+  padding: 20px 22px;
+  background: #FFFFFF;
+  border-bottom: 1px solid var(--edit-border);
+}
+
+.hb-employee-edit__title {
+  margin: 0;
+  font: 600 21px/1.25 "Jost", sans-serif;
+}
+
+.hb-employee-edit__body {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 18px 20px 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.hb-employee-edit__section {
+  padding: 17px;
+  border: 1px solid var(--edit-border);
+  border-radius: 12px;
+  background: #FFFFFF;
+}
+
+.hb-employee-edit__section-title {
+  margin: 0 0 15px;
+  color: var(--edit-dark);
+  font: 600 13px/1.3 "Jost", sans-serif;
+}
+
+.hb-employee-edit__grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 13px;
+}
+
+.hb-employee-edit__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.hb-employee-edit__label {
+  font: 500 10.5px/1.3 "Jost", sans-serif;
+  color: var(--edit-dark);
+}
+
+.hb-employee-edit__input,
+.hb-employee-edit__select {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 12px;
+  border: 1px solid var(--edit-border);
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: var(--edit-text);
+  font: 400 12px/1.4 "Jost", sans-serif;
+}
+
+.hb-employee-edit__input:focus,
+.hb-employee-edit__select:focus {
+  outline: none;
+  border-color: var(--edit-olive);
+  box-shadow: 0 0 0 3px rgba(89,105,74,.11);
+}
+
+.hb-employee-edit__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  padding: 14px 22px;
+  background: #FFFFFF;
+  border-top: 1px solid var(--edit-border);
+}
+
+.hb-employee-edit__button {
+  min-height: 40px;
+  padding: 0 15px;
+  border-radius: 8px;
+  font: 600 11.5px/1 "Jost", sans-serif;
+  cursor: pointer;
+}
+
+.hb-employee-edit__button--primary {
+  border: 1px solid var(--edit-olive);
+  background: var(--edit-olive);
+  color: #FFFFFF;
+}
+
+.hb-employee-edit__button--secondary {
+  border: 1px solid #D3DAC6;
+  background: #FFFFFF;
+  color: var(--edit-dark);
+}
+
+@media (max-width: 640px) {
+  .hb-employee-edit__drawer {
+    width: 100%;
+  }
+
+  .hb-employee-edit__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hb-employee-edit__body {
+    padding: 14px;
+  }
+
+  .hb-employee-edit__footer {
+    padding: 12px 14px;
+  }
+
+  .hb-employee-edit__button {
+    flex: 1;
+    min-height: 44px;
+  }
+}
+
+
+.hb-employee-edit:not([open]){display:none}.hb-employee-edit__drawer{margin:0 0 0 auto;max-height:none;max-width:none;inset:0 0 0 auto;border-top:0;border-right:0;border-bottom:0;padding:0;grid-template-rows:auto minmax(0,1fr)}.hb-employee-edit::backdrop{background:rgba(28,33,24,.35)}.hb-employee-edit form{display:grid;grid-template-rows:minmax(0,1fr) auto;min-height:0}.hb-employee-edit__header{display:flex;align-items:center;justify-content:space-between}.hb-employee-edit__header small{color:#59694A;font-size:10px;letter-spacing:.08em}.hb-employee-edit__section p{font-size:12px;color:#62675E}.hb-employee-edit__check{display:flex;align-items:center;gap:9px;font-size:12px;margin:12px 0}.hb-employee-edit__check input{width:17px!important;height:17px!important;min-height:0!important;margin:0!important;flex:none}.hb-employee-edit__footer{align-items:center;flex-wrap:wrap}.hb-employee-edit__footer [role=status]{flex-basis:100%;font-size:12px;margin:0;color:#9d312d}.hb-employee-edit__actions{display:flex;gap:8px;flex-wrap:wrap}.hb-employee-edit a{color:#59694A}.hb-employee-edit details{font-size:12px}.hb-employee-edit__button:disabled{opacity:.6;cursor:wait}

@@ -1,12 +1,13 @@
 {
-  "shared/delivery/PartnerAccess.php": "3620de12767caac5a5819495d6275e89a61d12bbe2502abf2ce40d964d3fb966",
-  "shared/delivery/PartnerAuth.php": "a56c5bd95f491855536870b126328c612d0c8ea6ff0aad89e47a61fa28da9bd5",
-  "apps/delivery/partner/bootstrap.php": "8cf12dc600107e5e59d5b4a41818f54f5948b88e531f1201709caf2bc021c8a4",
-  "apps/delivery/partner/login.php": "5187900793dec37a1a6a497d4b03a5b429ea513fbb837037ac0093df3ad07a76",
-  "apps/delivery/partner/password.php": "c8528ebba9a15e1dfc9f6f8334391db93b47acb18b6aa3a39076e4daf2191288",
-  "apps/delivery/settings.php": "e7e46a8d880d568c2db24a5be18467fd324e41e0071435de35fa9695e12860b4",
-  "shared/delivery/PartnerService.php": "3113419b3a37985fd546083746856fb386e96653d3e776dc2451809367ccab41",
-  "shared/delivery/PartnerAdminService.php": "4d0ab074f8d7d37e89b33d8ad62bd5ec7a2aaeffdf1426396c0485c88db96772",
-  "shared/delivery/AccountingService.php": "bc5fe8f68128b2273d33c61df9cedf0d3fabe9f06f0b00abf29b3a3fb99d3454",
-  "assets/js/delivery-partner-reset.js": "ade3c6e8d4ff0f3aa1171ffaa255d6339183d24bdcaf748169a081913c82f8bd"
+  "shared/employee-account-editor.php": null,
+  "apps/operations/employee-account.php": null,
+  "assets/css/employee-account-editor.css": null,
+  "assets/js/employee-account-editor.js": null,
+  "apps/operations/my-account.php": "9138069e308c5a3383dc58d1c01b61bed70c7aaa60ee7dd57489c2ec521282ee",
+  "shared/auth.php": "41f6d4b0ecd23de66b017313951a27fb3b5ae3e74fa2802d5b21474ac295d0fd",
+  "apps/operations/operations.php": "089a4cc3340f5aa85c0abfd95622b10031d366e26575fef0e4b623aab3e9f0a2",
+  "shared/login-security.php": "750e55cb6323b434d32acdec0cade98ae333fcac520c3785f2a2913c92d4fd91",
+  "apps/hr-portal/portal-login.php": "5e52f9b02187b5454f45908d67e6d0ff23bb1dffd9336e3c70015a9b6fd6d32b",
+  "shared/hr-access.php": "23ad2950de399bae3d244f2fe88f3f54b7d05f3de766ba52402bca5928989b06",
+  "shared/temporary-access-codes.php": "321b2045b17a867d74efb0485f50a25edb4571b58510831d9aaf0cc51d1f7413"
 }
