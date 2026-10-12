@@ -10,6 +10,11 @@ CREATE TABLE IF NOT EXISTS portal_ack_instructions (
  required TINYINT(1) NOT NULL DEFAULT 1,
  notify_immediately TINYINT(1) NOT NULL DEFAULT 1,
  created_at DATETIME NOT NULL,
+ scheduled_at DATETIME NULL,
+ released_at DATETIME NULL,
+ release_state VARCHAR(20) NOT NULL DEFAULT 'released',
+ schedule_revision INT NOT NULL DEFAULT 0,
+ INDEX scheduled_release(release_state,scheduled_at),
  UNIQUE KEY root_version(root_id,version)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 CREATE TABLE IF NOT EXISTS portal_ack_recipients (
@@ -17,6 +22,7 @@ CREATE TABLE IF NOT EXISTS portal_ack_recipients (
  instruction_id BIGINT UNSIGNED NOT NULL,
  employee_id INT NOT NULL,
  employee_name VARCHAR(190) NOT NULL,
+ schedule_active TINYINT(1) NOT NULL DEFAULT 1,
  status VARCHAR(30) NOT NULL DEFAULT 'pending',
  acknowledged_at DATETIME NULL,
  session_reference CHAR(64) NULL,
