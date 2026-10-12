@@ -1,0 +1,47 @@
+Acknowledgments visual refinement — 12 October 2026
+
+Deployed live: YES. Final commit 2f48d770.
+Four runtime files changed:
+apps/acknowledgments/index.php
+assets/css/acknowledgments.css
+assets/js/acknowledgments.js
+assets/js/acknowledgments-popup.js
+
+Existing backend, permissions, database, notification delivery and records unchanged.
+No test instructions or employee responses submitted to the live system.
+
+Implemented: Jost hierarchy; 40px desktop / minimum 44px mobile action buttons;
+18px olive checkboxes; grouped drawer sections; sticky white header/footer;
+neutral employee / soft olive management conversation bubbles; scoped olive
+dropdowns; white calendar with olive selection only; calendar clears footer;
+hidden native dropdown excluded from ordinary input styles and mobile width rules.
+Employee popup shows the full sanitized instruction, explicit Read and Understood,
+Acknowledge, clarification question and Remind Me Later.
+It reuses the existing CSRF-protected response API, with preserved failure input.
+
+Verification:
+PASS JavaScript syntax and CI PHP syntax/regression checks.
+PASS tests/ack-refinement.mjs: scoped style checks, grouped drawer, consent gate,
+CSRF, response record attribution, clarification validation, failure preservation,
+and remind-later/session behavior.
+PASS live main page, creation drawer and calendar at desktop and 390x844 mobile.
+PASS desktop action heights 40px and mobile action heights 44px.
+PASS native backing select 1px and mobile document width 375px within 390px viewport.
+PASS date selection shows 14/10/2026 04:30 PM; form discarded without sending.
+PASS calendar does not overlap footer at tested widths.
+
+Limitation: no live employee popup or populated clarification conversation was
+triggered because no real notices were sent. Popup interaction tests used mocks;
+the local browser fixture was blocked by the browser connection. Do not describe
+those screens as visually verified under a real employee account.
+
+Verified deployment runs (hash checks, backups, isolated writes and readback):
+38214896214 — four runtime files
+38215143499 — calendar positioning
+38215305627 — exclude native controls
+38215470511 — shared mobile width exception and dropdown states
+
+Reports and screenshots:
+../acknowledgments-refinement-verification/
+desktop-calendar.png
+mobile-calendar.png
