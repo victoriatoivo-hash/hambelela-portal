@@ -2,8 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('shared/marketing.php','shared/marketing-execution.php','apps/marketing/index.php','apps/marketing/execution.php','apps/marketing/employee-workspace.php','assets/css/marketing.css','assets/css/marketing-extras.css','assets/css/marketing-execution.css','assets/js/marketing.js','shared/header.php','api/notifications.php','shared/notifications.php','assets/js/portal.js')
-READ_ONLY = ('apps/marketing/app-shell.php','apps/marketing/employee-calendar.php','apps/marketing/phase3-view.php','shared/footer.php','shared/task-reminders.php','assets/js/task-assignment-popup.js','assets/css/task-assignment-popup.css','assets/js/notifications-ui.js','notifications-api.php')
+FILES = ('shared/marketing.php','shared/marketing-execution.php','apps/marketing/index.php','apps/marketing/execution.php','apps/marketing/employee-workspace.php','assets/css/marketing.css','assets/css/marketing-extras.css','assets/css/marketing-execution.css','assets/js/marketing.js','shared/header.php','api/notifications.php','shared/notifications.php','assets/js/portal.js','assets/css/task-assignment-popup.css')
+READ_ONLY = ('apps/marketing/app-shell.php','apps/marketing/employee-calendar.php','apps/marketing/phase3-view.php','shared/footer.php','shared/task-reminders.php','assets/js/task-assignment-popup.js','assets/js/notifications-ui.js','notifications-api.php')
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 if subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=sha: raise SystemExit('Exact checkout SHA required')

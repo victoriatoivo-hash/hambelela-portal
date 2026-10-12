@@ -33,3 +33,26 @@ function marketing_verify():void{if(!hash_equals(marketing_csrf(),(string)($_POS
 function marketing_statuses():array{return['brief','to_create','in_progress','ready_for_review','changes_requested','approved','scheduled','published','cancelled'];}
 function marketing_notify(int$itemId,int$recipient,string$title,string$message):void{if($recipient<=0)return;try{require_once BASE_PATH.'/shared/notifications.php';notifications_create(['title'=>$title,'message'=>$message,'module'=>'marketing','related_type'=>'marketing_item','related_id'=>$itemId,'action_link'=>BASE_URL.'/apps/marketing/index.php?item='.$itemId,'required_delivery'=>1],[$recipient]);}catch(Throwable $e){error_log('Marketing notification failed: '.$e->getMessage());}}
 function marketing_notify_owners(int$itemId,string$title,string$message):void{try{require_once BASE_PATH.'/shared/notifications.php';$recipients=notifications_role_recipients(['owner_admin']);if($recipients)notifications_create(['title'=>$title,'message'=>$message,'module'=>'marketing','related_type'=>'marketing_item','related_id'=>$itemId,'action_link'=>BASE_URL.'/apps/marketing/index.php?item='.$itemId,'required_delivery'=>1],$recipients);}catch(Throwable $e){error_log('Marketing owner notification failed: '.$e->getMessage());}}
+
+/** One notification for each assignment event, using the existing bell/recipient store. */
+function marketing_notify_assignment(int $itemId, int $employeeId, string $title): void
+{
+    if ($employeeId < 1) return;
+    require_once BASE_PATH.'/shared/notifications.php';
+    $event=db()->prepare('SELECT MAX(id) FROM marketing_item_history WHERE item_id=?');
+    $event->execute([$itemId]);
+    $notificationId=notifications_create([
+        'title'=>$title,'message'=>'You have been assigned new Marketing content.',
+        'module'=>'marketing','related_type'=>'marketing_assignment','related_id'=>$itemId,
+        'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$itemId,
+        'required_delivery'=>true,'sound_key'=>'assigned',
+        'deduplication_key'=>'marketing-assignment:'.$itemId.':'.$employeeId.':'.(int)$event->fetchColumn(),
+    ],[$employeeId]);
+    if (!$notificationId) throw new RuntimeException('Assignment notification could not be saved. Please try again.');
+}
+function marketing_employees(): array
+{
+    return db()->query("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key='marketing_sales' ORDER BY e.full_name")->fetchAll();
+}
+
+

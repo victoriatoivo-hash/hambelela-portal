@@ -9,6 +9,7 @@ function marketing_execution_schema_ready(): void
         channel_key VARCHAR(50) NOT NULL,
         is_required TINYINT(1) NOT NULL DEFAULT 1,
         instructions TEXT NULL,
+        scheduled_at DATETIME NULL,
         prepared TINYINT(1) NOT NULL DEFAULT 0,
         completed TINYINT(1) NOT NULL DEFAULT 0,
         proof_url VARCHAR(500) NULL,
@@ -17,6 +18,9 @@ function marketing_execution_schema_ready(): void
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         PRIMARY KEY (item_id, channel_key)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    if (!marketing_column_exists('marketing_channel_execution', 'scheduled_at')) {
+        db()->exec('ALTER TABLE marketing_channel_execution ADD COLUMN scheduled_at DATETIME NULL');
+    }
     // Upgrade the earlier local draft without deleting channel evidence.
     if (!marketing_column_exists('marketing_channel_execution', 'is_required')) {
         db()->exec('ALTER TABLE marketing_channel_execution ADD COLUMN is_required TINYINT(1) NOT NULL DEFAULT 1');
@@ -25,7 +29,7 @@ function marketing_execution_schema_ready(): void
 
 function marketing_execution_channels(): array
 {
-    return ['instagram'=>'Instagram','facebook'=>'Facebook','whatsapp'=>'WhatsApp',
+    return ['instagram'=>'Instagram','facebook'=>'Facebook','tiktok'=>'TikTok','whatsapp'=>'WhatsApp',
         'website'=>'Website','newsletter'=>'Newsletter','blog'=>'Blog','reels'=>'Reels / Video'];
 }
 
@@ -56,7 +60,7 @@ function marketing_work_matches_app(array $item, string $app, bool $pendingOnly 
 {
     if ($pendingOnly && in_array($item['status'], ['published','cancelled','ready_for_review'], true)) return false;
     if (in_array($app, ['dashboard','tasks','calendar','library'], true)) return true;
-    $channels = ['social'=>['instagram','facebook'], 'reels'=>['reels'], 'whatsapp'=>['whatsapp'],
+    $channels = ['social'=>['instagram','facebook','tiktok'], 'reels'=>['reels','tiktok'], 'whatsapp'=>['whatsapp'],
         'blog'=>['blog'], 'newsletter'=>['newsletter'], 'website'=>['website']];
     $rows = $item['execution_channels'] ?? [];
     foreach ($rows as $row) {
@@ -124,7 +128,7 @@ function marketing_execution_legacy_rows(array $item): array
     return $rows;
 }
 
-function marketing_execution_requirements(int $id, array $keys, array $instructions): void
+function marketing_execution_requirements(int $id, array $keys, array $instructions, array $schedule = []): void
 {
     marketing_require_owner();
     if (!$keys) throw new RuntimeException('Select at least one required channel.');
@@ -136,8 +140,14 @@ function marketing_execution_requirements(int $id, array $keys, array $instructi
     marketing_execution_item($id, true);
     db()->prepare('UPDATE marketing_channel_execution SET is_required=0 WHERE item_id=?')->execute([$id]);
     foreach ($keys as $key) {
-        db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions) VALUES (?,?,?) ON DUPLICATE KEY UPDATE instructions=VALUES(instructions),is_required=1')
-            ->execute([$id,$key,trim((string)($instructions[$key] ?? ''))]);
+        $when = trim((string)($schedule[$key] ?? ''));
+        if ($when !== '') {
+            $date = DateTimeImmutable::createFromFormat('!Y-m-d\\TH:i', $when, new DateTimeZone('Africa/Windhoek'));
+            if (!$date || $date->format('Y-m-d\\TH:i') !== $when) throw new RuntimeException('Use a valid channel schedule.');
+            $when = $date->format('Y-m-d H:i:s');
+        }
+        db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,scheduled_at) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE instructions=VALUES(instructions),scheduled_at=VALUES(scheduled_at),is_required=1')
+            ->execute([$id,$key,trim((string)($instructions[$key] ?? '')),$when ?: null]);
     }
     if ($ownsTransaction) db()->commit();
     } catch (Throwable $error) { if ($ownsTransaction && db()->inTransaction()) db()->rollBack(); throw $error; }
@@ -184,7 +194,7 @@ function marketing_execution_save(array $input): void
         $employeeStatuses = ['in_progress','ready_for_review','published'];
         if (!$owner && $status!==$item['status'] && !in_array($status,$employeeStatuses,true)) throw new RuntimeException('Choose an execution status.');
         if (!in_array($status,marketing_statuses(),true)) throw new RuntimeException('Choose a valid status.');
-        if (!$owner && $status==='published') {
+        if ($status==='published') {
             if (!marketing_execution_ready_to_publish($item)) throw new RuntimeException('Owner approval is required before completion.');
             $progress = marketing_execution_progress($saved);
             if (!$progress['total'] || $progress['complete']!==$progress['total']) throw new RuntimeException('Complete every required channel before completing this work item.');
@@ -205,3 +215,29 @@ function marketing_execution_save(array $input): void
         catch (Throwable $noticeError) { error_log('Marketing update saved; notification unavailable: '.$noticeError->getMessage()); }
     } catch (Throwable $error) { if (db()->inTransaction()) db()->rollBack(); throw $error; }
 }
+
+/** Same controls in Create, Edit and requirements; inactive evidence is retained. */
+function marketing_channel_cards(array $rows = []): void
+{
+    $byKey = array_column($rows, null, 'channel_key');
+    echo '<div class="marketing-channel-list">';
+    foreach (marketing_execution_channels() as $key => $label) {
+        $row = $byKey[$key] ?? [];
+        $selected = (!empty($row) && !isset($row['is_required'])) || !empty($row['is_required']);
+        $icon = ['instagram'=>'camera','facebook'=>'thumbs-up','tiktok'=>'music-2','whatsapp'=>'message-circle'][$key] ?? 'globe';
+        $state = !empty($row['completed']) ? 'Completed' : (!empty($row['prepared']) ? 'In Progress' : 'Pending');
+        ?>
+        <div class="marketing-channel-card <?=$selected?'is-selected':''?>">
+          <label class="marketing-channel-header"><input type="checkbox" name="required_channels[]" value="<?=$key?>" <?=$selected?'checked':''?> aria-controls="channel-<?=$key?>">
+            <i data-lucide="<?=$icon?>" aria-hidden="true"></i><span><?=marketing_e($label)?></span><small><?=$state?></small>
+          </label>
+          <div class="marketing-channel-instructions" id="channel-<?=$key?>" <?=$selected?'':'hidden'?>>
+            <label><?=marketing_e($label)?> instructions<textarea name="channel_instructions[<?=$key?>]"><?=marketing_e((string)($row['instructions']??''))?></textarea></label>
+            <label>Scheduled date/time (optional)<input type="datetime-local" name="channel_schedule[<?=$key?>]" value="<?=marketing_e(substr(str_replace(' ','T',(string)($row['scheduled_at']??'')),0,16))?>"></label>
+          </div>
+        </div>
+        <?php
+    }
+    echo '</div>';
+}
+

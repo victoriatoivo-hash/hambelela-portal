@@ -448,6 +448,10 @@ function notifications_claim_task_delivery(int $notificationId): bool
     $typeStmt = db()->prepare('SELECT related_type FROM notifications WHERE id=? LIMIT 1');
     $typeStmt->execute([$notificationId]);
     $relatedType = (string)$typeStmt->fetchColumn();
+    if ($relatedType === 'marketing_assignment') {
+        $stmt=db()->prepare("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id JOIN marketing_work_items w ON w.id=n.related_id SET nr.delivered_at=NOW() WHERE n.id=? AND nr.employee_id=? AND w.assigned_employee_id=nr.employee_id AND w.cancelled_at IS NULL AND w.status NOT IN ('published','cancelled') AND nr.delivered_at IS NULL AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())");
+        $stmt->execute([$notificationId,$employeeId]);return $stmt->rowCount()>0;
+    }
     if ($relatedType !== 'checklist_task') {
         $stmt = db()->prepare('UPDATE notification_recipients SET delivered_at=NOW() WHERE notification_id=? AND employee_id=? AND delivered_at IS NULL AND read_at IS NULL AND cleared_at IS NULL');
         $stmt->execute([$notificationId,$employeeId]);
@@ -1043,3 +1047,29 @@ function notifications_clear(array $ids = []): void
     $stmt->execute(array_merge([$employeeId], $ids));
     foreach ($ids as $id) { try { require_once __DIR__ . '/epi/bootstrap.php'; \Hambelela\EPI\NotificationActivityBridge::record(db(), 'notification_dismissed', $id, $employeeId); } catch (Throwable $ignored) {} }
 }
+
+function notifications_marketing_popups(): array
+{
+    $employeeId=notifications_current_employee_id();
+    if(!$employeeId||!notifications_schema_ready())return [];
+    // Same recipient records as the bell; assignment is rechecked on each poll.
+    return ops_rows("SELECT n.id,n.title,n.message,n.created_at,n.related_id,n.related_type,n.action_link,n.sound_key,w.due_at,w.priority,
+        (SELECT GROUP_CONCAT(c.channel_key ORDER BY c.channel_key SEPARATOR ' · ') FROM marketing_channel_execution c WHERE c.item_id=w.id AND c.is_required=1) AS channels
+        FROM notifications n JOIN notification_recipients nr ON nr.notification_id=n.id
+        JOIN marketing_work_items w ON w.id=n.related_id
+        WHERE n.related_type='marketing_assignment' AND nr.employee_id=? AND w.assigned_employee_id=nr.employee_id
+        AND w.cancelled_at IS NULL AND w.status NOT IN ('published','cancelled')
+        AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND nr.delivered_at IS NULL
+        AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())
+        ORDER BY n.id LIMIT 100",[$employeeId]);
+}
+function notifications_marketing_remind(int $id): bool
+{
+    $employeeId=notifications_current_employee_id();
+    if(!$employeeId)return false;
+    $q=db()->prepare("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id JOIN marketing_work_items w ON w.id=n.related_id
+        SET nr.next_reminder_at=DATE_ADD(NOW(), INTERVAL 30 MINUTE),nr.delivered_at=NULL
+        WHERE n.id=? AND n.related_type='marketing_assignment' AND nr.employee_id=? AND w.assigned_employee_id=nr.employee_id AND nr.read_at IS NULL AND nr.cleared_at IS NULL");
+    $q->execute([$id,$employeeId]);return $q->rowCount()>0;
+}
+

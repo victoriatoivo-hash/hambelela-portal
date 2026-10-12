@@ -21,6 +21,10 @@ try {
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string) ($_POST['action'] ?? '');
+        if ($action === 'marketing_remind') {
+            if (!hash_equals((string)($_SESSION['marketing_popup_csrf']??''),(string)($_POST['csrf']??'')) || empty($_SESSION['marketing_popup_csrf'])) { http_response_code(403);echo json_encode(['ok'=>false]);exit; }
+            echo json_encode(['ok'=>notifications_marketing_remind((int)($_POST['notification_id']??0))]);exit;
+        }
         if ($action === 'notification_claim') {
             echo json_encode(['ok' => true, 'claimed' => notifications_claim_task_delivery((int) ($_POST['notification_id'] ?? 0))]);
             exit;
@@ -71,6 +75,9 @@ try {
 
     notifications_recover_task_assignments();
     $summary = notifications_summary_for_current_user(5);
+    if(empty($_SESSION['marketing_popup_csrf']))$_SESSION['marketing_popup_csrf']=bin2hex(random_bytes(24));
+    $summary['marketing_popup_csrf']=$_SESSION['marketing_popup_csrf'];
+    $summary['marketing_popups']=notifications_marketing_popups();
     $summary['task_popups'] = notifications_task_popups((int)($_GET['active_task_notification'] ?? 0));
     $summary['sidebar_counts'] = notifications_sidebar_counts_for_current_user();
     $summary['packing_list_unread_count'] = notifications_packing_assignment_unread_count();

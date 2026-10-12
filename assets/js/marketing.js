@@ -1,6 +1,6 @@
 (()=>{
   'use strict';
-  const root=document.querySelector('.marketing-workspace');
+  const root=document.querySelector('.marketing-workspace, .marketing-execution-workspace');
   if(!root)return;
   const form=root.querySelector('[data-form-dialog]');
   const item=root.querySelector('[data-item-dialog]');
@@ -28,7 +28,7 @@
       if(reason)reason.value=row.change_request_reason||'';
       item.querySelector('[name=published_url]').value=row.published_url||'';
       item.querySelector('[data-item-detail]').innerHTML=`<div><span>Type</span><strong>${escapeHtml(String(row.content_type).replaceAll('_',' '))}</strong></div><div><span>Platform</span><strong>${escapeHtml(row.platform||'Not set')}</strong></div><div><span>Due</span><strong>${escapeHtml(row.due_at||'Not set')}</strong></div><div><span>Publish</span><strong>${escapeHtml(row.publish_at||'Not set')}</strong></div><div><span>Files</span><strong>${row.version_count||0}</strong></div><p>${escapeHtml(row.brief||'No brief added.')}</p>`;
-      const executionLink=document.createElement('a');executionLink.className='marketing-btn-secondary';executionLink.href='execution.php?id='+encodeURIComponent(row.id);executionLink.textContent='Channel execution & requirements';item.querySelector('[data-item-detail]').append(executionLink);
+      const executionLink=document.createElement('a');executionLink.className='marketing-btn-secondary';executionLink.href='execution.php?id='+encodeURIComponent(row.id);executionLink.textContent='Channel execution & requirements';item.querySelector('[data-item-detail]').append(executionLink);const editLink=document.createElement('a');editLink.href='index.php?edit='+encodeURIComponent(row.id);editLink.className='marketing-btn-secondary';editLink.textContent='Edit Content';item.querySelector('[data-item-detail]').append(editLink);
       item.showModal();return;
     }
     const productButton=event.target.closest('[data-product]');
@@ -276,7 +276,16 @@
     menu.addEventListener('keydown',event=>{if(event.key==='Escape'){menu.hidePopover();trigger.focus();}});
   });
 
+  root.querySelectorAll('.marketing-channel-card').forEach(card=>{
+    const check=card.querySelector('[name="required_channels[]"]'), body=card.querySelector('.marketing-channel-instructions');
+    const update=()=>{card.classList.toggle('is-selected',check.checked);body.hidden=!check.checked;check.setAttribute('aria-expanded',String(check.checked));};
+    check.addEventListener('change',update);update();
+  });
+  root.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{
+    if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}
+  }));
   root.querySelectorAll('select').forEach(enhanceSelect);
+  if(form?.hasAttribute('data-auto-open')) form.showModal();
   document.addEventListener('click',event=>{if(!event.target.closest('.marketing-select'))closeSelect();});
   window.addEventListener('resize',placeSelect);
   document.addEventListener('scroll',event=>{if(activeSelect&&!activeSelect.menu.contains(event.target))placeSelect();},true);

@@ -575,7 +575,7 @@ window.addEventListener('DOMContentLoaded', () => {
         prompted = true;
         const prompt = document.createElement('div');
         prompt.className = 'portal-toast portal-sound-permission';
-        prompt.innerHTML = '<p class="portal-toast-title">Enable task reminder sounds?</p><p class="portal-toast-message">You can change this later in notification settings.</p><div class="portal-toast-actions"><button type="button" data-sound-no>Not now</button><button type="button" data-sound-yes>Enable sounds</button></div>';
+        prompt.innerHTML = '<p class="portal-toast-title">Enable Notification Sounds?</p><p class="portal-toast-message">You can change this later in notification settings.</p><div class="portal-toast-actions"><button type="button" data-sound-no>Not now</button><button type="button" data-sound-yes>Enable sounds</button></div>';
         document.body.appendChild(prompt);
         const save = async (allow) => {
           enabled = allow;
@@ -635,6 +635,9 @@ window.addEventListener('DOMContentLoaded', () => {
     const portalUser = window.HambelelaPortalUser || { id: 0, role: 'guest' };
     const storageKey = `portal_last_seen_notification_id_${portalUser.id}_${portalUser.role}`;
     let lastSeenLatestId = 0;
+    const marketingQueued=new Set();
+    const marketingPageStarted=Date.now();
+    let marketingPopupCsrf='';
 
     try {
       lastSeenLatestId = Number(window.localStorage?.getItem(storageKey) || 0);
@@ -671,20 +674,21 @@ window.addEventListener('DOMContentLoaded', () => {
     const queuePortalToast = notification => { notificationToastQueue.push(notification); drainNotificationToasts(); };
     const showPortalToast = async (notification) => {
       const isTask = notification.related_type === 'checklist_task' && Number(notification.related_id || 0) > 0;
+      const isMarketing = notification.related_type === 'marketing_assignment';
       const isLoanAgreement = String(notification.related_type || '').startsWith('loan_agreement_');
       let claimed = false;
       try {
         const claimResponse = await fetch(apiUrl, {method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:'notification_claim', notification_id:String(notification.id)})});
         claimed = Boolean((await claimResponse.json()).claimed);
       } catch (_) { claimed = false; }
-      if (!claimed) { visibleNotificationToasts--; drainNotificationToasts(); return; }
+      if (!claimed) { marketingQueued.delete(Number(notification.id)); visibleNotificationToasts--; drainNotificationToasts(); return; }
       const container = ensureToastContainer();
       const toast = document.createElement('div');
-      toast.className = 'portal-toast';
+      toast.className = isMarketing ? 'portal-toast marketing-assignment-popup' : 'portal-toast';
       const notificationSource = window.PortalNotificationUI?.source(notification) || 'system';
       toast.dataset.source = notificationSource;
       const state = notification.deadline_state && notification.deadline_state !== 'normal' ? notification.deadline_state : (notification.priority === 'urgent' ? 'urgent' : 'normal');
-      const stateLabel = isLoanAgreement ? 'Loan Agreement' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
+      const stateLabel = isMarketing ? 'New Marketing Assignment' : isLoanAgreement ? 'Loan Agreement' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
       const stateIcon = window.PortalNotificationUI?.icon('check') || '';
       if (isLoanAgreement) toast.classList.add('portal-notification--hr');
       toast.dataset.deadlineState = state;
@@ -696,6 +700,10 @@ window.addEventListener('DOMContentLoaded', () => {
         <p class="portal-toast-message">${escapeHtml(notification.message || '')}</p>
         ${notification.assigned_name ? `<span class="portal-toast-assignee">Assigned to ${escapeHtml(notification.assigned_name)}</span>` : ''}
         ${notification.due_at ? `<span class="portal-toast-due">Due ${escapeHtml(notification.due_at)}</span>` : ''}`;
+      if (isMarketing) {
+        if(notification.channels)toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Required channels: ${escapeHtml(notification.channels)}</p>`);
+        toast.insertAdjacentHTML('beforeend','<div class="portal-toast-actions"><button type="button" data-marketing-later>Remind Me Later</button><button type="button" data-marketing-view>View Assignment</button></div>');
+      }
       if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><select data-toast-snooze aria-label="Snooze reminder"><option value="">Snooze</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="tomorrow">Tomorrow</option></select><button type="button" data-toast-read>Mark Read</button><button type="button" data-toast-view>View Task</button></div>');
       if (isLoanAgreement) toast.insertAdjacentHTML('beforeend', `<div class="portal-toast-actions"><button type="button" class="portal-toast-hr-action" data-toast-loan>${notification.related_type === 'loan_agreement_owner_signature' ? 'Review &amp; Sign' : (notification.related_type === 'loan_agreement_completed' ? 'View Agreement' : 'Review Agreement')}</button></div>`);
       const markState = (state) => fetch(apiUrl, { method:'POST', credentials:'same-origin', headers:{'Content-Type':'application/x-www-form-urlencoded'}, body:new URLSearchParams({action:`notification_${state}`, notification_id:String(notification.id)}) }).catch(() => {});
@@ -704,11 +712,12 @@ window.addEventListener('DOMContentLoaded', () => {
       const close = () => {
         if (toastClosed) return;
         toastClosed = true;
+        if(isMarketing)marketingQueued.delete(Number(notification.id));
         toast.classList.add('is-leaving');
         window.setTimeout(() => { toast.remove(); visibleNotificationToasts--; drainNotificationToasts(); }, 180);
       };
 
-      toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { if (!isLoanAgreement) markState('dismissed'); close(); });
+      toast.querySelector('.portal-toast-close')?.addEventListener('click', () => { if(isMarketing){toast.querySelector('[data-marketing-later]').click();return;} if (!isLoanAgreement) markState('dismissed'); close(); });
       toast.querySelector('[data-toast-dismiss]')?.addEventListener('click', () => { markState('dismissed'); close(); });
       toast.querySelector('[data-toast-read]')?.addEventListener('click', () => { markState('viewed'); close(); });
       toast.querySelector('[data-toast-snooze]')?.addEventListener('change', async (event) => {
@@ -723,14 +732,23 @@ window.addEventListener('DOMContentLoaded', () => {
         else window.location.assign(notification.action_link || `/apps/operations/checklists.php?task_view=active&task_id=${encodeURIComponent(taskId)}`);
       });
       toast.querySelector('[data-toast-loan]')?.addEventListener('click', async () => { await markState('viewed'); window.location.assign(notification.action_link); });
+      toast.querySelector('[data-marketing-later]')?.addEventListener('click',async()=>{
+        const response=await fetch(apiUrl,{method:'POST',credentials:'same-origin',body:new URLSearchParams({action:'marketing_remind',notification_id:String(notification.id),csrf:marketingPopupCsrf})}).catch(()=>null);
+        if(response?.ok && (await response.json()).ok)close();
+        else toast.querySelector('.portal-toast-message').textContent='Unable to save the reminder. Please try again.';
+      });
+      toast.querySelector('[data-marketing-view]')?.addEventListener('click',async()=>{
+        await markState('viewed');window.location.assign('/apps/marketing/execution.php?id='+encodeURIComponent(notification.related_id));
+      });
       container.prepend(toast);
-      if (claimed && notification.sound_key) taskReminderSound.play(notification.sound_key);
+      // Initial page load/refresh is silent; a claimed new arrival sounds once.
+      if (claimed && notification.sound_key && (!isMarketing || new Date(String(notification.created_at).replace(' ','T')+'+02:00').getTime()>marketingPageStarted)) taskReminderSound.play(notification.sound_key);
       if (claimed && document.visibilityState === 'hidden' && 'Notification' in window && Notification.permission === 'granted') {
         const desktop = new Notification(notification.title || stateLabel, {body:notification.message || '', tag:`task-${notification.related_id}-${state}`, renotify:false, silent:true});
         desktop.onclick = () => { window.focus(); window.location.assign(notification.action_link); desktop.close(); };
       }
       if (isTask) window.dispatchEvent(new CustomEvent('portal:task-update', { detail: notification }));
-      window.setTimeout(close, 5000);
+      if(!isMarketing)window.setTimeout(close, 5000);
     };
 
     const updateSidebarNotificationBadges = (unreadCount) => {
@@ -797,6 +815,11 @@ window.addEventListener('DOMContentLoaded', () => {
         taskReminderSound.configure(data.preferences || {});
 
         window.HambelelaTaskPopups?.accept(data.task_popups || []);
+        marketingPopupCsrf=data.marketing_popup_csrf||'';
+        for(const notification of data.marketing_popups||[]){
+          const id=Number(notification.id);if(marketingQueued.has(id))continue;
+          marketingQueued.add(id);queuePortalToast(notification);
+        }
         const latest = Array.isArray(data.latest) ? data.latest : [];
         const latestIds = latest.map((notification) => Number(notification.id || 0)).filter(Boolean);
         const maxLatestId = latestIds.length ? Math.max(...latestIds) : lastSeenLatestId;
@@ -806,7 +829,7 @@ window.addEventListener('DOMContentLoaded', () => {
           .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
           .forEach((notification) => {
             const id = Number(notification.id || 0);
-            if (notification.related_type === 'checklist_task') return;
+            if (['checklist_task','marketing_assignment'].includes(notification.related_type)) return;
             if (id > lastSeenLatestId) {
               queuePortalToast(notification);
               lastSeenLatestId = id;
