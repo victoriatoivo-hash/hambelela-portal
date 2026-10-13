@@ -2,7 +2,7 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('shared/marketing.php','shared/marketing-execution.php','shared/marketing-workspace.php','apps/marketing/index.php','apps/marketing/execution.php','apps/marketing/employee-workspace.php','apps/marketing/app-shell.php','assets/js/marketing.js','assets/css/marketing-execution.css','assets/css/marketing.css','assets/css/marketing-extras.css')
+FILES = ('shared/marketing.php','shared/marketing-execution.php','shared/marketing-workspace.php','apps/marketing/index.php','apps/marketing/execution.php','apps/marketing/employee-workspace.php','apps/marketing/app-shell.php','assets/js/marketing.js','assets/js/marketing-workspace.js','assets/css/marketing-workspace.css','assets/css/marketing-execution.css','assets/css/marketing.css','assets/css/marketing-extras.css')
 READ_ONLY = ('shared/marketing-phase3.php','apps/marketing/phase3-view.php','apps/marketing/employee-calendar.php','apps/marketing/media.php','apps/marketing/file.php','apps/marketing/export.php','assets/js/portal.js','shared/notifications.php','api/notifications.php','assets/js/notifications-ui.js','shared/header.php','shared/auth.php','shared/employee-features.php')
 EXPORT_MODULES = FILES + READ_ONLY
 mode, sha = sys.argv[1:3]
