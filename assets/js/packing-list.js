@@ -1119,6 +1119,10 @@
     if (draftReview) draftReview.hidden = false;
     const finalReview = invoiceModal?.querySelector('[data-manual-final-review]');
     if (finalReview) finalReview.hidden = true;
+    const invoiceReviewSteps = invoiceModal?.querySelector('.invoice-workflow-steps');
+    if (invoiceReviewSteps) invoiceReviewSteps.hidden = manual;
+    const manualBack = invoiceModal?.querySelector('[data-manual-back]');
+    if (manualBack) manualBack.hidden = true;
     invoiceModal?.classList.toggle('is-manual-packing', manual);
     invoiceModal?.querySelectorAll('[data-invoice-only]').forEach((section) => { section.hidden = manual; });
     invoiceModal?.querySelectorAll('[data-manual-only]').forEach((section) => { section.hidden = !manual; });
