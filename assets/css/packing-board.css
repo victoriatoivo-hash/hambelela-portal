@@ -2455,3 +2455,6 @@ body.packing-list-page {
 #packing-invoice-modal .hb-packing-wizard.hb-packing-wizard::before{background:#59694A}
 #packing-invoice-modal .hb-packing-wizard.hb-packing-wizard.hb-packing-wizard .pack-notes-button{width:auto;min-width:0;height:auto;white-space:nowrap;padding:8px;font-size:10.5px;gap:4px}
 #packing-invoice-modal .hb-packing-wizard.hb-packing-wizard.hb-packing-wizard .invoice-upload-close{width:36px;height:36px;color:#26311F;border:1px solid #E4E6DC;border-radius:8px;background:#fff}
+/* The legacy board forces every table row to 35px; wizard rows contain editable
+   pack sizes and must grow with their content on both desktop and phones. */
+#packing-invoice-modal .hb-packing-wizard.hb-packing-wizard.hb-packing-wizard .invoice-review-table :is(tr,th,td){height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}
