@@ -1,11 +1,11 @@
-name: Marketing refinement source and delta
+name: Delivery GPS source verification
 on:
   workflow_dispatch:
     inputs:
       mode:
         type: choice
         required: true
-        options: [export, preflight, deploy]
+        options: [inspect]
       approved_sha:
         type: string
         required: true
@@ -45,13 +45,12 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           RELEASE_MODE: ${{ inputs.mode }}
           RELEASE_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/delivery-arrangement-release.py "$RELEASE_MODE" "$RELEASE_SHA"
+        run: python3 scripts/delivery-gps-release.py "$RELEASE_MODE" "$RELEASE_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: delivery-arrangement-${{ github.run_id }}
+          name: delivery-gps-${{ github.run_id }}
           retention-days: 3
           path: |
-            delivery-arrangement-live-source.zip
-            delivery-arrangement-release-report.json
-            delivery-arrangement-backup.zip
+            delivery-gps-source.zip
+            delivery-gps-report.json
