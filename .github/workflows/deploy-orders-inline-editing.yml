@@ -114,6 +114,7 @@ jobs:
           php tests/delivery-tracking-policy.php
           php tests/delivery-tracking-storage.php
           php tests/delivery-tracking-alerts.php
+          php tests/delivery-download-placement.php
           php -l scripts/delivery-tracking-alerts.php
           php -l shared/delivery/TrackingSchema.php
           php -l shared/delivery/TrackingService.php

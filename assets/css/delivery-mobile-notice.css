@@ -1,0 +1,18 @@
+/* Clear the fixed mobile navigation without changing other portal prompts. */
+@media (max-width: 900px) {
+  body[data-delivery-ui] .portal-sound-permission {
+    position: fixed !important;
+    top: auto !important;
+    bottom: calc(92px + env(safe-area-inset-bottom, 0px)) !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-height: calc(100vh - 140px - env(safe-area-inset-bottom, 0px));
+    max-height: calc(100dvh - 140px - env(safe-area-inset-bottom, 0px));
+    overflow-y: auto;
+    transform: none !important;
+    z-index: 8100;
+  }
+  body[data-delivery-ui] .portal-sound-permission .portal-toast-actions {display:flex;flex-wrap:wrap;gap:8px}
+  body[data-delivery-ui] .portal-sound-permission button {min-height:44px}
+}

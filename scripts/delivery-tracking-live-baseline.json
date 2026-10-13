@@ -4,13 +4,13 @@
   "shared/delivery/TrackingService.php": "87d31cad327ad790c5427a65adac3c9e39addd077c3d6e2ee6e25f211ed20e6e",
   "shared/delivery/TrackingMaps.php": "2063b33be968a24afe517c8c2cb62937f820e1b43f79c5022e36b790b7290da7",
   "shared/delivery/TrackingConfiguration.php": "127a0df9bdc0f683c4c72437d502b8ec20269d4a58186ef8e08345f6a325139e",
-  "apps/delivery/tracking.php": "5c82bce80a72f51807112ce225b28c27a4c1720632a0443735af3a67aade84d0",
+  "apps/delivery/tracking.php": "a22db578d769984c8c730657889f9aaba4c0dfcdbf3ab2ca1983235b0b26e2fc",
   "apps/delivery/tracking-api.php": "e179c07ca44ad292bc09299ded6dda9f9276199de76dc53d26455cf851fc1cae",
   "apps/delivery/tracking-device.php": "87110ec952ec30c9ac417c2057dcc58eeb447bb0f990711c654d32e4c7139487",
   "assets/css/delivery-tracking.css": "3860fa09240b6438f2f9224b0dfeeedc5bf794d36dd88461e0f00b998446aa1f",
   "assets/js/delivery-tracking.js": "b871c856158a962635a41c2380284a32881946f3da97b26b2aef6ababd40507a",
   "scripts/delivery-tracking-worker.php": "b75d84ebd1e8b1db7fae5b323aeaf958cef6f1bbac928f0684c0b00192218bf6",
   "apps/delivery/driver/hambelela-driver-gps-1.0.0.apk": "ce5cd4d60c14bbc6373959926f96ea98ffece2a812d164e4a8ca8717b32f7521",
-  "shared/delivery/PortalShell.php": "4f4b328ba81b08f315fd50019403658e02dd50e750d48a6e07582799a6315014",
+  "shared/delivery/PortalShell.php": "f923c87a6eb074b2b5f2ac4bc69f4dcfee2d16c2aa59b5c8aa70662c07a91a35",
   "shared/delivery/WorkspaceApps.php": "4017e3fcb7f661546e5ec18cb111abc837bced67e0892ef7ae467b7a2a71b936"
 }

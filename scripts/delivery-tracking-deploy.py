@@ -7,9 +7,11 @@ if mode not in ('preflight', 'deploy') or subprocess.check_output(['git','rev-pa
     raise SystemExit('Exact approved revision and release mode required')
 baseline={
  'shared/delivery/PortalShell.php':'8b972cdf27dda56ffcf802814a0daa22f38f63c3d05bf2fa8cd6754145e54184',
- 'shared/delivery/WorkspaceApps.php':'e87c3ed276f7d1a9a753a3bda6b654badf0e4b3e02a5f21ded90e7a5721cc200'
+ 'shared/delivery/WorkspaceApps.php':'e87c3ed276f7d1a9a753a3bda6b654badf0e4b3e02a5f21ded90e7a5721cc200',
+ 'apps/operations/my-account.php':'5b15cd7afcf033012cf8bafb56c116c594e47912c8b0c17bc139f50d067b0e09'
 }
 new_files=[
+ 'shared/delivery/AppDownload.php','assets/css/delivery-mobile-notice.css',
  'shared/delivery/TrackingPolicy.php','shared/delivery/TrackingSchema.php','shared/delivery/TrackingService.php',
  'shared/delivery/TrackingMaps.php','shared/delivery/TrackingConfiguration.php','shared/delivery/TrackingAlerts.php','scripts/delivery-tracking-alerts.php',
  'apps/delivery/tracking.php','apps/delivery/tracking-api.php','apps/delivery/tracking-device.php','apps/delivery/tracking-notice.php',
@@ -105,10 +107,23 @@ def host(action):
  return result
 attempted=[];before={};desired={};bridge_uploaded=False
 try:
- desired={p:Path(p).read_bytes() for p in files}
+ profile='apps/operations/my-account.php'
+ desired={p:Path(p).read_bytes() for p in files if p!=profile}
  for p,data in desired.items():
   if p.endswith('.php'):subprocess.run(['php','-l'],input=data,check=True)
  before={p:read(p) for p in files};report['before']={p:digest(v) for p,v in before.items()}
+ # Insert only the download include; preserve every byte of existing live profile logic.
+ profile_anchor=b'<div id="section-profile" class="settings-section <?= $activeSettingsSection === \'profile\' ? \'active\' : \'\' ?>">'
+ profile_insert=b"<?php require BASE_PATH.'/shared/delivery/AppDownload.php'; ?>"
+ original=before[profile]
+ if original is None:raise RuntimeError('Live profile missing')
+ if profile_insert in original:
+  desired[profile]=original
+ else:
+  if digest(original)!=baseline[profile] or original.count(profile_anchor)!=1:raise RuntimeError('Profile changed; inspect before inserting download card')
+  desired[profile]=original.replace(profile_anchor,profile_anchor+b'\n'+profile_insert,1)
+  assert desired[profile].replace(profile_anchor+b'\n'+profile_insert,profile_anchor,1)==original, 'Profile patch must preserve every existing byte'
+ subprocess.run(['php','-l'],input=desired[profile],check=True)
  for p in files:
   if digest(before[p])!=expected.get(p) and before[p]!=desired[p]:raise RuntimeError('Live drift: '+p)
  put(bridge,code.encode());bridge_uploaded=True;report['host_preflight']=host('preflight')
