@@ -25,7 +25,7 @@ $stats=[['Assigned to Me',count(array_filter($myWork,$pending))+count($portalTas
  ['Due This Week',count(array_filter($myWork,fn($i)=>$pending($i)&&$i['due_at']>=$weekStart&&$i['due_at']<$weekEnd))+count(array_filter($portalTasks,fn($i)=>($i['deadline']??'')>=$weekStart&&($i['deadline']??'')<$weekEnd)),'calendar-clock'],
  ['Awaiting My Action',count(array_filter($myWork,fn($i)=>in_array($i['status'],['brief','to_create','in_progress','changes_requested'],true)))+count($portalTasks),'circle-play'],
  ['Ready to Publish',count(array_filter($myWork,fn($i)=>in_array($i['status'],['approved','scheduled'],true))),'send'],
- ['Completed This Week',count(array_filter($myWork,fn($i)=>in_array($i['status'],['published','completed'],true)&&$i['published_at']>=$weekStart&&$i['published_at']<$weekEnd)),'circle-check']];
+ ['Completed This Week',count(array_filter($myWork,fn($i)=>in_array($i['status'],['published','completed'],true)&&($i['completed_at']??$i['published_at'])>=$weekStart&&($i['completed_at']??$i['published_at'])<$weekEnd)),'circle-check']];
 $isEssDashboard=true;$pageTitle='My Marketing Work | '.APP_NAME;$activeApp='marketing';
 $extraStylesheets=[];foreach(['marketing','marketing-extras','marketing-execution'] as$css)$extraStylesheets[]=['path'=>'assets/css/'.$css.'.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/'.$css.'.css')];
 require_once BASE_PATH.'/shared/ess-navigation.php';$essShellApps=ess_shell_apps();$essActiveModule='Marketing';$pageUsesPortalSidebar=false;$extraStylesheets[]=['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')];include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/ess-sidebar.php';

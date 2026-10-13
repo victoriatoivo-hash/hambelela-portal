@@ -16,6 +16,15 @@ function marketing_content_label(string $status): string {
     return ['brief'=>'New','to_create'=>'New','in_progress'=>'In Progress','ready_for_review'=>'Awaiting Owner Review','changes_requested'=>'Changes Requested','approved'=>'Approved','scheduled'=>'Scheduled','published'=>'Published / Completed','completed'=>'Completed','cancelled'=>'Cancelled'][$status] ?? ucwords(str_replace('_',' ',$status));
 }
 
+function marketing_actor_name(int $id): string {
+    static $names=[];if(!isset($names[$id])){$q=db()->prepare('SELECT full_name FROM ops_employees WHERE id=?');$q->execute([$id]);$names[$id]=(string)($q->fetchColumn()?:'Employee #'.$id);}return $names[$id];
+}
+
+function marketing_created_local(array $item): ?string {
+    if(isset($item['created_epoch']))return (new DateTimeImmutable('@'.(int)$item['created_epoch']))->setTimezone(new DateTimeZone('Africa/Windhoek'))->format('Y-m-d H:i:s');
+    return $item['created_at']??null;
+}
+
 function marketing_review_clock(array $item, ?string $now=null): array {
     $now=$now?:marketing_now();$zone=new DateTimeZone('Africa/Windhoek');
     $epoch=static function(?string $v)use($zone):?int {return $v?(new DateTimeImmutable($v,$zone))->getTimestamp():null;};
@@ -132,7 +141,7 @@ function marketing_content_edit_config(int $id,?array $previous,array $input): i
     $mode=(string)($input['deliverable_mode']??$item['deliverable_mode']);if(!in_array($mode,['prepare','publish'],true))throw new RuntimeException('Choose a valid deliverable.');
     [$source,$link]=marketing_media_reference((string)($input['media_source']??$item['media_source']),(string)($input['media_link']??$item['media_link']??''));
     db()->prepare('UPDATE marketing_work_items SET deliverable_mode=?,preparation_evidence_required=?,media_source=?,media_link=? WHERE id=?')->execute([$mode,!empty($input['preparation_evidence_required'])?1:0,$source,$link,$id]);
-    $after=marketing_execution_item($id);$fields=['title','brief','owner_notes','assigned_employee_id','content_type','due_at','publish_at','priority','approval_required','deliverable_mode','preparation_evidence_required','media_source','media_link'];$changes=[];
+    $after=marketing_execution_item($id);$fields=['title','brief','caption','cta','hashtags','objective','target_audience','required_dimensions','campaign','product_reference','owner_notes','assigned_employee_id','content_type','due_at','publish_at','priority','approval_required','deliverable_mode','preparation_evidence_required','media_source','media_link'];$changes=[];
     foreach($fields as $key)if(($previous[$key]??null)!==($after[$key]??null))$changes[$key]=['before'=>$previous[$key]??null,'after'=>$after[$key]??null];
     $channelSnapshot=db()->prepare('SELECT channel_key,is_required,instructions,scheduled_at FROM marketing_channel_execution WHERE item_id=? ORDER BY channel_key');$channelSnapshot->execute([$id]);
     $normalize=static function(array $rows):array{$result=[];foreach($rows as $row)$result[$row['channel_key']]=['channel_key'=>$row['channel_key'],'is_required'=>(int)($row['is_required']??1),'instructions'=>(string)($row['instructions']??''),'scheduled_at'=>$row['scheduled_at']??null];ksort($result);return array_values($result);};
@@ -143,7 +152,10 @@ function marketing_content_edit_config(int $id,?array $previous,array $input): i
         db()->prepare('UPDATE marketing_work_items SET review_remaining_seconds=review_remaining_seconds+? WHERE id=?')->execute([$extension,$id]);
     }
     db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,$previous['status']??null,$after['status'],($previous?'Owner edited assignment':'Owner assigned Marketing work').' · Previous/new values: '.json_encode($changes,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),marketing_employee_id(),(string)(current_user()['name']??'')]);$event=(int)db()->lastInsertId();
-    if($previous&&!empty($previous['work_started_at'])&&$changes)marketing_notify($id,(int)$after['assigned_employee_id'],'Marketing assignment updated',$after['title'].' — Owner updated the brief, requirements or deadline. Open it to review changes.');
+    if($previous&&!empty($previous['work_started_at'])&&$changes&&(int)$after['assigned_employee_id']>0) {
+        require_once BASE_PATH.'/shared/notifications.php';
+        if(!notifications_create(['title'=>'Marketing assignment updated','message'=>$after['title'].' — Owner updated the brief, requirements or deadline. Open it to review changes.','module'=>'marketing','related_type'=>'marketing_assignment','related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id,'required_delivery'=>true,'deduplication_key'=>'marketing-edit:'.$event],[(int)$after['assigned_employee_id']]))throw new RuntimeException('Assignment update notification could not be saved. Please retry.');
+    }
     return $event;
 }
 
@@ -159,7 +171,7 @@ function marketing_content_table(array $items,string $active='active'): void {
     foreach($items as $i) {
         $rows=$i['execution_channels']??marketing_execution_rows($i);$p=marketing_execution_progress($rows);$prepared=count(array_filter($rows,fn($r)=>!empty($r['prepared'])));$complete=($i['deliverable_mode']??'publish')==='prepare'?$prepared:$p['complete'];$group=['published'=>'completed','completed'=>'completed','cancelled'=>'history','ready_for_review'=>'review','scheduled'=>'scheduled'][$i['status']]??'active';$names=array_map(fn($r)=>marketing_execution_channels()[$r['channel_key']]??'Assigned channel',$rows);$name=(string)($i['assigned_name']??current_user()['name']??'Assigned employee');$href=BASE_URL.'/apps/marketing/execution.php?id='.(int)$i['id'];
         echo '<tr data-work-group="'.$group.'" data-work-person-id="'.(int)$i['assigned_employee_id'].'" data-work-status-key="'.marketing_e($i['status']).'" data-work-created="'.marketing_e($i['created_at']??'').'" data-work-due="'.marketing_e($i['due_at']??'').'" data-work-search-text="'.marketing_e($i['title'].' '.$name.' '.implode(' ',$names)).'">';
-        $cells=['Date'=>marketing_e(marketing_display_time($i['created_at']??null)),'Content'=>'<a data-assignment-drawer href="'.$href.'"><strong>'.marketing_e($i['title']).'</strong></a><small>'.marketing_e(implode(', ',$names)).'</small>','Assigned To'=>marketing_e($name),'Status'=>'<span class="mk-wf-status '.($i['status']==='ready_for_review'?'is-review':(in_array($i['status'],['completed','published'],true)?'is-complete':'')).'">'.marketing_e(marketing_content_label($i['status'])).'</span>','Due'=>marketing_e(marketing_display_time($i['due_at']??null)),'Time Left'=>marketing_clock_markup($i),'Progress'=>$complete.' of '.$p['total'].(($i['deliverable_mode']??'publish')==='prepare'?' prepared':' published'),'Files'=>(string)($i['version_count']??count(marketing_assignment_media((int)$i['id']))),'Actions'=>'<a class="mk-open-assignment" data-assignment-drawer href="'.$href.'">Open</a>'];foreach($cells as $label=>$value)echo '<td data-label="'.$label.'">'.$value.'</td>';echo '</tr>';
+        $cells=['Date'=>marketing_e(marketing_display_time(marketing_created_local($i))),'Content'=>'<a data-assignment-drawer href="'.$href.'"><strong>'.marketing_e($i['title']).'</strong></a><small>'.marketing_e(implode(', ',$names)).'</small>','Assigned To'=>marketing_e($name),'Status'=>'<span class="mk-wf-status '.($i['status']==='ready_for_review'?'is-review':(in_array($i['status'],['completed','published'],true)?'is-complete':'')).'">'.marketing_e(marketing_content_label($i['status'])).'</span>','Due'=>marketing_e(marketing_display_time($i['due_at']??null)),'Time Left'=>marketing_clock_markup($i),'Progress'=>$complete.' of '.$p['total'].(($i['deliverable_mode']??'publish')==='prepare'?' prepared':' published'),'Files'=>(string)($i['version_count']??count(marketing_assignment_media((int)$i['id']))),'Actions'=>'<a class="mk-open-assignment" data-assignment-drawer href="'.$href.'">Open</a>'];foreach($cells as $label=>$value)echo '<td data-label="'.$label.'">'.$value.'</td>';echo '</tr>';
     }
     echo '</tbody></table></div><p data-work-empty hidden>No assignments match this view.</p></section>';
 }

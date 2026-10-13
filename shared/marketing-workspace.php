@@ -141,7 +141,7 @@ function marketing_assignment_grid(array $items,string $active='active'): void {
 
 function marketing_workspace_item(int $id): array {
     $params=[$id];$scope='';if(!marketing_is_owner()){$scope=' AND assigned_employee_id=?';$params[]=marketing_employee_id();}
-    $q=db()->prepare('SELECT * FROM marketing_work_items WHERE id=?'.$scope);$q->execute($params);$item=$q->fetch();if(!$item)throw new RuntimeException('Assigned work not found.');return $item;
+    $q=db()->prepare('SELECT *,UNIX_TIMESTAMP(created_at) created_epoch FROM marketing_work_items WHERE id=?'.$scope);$q->execute($params);$item=$q->fetch();if(!$item)throw new RuntimeException('Assigned work not found.');return $item;
 }
 function marketing_safe_brief(string $text): string {
     if($text===strip_tags($text))return nl2br(marketing_e($text));

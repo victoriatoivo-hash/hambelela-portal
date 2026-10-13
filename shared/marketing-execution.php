@@ -77,7 +77,7 @@ function marketing_work_matches_app(array $item, string $app, bool $pendingOnly 
 
 function marketing_employee_work(): array
 {
-    $q = db()->prepare('SELECT * FROM marketing_work_items WHERE assigned_employee_id=? ORDER BY COALESCE(due_at,publish_at,"9999-12-31"),id DESC');
+    $q = db()->prepare('SELECT *,UNIX_TIMESTAMP(created_at) created_epoch FROM marketing_work_items WHERE assigned_employee_id=? ORDER BY COALESCE(due_at,publish_at,"9999-12-31"),id DESC');
     $q->execute([marketing_employee_id()]);
     $items = $q->fetchAll();
     // Fetch channel requirements in one scoped query, not one request per tile/item.
@@ -95,7 +95,7 @@ function marketing_execution_item(int $id, bool $lock = false): array
     $params = [$id];
     $scope = '';
     if (!marketing_is_owner()) { $scope = ' AND assigned_employee_id=?'; $params[] = marketing_employee_id(); }
-    $query = db()->prepare('SELECT * FROM marketing_work_items WHERE id=? AND cancelled_at IS NULL'.$scope.($lock ? ' FOR UPDATE' : ''));
+    $query = db()->prepare('SELECT *,UNIX_TIMESTAMP(created_at) created_epoch FROM marketing_work_items WHERE id=? AND cancelled_at IS NULL'.$scope.($lock ? ' FOR UPDATE' : ''));
     $query->execute($params);
     $item = $query->fetch();
     if (!$item) { http_response_code(404); throw new RuntimeException('Assigned work not found.'); }
@@ -162,9 +162,10 @@ function marketing_execution_requirements(int $id, array $keys, array $instructi
         db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,is_required) VALUES (?,?,?,0) ON DUPLICATE KEY UPDATE instructions=VALUES(instructions)')
             ->execute([$id,$key,trim((string)$instructions[$key])]);
     }
-    $progress=marketing_execution_progress(marketing_execution_rows(marketing_execution_item($id)));
+    $current=marketing_execution_item($id);
+    $progress=marketing_execution_progress(marketing_execution_rows($current),($current['deliverable_mode']??'publish')==='prepare');
     if ($progress['complete'] < $progress['total']) {
-        db()->prepare("UPDATE marketing_work_items SET status='in_progress' WHERE id=? AND status='published'")->execute([$id]);
+        db()->prepare("UPDATE marketing_work_items SET status='in_progress' WHERE id=? AND status IN('published','completed')")->execute([$id]);
     }
     if ($ownsTransaction) db()->commit();
     } catch (Throwable $error) { if ($ownsTransaction && db()->inTransaction()) db()->rollBack(); throw $error; }
@@ -176,9 +177,9 @@ function marketing_execution_ready_to_publish(array $item): bool
     return !(int)$item['approval_required'] || in_array($item['status'], ['approved','scheduled','published'], true);
 }
 
-function marketing_execution_progress(array $rows): array
+function marketing_execution_progress(array $rows,bool $preparationOnly=false): array
 {
-    $complete = count(array_filter($rows, static fn(array $r): bool => (bool)$r['completed']));
+    $complete = count(array_filter($rows, static fn(array $r): bool => (bool)$r[$preparationOnly?'prepared':'completed']));
     return ['total'=>count($rows),'complete'=>$complete,'percent'=>$rows ? (int)round($complete/count($rows)*100) : 0];
 }
 
@@ -198,7 +199,7 @@ function marketing_execution_save(array $input): void
             $key=$row['channel_key'];if(!array_key_exists($key,$submitted))continue;$value=$submitted[$key];if(!is_array($value))throw new RuntimeException('Invalid channel update.');
             $label=marketing_execution_channels()[$key]??'Required channel';$completed=!empty($value['completed']);$prepared=!empty($value['prepared'])||$completed;
             if(($item['deliverable_mode']??'publish')==='prepare'&&$completed&&!$row['completed'])throw new RuntimeException($label.': this is preparation-only work. Use Prepared.');
-            if($completed&&!marketing_execution_ready_to_publish($item))throw new RuntimeException($label.': Owner approval is required before publication.');
+            if($completed&&empty($row['completed'])&&!marketing_execution_ready_to_publish($item))throw new RuntimeException($label.': Owner approval is required before publication.');
             if(!empty($row['completed'])&&!$completed&&!$owner)throw new RuntimeException($label.': published evidence cannot be removed. Ask Owner for a correction.');
             $url=trim((string)($value['proof_url']??$row['proof_url']??''));$draft=trim((string)($value['draft_url']??$row['draft_url']??''));$proof=(int)($value['proof_media_id']??$row['proof_media_id']??0);$note=trim((string)($value['note']??$row['completion_note']??''));
             foreach(['Publication proof link'=>$url,'Draft link'=>$draft] as $field=>$link)if($link!==''&&(strlen($link)>500||!filter_var($link,FILTER_VALIDATE_URL)||!in_array(strtolower((string)parse_url($link,PHP_URL_SCHEME)),['https','http'],true)))throw new RuntimeException($label.' — '.$field.': enter a valid HTTP or HTTPS link.');
