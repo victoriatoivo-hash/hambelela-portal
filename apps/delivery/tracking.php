@@ -1,0 +1,16 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/apps/operations/operations.php';
+require_once BASE_PATH.'/shared/delivery/FrontSession.php';require_once BASE_PATH.'/shared/delivery/TrackingPolicy.php';require_once BASE_PATH.'/shared/delivery/PortalShell.php';
+require_login();try{$actor=\Hambelela\Delivery\FrontSession::actor(db(),(int)(current_user()['id']??0));\Hambelela\Delivery\TrackingPolicy::owner($actor);}catch(DomainException $e){http_response_code(403);exit('Owner access required.');}
+\Hambelela\Delivery\PortalShell::begin(true);
+$base=htmlspecialchars(BASE_URL,ENT_QUOTES);
+?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Driver Tracking · Hambelela</title></head><body><main class="delivery-main delivery-tracking">
+<header><div><a href="index.php">← Delivery Workspace</a><p class="eyebrow">Owner · company-phone GPS</p><h1>Driver Tracking</h1><p>Work-hours location and road estimates. Delivery records and payments are unchanged.</p></div><div class="tracking-actions"><button type="button" id="tracking-add">Register phone</button><button type="button" class="secondary" id="tracking-keys">Google setup</button></div></header>
+<p id="tracking-message" role="status" aria-live="polite">Loading tracking configuration…</p>
+<div id="tracking-summary" class="tracking-summary"></div>
+<section class="tracking-card"><div class="tracking-toolbar"><label>Company phone<select id="tracking-device"><option value="">Select a registered phone</option></select></label><label>Active delivery<select id="tracking-job"><option value="">Select an assigned delivery</option></select></label><button type="button" id="tracking-route" class="secondary">Refresh road estimate</button></div><p id="tracking-position">No phone selected.</p><div id="tracking-map" aria-label="Driver location map"><p>The map opens after Google setup and a real GPS update.</p></div><p id="tracking-eta">Road ETA is unavailable until a recent GPS update and an active delivery are selected.</p><p class="muted">An old position is shown as last known, never as live. Road estimates exclude live traffic and are not punctuality scores.</p></section>
+<section class="tracking-card"><h2>Registered company phones</h2><div class="tracking-table-wrap"><table><thead><tr><th>Phone / bike</th><th>Driver</th><th>Signal</th><th>Last location</th><th>Setup</th><th>Actions</th></tr></thead><tbody id="tracking-devices"></tbody></table></div></section>
+<section class="tracking-card"><h2>Location history</h2><form id="tracking-history" class="tracking-toolbar"><label>From<input type="datetime-local" name="from" required></label><label>To<input type="datetime-local" name="to" required></label><button>View history</button></form><p class="muted">Namibia time · maximum seven days per search. Historical GPS is evidence only; no automatic deductions.</p><div id="tracking-history-result"></div></section>
+<dialog id="tracking-dialog"><form method="dialog" class="tracking-dialog-close"><button class="secondary" aria-label="Close">Close</button></form><div id="tracking-dialog-body"></div></dialog>
+</main><script defer src="<?=$base?>/assets/js/delivery-tracking.js?v=<?=filemtime(BASE_PATH.'/assets/js/delivery-tracking.js')?>"></script></body></html>

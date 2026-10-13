@@ -31,6 +31,7 @@ final class PortalShell
             if ($operations) $extraStylesheets[] = ['path'=>'assets/css/delivery-operations.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/delivery-operations.css')];
             $extraStylesheets[] = ['path'=>'assets/css/delivery-controls.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/delivery-controls.css')];
             if(strpos($body[2],'delivery-workspace')!==false)$extraStylesheets[]=['path'=>'assets/css/delivery-workspace.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/delivery-workspace.css')];
+            if(strpos($body[2],'delivery-tracking')!==false)$extraStylesheets[]=['path'=>'assets/css/delivery-tracking.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/delivery-tracking.css')];
             ob_start();
             require BASE_PATH.'/shared/header.php';
             require BASE_PATH.'/shared/ess-sidebar.php';

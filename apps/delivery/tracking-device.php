@@ -3,9 +3,10 @@ declare(strict_types=1);
 require_once dirname(__DIR__,2).'/config.php';
 require_once BASE_PATH.'/shared/database.php';
 require_once BASE_PATH.'/shared/delivery/TrackingService.php';
+require_once BASE_PATH.'/shared/delivery/TrackingConfiguration.php';
 header('Content-Type: application/json');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');
 // Deployment must explicitly enable collection after migration and validation.
-if(!defined('DELIVERY_TRACKING_ENABLED')||DELIVERY_TRACKING_ENABLED!==true){http_response_code(503);echo '{"error":"Tracking is not enabled."}';exit;}
+if(!(new \Hambelela\Delivery\TrackingConfiguration())->read()['enabled']){http_response_code(503);echo '{"error":"Tracking is not enabled."}';exit;}
 if(($_SERVER['REQUEST_METHOD']??'')!=='POST'){http_response_code(405);header('Allow: POST');exit;}
 if((int)($_SERVER['CONTENT_LENGTH']??0)>131072){http_response_code(413);exit;}
 try{

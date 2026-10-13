@@ -73,6 +73,12 @@ jobs:
           php tests/delivery-tracking-storage.php
           php -l shared/delivery/TrackingSchema.php
           php -l shared/delivery/TrackingService.php
+          php -l shared/delivery/TrackingMaps.php
+          php -l shared/delivery/TrackingConfiguration.php
+          php -l apps/delivery/tracking.php
+          php -l apps/delivery/tracking-api.php
+          php -l apps/delivery/tracking-device.php
+          node --check assets/js/delivery-tracking.js
       - name: Capture isolated live source
         if: inputs.mode == 'inspect'
         env:

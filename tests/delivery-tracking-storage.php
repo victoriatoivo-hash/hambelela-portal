@@ -3,6 +3,7 @@ declare(strict_types=1);
 if(PHP_SAPI!=='cli')exit(1);
 require __DIR__.'/../shared/delivery/TrackingSchema.php';
 require __DIR__.'/../shared/delivery/TrackingService.php';
+require __DIR__.'/../shared/delivery/TrackingMaps.php';
 use Hambelela\Delivery\TrackingSchema;
 use Hambelela\Delivery\TrackingService;
 // This test never connects to a portal schema or uses production credentials.
@@ -42,6 +43,14 @@ try{
  denied(function()use($service,$driver){$service->dashboard($driver);},'Driver cannot read fleet locations');
  denied(function()use($service){$service->dashboard(['kind'=>'partner','id'=>1,'active'=>true,'role'=>'owner_admin']);},'partner cannot impersonate Owner');
  denied(function()use($service,$owner,$id){$service->confirmReady($owner,$id,[]);},'cannot mark ready without actual phone attestations');
+ $calls=[];$transport=static function($url,$body,$headers)use(&$calls){$calls[]=$url;if(strpos($url,'geocode')!==false)return ['status'=>'OK','results'=>[['geometry'=>['location'=>['lat'=>-22.57,'lng'=>17.09]]]]];return ['routes'=>[['distanceMeters'=>3200,'duration'=>'480s','polyline'=>['encodedPolyline'=>'synthetic-test-only']]]];};
+ $maps=new \Hambelela\Delivery\TrackingMaps($db,'synthetic-not-a-key',$transport);
+ $route=$maps->route($owner,$id,10);check($route['available']&&$route['distance_metres']===3200&&$route['duration_seconds']===480,'road estimate uses routing response, not straight-line distance');
+ $maps->route($owner,$id,10);check(count($calls)===2,'route cache avoids repeated billable calls');
+ denied(function()use($maps,$driver,$id){$maps->route($driver,$id,10);},'Driver cannot request Owner fleet routes');
+ $db->exec("UPDATE delivery_tracking_devices SET last_position=0 WHERE id='$id'");
+ check(!$maps->route($owner,$id,10)['available']&&count($calls)===2,'stale GPS suppresses cached ETA and new billable requests');
+ $db->exec("UPDATE delivery_tracking_devices SET last_position=$now WHERE id='$id'");
  $service->configure($owner,$id,['employee_id'=>3,'active'=>true,'settings'=>$settings]);
  denied(function()use($service,$id,$token){$service->ingest($id,$token,[]);},'reassignment revokes old device credentials');
  $board=$service->dashboard($owner);check($board['devices'][0]['latitude']===null&&$board['devices'][0]['last_contact']===null,'reassignment does not display previous employee position');
