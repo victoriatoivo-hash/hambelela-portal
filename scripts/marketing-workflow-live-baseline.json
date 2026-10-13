@@ -24,5 +24,6 @@
   "assets/js/notifications-ui.js": "4757cabf2c69aa8c31a216cfa969f84a691252ea73f062d5650bb4c56ec502e0",
   "shared/header.php": "e83ff644cd1bff735da855a2a598e03fe81d286db205993870eee6bef8e80833",
   "shared/auth.php": "79d3f6f913c68ffee884886762c1ee14a15705b3f037a64128dd3cb415ed5bb3",
-  "shared/employee-features.php": "e1de30478241dbcacf5f0f5a94dcf976d7ec7dd6ccbba0d2153925b02ab97ad9"
+  "shared/employee-features.php": "e1de30478241dbcacf5f0f5a94dcf976d7ec7dd6ccbba0d2153925b02ab97ad9",
+  "shared/marketing-content-workflow.php": "a6a6b3dfc1ef12b3d61655e0ab40c976901d0a43e0bda98a8825f594f33e8c4d"
 }
