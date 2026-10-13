@@ -24,3 +24,26 @@ assert.match(source,/!isMarketing&&!isDelivery/);
 // Keep previous persistent Marketing acknowledgement and shared popup gate fixes.
 assert.match(source,/action:'marketing_seen'/);assert.match(source,/PortalNoticeGate\?\.release\('marketing'\)/);
 console.log('PASS delivery view waits for saved acknowledgement; failed save shows retry; existing Marketing handling preserved');
+
+// Execute the actual arrangement form handler, including success UI, rather
+// than treating a saved HTTP response as the end of the customer workflow.
+const deliverySource=fs.readFileSync('assets/js/delivery-core.js','utf8');
+const formStart=deliverySource.indexOf("   $('#dispatch-confirmation').onsubmit=async event=>{");
+const formEnd=deliverySource.indexOf("   $('#dispatch-confirmation textarea')",formStart);
+for(const savedNotice of [true,false]){
+ let toastMessage='',modalClosed=false,error={textContent:'',innerHTML:''},savedPayload;
+ const form={reportValidity:()=>true,querySelector:()=>error};
+ const elements={'#dispatch-confirmation':form,'#message':{},'#order-search-modal':{close:()=>modalClosed=true},'#search':{},'#results':{}};
+ const formContext=vm.createContext({$:selector=>elements[selector],drivers:[{id:17,full_name:'Synthetic Driver'}],
+  selectedOrder:{id:100},dispatchQuote:{order_number:'WEB-TEST',verification:'verified'},board:{today:'2026-10-13'},
+  FormData:class{*[Symbol.iterator](){yield ['driver','17'];}},
+  command:async payload=>{savedPayload=payload;return {ok:true,result:{id:123,driver_notification_saved:savedNotice}};},
+  window:{showPortalToast:options=>toastMessage=options.message},esc:value=>String(value)
+ });
+ vm.runInContext(deliverySource.slice(formStart,formEnd),formContext);
+ await form.onsubmit({preventDefault:()=>{},target:form});
+ assert.equal(error.innerHTML,'');assert.equal(error.textContent,'');assert.equal(modalClosed,true);
+ assert.equal(savedPayload.order,100);assert.equal(savedPayload.driver,'17');
+ assert.match(toastMessage,savedNotice?/Driver notification saved/:/queued for retry/);
+}
+console.log('PASS complete arrangement success handler closes review and accurately reports saved versus queued Driver notice');
