@@ -53,6 +53,12 @@ final class PortalShell
             $footer = (string) ob_get_clean();
             $content = str_replace(['<main class="delivery-main">', '</main>'], ['<section class="delivery-main">', '</section>'], $body[2]);
             $app=basename((string)($_SERVER['SCRIPT_NAME']??''));
+            // The phone app is downloadable from the Driver's normal employee page;
+            // pairing and device administration remain Owner-only.
+            if ((\current_user()['role_key'] ?? '') === 'delivery_driver' || $app === 'driver-view.php') {
+                $downloadBase = htmlspecialchars(BASE_URL, ENT_QUOTES);
+                $content = '<section class="delivery-gps-install" aria-label="Android GPS app" style="padding:16px;margin-bottom:16px;border:1px solid #E4E6DC;border-radius:12px;background:#F8F7F2;font-family:Jost,sans-serif"><h2 style="font-size:16px;font-weight:500;margin:0 0 8px">Hambelela Driver GPS</h2><p style="font-size:12px;margin:0 0 12px">On your Android company phone, download and install the GPS app, then enter the pairing code provided by the Owner. Your deliveries stay here in the portal.</p><a class="primary" style="display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 16px;border-radius:8px;background:#59694A;color:#fff;text-decoration:none;font-size:12px;box-sizing:border-box" href="'.$downloadBase.'/apps/delivery/driver/hambelela-driver-gps-1.0.0.apk" download>Download Android GPS app</a> <a style="display:inline-flex;align-items:center;min-height:40px;color:#344126;font-size:12px" href="'.$downloadBase.'/apps/delivery/tracking-notice.php">GPS data notice</a></section>'.$content;
+            }
             $names=['workspace.php'=>'Front Operations','accounting.php'=>'Accounting','pricing.php'=>'Delivery Pricing','tedlaser.php'=>'Tedlaser','overview.php'=>'Driver oversight','driver-view.php'=>'Driver'];
             if(isset($names[$app]))$content='<nav aria-label="Breadcrumb" style="display:flex;align-items:center;gap:8px;font:400 11px Jost,sans-serif;margin-bottom:12px"><a style="color:#59694A;min-height:42px;display:inline-flex;align-items:center" href="'.htmlspecialchars(BASE_URL,ENT_QUOTES).'/apps/delivery/index.php">Back to Delivery</a><span aria-hidden="true">›</span><span>'.$names[$app].'</span></nav>'.$content;
             if((\current_user()['role_key']??'')==='delivery_driver')$content.='<script defer src="'.htmlspecialchars(BASE_URL,ENT_QUOTES).'/apps/delivery/driver/pwa.js?v='.filemtime(BASE_PATH.'/apps/delivery/driver/pwa.js').'"></script>';
