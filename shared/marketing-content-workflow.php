@@ -147,6 +147,11 @@ function marketing_content_edit_config(int $id,?array $previous,array $input): i
     $normalize=static function(array $rows):array{$result=[];foreach($rows as $row)$result[$row['channel_key']]=['channel_key'=>$row['channel_key'],'is_required'=>(int)($row['is_required']??1),'instructions'=>(string)($row['instructions']??''),'scheduled_at'=>$row['scheduled_at']??null];ksort($result);return array_values($result);};
     $beforeChannels=$normalize($previous['_channels']??[]);$afterChannels=$normalize($channelSnapshot->fetchAll());if($beforeChannels!==$afterChannels)$changes['channels']=['before'=>$beforeChannels,'after'=>$afterChannels];
     if($previous&&!$changes)return 0;
+    if($previous&&$previous['status']==='ready_for_review'&&empty($after['approval_required'])) {
+        $clock=marketing_review_clock($previous);$now=marketing_now();
+        db()->prepare("UPDATE marketing_work_items SET status='in_progress',reviewed_at=?,reviewed_by=?,review_paused_seconds=review_paused_seconds+?,review_wait_seconds=review_wait_seconds+? WHERE id=?")->execute([$now,marketing_employee_id(),$clock['review_seconds'],$clock['review_seconds'],$id]);
+        $after=marketing_execution_item($id);$changes['review_closed']=['reason'=>'Owner removed the review requirement','review_duration_seconds'=>$clock['review_seconds']];
+    }
     if($previous&&$previous['status']==='ready_for_review'&&($previous['due_at']??null)!==($after['due_at']??null)&&!empty($previous['due_at'])&&!empty($after['due_at'])) {
         $zone=new DateTimeZone('Africa/Windhoek');$extension=(new DateTimeImmutable($after['due_at'],$zone))->getTimestamp()-(new DateTimeImmutable($previous['due_at'],$zone))->getTimestamp();
         db()->prepare('UPDATE marketing_work_items SET review_remaining_seconds=review_remaining_seconds+? WHERE id=?')->execute([$extension,$id]);

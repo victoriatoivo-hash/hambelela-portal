@@ -217,7 +217,7 @@ function marketing_execution_save(array $input): void
         marketing_activity($item,'Prepared channel progress saved. '.trim((string)($input['note']??'')));$event=(int)db()->lastInsertId();
         db()->commit();marketing_work_evidence(marketing_execution_item((int)$item['id']),$event,'marketing_progress_saved',['required_channel_count'=>count($rows),'publication_evidence_required'=>($item['deliverable_mode']??'publish')==='publish']);
     }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw $e;}
-    if($workflow!=='')marketing_content_action((int)$item['id'],$workflow,(string)($input['note']??''));
+    if($workflow!=='')marketing_content_action((int)$item['id'],$workflow,(string)($input['review_note']??$input['note']??''));
 }
 
 /** Same controls in Create, Edit and requirements; inactive evidence is retained. */
