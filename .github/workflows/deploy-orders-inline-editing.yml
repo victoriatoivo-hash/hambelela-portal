@@ -5,7 +5,7 @@ on:
       mode:
         type: choice
         required: true
-        options: [inspect, test]
+        options: [inspect, test, preflight, deploy]
       approved_sha:
         type: string
         required: true
@@ -13,6 +13,34 @@ concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
 jobs:
+  release:
+    if: inputs.mode == 'preflight' || inputs.mode == 'deploy'
+    needs: [android, marketing]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+      - name: Guarded Delivery GPS delta
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          RELEASE_MODE: ${{ inputs.mode }}
+          RELEASE_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/delivery-tracking-deploy.py "$RELEASE_MODE" "$RELEASE_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: delivery-gps-release-${{ github.run_id }}
+          retention-days: 3
+          path: |
+            delivery-gps-backup.zip
+            delivery-gps-deploy-report.json
   android:
     runs-on: ubuntu-latest
     timeout-minutes: 20
