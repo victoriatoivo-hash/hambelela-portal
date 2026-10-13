@@ -1,14 +1,14 @@
 {
   "shared/marketing.php": "6362e947c50ae274335bcfe4abf83d3a1f11e777a9ac1fb8f5c26d85dcdc58d0",
   "shared/marketing-execution.php": "a781907e388b5e9a014d2f6d8e3f760d72648ad0a6f80d8f1f3ba600199aa7e2",
-  "shared/marketing-workspace.php": "18824fc8c13807b61433e56f616604a9cd963c7fd29ce5e963b7459bb00c6fb2",
-  "apps/marketing/index.php": "b68965a34ec640fd36c51da87939ae12e245efe17e7f4ee5030f61368d4472a6",
+  "shared/marketing-workspace.php": "6f12bd3425933e20afd0d5c615eb15c4b53b5f9ab82adbca8666fe5e1808b566",
+  "apps/marketing/index.php": "8702510d9ea43ea762225cbbd162291ec18bbbb816626a098e9221c5d5ce765c",
   "apps/marketing/execution.php": "d682ba908c7694c659b68fd704e274f5937a74890c6b5b39719e5ccd2e4994ed",
-  "apps/marketing/employee-workspace.php": "155a6dcb97b3486c69945c350a909e0cdc5d30044246da6e1c3f86ac1d18eb65",
+  "apps/marketing/employee-workspace.php": "596231d49b46456832ed41232d9637d8bda286096d544264354a3c9b85e8e1ec",
   "apps/marketing/app-shell.php": "3e35c5d8c3291e8f0042851d314b4953e24c260e7e4e8f5e2575d61565412253",
   "assets/js/marketing.js": "51bc12a834fe53d7d6ad82848411ec554b85a6f9c3f4b1e4c2cac2ccad528efa",
   "assets/js/marketing-workspace.js": "240875707119b25a557fda0ddea41be920cfceb20ebf3880f9a8a9614e066d13",
-  "assets/css/marketing-workspace.css": "4b0f675aa392c71d11108617f766ef008329a86ae4a762181e16016bd65b8c01",
+  "assets/css/marketing-workspace.css": "1735dd4edb53b2eca5e82358d87fd5c4b8e4f2d735f972038e78538185322c82",
   "assets/css/marketing-execution.css": "d3c446f647e0a9075d8c554498d172dd47dd40cf9d53b866ed9c15e29be833ca",
   "assets/css/marketing.css": "07b60667eac28884c045300fa47185fb74b28ed1963ecc496ad941df606e0297",
   "assets/css/marketing-extras.css": "58b15350b812340f4745aa9434250d120425f86322b8e9a9a3565fc6c8168a03",
@@ -25,5 +25,5 @@
   "shared/header.php": "e83ff644cd1bff735da855a2a598e03fe81d286db205993870eee6bef8e80833",
   "shared/auth.php": "79d3f6f913c68ffee884886762c1ee14a15705b3f037a64128dd3cb415ed5bb3",
   "shared/employee-features.php": "e1de30478241dbcacf5f0f5a94dcf976d7ec7dd6ccbba0d2153925b02ab97ad9",
-  "shared/marketing-content-workflow.php": "c739b000e554a358c356448fb4bbf814db7c3245be1ebc6a98b5ee921c9ed6d0"
+  "shared/marketing-content-workflow.php": "3ce10ca0d140613c8f5f76f3726cab6655c910fa921e0412437ebc7d25c05c42"
 }

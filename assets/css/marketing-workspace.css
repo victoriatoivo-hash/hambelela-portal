@@ -877,11 +877,14 @@ html:has(.media-upload-drawer[open]){overflow:hidden}
 .mk-optional-resources {
   --mk-purple: #9B477E;
   --mk-secondary: #62675E;
+  min-height: 44px;
+  height: max-content;
+  align-self: start;
   margin-top: 10px;
   border: 1px solid var(--mk-border);
   border-radius: 10px;
   background: #FFFFFF;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .mk-optional-resources summary {
