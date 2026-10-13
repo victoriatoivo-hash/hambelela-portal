@@ -6,6 +6,8 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/notifications.php';
 
 $user = current_user();
+require_once __DIR__.'/delivery/DriverMobile.php';
+$driverMobileProfile = \Hambelela\Delivery\DriverMobile::enabled($user ?: []);
 $pageTitle = $pageTitle ?? APP_NAME;
 $activeApp = $activeApp ?? 'dashboard';
 $notifications = [];
@@ -124,7 +126,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <script>window.HambelelaPortalUser={id:<?= (int) ($headerUser['id'] ?? 0) ?>,role:<?= json_encode((string) ($headerUser['role_key'] ?? 'guest')) ?>};</script>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/notifications-ui.css?v=<?= filemtime(BASE_PATH . '/assets/css/notifications-ui.css') ?>">
     <script defer src="<?= BASE_URL ?>/assets/js/notifications-ui.js?v=<?= filemtime(BASE_PATH . '/assets/js/notifications-ui.js') ?>"></script>
-    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/task-assignment-popup.css?v=<?= filemtime(BASE_PATH . '/assets/css/task-assignment-popup.css') ?>">
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-notices.css?v=<?= filemtime(BASE_PATH . '/assets/css/portal-notices.css') ?>">
     <script defer src="<?= BASE_URL ?>/assets/js/task-assignment-popup.js?v=<?= filemtime(BASE_PATH . '/assets/js/task-assignment-popup.js') ?>"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($portalJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php if ($showPortalHeaderStatus): ?>
@@ -135,8 +137,9 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <!-- Task markup is enhanced after parsing; hold first paint until its presentation is ready. -->
     <script defer blocking="render" src="<?= BASE_URL ?>/assets/js/task-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-essentials.js') ?>"></script>
     <?php endif; ?>
+<?php if ($driverMobileProfile): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/driver-mobile.css?v=<?= filemtime(BASE_PATH.'/assets/css/driver-mobile.css') ?>"><?php endif; ?>
 </head>
-<body<?= !empty($isEssDashboard) ? ' class="ess-dashboard"' : '' ?>>
+<body class="<?= !empty($isEssDashboard) ? 'ess-dashboard' : '' ?><?= $driverMobileProfile ? ' is-driver-mobile' : '' ?>">
 <?php if (!empty($user['id'])) { require_once BASE_PATH . '/shared/portal-policy-popup.php'; } ?>
 <div class="shell<?= !empty($isEssDashboard) ? ' ess-dashboard-shell' : '' ?>">
     <?php if ($showPortalHeaderStatus): ?>
@@ -144,6 +147,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                  data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>"
                  data-notification-endpoint="<?= htmlspecialchars(BASE_URL . '/api/notifications.php?mode=summary', ENT_QUOTES, 'UTF-8') ?>">
             <div class="portal-header-actions">
+            <?php if ($driverMobileProfile): ?><nav class="driver-mobile-account" aria-label="Driver account"><a href="<?= BASE_URL ?>/profile.php" aria-label="My Account"><i data-lucide="user-round" aria-hidden="true"></i></a><a href="<?= BASE_URL ?>/login.php?action=logout" aria-label="Logout"><i data-lucide="log-out" aria-hidden="true"></i></a></nav><?php endif; ?>
             <div class="portal-header-action portal-online-widget portal-online-staff" data-portal-online-widget data-online-staff-button
                  role="button" tabindex="0" aria-label="Online employees" aria-expanded="false">
                 <div class="portal-online-avatars" data-portal-online-avatars></div>

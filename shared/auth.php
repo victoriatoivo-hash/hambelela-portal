@@ -191,6 +191,11 @@ function refresh_logged_in_user(): void
             return;
         }
 
+        require_once BASE_PATH . '/shared/employee-account-editor.php';
+        try {
+            if (employee_account_session_revoked(db(), $id, (string) ($_SESSION['authenticated_at'] ?? ''))) { logout_user(); return; }
+        } catch (Throwable $revokeError) { logout_user(); return; }
+
         $_SESSION['user'] = [
             'id' => (int) $employee['id'],
             'name' => $employee['full_name'],

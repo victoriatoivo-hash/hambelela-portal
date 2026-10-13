@@ -38,7 +38,7 @@ function packing_unit_meta(string $unit): ?array
     if (in_array($clean, ['ml', 'milliliter', 'millilitre', 'milliliters', 'millilitres'], true)) {
         return ['dimension' => 'volume', 'factor' => 1.0];
     }
-    if (in_array($clean, ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units', 'label', 'labels', 'bottle', 'bottles', 'jar', 'jars', 'pack', 'packs', 'individualitem', 'individualitems'], true)) {
+    if (in_array($clean, ['pc', 'pcs', 'piece', 'pieces', 'unit', 'units', 'label', 'labels', 'bottle', 'bottles', 'jar', 'jars', 'pack', 'packs', 'individualitem', 'individualitems', 'pouch', 'pouches', 'teabag', 'teabags'], true)) {
         return ['dimension' => 'count', 'factor' => 1.0];
     }
 
@@ -51,7 +51,7 @@ function packing_instructions_notes(string $notes, array $fields): string
     $action = (string)($fields['packing_action'] ?? 'pack_as_supplied');
     if (!in_array($action, $actions, true)) throw new RuntimeException('Choose a valid packing action.');
     $data = ['packing_action'=>$action];
-    foreach (['labelling_instructions','repacking_instructions'] as $key) {
+    foreach (['general_instructions','labelling_instructions','repacking_instructions'] as $key) {
         $data[$key] = trim((string)($fields[$key] ?? ''));
         if (strlen($data[$key]) > 2000) throw new RuntimeException('Keep each packing instruction under 2,000 characters.');
     }
@@ -62,29 +62,27 @@ function packing_instructions_notes(string $notes, array $fields): string
 
 function packing_quantity_plan_stats(string $quantityPlan): array
 {
-    $empty = ['totals'=>['weight'=>0.0,'volume'=>0.0,'count'=>0.0], 'size_count'=>0, 'package_count'=>0.0, 'matched_text'=>''];
-    $stats = $empty;
-    // Parse only the dedicated quantity field, never free-text packing instructions.
-    $units = 'kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\\s+items?';
-    // Preserve legacy count(size) and space-separated measured allocations.
-    $quantityPlan = preg_replace('/(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*('.$units.')\s*\)/i', '$2$3($1)', $quantityPlan);
-    $quantityPlan = preg_replace('/\)\s*(?=\d)/', '),', $quantityPlan);
-    foreach (preg_split('/[,;+\\n]+/', trim($quantityPlan)) ?: [] as $part) {
-        if (!preg_match('/^\\s*(\\d+(?:\\.\\d+)?)\\s*('.$units.')?\\s*(?:[x*]\\s*(\\d+)|\\(\\s*(\\d+)\\s*\\))?\\s*$/i', $part, $m)) return $empty;
-        $amount = (float)$m[1]; $meta = packing_unit_meta(($m[2] ?? '') ?: 'units');
-        if (!$meta || $amount <= 0) return $empty;
-        $count = (int)(($m[3] ?? '') !== '' ? $m[3] : ($m[4] ?? 1));
-        if ($count <= 0 || ($meta['dimension'] === 'count' && floor($amount) !== $amount)) return $empty;
-        $stats['totals'][$meta['dimension']] += $amount * $meta['factor'] * $count;
-        $stats['package_count'] += $meta['dimension'] === 'count' ? $amount * $count : $count;
-        $stats['size_count']++;
-        $stats['matched_text'] .= ' '.$part;
+    $empty=['totals'=>['weight'=>0.0,'volume'=>0.0,'count'=>0.0],'size_count'=>0,'package_count'=>0.0,'matched_text'=>''];$stats=$empty;
+    $units='kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|pouch(?:es)?|tea\s*bags?|individual\s+items?';
+    $containers='pouch(?:es)?|packs?|bags?|bottles?|jars?';
+    $text=preg_replace('/(\d),(?=\d{3}(?:\D|$))/', '$1', str_replace('×','x',$quantityPlan));
+    $text=preg_replace('/(\d+)\s*(?:units?|pieces?|tea\s*bags?|labels?|bottles?|jars?)\s+per\s+(?:'.$containers.')\s*,?\s*(\d+)\s*(?:'.$containers.')/i','$1 units($2)',$text);
+    $text=preg_replace('/(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*('.$units.')\s*\)/i','$2$3($1)',$text);
+    $text=preg_replace('/\)\s*(?=\d)/','),',$text);
+    foreach(preg_split('/[,;+\n]+/',trim($text))?:[] as $part){
+        if(!preg_match('/^\s*(?:('.$units.')\s+)?(\d+(?:\.\d+)?)\s*('.$units.')?\s*(?:[x*]\s*(\d+)\s*(?:'.$containers.')?|\(\s*(\d+)\s*\))?\s*$/i',$part,$m)||(!empty($m[1])&&!empty($m[3])))return $empty;
+        $meta=packing_unit_meta(($m[3]??'')?:($m[1]?:'units'));$amount=(float)$m[2];$count=(int)(($m[4]??'')?:($m[5]??1));
+        if(!$meta||!is_finite($amount*$count)||$amount<=0||$count<=0||$count>9007199254740991||($meta['dimension']==='count'&&(floor($amount)!==$amount||floor($amount*$count)!==$amount*$count||$amount*$count>9007199254740991)))return $empty;
+        if($meta['dimension']==='count'&&empty($m[4])&&empty($m[5])){$count=$amount;$amount=1;}
+        $stats['totals'][$meta['dimension']]+=$amount*$meta['factor']*$count;
+        $stats['package_count']+=$count;$stats['size_count']++;$stats['matched_text'].=' '.$part;
     }
     return $stats;
 }
 
 function packing_received_stock_base(string $receivedWeight, array $planStats): array
 {
+    $receivedWeight=preg_replace('/(\d),(?=\d{3}(?:\D|$))/', '$1', $receivedWeight);
     preg_match('/(\d+(?:\.\d+)?)/', $receivedWeight, $amountMatch);
     $amount = isset($amountMatch[1]) ? (float) $amountMatch[1] : 0.0;
     preg_match('/\d+(?:\.\d+)?\s*(kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|individual\s+items?)\b/i', $receivedWeight, $unitMatch);
@@ -193,7 +191,7 @@ function packing_invoice_allocation_validation(array $row): array
     if (!$unit) {
         return ['valid' => false, 'message' => 'Unit required.'];
     }
-    $receivedText = (string) ($row['received_weight'] ?? '');
+    $receivedText = preg_replace('/(\d),(?=\d{3}(?:\D|$))/', '$1', (string) ($row['received_weight'] ?? ''));
     preg_match('/\d+(?:\.\d+)?/', $receivedText, $amountMatch);
     $receivedAmount = isset($amountMatch[0]) ? (float) $amountMatch[0] : 0.0;
     if ($receivedAmount <= 0) {
@@ -202,7 +200,7 @@ function packing_invoice_allocation_validation(array $row): array
     $plan = packing_quantity_plan_stats((string) ($row['quantity_planned'] ?? ''));
     if ((int) ($plan['size_count'] ?? 0) <= 0) {
         $planText = trim((string) ($row['quantity_planned'] ?? ''));
-        return ['valid' => false, 'message' => $planText === '' ? 'Quantity to pack is required.' : "Could not understand: “{$planText}”. Include a pack-size unit and quantity count, for example 100g(20) or 100g x20."];
+        return ['valid' => false, 'message' => $planText === '' ? 'Quantity to pack is required.' : "Could not understand: “{$planText}”. Use size × pack count, for example 50 units(20) or 100g(20). Put unrelated numbers in Notes."];
     }
     $dimension = (string) $unit['dimension'];
     foreach ((array) $plan['totals'] as $planDimension => $value) {

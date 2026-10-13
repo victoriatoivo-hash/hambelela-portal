@@ -23,7 +23,7 @@ function portal_feature_permissions(): array
             'dashboard', 'orders', 'bookkeeping', 'cash_tools', 'packing_list',
             'inventory', 'pos_reports', 'kpi_dashboard', 'task_management',
             'error_log', 'settings', 'notifications', 'courier', 'hr',
-            'operations', 'barcode', 'system_issues', 'accounts', 'input_vat', 'marketing',
+            'operations', 'barcode', 'system_issues', 'accounts', 'input_vat', 'marketing', 'payment_reconciliation',
         ],
         'front_desk_admin' => [...$employeeModules, 'error_log', 'input_vat'],
         'front_desk_admin_employee' => [...$employeeModules, 'error_log', 'input_vat'],
@@ -102,6 +102,9 @@ function portal_user_can_access_feature(string $featureKey, ?array $user = null)
     $roleKey = (string) ($user['role_key'] ?? 'guest');
     if (normalise_portal_role($roleKey) === 'delivery_driver') return portal_role_can_access_feature($roleKey, $featureKey);
 
+    // Independent receipt confirmation cannot be granted through employee overrides.
+    if ($featureKey === 'payment_reconciliation') return (int) ($user['id'] ?? 0) > 0 && $roleKey === 'owner_admin';
+
     return portal_role_can_access_feature($roleKey, $featureKey)
         || portal_user_has_feature_override($featureKey, $user);
 }
@@ -115,6 +118,8 @@ function employee_feature_for_request(string $scriptName): ?array
 {
     $path = strtolower(str_replace('\\', '/', $scriptName));
     $routes = [
+        '/apps/accounts/payment-reconciliation.php' => ['payment_reconciliation', 'Payment Reconciliation'],
+        '/apps/accounts/payment-reconciliation-api.php' => ['payment_reconciliation', 'Payment Reconciliation'],
         '/notifications.php' => ['notifications', 'Notifications'],
         '/apps/operations/orders-board.php' => ['orders', 'Orders'],
         '/apps/operations/orders.php' => ['inventory', 'Inventory'],
@@ -174,6 +179,19 @@ function render_employee_coming_soon_page(string $moduleName): void
 
 function enforce_employee_feature_for_current_request(): void
 {
+    // Reject every reconciliation request before rendering, parsing imports or accessing financial data.
+    $reconciliationFeature = employee_feature_for_request((string) ($_SERVER['SCRIPT_NAME'] ?? ''));
+    if ($reconciliationFeature !== null && $reconciliationFeature[0] === 'payment_reconciliation'
+        && !portal_user_can_access_feature('payment_reconciliation')) {
+        http_response_code(403);
+        header('Cache-Control: no-store');
+        if (substr((string) ($_SERVER['SCRIPT_NAME'] ?? ''), -8) === '-api.php') {
+            header('Content-Type: application/json; charset=utf-8');
+            exit(json_encode(['error' => 'Owner/Admin access required for Payment Reconciliation.']));
+        }
+        exit('Owner/Admin access required for Payment Reconciliation.');
+    }
+
     // Every authenticated employee has their own notices. The app enforces
     // active identity and recipient ownership on every server request.
     $ackPath = (string)($_SERVER['SCRIPT_NAME'] ?? '');
