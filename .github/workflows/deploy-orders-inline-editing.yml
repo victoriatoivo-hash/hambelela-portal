@@ -1,4 +1,4 @@
-name: Packing multi-item workflow source and delta
+name: Marketing workflow source and delta
 on:
   workflow_dispatch:
     inputs:
@@ -60,13 +60,13 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           RELEASE_MODE: ${{ inputs.mode }}
           RELEASE_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/packing-workflow-release.py "$RELEASE_MODE" "$RELEASE_SHA"
+        run: python3 scripts/marketing-workflow-release.py "$RELEASE_MODE" "$RELEASE_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: packing-workflow-${{ github.run_id }}
+          name: marketing-workflow-${{ github.run_id }}
           retention-days: 3
           path: |
-            packing-workflow-live-source.zip
-            packing-workflow-release-report.json
-            packing-workflow-backup.zip
+            marketing-workflow-live-source.zip
+            marketing-workflow-release-report.json
+            marketing-workflow-backup.zip
