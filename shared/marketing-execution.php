@@ -61,7 +61,7 @@ function marketing_employee_action_allowed(string $action): bool
 
 function marketing_work_matches_app(array $item, string $app, bool $pendingOnly = true): bool
 {
-    if ($pendingOnly && in_array($item['status'], ['published','cancelled','ready_for_review'], true)) return false;
+    if ($pendingOnly && in_array($item['status'], ['published','completed','cancelled','ready_for_review'], true)) return false;
     if (in_array($app, ['dashboard','tasks','calendar','library'], true)) return true;
     $channels = ['social'=>['instagram','facebook','tiktok'], 'reels'=>['reels','tiktok'], 'whatsapp'=>['whatsapp'],
         'blog'=>['blog'], 'newsletter'=>['newsletter'], 'website'=>['website']];
@@ -184,59 +184,39 @@ function marketing_execution_progress(array $rows): array
 
 function marketing_execution_save(array $input): void
 {
+    $workflow=(string)($input['workflow_action']??'');
+    if($workflow!==''&&!in_array($workflow,['submit','complete'],true))throw new RuntimeException('Choose a valid employee workflow action.');
     db()->beginTransaction();
     try {
-        $item = marketing_execution_item((int)($input['id'] ?? 0), true);
-        $owner = marketing_is_owner();
-        $rows = marketing_execution_rows($item);
-        $submitted = is_array($input['channels'] ?? null) ? $input['channels'] : [];
-        $allowed = array_column($rows, 'channel_key');
-        if (array_diff(array_keys($submitted), $allowed)) throw new RuntimeException('The channel requirements changed. Refresh this work item.');
-        $saved = [];
-        foreach ($rows as $row) {
-            $key = $row['channel_key'];
-            if (!array_key_exists($key, $submitted)) { $saved[] = $row; continue; }
-            $value = $submitted[$key];
-            if (!is_array($value)) throw new RuntimeException('Invalid channel update.');
-            $completed = !empty($value['completed']);
-            if ($completed && !marketing_execution_ready_to_publish($item)) throw new RuntimeException('Owner approval is required before publishing channel work.');
-            $url = trim((string)($value['proof_url'] ?? ''));
-            if ($completed && $url==='' && trim((string)($value['note']??''))==='') throw new RuntimeException('Add a proof link or completion evidence note for each completed channel.');
-            if ($url !== '' && (!filter_var($url, FILTER_VALIDATE_URL) || !in_array(strtolower((string)parse_url($url,PHP_URL_SCHEME)), ['https','http'], true) || strlen($url)>500)) throw new RuntimeException('Use a valid web link for proof.');
-            $prepared = !empty($value['prepared']) || $completed;
-            db()->prepare('INSERT INTO marketing_channel_execution (item_id,channel_key,instructions,prepared,completed,proof_url,completion_note,updated_by) VALUES (?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE prepared=VALUES(prepared),completed=VALUES(completed),proof_url=VALUES(proof_url),completion_note=VALUES(completion_note),updated_by=VALUES(updated_by)')
-                ->execute([$item['id'],$key,$row['instructions'],(int)$prepared,(int)$completed,$url ?: null,trim((string)($value['note'] ?? '')),marketing_employee_id()]);
-            if((bool)$row['prepared']!==$prepared||(bool)$row['completed']!==$completed){
-                $channelLabel=marketing_execution_channels()[$key]??'Assigned channel';
-                db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name)VALUES(?,?,?,?,?,?)')->execute([$item['id'],$item['status'],$item['status'],$channelLabel.': '.($completed?'Completed':($prepared?'In Progress':'Pending')),marketing_employee_id(),(string)(current_user()['name']??'')]);
-            }
-            $saved[] = ['completed'=>$completed];
+        $item=marketing_execution_item((int)($input['id']??0),true);$owner=marketing_is_owner();$now=marketing_now();$actor=marketing_employee_id();
+        if(in_array($item['status'],['ready_for_review','published','completed','cancelled'],true))throw new RuntimeException('Channel work is read-only while awaiting review or after completion. Notes remain available.');
+        if(!$owner&&in_array($item['status'],['brief','to_create'],true)&&empty($item['work_started_at']))throw new RuntimeException('Select Start Task before saving channel work.');
+        $rows=marketing_execution_rows($item);$submitted=is_array($input['channels']??null)?$input['channels']:[];$allowed=array_column($rows,'channel_key');
+        if(array_diff(array_keys($submitted),$allowed))throw new RuntimeException('The channel requirements changed. Refresh this assignment.');
+        $media=array_map('intval',array_column(marketing_assignment_media((int)$item['id']),'id'));$changed=false;
+        foreach($rows as $row) {
+            $key=$row['channel_key'];if(!array_key_exists($key,$submitted))continue;$value=$submitted[$key];if(!is_array($value))throw new RuntimeException('Invalid channel update.');
+            $label=marketing_execution_channels()[$key]??'Required channel';$completed=!empty($value['completed']);$prepared=!empty($value['prepared'])||$completed;
+            if(($item['deliverable_mode']??'publish')==='prepare'&&$completed&&!$row['completed'])throw new RuntimeException($label.': this is preparation-only work. Use Prepared.');
+            if($completed&&!marketing_execution_ready_to_publish($item))throw new RuntimeException($label.': Owner approval is required before publication.');
+            if(!empty($row['completed'])&&!$completed&&!$owner)throw new RuntimeException($label.': published evidence cannot be removed. Ask Owner for a correction.');
+            $url=trim((string)($value['proof_url']??$row['proof_url']??''));$draft=trim((string)($value['draft_url']??$row['draft_url']??''));$proof=(int)($value['proof_media_id']??$row['proof_media_id']??0);$note=trim((string)($value['note']??$row['completion_note']??''));
+            foreach(['Publication proof link'=>$url,'Draft link'=>$draft] as $field=>$link)if($link!==''&&(strlen($link)>500||!filter_var($link,FILTER_VALIDATE_URL)||!in_array(strtolower((string)parse_url($link,PHP_URL_SCHEME)),['https','http'],true)))throw new RuntimeException($label.' — '.$field.': enter a valid HTTP or HTTPS link.');
+            if($proof&&!in_array($proof,$media,true))throw new RuntimeException($label.': choose a proof file attached to this assignment.');
+            if($completed&&$url===''&&!$proof&&$note==='')throw new RuntimeException($label.': publication requires a URL, attached screenshot or supported evidence note.');
+            if(strlen($note)>10000)throw new RuntimeException($label.': evidence notes must be under 10,000 characters.');
+            $publishedAt=$row['published_at']??null;
+            if($completed&&!$publishedAt){$posted=trim((string)($value['published_at']??''));$publishedAt=$posted!==''?marketing_local_datetime($posted):$now;if($publishedAt>$now)throw new RuntimeException($label.': actual publication time cannot be in the future.');}
+            db()->prepare('INSERT INTO marketing_channel_execution(item_id,channel_key,instructions,prepared,completed,proof_url,completion_note,updated_by,draft_url,proof_media_id,prepared_at,prepared_by,published_at,published_by) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE prepared=VALUES(prepared),completed=VALUES(completed),proof_url=VALUES(proof_url),completion_note=VALUES(completion_note),updated_by=VALUES(updated_by),draft_url=VALUES(draft_url),proof_media_id=VALUES(proof_media_id),prepared_at=COALESCE(prepared_at,VALUES(prepared_at)),prepared_by=COALESCE(prepared_by,VALUES(prepared_by)),published_at=COALESCE(published_at,VALUES(published_at)),published_by=COALESCE(published_by,VALUES(published_by))')->execute([$item['id'],$key,$row['instructions'],(int)$prepared,(int)$completed,$url?:null,$note,$actor,$draft?:null,$proof?:null,$prepared?($row['prepared_at']??$now):null,$prepared?($row['prepared_by']??$actor):null,$completed?$publishedAt:null,$completed?($row['published_by']??$actor):null]);
+            if((bool)$row['prepared']!==$prepared||(bool)$row['completed']!==$completed)marketing_activity($item,$label.': '.($completed?'Published with evidence':($prepared?'Prepared':'Preparation pending')));$changed=true;
         }
-        $status = (string)($input['execution_status'] ?? $item['status']);
-        if(function_exists('marketing_content_action') && $status!==$item['status'] && in_array($status,['in_progress','ready_for_review','approved','changes_requested'],true)) throw new RuntimeException('Use the assignment Start Work, Submit for Review or Owner review action.');
-        $employeeStatuses = ['in_progress','ready_for_review','published'];
-        if (!$owner && $status!==$item['status'] && !in_array($status,$employeeStatuses,true)) throw new RuntimeException('Choose an execution status.');
-        if (!in_array($status,marketing_statuses(),true)) throw new RuntimeException('Choose a valid status.');
-        if ($status==='published') {
-            if (!marketing_execution_ready_to_publish($item)) throw new RuntimeException('Owner approval is required before completion.');
-            $progress = marketing_execution_progress($saved);
-            if (!$progress['total'] || $progress['complete']!==$progress['total']) throw new RuntimeException('Complete every required channel before completing this work item.');
-        }
-        $caption = trim((string)($input['caption'] ?? $item['caption']));
-        if ($status==='ready_for_review' && $item['content_type']!=='idea') {
-            $files=db()->prepare('SELECT COUNT(*) FROM marketing_item_versions WHERE item_id=?');$files->execute([$item['id']]);
-            if (!(function_exists('marketing_assignment_media') ? count(marketing_assignment_media((int)$item['id'])) : (int)$files->fetchColumn())) throw new RuntimeException('Upload the finished content before submitting it for review.');
-            if ($caption==='' && !in_array($item['content_type'],['website_update','product_image','product_listing'],true)) throw new RuntimeException('Add the caption or copy before submitting it for review.');
-        }
-        db()->prepare('UPDATE marketing_work_items SET caption=?,status=?,published_at=IF(?="published",COALESCE(published_at,NOW()),published_at) WHERE id=?')
-            ->execute([$caption,$status,$status,$item['id']]);
-        db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name) VALUES(?,?,?,?,?,?)')
-            ->execute([$item['id'],$item['status'],$status,trim((string)($input['note']??'')) ?: 'Channel execution updated.',marketing_employee_id(),(string)(current_user()['name']??'')]);
-        db()->commit();
-        // A notification outage must not report a committed save as failed.
-        try { marketing_notify((int)$item['id'],$owner?(int)$item['assigned_employee_id']:(int)$item['created_by'],'Marketing work updated',(string)$item['title']); }
-        catch (Throwable $noticeError) { error_log('Marketing update saved; notification unavailable: '.$noticeError->getMessage()); }
-    } catch (Throwable $error) { if (db()->inTransaction()) db()->rollBack(); throw $error; }
+        $requested=(string)($input['execution_status']??$item['status']);if($requested!==$item['status']&&$requested!=='published')throw new RuntimeException('Use the assignment workflow actions to change status.');
+        if($requested==='published')$workflow='complete';
+        db()->prepare('UPDATE marketing_work_items SET caption=? WHERE id=?')->execute([trim((string)($input['caption']??$item['caption'])),$item['id']]);
+        marketing_activity($item,'Prepared channel progress saved. '.trim((string)($input['note']??'')));$event=(int)db()->lastInsertId();
+        db()->commit();marketing_work_evidence(marketing_execution_item((int)$item['id']),$event,'marketing_progress_saved',['required_channel_count'=>count($rows),'publication_evidence_required'=>($item['deliverable_mode']??'publish')==='publish']);
+    }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw $e;}
+    if($workflow!=='')marketing_content_action((int)$item['id'],$workflow,(string)($input['note']??''));
 }
 
 /** Same controls in Create, Edit and requirements; inactive evidence is retained. */

@@ -39,20 +39,23 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Verify packing grammar, distribution and atomic creation
+      - name: Verify Marketing transitions, timers, permissions and popup persistence
         if: inputs.mode != 'export'
+        env:
+          MARKETING_TEST_DSN: mysql:host=127.0.0.1;port=3306
+          MARKETING_TEST_PASSWORD: synthetic-ci-password
         run: |
-          node --check assets/js/packing-list.js
-          php -l apps/operations/consignments.php
-          php -l apps/operations/packing-list-action.php
-          node tests/packing-quantity.mjs
-          php tests/packing-quantity.php
-          node tests/packing-wizard.mjs
-          php tests/packing-wizard.php
-          php tests/packing-wizard-batch.php
-          node tests/packing-multi-manual-static.mjs
-          node tests/packing-invoice-two-stage-workflow-static.mjs
-          node tests/packing-invoice-physical-workload-static.mjs
+          php tests/marketing-workflow-db.php
+          php tests/notification-session-lock.php
+          node tests/marketing-workflow-clock.mjs
+          node --check assets/js/marketing-workspace.js
+          node --check assets/js/marketing.js
+          node --check assets/js/portal.js
+          php -l apps/marketing/execution.php
+          php -l apps/marketing/index.php
+          php -l shared/marketing-content-workflow.php
+          php -l shared/marketing-execution.php
+          php -l shared/notifications.php
       - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
@@ -70,3 +73,4 @@ jobs:
             marketing-workflow-live-source.zip
             marketing-workflow-release-report.json
             marketing-workflow-backup.zip
+            verification/rendered/

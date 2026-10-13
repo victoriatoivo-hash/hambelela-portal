@@ -1,97 +1,172 @@
 <?php
 declare(strict_types=1);
 
-/** One state machine over the existing Marketing assignment and audit records. */
+/** Additive fields on the existing assignments and channel execution records. */
 function marketing_content_schema(): void {
-    foreach (['work_started_at'=>'DATETIME NULL','work_started_by'=>'INT NULL','review_submitted_at'=>'DATETIME NULL','review_submitted_by'=>'INT NULL','reviewed_at'=>'DATETIME NULL','reviewed_by'=>'INT NULL','review_version_ids'=>'TEXT NULL','deliverable_mode'=>"VARCHAR(20) NOT NULL DEFAULT 'publish'"] as $name=>$type) {
-        if (!marketing_column_exists('marketing_work_items',$name)) db()->exec("ALTER TABLE marketing_work_items ADD COLUMN `$name` $type");
-    }
+    $columns=['work_started_at'=>'DATETIME NULL','work_started_by'=>'INT NULL','review_submitted_at'=>'DATETIME NULL','review_submitted_by'=>'INT NULL','reviewed_at'=>'DATETIME NULL','reviewed_by'=>'INT NULL','review_version_ids'=>'TEXT NULL','deliverable_mode'=>"VARCHAR(20) NOT NULL DEFAULT 'publish'",'preparation_evidence_required'=>'TINYINT NOT NULL DEFAULT 0','review_remaining_seconds'=>'BIGINT NULL','review_paused_seconds'=>'BIGINT NOT NULL DEFAULT 0','review_wait_seconds'=>'BIGINT NOT NULL DEFAULT 0','completed_at'=>'DATETIME NULL','completed_by'=>'INT NULL','published_by'=>'INT NULL','media_source'=>"VARCHAR(30) NOT NULL DEFAULT 'portal'",'media_link'=>'VARCHAR(1000) NULL'];
+    $columns['review_clock_version']='INT NOT NULL DEFAULT 0';
+    foreach($columns as $name=>$type) if(!marketing_column_exists('marketing_work_items',$name)) db()->exec("ALTER TABLE marketing_work_items ADD COLUMN `$name` $type");
+    foreach(['prepared_at'=>'DATETIME NULL','prepared_by'=>'INT NULL','published_at'=>'DATETIME NULL','published_by'=>'INT NULL','draft_url'=>'VARCHAR(500) NULL','proof_media_id'=>'BIGINT UNSIGNED NULL'] as $name=>$type) if(!marketing_column_exists('marketing_channel_execution',$name)) db()->exec("ALTER TABLE marketing_channel_execution ADD COLUMN `$name` $type");
+    // Recover the known most recent legacy review interval once, without rewriting
+    // deadlines, worker identities, history, status or the original updated_at.
+    db()->exec("UPDATE marketing_work_items SET review_paused_seconds=IF(status IN('approved','scheduled','changes_requested') AND reviewed_at IS NOT NULL AND review_submitted_at IS NOT NULL,GREATEST(0,TIMESTAMPDIFF(SECOND,review_submitted_at,reviewed_at)),review_paused_seconds),review_wait_seconds=review_paused_seconds,review_clock_version=1,updated_at=updated_at WHERE review_clock_version=0");
 }
 
 function marketing_content_label(string $status): string {
-    return ['brief'=>'New','to_create'=>'New','in_progress'=>'In Progress','ready_for_review'=>'Awaiting Owner Review','changes_requested'=>'Changes Requested','approved'=>'Approved','scheduled'=>'Scheduled','published'=>'Completed','cancelled'=>'Cancelled'][$status] ?? ucwords(str_replace('_',' ',$status));
+    return ['brief'=>'New','to_create'=>'New','in_progress'=>'In Progress','ready_for_review'=>'Awaiting Owner Review','changes_requested'=>'Changes Requested','approved'=>'Approved','scheduled'=>'Scheduled','published'=>'Published / Completed','completed'=>'Completed','cancelled'=>'Cancelled'][$status] ?? ucwords(str_replace('_',' ',$status));
+}
+
+function marketing_review_clock(array $item, ?string $now=null): array {
+    $now=$now?:marketing_now();$zone=new DateTimeZone('Africa/Windhoek');
+    $epoch=static function(?string $v)use($zone):?int {return $v?(new DateTimeImmutable($v,$zone))->getTimestamp():null;};
+    $at=$epoch($now);$due=$epoch($item['due_at']??null);$paused=(int)($item['review_paused_seconds']??0);
+    $review=$item['status']==='ready_for_review';$submitted=$epoch($item['review_submitted_at']??null);
+    $remaining=$due===null?null:($review?(isset($item['review_remaining_seconds'])?(int)$item['review_remaining_seconds']:$due+$paused-($submitted??$at)):$due+$paused-$at);
+    return ['remaining_seconds'=>$remaining,'paused'=>$review,'review_seconds'=>$review&&$submitted!==null?max(0,$at-$submitted):0,'effective_due'=>$due===null?null:(new DateTimeImmutable('@'.($due+$paused)))->setTimezone($zone)->format('Y-m-d H:i:s'),'review_total_seconds'=>(int)($item['review_wait_seconds']??0)];
+}
+
+function marketing_clock_markup(array $item): string {
+    $clock=marketing_review_clock($item);
+    $wait=$clock['paused']?'<small data-review-wait="'.marketing_e(marketing_time_iso($item['review_submitted_at']??null)).'"></small>':'';
+    return '<span class="mk-countdown mk-wf-countdown" data-due="'.marketing_e(marketing_time_iso($clock['effective_due'])).'" data-submitted="'.marketing_e(marketing_time_iso($item['review_submitted_at']??null)).'" data-remaining="'.marketing_e($clock['remaining_seconds']===null?'':(string)$clock['remaining_seconds']).'" data-status="'.marketing_e($item['status']).'" data-completed="'.marketing_e(marketing_time_iso($item['completed_at']??$item['published_at']??null)).'"></span>'.$wait;
+}
+
+function marketing_work_evidence(array $item,int $event,string $action,array $metadata=[]): void {
+    // Marketing evidence belongs in the existing Portal Activity stream. No new scoring rules.
+    try {
+        $bootstrap=BASE_PATH.'/shared/epi/bootstrap.php';if(!is_file($bootstrap))return;require_once $bootstrap;
+        \Hambelela\EPI\Performance::configure(db());if(!\Hambelela\EPI\Performance::enabled())return;
+        $at=new DateTimeImmutable(marketing_now(),new DateTimeZone('Africa/Windhoek'));
+        $meta=array_merge(['marketing_assignment_id'=>(int)$item['id'],'assigned_employee_id'=>(int)$item['assigned_employee_id'],'actor_id'=>marketing_employee_id(),'original_deadline'=>$item['due_at']??null,'review_paused_seconds'=>(int)($item['review_paused_seconds']??0),'excluded_from_scoring'=>true,'source_module'=>'Marketing'],$metadata);
+        $base=['module'=>'Portal Activity','reference_number'=>'MARKETING-'.$item['id'],'employee_id'=>(int)$item['assigned_employee_id'],'timestamp'=>$at,'activity_source'=>'marketing_item_history','metadata'=>$meta];
+        \Hambelela\EPI\Performance::recordActivity($base+['activity_type'=>$action,'description'=>marketing_content_label($item['status']),'deduplication_key'=>hash('sha256','marketing-activity:'.$event)]);
+        \Hambelela\EPI\Performance::recordEvidence($base+['action'=>$action,'action_description'=>marketing_content_label($item['status']),'deduplication_key'=>hash('sha256','marketing-evidence:'.$event)]);
+    }catch(Throwable $e){error_log('Marketing performance evidence unavailable: '.$e->getMessage());}
+}
+
+function marketing_media_reference(string $source,string $link): array {
+    if(!in_array($source,['portal','shared_folder','external_file'],true))throw new RuntimeException('Choose a valid Media Source.');
+    $link=trim($link);
+    if($source!=='portal'&&$link==='')throw new RuntimeException('Media link: paste the shared folder or external file link.');
+    if($link!==''&&(strlen($link)>1000||!filter_var($link,FILTER_VALIDATE_URL)||!in_array(strtolower((string)parse_url($link,PHP_URL_SCHEME)),['https','http'],true)||parse_url($link,PHP_URL_USER)!==null||parse_url($link,PHP_URL_PASS)!==null))throw new RuntimeException('Media link: use an HTTP or HTTPS link without embedded login credentials.');
+    return [$source,$link?:null];
+}
+
+function marketing_media_source_save(int $id,string $source,string $link): void {
+    [$source,$link]=marketing_media_reference($source,$link);db()->beginTransaction();
+    try {
+        $item=marketing_execution_item($id,true);if(in_array($item['status'],['cancelled','published','completed'],true)&&!marketing_is_owner())throw new RuntimeException('Completed media references are read-only.');
+        db()->prepare('UPDATE marketing_work_items SET media_source=?,media_link=? WHERE id=?')->execute([$source,$link,$id]);marketing_activity($item,'Media reference updated — previous: '.json_encode(['source'=>$item['media_source']??'portal','link'=>$item['media_link']??null]).' — new: '.json_encode(['source'=>$source,'link'=>$link]));db()->commit();
+    }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw $e;}
 }
 
 function marketing_content_mode(int $id,string $mode): void {
-    marketing_require_owner();
-    if(!in_array($mode,['publish','prepare'],true))throw new RuntimeException('Choose content preparation or publication.');
+    marketing_require_owner();if(!in_array($mode,['publish','prepare'],true))throw new RuntimeException('Choose content preparation or publication.');
     db()->prepare('UPDATE marketing_work_items SET deliverable_mode=? WHERE id=?')->execute([$mode,$id]);
 }
 
+function marketing_prepared_valid(array $item): void {
+    $rows=marketing_execution_rows($item);if(!$rows)throw new RuntimeException('No required channels are configured. Ask Owner to update this brief.');
+    foreach($rows as $row)if(empty($row['prepared']))throw new RuntimeException((marketing_execution_channels()[$row['channel_key']]??'Required channel').': mark Prepared before submitting.');
+    if(!empty($item['preparation_evidence_required'])&&!marketing_assignment_media((int)$item['id'])&&empty($item['media_link'])) {
+        foreach($rows as $row)if(!empty($row['draft_url']))return;
+        throw new RuntimeException('Draft evidence is required by this brief. Attach media or provide a draft/shared-file link.');
+    }
+}
+
+function marketing_publication_valid(array $item): void {
+    if(!marketing_execution_ready_to_publish($item))throw new RuntimeException('Owner approval is required before publication.');
+    $rows=marketing_execution_rows($item);if(!$rows)throw new RuntimeException('No required channels are configured.');
+    foreach($rows as $row) {
+        $label=marketing_execution_channels()[$row['channel_key']]??'Required channel';
+        if(empty($row['completed']))throw new RuntimeException($label.': mark Published and save the channel first.');
+        if(empty($row['proof_url'])&&empty($row['proof_media_id'])&&trim((string)($row['completion_note']??''))==='')throw new RuntimeException($label.': add a publication URL, attached screenshot or supported evidence note.');
+    }
+}
+
 function marketing_content_action(int $id,string $action,string $note=''): void {
-    require_once BASE_PATH.'/shared/notifications.php';
-    if (!notifications_schema_ready()) throw new RuntimeException('Notifications are unavailable. Please retry.');
-    db()->beginTransaction();
+    require_once BASE_PATH.'/shared/notifications.php';if(!notifications_schema_ready())throw new RuntimeException('Notifications are unavailable. Please retry.');
+    db()->beginTransaction();$evidence=[];
     try {
-        $item=marketing_execution_item($id,true);$owner=marketing_is_owner();$actor=marketing_employee_id();$now=marketing_now();$status=$item['status'];$next=$status;$note=trim($note);
-        if ($action==='start') {
-            if ((int)$item['assigned_employee_id']!==$actor) throw new RuntimeException('Only the assigned employee can start their work.');
-            if ($item['work_started_at'] && $status==='in_progress') {db()->commit();return;}
-            if (!in_array($status,['brief','to_create','changes_requested','in_progress'],true)) throw new RuntimeException('This assignment cannot be started in its current state.');
-            $next='in_progress';
-            db()->prepare('UPDATE marketing_work_items SET work_started_at=COALESCE(work_started_at,?),work_started_by=COALESCE(work_started_by,?) WHERE id=?')->execute([$now,$actor,$id]);
-            $title='Marketing work started';$note='Work started by the assigned employee.';
-        } elseif ($action==='submit') {
-            if ((int)$item['assigned_employee_id']!==$actor) throw new RuntimeException('Only the assigned employee can submit their work.');
-            if ($status==='ready_for_review') {db()->commit();return;}
-            if (!in_array($status,['in_progress','changes_requested'],true)) throw new RuntimeException('Start work before submitting it for review.');
-            $files=marketing_assignment_media($id);if (!$files) throw new RuntimeException('Upload a draft before submitting for review.');
-            foreach(marketing_execution_rows($item) as $channel) if (empty($channel['prepared'])) throw new RuntimeException('Mark each required channel variant Prepared before submitting. No published link is required for review.');
-            if (trim((string)$item['caption'])==='' && !in_array($item['content_type'],['idea','website_update','product_image','product_listing'],true)) throw new RuntimeException('Save the prepared caption or copy before submitting.');
-            $next='ready_for_review';$title='Marketing content ready for review';
-            db()->prepare('UPDATE marketing_work_items SET review_submitted_at=?,review_submitted_by=?,review_version_ids=?,reviewed_at=NULL,reviewed_by=NULL WHERE id=?')->execute([$now,$actor,json_encode(array_map('intval',array_column($files,'id'))),$id]);
-        } elseif (in_array($action,['approve','request_changes'],true)) {
-            if (!$owner) throw new RuntimeException('Only Owner can review submitted content.');
-            if ($status!== 'ready_for_review') throw new RuntimeException('This submission has already been reviewed or is not ready for review.');
-            if ($action==='request_changes' && $note==='') throw new RuntimeException('Explain the changes required.');
-            $next=$action==='approve'?(($item['deliverable_mode']??'publish')==='prepare'?'published':'approved'):'changes_requested';
-            $title=$action==='approve'?'Marketing content approved':'Marketing changes requested';
-            db()->prepare('UPDATE marketing_work_items SET reviewed_at=?,reviewed_by=? WHERE id=?')->execute([$now,$actor,$id]);
-        } else throw new RuntimeException('Choose a valid workflow action.');
-        db()->prepare('UPDATE marketing_work_items SET status=?,published_at=IF(?="published",COALESCE(published_at,?),published_at) WHERE id=?')->execute([$next,$next,$now,$id]);
-        db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name)VALUES(?,?,?,?,?,?)')->execute([$id,$status,$next,$title.($note?': '.$note:'').($action==='submit'?' · Submitted versions: '.implode(', ',array_column($files,'id')):''),$actor,(string)(current_user()['name']??'')]);
-        $event=(int)db()->lastInsertId();
+        $item=marketing_execution_item($id,true);$owner=marketing_is_owner();$actor=marketing_employee_id();$now=marketing_now();$status=$item['status'];$next=$status;$note=trim($note);$clock=marketing_review_clock($item,$now);$files=[];
+        if($action==='start') {
+            if($owner||(int)$item['assigned_employee_id']!==$actor)throw new RuntimeException('Only the assigned employee can start their work.');
+            if($item['work_started_at']){db()->commit();return;}
+            if(!in_array($status,['brief','to_create','in_progress','changes_requested'],true))throw new RuntimeException('This assignment cannot be started in its current state.');
+            db()->prepare('UPDATE marketing_work_items SET work_started_at=?,work_started_by=? WHERE id=?')->execute([$now,$actor,$id]);$next='in_progress';$title='Marketing work started';
+        }elseif(in_array($action,['submit','complete'],true)) {
+            if($owner||(int)$item['assigned_employee_id']!==$actor)throw new RuntimeException('Only the assigned employee can submit or complete their work.');
+            if($action==='submit'&&$status==='ready_for_review'){db()->commit();return;}
+            if($action==='complete'&&in_array($status,['completed','published'],true)){db()->commit();return;}
+            if(!in_array($status,['in_progress','changes_requested','approved','scheduled'],true))throw new RuntimeException('Start work before submitting or completing it.');
+            if($action==='submit') {
+                if(empty($item['approval_required']))throw new RuntimeException('This brief does not require review. Use Mark Complete.');
+                marketing_prepared_valid($item);$files=marketing_assignment_media($id);$next='ready_for_review';$title='MARKETING CONTENT READY FOR REVIEW';
+                db()->prepare('UPDATE marketing_work_items SET review_submitted_at=?,review_submitted_by=?,review_version_ids=?,review_remaining_seconds=?,reviewed_at=NULL,reviewed_by=NULL WHERE id=?')->execute([$now,$actor,json_encode(array_map('intval',array_column($files,'id'))),$clock['remaining_seconds'],$id]);
+                $evidence=['submitted_late'=>$clock['remaining_seconds']!==null&&$clock['remaining_seconds']<0,'remaining_seconds'=>$clock['remaining_seconds']];
+            }else {
+                if(($item['deliverable_mode']??'publish')==='prepare') {if(!marketing_execution_ready_to_publish($item))throw new RuntimeException('Submit this preparation task for Owner review.');marketing_prepared_valid($item);$next='completed';}
+                else {marketing_publication_valid($item);$next='published';}
+                $title='Marketing work completed';
+            }
+        }elseif(in_array($action,['approve','request_changes'],true)) {
+            if(!$owner)throw new RuntimeException('Only Owner can review submitted content.');
+            if($status!=='ready_for_review')throw new RuntimeException('This submission has already been reviewed or is not ready for review.');
+            if($action==='request_changes'&&$note==='')throw new RuntimeException('Explain the changes required.');
+            if($action==='approve')marketing_prepared_valid($item);
+            $next=$action==='approve'?(($item['deliverable_mode']??'publish')==='prepare'?'completed':'approved'):'changes_requested';$title=$action==='approve'?'Marketing content approved':'Marketing changes requested';
+            db()->prepare('UPDATE marketing_work_items SET reviewed_at=?,reviewed_by=?,review_paused_seconds=review_paused_seconds+?,review_wait_seconds=review_wait_seconds+? WHERE id=?')->execute([$now,$actor,$clock['review_seconds'],$clock['review_seconds'],$id]);
+            $evidence=['review_duration_seconds'=>$clock['review_seconds'],'remaining_at_submission'=>$clock['remaining_seconds']];
+        }else throw new RuntimeException('Choose a valid workflow action.');
+        db()->prepare('UPDATE marketing_work_items SET status=?,completed_at=IF(? IN("published","completed"),COALESCE(completed_at,?),completed_at),completed_by=IF(? IN("published","completed"),COALESCE(completed_by,?),completed_by),published_at=IF(?="published",COALESCE(published_at,?),published_at),published_by=IF(?="published",COALESCE(published_by,?),published_by) WHERE id=?')->execute([$next,$next,$now,$next,$actor,$next,$now,$next,$actor,$id]);
+        db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,$status,$next,$title.($note?': '.$note:'').' · Workflow evidence: '.json_encode($evidence,JSON_UNESCAPED_UNICODE),$actor,(string)(current_user()['name']??'')]);$event=(int)db()->lastInsertId();
         $recipients=$owner?array_filter([(int)$item['assigned_employee_id']]):notifications_role_recipients(['owner_admin']);
-        if ($recipients && !notifications_create(['title'=>$title,'message'=>$item['title'].' · '.(current_user()['name']??'Employee'),'module'=>'marketing','related_type'=>$owner?'marketing_assignment':($action==='submit'?'marketing_review':'marketing_update'),'related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id,'required_delivery'=>true,'deduplication_key'=>'marketing-workflow:'.$event],array_values($recipients))) throw new RuntimeException('The workflow notification could not be saved. Please retry.');
-        db()->commit();
-    } catch(Throwable $e) {if(db()->inTransaction())db()->rollBack();throw $e;}
+        if($recipients&&!notifications_create(['title'=>$title,'message'=>$item['title'].' · '.(current_user()['name']??'Employee'),'module'=>'marketing','related_type'=>$owner?'marketing_assignment':($action==='submit'?'marketing_review':'marketing_update'),'related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id,'required_delivery'=>true,'deduplication_key'=>'marketing-workflow:'.$event],array_values($recipients)))throw new RuntimeException('The workflow notification could not be saved. Please retry.');
+        db()->commit();marketing_work_evidence(marketing_execution_item($id),$event,'marketing_'.$action,$evidence);
+    }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw $e;}
+}
+
+function marketing_content_edit_config(int $id,?array $previous,array $input): int {
+    marketing_require_owner();$item=marketing_execution_item($id,true);
+    $mode=(string)($input['deliverable_mode']??$item['deliverable_mode']);if(!in_array($mode,['prepare','publish'],true))throw new RuntimeException('Choose a valid deliverable.');
+    [$source,$link]=marketing_media_reference((string)($input['media_source']??$item['media_source']),(string)($input['media_link']??$item['media_link']??''));
+    db()->prepare('UPDATE marketing_work_items SET deliverable_mode=?,preparation_evidence_required=?,media_source=?,media_link=? WHERE id=?')->execute([$mode,!empty($input['preparation_evidence_required'])?1:0,$source,$link,$id]);
+    $after=marketing_execution_item($id);$fields=['title','brief','owner_notes','assigned_employee_id','content_type','due_at','publish_at','priority','approval_required','deliverable_mode','preparation_evidence_required','media_source','media_link'];$changes=[];
+    foreach($fields as $key)if(($previous[$key]??null)!==($after[$key]??null))$changes[$key]=['before'=>$previous[$key]??null,'after'=>$after[$key]??null];
+    $channelSnapshot=db()->prepare('SELECT channel_key,is_required,instructions,scheduled_at FROM marketing_channel_execution WHERE item_id=?');$channelSnapshot->execute([$id]);$changes['channels']=['before'=>$previous['_channels']??[],'after'=>$channelSnapshot->fetchAll()];
+    if($previous&&$previous['status']==='ready_for_review'&&($previous['due_at']??null)!==($after['due_at']??null)&&!empty($previous['due_at'])&&!empty($after['due_at'])) {
+        $zone=new DateTimeZone('Africa/Windhoek');$extension=(new DateTimeImmutable($after['due_at'],$zone))->getTimestamp()-(new DateTimeImmutable($previous['due_at'],$zone))->getTimestamp();
+        db()->prepare('UPDATE marketing_work_items SET review_remaining_seconds=review_remaining_seconds+? WHERE id=?')->execute([$extension,$id]);
+    }
+    db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,$previous['status']??null,$after['status'],($previous?'Owner edited assignment':'Owner assigned Marketing work').' · Previous/new values: '.json_encode($changes,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES),marketing_employee_id(),(string)(current_user()['name']??'')]);$event=(int)db()->lastInsertId();
+    if($previous&&!empty($previous['work_started_at'])&&$changes)marketing_notify($id,(int)$after['assigned_employee_id'],'Marketing assignment updated',$after['title'].' — Owner updated the brief, requirements or deadline. Open it to review changes.');
+    return $event;
 }
 
 function marketing_content_rank(array $item,string $now): array {
-    $status=$item['status'];$due=$item['due_at']??'';
-    if ($status==='published')return [8,$item['published_at']??'',(int)$item['id']];
-    if ($status==='cancelled')return [9,'',(int)$item['id']];
-    if ($status==='ready_for_review')return [6,$due,(int)$item['id']];
-    if ($status==='scheduled')return [7,$due,(int)$item['id']];
-    if ($due && $due<$now)return [0,$due,(int)$item['id']];
-    if ($due && substr($due,0,10)===substr($now,0,10))return [1,$due,(int)$item['id']];
-    if ($due && $due<=date('Y-m-d H:i:s',strtotime($now.' +2 days')))return [2,$due,(int)$item['id']];
-    return [$status==='in_progress'||$status==='changes_requested'?3:4,$due?:'9999',(int)$item['id']];
+    if(in_array($item['status'],['published','completed'],true))return [8,$item['completed_at']??$item['published_at']??'',(int)$item['id']];
+    $clock=marketing_review_clock($item,$now);return [$item['status']==='cancelled'?9:($clock['paused']?6:($clock['remaining_seconds']!==null&&$clock['remaining_seconds']<0?0:4)),$item['due_at']??'9999',(int)$item['id']];
 }
 
 function marketing_content_table(array $items,string $active='active'): void {
-    $now=marketing_now();usort($items,fn($a,$b)=>marketing_content_rank($a,$now)<=>marketing_content_rank($b,$now));
-    echo '<section class="hb-marketing mk-work mw-work"><nav class="mk-tabs" aria-label="Assignment views">';
-    foreach(['active'=>'Active Tasks','review'=>'Awaiting Review','scheduled'=>'Scheduled','completed'=>'Completed','history'=>'History']as$key=>$label)echo '<button type="button" data-work-tab="'.$key.'" aria-selected="'.($active===$key?'true':'false').'">'.$label.'</button>';
-    echo '</nav><label class="mk-form-row">Search assignments<input type="search" data-work-search placeholder="Content, employee or channel…"></label><div class="marketing-table-wrap"><table class="mw-table"><thead><tr>';foreach(['Content','Assigned To','Status','Due','Time Left','Progress','Files','Actions']as$h)echo '<th>'.$h.'</th>';echo '</tr></thead><tbody>';
-    foreach($items as$i){
-        $rows=$i['execution_channels']??marketing_execution_rows($i);$p=marketing_execution_progress($rows);$group=['published'=>'completed','cancelled'=>'history','ready_for_review'=>'review','scheduled'=>'scheduled'][$i['status']]??'active';
-        $names=array_map(fn($r)=>marketing_execution_channels()[$r['channel_key']]??'Assigned channel',$rows);
-        $due=marketing_time_iso($i['due_at']??null);$submitted=marketing_time_iso($i['review_submitted_at']??null);
-        echo '<tr data-work-group="'.$group.'"><td><strong>'.marketing_e($i['title']).'</strong><small>'.marketing_e(ucwords(str_replace('_',' ',$i['content_type'])).' · '.implode(', ',$names)).'</small></td><td>'.marketing_e((string)($i['assigned_name']??current_user()['name']??'Assigned employee')).'</td><td><span class="mw-status">'.marketing_e(marketing_content_label($i['status'])).'</span></td><td><time data-human-due="'.marketing_e($due).'" title="'.marketing_e(marketing_display_time($i['due_at']??null)).'">'.marketing_e(marketing_display_time($i['due_at']??null)).'</time></td><td><span class="mk-countdown" data-due="'.marketing_e($due).'" data-submitted="'.marketing_e($submitted).'" data-status="'.marketing_e($i['status']).'" data-completed="'.marketing_e(marketing_time_iso($i['published_at']??null)).'"></span></td><td>'.$p['complete'].' of '.$p['total'].' channels</td><td>'.(int)($i['version_count']??count(marketing_assignment_media((int)$i['id']))).'</td><td><a class="mk-open-assignment" data-assignment-drawer href="'.BASE_URL.'/apps/marketing/execution.php?id='.(int)$i['id'].'">Open assignment</a></td></tr>';
+    $now=marketing_now();usort($items,fn($a,$b)=>marketing_content_rank($a,$now)<=>marketing_content_rank($b,$now));$people=[];foreach($items as $i)$people[(int)$i['assigned_employee_id']]=(string)($i['assigned_name']??current_user()['name']??'Assigned employee');
+    echo '<section class="mk-work mk-workflow mw-work"><nav class="mk-tabs" aria-label="Assignment views">';foreach(['active'=>'Active Tasks','review'=>'Awaiting Review','scheduled'=>'Scheduled','completed'=>'Completed','history'=>'History'] as $key=>$label)echo '<button type="button" data-work-tab="'.$key.'" aria-selected="'.($active===$key?'true':'false').'">'.$label.'</button>';
+    $waiting=count(array_filter($items,fn($i)=>$i['status']==='ready_for_review'));echo '</nav><p class="mk-wf-body-text">Waiting on Owner: <strong>'.$waiting.'</strong> assignment'.($waiting===1?'':'s').' — employee timers paused.</p><div class="mk-wf-filters"><label>Search<input class="mk-wf-input" data-work-search placeholder="Content title, employee or channel"></label><label>Sort<select class="mk-wf-select" data-work-sort><option value="created_desc">Newest assignments</option><option value="created_asc">Oldest assignments</option><option value="due_asc">Due date</option><option value="status_asc">Status</option></select></label><label>Assigned employee<select class="mk-wf-select" data-work-person><option value="">All employees</option>';foreach($people as $id=>$name)echo '<option value="'.$id.'">'.marketing_e($name).'</option>';echo '</select></label><label>Status<select class="mk-wf-select" data-work-status><option value="">All statuses</option>';foreach(marketing_statuses() as $status)echo '<option value="'.$status.'">'.marketing_e(marketing_content_label($status)).'</option>';echo '</select></label></div><div class="mk-wf-table-shell"><table class="mk-wf-table"><thead><tr>';foreach(['Date','Content','Assigned To','Status','Due','Time Left','Progress','Files','Actions'] as $label)echo '<th>'.$label.'</th>';echo '</tr></thead><tbody>';
+    foreach($items as $i) {
+        $rows=$i['execution_channels']??marketing_execution_rows($i);$p=marketing_execution_progress($rows);$prepared=count(array_filter($rows,fn($r)=>!empty($r['prepared'])));$complete=($i['deliverable_mode']??'publish')==='prepare'?$prepared:$p['complete'];$group=['published'=>'completed','completed'=>'completed','cancelled'=>'history','ready_for_review'=>'review','scheduled'=>'scheduled'][$i['status']]??'active';$names=array_map(fn($r)=>marketing_execution_channels()[$r['channel_key']]??'Assigned channel',$rows);$name=(string)($i['assigned_name']??current_user()['name']??'Assigned employee');$href=BASE_URL.'/apps/marketing/execution.php?id='.(int)$i['id'];
+        echo '<tr data-work-group="'.$group.'" data-work-person-id="'.(int)$i['assigned_employee_id'].'" data-work-status-key="'.marketing_e($i['status']).'" data-work-created="'.marketing_e($i['created_at']??'').'" data-work-due="'.marketing_e($i['due_at']??'').'" data-work-search-text="'.marketing_e($i['title'].' '.$name.' '.implode(' ',$names)).'">';
+        $cells=['Date'=>marketing_e(marketing_display_time($i['created_at']??null)),'Content'=>'<a data-assignment-drawer href="'.$href.'"><strong>'.marketing_e($i['title']).'</strong></a><small>'.marketing_e(implode(', ',$names)).'</small>','Assigned To'=>marketing_e($name),'Status'=>'<span class="mk-wf-status '.($i['status']==='ready_for_review'?'is-review':(in_array($i['status'],['completed','published'],true)?'is-complete':'')).'">'.marketing_e(marketing_content_label($i['status'])).'</span>','Due'=>marketing_e(marketing_display_time($i['due_at']??null)),'Time Left'=>marketing_clock_markup($i),'Progress'=>$complete.' of '.$p['total'].(($i['deliverable_mode']??'publish')==='prepare'?' prepared':' published'),'Files'=>(string)($i['version_count']??count(marketing_assignment_media((int)$i['id']))),'Actions'=>'<a class="mk-open-assignment" data-assignment-drawer href="'.$href.'">Open</a>'];foreach($cells as $label=>$value)echo '<td data-label="'.$label.'">'.$value.'</td>';echo '</tr>';
     }
-    echo '</tbody></table></div><p data-work-empty hidden>No assignments in this view.</p></section>';
+    echo '</tbody></table></div><p data-work-empty hidden>No assignments match this view.</p></section>';
 }
 
 function marketing_content_footer(array $item,bool $owner): void {
-    $state=$item['status'];$assigned=(int)$item['assigned_employee_id']===marketing_employee_id();
-    echo '<footer class="mw-details-footer">';
-    if($owner&&$state==='ready_for_review'){
-        echo '<button class="mk-primary" form="mw-workflow" name="workflow_action" value="approve">Approve Content</button><button form="mw-workflow" name="workflow_action" value="request_changes">Request Changes</button>';
-    }elseif($assigned&&in_array($state,['brief','to_create'],true))echo '<button class="mk-primary" form="mw-workflow" name="workflow_action" value="start">Start Work</button><a class="mk-button" href="#instructions">Review Instructions</a>';
-    elseif($assigned&&in_array($state,['in_progress','changes_requested'],true))echo '<button class="mk-primary" form="mw-workflow" name="workflow_action" value="submit">'.($state==='changes_requested'?'Resubmit for Review':'Submit for Review').'</button>';
-    elseif(in_array($state,['approved','scheduled'],true))echo '<button class="mk-primary" form="mw-progress" name="execution_status" value="published">Complete Assignment</button><a class="mk-button" href="#channels">Publish / Schedule &amp; Evidence</a>';
-    elseif($state==='published')echo '<a class="mk-button" href="#activity">View History</a>';
-    else echo '<span>'.marketing_e(marketing_content_label($state)).'</span>';
+    $state=$item['status'];$assigned=!$owner&&(int)$item['assigned_employee_id']===marketing_employee_id();echo '<footer class="mw-details-footer mk-wf-modal-footer">';
+    if($owner&&$state==='ready_for_review')echo '<button class="mk-wf-button mk-wf-button--primary" form="mw-workflow" name="workflow_action" value="approve">Approve</button><button class="mk-wf-button mk-wf-button--secondary" form="mw-workflow" name="workflow_action" value="request_changes">Request Changes</button><a class="mk-wf-button mk-wf-button--secondary" href="#notes">Reply to Employee</a>';
+    elseif($assigned&&in_array($state,['brief','to_create'],true))echo '<button class="mk-wf-button mk-wf-button--primary" form="mw-workflow" name="workflow_action" value="start">Start Task</button>';
+    elseif($assigned&&in_array($state,['in_progress','changes_requested','approved','scheduled'],true)){
+        $review=!empty($item['approval_required'])&&!marketing_execution_ready_to_publish($item);echo '<button class="mk-wf-button mk-wf-button--secondary" form="mw-progress">Save Progress</button><button class="mk-wf-button mk-wf-button--primary" form="mw-progress" name="workflow_action" value="'.($review?'submit':'complete').'">'.($review?'Submit for Review':'Mark Complete').'</button>';
+    }else echo '<span>'.marketing_e(marketing_content_label($state)).'</span>';
+    if($owner&&!in_array($state,['cancelled'],true))echo '<a class="mk-wf-button mk-wf-button--secondary" target="_top" href="index.php?edit='.(int)$item['id'].'">Edit Assignment</a>';
     echo '</footer>';
 }

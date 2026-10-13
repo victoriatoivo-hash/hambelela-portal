@@ -737,6 +737,10 @@ window.addEventListener('DOMContentLoaded', () => {
         ${notification.assigned_name ? `<span class="portal-toast-assignee">Assigned to ${escapeHtml(notification.assigned_name)}</span>` : ''}
         ${notification.due_at ? `<span class="portal-toast-due">Due ${escapeHtml(notification.due_at)}</span>` : ''}`;
       if (isMarketing) {
+        if(notification.related_type==='marketing_review') {
+          if(notification.review_submitted_at)toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Submitted: ${escapeHtml(notification.review_submitted_at)}</p>`);
+          toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Prepared summary: ${escapeHtml(notification.prepared_summary || 'Required channel preparation is ready for review.')}</p>`);
+        }
         if(notification.channels)toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Required channels: ${escapeHtml(notification.channels)}</p>`);
         toast.insertAdjacentHTML('beforeend',`<div class="portal-toast-actions"><button type="button" data-marketing-ack>Got It</button><button type="button" data-marketing-view>${notification.related_type==='marketing_review'?'Review Content':'View Assignment'}</button></div>`);
       }

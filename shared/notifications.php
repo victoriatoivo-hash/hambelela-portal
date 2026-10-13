@@ -1059,7 +1059,7 @@ function notifications_marketing_popups(): array
     $employeeId=notifications_current_employee_id();
     if(!$employeeId||!notifications_schema_ready())return [];
     // Same recipient records as the bell; assignment is rechecked on each poll.
-    return ops_rows("SELECT n.id,n.title,n.message,n.created_at,n.related_id,n.related_type,n.action_link,n.sound_key,w.due_at,w.priority,
+    return ops_rows("SELECT n.id,n.title,n.message,n.created_at,n.related_id,n.related_type,n.action_link,n.sound_key,w.due_at,w.priority,w.review_submitted_at,w.caption AS prepared_summary,(SELECT full_name FROM ops_employees WHERE id=w.assigned_employee_id) AS assigned_name,
         (SELECT GROUP_CONCAT(c.channel_key ORDER BY c.channel_key SEPARATOR ' · ') FROM marketing_channel_execution c WHERE c.item_id=w.id AND c.is_required=1) AS channels
         FROM notifications n JOIN notification_recipients nr ON nr.notification_id=n.id
         JOIN marketing_work_items w ON w.id=n.related_id

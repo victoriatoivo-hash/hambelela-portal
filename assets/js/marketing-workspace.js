@@ -1,11 +1,14 @@
 (()=>{
  'use strict';
- function countdown(due,completed,status,now=Date.now(),submitted){
+ function countdown(due,completed,status,now=Date.now(),submitted,remaining){
   if(status==='cancelled')return {text:'Cancelled',state:''};
-  const end=Date.parse(due),done=Date.parse(submitted||completed);
-  if(status==='published')return {text:'Completed'+(Number.isFinite(done)&&Number.isFinite(end)?(done<=end?' · On time':' · Late'):''),state:''};
-  if(['ready_for_review','approved','scheduled'].includes(status)&&submitted){const onTime=!Number.isFinite(end)||Date.parse(submitted)<=end;return {text:(status==='ready_for_review'?'Awaiting Owner Review':'Submitted')+' · '+(onTime?'On time':'After deadline'),state:''};}
-  if(status==='ready_for_review')return {text:'Awaiting Owner Review',state:''};
+  const end=Date.parse(due),done=Date.parse(completed);
+  if(['published','completed'].includes(status))return {text:'Completed'+(Number.isFinite(done)&&Number.isFinite(end)?(done<=end?' · On time':' · Late'):''),state:''};
+  if(status==='ready_for_review') {
+   const frozen=remaining!==undefined&&remaining!==''?Number(remaining):Number.isFinite(end)&&submitted?(end-Date.parse(submitted))/1000:null;
+   const minutes=frozen===null?null:Math.ceil(Math.abs(frozen)/60);
+   return {text:'Awaiting Owner Review — Employee timer paused'+(minutes===null?'':frozen<0?' · Submitted '+minutes+'m late':' · '+minutes+'m accountable time remaining'),state:'is-paused'};
+  }
   if(!Number.isFinite(end))return {text:'No deadline set',state:''};
   const diff=end-now;if(diff===0)return {text:'Due Now',state:'is-due-soon'};
   const minutes=Math.max(1,Math.ceil(Math.abs(diff)/60000));
@@ -14,17 +17,33 @@
   const today=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek'}).format(new Date(now))===new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek'}).format(new Date(end));
   return {text:diff<=0?'Overdue by '+duration:(today?'Due Today · ':diff<=86400000?'Due Soon · ':'Due Later · ')+duration+' remaining',state:diff<=0?'is-overdue':diff<=86400000?'is-due-soon':''};
  }
- const refresh=()=>document.querySelectorAll('[data-due]').forEach(el=>{const c=countdown(el.dataset.due,el.dataset.completed,el.dataset.status,Date.now(),el.dataset.submitted);el.textContent=c.text;el.classList.toggle('is-overdue',c.state==='is-overdue');el.classList.toggle('is-due-soon',c.state==='is-due-soon');});
+ const refresh=()=>document.querySelectorAll('[data-due]').forEach(el=>{const c=countdown(el.dataset.due,el.dataset.completed,el.dataset.status,Date.now(),el.dataset.submitted,el.dataset.remaining);el.textContent=c.text;el.classList.toggle('is-overdue',c.state==='is-overdue');el.classList.toggle('is-due-soon',c.state==='is-due-soon');el.classList.toggle('is-paused',c.state==='is-paused');});
+ const duration=seconds=>{const minutes=Math.max(0,Math.floor(seconds/60));return Math.floor(minutes/60)+'h '+(minutes%60)+'m';};
+ const reviewTimes=()=>document.querySelectorAll('[data-review-wait]').forEach(el=>{const submitted=Date.parse(el.dataset.reviewWait);el.textContent='Awaiting review for '+duration(Number.isFinite(submitted)?Math.max(0,(Date.now()-submitted)/1000):0);});
  const timeLabels=()=>{
   const now=new Date(),fmt=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek'}),today=fmt.format(now),tomorrow=fmt.format(new Date(+now+86400000));
   document.querySelectorAll('[data-human-due]').forEach(el=>{const d=new Date(el.dataset.humanDue);if(!Number.isFinite(+d))return;const day=fmt.format(d);el.textContent=(day===today?'Today':day===tomorrow?'Tomorrow':new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Windhoek',weekday:'long',day:'numeric',month:'short'}).format(d))+' · '+new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Windhoek',hour:'2-digit',minute:'2-digit',hour12:false}).format(d);});
-  document.querySelectorAll('[data-work-start]').forEach(el=>{const start=Date.parse(el.dataset.workStart),end=Date.parse(el.dataset.workEnd),minutes=Math.max(0,Math.floor(((Number.isFinite(end)?end:Date.now())-start)/60000));el.textContent=Number.isFinite(minutes)?String(Math.floor(minutes/60)).padStart(2,'0')+'h '+String(minutes%60).padStart(2,'0')+'m':'Not recorded';});
- };refresh();timeLabels();setInterval(()=>{refresh();timeLabels();},30000);
+  document.querySelectorAll('[data-work-start]').forEach(el=>{const start=Date.parse(el.dataset.workStart),end=Date.parse(el.dataset.workEnd),minutes=Math.max(0,Math.floor(((Number.isFinite(end)?end:Date.now())-start-Number(el.dataset.reviewPausedSeconds||0)*1000)/60000));el.textContent=Number.isFinite(minutes)?String(Math.floor(minutes/60)).padStart(2,'0')+'h '+String(minutes%60).padStart(2,'0')+'m':'Not recorded';});
+ };refresh();timeLabels();reviewTimes();setInterval(()=>{refresh();timeLabels();reviewTimes();},30000);
  document.querySelectorAll('.mk-work').forEach(root=>{
-  const select=tab=>{root.querySelectorAll('[data-work-tab]').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.workTab===tab)));const term=(root.querySelector('[data-work-search]')?.value||'').trim().toLowerCase();let count=0;root.querySelectorAll('[data-work-group]').forEach(card=>{card.hidden=(tab!=='history'&&card.dataset.workGroup!==tab)||!card.textContent.toLowerCase().includes(term);if(!card.hidden)count++;});root.querySelector('[data-work-empty]').hidden=count>0;};
-  root.querySelector('[data-work-search]')?.addEventListener('input',()=>select(root.querySelector('[aria-selected=true]')?.dataset.workTab||'active'));
-  root.querySelectorAll('[data-work-tab]').forEach(b=>b.addEventListener('click',()=>select(b.dataset.workTab)));select(root.querySelector('[aria-selected=true]')?.dataset.workTab||'active');
+  let tab=root.querySelector('[data-work-tab][aria-selected=true]')?.dataset.workTab||'active';
+  const apply=()=>{
+   const term=(root.querySelector('[data-work-search]')?.value||'').trim().toLowerCase();
+   const person=root.querySelector('[data-work-person]')?.value||'',status=root.querySelector('[data-work-status]')?.value||'';
+   const order=root.querySelector('[data-work-sort]')?.value||'created_desc',rows=[...root.querySelectorAll('[data-work-group]')];let count=0;
+   rows.forEach(row=>{row.hidden=(tab!=='history'&&row.dataset.workGroup!==tab)||(person&&row.dataset.workPersonId!==person)||(status&&row.dataset.workStatusKey!==status)||!(row.dataset.workSearchText||row.textContent).toLowerCase().includes(term);if(!row.hidden)count++;});
+   const [key,direction]=order.split('_');rows.sort((a,b)=>{const field=key==='created'?'workCreated':key==='due'?'workDue':'workStatusKey';const av=a.dataset[field]||(key==='due'?'9999':''),bv=b.dataset[field]||(key==='due'?'9999':'');return av.localeCompare(bv)*(direction==='desc'?-1:1);});
+   const tbody=root.querySelector('tbody');if(tbody)rows.forEach(row=>tbody.append(row));root.querySelector('[data-work-empty]').hidden=count>0;
+   root.querySelectorAll('[data-work-tab]').forEach(button=>button.setAttribute('aria-selected',String(button.dataset.workTab===tab)));
+  };
+  root.querySelectorAll('[data-work-tab]').forEach(button=>button.addEventListener('click',()=>{tab=button.dataset.workTab;apply();}));
+  root.querySelector('[data-work-search]')?.addEventListener('input',apply);root.querySelectorAll('[data-work-sort],[data-work-person],[data-work-status]').forEach(control=>control.addEventListener('change',apply));
+  root.addEventListener('click',event=>{const row=event.target.closest('[data-work-group]');if(!row||event.target.closest('a,button,input,select,textarea'))return;row.querySelector('[data-assignment-drawer]')?.click();});apply();
  });
+ const startPrompt=document.querySelector('[data-mk-start-prompt]');
+ if(startPrompt){startPrompt.querySelector('[data-mk-start-later]').addEventListener('click',()=>startPrompt.close());startPrompt.showModal();}
+ document.addEventListener('submit',event=>{const form=event.target;if(!form.matches('#mw-workflow'))return;const action=event.submitter?.value;if(action==='request_changes'&&!form.querySelector('[name=review_note]').value.trim()){event.preventDefault();form.querySelector('[name=review_note]').setCustomValidity('Explain the changes required.');form.querySelector('[name=review_note]').reportValidity();}});
+ document.querySelector('[name=review_note]')?.addEventListener('input',event=>event.target.setCustomValidity(''));
  let drawer;
  document.addEventListener('click',event=>{
   const ownerOpen=event.target.closest('[data-open-item]');if(ownerOpen){try{const item=JSON.parse(ownerOpen.dataset.openItem);const action=document.querySelector('[data-owner-assignment-link]');if(action)action.href='/apps/marketing/execution.php?id='+Number(item.id);}catch(_){} }

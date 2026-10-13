@@ -22,7 +22,7 @@ if(isset($marketingApps[$view])):$app=$marketingApps[$view];?>
 </header>
 <?php if(!in_array($view,['performance','library'],true)):?>
 <div class="marketing-app-summary">
-<?php foreach(['In this view'=>count($items),'In progress'=>count(array_filter($items,fn($row)=>$row['status']==='in_progress')),'Awaiting approval'=>count(array_filter($items,fn($row)=>in_array($row['status'],['submitted','ready_for_review'],true))),'Published'=>count(array_filter($items,fn($row)=>$row['status']==='published'))]as$label=>$value):?>
+<?php foreach(['In this view'=>count($items),'In progress'=>count(array_filter($items,fn($row)=>$row['status']==='in_progress')),'Awaiting approval'=>count(array_filter($items,fn($row)=>in_array($row['status'],['submitted','ready_for_review'],true))),'Published'=>count(array_filter($items,fn($row)=>in_array($row['status'],['published','completed'],true)))]as$label=>$value):?>
 <article><span><?=marketing_e($label)?></span><strong><?=$value?></strong><small>Loaded workspace records</small></article>
 <?php endforeach;?>
 </div>
