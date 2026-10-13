@@ -1,5 +1,5 @@
 """Read-only baseline capture for the isolated Driver Tracking release."""
-import ftplib, hashlib, io, json, os, secrets, subprocess, sys, time, urllib.parse, urllib.request, zipfile
+import ftplib, hashlib, io, json, os, secrets, subprocess, sys, time, urllib.parse, urllib.request, urllib.error, zipfile
 from pathlib import Path
 FILES = ['shared/delivery/WorkspaceApps.php','shared/delivery/WorkspaceView.php','shared/delivery/PortalShell.php','shared/delivery/DeliveryService.php','shared/delivery/CoreApi.php','shared/delivery/CoreView.php','shared/delivery/EmployeeDriverSession.php','shared/delivery/FrontSession.php','shared/delivery/DeliveryPolicy.php','apps/delivery/index.php','apps/delivery/driver/api.php','apps/delivery/front-api.php','assets/js/delivery-core.js','assets/css/delivery-controls.css']
 mode, sha = sys.argv[1:3]
@@ -27,8 +27,13 @@ try:
         z.writestr('manifest.json',json.dumps(report['hashes'],indent=2))
     try:
         ftp.storbinary('STOR '+bridge,io.BytesIO(code.encode()))
-        request=urllib.request.Request('https://portal.hambelelaorganic.com/'+bridge,data=urllib.parse.urlencode({'token':token}).encode())
-        with urllib.request.urlopen(request,timeout=30) as response:report['host']=json.load(response)
+        request=urllib.request.Request('https://portal.hambelelaorganic.com/'+bridge,data=urllib.parse.urlencode({'token':token}).encode(),headers={'User-Agent':'Hambelela-Deployment-Validator/1.0','Accept':'application/json'})
+        try:
+            with urllib.request.urlopen(request,timeout=30) as response:report['host']=json.load(response)
+        except urllib.error.HTTPError as error:
+            body=error.read()
+            report['http_failure']={'status':error.code,'content_type':error.headers.get('Content-Type'),'body_bytes':len(body),'guard_rejection':len(body)==0}
+            raise
     finally:ftp.delete(bridge)
     report['state']='inspected_no_application_changes'
 finally:
