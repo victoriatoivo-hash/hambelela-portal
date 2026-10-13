@@ -31,12 +31,99 @@ function jobCard(j){
  '<div class="actions">'+controls+front+note+(operational&&['ready','out_for_delivery'].includes(j.status)?action('fail','Could Not Deliver',j.id):'')+
  (!driver&&board.can_arrange&&['ready','failed'].includes(j.status)?action('revise','Rearrange / Edit Address',j.id)+action('cancel','Cancel Delivery',j.id):'')+'</div><details><summary>Details and activity</summary><ol>'+(j.history||[]).map(h=>'<li>'+esc(h.type.replaceAll('_',' '))+' · '+esc(h.actor||'Recorded actor')+' · '+esc(displayDate(h.at))+'<p>'+esc(h.reason)+' '+esc(h.note)+(h.deadline?' · '+esc(h.deadline):'')+'</p></li>').join('')+'</ol></details></article>';
 }
+// This presentation opt-in is supplied by the authenticated PHP shell, not a URL parameter.
+const driverMobileMedia=matchMedia('(max-width: 767px)');
+const mobileProfile=driver&&!oversight&&document.body.classList.contains('is-driver-mobile');
+const driverMobileActive=()=>mobileProfile&&driverMobileMedia.matches;
+const driverDayRequested=new URLSearchParams(location.search).get('view')==='day';
+let mobileFilter='',mobileDetailId=0,lastDayRefresh=0;
+function driverLocalDay(value){
+ if(!value)return '';
+ const date=new Date(String(value).replace(' ','T')+'Z');
+ return Number.isNaN(date.valueOf())?'':new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(date);
+}
+function driverDaySummary(jobs,today){
+ const outstanding=jobs.filter(j=>['ready','out_for_delivery','failed'].includes(j.status));
+ return {
+  assigned:jobs.filter(j=>j.scheduled_date===today&&j.status!=='cancelled').length,
+  completed:jobs.filter(j=>done(j)&&driverLocalDay(j.delivered_at||j.completed_at)===today).length,
+  outstanding:outstanding.length,
+  urgent:outstanding.filter(j=>Number(j.urgent)>0).length,
+  collect:outstanding.filter(j=>sum(j.remaining)>0).length,
+  review:outstanding.filter(j=>j.remaining===null).length
+ };
+}
+function driverCompactRow(j){
+ const urgent=Number(j.urgent)>0&&!done(j);
+ return '<button type="button" class="driver-delivery-row'+(urgent?' is-urgent':'')+'" data-open-mobile-delivery="'+Number(j.id)+'" aria-label="Open '+esc(reference(j))+' for '+esc(j.customer_name)+'">'+
+ '<span class="driver-row-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2 5h12v12H2zM14 9h4l4 4v4h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/></svg></span>'+
+ '<span class="driver-row-content"><span class="driver-row-reference">'+esc(reference(j))+' <span class="driver-source">'+esc(j.source==='partner'?'Tedlaser':'Hambelela')+'</span>'+(urgent?'<span class="driver-urgent">Urgent</span>':'')+'</span><span class="driver-row-customer">'+esc(j.customer_name)+' · '+esc(j.area||'See address')+'</span><span class="driver-row-meta">'+esc(statusLabel(j.status))+' · '+esc(collectionLabel(j))+'</span></span><span class="driver-chevron" aria-hidden="true">›</span></button>';
+}
+function openMobileDelivery(id){
+ const j=board.jobs.find(job=>Number(job.id)===Number(id));if(!j)return;
+ mobileDetailId=Number(id);
+ const content=$('#delivery-details-content');content.innerHTML=jobCard(j);
+ detailsDialog.classList.add('driver-detail-sheet');
+ detailsDialog.querySelector('h2').textContent='Delivery Details';
+ for(const [selector,label] of [['.delivery-customer','Customer'],['.delivery-address','Destination'],['.delivery-deadline','Delivery time'],['.payment-box','Payment'],['.delivery-notes','Notes']]){
+  const anchor=content.querySelector(selector);if(!anchor)continue;const heading=document.createElement('h4');heading.textContent=label;anchor.before(heading);
+ }
+ const call=content.querySelector('a[href^="tel:"]');if(call)call.textContent='Call Customer';
+ const maps=content.querySelector('a[href^="https://www.google.com/maps/"]');if(maps)maps.textContent='Open Google Maps';
+ if(!detailsDialog.open)detailsDialog.showModal();
+}
+function renderDriverMobile(){
+ const day=driverDayRequested, jobs=$('#jobs');
+ document.body.classList.toggle('driver-day-view',day);
+ $('.pagehead h1').textContent=day?'My Delivery Day':'My Deliveries';
+ $('.pagehead .eyebrow').textContent='HAMBELELA DELIVERY';
+ $('.pagehead p').textContent=day?'Today’s totals and activity':'Assigned deliveries and progress';
+ $('#refresh').setAttribute('aria-label','Refresh '+(day?'My Delivery Day':'My Deliveries'));
+ $('#refresh').innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5M5.5 8a7 7 0 0 1 12-3L20 8M4 16l2.5 3a7 7 0 0 0 12-3"/></svg>';
+ let chips=$('#driver-mobile-filters');
+ if(!chips){chips=document.createElement('nav');chips.id='driver-mobile-filters';chips.className='driver-mobile-filters';chips.setAttribute('aria-label','Filter deliveries');viewBar.after(chips);}
+ chips.innerHTML=[['','All'],['urgent','Urgent'],['hambelela','Hambelela'],['partner','Tedlaser'],['collect','Collect']].map(([value,label])=>'<button type="button" data-driver-filter="'+value+'" aria-pressed="'+(mobileFilter===value)+'">'+label+'</button>').join('');
+ chips.onclick=e=>{const b=e.target.closest('[data-driver-filter]');if(!b||busy)return;mobileFilter=b.dataset.driverFilter;boardPage=1;focusedJob=0;load().catch(showError);};
+ jobs.classList.add('driver-delivery-list');
+ if(day){
+  const daily=driverDaySummary(board.jobs,board.today);
+  $('#delivery-totals').innerHTML=[['assigned','Assigned today'],['completed','Completed today'],['outstanding','Outstanding'],['urgent','Urgent'],['collect','To collect']].map(([key,label])=>'<span class="summary-pill"><span>'+label+'</span><strong>'+daily[key]+'</strong></span>').join('');
+  const events=board.jobs.flatMap(j=>(j.history||[]).filter(e=>driverLocalDay(e.at)===board.today).map(e=>({...e,job:j}))).sort((a,b)=>String(b.at).localeCompare(String(a.at)));
+  jobs.innerHTML='<header class="driver-activity-heading"><h2>Delivery activity</h2><span>Today · Namibia time</span></header>'+(daily.review?'<p class="driver-review-note">'+daily.review+' deliveries need payment review. Contact Front for confirmation.</p>':'')+(events.slice(0,30).map(e=>'<button type="button" class="driver-timeline-row" data-open-mobile-delivery="'+Number(e.job.id)+'"><strong>'+esc(reference(e.job))+'</strong><span>'+esc(String(e.type).replaceAll('_',' '))+'</span><time>'+esc(displayDate(e.at))+'</time></button>').join('')||'<p class="empty-state">No delivery activity today.</p>');
+  lastDayRefresh=Date.now();
+ }else{
+  const ordered=board.jobs.filter(matchesView).slice().sort((a,b)=>primaryTab==='completed'?0:Number(b.urgent)-Number(a.urgent));
+  jobs.innerHTML=ordered.map(driverCompactRow).join('')||'<p class="empty-state">No deliveries in this view.</p>';
+ }
+}
+if(mobileProfile){
+ $('#jobs').addEventListener('click',e=>{const row=e.target.closest('[data-open-mobile-delivery]');if(row&&driverMobileActive())openMobileDelivery(Number(row.dataset.openMobileDelivery));});
+ driverMobileMedia.addEventListener('change',()=>{
+  if(!driverMobileActive()){
+   document.body.classList.remove('driver-day-view');$('#jobs').classList.remove('driver-delivery-list');
+   $('.pagehead h1').textContent='Delivery';$('.pagehead .eyebrow').textContent='DELIVERY';$('.pagehead p').textContent='Your deliveries for today.';
+   $('#refresh').textContent='Refresh';$('#refresh').removeAttribute('aria-label');detailsDialog.close();detailsDialog.classList.remove('driver-detail-sheet');
+  }
+  boardPage=1;load().catch(showError);
+ });
+}
+
 async function load(){
  const seq=++loadSequence;
  const state=primaryTab==='completed'?(driver?'driver_completed':'completed'):(driver?'for_delivery':$('#delivery-view').value);
  const query={view:'board',state,source:$('#delivery-source').value,payment:$('#delivery-payment').value,q:$('#delivery-search').value,page:String(boardPage),limit:driver?'20':'50',id:String(focusedJob),driver_id:$('#delivery-driver')?.value||'',area:$('#delivery-area')?.value||'',urgent:$('#delivery-urgent')?.checked?'1':''};
  query.sort=$('#delivery-sort')?.value||'';
+ if(driverMobileActive()){
+  query.page='1';query.limit='200';query.source=['hambelela','partner'].includes(mobileFilter)?mobileFilter:'';query.payment=mobileFilter==='collect'?'collect':'';query.urgent=mobileFilter==='urgent'?'1':'';
+  if(driverDayRequested){query.state='all';query.source='';query.payment='';query.urgent='';query.q='';}
+ }
  const data=await json(api+'?'+new URLSearchParams(query));if(seq!==loadSequence)return;
+ // Use the same assignment-restricted endpoint across all pages; urgent sorting must include every assigned job.
+ if(driverMobileActive()){
+  let batch=data;
+  while(batch.has_more){query.page=String(Number(query.page)+1);batch=await json(api+'?'+new URLSearchParams(query));if(seq!==loadSequence)return;data.jobs.push(...batch.jobs);}
+  data.page=1;data.has_more=false;
+ }
  const removed=[...document.querySelectorAll('#jobs [data-job-id]')].filter(c=>!data.jobs.some(j=>Number(j.id)===Number(c.dataset.jobId)));
  if(removed.length&&!matchMedia('(prefers-reduced-motion: reduce)').matches){removed.forEach(c=>c.classList.add('is-departing'));await new Promise(resolve=>setTimeout(resolve,160));if(seq!==loadSequence)return;}
  board=data;
@@ -45,7 +132,7 @@ async function load(){
  $('#collect select').innerHTML=Object.entries(board.methods).map(([v,t])=>'<option value="'+esc(v)+'">'+esc(t)+'</option>').join('');
  renderBoardDetails();
 }
-async function command(payload){if(oversight)throw Error('Owner oversight is read-only. Use Front Operations for staff actions.');if(busy)throw Error('A save is already in progress.');busy=true;const key=JSON.stringify(payload),uuid=pending.get(key)||crypto.randomUUID();pending.set(key,uuid);document.querySelectorAll('button').forEach(b=>b.disabled=true);try{const d=await json(api,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':board.csrf},body:JSON.stringify({...payload,uuid})});pending.delete(key);await load();$('#message').textContent='Saved.';return d;}finally{busy=false;document.querySelectorAll('button').forEach(b=>b.disabled=false);if(board){$('#delivery-prev').disabled=boardPage<=1;$('#delivery-next').disabled=!board.has_more;}}}
+async function command(payload){if(oversight)throw Error('Owner oversight is read-only. Use Front Operations for staff actions.');if(busy)throw Error('A save is already in progress.');busy=true;const key=JSON.stringify(payload),uuid=pending.get(key)||crypto.randomUUID();pending.set(key,uuid);const disabledBefore=[...document.querySelectorAll('button')].map(b=>[b,b.disabled]);disabledBefore.forEach(([b])=>b.disabled=true);try{const d=await json(api,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':board.csrf},body:JSON.stringify({...payload,uuid})});pending.delete(key);if(payload.action==='arrange'){primaryTab='active';boardPage=1;focusedJob=0;clearTimeout(boardSearchTimer);viewBar.querySelectorAll('input,select').forEach(i=>{if(i.type==='checkbox')i.checked=false;else i.value=i.id==='delivery-view'?'active':i.id==='delivery-sort'?'newest':'';});}try{await load();$('#message').textContent='Saved.';}catch(err){d.refreshError=err.message;$('#message').textContent='Saved successfully, but the list could not refresh: '+err.message;}try{localStorage.setItem('delivery-board-changed',String(Date.now()));}catch(_){}return d;}finally{busy=false;disabledBefore.forEach(([b,disabled])=>{if(b.isConnected)b.disabled=disabled;});if(board){$('#delivery-prev').disabled=boardPage<=1;$('#delivery-next').disabled=!board.has_more;}}}
 let searchSequence=0;
 async function search(suggestions=false){
  const seq=++searchSequence;++quoteSequence;
@@ -55,7 +142,7 @@ async function search(suggestions=false){
  searchData=result;
  $('#reviews').textContent=searchData.pending_payment_reviews?`${searchData.pending_payment_reviews} external payment changes require review.`:'';
  const orders=searchData.orders;
- $('#results').innerHTML='<h3 class="suggestions-title">'+(suggestions?'Suggested delivery orders':'Search results')+'</h3>'+orders.map(o=>`<article class="card suggested-order" data-suggestion="${Number(o.id)}"><div class="eyebrow">${esc(o.order_number)}</div><h2>${esc(o.customer_name)}</h2><p>${esc(o.shipping_address||'Address verification pending')}</p><p>${esc(o.status.replaceAll('_',' '))}</p><div data-order-money>${o.active_delivery_id?'Delivery already arranged':'Checking existing fee and payment…'}</div><button class="secondary" data-order="${Number(o.id)}">${o.active_delivery_id?'Open delivery':'Select Order'}</button></article>`).join('')+(!orders.length?'<p>No eligible suggestions. Search for an order above.</p>':'');
+ $('#results').innerHTML='<h3 class="suggestions-title">'+(suggestions?'Suggested delivery orders':'Search results')+'</h3>'+orders.map(o=>`<article class="card suggested-order" data-suggestion="${Number(o.id)}"><div class="eyebrow">${esc(o.order_number)}</div><h2>${esc(o.customer_name)}</h2><p>${esc(o.shipping_address||'Address verification pending')}</p><p>${esc(o.status.replaceAll('_',' '))}</p><div data-order-money>${o.active_delivery_id?'Delivery already arranged':'Checking existing fee and payment…'}</div><button class="secondary" data-order="${Number(o.id)}">${o.active_delivery_id?'Already Added — View Delivery':'Select Order'}</button></article>`).join('')+(!orders.length?'<p>No eligible suggestions. Search for an order above.</p>':'');
  let next=0;
  async function verifyNext(){while(next<orders.length&&seq===searchSequence){const o=orders[next++];if(o.active_delivery_id)continue;try{
   const response=await json(api,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':board.csrf},body:JSON.stringify({action:'quote',source_order:true,order:Number(o.id)})});
@@ -89,9 +176,9 @@ if(!driver){
  $('#open-order-search').onclick=()=>{$('#order-search-modal').showModal();$('#search').value='';$('#search').focus();search(true).catch(e=>$('#reviews').textContent=e.message);};
  $('#search-form').onsubmit=e=>{e.preventDefault();search(!$('#search').value.trim()).catch(e=>$('#reviews').textContent=e.message);};
  $('#results').onclick=async e=>{
-  const open=e.target.closest('[data-order]');if(!open||busy)return;
+  const open=e.target.closest('[data-order]')||e.target.closest('[data-suggestion]')?.querySelector('[data-order]');if(!open||open.disabled||busy)return;
   selectedOrder=searchData.orders.find(o=>Number(o.id)===Number(open.dataset.order));
-  if(selectedOrder.active_delivery_id){$('#order-search-modal').close();focusedJob=Number(selectedOrder.active_delivery_id);boardPage=1;primaryTab='active';$('#delivery-view').value='all';$('#delivery-search').value='';$('#delivery-source').value='';await load();$('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();return;}
+  if(selectedOrder.active_delivery_id){$('#order-search-modal').close();viewBar.querySelectorAll('input,select').forEach(i=>{if(i.type==='checkbox')i.checked=false;else i.value=i.id==='delivery-view'?'all':'';});focusedJob=Number(selectedOrder.active_delivery_id);boardPage=1;primaryTab='active';try{await load();$('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();}catch(err){showError(err);}return;}
   ++searchSequence;const seq=++quoteSequence;open.disabled=true;open.textContent='Checking order…';
   try{
    const response=await json(api,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':board.csrf},body:JSON.stringify({action:'quote',source_order:true,order:Number(selectedOrder.id)})});
@@ -104,9 +191,10 @@ if(!driver){
     (!drivers.length?'<p role="alert">No active verified Driver. Add or activate the employee in Settings.</p>':'')+
     '<p class="form-error" role="alert"></p><button type="submit" class="primary" '+(!drivers.length?'disabled':'')+'>Add to Delivery List</button></form>';
    bindPreference($('#dispatch-confirmation'));
+   $('#dispatch-confirmation').scrollIntoView({block:'start'});
    $('#dispatch-confirmation').onsubmit=async event=>{
     event.preventDefault();const form=event.target;if(!form.reportValidity())return;const fields=Object.fromEntries(new FormData(form));form.querySelector('.form-error').textContent='';
-    try{await command({...fields,action:'arrange',source_order:true,order:Number(selectedOrder.id),date:fields.preference_date||board.today,verification:dispatchQuote.verification});$('#order-search-modal').close();$('#message').textContent='Added to Delivery List. The assigned Driver sees this same delivery.';}
+    try{const result=await command({...fields,action:'arrange',source_order:true,order:Number(selectedOrder.id),date:fields.preference_date||board.today,verification:dispatchQuote.verification});const saved='Added to Delivery List. The assigned Driver receives this same delivery.';$('#message').textContent=saved+(result.refreshError?' Refresh failed: '+result.refreshError:'');$('#search').value='';$('#results').innerHTML='';try{await search(true);$('#reviews').textContent=saved+' Select the next order, or close this panel to view Active Deliveries.';}catch(err){$('#reviews').textContent=saved+' Suggestions could not refresh: '+err.message;}}
     catch(err){form.querySelector('.form-error').textContent=err.message;}
    };
    $('#dispatch-confirmation textarea')?.addEventListener('invalid',()=>{$('.missing-address').open=true;});
@@ -139,6 +227,7 @@ function renderBoardDetails(){
  $('#active-count').textContent=driver?Number(board.metrics?.for_delivery||0):'';$('#completed-count').textContent=driver?Number(board.metrics?.driver_completed||0):'';
  let totals=$('#delivery-totals');if(!totals){totals=document.createElement('section');totals.id='delivery-totals';totals.className='delivery-totals';totals.setAttribute('aria-label','Delivery totals');$('.pagehead').after(totals);}
  totals.innerHTML=(driver?[['for_delivery','For Delivery'],['driver_urgent','Urgent'],['driver_completed','Completed']]:[['ready','Ready'],['urgent','Urgent'],['out_for_delivery','Out for Delivery'],['awaiting_reconciliation','Awaiting Reconciliation'],['completed_today','Completed Today']]).map(([key,label])=>'<span class="summary-pill"><span>'+label+'</span><strong>'+Number(board.metrics?.[key]||0)+'</strong></span>').join('');
+ if(driverMobileActive()){renderDriverMobile();return;}
  const jobs=$('#jobs'),cards=[...jobs.querySelectorAll('[data-job-id]')],groups=new Map();
  cards.forEach(card=>{const j=board.jobs.find(j=>Number(j.id)===Number(card.dataset.jobId));let title;
  if(primaryTab==='completed'&&driver){const date=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek'}).format(new Date((j.delivered_at||j.completed_at||j.updated_at).replace(' ','T')+'Z'));const yesterday=new Date(board.today+'T12:00:00Z');yesterday.setUTCDate(yesterday.getUTCDate()-1);title=date===board.today?'Today':date===yesterday.toISOString().slice(0,10)?'Yesterday':'Earlier';}
@@ -193,7 +282,9 @@ $('#job-action-fields').innerHTML=html;bindPreference($('#job-action-form'));$('
 $('#job-action-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{await command({...Object.fromEntries(f),urgent:f.has('urgent'),action:modalAction,id:Number(selectedJob.id),version:Number(selectedJob.version)});extraDialog.close();}catch(err){e.target.querySelector('.form-error').textContent=err.message;}};
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{if(busy)e.preventDefault();}));
 
+const requestedDelivery=Number(new URLSearchParams(location.search).get('delivery'));if(!driver&&Number.isSafeInteger(requestedDelivery)&&requestedDelivery>0){focusedJob=requestedDelivery;$('#delivery-view').value='all';$('#delivery-source').value='';}
 load().then(()=>{
+ if(focusedJob)$('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();
  if(!driver){
   $('#open-order-search').hidden=!board.can_arrange;
   $('.pagehead h1').textContent='Front Operations';
@@ -205,5 +296,5 @@ load().then(()=>{
  if(!driver&&board.can_accounting){const a=document.createElement('a');a.href='accounting.php';a.className='secondary';a.textContent='Accounting';document.querySelector('.pagehead .actions').append(a);}
  if(!driver&&board.can_manage_access){const more=document.createElement('details');more.className='delivery-more';more.innerHTML='<summary class="secondary">More</summary><nav aria-label="Delivery management">'+[['pricing.php','Delivery pricing'],['reviews.php','Payment reviews'],['driver-view.php','Driver oversight'],['tedlaser.php','Tedlaser submissions']].map(([path,label])=>'<a href="'+path+'">'+label+'</a>').join('')+'</nav>';document.querySelector('.pagehead .actions').append(more);}
 }).catch(e=>$('#message').textContent=e.message);
-function refreshWhenIdle(){if(!document.hidden&&!busy&&!document.querySelector('dialog[open]')&&!document.activeElement?.matches('[data-inline]'))load().catch(e=>$('#message').textContent=e.message);}window.addEventListener('focus',refreshWhenIdle);document.addEventListener('visibilitychange',refreshWhenIdle);setInterval(refreshWhenIdle,15000);
+function refreshWhenIdle(){if(driverMobileActive()&&driverDayRequested&&Date.now()-lastDayRefresh<60000)return;if(!document.hidden&&!busy&&!document.querySelector('dialog[open]')&&!document.activeElement?.matches('[data-inline]'))load().catch(e=>$('#message').textContent=e.message);}window.addEventListener('focus',refreshWhenIdle);window.addEventListener('storage',e=>{if(e.key==='delivery-board-changed')refreshWhenIdle();});document.addEventListener('visibilitychange',refreshWhenIdle);setInterval(refreshWhenIdle,15000);
 })();

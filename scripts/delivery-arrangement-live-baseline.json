@@ -1,0 +1,22 @@
+{
+  "shared/delivery/PortalOrderRepository.php": "723c286bd7d64b512dc4fddb4f2ab8bdf86e8c5fb372a5c8d18b03dee3c343db",
+  "shared/delivery/NotificationOutbox.php": "3899561bd92c0ffb077f83615abf7437d121c5ca9216fd33784482b43a12010b",
+  "apps/delivery/front-api.php": "2d86a306899f0b263d415544a74e886e2d8bac8165a9fefea0d3851c83f24d39",
+  "assets/js/delivery-core.js": "6d143b6fa9f788db645df1909ee7a5d83a8a4f2034d5d45208c21da784f7b797",
+  "shared/delivery/CoreApi.php": "0e7b8c6c4fe1544be6db3368f6cf5f92c9f0c559152df9f48fdb07cdf640b2f0",
+  "shared/delivery/DeliveryArrangement.php": "9aba3087567d863e0cffde10bbf5474ea4aef433570448da32f7df442cf59244",
+  "shared/delivery/WooShippingSource.php": "d256e8d0693cca9beb4223b4cda89af41251cbbace5e9cc9f58427bc423a0440",
+  "shared/delivery/OrderDispatchBalance.php": "0af3fc72e9844d425b2f0b182fcb07681f4b752967877114bef6cc45f78b253a",
+  "shared/delivery/OrderBalanceAdapter.php": "7f3503f9ca1e73469254e8ab115f900e1e76b0c453e491186d3e9d3a81061340",
+  "shared/delivery/FrontSession.php": "8f3a29e0487c1c05c8a2d7d9486dc0478fd7ade1c0a95d39c444191eb11113f6",
+  "shared/delivery/DeliveryPolicy.php": "73ed69c9f4d75a24d9adac00204929442dda5e8109cac2bdc714ef64e6073200",
+  "shared/delivery/DriverAuth.php": "508fd85ecba237ac57b61de4fb30b9774dc47f2697b05b455bdce123f802af0a",
+  "shared/delivery/PortalShell.php": "8b972cdf27dda56ffcf802814a0daa22f38f63c3d05bf2fa8cd6754145e54184",
+  "shared/delivery/CoreView.php": "5816631bd43d1de07c1a660c027e0833a65a580157f050ef38f19c75c57c8d07",
+  "shared/delivery/DriverNotices.php": "f72a4761c231a9053d3bdbd5b10e1da7ab8dc62e21f72640a48f24903612dc48",
+  "apps/delivery/index.php": "33a08d85bdbdb907153049b889c042e75d4fc7d4dec246380a815eb5e7baa72e",
+  "apps/delivery/driver-view.php": "5f654f78d42344ae0c4f23ca0129c30259dcb556792de6ed11491cff446d84dd",
+  "apps/delivery/driver/api.php": "a97f8b761798c8423967ae43cce6b2a37bd27b2475e406778dc788460fe598eb",
+  "shared/notifications.php": "97e4149b1edd74946fcf286958325bb45d966eec1923b79e650320d80b11807d",
+  "assets/js/portal.js": "f328195e172738a5ad81d20b0faa6598a92922208013f32867882eca21b183fe"
+}
