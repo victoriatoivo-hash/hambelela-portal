@@ -6,6 +6,11 @@ require_once __DIR__.'/DeliveryDeadline.php';
 /** Uses the existing notification tables. Never runs schema creation or DDL. */
 final class NotificationOutbox
 {
+ public static function assignmentNotice(\PDO $db,int $job):?int
+ {
+  $s=$db->prepare("SELECT nr.notification_id FROM delivery_outbox o JOIN notifications n ON n.deduplication_key=CONCAT('delivery:',o.event_key) JOIN notification_recipients nr ON nr.notification_id=n.id AND nr.employee_id=o.recipient_employee_id WHERE o.delivery_id=? AND o.event_key=? AND o.delivered_at IS NOT NULL LIMIT 1");
+  $s->execute([$job,'assigned:'.$job]);$id=$s->fetchColumn();return $id===false?null:(int)$id;
+ }
  public static function attempt(\PDO $db):void{try{self::drain($db);}catch(\Throwable $e){error_log('Delivery notification dispatch unavailable: '.get_class($e));}}
  public static function queue(\PDO $db,int $job,int $recipient,string $key,array $payload):void
  {

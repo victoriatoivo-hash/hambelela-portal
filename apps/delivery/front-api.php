@@ -18,7 +18,9 @@ try{
   \Hambelela\Delivery\FrontSession::csrf((string)($_SERVER['HTTP_X_CSRF_TOKEN']??''));
   $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
   if(in_array($body['action']??'',['quote','arrange'],true))$body['source_order']=true;
-  $result=$core->command($actor,$body);\Hambelela\Delivery\NotificationOutbox::attempt(db());echo json_encode(['ok'=>true,'result'=>$result],JSON_THROW_ON_ERROR);exit;
+  $result=$core->command($actor,$body);\Hambelela\Delivery\NotificationOutbox::attempt(db());
+  if(($body['action']??'')==='arrange')$result['driver_notification_saved']=\Hambelela\Delivery\NotificationOutbox::assignmentNotice(db(),(int)$result['id'])!==null;
+  echo json_encode(['ok'=>true,'result'=>$result],JSON_THROW_ON_ERROR);exit;
  }
  if($_SERVER['REQUEST_METHOD']!=='GET'){http_response_code(405);exit;}
 if(($_GET['view']??'')==='board'){echo json_encode($core->board($actor,$_GET)+['csrf'=>$_SESSION['delivery_front_csrf']],JSON_THROW_ON_ERROR);exit;}

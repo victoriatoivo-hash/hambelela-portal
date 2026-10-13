@@ -52,7 +52,9 @@ try{
  foreach([$front,$owner,$driver] as $actor){$board=$core->board($actor,['state'=>'for_delivery']);ok((int)$board['jobs'][0]['id']===$jobId,'Front/Owner/Driver query same persisted delivery');}
  ok($core->board($other,['state'=>'for_delivery'])['total']===0,'another Driver cannot see this delivery');
  ok($core->board($owner,['source'=>'partner'])['total']===0,'Hambelela order does not appear in Tedlaser source');
+ ok(\Hambelela\Delivery\NotificationOutbox::assignmentNotice($db,$jobId)===null,'queued notification is not falsely reported as delivered');
  ok(\Hambelela\Delivery\NotificationOutbox::drain($db)===1&&\Hambelela\Delivery\NotificationOutbox::drain($db)===0,'one committed Driver notification, no duplicate');
+ ok(\Hambelela\Delivery\NotificationOutbox::assignmentNotice($db,$jobId)!==null,'saved Driver recipient receipt is verified from actual notification tables');
  $notice=$db->query('SELECT * FROM notifications')->fetch();
  ok($notice['title']==='NEW DELIVERY ASSIGNED'&&$notice['priority']==='urgent'&&strpos($notice['message'],'Order: WEB-SYNTHETIC')!==false,'Driver notification includes order, customer, area and urgency');
  ok($notice['action_link']==='/apps/delivery/driver/index.php?delivery='.$jobId,'notification opens exact assigned delivery');
