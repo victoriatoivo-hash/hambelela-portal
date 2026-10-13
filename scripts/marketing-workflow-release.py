@@ -56,7 +56,8 @@ try:
                     if d is not None: z.writestr(p,d)
             attempted=[]
             try:
-                for p in sorted(desired, key=lambda p: (p=='shared/header.php',p!='assets/css/portal-notices.css')):
+                dependency_order = ('shared/marketing-content-workflow.php','shared/marketing-execution.php','shared/marketing.php','shared/marketing-workspace.php','shared/notifications.php')
+                for p in sorted(desired, key=lambda p: (dependency_order.index(p) if p in dependency_order else (10 if p.startswith('assets/') else 20),p)):
                     d=desired[p]
                     if read(p)!=before[p]: raise RuntimeError('Concurrent live change: '+p)
                     if d==before[p]: continue

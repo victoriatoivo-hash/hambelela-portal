@@ -1,5 +1,7 @@
 <?php
 declare(strict_types=1);
+// Lets the existing details view remain compatible during the guarded delta cutover.
+if(!defined('MARKETING_PROGRESS_WORKFLOW_ACTIONS'))define('MARKETING_PROGRESS_WORKFLOW_ACTIONS',true);
 
 // Additive execution storage: legacy briefs, files and history are never rewritten.
 function marketing_execution_schema_ready(): void

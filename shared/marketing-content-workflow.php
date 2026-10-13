@@ -182,11 +182,11 @@ function marketing_content_table(array $items,string $active='active'): void {
 }
 
 function marketing_content_footer(array $item,bool $owner): void {
-    $state=$item['status'];$assigned=!$owner&&(int)$item['assigned_employee_id']===marketing_employee_id();echo '<footer class="mw-details-footer mk-wf-modal-footer">';
+    $reviewForm=defined('MARKETING_PROGRESS_WORKFLOW_ACTIONS')?'mw-progress':'mw-workflow';$state=$item['status'];$assigned=!$owner&&(int)$item['assigned_employee_id']===marketing_employee_id();echo '<footer class="mw-details-footer mk-wf-modal-footer">';
     if($owner&&$state==='ready_for_review')echo '<button class="mk-wf-button mk-wf-button--primary" form="mw-workflow" name="workflow_action" value="approve">Approve</button><button class="mk-wf-button mk-wf-button--secondary" form="mw-workflow" name="workflow_action" value="request_changes">Request Changes</button><a class="mk-wf-button mk-wf-button--secondary" href="#notes">Reply to Employee</a>';
     elseif($assigned&&in_array($state,['brief','to_create'],true))echo '<button class="mk-wf-button mk-wf-button--primary" form="mw-workflow" name="workflow_action" value="start">Start Task</button>';
     elseif($assigned&&in_array($state,['in_progress','changes_requested','approved','scheduled'],true)){
-        $review=!empty($item['approval_required'])&&!marketing_execution_ready_to_publish($item);echo '<button class="mk-wf-button mk-wf-button--secondary" form="mw-progress">Save Progress</button><button class="mk-wf-button mk-wf-button--primary" form="mw-progress" name="workflow_action" value="'.($review?'submit':'complete').'">'.($review?'Submit for Review':'Mark Complete').'</button>';
+        $review=!empty($item['approval_required'])&&!marketing_execution_ready_to_publish($item);echo '<button class="mk-wf-button mk-wf-button--secondary" form="mw-progress">Save Progress</button><button class="mk-wf-button mk-wf-button--primary"  value="'.($review?'submit':'complete').'">'.($review?'Submit for Review':'Mark Complete').'</button>';
     }else echo '<span>'.marketing_e(marketing_content_label($state)).'</span>';
     if($owner&&!in_array($state,['cancelled'],true))echo '<a class="mk-wf-button mk-wf-button--secondary" target="_top" href="index.php?edit='.(int)$item['id'].'">Edit Assignment</a>';
     echo '</footer>';
