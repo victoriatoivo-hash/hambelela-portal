@@ -70,7 +70,7 @@ public final class TrackingService extends Service implements LocationListener {
         });
     }
     public void onLocationChanged(Location location){
-        if(!authorized()||!location.hasAccuracy()||location.getAccuracy()>100)return;
+        if(!authorized()||location.isFromMockProvider()||!location.hasAccuracy()||location.getAccuracy()>100)return;
         long age=(SystemClock.elapsedRealtimeNanos()-location.getElapsedRealtimeNanos())/1000000000L;
         if(age<0||age>30)return;
         long recorded=now()-age;if(recorded<windowStart||recorded>=windowEnd)return;

@@ -30,6 +30,8 @@ jobs:
       - name: Compile Android companion (not a signed production release)
         working-directory: android/delivery-tracker
         run: gradle --no-daemon :app:assembleRelease :app:lintRelease
+      - name: Include official Android signing verifier for local signing
+        run: cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" android/delivery-tracker/app/build/outputs/apk/release/apksigner.jar
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -37,6 +39,7 @@ jobs:
           retention-days: 3
           path: |
             android/delivery-tracker/app/build/outputs/apk/release/*unsigned.apk
+            android/delivery-tracker/app/build/outputs/apk/release/apksigner.jar
             android/delivery-tracker/app/build/reports/lint-results-release.*
   marketing:
     runs-on: ubuntu-latest

@@ -15,7 +15,7 @@ try{
  $service=new \Hambelela\Delivery\TrackingService(db());$id=(string)($body['device_id']??'');
  if(($body['action']??'')==='pair')$result=$service->pair($id,(string)($body['pairing_code']??''));
  elseif(($body['action']??'')==='ingest'){
-  $authorization=(string)($_SERVER['HTTP_AUTHORIZATION']??$_SERVER['REDIRECT_HTTP_AUTHORIZATION']??'');
+  $authorization=isset($_SERVER['HTTP_X_TRACKING_TOKEN'])?'Bearer '.(string)$_SERVER['HTTP_X_TRACKING_TOKEN']:(string)($_SERVER['HTTP_AUTHORIZATION']??$_SERVER['REDIRECT_HTTP_AUTHORIZATION']??'');
   if(!preg_match('/^Bearer ([a-f0-9]{64})$/D',$authorization,$match))throw new DomainException('Device authorization failed.');
   $result=$service->ingest($id,$match[1],$body);
  }else throw new DomainException('Invalid action.');
