@@ -9,14 +9,22 @@ $ErrorActionPreference='Stop'
 $gpsSigningDirectory='C:\Users\User\.codex\credentials\hambelela-delivery-signing'
 $gpsKeystore=Join-Path $gpsSigningDirectory 'release.p12'
 $gpsPasswordFile=Join-Path $gpsSigningDirectory 'password.dpapi.xml'
-if(-not(Test-Path -LiteralPath $gpsSigningDirectory)) {New-Item -ItemType Directory -Path $gpsSigningDirectory -Force | Out-Null}
+$gpsNewDirectory=-not(Test-Path -LiteralPath $gpsSigningDirectory)
+if($gpsNewDirectory) {New-Item -ItemType Directory -Path $gpsSigningDirectory -Force | Out-Null}
 $gpsIdentity=[System.Security.Principal.WindowsIdentity]::GetCurrent()
 $gpsAcl=New-Object System.Security.AccessControl.DirectorySecurity
 $gpsAcl.SetAccessRuleProtection($true,$false)
 $gpsAcl.SetOwner($gpsIdentity.User)
 $gpsRule=New-Object System.Security.AccessControl.FileSystemAccessRule($gpsIdentity.User,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
 $gpsAcl.AddAccessRule($gpsRule)
-Set-Acl -LiteralPath $gpsSigningDirectory -AclObject $gpsAcl
+if($gpsNewDirectory){Set-Acl -LiteralPath $gpsSigningDirectory -AclObject $gpsAcl}
+else {
+ $gpsExistingAcl=Get-Acl -LiteralPath $gpsSigningDirectory
+ if(-not $gpsExistingAcl.AreAccessRulesProtected){throw 'Signing directory must retain its user-only protected permissions.'}
+ foreach($gpsAccessRule in $gpsExistingAcl.GetAccessRules($true,$true,[System.Security.Principal.SecurityIdentifier])){
+  if($gpsAccessRule.AccessControlType -eq 'Allow' -and $gpsAccessRule.IdentityReference -ne $gpsIdentity.User){throw 'Unexpected access to private signing directory; review permissions before proceeding.'}
+ }
+}
 if(Test-Path -LiteralPath $gpsPasswordFile){$gpsSecure=Import-Clixml -LiteralPath $gpsPasswordFile}
 else {
  if(Test-Path -LiteralPath $gpsKeystore){throw 'Existing signing key requires its original password; do not replace it.'}
