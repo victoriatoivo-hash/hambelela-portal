@@ -20,7 +20,7 @@ final class TrackingMaps
     {
         if($this->transport!==null)return ($this->transport)($url,$body,$headers);
         $c=curl_init($url);$output='';
-        curl_setopt_array($c,[CURLOPT_TIMEOUT=>15,CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,CURLOPT_HTTPHEADER=>$headers,CURLOPT_WRITEFUNCTION=>static function($handle,string $chunk)use(&$output):int{if(strlen($output)+strlen($chunk)>524288)return 0;$output.=$chunk;return strlen($chunk);}]);
+        curl_setopt_array($c,[CURLOPT_TIMEOUT=>15,CURLOPT_CONNECTTIMEOUT=>5,CURLOPT_IPRESOLVE=>CURL_IPRESOLVE_V4,CURLOPT_SSL_VERIFYPEER=>true,CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,CURLOPT_HTTPHEADER=>$headers,CURLOPT_WRITEFUNCTION=>static function($handle,string $chunk)use(&$output):int{if(strlen($output)+strlen($chunk)>524288)return 0;$output.=$chunk;return strlen($chunk);}]);
         if($body!==null){curl_setopt($c,CURLOPT_POST,true);curl_setopt($c,CURLOPT_POSTFIELDS,json_encode($body,JSON_THROW_ON_ERROR));}
         $ok=curl_exec($c);$status=(int)curl_getinfo($c,CURLINFO_HTTP_CODE);curl_close($c);
         if($ok===false||$status!==200)throw new \DomainException('Google routing unavailable. Check key restrictions and billing in Google Cloud.');
