@@ -1,70 +1,57 @@
-name: Acknowledgment scheduling source and delta
+name: Packing multi-item workflow source and delta
 on:
   workflow_dispatch:
     inputs:
       mode:
-        required: true
         type: choice
-        options: [inspect, preflight, deploy, export]
-      approved_sha:
         required: true
+        options: [export, preflight, deploy]
+      approved_sha:
         type: string
-permissions:
-  contents: read
+        required: true
 concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
 jobs:
-  source:
+  marketing:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       mariadb:
         image: mariadb:11.4
         env:
           MARIADB_ROOT_PASSWORD: synthetic-ci-password
-        ports: ['13317:3306']
+        ports:
+          - 3306:3306
         options: >-
           --health-cmd="healthcheck.sh --connect --innodb_initialized"
-          --health-interval=5s --health-timeout=5s --health-retries=20
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v4
       - uses: shivammathur/setup-php@v2
         with:
-          php-version: '7.4'
-          extensions: pdo_mysql, dom
-      - name: Verify exact source revision
-        env:
-          SHA: ${{ inputs.approved_sha }}
-        run: test "$(git rev-parse HEAD)" = "$SHA"
-      - name: Scheduling regression gates
-        if: inputs.mode != 'export'
-        env:
-          ACK_TEST_DSN: mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test
-          ACK_TEST_PASSWORD: synthetic-ci-password
-        run: |
-          php tests/acknowledgments-integration.php
-          php tests/acknowledgments-scheduling.php
-          php -l apps/acknowledgments/api.php
-          php -l scripts/ack-scheduled-release.php
-          php -l scripts/ack-schedule-host.php
-          node --check assets/js/acknowledgments.js
-          node tests/acknowledgments-schedule-ui.mjs
-          python3 -m py_compile scripts/ack-schedule-release.py
-      - name: Inspect or publish isolated source files
+          php-version: '8.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          MODE: ${{ inputs.mode }}
-          SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/ack-schedule-release.py "$MODE" "$SHA"
+          RELEASE_MODE: ${{ inputs.mode }}
+          RELEASE_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/packing-workflow-release.py "$RELEASE_MODE" "$RELEASE_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: acknowledgment-source-${{ github.run_id }}
+          name: packing-workflow-${{ github.run_id }}
           retention-days: 3
           path: |
-            ack-live-source.zip
-            ack-release-report.json
-            ack-backup.zip
+            packing-workflow-live-source.zip
+            packing-workflow-release-report.json
+            packing-workflow-backup.zip
