@@ -2,6 +2,7 @@
 import ftplib, hashlib, io, json, os, secrets, subprocess, sys, time, urllib.parse, urllib.request, urllib.error, zipfile
 from pathlib import Path
 FILES = ['shared/delivery/WorkspaceApps.php','shared/delivery/WorkspaceView.php','shared/delivery/PortalShell.php','shared/delivery/DeliveryService.php','shared/delivery/CoreApi.php','shared/delivery/CoreView.php','shared/delivery/EmployeeDriverSession.php','shared/delivery/FrontSession.php','shared/delivery/DeliveryPolicy.php','apps/delivery/index.php','apps/delivery/driver/api.php','apps/delivery/front-api.php','assets/js/delivery-core.js','assets/css/delivery-controls.css']
+FILES = ['apps/operations/my-account.php','assets/css/delivery-controls.css','assets/css/portal-notification-ui.css','assets/js/portal.js']
 mode, sha = sys.argv[1:3]
 if mode != 'inspect' or subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()!=sha:
     raise SystemExit('Exact approved source revision and inspect mode required')
