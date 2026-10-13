@@ -4,6 +4,9 @@ require_once BASE_PATH.'/shared/database.php';
 require_once BASE_PATH.'/shared/auth.php';
 require_once BASE_PATH.'/shared/employee-features.php';
 require_once BASE_PATH.'/shared/marketing-phase3.php';
+require_once BASE_PATH.'/shared/marketing-execution.php';
+require_once BASE_PATH.'/shared/marketing-workspace.php';
+require_once BASE_PATH.'/shared/marketing-content-workflow.php';
 
 function marketing_schema_ready():void{
  static $ready=false;if($ready)return;
@@ -13,6 +16,9 @@ function marketing_schema_ready():void{
  db()->exec("CREATE TABLE IF NOT EXISTS marketing_item_history(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,item_id BIGINT UNSIGNED NOT NULL,old_status VARCHAR(40) NULL,new_status VARCHAR(40) NOT NULL,note TEXT NULL,actor_id INT NOT NULL,actor_name VARCHAR(190) NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,KEY idx_marketing_history(item_id,id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
  db()->exec("CREATE TABLE IF NOT EXISTS marketing_product_changes(id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,woo_product_id BIGINT UNSIGNED NOT NULL,woo_variation_id BIGINT UNSIGNED NOT NULL DEFAULT 0,product_name VARCHAR(255) NOT NULL,change_type VARCHAR(40) NOT NULL DEFAULT 'content',proposed_name VARCHAR(255) NULL,proposed_short_description TEXT NULL,proposed_description MEDIUMTEXT NULL,proposed_seo_title VARCHAR(255) NULL,proposed_meta_description VARCHAR(500) NULL,change_notes TEXT NULL,status VARCHAR(30) NOT NULL DEFAULT 'draft',assigned_employee_id INT NULL,submitted_at DATETIME NULL,reviewed_at DATETIME NULL,reviewed_by INT NULL,reviewed_by_name VARCHAR(190) NULL,published_at DATETIME NULL,published_by INT NULL,published_by_name VARCHAR(190) NULL,created_by INT NOT NULL,created_by_name VARCHAR(190) NOT NULL,created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,KEY idx_marketing_product_status(status,updated_at),KEY idx_marketing_product(woo_product_id,woo_variation_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
  marketing_phase3_schema_ready();
+ marketing_execution_schema_ready();
+ marketing_workspace_schema();
+ marketing_content_schema();
  if(marketing_table_exists('cw_product_snapshots')){
   $columns=['description_html'=>'ADD COLUMN description_html MEDIUMTEXT NULL AFTER permalink','short_description_html'=>'ADD COLUMN short_description_html TEXT NULL AFTER description_html','image_count'=>'ADD COLUMN image_count INT NOT NULL DEFAULT 0 AFTER short_description_html','seo_title'=>'ADD COLUMN seo_title VARCHAR(255) NULL AFTER image_count','meta_description'=>'ADD COLUMN meta_description VARCHAR(500) NULL AFTER seo_title'];
   foreach($columns as$name=>$definition)if(!marketing_column_exists('cw_product_snapshots',$name))db()->exec('ALTER TABLE cw_product_snapshots '.$definition);
@@ -31,3 +37,26 @@ function marketing_verify():void{if(!hash_equals(marketing_csrf(),(string)($_POS
 function marketing_statuses():array{return['brief','to_create','in_progress','ready_for_review','changes_requested','approved','scheduled','published','cancelled'];}
 function marketing_notify(int$itemId,int$recipient,string$title,string$message):void{if($recipient<=0)return;try{require_once BASE_PATH.'/shared/notifications.php';notifications_create(['title'=>$title,'message'=>$message,'module'=>'marketing','related_type'=>'marketing_item','related_id'=>$itemId,'action_link'=>BASE_URL.'/apps/marketing/index.php?item='.$itemId,'required_delivery'=>1],[$recipient]);}catch(Throwable $e){error_log('Marketing notification failed: '.$e->getMessage());}}
 function marketing_notify_owners(int$itemId,string$title,string$message):void{try{require_once BASE_PATH.'/shared/notifications.php';$recipients=notifications_role_recipients(['owner_admin']);if($recipients)notifications_create(['title'=>$title,'message'=>$message,'module'=>'marketing','related_type'=>'marketing_item','related_id'=>$itemId,'action_link'=>BASE_URL.'/apps/marketing/index.php?item='.$itemId,'required_delivery'=>1],$recipients);}catch(Throwable $e){error_log('Marketing owner notification failed: '.$e->getMessage());}}
+
+/** One notification for each assignment event, using the existing bell/recipient store. */
+function marketing_notify_assignment(int $itemId, int $employeeId, string $title): void
+{
+    if ($employeeId < 1) return;
+    require_once BASE_PATH.'/shared/notifications.php';
+    $event=db()->prepare('SELECT MAX(id) FROM marketing_item_history WHERE item_id=?');
+    $event->execute([$itemId]);
+    $notificationId=notifications_create([
+        'title'=>$title,'message'=>'You have been assigned new Marketing content.',
+        'module'=>'marketing','related_type'=>'marketing_assignment','related_id'=>$itemId,
+        'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$itemId,
+        'required_delivery'=>true,'sound_key'=>'assigned',
+        'deduplication_key'=>'marketing-assignment:'.$itemId.':'.$employeeId.':'.(int)$event->fetchColumn(),
+    ],[$employeeId]);
+    if (!$notificationId) throw new RuntimeException('Assignment notification could not be saved. Please try again.');
+}
+function marketing_employees(): array
+{
+    return db()->query("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key='marketing_sales' ORDER BY e.full_name")->fetchAll();
+}
+
+
