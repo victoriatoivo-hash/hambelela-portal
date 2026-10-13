@@ -1,4 +1,4 @@
-name: Marketing refinement source and delta
+name: Delivery arrangement repair source and delta
 on:
   workflow_dispatch:
     inputs:
@@ -38,6 +38,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Delivery arrangement regression gates
+        if: inputs.mode != 'export'
+        env:
+          DELIVERY_TEST_DSN: mysql:host=127.0.0.1;port=3306
+          DELIVERY_TEST_PASSWORD: synthetic-ci-password
+        run: |
+          php tests/delivery-arrangement-regression.php
+          node tests/delivery-notification-ui.mjs
+          node --check assets/js/delivery-core.js
+          node --check assets/js/portal.js
+          php -l apps/delivery/front-api.php
+          php -l shared/delivery/CoreApi.php
+          php -l shared/delivery/EmployeeDriverSession.php
+          php -l shared/delivery/NotificationOutbox.php
+          php -l shared/delivery/PortalOrderRepository.php
       - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

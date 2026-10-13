@@ -34,5 +34,11 @@ if(($_GET['view']??'')==='board'){echo json_encode($core->board($actor,$_GET)+['
  $zones=db()->query('SELECT id,area,fee_cents FROM delivery_zones WHERE active=1 ORDER BY area')->fetchAll(PDO::FETCH_ASSOC);
  $reviewCount=null;if(\Hambelela\Delivery\DeliveryPolicy::can($actor,'delivery_reconcile'))$reviewCount=(int)db()->query("SELECT COUNT(*) FROM delivery_order_sync_reviews WHERE state='pending'")->fetchColumn();
  echo json_encode(['suggestions'=>$suggest,'csrf'=>$_SESSION['delivery_front_csrf'],'orders'=>$orders,'drivers'=>$drivers,'zones'=>$zones,'pending_payment_reviews'=>$reviewCount],JSON_THROW_ON_ERROR);
-}catch(DomainException $e){http_response_code(403);echo json_encode(['error'=>$e->getMessage()]);}
+}catch(DomainException $e){
+ if(isset($actor,$body)&&($body['action']??'')==='arrange'&&\Hambelela\Delivery\DeliveryPolicy::can($actor,'delivery_arrange')&&strpos($e->getMessage(),'This order already')===0){
+  $existing=db()->prepare("SELECT id FROM delivery_jobs WHERE order_id=? AND status<>'cancelled' ORDER BY id DESC LIMIT 1");$existing->execute([(int)($body['order']??0)]);$existingId=(int)$existing->fetchColumn();
+  if($existingId){http_response_code(409);echo json_encode(['error'=>'This order is already arranged for delivery.','existing_delivery_id'=>$existingId,'existing_delivery_link'=>BASE_URL.'/apps/delivery/workspace.php?delivery='.$existingId]);exit;}
+ }
+ http_response_code(403);echo json_encode(['error'=>$e->getMessage()]);
+}
 catch(Throwable $e){error_log('Delivery Front read failed: '.$e->getMessage());http_response_code(503);echo '{"error":"Delivery data is temporarily unavailable."}';}

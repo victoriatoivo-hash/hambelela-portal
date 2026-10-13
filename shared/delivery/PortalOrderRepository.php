@@ -7,6 +7,24 @@ require_once __DIR__.'/WooShippingSource.php';
 require_once __DIR__.'/OrderDispatchBalance.php';
 final class PortalOrderRepository
 {
+    /** Customer data validation must never use a driver's authentication errors. */
+    private static function customerMobile(array $candidates):string
+    {
+        foreach($candidates as $input){
+            $mobile=preg_replace('/[\s().-]/','',trim((string)$input));
+            if(strncmp($mobile,'00',2)===0)$mobile='+'.substr($mobile,2);
+            if(preg_match('/^0[0-9]{9}$/D',$mobile))$mobile='+264'.substr($mobile,1);
+            if(preg_match('/^264[0-9]{9}$/D',$mobile))$mobile='+'.$mobile;
+            if(preg_match('/^\+[1-9][0-9]{7,14}$/D',$mobile))return $mobile;
+        }
+        return '';
+    }
+    private static function usableAddress(string $address):string
+    {
+        // Imported region/country placeholders are not a delivery street address.
+        $address=trim($address);
+        return preg_match('/^(?:[A-Z]{2}|Namibia)(?:\s*,\s*(?:[A-Z]{2}|Namibia))*$/iD',$address)?'':$address;
+    }
     public static function shippingAddress(string $notes):string
     {
         return preg_match('/^Shipping address:\s*(.+)$/mi',$notes,$m)?trim($m[1]):'';
@@ -32,11 +50,15 @@ final class PortalOrderRepository
             if(!empty($input['additional_delivery']))throw new \DomainException('An additional trip requires separate authorized review.');
             if($shippingEvidence!==null){WooShippingSource::assertCurrent($order,$shippingEvidence);$fee=(int)$shippingEvidence['included_cents'];}
             else $fee=self::shippingComponent($order);
-            $address=trim((string)($shippingEvidence['address']??''))?:self::shippingAddress((string)($order['notes']??''));
-            if($address==='')$address=trim((string)($input['address']??''));
+            $address=self::usableAddress(trim((string)($shippingEvidence['address']??''))?:self::shippingAddress((string)($order['notes']??'')));
+            if($address==='')$address=self::usableAddress((string)($input['address']??''));
             if(strlen($address)>2000)throw new \DomainException('Address is too long.');
             if($address===''&&empty($input['preview']))throw new \DomainException('Delivery address missing. Add an address before dispatch.');
-            $mobile=DriverAuth::mobile(trim((string)($order['customer_contact']??''))?:trim((string)($shippingEvidence['mobile']??'')));
+            $storedMobile=self::customerMobile([$order['customer_contact']??'', $shippingEvidence['mobile']??'']);
+            $mobile=$storedMobile;
+            if($mobile===''&&!empty($input['mobile']))$mobile=self::customerMobile([$input['mobile']]);
+            if($mobile===''&&empty($input['preview']))throw new \DomainException('Customer mobile is missing or invalid. Enter a valid number before arranging delivery.');
+            $notes=trim((string)($input['notes']??''));if(strlen($notes)>4000)throw new \DomainException('Notes are too long.');
             $area=trim((string)($shippingEvidence['area']??''))?:mb_substr($address,0,190);
             $money=OrderDispatchBalance::read($db,$order,$fee);
             $prepaid=$money['collect_cents']===0;
@@ -44,11 +66,12 @@ final class PortalOrderRepository
                 'order_number'=>$order['order_number']??('#'.$id),'payment_method'=>$order['payment_method']??'',
                 'fee_cents'=>$fee,'included_fee_cents'=>$fee,'zone_id'=>null,'manual_rate_reason'=>null,
                 'fee_payer'=>$prepaid?'already_paid':'customer','prepaid_reference'=>$prepaid?'order:'.$id:null,
-                'urgent'=>0,'notes'=>'','customer_instructions'=>trim((string)($shippingEvidence['customer_instructions']??'').'\n'.(string)($order['notes']??'')),'shipping_evidence'=>$shippingEvidence,'source_order'=>true];
+                'contact_snapshot'=>$storedMobile,'urgent'=>!empty($input['urgent'])?1:0,'notes'=>$notes,'customer_instructions'=>trim((string)($shippingEvidence['customer_instructions']??'').'\n'.(string)($order['notes']??'')),'shipping_evidence'=>$shippingEvidence,'source_order'=>true];
         }
         $address=trim((string)($input['address']??''));if($address==='')$address=self::shippingAddress((string)($order['notes']??''));
         if($address===''||strlen($address)>2000)throw new \DomainException('Confirm the delivery address.');
-        $mobile=DriverAuth::mobile(trim((string)($input['mobile']??''))?:trim((string)$order['customer_contact']));
+        $mobile=self::customerMobile([trim((string)($input['mobile']??''))?:trim((string)$order['customer_contact']),$shippingEvidence['mobile']??'']);
+        if($mobile==='')throw new \DomainException('Customer mobile is missing or invalid. Enter a valid number before arranging delivery.');
         $zoneId=(int)($input['zone_id']??0);$zone=null;
         if($zoneId){$s=$db->prepare('SELECT * FROM delivery_zones WHERE id=? AND active=1 FOR UPDATE');$s->execute([$zoneId]);$zone=$s->fetch(\PDO::FETCH_ASSOC);if(!$zone)throw new \DomainException('Choose an active delivery area.');}
         $area=$zone?$zone['area']:trim((string)($input['area']??''));if($area===''||strlen($area)>190)throw new \DomainException('Delivery area is required.');

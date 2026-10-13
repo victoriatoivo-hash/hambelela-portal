@@ -1,7 +1,7 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])),money=n=>'N$'+(Number(n)/100).toFixed(2),api=document.body.dataset.api,driver=document.body.dataset.driver==='true',oversight=document.body.dataset.oversight==='true';
 let board,searchData,selectedOrder,selectedJob,busy=false,pending=new Map(),boardPage=1,focusedJob=0,loadSequence=0,primaryTab='active';
-async function json(url,options){const r=await fetch(url,{cache:'no-store',...options});if(r.status===401){location.href=document.body.dataset.login||'login.php';throw Error('Please sign in.');}if(!(r.headers.get('content-type')||'').includes('application/json'))throw Error('Session or connection unavailable. Refresh and sign in again.');const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed.');return d;}
+async function json(url,options){const r=await fetch(url,{cache:'no-store',...options});if(r.status===401){location.href=document.body.dataset.login||'login.php';throw Error('Please sign in.');}if(!(r.headers.get('content-type')||'').includes('application/json'))throw Error('Session or connection unavailable. Refresh and sign in again.');const d=await r.json();if(!r.ok)throw Object.assign(Error(d.error||'Request failed.'),{existingDeliveryId:Number(d.existing_delivery_id||0)});return d;}
 function collectionLabel(j){if(!j.remaining)return 'Payment review required';const due=Object.values(j.remaining).reduce((a,b)=>a+Number(b),0);return due>0?'COLLECT '+money(due):j.collection_state==='Collected by Driver'?'COLLECTED BY DRIVER':'PAID / NOTHING TO COLLECT';}
 function action(type,label,id,receipt){return `<button class="primary" data-action="${type}" data-id="${id}"${receipt?` data-receipt="${receipt}"`:''}>${label}</button>`;}
 const statusLabel=s=>({ready:'Ready',out_for_delivery:'Out for Delivery',awaiting_reconciliation:'Delivered · Awaiting Reconciliation',completed:'Completed',failed:'Delivery Issue',cancelled:'Cancelled'}[s]||s);
@@ -183,19 +183,20 @@ if(!driver){
   try{
    const response=await json(api,{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':board.csrf},body:JSON.stringify({action:'quote',source_order:true,order:Number(selectedOrder.id)})});
    if(seq!==quoteSequence)return;dispatchQuote=response.result;const q=dispatchQuote,drivers=searchData.drivers;
-   $('#results').innerHTML='<form id="dispatch-confirmation" class="card"><div class="eyebrow">Existing order · Delivery</div><h2>'+esc(q.order_number)+'</h2><h3>'+esc(q.customer_name)+'</h3><a href="tel:'+esc(String(q.customer_mobile).replace(/[^+0-9]/g,''))+'">'+esc(q.customer_mobile)+'</a>'+
+   $('#results').innerHTML='<form id="dispatch-confirmation" class="card"><div class="eyebrow">Existing order · Delivery</div><h2>'+esc(q.order_number)+'</h2><h3>'+esc(q.customer_name)+'</h3>'+(q.customer_mobile?'<a href="tel:'+esc(String(q.customer_mobile).replace(/[^+0-9]/g,''))+'">'+esc(q.customer_mobile)+'</a>':'<label>Customer mobile missing or invalid<input name="mobile" type="tel" maxlength="30" placeholder="e.g. +264 81 123 4567" required><small>Enter the customer’s confirmed number. Existing order and payment records are preserved.</small></label>')+
     (q.address?'<p class="delivery-address">'+esc(q.address)+'</p>':'<details class="missing-address"><summary>Delivery address missing · Add Address</summary><label>Delivery address<textarea name="address" maxlength="2000" required></textarea></label></details>')+
     '<dl class="handover-breakdown">'+[['Products',money(q.product_cents)],['Delivery fee',money(q.delivery_fee)],['Order total (includes delivery)',money(q.total_cents)],['Already paid',money(q.paid_cents)],['Payment',(q.payment_status==='paid'?'PAID ✓':q.payment_status==='partial'?'PARTIAL':'NOT PAID')+' · '+(q.payment_method||'Unpaid')],['Collect',money(q.collect_cents)]].map(([k,v])=>'<div><dt>'+esc(k)+'</dt><dd>'+esc(v)+'</dd></div>').join('')+'</dl>'+
-    (drivers.length===1?'<input type="hidden" name="driver" value="'+Number(drivers[0].id)+'"><p>Driver: '+esc(drivers[0].full_name)+'</p>':'<label>Driver<select name="driver" required><option value="">Choose Driver</option>'+drivers.map(d=>'<option value="'+Number(d.id)+'">'+esc(d.full_name)+'</option>').join('')+'</select></label>')+
+    (drivers.length===1?'<input type="hidden" name="driver" value="'+Number(drivers[0].id)+'"><p>Driver: '+esc(drivers[0].full_name)+'</p>':'<label>Driver<select name="driver" required>'+drivers.map((d,index)=>'<option value="'+Number(d.id)+'"'+(index===0?' selected':'')+'>'+esc(d.full_name)+'</option>').join('')+'</select></label>')+
     (q.customer_instructions?'<details class="customer-instructions"><summary>Existing customer / order instructions</summary><p>'+esc(q.customer_instructions)+'</p></details>':'')+preferenceFields()+
     (!drivers.length?'<p role="alert">No active verified Driver. Add or activate the employee in Settings.</p>':'')+
-    '<p class="form-error" role="alert"></p><button type="submit" class="primary" '+(!drivers.length?'disabled':'')+'>Add to Delivery List</button></form>';
+    '<label class="check"><input name="urgent" type="checkbox"> Urgent delivery</label><p class="form-error" role="alert"></p><button type="submit" class="primary" '+(!drivers.length?'disabled':'')+'>Arrange Delivery</button></form>';
    bindPreference($('#dispatch-confirmation'));
    $('#dispatch-confirmation').scrollIntoView({block:'start'});
    $('#dispatch-confirmation').onsubmit=async event=>{
     event.preventDefault();const form=event.target;if(!form.reportValidity())return;const fields=Object.fromEntries(new FormData(form));form.querySelector('.form-error').textContent='';
-    try{const result=await command({...fields,action:'arrange',source_order:true,order:Number(selectedOrder.id),date:fields.preference_date||board.today,verification:dispatchQuote.verification});const saved='Added to Delivery List. The assigned Driver receives this same delivery.';$('#message').textContent=saved+(result.refreshError?' Refresh failed: '+result.refreshError:'');$('#search').value='';$('#results').innerHTML='';try{await search(true);$('#reviews').textContent=saved+' Select the next order, or close this panel to view Active Deliveries.';}catch(err){$('#reviews').textContent=saved+' Suggestions could not refresh: '+err.message;}}
-    catch(err){form.querySelector('.form-error').textContent=err.message;}
+    const driverName=drivers.find(d=>Number(d.id)===Number(fields.driver))?.full_name||'the assigned Driver',orderNumber=dispatchQuote.order_number;
+    try{const result=await command({...fields,action:'arrange',source_order:true,order:Number(selectedOrder.id),date:fields.preference_date||board.today,verification:dispatchQuote.verification});const saved='Order '+orderNumber+' has been added to '+driverName+"’s delivery list.";$('#message').textContent=saved+(result.refreshError?' Refresh failed: '+result.refreshError:'');window.showPortalToast?.({title:'Delivery arranged successfully',message:saved,module:'general'});$('#order-search-modal').close();$('#search').value='';$('#results').innerHTML='';}
+    catch(err){form.querySelector('.form-error').innerHTML=esc(err.message)+(Number.isSafeInteger(err.existingDeliveryId)&&err.existingDeliveryId>0?' <a class="secondary" href="/apps/delivery/workspace.php?delivery='+err.existingDeliveryId+'">View existing delivery</a>':'');}
    };
    $('#dispatch-confirmation textarea')?.addEventListener('invalid',()=>{$('.missing-address').open=true;});
   }catch(err){open.disabled=false;open.textContent='Review order';$('#reviews').textContent=err.message;}
@@ -282,9 +283,9 @@ $('#job-action-fields').innerHTML=html;bindPreference($('#job-action-form'));$('
 $('#job-action-form').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target);try{await command({...Object.fromEntries(f),urgent:f.has('urgent'),action:modalAction,id:Number(selectedJob.id),version:Number(selectedJob.version)});extraDialog.close();}catch(err){e.target.querySelector('.form-error').textContent=err.message;}};
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{if(busy)e.preventDefault();}));
 
-const requestedDelivery=Number(new URLSearchParams(location.search).get('delivery'));if(!driver&&Number.isSafeInteger(requestedDelivery)&&requestedDelivery>0){focusedJob=requestedDelivery;$('#delivery-view').value='all';$('#delivery-source').value='';}
+const requestedDelivery=Number(new URLSearchParams(location.search).get('delivery'));if(Number.isSafeInteger(requestedDelivery)&&requestedDelivery>0){focusedJob=requestedDelivery;if(!driver)$('#delivery-view').value='all';$('#delivery-source').value='';}
 load().then(()=>{
- if(focusedJob)$('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();
+ if(focusedJob){if(driver){$('#jobs [data-open-mobile-delivery="'+focusedJob+'"]')?.click();$('#jobs [data-job-id="'+focusedJob+'"]')?.scrollIntoView({block:'start'});}else $('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();}
  if(!driver){
   $('#open-order-search').hidden=!board.can_arrange;
   $('.pagehead h1').textContent='Front Operations';

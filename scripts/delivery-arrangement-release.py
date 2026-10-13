@@ -2,8 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('shared/delivery/PortalOrderRepository.php','shared/delivery/NotificationOutbox.php','apps/delivery/front-api.php','assets/js/delivery-core.js','shared/delivery/CoreApi.php')
-READ_ONLY = ('shared/delivery/DeliveryArrangement.php','shared/delivery/WooShippingSource.php','shared/delivery/OrderDispatchBalance.php','shared/delivery/OrderBalanceAdapter.php','shared/delivery/FrontSession.php','shared/delivery/DeliveryPolicy.php','shared/delivery/DriverAuth.php','shared/delivery/PortalShell.php','shared/delivery/CoreView.php','shared/delivery/DriverNotices.php','apps/delivery/index.php','apps/delivery/driver-view.php','apps/delivery/driver/api.php','shared/notifications.php','assets/js/portal.js','shared/delivery/EmployeeDriverSession.php','shared/auth.php','shared/employee-features.php','shared/header.php','apps/delivery/driver/index.php','apps/delivery/driver/bootstrap.php','apps/delivery/workspace.php','apps/delivery/overview.php')
+FILES = ('shared/delivery/PortalOrderRepository.php','shared/delivery/NotificationOutbox.php','apps/delivery/front-api.php','assets/js/delivery-core.js','shared/delivery/CoreApi.php','shared/delivery/EmployeeDriverSession.php','assets/js/portal.js')
+READ_ONLY = ('shared/delivery/DeliveryArrangement.php','shared/delivery/WooShippingSource.php','shared/delivery/OrderDispatchBalance.php','shared/delivery/OrderBalanceAdapter.php','shared/delivery/FrontSession.php','shared/delivery/DeliveryPolicy.php','shared/delivery/DriverAuth.php','shared/delivery/PortalShell.php','shared/delivery/CoreView.php','shared/delivery/DriverNotices.php','apps/delivery/index.php','apps/delivery/driver-view.php','apps/delivery/driver/api.php','shared/notifications.php','shared/auth.php','shared/employee-features.php','shared/header.php','apps/delivery/driver/index.php','apps/delivery/driver/bootstrap.php','apps/delivery/workspace.php','apps/delivery/overview.php')
 EXPORT_MODULES = FILES + READ_ONLY
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')

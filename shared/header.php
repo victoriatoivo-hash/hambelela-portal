@@ -6,6 +6,8 @@ require_once __DIR__ . '/auth.php';
 require_once __DIR__ . '/notifications.php';
 
 $user = current_user();
+require_once __DIR__.'/delivery/DriverMobile.php';
+$driverMobileProfile = \Hambelela\Delivery\DriverMobile::enabled($user ?: []);
 $pageTitle = $pageTitle ?? APP_NAME;
 $activeApp = $activeApp ?? 'dashboard';
 $notifications = [];
@@ -33,6 +35,29 @@ $portalJsVersion = is_file(BASE_PATH . '/assets/js/portal.js')
     ? (string) filemtime(BASE_PATH . '/assets/js/portal.js')
     : $assetVersion;
 $headerUser = current_user();
+if (!empty($headerUser) && ($headerUser['role_key'] ?? 'guest') !== 'guest') {
+    $extraStylesheets[] = ['path'=>'assets/css/acknowledgments.css', 'version'=>(string)filemtime(BASE_PATH.'/assets/css/acknowledgments.css')];
+}
+$employeeSidebarUpgrade = empty($isEssDashboard)
+    && empty($hidePortalSidebar)
+    && strpos((string) ($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/hr-portal/') === false
+    && !empty($headerUser)
+    && (string) ($headerUser['role_key'] ?? 'guest') !== 'guest';
+if ($employeeSidebarUpgrade) {
+    require_once __DIR__ . '/ess-navigation.php';
+    $isEssDashboard = true;
+    $pageUsesPortalSidebar = false;
+    $essShellApps = ess_shell_apps();
+    $essShellApps[] = ['name'=>'Acknowledgments','icon'=>'clipboard-check','href'=>BASE_URL.'/apps/acknowledgments/index.php'];
+    $essActiveModule = '';
+    $sidebarRequestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
+    foreach ($essShellApps as $sidebarApp) {
+        if ((string) parse_url($sidebarApp['href'], PHP_URL_PATH) === $sidebarRequestPath) $essActiveModule = $sidebarApp['name'];
+    }
+    foreach (['ess-dashboard', 'employee-sidebar'] as $sidebarStyle) {
+        $extraStylesheets[] = ['path' => 'assets/css/' . $sidebarStyle . '.css', 'version' => (string) filemtime(BASE_PATH . '/assets/css/' . $sidebarStyle . '.css')];
+    }
+}
 $ownerPwaEnabled = (string) ($headerUser['role_key'] ?? 'guest') === 'owner_admin';
 $showPortalHeaderStatus = (string) ($headerUser['role_key'] ?? 'guest') !== 'guest';
 $pageUsesPortalSidebar = (bool) ($pageUsesPortalSidebar ?? true);
@@ -42,9 +67,9 @@ $headerNotificationLatest = [];
 $headerNotificationPreferences = ['desktop_enabled' => 1, 'sound_enabled' => 0, 'sound_volume' => 65];
 if ($showPortalHeaderStatus && function_exists('notifications_summary_for_current_user')) {
     try {
-        $headerNotificationSummary = notifications_summary_for_current_user(3);
+        $headerNotificationSummary = notifications_summary_for_current_user(6);
         $headerNotificationUnread = (int) ($headerNotificationSummary['unread_count'] ?? 0);
-        $headerNotificationLatest = array_slice((array) ($headerNotificationSummary['latest'] ?? []), 0, 3);
+        $headerNotificationLatest = array_slice((array) ($headerNotificationSummary['latest'] ?? []), 0, 6);
         $headerNotificationPreferences = (array) ($headerNotificationSummary['preferences'] ?? $headerNotificationPreferences);
     } catch (Throwable $headerNotificationError) {
         error_log('Notification header summary failed: ' . $headerNotificationError->getMessage());
@@ -80,9 +105,9 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Figtree:wght@300;400;500;600;700;800;900&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal.css?v=<?= htmlspecialchars($assetVersion, ENT_QUOTES, 'UTF-8') ?>">
-    <?php if ($showPortalHeaderStatus): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/urgent-task-alert.css?v=<?= htmlspecialchars((string) filemtime(BASE_PATH . '/assets/css/urgent-task-alert.css'), ENT_QUOTES, 'UTF-8') ?>"><?php endif; ?>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-responsive.css?v=<?= htmlspecialchars($responsiveAssetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-header-account.css?v=<?= htmlspecialchars($headerAccountCssVersion, ENT_QUOTES, 'UTF-8') ?>">
+    <link rel="stylesheet" href="<?=BASE_URL?>/assets/css/profile-menu.css?v=<?=filemtime(BASE_PATH.'/assets/css/profile-menu.css')?>">
     <?php foreach (($extraStylesheets ?? []) as $stylesheet): ?>
         <?php
             $stylesheetPath = (string) ($stylesheet['path'] ?? '');
@@ -99,6 +124,10 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= htmlspecialchars($datePickerJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <script>window.HambelelaPortalUser={id:<?= (int) ($headerUser['id'] ?? 0) ?>,role:<?= json_encode((string) ($headerUser['role_key'] ?? 'guest')) ?>};</script>
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/notifications-ui.css?v=<?= filemtime(BASE_PATH . '/assets/css/notifications-ui.css') ?>">
+    <script defer src="<?= BASE_URL ?>/assets/js/notifications-ui.js?v=<?= filemtime(BASE_PATH . '/assets/js/notifications-ui.js') ?>"></script>
+    <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-notices.css?v=<?= filemtime(BASE_PATH . '/assets/css/portal-notices.css') ?>">
+    <script defer src="<?= BASE_URL ?>/assets/js/task-assignment-popup.js?v=<?= filemtime(BASE_PATH . '/assets/js/task-assignment-popup.js') ?>"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal.js?v=<?= htmlspecialchars($portalJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <?php if ($showPortalHeaderStatus): ?>
         <script defer src="<?= BASE_URL ?>/assets/js/portal-presence.js?v=<?= htmlspecialchars($presenceJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
@@ -108,14 +137,17 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <!-- Task markup is enhanced after parsing; hold first paint until its presentation is ready. -->
     <script defer blocking="render" src="<?= BASE_URL ?>/assets/js/task-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-essentials.js') ?>"></script>
     <?php endif; ?>
+<?php if ($driverMobileProfile): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/driver-mobile.css?v=<?= filemtime(BASE_PATH.'/assets/css/driver-mobile.css') ?>"><?php endif; ?>
 </head>
-<body<?= !empty($isEssDashboard) ? ' class="ess-dashboard"' : '' ?>>
+<body class="<?= !empty($isEssDashboard) ? 'ess-dashboard' : '' ?><?= $driverMobileProfile ? ' is-driver-mobile' : '' ?>">
+<?php if (!empty($user['id'])) { require_once BASE_PATH . '/shared/portal-policy-popup.php'; } ?>
 <div class="shell<?= !empty($isEssDashboard) ? ' ess-dashboard-shell' : '' ?>">
     <?php if ($showPortalHeaderStatus): ?>
         <section class="portal-header-status<?= $showPortalHeaderAccount ? ' portal-header-status--has-account' : '' ?>" data-portal-header-status
                  data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>"
                  data-notification-endpoint="<?= htmlspecialchars(BASE_URL . '/api/notifications.php?mode=summary', ENT_QUOTES, 'UTF-8') ?>">
             <div class="portal-header-actions">
+            <?php if ($driverMobileProfile): ?><nav class="driver-mobile-account" aria-label="Driver account"><a href="<?= BASE_URL ?>/profile.php" aria-label="My Account"><i data-lucide="user-round" aria-hidden="true"></i></a><a href="<?= BASE_URL ?>/login.php?action=logout" aria-label="Logout"><i data-lucide="log-out" aria-hidden="true"></i></a></nav><?php endif; ?>
             <div class="portal-header-action portal-online-widget portal-online-staff" data-portal-online-widget data-online-staff-button
                  role="button" tabindex="0" aria-label="Online employees" aria-expanded="false">
                 <div class="portal-online-avatars" data-portal-online-avatars></div>
@@ -133,11 +165,11 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                 <i data-lucide="bell"></i>
                 <span class="portal-notification-button__badge<?= $headerNotificationUnread > 0 ? '' : ' is-hidden' ?>" data-notification-count><?= htmlspecialchars($headerNotificationUnread > 99 ? '99+' : ($headerNotificationUnread > 0 ? (string) $headerNotificationUnread : ''), ENT_QUOTES, 'UTF-8') ?></span>
             </a>
-            <div id="portal-notification-preview" class="portal-notification-preview" data-notification-preview role="tooltip" aria-hidden="true">
-                <div class="portal-notification-preview__header"><strong class="portal-notification-preview__title">Notifications</strong><span class="portal-notification-preview__count" data-notification-preview-count><?= (int) $headerNotificationUnread ?> unread</span></div>
+            <div id="portal-notification-preview" class="portal-notification-preview" data-notification-preview role="dialog" aria-label="Notifications" aria-hidden="true">
+                <div class="portal-notification-preview__header"><strong class="portal-notification-preview__title">Notifications</strong><span class="portal-notification-preview__count" data-notification-preview-count><?= (int) $headerNotificationUnread ?> unread</span><button type="button" class="nt-btn" data-bell-mark-read>Mark all read</button></div>
                 <div data-notification-preview-list>
                 <?php if ($headerNotificationLatest): foreach ($headerNotificationLatest as $headerNotification): ?>
-                    <a class="portal-notification-preview__item" href="<?= htmlspecialchars((string) (($headerNotification['action_link'] ?? '') ?: BASE_URL . '/notifications.php'), ENT_QUOTES, 'UTF-8') ?>">
+                    <a class="portal-notification-preview__item" data-notification-module="<?= htmlspecialchars((string) ($headerNotification['module'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" data-notification-related="<?= htmlspecialchars((string) ($headerNotification['related_type'] ?? ''), ENT_QUOTES, 'UTF-8') ?>" href="<?= htmlspecialchars((string) (($headerNotification['action_link'] ?? '') ?: BASE_URL . '/notifications.php'), ENT_QUOTES, 'UTF-8') ?>">
                         <span class="portal-notification-preview__indicator" aria-hidden="true"></span><span><strong class="portal-notification-preview__item-title"><?= htmlspecialchars((string) ($headerNotification['title'] ?? 'Notification'), ENT_QUOTES, 'UTF-8') ?></strong><span class="portal-notification-preview__item-text"><?= htmlspecialchars((string) ($headerNotification['message'] ?? ''), ENT_QUOTES, 'UTF-8') ?></span></span><time class="portal-notification-preview__time"><?= htmlspecialchars(date('h:i A', strtotime((string) ($headerNotification['created_at'] ?? 'now'))), ENT_QUOTES, 'UTF-8') ?></time>
                     </a>
                 <?php endforeach; else: ?>
@@ -147,7 +179,8 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                 <form class="portal-notification-preview__settings notification-sound-settings" data-notification-sound-settings>
                     <div class="notification-sound-settings__toggles">
                         <label class="notification-sound-toggle" for="notification-sounds-enabled">
-                            <span>Sounds</span>
+                            <svg class="notification-sound-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M11 5 6 9H3v6h3l5 4zM15 8a6 6 0 0 1 0 8M18 5a10 10 0 0 1 0 14"/></svg>
+                            <span>Notification sound</span><span class="notification-sound-state" aria-hidden="true"><span class="sound-on">On</span><span class="sound-off">Off</span></span>
                             <input type="checkbox" id="notification-sounds-enabled" name="sound_enabled" value="1" aria-label="Enable notification sounds" <?= !empty($headerNotificationPreferences['sound_enabled']) ? 'checked' : '' ?>>
                         </label>
                         <label class="notification-sound-toggle" for="desktop-notifications-enabled">

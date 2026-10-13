@@ -21,7 +21,7 @@ final class CoreApi
             $body['preview']=true;
             try{$quote=PortalOrderRepository::resolve($this->db,$orderId,$body,$evidence);if(!$quote)throw new \DomainException('Order unavailable.');
                 $result=['goods_due'=>$quote['goods_due'],'delivery_fee'=>$quote['fee_cents'],'fee_due'=>$quote['fee_payer']==='already_paid'?0:$quote['fee_cents'],'fee_payer'=>$quote['fee_payer'],'area'=>$quote['area']];
-                if(!empty($quote['source_order']))$result=array_merge($result,$quote,['delivery_fee'=>$quote['fee_cents'],'fee_due'=>$quote['fee_due'],'verification'=>hash('sha256',json_encode([$orderId,$quote['total_cents'],$quote['paid_cents'],$quote['fee_cents'],$quote['customer_mobile']],JSON_THROW_ON_ERROR))]);
+                if(!empty($quote['source_order']))$result=array_merge($result,$quote,['delivery_fee'=>$quote['fee_cents'],'fee_due'=>$quote['fee_due'],'verification'=>hash('sha256',json_encode([$orderId,$quote['total_cents'],$quote['paid_cents'],$quote['fee_cents'],$quote['contact_snapshot']??$quote['customer_mobile']],JSON_THROW_ON_ERROR))]);
                 unset($result['shipping_evidence']);$this->db->rollBack();return $result;
             }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
         }
@@ -50,7 +50,7 @@ final class CoreApi
             $service=new DeliveryArrangement($this->db,static function($db,$id)use($details,$driverId,$shippingEvidence){
                 $order=PortalOrderRepository::resolve($db,$id,$details,$shippingEvidence);
                 if(!empty($details['source_order'])){
-                    $fingerprint=hash('sha256',json_encode([$id,$order['total_cents'],$order['paid_cents'],$order['fee_cents'],$order['customer_mobile']],JSON_THROW_ON_ERROR));
+                    $fingerprint=hash('sha256',json_encode([$id,$order['total_cents'],$order['paid_cents'],$order['fee_cents'],$order['contact_snapshot']??$order['customer_mobile']],JSON_THROW_ON_ERROR));
                     if(!hash_equals($fingerprint,$details['verification']))throw new \DomainException('Order changed. Review the refreshed confirmation before adding it.');
                 }
                 // Verify and lock the current account/role as part of the same assignment transaction.

@@ -91,14 +91,18 @@ function portal_safe_return_path($candidate): string
  */
 function portal_post_login_destination(array $user, $candidate = null): string
 {
+    // Staff entering the POS return to its authenticated confirmation page.
+    // Preserve role-specific destinations for ordinary portal sign-ins.
+    $safeReturn = portal_safe_return_path($candidate);
+    if (parse_url($safeReturn, PHP_URL_PATH) === BASE_URL . '/pos-authorize.php') return $safeReturn;
     if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'delivery_driver') {
-        return BASE_URL . '/apps/delivery/driver/index.php';
+        return BASE_URL . '/index.php';
     }
     if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'accountant') {
         return BASE_URL . '/apps/accounts/index.php';
     }
     if (strtolower(trim((string) ($user['role_key'] ?? ''))) === 'marketing_sales') {
-        return BASE_URL . '/apps/marketing/index.php';
+        return BASE_URL . '/index.php';
     }
     return portal_safe_return_path($candidate);
 }
@@ -186,6 +190,11 @@ function refresh_logged_in_user(): void
             logout_user();
             return;
         }
+
+        require_once BASE_PATH . '/shared/employee-account-editor.php';
+        try {
+            if (employee_account_session_revoked(db(), $id, (string) ($_SESSION['authenticated_at'] ?? ''))) { logout_user(); return; }
+        } catch (Throwable $revokeError) { logout_user(); return; }
 
         $_SESSION['user'] = [
             'id' => (int) $employee['id'],

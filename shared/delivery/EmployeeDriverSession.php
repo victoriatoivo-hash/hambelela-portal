@@ -12,7 +12,8 @@ final class EmployeeDriverSession
         if($base!==''&&strpos($path,$base.'/')===0)$path=substr($path,strlen($base));
         return in_array($path,[
             '/apps/delivery/driver/index.php','/apps/delivery/driver/api.php','/apps/delivery/driver/logout.php',
-            '/index.php','/profile.php','/change-access-code.php','/apps/hr-portal/portal-login.php',
+            '/index.php','/apps/delivery/index.php','/profile.php','/change-access-code.php','/apps/hr-portal/portal-login.php',
+            '/notifications.php','/api/notifications-feed.php','/notifications-api.php','/api/notifications.php',
             '/apps/operations/portal-presence.php',
         ],true);
     }
