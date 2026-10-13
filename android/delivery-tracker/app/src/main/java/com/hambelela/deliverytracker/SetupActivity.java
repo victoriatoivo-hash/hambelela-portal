@@ -33,7 +33,8 @@ public final class SetupActivity extends Activity {
             store.running(true);startForegroundService(new Intent(this,TrackingService.class));status.setText("Started. Check the persistent notification and Owner dashboard. Physical phone tests are still required.");});
         button("Stop tracking",v->{store.running(false);stopService(new Intent(this,TrackingService.class));status.setText("Stopped. No new GPS locations are collected.");});
         button("Open my Delivery portal",v->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(PortalClient.PORTAL+"/apps/delivery/index.php"))));
-        text("No Google API key or employee password belongs in this app. Only the company device pairing code is needed. Offline points are encrypted and retained for at most 24 hours; after one hour without server contact GPS stops until the connection returns.",12);
+        text("No Google API key or employee password belongs in this app. Only the company device pairing code is needed. Offline points are encrypted, expire for upload after 24 hours and are removed when the queue is next processed. After one hour without server contact GPS stops until the connection returns.",12);
+        button("GPS data notice",v->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(PortalClient.PORTAL+"/apps/delivery/tracking-notice.php"))));
     }
     private TextView text(String message,int size){TextView view=new TextView(this);view.setText(message);view.setTextSize(size);view.setTextColor(0xff26311F);view.setTypeface(font);view.setPadding(0,8,0,12);layout.addView(view);return view;}
     private EditText input(String hint,boolean secret){EditText view=new EditText(this);view.setHint(hint);view.setSingleLine(true);view.setTypeface(font);view.setTextSize(14);view.setInputType(InputType.TYPE_CLASS_TEXT|(secret?InputType.TYPE_TEXT_VARIATION_PASSWORD:InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS));layout.addView(view);return view;}

@@ -12,11 +12,14 @@ baseline={
 new_files=[
  'shared/delivery/TrackingPolicy.php','shared/delivery/TrackingSchema.php','shared/delivery/TrackingService.php',
  'shared/delivery/TrackingMaps.php','shared/delivery/TrackingConfiguration.php',
- 'apps/delivery/tracking.php','apps/delivery/tracking-api.php','apps/delivery/tracking-device.php',
+ 'apps/delivery/tracking.php','apps/delivery/tracking-api.php','apps/delivery/tracking-device.php','apps/delivery/tracking-notice.php',
  'assets/css/delivery-tracking.css','assets/js/delivery-tracking.js','scripts/delivery-tracking-worker.php',
  'apps/delivery/driver/hambelela-driver-gps-1.0.0.apk'
 ]
 files=new_files+list(baseline)
+expected=dict(baseline)
+if Path('scripts/delivery-tracking-live-baseline.json').exists():
+ expected.update(json.loads(Path('scripts/delivery-tracking-live-baseline.json').read_text()))
 ftp=ftplib.FTP_TLS(os.environ['FTP_SERVER'],timeout=60)
 ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD']);ftp.prot_p()
 report={'mode':mode,'sha':sha,'state':'checking'}
@@ -98,7 +101,7 @@ try:
   if p.endswith('.php'):subprocess.run(['php','-l'],input=data,check=True)
  before={p:read(p) for p in files};report['before']={p:digest(v) for p,v in before.items()}
  for p in files:
-  if digest(before[p])!=baseline.get(p) and before[p]!=desired[p]:raise RuntimeError('Live drift: '+p)
+  if digest(before[p])!=expected.get(p) and before[p]!=desired[p]:raise RuntimeError('Live drift: '+p)
  put(bridge,code.encode());bridge_uploaded=True;report['host_preflight']=host('preflight')
  if not report['host_preflight']['pdo_mysql'] or not report['host_preflight']['curl']:raise RuntimeError('Required host extension unavailable')
  report['state']='preflight_passed'

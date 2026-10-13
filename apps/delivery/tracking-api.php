@@ -12,7 +12,7 @@ try{
  $_SESSION['delivery_front_csrf']??=bin2hex(random_bytes(32));$service=new \Hambelela\Delivery\TrackingService(db());$config=new \Hambelela\Delivery\TrackingConfiguration();
  if($_SERVER['REQUEST_METHOD']==='GET'){
   if(($_GET['view']??'')==='history')$result=$service->history($actor,(string)($_GET['device']??''),(int)($_GET['from']??0),(int)($_GET['to']??0));
-  else $result=$service->dashboard($actor)+['csrf'=>$_SESSION['delivery_front_csrf'],'configuration'=>$config->publicStatus(),'browser_key'=>$config->read()['browser_key']];
+  else {$result=$service->dashboard($actor)+['csrf'=>$_SESSION['delivery_front_csrf'],'configuration'=>$config->publicStatus(),'browser_key'=>$config->read()['browser_key']];if(!$result['configuration']['enabled'])foreach($result['devices'] as &$device)$device['tracking_status']='Paused';unset($device);}
  }elseif($_SERVER['REQUEST_METHOD']==='POST'){
   \Hambelela\Delivery\FrontSession::csrf((string)($_SERVER['HTTP_X_CSRF_TOKEN']??''));
   $raw=file_get_contents('php://input',false,null,0,16385);if(strlen($raw)>16384)throw new DomainException('Request too large.');$b=json_decode($raw,true,16,JSON_THROW_ON_ERROR);if(!is_array($b))throw new DomainException('Invalid request.');

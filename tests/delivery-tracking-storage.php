@@ -46,7 +46,8 @@ try{
  $calls=[];$transport=static function($url,$body,$headers)use(&$calls){$calls[]=$url;if(strpos($url,'geocode')!==false)return ['status'=>'OK','results'=>[['geometry'=>['location'=>['lat'=>-22.57,'lng'=>17.09]]]]];return ['routes'=>[['distanceMeters'=>3200,'duration'=>'480s','polyline'=>['encodedPolyline'=>'synthetic-test-only']]]];};
  $maps=new \Hambelela\Delivery\TrackingMaps($db,'synthetic-not-a-key',$transport);
  $route=$maps->route($owner,$id,10);check($route['available']&&$route['distance_metres']===3200&&$route['duration_seconds']===480,'road estimate uses routing response, not straight-line distance');
- $maps->route($owner,$id,10);check(count($calls)===2,'route cache avoids repeated billable calls');
+ $second=$maps->route($owner,$id,10);check(!empty($second['throttled'])&&count($calls)===2,'route refresh limit avoids repeated billable calls');
+ check($db->query('SELECT polyline FROM delivery_tracking_routes WHERE delivery_id=10')->fetchColumn()===null,'Google route geometry is not stored in database');
  denied(function()use($maps,$driver,$id){$maps->route($driver,$id,10);},'Driver cannot request Owner fleet routes');
  $db->exec("UPDATE delivery_tracking_devices SET last_position=0 WHERE id='$id'");
  check(!$maps->route($owner,$id,10)['available']&&count($calls)===2,'stale GPS suppresses cached ETA and new billable requests');

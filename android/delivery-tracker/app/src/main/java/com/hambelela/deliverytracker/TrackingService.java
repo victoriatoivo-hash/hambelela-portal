@@ -38,7 +38,7 @@ public final class TrackingService extends Service implements LocationListener {
         handler.removeCallbacks(tick);handler.post(tick);return START_STICKY;
     }
     private long now(){return serverTime+(SystemClock.elapsedRealtime()-syncedElapsed)/1000;}
-    private boolean authorized(){return serverTime>0&&SystemClock.elapsedRealtime()>=syncedElapsed&&SystemClock.elapsedRealtime()-syncedElapsed<3600000&&now()>=windowStart&&now()<windowEnd;}
+    private boolean authorized(){return TrackingWindow.authorized(serverTime,syncedElapsed,SystemClock.elapsedRealtime(),windowStart,windowEnd);}
     private boolean gpsAvailable(){return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED&&locations.isProviderEnabled(LocationManager.GPS_PROVIDER);}
     private void updateListening(){
         boolean allowed=authorized()&&gpsAvailable();
@@ -70,7 +70,8 @@ public final class TrackingService extends Service implements LocationListener {
         });
     }
     public void onLocationChanged(Location location){
-        if(!authorized()||location.isFromMockProvider()||!location.hasAccuracy()||location.getAccuracy()>100)return;
+        if(!authorized()){updateListening();return;}
+        if(location.isFromMockProvider()||!location.hasAccuracy()||location.getAccuracy()>100)return;
         long age=(SystemClock.elapsedRealtimeNanos()-location.getElapsedRealtimeNanos())/1000000000L;
         if(age<0||age>30)return;
         long recorded=now()-age;if(recorded<windowStart||recorded>=windowEnd)return;

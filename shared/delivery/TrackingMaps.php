@@ -38,7 +38,10 @@ final class TrackingMaps
         $address=trim((string)$job['address']);if($address==='')return ['available'=>false,'reason'=>'Delivery address is missing.'];$hash=hash('sha256',$address);
         $this->run('INSERT IGNORE INTO delivery_tracking_routes(delivery_id,address_hash) VALUES(?,?)',[$delivery,$hash]);
         $cache=$this->rows('SELECT * FROM delivery_tracking_routes WHERE delivery_id=?',[$delivery])[0];
-        if($cache['address_hash']===$hash&&$cache['calculated_at']&&$now-(int)$cache['calculated_at']<$s['route_interval_seconds']&&$cache['error_code']===null)return $this->view($cache);
+        // Only permitted geocoded coordinates are cached. Route geometry and
+        // duration are delivered for current display, never archived in the DB.
+        // https://developers.google.com/maps/documentation/routes/policies
+        if($cache['address_hash']===$hash&&$cache['calculated_at']&&$now-(int)$cache['calculated_at']<$s['route_interval_seconds']&&$cache['error_code']===null)return ['available'=>false,'throttled'=>true,'reason'=>'Road estimate refresh is limited to once per configured interval. Please try again shortly.'];
         // One route computation at a time across dashboard tabs and retries.
         if(!$this->run('UPDATE delivery_tracking_routes SET route_lock_until=? WHERE delivery_id=? AND route_lock_until<=?',[$now+45,$delivery,$now]))return ['available'=>false,'reason'=>'Road estimate is refreshing.'];
         try{
@@ -61,8 +64,8 @@ final class TrackingMaps
             $r=$route['routes'][0]??[];
             if(!isset($r['distanceMeters'],$r['duration'],$r['polyline']['encodedPolyline'])||!preg_match('/^([0-9]+(?:\.[0-9]+)?)s$/D',(string)$r['duration'],$m))throw new \DomainException('No road route available for this address.');
             $duration=(int)ceil((float)$m[1]);$distance=(int)$r['distanceMeters'];if($duration<0||$distance<0)throw new \DomainException('Invalid road estimate.');
-            $this->run('UPDATE delivery_tracking_routes SET calculated_at=?,origin_at=?,distance_metres=?,duration_seconds=?,expected_arrival=?,polyline=?,error_code=NULL,route_lock_until=0 WHERE delivery_id=?',[$now,$d['last_position'],$distance,$duration,$now+$duration,$r['polyline']['encodedPolyline'],$delivery]);
-            return $this->view($this->rows('SELECT * FROM delivery_tracking_routes WHERE delivery_id=?',[$delivery])[0]);
+            $this->run('UPDATE delivery_tracking_routes SET calculated_at=?,origin_at=?,distance_metres=NULL,duration_seconds=NULL,expected_arrival=NULL,polyline=NULL,error_code=NULL,route_lock_until=0 WHERE delivery_id=?',[$now,$d['last_position'],$delivery]);
+            return $this->view(array_merge($cache,['calculated_at'=>$now,'origin_at'=>$d['last_position'],'distance_metres'=>$distance,'duration_seconds'=>$duration,'expected_arrival'=>$now+$duration,'polyline'=>$r['polyline']['encodedPolyline']]));
         }catch(\Throwable $e){
             $this->run('UPDATE delivery_tracking_routes SET error_code=?,route_lock_until=?,polyline=NULL,calculated_at=NULL WHERE delivery_id=?',['unavailable',$now+$s['route_interval_seconds'],$delivery]);
             return ['available'=>false,'reason'=>$e instanceof \DomainException?$e->getMessage():'Road estimate temporarily unavailable.'];

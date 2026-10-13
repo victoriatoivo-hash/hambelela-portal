@@ -57,7 +57,7 @@ jobs:
           gradle-version: '8.13'
       - name: Compile Android companion (not a signed production release)
         working-directory: android/delivery-tracker
-        run: gradle --no-daemon :app:assembleRelease :app:lintRelease
+        run: gradle --no-daemon :app:assembleRelease :app:lintRelease :app:testReleaseUnitTest
       - name: Include official Android signing verifier for local signing
         run: cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" android/delivery-tracker/app/build/outputs/apk/release/apksigner.jar
       - name: Verify published APK matches reviewed source and release signature
