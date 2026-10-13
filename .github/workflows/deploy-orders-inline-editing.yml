@@ -5,7 +5,7 @@ on:
       mode:
         type: choice
         required: true
-        options: [inspect]
+        options: [inspect, test]
       approved_sha:
         type: string
         required: true
@@ -38,7 +38,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - name: Capture or publish exact isolated files
+      - name: Verify exact requested revision
+        env:
+          RELEASE_SHA: ${{ inputs.approved_sha }}
+        run: test "$(git rev-parse HEAD)" = "$RELEASE_SHA"
+      - name: Synthetic GPS tests
+        run: |
+          php tests/delivery-tracking-policy.php
+          php tests/delivery-tracking-storage.php
+          php -l shared/delivery/TrackingSchema.php
+          php -l shared/delivery/TrackingService.php
+      - name: Capture isolated live source
+        if: inputs.mode == 'inspect'
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
