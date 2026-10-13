@@ -1283,6 +1283,8 @@
 
   function receivedQuantityState(row) {
     const received = parseReceivedStock(row);
+    const receivedText = String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1').trim();
+    if (!/^\d+(?:\.\d+)?\s*(?:[a-z\s]+)?$/i.test(receivedText) || (received.dimension === 'count' && !Number.isSafeInteger(received.amount))) return { valid:false, status:'invalid_quantity', message:'Enter a positive received quantity; count-based stock requires whole units.', received };
     if (!String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1').match(/\d+(?:\.\d+)?/)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity missing', received };
     if (!row.unit || !received.dimension) return { valid: false, status: 'unit_missing', message: 'Unit required', received };
     if (!(received.amount > 0) || !(received.base > 0)) return { valid: false, status: 'invalid_quantity', message: 'Received quantity must be greater than zero', received };
@@ -1305,6 +1307,8 @@
     let status = 'fully_allocated';
     let message = 'Balanced — 0 remaining';
     if (!row.unit || !received.dimension) { status = 'unit_missing'; message = 'Unit required'; }
+    else if (!receivedQuantityState(row).valid) { status = 'invalid_quantity'; message = receivedQuantityState(row).message; }
+    else if (!Number.isFinite(Number(row.bulk_remainder || 0)) || Number(row.bulk_remainder || 0) < 0 || (received.dimension === 'count' && !Number.isSafeInteger(Number(row.bulk_remainder || 0)))) { status = 'invalid_quantity'; message = 'Bulk remainder must be positive or zero, with whole units for count-based stock.'; }
     else if (!String(row.quantity_planned || '').trim()) { status = 'invalid_quantity'; message = 'Quantity to pack is required.'; }
     else if (plan.sizeCount === 0) { status = 'invalid_quantity'; message = 'Enter size × pack count, e.g. 50 units(20) or 100g(20). Keep unrelated numbers in Notes.'; }
     else if (otherDimensions.length) { status = 'unit_mismatch'; message = `Unit mismatch: ${received.dimension} received quantity cannot be validated against ${otherDimensions[0][0]} pack sizes.`; }
@@ -1641,6 +1645,8 @@
     if (cell) cell.textContent = formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase);
     const remaining = tr?.querySelector('[data-draft-remaining]');
     if (remaining) remaining.innerHTML = packingBalanceMarkup(accounting);
+    const preview = tr?.querySelector('[data-manual-plan-preview]');
+    if (preview) preview.textContent = readablePackingPlan(row.quantity_planned);
     tr?.classList.toggle('has-draft-warning', !accounting.valid);
     const bulkButton = tr?.querySelector('[data-leave-as-bulk]');
     if (bulkButton) {
@@ -1764,7 +1770,7 @@
         <td data-label="Product"><input data-draft-field="item_name" aria-label="Product ${index+1}" maxlength="190" value="${esc(row.item_name || '')}" placeholder="Product name"></td>
         <td data-label="Received"><input data-draft-field="received_weight" inputmode="decimal" aria-label="Received quantity ${index+1}" value="${esc(String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1').match(/\d+(?:\.\d+)?/)?.[0] || '')}" placeholder="1000"></td>
         <td data-label="Unit"><select data-draft-field="unit" aria-label="Stock unit ${index+1}">${unitOptions(row.unit || '')}</select></td>
-        <td data-label="Quantity to Pack"><input data-draft-field="quantity_planned" aria-label="Quantity to pack ${index+1}" maxlength="255" value="${esc(row.quantity_planned || '')}" placeholder="50(20) or 100g(10)"><small>${esc(readablePackingPlan(row.quantity_planned))}</small>${builder}<details class="pw-more-actions"><summary>More Actions</summary><div><button type="button" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close pack sizes' : 'Edit pack sizes'}</button><button type="button" data-add-pack-part="${index}">Add pack size</button><label>Bulk remainder (${esc(row.unit || 'stock unit')})<input type="number" min="0" step="${row.unit === 'units' ? '1' : '0.001'}" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>Leave remainder as bulk</button><button type="button" class="pw-danger" data-remove-draft-row="${index}">Remove item</button></div></details></td>
+        <td data-label="Quantity to Pack"><input data-draft-field="quantity_planned" aria-label="Quantity to pack ${index+1}" maxlength="255" value="${esc(row.quantity_planned || '')}" placeholder="50(20) or 100g(10)"><small data-manual-plan-preview>${esc(readablePackingPlan(row.quantity_planned))}</small>${builder}<details class="pw-more-actions"><summary>More Actions</summary><div><button type="button" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close pack sizes' : 'Edit pack sizes'}</button><button type="button" data-add-pack-part="${index}">Add pack size</button><label>Bulk remainder (${esc(row.unit || 'stock unit')})<input type="number" min="0" step="${row.unit === 'units' ? '1' : '0.001'}" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>Leave remainder as bulk</button><button type="button" class="pw-danger" data-remove-draft-row="${index}">Remove item</button></div></details></td>
         <td data-label="Allocated" data-draft-workload>${formatPhysical(dimension,accounting.plannedBase)}</td><td data-label="Remaining" data-draft-remaining>${packingBalanceMarkup(accounting)}</td>
         <td data-label="Priority"><select data-draft-field="priority" aria-label="Priority ${index+1}">${priorities.map(([key,label]) => `<option value="${key}" ${key===row.priority?'selected':''}>${label}</option>`).join('')}</select></td>
         <td data-label="Notes"><button type="button" class="pack-notes-button" data-open-draft-notes="${index}">${hasNotes ? 'Edit notes ●' : 'Add notes'}</button></td></tr>`;

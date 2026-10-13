@@ -7,7 +7,11 @@ const styles = fs.readFileSync(new URL('../assets/css/packing-board.css', import
 
 assert.match(page, /data-manual-only/);
 assert.match(page, /Manual packing items/);
-assert.match(page, /Distribute by weight/);
+assert.match(page, /Enter Packing Quantities/);
+assert.match(page, /Review Packer Distribution/);
+assert.match(page, /Review &amp; Create/);
+assert.match(page, /data-manual-back/);
+assert.match(script, /manualWizardStep === 3 \? 'submit' : 'button'/);
 assert.match(page, /data-invoice-only/);
 assert.match(script, /setPackingDraftMode\('manual'\)/);
 assert.match(script, /manualDraftRows/);

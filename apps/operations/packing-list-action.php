@@ -195,11 +195,15 @@ function packing_invoice_allocation_validation(array $row): array
         return ['valid' => false, 'message' => 'Unit required.'];
     }
     $receivedText = preg_replace('/(\d),(?=\d{3}(?:\D|$))/', '$1', (string) ($row['received_weight'] ?? ''));
+    if (!preg_match('/^\d+(?:\.\d+)?\s*(?:[a-z\s]+)?$/i', trim($receivedText))) return ['valid'=>false,'message'=>'Enter a positive received quantity.'];
     preg_match('/\d+(?:\.\d+)?/', $receivedText, $amountMatch);
     $receivedAmount = isset($amountMatch[0]) ? (float) $amountMatch[0] : 0.0;
     if ($receivedAmount <= 0) {
         return ['valid' => false, 'message' => 'Received quantity must be greater than zero.'];
     }
+    if ($unit['dimension'] === 'count' && (floor($receivedAmount) !== $receivedAmount || $receivedAmount > 9007199254740991)) return ['valid'=>false,'message'=>'Count-based received stock requires whole units.'];
+    $remainder = $row['bulk_remainder'] ?? 0;
+    if ($remainder !== '' && (!is_numeric($remainder) || !is_finite((float)$remainder) || (float)$remainder < 0 || ($unit['dimension'] === 'count' && floor((float)$remainder) !== (float)$remainder))) return ['valid'=>false,'message'=>'Invalid bulk remainder.'];
     $plan = packing_quantity_plan_stats((string) ($row['quantity_planned'] ?? ''));
     if ((int) ($plan['size_count'] ?? 0) <= 0) {
         $planText = trim((string) ($row['quantity_planned'] ?? ''));
@@ -2352,16 +2356,18 @@ try {
             $originalRow = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $notes = "Invoice number: {$invoiceNumber}\nSource import ID: {$importId}\nSource line number: " . ($rowIndex + 1) . "\nOriginal extracted row: " . substr((string) $originalRow, 0, 1500);
             $rowKey = 'invoice:' . $invoiceRowKey;
+            if ($manualBatch) $rowKey = 'manual:' . substr(hash('sha256', $importId . ':' . $rowIndex), 0, 40);
             $freeNotes = trim(substr((string) ($row['notes'] ?? ''), 0, 2000));
             if ($freeNotes !== '') $notes .= "\nNotes: " . $freeNotes;
             $notes = packing_instructions_notes($notes, $row);
 
             if ($hasPackingRowKey) {
                 $duplicate = ops_rows(
-                    'SELECT id FROM ops_packing_tasks WHERE packing_row_key = ? AND ' . packing_active_where() . ' LIMIT 1',
+                    'SELECT id, item_name, received_weight, quantity_planned, priority, assigned_employee_id FROM ops_packing_tasks WHERE packing_row_key = ? AND ' . packing_active_where() . ' LIMIT 1',
                     [$rowKey]
                 );
                 if ($duplicate) {
+                    if ($manualBatch && ((string)$duplicate[0]['item_name'] !== $itemName || (string)$duplicate[0]['received_weight'] !== $receivedWeight || (string)$duplicate[0]['quantity_planned'] !== $quantityPlan || (string)$duplicate[0]['priority'] !== $priority || (int)$duplicate[0]['assigned_employee_id'] !== $assignedId)) throw new RuntimeException('This batch was already saved with different details. Refresh the packing list before starting a new batch.');
                     $duplicates++;
                     ops_activity_log('packing_invoice_duplicate_prevented', 'packing_task', (int) $duplicate[0]['id'], [
                         'item_name' => $itemName,

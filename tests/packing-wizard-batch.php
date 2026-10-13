@@ -26,8 +26,9 @@ if(($argv[1]??'')==='--child') {
  sourceFunctions();$scenario=$argv[2];$GLOBALS['scenario']=$scenario;$GLOBALS['created_events']=0;
  $rows=[['item_name'=>'CI Tea','received_weight'=>'1000units','unit'=>'units','quantity_planned'=>'50(20)','priority'=>'medium','assigned_employee_id'=>102,'assignment_source'=>'manual','general_instructions'=>'Apply labels to all 1000 units','notes'=>'Keep 17 boxes upright'],['item_name'=>'CI Oil','received_weight'=>'1L','unit'=>'L','quantity_planned'=>'250ml(4)','priority'=>'high','assigned_employee_id'=>101,'assignment_source'=>'manual']];
  if($scenario==='invalid')$rows[1]['quantity_planned']='250ml(5)';
+ if($scenario==='changed-retry')$rows[0]['item_name']='Changed after uncertain response';
  if($scenario==='ineligible')$rows[1]['assigned_employee_id']=999;
- $_POST=['rows_json'=>json_encode($rows),'declared_count'=>2,'import_id'=>in_array($scenario,['valid','retry','concurrent'],true)?'wizard-retry-batch':'wizard-'.$scenario,'draft_mode'=>'manual','distribution_reviewed'=>'1','sync_mode'=>'create_only','reviewed_assignments_json'=>json_encode(array_map(static function($row,$index){return ['index'=>$index]+$row;},$rows,array_keys($rows)))];
+ $_POST=['rows_json'=>json_encode($rows),'declared_count'=>2,'import_id'=>in_array($scenario,['valid','retry','concurrent','changed-retry'],true)?'wizard-retry-batch':'wizard-'.$scenario,'draft_mode'=>'manual','distribution_reviewed'=>'1','sync_mode'=>'create_only','reviewed_assignments_json'=>json_encode(array_map(static function($row,$index){return ['index'=>$index]+$row;},$rows,array_keys($rows)))];
  if($scenario==='tampered') { $reviews=json_decode($_POST['reviewed_assignments_json'],true);$reviews[1]['assigned_employee_id']=102;$_POST['reviewed_assignments_json']=json_encode($reviews); }
  $canManage=$scenario!=='employee';$currentEmployeeId=1;$action='create_invoice_rows';
  $s=file_get_contents(__DIR__.'/../apps/operations/packing-list-action.php');$start=strpos($s,"    if (\$action === 'create_invoice_rows') {");$end=strpos($s,"    if (\$action === 'confirm_frontdesk_website_update') {",$start);
@@ -45,6 +46,7 @@ $first=invoke('valid');if(($first['inserted_count']??0)!==2||countRows()!==2)thr
 $rows=db()->query('SELECT * FROM ops_packing_tasks ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
 if((int)$rows[0]['assigned_employee_id']!==102||(float)$rows[0]['workload_package_count']!==20.0||(float)$rows[0]['workload_unit_count']!==1000.0||strpos($rows[0]['notes'],'Keep 17 boxes upright')===false||strpos($rows[0]['notes'],'Apply labels to all 1000 units')===false)throw new RuntimeException('Assignment/notes/workload not preserved');
 $retry=invoke('retry');if(($retry['skipped_count']??0)!==2||countRows()!==2)throw new RuntimeException('Duplicate retry');
+$changedRetry=invoke('changed-retry');if(($changedRetry['ok']??true)!==false||countRows()!==2)throw new RuntimeException('Changed retry duplicated the batch');
 // Run two genuine concurrent retries to exercise the connection-scoped import lock.
 $processes=[];foreach([1,2] as $i){$pipes=[];$processes[]=[$p=proc_open([PHP_BINARY,__FILE__,'--child','concurrent'],[1=>['pipe','w'],2=>['pipe','w']],$pipes),$pipes];}
 foreach($processes as [$p,$pipes]){$r=json_decode(stream_get_contents($pipes[1]),true);$errors=stream_get_contents($pipes[2]);foreach($pipes as $pipe)fclose($pipe);if(proc_close($p)!==0||($r['skipped_count']??0)!==2)throw new RuntimeException('Concurrent retry: '.$errors);}

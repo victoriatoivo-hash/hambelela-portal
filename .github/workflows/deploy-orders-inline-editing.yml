@@ -50,6 +50,9 @@ jobs:
           node tests/packing-wizard.mjs
           php tests/packing-wizard.php
           php tests/packing-wizard-batch.php
+          node tests/packing-multi-manual-static.mjs
+          node tests/packing-invoice-two-stage-workflow-static.mjs
+          node tests/packing-invoice-physical-workload-static.mjs
       - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

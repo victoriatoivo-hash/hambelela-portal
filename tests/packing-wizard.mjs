@@ -18,6 +18,8 @@ assert.equal(context.quantityPlanStats('50(10), 25(20)').totalUnits,30);
 assert.equal(context.quantityAccounting({...row('100g(10)'),unit:'kg',received_weight:'1'}).valid,true);
 assert.equal(context.quantityAccounting({...row('250ml(4)'),unit:'L',received_weight:'1'}).valid,true);
 assert.equal(context.quantityAccounting({...row('50(15)'),bulk_remainder:250}).valid,true);
+for(const received of ['-1000','1000 and 20','1.5'])assert.equal(context.quantityAccounting({...row('50(20)'),received_weight:received}).valid,false,received);
+for(const remainder of [-1,0.5,'bad'])assert.equal(context.quantityAccounting({...row('50(20)'),bulk_remainder:remainder}).valid,false,String(remainder));
 assert.equal(context.quantityAccounting({...row('50(20)'),general_instructions:'50 labels, 10 boxes and 7 stickers'}).plannedBase,1000);
 assert.equal(context.quantityPlanFromParts([{amount:50,unit:'units',count:20}]),'50 units(20)');
 assert.equal(context.quantityPlanFromParts([{amount:50,unit:'units',count:20},{amount:0,unit:'units',count:2}]),'');
