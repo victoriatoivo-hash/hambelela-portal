@@ -50,6 +50,7 @@ final class SecureStore extends SQLiteOpenHelper {
         db.execSQL("DELETE FROM queue WHERE id NOT IN (SELECT id FROM queue ORDER BY id DESC LIMIT 8640)");
     }
     synchronized JSONObject batch() throws Exception {
+        getWritableDatabase().delete("queue","recorded<?",new String[]{Long.toString(System.currentTimeMillis()/1000-86400)});
         JSONArray points=new JSONArray();long last=0;
         try(Cursor cursor=getReadableDatabase().rawQuery("SELECT id,payload FROM queue ORDER BY id LIMIT 100",null)){while(cursor.moveToNext()){last=cursor.getLong(0);points.put(new JSONObject(decrypt(cursor.getString(1))));}}
         return new JSONObject().put("points",points).put("last",last);

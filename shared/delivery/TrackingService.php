@@ -121,5 +121,8 @@ final class TrackingService
         foreach($this->rows('SELECT id,settings_json FROM delivery_tracking_devices') as $d){$s=TrackingPolicy::settings(json_decode($d['settings_json'],true));$cut=time()-$s['retention_days']*86400;
             $this->run('DELETE FROM delivery_tracking_points WHERE device_id=? AND recorded_at<?',[$d['id'],$cut]);
             $this->run('UPDATE delivery_tracking_devices SET latitude=NULL,longitude=NULL,accuracy=NULL,last_position=NULL WHERE id=? AND last_position<?',[$d['id'],$cut]);}
+        // Do not retain Google coordinates or route geometry indefinitely.
+        $this->run('DELETE FROM delivery_tracking_routes WHERE geocoded_at IS NOT NULL AND geocoded_at<?',[time()-86400*29]);
+        $this->run('DELETE FROM delivery_tracking_api_usage WHERE usage_day<?',[gmdate('Y-m-d',time()-86400*90)]);
     }
 }
