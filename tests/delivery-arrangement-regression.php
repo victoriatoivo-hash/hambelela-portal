@@ -25,6 +25,7 @@ try{
  INSERT INTO ops_roles VALUES(1,'owner_admin'),(2,'front_desk_admin_employee'),(3,'delivery_driver'),(4,'marketing_sales'),(5,'packer');
  INSERT INTO ops_employees VALUES(1,1,'active','Synthetic Owner'),(2,2,'active','Synthetic Front'),(3,3,'active','Synthetic Driver'),(4,3,'active','Other Driver'),(5,5,'active','Synthetic Packer');");
  $db->exec(file_get_contents(__DIR__.'/../database/delivery/001-delivery-proposed.sql'));
+ $db->exec(file_get_contents(__DIR__.'/../database/delivery/002-driver-auth-proposed.sql'));
  $db->exec("INSERT INTO delivery_driver_profiles VALUES(3,1,1,UTC_TIMESTAMP()),(4,1,1,UTC_TIMESTAMP());
  INSERT INTO ops_orders(id,order_number,woo_order_id,total_amount,payment_status,payment_method,customer_name,customer_contact,notes,fulfilment_mode,status) VALUES(100,'WEB-SYNTHETIC',100,120,'unpaid','Cash','Synthetic customer','55','Shipping address: KH, NA','delivery','in_progress');");
  $front=\Hambelela\Delivery\FrontSession::actor($db,2);
