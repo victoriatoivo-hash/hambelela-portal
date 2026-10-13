@@ -32,6 +32,7 @@ function marketing_clock_markup(array $item): string {
 }
 
 function marketing_work_evidence(array $item,int $event,string $action,array $metadata=[]): void {
+    if($event<1)return;
     // Marketing evidence belongs in the existing Portal Activity stream. No new scoring rules.
     try {
         $bootstrap=BASE_PATH.'/shared/epi/bootstrap.php';if(!is_file($bootstrap))return;require_once $bootstrap;
@@ -133,7 +134,10 @@ function marketing_content_edit_config(int $id,?array $previous,array $input): i
     db()->prepare('UPDATE marketing_work_items SET deliverable_mode=?,preparation_evidence_required=?,media_source=?,media_link=? WHERE id=?')->execute([$mode,!empty($input['preparation_evidence_required'])?1:0,$source,$link,$id]);
     $after=marketing_execution_item($id);$fields=['title','brief','owner_notes','assigned_employee_id','content_type','due_at','publish_at','priority','approval_required','deliverable_mode','preparation_evidence_required','media_source','media_link'];$changes=[];
     foreach($fields as $key)if(($previous[$key]??null)!==($after[$key]??null))$changes[$key]=['before'=>$previous[$key]??null,'after'=>$after[$key]??null];
-    $channelSnapshot=db()->prepare('SELECT channel_key,is_required,instructions,scheduled_at FROM marketing_channel_execution WHERE item_id=?');$channelSnapshot->execute([$id]);$changes['channels']=['before'=>$previous['_channels']??[],'after'=>$channelSnapshot->fetchAll()];
+    $channelSnapshot=db()->prepare('SELECT channel_key,is_required,instructions,scheduled_at FROM marketing_channel_execution WHERE item_id=? ORDER BY channel_key');$channelSnapshot->execute([$id]);
+    $normalize=static function(array $rows):array{$result=[];foreach($rows as $row)$result[$row['channel_key']]=['channel_key'=>$row['channel_key'],'is_required'=>(int)($row['is_required']??1),'instructions'=>(string)($row['instructions']??''),'scheduled_at'=>$row['scheduled_at']??null];ksort($result);return array_values($result);};
+    $beforeChannels=$normalize($previous['_channels']??[]);$afterChannels=$normalize($channelSnapshot->fetchAll());if($beforeChannels!==$afterChannels)$changes['channels']=['before'=>$beforeChannels,'after'=>$afterChannels];
+    if($previous&&!$changes)return 0;
     if($previous&&$previous['status']==='ready_for_review'&&($previous['due_at']??null)!==($after['due_at']??null)&&!empty($previous['due_at'])&&!empty($after['due_at'])) {
         $zone=new DateTimeZone('Africa/Windhoek');$extension=(new DateTimeImmutable($after['due_at'],$zone))->getTimestamp()-(new DateTimeImmutable($previous['due_at'],$zone))->getTimestamp();
         db()->prepare('UPDATE marketing_work_items SET review_remaining_seconds=review_remaining_seconds+? WHERE id=?')->execute([$extension,$id]);
