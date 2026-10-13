@@ -8,13 +8,38 @@ require_once BASE_PATH . '/shared/notifications.php';
 
 require_login();
 
+// Persist the token before releasing the session lock. A slow summary/HR sync
+// must not block a concurrent dismissal from this employee's other tab.
+if (empty($_SESSION['marketing_popup_csrf'])) $_SESSION['marketing_popup_csrf'] = bin2hex(random_bytes(24));
+if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
+
+// Notification acknowledgements must not wait for unrelated HR policy synchronization.
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') try {
+    require_once BASE_PATH.'/shared/portal-policy-notifications.php';
+    $policyHr=ops_hr_db();
+    if($policyHr){hrPolicyAssignCurrent($policyHr);portal_policy_sync(db(),$policyHr);}
+} catch(Throwable $error){error_log('Policy notification refresh unavailable: '.$error->getMessage());}
+
 header('Content-Type: application/json');
+header('Cache-Control: private, no-store');
 
 try {
     $mode = (string) ($_GET['mode'] ?? 'summary');
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $action = (string) ($_POST['action'] ?? '');
+        if ($action === 'marketing_seen') {
+            if (empty($_SESSION['marketing_popup_csrf']) || !hash_equals((string)$_SESSION['marketing_popup_csrf'], (string)($_POST['csrf']??''))) {
+                http_response_code(403);echo json_encode(['ok'=>false,'message'=>'Session verification expired. Refresh and try again.']);exit;
+            }
+            $ok=notifications_marketing_seen((int)($_POST['notification_id']??0));
+            if(!$ok)http_response_code(404);
+            echo json_encode(['ok'=>$ok,'message'=>$ok?'Popup acknowledged.':'Notification is not available for this employee.']);exit;
+        }
+        if ($action === 'marketing_remind') {
+            if (!hash_equals((string)($_SESSION['marketing_popup_csrf']??''),(string)($_POST['csrf']??'')) || empty($_SESSION['marketing_popup_csrf'])) { http_response_code(403);echo json_encode(['ok'=>false]);exit; }
+            echo json_encode(['ok'=>notifications_marketing_remind((int)($_POST['notification_id']??0))]);exit;
+        }
         if ($action === 'notification_claim') {
             echo json_encode(['ok' => true, 'claimed' => notifications_claim_task_delivery((int) ($_POST['notification_id'] ?? 0))]);
             exit;
@@ -63,7 +88,11 @@ try {
         exit;
     }
 
+    notifications_recover_task_assignments();
     $summary = notifications_summary_for_current_user(5);
+    $summary['marketing_popup_csrf']=$_SESSION['marketing_popup_csrf'];
+    $summary['marketing_popups']=notifications_marketing_popups();
+    $summary['task_popups'] = notifications_task_popups((int)($_GET['active_task_notification'] ?? 0));
     $summary['sidebar_counts'] = notifications_sidebar_counts_for_current_user();
     $summary['packing_list_unread_count'] = notifications_packing_assignment_unread_count();
     $summary['packing_list_unread_ids'] = notifications_packing_assignment_unread_ids();
