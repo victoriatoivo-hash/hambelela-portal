@@ -66,11 +66,14 @@ function packing_quantity_plan_stats(string $quantityPlan): array
     $units='kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|pouch(?:es)?|tea\s*bags?|individual\s+items?';
     $containers='pouch(?:es)?|packs?|bags?|bottles?|jars?';
     $text=preg_replace('/(\d),(?=\d{3}(?:\D|$))/', '$1', str_replace('×','x',$quantityPlan));
+    $text=preg_replace('/\((\d+)\)\s*units?\s+in\s+a\s+pack\s*-\s*quantity\s+(\d+)/i','$1 units($2)',$text);
+    $text=preg_replace('/(\d+)\s*(?:'.$containers.')\s+of\s+(\d+)\s*(?:units?|pieces?)/i','$2 units($1)',$text);
+    $text=preg_replace('/(\d+)\s*(?:units?|pieces?)\s+in\s+a\s+(?:'.$containers.')\s*-\s*quantity\s+(\d+)/i','$1 units($2)',$text);
     $text=preg_replace('/(\d+)\s*(?:units?|pieces?|tea\s*bags?|labels?|bottles?|jars?)\s+per\s+(?:'.$containers.')\s*,?\s*(\d+)\s*(?:'.$containers.')/i','$1 units($2)',$text);
     $text=preg_replace('/(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*('.$units.')\s*\)/i','$2$3($1)',$text);
     $text=preg_replace('/\)\s*(?=\d)/','),',$text);
     foreach(preg_split('/[,;+\n]+/',trim($text))?:[] as $part){
-        if(!preg_match('/^\s*(?:('.$units.')\s+)?(\d+(?:\.\d+)?)\s*('.$units.')?\s*(?:[x*]\s*(\d+)\s*(?:'.$containers.')?|\(\s*(\d+)\s*\))?\s*$/i',$part,$m)||(!empty($m[1])&&!empty($m[3])))return $empty;
+        if(!preg_match('/^\s*(?:(units?)\s+)?(\d+(?:\.\d+)?)\s*('.$units.')?\s*(?:[x*]\s*(\d+)\s*(?:'.$containers.')?|\(\s*(\d+)\s*\))?\s*$/i',$part,$m)||(!empty($m[1])&&!empty($m[3])))return $empty;
         $meta=packing_unit_meta(($m[3]??'')?:($m[1]?:'units'));$amount=(float)$m[2];$count=(int)(($m[4]??'')?:($m[5]??1));
         if(!$meta||!is_finite($amount*$count)||$amount<=0||$count<=0||$count>9007199254740991||($meta['dimension']==='count'&&(floor($amount)!==$amount||floor($amount*$count)!==$amount*$count||$amount*$count>9007199254740991)))return $empty;
         if($meta['dimension']==='count'&&empty($m[4])&&empty($m[5])){$count=$amount;$amount=1;}
@@ -2200,7 +2203,9 @@ try {
             throw new RuntimeException('A valid invoice import reference is required. Re-extract the invoice and try again.');
         }
 
+        $manualBatch = (string) ($_POST['draft_mode'] ?? '') === 'manual';
         $distributionReviewed = (string) ($_POST['distribution_reviewed'] ?? '0') === '1';
+        if ($manualBatch && !$distributionReviewed) throw new RuntimeException('Review the packer distribution before creating the batch.');
         $reviewedAssignments = $distributionReviewed
             ? json_decode((string) ($_POST['reviewed_assignments_json'] ?? '[]'), true)
             : [];
@@ -2217,6 +2222,7 @@ try {
         if (!in_array($syncMode, ['update_existing', 'skip_duplicates', 'create_only'], true)) {
             $syncMode = 'update_existing';
         }
+        if ($manualBatch) $syncMode = 'create_only';
         $hasMondayId = ops_column_exists('ops_packing_tasks', 'monday_item_id');
         $hasMondaySyncedAt = ops_column_exists('ops_packing_tasks', 'monday_synced_at');
         $hasMondayStatus = ops_column_exists('ops_packing_tasks', 'monday_sync_status');
@@ -2263,6 +2269,7 @@ try {
                 $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => '', 'reason' => 'Item name is required.'];
                 continue;
             }
+            if (strlen((string) ($row['item_name'] ?? '')) > 190 || strlen((string) ($row['quantity_planned'] ?? '')) > 255 || !in_array((string) ($row['priority'] ?? 'medium'), ['low','medium','high','top_critical'], true)) throw new RuntimeException('Invalid item length or priority. Nothing was saved.');
             $validationAssignmentSource = (string) ($row['assignment_source'] ?? 'auto') === 'manual' ? 'manual' : 'auto';
             $validationAssignedId = (int) ($row['assigned_employee_id'] ?? 0);
             if ($distributionReviewed) {
@@ -2305,6 +2312,12 @@ try {
             exit;
         }
 
+        notifications_schema_ready();
+        if (!$hasPackingRowKey) throw new RuntimeException('Packing import references are required to prevent duplicate batches.');
+        $batchLock = 'packing-import:' . substr(hash('sha256', $importId), 0, 40);
+        $lockStatement = db()->prepare('SELECT GET_LOCK(?, 10)');
+        $lockStatement->execute([$batchLock]);
+        if ((int) $lockStatement->fetchColumn() !== 1) throw new RuntimeException('This packing batch is already being saved. Retry in a moment.');
         db()->beginTransaction();
 
         foreach ($rows as $rowIndex => $row) {
@@ -2339,6 +2352,8 @@ try {
             $originalRow = json_encode($row, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             $notes = "Invoice number: {$invoiceNumber}\nSource import ID: {$importId}\nSource line number: " . ($rowIndex + 1) . "\nOriginal extracted row: " . substr((string) $originalRow, 0, 1500);
             $rowKey = 'invoice:' . $invoiceRowKey;
+            $freeNotes = trim(substr((string) ($row['notes'] ?? ''), 0, 2000));
+            if ($freeNotes !== '') $notes .= "\nNotes: " . $freeNotes;
             $notes = packing_instructions_notes($notes, $row);
 
             if ($hasPackingRowKey) {
@@ -2606,6 +2621,7 @@ try {
         ]);
 
         db()->commit();
+        $releaseLock = db()->prepare('SELECT RELEASE_LOCK(?)'); $releaseLock->execute([$batchLock]);
         $acceptedIds = array_values(array_unique(array_map('intval', $acceptedIds)));
         $databaseCount = 0;
         if ($acceptedIds) {
@@ -3082,5 +3098,6 @@ try {
     throw new RuntimeException('Unknown packing action.');
 } catch (Throwable $e) {
     if (db()->inTransaction()) db()->rollBack();
+    if (!empty($batchLock)) { try { $releaseLock = db()->prepare('SELECT RELEASE_LOCK(?)'); $releaseLock->execute([$batchLock]); } catch (Throwable $ignored) {} }
     packing_json_fail($e);
 }

@@ -1,0 +1,31 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync(new URL('../assets/js/packing-list.js',import.meta.url),'utf8');
+const functions=(start,end)=>{const stop=source.indexOf('  function '+end+'(');return source.slice(source.indexOf('  function '+start+'('),stop<0?source.indexOf('  async function '+end+'('):stop);};
+const context=vm.createContext({normalize:v=>String(v||'').toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,''),invoiceDraftRows:[],packers:[{id:1,full_name:'Packer A',packing_auto_assignable:1},{id:2,full_name:'Packer B',packing_auto_assignable:1}],priorities:[['medium','Medium']],packingDraftMode:'manual'});
+vm.runInContext(functions('parsePackUnit','setInvoiceStep')+functions('quantityPlanParts','saveInvoiceCorrectionDraft')+functions('parseReceivedStock','captureAutoDistribution')+functions('draftWorkloadTotals','renderDraftWorkloadSummary')+functions('allInvoiceQuantitiesConfirmed','completeQuantityReview')+functions('manualQuantitiesValid','updateManualWizardFooter'),context);
+for(const plan of ['(50) units in a pack - quantity 20','50(20)','50 units × 20 packs','20 packs of 50 units','50 units per pouch, 20 pouches']){
+ const r=context.quantityPlanStats(plan);assert.equal(r.totals.count,1000,plan);assert.equal(r.totalUnits,20,plan);
+}
+for(const bad of ['50 units and 20 packs','50 20','50(20) extra 10','20 packs of 50.5 units','50(0)','100g(-1)','label 49','50(20),','10000000000000000 units'])assert.equal(context.quantityPlanStats(bad).sizeCount,0,bad);
+const row=plan=>({item_name:'Tea bags',unit:'units',received_weight:'1000',quantity_planned:plan,priority:'medium',quantity_confirmed:true,assignment_source:'auto'});
+assert.equal(context.quantityAccounting(row('50(20)')).status,'fully_allocated');
+assert.equal(context.quantityAccounting(row('50(25)')).status,'over_allocated');
+assert.equal(context.quantityAccounting(row('50(15)')).status,'under_allocated');
+assert.equal(context.quantityAccounting(row('50(10), 25(20)')).status,'fully_allocated');
+assert.equal(context.quantityPlanStats('50(10), 25(20)').totalUnits,30);
+assert.equal(context.quantityAccounting({...row('100g(10)'),unit:'kg',received_weight:'1'}).valid,true);
+assert.equal(context.quantityAccounting({...row('250ml(4)'),unit:'L',received_weight:'1'}).valid,true);
+assert.equal(context.quantityAccounting({...row('50(15)'),bulk_remainder:250}).valid,true);
+assert.equal(context.quantityAccounting({...row('50(20)'),general_instructions:'50 labels, 10 boxes and 7 stickers'}).plannedBase,1000);
+assert.equal(context.quantityPlanFromParts([{amount:50,unit:'units',count:20}]),'50 units(20)');
+assert.equal(context.quantityPlanFromParts([{amount:50,unit:'units',count:20},{amount:0,unit:'units',count:2}]),'');
+assert.equal(context.draftWorkload(row('50(20)')),22.5,'Existing weights use 1000 physical units and 20 packages');
+context.invoiceDraftRows=[row('50(20)'),{...row('50(10)'),received_weight:'500'}];
+context.assignDraftRows();assert.notEqual(context.invoiceDraftRows[0].assigned_employee_id,context.invoiceDraftRows[1].assigned_employee_id);
+context.invoiceDraftRows[0].assignment_source='manual';context.invoiceDraftRows[0].assigned_employee_id='2';
+context.assignDraftRows();assert.equal(context.invoiceDraftRows[0].assigned_employee_id,'2','Manual assignment retained');
+assert.equal(context.manualAssignmentsValid(),true);
+context.invoiceDraftRows[0].quantity_planned='50(25)';assert.equal(context.manualQuantitiesValid(),false);
+console.log('PASS explicit grammar, balanced/under/over, mixed sizes, measured units, separate notes, existing weighted distribution and manual assignments');

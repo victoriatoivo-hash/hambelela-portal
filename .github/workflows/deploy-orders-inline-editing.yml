@@ -35,9 +35,21 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
+          extensions: pdo_mysql
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+      - name: Verify packing grammar, distribution and atomic creation
+        if: inputs.mode != 'export'
+        run: |
+          node --check assets/js/packing-list.js
+          php -l apps/operations/consignments.php
+          php -l apps/operations/packing-list-action.php
+          node tests/packing-quantity.mjs
+          php tests/packing-quantity.php
+          node tests/packing-wizard.mjs
+          php tests/packing-wizard.php
+          php tests/packing-wizard-batch.php
       - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

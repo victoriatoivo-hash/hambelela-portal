@@ -56,6 +56,8 @@
   let lastUndo = null;
   let invoiceDraftRows = [];
   let manualDraftRows = [];
+  let manualWizardStep = 1;
+  let packingCreatePending = false;
   let packingDraftMode = 'invoice';
   let invoiceImportId = '';
   const invoiceCorrectionStorageKey = 'hambelelaPackingInvoiceCorrectionsV1';
@@ -1111,6 +1113,12 @@
   function setPackingDraftMode(mode) {
     packingDraftMode = mode === 'manual' ? 'manual' : 'invoice';
     const manual = packingDraftMode === 'manual';
+    manualWizardStep = 1;
+    invoiceModal?.querySelector('form')?.classList.toggle('hb-packing-wizard', manual);
+    const draftReview = invoiceModal?.querySelector('[data-packing-draft-review]');
+    if (draftReview) draftReview.hidden = false;
+    const finalReview = invoiceModal?.querySelector('[data-manual-final-review]');
+    if (finalReview) finalReview.hidden = true;
     invoiceModal?.classList.toggle('is-manual-packing', manual);
     invoiceModal?.querySelectorAll('[data-invoice-only]').forEach((section) => { section.hidden = manual; });
     invoiceModal?.querySelectorAll('[data-manual-only]').forEach((section) => { section.hidden = !manual; });
@@ -1193,10 +1201,13 @@
     const parts = [], units = 'kilograms?|kgs?|grams?|g|milliliters?|millilitres?|ml|liters?|litres?|lt|l|pcs?|pieces?|units?|labels?|bottles?|jars?|packs?|pouch(?:es)?|tea\\s*bags?|individual\\s+items?';
     const containers = 'pouch(?:es)?|packs?|bags?|bottles?|jars?';
     let text = String(quantityPlan || '').replace(/×/g,'x').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1');
+    text = text.replace(/\((\d+)\)\s*units?\s+in\s+a\s+pack\s*-\s*quantity\s+(\d+)/gi, '$1 units($2)');
+    text = text.replace(new RegExp('(\\d+)\\s*(?:'+containers+')\\s+of\\s+(\\d+)\\s*(?:units?|pieces?)','gi'), '$2 units($1)');
+    text = text.replace(new RegExp('(\\d+)\\s*(?:units?|pieces?)\\s+in\\s+a\\s+(?:'+containers+')\\s*-\\s*quantity\\s+(\\d+)','gi'), '$1 units($2)');
     // Explicit “per” prose identifies both operands; never infer two unrelated numbers.
     text = text.replace(new RegExp('(\\d+)\\s*(?:units?|pieces?|tea\\s*bags?|labels?|bottles?|jars?)\\s+per\\s+(?:'+containers+')\\s*,?\\s*(\\d+)\\s*(?:'+containers+')','gi'),'$1 units($2)');
     text = text.replace(new RegExp('(\\d+)\\s*\\(\\s*(\\d+(?:\\.\\d+)?)\\s*('+units+')\\s*\\)','gi'),'$2$3($1)').replace(/\)\s*(?=\d)/g,'),');
-    const pattern = new RegExp('^\\s*(?:('+units+')\\s+)?(\\d+(?:\\.\\d+)?)\\s*('+units+')?\\s*(?:[x*]\\s*(\\d+)\\s*(?:'+containers+')?|\\(\\s*(\\d+)\\s*\\))?\\s*$','i');
+    const pattern = new RegExp('^\\s*(?:(units?)\\s+)?(\\d+(?:\\.\\d+)?)\\s*('+units+')?\\s*(?:[x*]\\s*(\\d+)\\s*(?:'+containers+')?|\\(\\s*(\\d+)\\s*\\))?\\s*$','i');
     for (const textPart of text.trim().split(/[,;+\n]+/)) {
       const m = textPart.match(pattern); if (!m || (m[1] && m[3])) return [];
       const unit = parsePackUnit(m[3] || m[1] || 'units'); let amount=Number(m[2]),count=Number(m[4] || m[5] || 1);
@@ -1228,7 +1239,8 @@
   }
 
   function quantityPlanFromParts(parts) {
-    return (parts || []).filter((part) => Number(part.amount) > 0 && Number(part.count) > 0 && parsePackUnit(part.unit)).map((part) => `${Number(part.amount)}${part.unit === 'units' ? ' units' : part.unit}(${Number(part.count)})`).join(', ');
+    if (!(parts || []).length || parts.some(part => !Number.isFinite(Number(part.amount)) || Number(part.amount) <= 0 || !Number.isSafeInteger(Number(part.count)) || Number(part.count) <= 0 || !parsePackUnit(part.unit))) return '';
+    return parts.map((part) => `${Number(part.amount)}${part.unit === 'units' ? ' units' : part.unit}(${Number(part.count)})`).join(', ');
   }
 
   function saveInvoiceCorrectionDraft() {
@@ -1334,7 +1346,7 @@
     const bulkEffort = Math.max(physical.weight / 5000, physical.volume / 5000, physical.count / 50);
     const priorityBoost = { top_critical: 1.6, high: 1.3, medium: 1, low: 0.8 }[normalize(row.priority || 'medium')] || 1;
     const workload = (packageEffort + bulkEffort + handlingBase + sizeComplexity) * priorityBoost;
-    return Math.round(workload * 10) / 10;
+    return Math.round(workload * 100) / 100;
   }
 
   function draftBalanceInfo(totals = draftWorkloadTotals()) {
@@ -1455,11 +1467,11 @@
 
   function renderDistributionReview() {
     if (!distributionReview || !distributionBody || !distributionSummary) return;
-    distributionReview.hidden = packingDraftMode === 'manual' ? !receivedReviewComplete() : !distributionReviewOpen;
+    distributionReview.hidden = packingDraftMode === 'manual' ? manualWizardStep !== 2 : !distributionReviewOpen;
     if (distributionReview.hidden) return;
     const eligible = new Map(packers.map((packer) => [String(packer.id), packer]));
     const options = '<option value="">Choose packer</option>' + packers.map((packer) => `<option value="${esc(packer.id)}">${esc(packer.full_name)}</option>`).join('');
-    const totals = new Map(packers.map((packer) => [String(packer.id), { name: packer.full_name, units: 0, rows: 0, points: 0 }]));
+    const totals = new Map(packers.map((packer) => [String(packer.id), { name: packer.full_name, units: 0, rows: 0, points: 0, physical: { weightGrams: 0, volumeMl: 0, units: 0 } }]));
     const invoiceUnits = invoiceDraftRows.reduce((sum, row) => sum + quantityPlanStats(row.quantity_planned).totalUnits, 0);
     distributionBody.innerHTML = invoiceDraftRows.map((row, index) => {
       const assignedId = String(row.assigned_employee_id || '');
@@ -1469,14 +1481,16 @@
         const total = totals.get(assignedId);
         total.units += quantityPlanStats(row.quantity_planned).totalUnits;
         total.rows += 1;
+        const physical = draftPhysical(row);
+        total.physical.weightGrams += physical.weight; total.physical.volumeMl += physical.volume; total.physical.units += physical.count;
         total.points += Number(row.workload || draftWorkload(row));
       }
       const status = !packer ? 'Under allocated' : accounting.status === 'under_allocated' ? 'Under allocated' : accounting.status === 'over_allocated' ? 'Over allocated' : accounting.valid ? 'Balanced' : accounting.message;
       const statusClass = status === 'Balanced' ? 'is-balanced' : status === 'Over allocated' ? 'is-over' : 'is-under';
-      return `<tr data-review-index="${index}"><td data-label="Product / item"><strong>${esc(row.item_name || 'Unnamed item')}</strong></td><td data-label="Variation / packing plan">${esc(readablePackingPlan(row.quantity_planned) || '—')}</td><td data-label="Invoice quantity">${esc(row.received_weight || '—')}</td><td data-label="Packer"><select data-review-packer="${index}" aria-label="Packer for ${esc(row.item_name || `row ${index + 1}`)}">${options}</select></td><td data-label="Allocated">${packer ? esc(row.received_weight || '—') : '0'}</td><td data-label="Status"><span class="packing-distribution-status ${statusClass}">${esc(status)}</span></td></tr>`;
+      return `<tr data-review-index="${index}"><td data-label="Product / item"><strong>${esc(row.item_name || 'Unnamed item')}</strong></td><td data-label="Variation / packing plan">${esc(readablePackingPlan(row.quantity_planned) || '—')}</td><td data-label="Received Quantity">${esc(formatPhysical(accounting.received.dimension || 'count', accounting.received.base))}</td><td data-label="Packer"><select data-review-packer="${index}" aria-label="Packer for ${esc(row.item_name || `row ${index + 1}`)}">${options}</select></td><td data-label="Allocated">${packer ? esc(formatPhysical(accounting.received.dimension || 'count', accounting.plannedBase)) : '0'}</td><td data-label="Status"><span class="packing-distribution-status ${statusClass}">${esc(status)}</span></td></tr>`;
     }).join('');
     distributionBody.querySelectorAll('[data-review-packer]').forEach((select) => { select.value = String(invoiceDraftRows[Number(select.dataset.reviewPacker)]?.assigned_employee_id || ''); });
-    distributionSummary.innerHTML = [...totals.values()].map((item) => `<div class="packing-distribution-card"><span>${esc(item.name)}</span><strong>${item.units} finished packs</strong><small>${invoiceUnits ? Math.round(item.units / invoiceUnits * 100) : 0}% of invoice · ${item.rows} complete row${item.rows === 1 ? '' : 's'} · ${item.points.toFixed(1)} workload points</small></div>`).join('');
+    distributionSummary.innerHTML = [...totals.values()].map((item) => `<div class="packing-distribution-card"><span>${esc(item.name)}</span><strong>${item.units} finished packs</strong><small>${invoiceUnits ? Math.round(item.units / invoiceUnits * 100) : 0}% of finished packs · ${esc(formatDraftPhysical(item.physical))} · ${item.rows} complete row${item.rows === 1 ? '' : 's'} · ${item.points.toFixed(1)} workload points</small></div>`).join('');
     const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
     if (finalButton) finalButton.disabled = !allPackingAllocationsComplete() || invoiceDraftRows.some((row) => !eligible.has(String(row.assigned_employee_id || '')));
   }
@@ -1562,11 +1576,12 @@
     if (total.weightGrams > 0) parts.push(`${total.weightGrams >= 1000 ? (total.weightGrams / 1000).toFixed(2).replace(/\.00$/, '') + ' kg' : total.weightGrams.toFixed(0) + ' g'}`);
     if (total.volumeMl > 0) parts.push(`${total.volumeMl >= 1000 ? (total.volumeMl / 1000).toFixed(2).replace(/\.00$/, '') + ' L' : total.volumeMl.toFixed(0) + ' ml'}`);
     if (total.units > 0) parts.push(`${total.units.toFixed(0)} units`);
-    return parts.join(' · ') || 'No received weight recorded';
+    return parts.join(' · ') || 'No packing workload assigned';
   }
 
   function renderDraftWorkloadSummary() {
     if (!draftWorkloadSummary) return;
+    if (packingDraftMode === 'manual') { draftWorkloadSummary.hidden = true; return; }
     if (!invoiceDraftRows.length) {
       draftWorkloadSummary.hidden = true;
       draftWorkloadSummary.innerHTML = '';
@@ -1633,7 +1648,8 @@
       bulkButton.textContent = `Leave ${formatPhysical(accounting.received.dimension || 'count', Math.max(0, accounting.difference))} as Bulk`;
     }
     const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
-    if (finalButton) finalButton.disabled = !allPackingAllocationsComplete();
+    if (packingDraftMode === 'manual') updateManualWizardFooter();
+    else if (finalButton) finalButton.disabled = !allPackingAllocationsComplete();
   }
 
   function packingBalanceMarkup(accounting) {
@@ -1683,8 +1699,87 @@
     }).filter((row) => row.item_name);
   }
 
+
+  function manualQuantitiesValid() {
+    return invoiceDraftRows.length > 0 && invoiceDraftRows.every(row =>
+      String(row.item_name || '').trim() && String(row.item_name || '').length <= 190 &&
+      String(row.quantity_planned || '').length <= 255 && quantityAccounting(row).valid &&
+      priorities.some(([key]) => key === row.priority));
+  }
+
+  function manualAssignmentsValid() {
+    return manualQuantitiesValid() && invoiceDraftRows.every(row => packers.some(p => String(p.id) === String(row.assigned_employee_id)));
+  }
+
+  function updateManualWizardFooter() {
+    if (packingDraftMode !== 'manual') return;
+    const button = invoiceModal.querySelector('[data-confirm-quantities-create]');
+    button.type = manualWizardStep === 3 ? 'submit' : 'button';
+    button.textContent = manualWizardStep === 3 ? 'Create Packing Items' : 'Continue';
+    button.disabled = packingCreatePending || (manualWizardStep === 1 ? !manualQuantitiesValid() : !manualAssignmentsValid());
+    const back = invoiceModal.querySelector('[data-manual-back]');
+    back.hidden = manualWizardStep === 1; back.disabled = packingCreatePending;
+    invoiceModal.querySelector('[data-packing-footer-label]').textContent = `Step ${manualWizardStep} of 3`;
+  }
+
+  function advanceManualWizard() {
+    if (manualWizardStep === 1) {
+      if (!manualQuantitiesValid()) { setInvoiceStatus('Correct the highlighted quantity errors before continuing.'); return; }
+      invoiceDraftRows.forEach(row => { row.quantity_confirmed = true; row.assignment_stale = false; row.workload = draftWorkload(row); });
+      assignDraftRows(); captureAutoDistribution(); manualWizardStep = 2;
+    } else if (manualWizardStep === 2) {
+      if (!manualAssignmentsValid()) { setInvoiceStatus('Choose an eligible packer for every product.'); return; }
+      distributionReviewOpen = true; manualWizardStep = 3;
+    }
+    renderManualWizard();
+    invoiceModal.querySelector('.invoice-upload-body').scrollTop = 0;
+    invoiceModal.querySelector('[data-confirm-quantities-create]').focus();
+    setInvoiceStatus(manualWizardStep === 2 ? 'Review whole product rows and adjust packers if needed.' : 'Review the final batch. Create will save all items together.');
+  }
+
+  function renderManualWizard() {
+    const quantitySection = invoiceModal.querySelector('[data-packing-draft-review]');
+    const finalSection = invoiceModal.querySelector('[data-manual-final-review]');
+    quantitySection.hidden = manualWizardStep !== 1;
+    finalSection.hidden = manualWizardStep !== 3;
+    invoiceModal.querySelector('.manual-multi-toolbar').hidden = manualWizardStep !== 1;
+    invoiceModal.querySelector('.invoice-workflow-steps').hidden = true;
+    invoiceModal.querySelector('[data-packing-review-title]').textContent = 'Enter Packing Quantities';
+    invoiceModal.querySelector('[data-packing-review-description]').textContent = 'Enter received stock and finished pack sizes. Continue when each row balances. Notes never change quantities.';
+    invoiceModal.querySelectorAll('[data-manual-step]').forEach(step => {
+      const active = Number(step.dataset.manualStep) === manualWizardStep;
+      step.classList.toggle('is-active', active);
+      if (active) step.setAttribute('aria-current','step'); else step.removeAttribute('aria-current');
+    });
+    renderDraftWorkloadSummary();
+    const head = invoiceDraftBody.closest('table').querySelector('[data-invoice-draft-head]');
+    head.innerHTML = ['Product','Received','Unit','Quantity to Pack','Allocated','Remaining','Priority','Notes'].map(text => `<th>${text}</th>`).join('');
+    const unitOptions = selected => [['','Choose unit'],['kg','kg'],['g','g'],['L','L'],['ml','ml'],['units','units']].map(([key,label]) => `<option value="${key}" ${key === selected ? 'selected' : ''}>${label}</option>`).join('');
+    invoiceDraftBody.innerHTML = invoiceDraftRows.map((row,index) => {
+      const accounting = quantityAccounting(row), dimension = accounting.received.dimension || 'count';
+      const parts = row.pack_parts || quantityPlanParts(row.quantity_planned || ''); row.pack_parts = parts;
+      const builder = row.builder_open ? `<div class="pw-pack-builder">${parts.map((part,p) => `<div class="pw-pack-part"><label>${part.unit === 'units' ? 'Units per Pack' : 'Size per Pack'}<input type="number" min="${part.unit === 'units' ? '1' : '0.001'}" step="${part.unit === 'units' ? '1' : '0.001'}" data-pack-part-field="amount" data-pack-part-index="${p}" value="${esc(part.amount)}"></label><label>Unit<select data-pack-part-field="unit" data-pack-part-index="${p}">${unitOptions(part.unit)}</select></label><label>Number of Packs<input type="number" min="1" step="1" data-pack-part-field="count" data-pack-part-index="${p}" value="${esc(part.count)}"></label><button type="button" data-remove-pack-part="${p}" data-row-index="${index}" aria-label="Remove pack size">×</button></div>`).join('')}<button type="button" data-add-pack-part="${index}">Add pack size</button></div>` : '';
+      const hasNotes = ['general_instructions','labelling_instructions','repacking_instructions'].some(key => String(row[key] || '').trim()) || (row.packing_action && row.packing_action !== 'pack_as_supplied');
+      return `<tr data-draft-index="${index}" class="${accounting.valid ? 'is-balanced' : 'has-draft-warning'}">
+        <td data-label="Product"><input data-draft-field="item_name" aria-label="Product ${index+1}" maxlength="190" value="${esc(row.item_name || '')}" placeholder="Product name"></td>
+        <td data-label="Received"><input data-draft-field="received_weight" inputmode="decimal" aria-label="Received quantity ${index+1}" value="${esc(String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1').match(/\d+(?:\.\d+)?/)?.[0] || '')}" placeholder="1000"></td>
+        <td data-label="Unit"><select data-draft-field="unit" aria-label="Stock unit ${index+1}">${unitOptions(row.unit || '')}</select></td>
+        <td data-label="Quantity to Pack"><input data-draft-field="quantity_planned" aria-label="Quantity to pack ${index+1}" maxlength="255" value="${esc(row.quantity_planned || '')}" placeholder="50(20) or 100g(10)"><small>${esc(readablePackingPlan(row.quantity_planned))}</small>${builder}<details class="pw-more-actions"><summary>More Actions</summary><div><button type="button" data-toggle-pack-builder="${index}">${row.builder_open ? 'Close pack sizes' : 'Edit pack sizes'}</button><button type="button" data-add-pack-part="${index}">Add pack size</button><label>Bulk remainder (${esc(row.unit || 'stock unit')})<input type="number" min="0" step="${row.unit === 'units' ? '1' : '0.001'}" data-draft-field="bulk_remainder" value="${esc(row.bulk_remainder || '')}" placeholder="0"></label><button type="button" data-leave-as-bulk="${index}" ${accounting.status === 'under_allocated' ? '' : 'hidden'}>Leave remainder as bulk</button><button type="button" class="pw-danger" data-remove-draft-row="${index}">Remove item</button></div></details></td>
+        <td data-label="Allocated" data-draft-workload>${formatPhysical(dimension,accounting.plannedBase)}</td><td data-label="Remaining" data-draft-remaining>${packingBalanceMarkup(accounting)}</td>
+        <td data-label="Priority"><select data-draft-field="priority" aria-label="Priority ${index+1}">${priorities.map(([key,label]) => `<option value="${key}" ${key===row.priority?'selected':''}>${label}</option>`).join('')}</select></td>
+        <td data-label="Notes"><button type="button" class="pack-notes-button" data-open-draft-notes="${index}">${hasNotes ? 'Edit notes ●' : 'Add notes'}</button></td></tr>`;
+    }).join('') || '<tr><td colspan="8">Choose Add item to begin.</td></tr>';
+    if (manualWizardStep === 2) renderDistributionReview(); else distributionReview.hidden = true;
+    if (manualWizardStep === 3) {
+      finalSection.innerHTML = `<h3>Review &amp; Create</h3><p>${invoiceDraftRows.length} products · ${invoiceDraftRows.reduce((n,row)=>n+quantityPlanStats(row.quantity_planned).totalUnits,0)} finished packs. Nothing is saved until you create this batch.</p><div class="pw-final-products">${invoiceDraftRows.map(row => `<article><h4>${esc(row.item_name)}</h4><dl><div><dt>Received</dt><dd>${esc(row.received_weight)} ${esc(row.unit)}</dd></div><div><dt>Packing breakdown</dt><dd>${esc(readablePackingPlan(row.quantity_planned))}</dd></div><div><dt>Packer</dt><dd>${esc(packers.find(p=>String(p.id)===String(row.assigned_employee_id))?.full_name || 'Choose packer')}</dd></div><div><dt>Workload</dt><dd>${draftWorkload(row).toFixed(1)} points</dd></div><div><dt>Priority</dt><dd>${esc(priorities.find(([key])=>key===row.priority)?.[1] || row.priority)}</dd></div><div><dt>Notes</dt><dd>${esc([packingActions.find(([key])=>key===(row.packing_action || 'pack_as_supplied'))?.[1],row.general_instructions,row.labelling_instructions,row.repacking_instructions].filter(Boolean).join('\n'))}</dd></div><div><dt>Validation</dt><dd>${esc(quantityAccounting(row).message)}</dd></div></dl></article>`).join('')}</div>`;
+    }
+    updateManualWizardFooter();
+    if (window.lucide) window.lucide.createIcons({strokeWidth:2});
+  }
+
   function renderInvoiceDraft() {
     if (!invoiceDraftBody) return;
+    if (packingDraftMode === 'manual') { renderManualWizard(); return; }
     assignDraftRows();
     const head = invoiceDraftBody.closest('table')?.querySelector('[data-invoice-draft-head]');
     if (!invoiceDraftRows.length) {
@@ -2204,6 +2299,7 @@
     invoiceExtractionController = null;
     invoiceDraftRows = [];
     manualDraftRows = [];
+    manualWizardStep = 1;
     invoiceCorrectionDraft = null;
     invoiceImportId = '';
     autoDistributionSnapshot = [];
@@ -3377,7 +3473,9 @@
 
   async function createInvoiceDraft(form) {
     const manualMode = packingDraftMode === 'manual';
-    if (!manualMode && !distributionReviewOpen) throw new Error('Review packer distribution before creating the packing list.');
+    if (packingCreatePending) return;
+    if (manualMode && manualWizardStep !== 3) throw new Error('Review quantities and packer distribution before creating.');
+    if (!distributionReviewOpen) throw new Error('Review packer distribution before creating the packing list.');
     if (!invoiceDraftRows.length) {
       invoiceDraftRows = parseManualDraft(new FormData(form).get('invoice_draft') || '');
       renderInvoiceDraft();
@@ -3390,7 +3488,8 @@
     }
     const unconfirmedRows = invoiceDraftRows.filter((row) => row.quantity_confirmed !== true);
     if (unconfirmedRows.length) throw new Error(`${unconfirmedRows.length} valid row${unconfirmedRows.length === 1 ? '' : 's'} still require confirmation before redistribution.`);
-    const submit = form.querySelector('[type="submit"]');
+    packingCreatePending = true;
+    const submit = form.querySelector('[data-confirm-quantities-create]');
     submit?.classList.add('is-loading');
     if (submit) submit.disabled = true;
     setInvoiceStep('create');
@@ -3402,21 +3501,22 @@
       const formData = new FormData(form);
       const submittedRows = invoiceDraftRows.map((row) => ({
         ...row,
-        assignment_source: manualMode ? row.assignment_source : 'manual',
+        assignment_source: 'manual',
         received_weight: `${String(row.received_weight || '').replace(/(\d),(?=\d{3}(?:\D|$))/g,'$1').match(/\d+(?:\.\d+)?/)?.[0] || ''}${row.unit || ''}`,
         allocation: quantityAccounting(row),
       }));
       const result = await post('create_invoice_rows', {
         rows_json: JSON.stringify(submittedRows),
-        distribution_reviewed: manualMode ? '0' : '1',
-        distribution_manually_adjusted: !manualMode && autoDistributionSnapshot.length === submittedRows.length && submittedRows.some((row, index) => String(row.assigned_employee_id || '') !== autoDistributionSnapshot[index]) ? '1' : '0',
-        reviewed_assignments_json: manualMode ? '[]' : JSON.stringify(submittedRows.map((row, index) => ({ index, item_name: row.item_name, received_weight: row.received_weight, quantity_planned: row.quantity_planned, assigned_employee_id: row.assigned_employee_id }))),
+        distribution_reviewed: '1',
+        draft_mode: manualMode ? 'manual' : 'invoice',
+        distribution_manually_adjusted: autoDistributionSnapshot.length === submittedRows.length && submittedRows.some((row, index) => String(row.assigned_employee_id || '') !== autoDistributionSnapshot[index]) ? '1' : '0',
+        reviewed_assignments_json: JSON.stringify(submittedRows.map((row, index) => ({ index, item_name: row.item_name, received_weight: row.received_weight, quantity_planned: row.quantity_planned, assigned_employee_id: row.assigned_employee_id }))),
         declared_count: submittedCount,
         import_id: invoiceImportId,
         invoice_number: formData.get('invoice_number') || '',
         invoice_date: formData.get('invoice_date') || '',
         supplier_name: formData.get('supplier_name') || '',
-        sync_mode: formData.get('sync_mode') || 'update_existing',
+        sync_mode: manualMode ? 'create_only' : formData.get('sync_mode') || 'update_existing',
         client_timestamp: new Date().toISOString(),
         client_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || ''
       });
@@ -3441,8 +3541,10 @@
       setInvoiceStep('upload');
       setCount(result.message || 'Packing rows created and synced.');
     } finally {
+      packingCreatePending = false;
       submit?.classList.remove('is-loading');
-      if (submit) submit.disabled = false;
+      if (manualMode) updateManualWizardFooter();
+      else if (submit) submit.disabled = false;
     }
   }
 
@@ -3768,6 +3870,12 @@
     const removeInvoiceFile = event.target.closest('[data-remove-invoice-file]');
     const addDraftRow = event.target.closest('[data-add-draft-row]');
     const redistributeDraft = event.target.closest('[data-redistribute-draft]');
+    if (packingDraftMode === 'manual' && event.target.closest('[data-manual-back]')) {
+      event.preventDefault(); manualWizardStep = Math.max(1, manualWizardStep - 1); renderManualWizard(); setInvoiceStatus(manualWizardStep === 1 ? 'Edit quantities and notes, then continue.' : 'Review each packer assignment, then continue.'); return;
+    }
+    if (packingDraftMode === 'manual' && event.target.closest('[data-confirm-quantities-create]') && manualWizardStep < 3) {
+      event.preventDefault(); advanceManualWizard(); return;
+    }
     const reviewDistributionButton = event.target.closest('[data-confirm-quantities-create]');
     const resetAutoDistribution = event.target.closest('[data-reset-auto-distribution]');
     const splitDraftRowButton = event.target.closest('[data-split-draft-row]');
@@ -4013,7 +4121,7 @@
       }
       if (addPackPart) {
         const index = Number(addPackPart.dataset.addPackPart); const row = invoiceDraftRows[index];
-        if (row) { row.pack_parts = Array.isArray(row.pack_parts) ? row.pack_parts : []; row.pack_parts.push({ amount: 100, unit: row.unit === 'L' || row.unit === 'ml' ? 'ml' : row.unit === 'units' ? 'units' : 'g', count: 1 }); row.quantity_planned = quantityPlanFromParts(row.pack_parts); renderInvoiceDraft(); }
+        if (row) { row.pack_parts = Array.isArray(row.pack_parts) ? row.pack_parts : []; row.builder_open = true; row.pack_parts.push({ amount: row.unit === 'units' ? 1 : 100, unit: row.unit === 'L' || row.unit === 'ml' ? 'ml' : row.unit === 'units' ? 'units' : 'g', count: 1 }); row.quantity_planned = quantityPlanFromParts(row.pack_parts); renderInvoiceDraft(); }
         return;
       }
       if (removePackPart) {
@@ -4428,6 +4536,7 @@
       row.assigned_name = packer?.full_name || '';
       row.assignment_source = 'manual';
       renderDistributionReview();
+      if (packingDraftMode === 'manual') updateManualWizardFooter();
       renderDraftWorkloadSummary();
       saveInvoiceCorrectionDraft();
       setInvoiceStatus(packer ? `${row.item_name || 'Item'} will be assigned to ${packer.full_name}.` : 'Choose an active employee eligible for Packing.');
@@ -4438,6 +4547,13 @@
       const row = invoiceDraftRows[Number(draftField.closest('tr')?.dataset.draftIndex || 0)];
       if (row) {
         const fieldName = draftField.dataset.draftField;
+        if (packingDraftMode === 'manual') {
+          row[fieldName] = draftField.value;
+          if (['received_weight','unit'].includes(fieldName)) row.quantity_confirmed = false;
+          if (fieldName === 'quantity_planned') row.pack_parts = quantityPlanParts(row.quantity_planned || '');
+          row.workload = draftWorkload(row); renderManualWizard(); return;
+        }
+
         row[fieldName] = draftField.value;
         if (['received_weight', 'unit'].includes(fieldName)) {
           row.quantity_confirmed = false;
@@ -4581,7 +4697,8 @@
     event.preventDefault();
     try {
       if (createForm) await createFromForm(createForm);
-      if (invoiceForm) await createInvoiceDraft(invoiceForm);
+      if (invoiceForm && packingDraftMode === 'manual' && manualWizardStep < 3) advanceManualWizard();
+      else if (invoiceForm) await createInvoiceDraft(invoiceForm);
     } catch (error) {
       if (invoiceForm) {
         setInvoiceStep('review', 'error');
