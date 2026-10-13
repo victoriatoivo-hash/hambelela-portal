@@ -57,7 +57,7 @@ public final class TrackingService extends Service implements LocationListener {
                 JSONObject credentials=store.credentials();if(credentials==null){handler.post(()->{store.running(false);stopSelf();});return;}
                 JSONObject batch=store.batch();JSONObject request=new JSONObject().put("action","ingest").put("device_id",credentials.getString("device_id")).put("points",batch.getJSONArray("points")).put("gps_available",gpsAvailable()).put("app_version","1.0.0");
                 Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));if(battery!=null){int scale=battery.getIntExtra(BatteryManager.EXTRA_SCALE,100);if(scale>0)request.put("battery",battery.getIntExtra(BatteryManager.EXTRA_LEVEL,0)*100/scale);}
-                JSONObject response=PortalClient.send(request,credentials.getString("token"));store.acknowledged(batch.getLong("last"));
+                JSONObject response=PortalClient.send(request,credentials.getString("token"));if(!response.optBoolean("paused",false))store.acknowledged(batch.getLong("last"));
                 long receivedElapsed=SystemClock.elapsedRealtime();
                 handler.post(()->{
                     if(stopped)return;

@@ -60,6 +60,17 @@ jobs:
         run: gradle --no-daemon :app:assembleRelease :app:lintRelease
       - name: Include official Android signing verifier for local signing
         run: cp "$ANDROID_HOME/build-tools/35.0.0/lib/apksigner.jar" android/delivery-tracker/app/build/outputs/apk/release/apksigner.jar
+      - name: Verify published APK matches reviewed source and release signature
+        if: inputs.mode == 'preflight' || inputs.mode == 'deploy'
+        run: |
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose apps/delivery/driver/hambelela-driver-gps-1.0.0.apk
+          python3 - <<'PY'
+          import hashlib, zipfile
+          def contents(path):
+              with zipfile.ZipFile(path) as z:
+                  return {n:hashlib.sha256(z.read(n)).hexdigest() for n in z.namelist() if not n.startswith('META-INF/')}
+          assert contents('android/delivery-tracker/app/build/outputs/apk/release/app-release-unsigned.apk') == contents('apps/delivery/driver/hambelela-driver-gps-1.0.0.apk'), 'Signed Android package differs from reviewed source'
+          PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:

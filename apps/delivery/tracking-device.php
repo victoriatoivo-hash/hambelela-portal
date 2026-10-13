@@ -6,12 +6,15 @@ require_once BASE_PATH.'/shared/delivery/TrackingService.php';
 require_once BASE_PATH.'/shared/delivery/TrackingConfiguration.php';
 header('Content-Type: application/json');header('Cache-Control: no-store');header('X-Content-Type-Options: nosniff');
 // Deployment must explicitly enable collection after migration and validation.
-if(!(new \Hambelela\Delivery\TrackingConfiguration())->read()['enabled']){http_response_code(503);echo '{"error":"Tracking is not enabled."}';exit;}
 if(($_SERVER['REQUEST_METHOD']??'')!=='POST'){http_response_code(405);header('Allow: POST');exit;}
 if((int)($_SERVER['CONTENT_LENGTH']??0)>131072){http_response_code(413);exit;}
 try{
  $raw=file_get_contents('php://input',false,null,0,131073);if(strlen($raw)>131072){http_response_code(413);exit;}
  $body=json_decode($raw,true,16,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
+ if(!(new \Hambelela\Delivery\TrackingConfiguration())->read()['enabled']){
+  if(($body['action']??'')==='ingest'){echo json_encode(['paused'=>true,'server_time'=>time(),'authorized_window'=>null]);exit;}
+  http_response_code(422);echo '{"error":"Owner must enable tracking before pairing."}';exit;
+ }
  $service=new \Hambelela\Delivery\TrackingService(db());$id=(string)($body['device_id']??'');
  if(($body['action']??'')==='pair')$result=$service->pair($id,(string)($body['pairing_code']??''));
  elseif(($body['action']??'')==='ingest'){
