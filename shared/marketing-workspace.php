@@ -1,5 +1,15 @@
 <?php
 declare(strict_types=1);
+function marketing_employee_application_cards(array $apps,array $badges): void {
+    $descriptions=['tasks'=>'Open assigned content, start work and submit for review.','calendar'=>'View your assigned deadlines and publication schedule.','social'=>'Open your assigned social media content.','reels'=>'Work on assigned reels and videos.','whatsapp'=>'Prepare your assigned WhatsApp content.','blog'=>'Open assigned blog and SEO work.','newsletter'=>'Work on assigned newsletters.','website'=>'Prepare your assigned website and product changes.','media'=>'Access images, videos, audio and shared media.','library'=>'View completed content and its saved files.'];
+    echo '<div class="mk-home-apps">';
+    foreach($apps as $key=>$app){
+        if(!marketing_employee_view_allowed($key))continue;
+        $href=$key==='media'?'media.php':'?view='.rawurlencode($key);
+        echo '<a class="mk-home-app" href="'.marketing_e($href).'"><span class="mk-home-app-icon"><i data-lucide="'.marketing_e($app[1]).'"></i></span><h2 class="mk-home-app-title">'.marketing_e($key==='media'?'Media Library':$app[0]).'</h2><p class="mk-home-app-description">'.marketing_e($descriptions[$key]??'Open your authorised Marketing work.').'</p><span class="mk-home-app-action">Open application <i data-lucide="arrow-right"></i></span></a>';
+    }
+    echo '</div>';
+}
 
 /** Additive extensions of the existing Marketing records and version storage. */
 function marketing_workspace_schema(): void {

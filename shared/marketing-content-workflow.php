@@ -57,7 +57,6 @@ function marketing_work_evidence(array $item,int $event,string $action,array $me
 function marketing_media_reference(string $source,string $link): array {
     if(!in_array($source,['portal','shared_folder','external_file'],true))throw new RuntimeException('Choose a valid Media Source.');
     $link=trim($link);
-    if($source!=='portal'&&$link==='')throw new RuntimeException('Media link: paste the shared folder or external file link.');
     if($link!==''&&(strlen($link)>1000||!filter_var($link,FILTER_VALIDATE_URL)||!in_array(strtolower((string)parse_url($link,PHP_URL_SCHEME)),['https','http'],true)||parse_url($link,PHP_URL_USER)!==null||parse_url($link,PHP_URL_PASS)!==null))throw new RuntimeException('Media link: use an HTTP or HTTPS link without embedded login credentials.');
     return [$source,$link?:null];
 }
