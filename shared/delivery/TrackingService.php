@@ -87,6 +87,7 @@ final class TrackingService
                     $this->run('UPDATE delivery_tracking_devices SET last_position=?,latitude=?,longitude=?,accuracy=? WHERE id=?',[$p['recorded_at'],$p['latitude'],$p['longitude'],$p['accuracy'],$id]);$d['last_position']=$p['recorded_at'];
                 }
             }
+            if($d['last_contact']===null)$this->audit(0,$id,'tracking_started',['employee_id'=>(int)$d['employee_id']]);
             $battery=isset($body['battery'])?max(0,min(100,(int)$body['battery'])):null;
             $this->run('UPDATE delivery_tracking_devices SET last_contact=?,gps_available=?,battery=?,app_version=? WHERE id=?',[$now,!empty($body['gps_available'])?1:0,$battery,substr((string)($body['app_version']??''),0,40),$id]);
             $this->db->commit();return ['accepted'=>$accepted,'discarded'=>$discarded,'server_time'=>$now,'settings'=>$settings,'authorized_window'=>TrackingPolicy::window($now,$settings)];

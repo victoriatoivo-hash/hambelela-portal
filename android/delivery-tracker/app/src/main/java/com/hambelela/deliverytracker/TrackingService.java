@@ -27,7 +27,7 @@ public final class TrackingService extends Service implements LocationListener {
         ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).createNotificationChannel(new NotificationChannel(CHANNEL,"Company Driver GPS",NotificationManager.IMPORTANCE_LOW));}
     private Notification notification(String message){
         PendingIntent open=PendingIntent.getActivity(this,1,new Intent(this,SetupActivity.class),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
-        PendingIntent stop=PendingIntent.getService(this,2,new Intent(this,TrackingService.class).setAction("STOP"),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
+        PendingIntent stop=PendingIntent.getActivity(this,2,new Intent(this,SetupActivity.class).setAction("CONFIRM_STOP"),PendingIntent.FLAG_IMMUTABLE|PendingIntent.FLAG_UPDATE_CURRENT);
         return new Notification.Builder(this,CHANNEL).setSmallIcon(android.R.drawable.ic_menu_mylocation).setContentTitle("Hambelela Driver GPS").setContentText(message).setContentIntent(open).setOngoing(true).setOnlyAlertOnce(true).addAction(new Notification.Action.Builder(null,"Stop tracking",stop).build()).build();
     }
     public int onStartCommand(Intent intent,int flags,int startId){
@@ -55,7 +55,7 @@ public final class TrackingService extends Service implements LocationListener {
         network.execute(()->{
             try{
                 JSONObject credentials=store.credentials();if(credentials==null){handler.post(()->{store.running(false);stopSelf();});return;}
-                JSONObject batch=store.batch();JSONObject request=new JSONObject().put("action","ingest").put("device_id",credentials.getString("device_id")).put("points",batch.getJSONArray("points")).put("gps_available",gpsAvailable()).put("app_version","1.0.0");
+                JSONObject batch=store.batch();JSONObject request=new JSONObject().put("action","ingest").put("device_id",credentials.getString("device_id")).put("points",batch.getJSONArray("points")).put("gps_available",gpsAvailable()).put("app_version","1.0.2");
                 Intent battery=registerReceiver(null,new IntentFilter(Intent.ACTION_BATTERY_CHANGED));if(battery!=null){int scale=battery.getIntExtra(BatteryManager.EXTRA_SCALE,100);if(scale>0)request.put("battery",battery.getIntExtra(BatteryManager.EXTRA_LEVEL,0)*100/scale);}
                 JSONObject response=PortalClient.send(request,credentials.getString("token"));if(!response.optBoolean("paused",false))store.acknowledged(batch.getLong("last"));
                 long receivedElapsed=SystemClock.elapsedRealtime();

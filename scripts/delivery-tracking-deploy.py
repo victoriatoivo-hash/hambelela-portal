@@ -11,7 +11,7 @@ baseline={
 }
 new_files=[
  'shared/delivery/TrackingPolicy.php','shared/delivery/TrackingSchema.php','shared/delivery/TrackingService.php',
- 'shared/delivery/TrackingMaps.php','shared/delivery/TrackingConfiguration.php',
+ 'shared/delivery/TrackingMaps.php','shared/delivery/TrackingConfiguration.php','shared/delivery/TrackingAlerts.php','scripts/delivery-tracking-alerts.php',
  'apps/delivery/tracking.php','apps/delivery/tracking-api.php','apps/delivery/tracking-device.php','apps/delivery/tracking-notice.php',
  'assets/css/delivery-tracking.css','assets/js/delivery-tracking.js','scripts/delivery-tracking-worker.php',
  'apps/delivery/driver/hambelela-driver-gps-1.0.0.apk'
@@ -49,6 +49,11 @@ $php=PHP_BINDIR.'/php';if(!is_executable($php))throw new RuntimeException('Verif
 $worker=BASE_PATH.'/scripts/delivery-tracking-worker.php';
 $line='17 * * * * '.escapeshellarg($php).' '.escapeshellarg($worker).' >/dev/null 2>&1 # hambelela-delivery-gps-retention';
 $action=(string)($_POST['action']??'preflight');
+$cronTag='# hambelela-delivery-gps-retention';
+if(in_array($action,['cron_alerts','rollback_alerts'],true)){
+ $cronTag='# hambelela-delivery-gps-alerts';$worker=BASE_PATH.'/scripts/delivery-tracking-alerts.php';
+ $line='* * * * * '.escapeshellarg($php).' '.escapeshellarg($worker).' >/dev/null 2>&1 '.$cronTag;
+}
 if($action==='migrate'){
  require BASE_PATH.'/shared/delivery/TrackingSchema.php';
  $expected=['delivery_tracking_devices'=>['id','employee_id','active','ready','token_hash','pairing_hash','pairing_expires','settings_json','assigned_at','last_contact','last_position','gps_available','latitude','longitude','accuracy','battery','app_version','created_by'],
@@ -61,8 +66,8 @@ if($action==='migrate'){
  \Hambelela\Delivery\TrackingSchema::install(db());
  echo json_encode(['ok'=>true,'tracking_tables'=>count($expected),'business_records_modified'=>false]);exit;
 }
-if($action==='cron'){
- $matches=array_values(array_filter($cron,static function($v){return strpos($v,'# hambelela-delivery-gps-retention')!==false;}));
+if(in_array($action,['cron','cron_alerts'],true)){
+ $matches=array_values(array_filter($cron,static function($v)use($cronTag){return strpos($v,$cronTag)!==false;}));
  if($matches&&$matches!==[$line])throw new RuntimeException('Existing GPS cron differs; review required.');
  if(!$matches){
   $private='/home/hambele1/.hambelela-delivery-tracking';if(!is_dir($private)&&!mkdir($private,0700,true))throw new RuntimeException('Private backup directory unavailable.');
@@ -73,7 +78,7 @@ if($action==='cron'){
  $verify=[];exec('crontab -l 2>&1',$verify,$status);if($status!==0||!in_array($line,$verify,true))throw new RuntimeException('GPS retention cron not verified.');
  echo json_encode(['ok'=>true,'retention_cron'=>true,'created'=>!$matches]);exit;
 }
-if($action==='rollback_cron'){
+if(in_array($action,['rollback_cron','rollback_alerts'],true)){
  $filtered=array_values(array_filter($cron,static function($v)use($line){return $v!==$line;}));
  if(count($filtered)!==count($cron)){
   $temporary=tempnam('/home/hambele1/.hambelela-delivery-tracking','cron-');chmod($temporary,0600);file_put_contents($temporary,implode("\n",$filtered)."\n");
@@ -82,10 +87,14 @@ if($action==='rollback_cron'){
  echo json_encode(['ok'=>true]);exit;
 }
 if($action==='verify'){
- foreach(['TrackingPolicy','TrackingService','TrackingMaps','TrackingConfiguration'] as $name)require_once BASE_PATH.'/shared/delivery/'.$name.'.php';
+ foreach(['TrackingPolicy','TrackingService','TrackingMaps','TrackingConfiguration','TrackingAlerts'] as $name)require_once BASE_PATH.'/shared/delivery/'.$name.'.php';
  echo json_encode(['ok'=>true,'php'=>PHP_VERSION,'enabled'=>(new \Hambelela\Delivery\TrackingConfiguration())->publicStatus()['enabled'],'outstanding_phone_tests'=>true]);exit;
 }
 if($action!=='preflight')throw new RuntimeException('Unknown release action.');
+foreach(['notifications'=>['id','title','message','module','related_type','related_id','priority','deduplication_key','action_link'],'notification_recipients'=>['notification_id','employee_id']] as $table=>$columns){
+ $s=db()->prepare('SELECT column_name FROM information_schema.columns WHERE table_schema=DATABASE() AND table_name=?');$s->execute([$table]);if(array_diff($columns,$s->fetchAll(PDO::FETCH_COLUMN)))throw new RuntimeException('Existing notification schema is incompatible.');
+ $s=db()->prepare('SELECT engine FROM information_schema.tables WHERE table_schema=DATABASE() AND table_name=?');$s->execute([$table]);if(strtolower((string)$s->fetchColumn())!=='innodb')throw new RuntimeException('Transactional notification tables required.');
+}
 echo json_encode(['ok'=>true,'php'=>PHP_VERSION,'pdo_mysql'=>extension_loaded('pdo_mysql'),'curl'=>extension_loaded('curl'),'cron_readable'=>true]);
 }catch(Throwable $e){http_response_code(500);echo json_encode(['error'=>$e->getMessage()]);}
 '''.replace('EXPIRES',str(int(time.time())+600)).replace('TOKEN',token)
@@ -115,7 +124,7 @@ try:
    if before[p]==desired[p]:continue
    attempted.append(p);put(p,desired[p])
    if read(p)!=desired[p]:raise RuntimeError('Upload verification failed: '+p)
-  report['migration']=host('migrate');report['compatibility']=host('verify');report['cron']=host('cron')
+  report['migration']=host('migrate');report['compatibility']=host('verify');report['cron']=host('cron');report['alerts_cron']=host('cron_alerts')
   # Publish navigation last, only after schema, PHP compatibility and retention pass.
   for p in baseline:
    if read(p)!=before[p]:raise RuntimeError('Concurrent live change: '+p)
@@ -127,6 +136,9 @@ except Exception as error:
  report['error']=str(error)
  if attempted:
   failures=[]
+  if report.get('alerts_cron',{}).get('created'):
+   try:host('rollback_alerts')
+   except Exception:failures.append('GPS alerts cron')
   if report.get('cron',{}).get('created'):
    try:host('rollback_cron')
    except Exception:failures.append('GPS retention cron')

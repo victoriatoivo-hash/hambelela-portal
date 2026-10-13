@@ -18,7 +18,7 @@ public final class SetupActivity extends Activity {
     private LinearLayout layout;private SecureStore store;private Typeface font;private TextView status;
     protected void onCreate(Bundle saved){super.onCreate(saved);getWindow().setFlags(WindowManager.LayoutParams.FLAG_SECURE,WindowManager.LayoutParams.FLAG_SECURE);store=new SecureStore(this);
         font=Typeface.createFromAsset(getAssets(),"jost-regular.ttf");ScrollView scroll=new ScrollView(this);layout=new LinearLayout(this);layout.setOrientation(LinearLayout.VERTICAL);layout.setPadding(24,32,24,32);layout.setBackgroundColor(0xffF8F7F2);scroll.addView(layout);setContentView(scroll);
-        text("Hambelela Driver GPS",22);text("Company-phone tracking · v1.0.1",14);
+        text("Hambelela Driver GPS",22);text("Company-phone tracking · v1.0.2",14);
         text("Your location is shared with the Hambelela Owner during configured work hours, including between deliveries. GPS stops outside those hours. A visible Android notification remains while the service is running. You can stop tracking at any time. Deliveries and HR still use your normal portal login.",14);
         status=text("Set up this company phone with the Owner.",14);
         EditText device=input("Device ID",false),code=input("One-time pairing code",true);
@@ -45,12 +45,14 @@ public final class SetupActivity extends Activity {
         button("Start work-hours tracking",v->{try{if(store.credentials()==null){status.setText("Pair this phone first.");return;}}catch(Exception e){status.setText("Credentials unavailable. Pair again.");return;}if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED){status.setText("Precise location permission is required.");return;}
             if(Build.VERSION.SDK_INT>=33&&checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED){status.setText("Enable notifications so tracking remains visible.");return;}
             store.running(true);startForegroundService(new Intent(this,TrackingService.class));status.setText("Started. Check the persistent notification and Owner dashboard. Physical phone tests are still required.");});
-        button("Stop tracking",v->{store.running(false);stopService(new Intent(this,TrackingService.class));status.setText("Stopped. No new GPS locations are collected.");});
+        button("Stop tracking",v->confirmStop());
         button("Open my Delivery portal",v->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(PortalClient.PORTAL+"/apps/delivery/index.php"))));
         text("No Google API key or employee password belongs in this app. Only the company device pairing code is needed. Offline points are encrypted, expire for upload after 24 hours and are removed when the queue is next processed. After one hour without server contact GPS stops until the connection returns.",12);
         button("GPS data notice",v->startActivity(new Intent(Intent.ACTION_VIEW,Uri.parse(PortalClient.PORTAL+"/apps/delivery/tracking-notice.php"))));
         try{if(store.credentials()!=null)status.setText("This phone is already paired. You can start work-hours tracking without entering another code.");}catch(Exception e){status.setText("Saved pairing cannot be read. Ask the Owner for a fresh pairing code.");}
+        if("CONFIRM_STOP".equals(getIntent().getAction()))confirmStop();
     }
+    private void confirmStop(){new android.app.AlertDialog.Builder(this).setTitle("Stop tracking?").setMessage("No new locations will be collected. If updates remain unavailable during scheduled work hours, the Owner will receive an availability alert. You can start tracking again at any time.").setNegativeButton("Keep tracking",null).setPositiveButton("Stop tracking",(dialog,which)->{store.running(false);stopService(new Intent(this,TrackingService.class));feedback("Tracking stopped","No new GPS locations are collected. Tap Start work-hours tracking when you are ready to resume.");}).show();}
     private void feedback(String title,String message){status.setText(message);new android.app.AlertDialog.Builder(this).setTitle(title).setMessage(message).setPositiveButton("OK",null).show();}
     private static String pairingError(Exception error){
         if(error instanceof PortalClient.AuthorizationException)return "The portal rejected this pairing code. It may have expired, already been used or been replaced. Ask the Owner to generate a fresh code for this phone and enter both fields again.";
