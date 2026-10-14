@@ -202,10 +202,10 @@ function createMarketingDismissal({isDirty,confirmDiscard,performClose}) {
   if(states.has(dialog)||dialog.matches('.mk-v3-editor-expanded'))return;
   let baseline='',initialEditors=[];
   const start=()=>{baseline=fingerprint(dialog);initialEditors=[...dialog.querySelectorAll('[contenteditable]')].map(el=>[el,el.innerHTML]);dialog.dataset.remoteDirty='0';delete dialog.dataset.submitting;dialog.classList.add('is-opening');setTimeout(()=>dialog.classList.remove('is-opening'),240);};
-  const dirty=()=>dialog.dataset.submitting!=='1'&&(dialog.dataset.remoteDirty==='1'||fingerprint(dialog)!==baseline);
+  const dirty=()=>dialog.dataset.submitting!=='1'&&(dialog.dataset.unsaved==='1'||dialog.dataset.remoteDirty==='1'||fingerprint(dialog)!==baseline);
   const close=createMarketingDismissal({isDirty:dirty,confirmDiscard:()=>confirm('Discard unsaved changes to this Marketing assignment?'),performClose:async()=>{
    dialog.querySelector('iframe')?.contentWindow?.postMessage({type:'marketing-discard'},location.origin);dialog.classList.add('is-closing');if(!matchMedia('(prefers-reduced-motion: reduce)').matches)await new Promise(resolve=>setTimeout(resolve,180));
-   dialog.querySelectorAll('form').forEach(form=>form.reset());initialEditors.forEach(([el,html])=>{el.innerHTML=html;el.dispatchEvent(new Event('input',{bubbles:true}));});dialog.close();dialog.classList.remove('is-closing');
+   dialog.querySelectorAll('form').forEach(form=>form.reset());initialEditors.forEach(([el,html])=>{el.innerHTML=html;el.dispatchEvent(new Event('input',{bubbles:true}));});delete dialog.dataset.unsaved;dialog.close();dialog.classList.remove('is-closing');
   }});
   states.set(dialog,{close,dirty});
   dialog.addEventListener('cancel',event=>{event.preventDefault();close();});
@@ -217,9 +217,10 @@ function createMarketingDismissal({isDirty,confirmDiscard,performClose}) {
  window.MarketingDialogs={watch,close:dialog=>{if(!states.has(dialog))watch(dialog);return states.get(dialog)?.close();}};
  document.querySelectorAll('dialog').forEach(watch);
  const pageRoot=document.querySelector('.mk-v3-assignment-page');let pageBaseline=pageRoot?fingerprint(pageRoot):'',submitting=false;
- const dirty=()=>!submitting&&(pageRoot?fingerprint(pageRoot)!==pageBaseline:[...document.querySelectorAll('[data-form-dialog][open]')].some(dialog=>states.get(dialog)?.dirty()));
+ const dirty=()=>!submitting&&(pageRoot?(pageRoot.dataset.mkUnsaved==='1'||fingerprint(pageRoot)!==pageBaseline):[...document.querySelectorAll('[data-form-dialog][open]')].some(dialog=>states.get(dialog)?.dirty()));
  const publishDirty=()=>{if(parent!==window)parent.postMessage({type:'marketing-dirty',dirty:dirty()},location.origin);};
  document.addEventListener('input',publishDirty);document.addEventListener('change',publishDirty);
+ publishDirty();
  document.addEventListener('submit',event=>queueMicrotask(()=>{if(event.defaultPrevented)return;submitting=true;if(parent!==window)parent.postMessage({type:'marketing-dirty',dirty:false},location.origin); }));
  addEventListener('message',event=>{if(parent!==window&&event.source===parent&&event.origin===location.origin&&event.data?.type==='marketing-discard')submitting=true;});
  addEventListener('beforeunload',event=>{if(dirty()){event.preventDefault();event.returnValue='';}});

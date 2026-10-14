@@ -75,7 +75,7 @@ $isEssDashboard=true;$pageTitle='Marketing | '.APP_NAME;$activeApp='marketing';$
 <?php if($view==='tasks'):marketing_content_table($items);else:?><?php marketing_content_table($items); ?><?php endif;?>
 <?php endif;?>
 <?php if($owner): ?>
-<dialog class="marketing-dialog marketing-create-dialog mk-v3-ui mk-v3-modal" data-form-dialog <?=$formOpen?'data-auto-open':''?> aria-labelledby="marketing-content-title">
+<dialog class="marketing-dialog marketing-create-dialog mk-v3-ui mk-v3-modal" data-form-dialog data-unsaved="<?=$formFailed?'1':'0'?>" <?=$formOpen?'data-auto-open':''?> aria-labelledby="marketing-content-title">
 <form method="post" class="mk-v3-modal-form"><input type="hidden" name="csrf" value="<?=marketing_csrf()?>"><input type="hidden" name="action" value="save"><input type="hidden" name="id" value="<?=(int)($editItem['id']??0)?>">
 <header class="mk-v3-modal-header"><div><p class="mk-v3-eyebrow">MARKETING BRIEF</p><h2 class="mk-v3-modal-title" id="marketing-content-title"><?=empty($editItem['id'])?'Create Content':'Edit Content'?></h2><span>Plan content, assign channels and schedule delivery.</span></div><button type="button" class="mk-v3-close" data-close aria-label="Close"><i data-lucide="x"></i></button></header>
 <div class="marketing-modal-body mk-v3-modal-body">
