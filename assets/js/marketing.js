@@ -11,7 +11,7 @@
   const ad=root.querySelector('[data-ad-dialog]');
   root.addEventListener('click',event=>{
     const close=event.target.closest('[data-close]');
-    if(close){close.closest('dialog').close();return;}
+    if(close){const dialog=close.closest('dialog');if(window.MarketingDialogs)window.MarketingDialogs.close(dialog);else dialog.close();return;}
     if(event.target.closest('[data-open-form]')&&form){const view=event.target.closest('[data-preview-view]')?.dataset.previewView||new URLSearchParams(location.search).get('view');const type={reels:'reel',social:'social_post',whatsapp:'whatsapp_post',blog:'blog',newsletter:'newsletter',website:'website_update',ideas:'idea'}[view];const control=form.querySelector('[name=content_type]');if(type&&control&&!form.querySelector('[name=title]').value){control.value=type;control.dispatchEvent(new Event('change',{bubbles:true}));}form.showModal();return;}
     if(event.target.closest('[data-open-metric]')&&metric){metric.showModal();return;}
     if(event.target.closest('[data-open-attribution]')&&attribution){attribution.showModal();return;}
@@ -95,7 +95,7 @@
     trigger.innerHTML='<span></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
     const label=select.closest('label');const labelText=label?[...label.childNodes].filter(n=>n.nodeType===3).map(n=>n.textContent.trim()).join(' '):(select.getAttribute('aria-label')||select.name);
     trigger.setAttribute('aria-label',labelText||'Choose option');
-    const menu=document.createElement('div');menu.className='marketing-select-menu';menu.setAttribute('role','listbox');menu.id='marketing-options-'+controls.length;trigger.setAttribute('aria-controls',menu.id);
+    const menu=document.createElement('div');menu.className='marketing-select-menu mk-v3-ui';menu.setAttribute('role','listbox');menu.id='marketing-options-'+controls.length;trigger.setAttribute('aria-controls',menu.id);
     const people=select.name==='assigned_employee_id';
     const avatar=text=>{const el=document.createElement('span');el.className='marketing-person-avatar';el.textContent=text.trim().split(/\s+/).slice(0,2).map(p=>p[0]).join('').toUpperCase();el.setAttribute('aria-hidden','true');return el;};
     const sync=()=>{
@@ -277,7 +277,7 @@
     check.addEventListener('change',update);update();
   });
   root.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{
-    if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}
+    if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom){if(window.MarketingDialogs)window.MarketingDialogs.close(dialog);else dialog.close();}}
   }));
   root.querySelectorAll('select:not([data-editor-command])').forEach(enhanceSelect);
   if(form?.hasAttribute('data-auto-open')) form.showModal();

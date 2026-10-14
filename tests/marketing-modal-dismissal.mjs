@@ -1,0 +1,16 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync(new URL('../assets/js/marketing-workspace.js',import.meta.url),'utf8');
+const start=source.indexOf('function marketingBackdropHit'),end=source.indexOf('(()=>{',start);
+assert(start>=0&&end>start);const context={};vm.createContext(context);vm.runInContext(source.slice(start,end),context);
+const rect={left:20,right:900,top:14,bottom:750};
+assert.equal(context.marketingBackdropHit(rect,{clientX:200,clientY:300}),false,'empty area inside form stays open');
+assert.equal(context.marketingBackdropHit(rect,{clientX:10,clientY:300}),true,'dimmed backdrop is a dismiss intent');
+assert.equal(context.marketingBackdropHit(rect,{clientX:20,clientY:14}),false,'modal border is inside');
+let dirty=true,discard=false,closed=0,prompts=0,release;
+const request=context.createMarketingDismissal({isDirty:()=>dirty,confirmDiscard:()=>{prompts++;return discard;},performClose:()=>new Promise(resolve=>{closed++;release=resolve;})});
+assert.equal(await request(),false);assert.equal(closed,0,'cancel discard retains unsaved work');assert.equal(prompts,1);
+discard=true;const closing=request();assert.equal(closed,1);assert.equal(await request(),false,'repeated close intents do not close twice');release();assert.equal(await closing,true);
+dirty=false;const clean=request();assert.equal(prompts,2,'clean close does not prompt');release();assert.equal(await clean,true);assert.equal(closed,2);
+console.log('PASS inside click, backdrop intent, unsaved cancellation, confirmed discard and duplicate-close protection');
