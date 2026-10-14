@@ -53,3 +53,397 @@
 .ess-marketing-page .marketing-execution-form>.marketing-form-grid{max-height:none;overflow:visible}
 @media(max-width:767px){.ess-marketing-page .marketing-channel-instructions{grid-template-columns:1fr}.ess-marketing-page .marketing-dialog:not(.mk4-modal) footer button{min-height:44px;flex:1}.ess-marketing-page .marketing-create-dialog:not(.mk4-modal) header [data-close]{width:44px;height:44px;flex-basis:44px}}
 
+
+/* ================================================
+   HAMBELELA MARKETING — ASSIGNMENT DETAIL CARDS
+   Apply only to existing Marketing Assignment view
+   ================================================ */
+
+.mk4-ui.mk4-assignment-page {
+  --md-purple: #9B477E;
+  --md-purple-dark: #813766;
+  --md-purple-soft: #F9F2F7;
+  --md-purple-border: #E5CCDC;
+  --md-olive: #59694A;
+  --md-olive-dark: #344126;
+  --md-olive-soft: #F2F4EC;
+  --md-cream: #F8F7F2;
+  --md-text: #1C2118;
+  --md-secondary: #62675E;
+  --md-muted: #91968C;
+  --md-border: #E4E6DC;
+
+  font-family: "Jost", sans-serif;
+  color: var(--md-text);
+  font-weight: 400;
+}
+
+.mk4-ui.mk4-assignment-page *,
+.mk4-ui.mk4-assignment-page *::before,
+.mk4-ui.mk4-assignment-page *::after {
+  box-sizing: border-box;
+}
+
+/* MAIN DETAILS BODY */
+
+.mk4-ui.mk4-assignment-page .mk4-detail-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 15px 17px 24px;
+}
+
+/* SHARED SECTION CARD */
+
+.mk4-ui.mk4-assignment-page .mk4-detail-card {
+  position: relative;
+  min-width: 0;
+
+  margin: 0;
+  padding: 15px 16px;
+
+  border: 1px solid var(--md-border);
+  border-radius: 12px;
+
+  background: #FFFFFF;
+  box-shadow:
+    0 3px 13px rgba(38,49,31,.025);
+
+  overflow: hidden;
+
+  transition:
+    border-color .17s ease,
+    box-shadow .17s ease;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card:hover {
+  border-color: #D9DCD2;
+  box-shadow:
+    0 6px 19px rgba(38,49,31,.04);
+}
+
+/* ACCENT STRIP */
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card.is-accented::before {
+  content: "";
+  position: absolute;
+  top: 15px;
+  bottom: 15px;
+  left: 0;
+
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: var(--md-purple);
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card.is-olive-accent::before {
+  background: var(--md-olive);
+}
+
+/* SECTION HEADERS */
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card-header {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  margin-bottom: 12px;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card-icon {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 9px;
+  background: var(--md-purple-soft);
+  color: var(--md-purple);
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card-icon.is-olive {
+  background: var(--md-olive-soft);
+  color: var(--md-olive);
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card-icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card-title {
+  margin: 0;
+
+  color: var(--md-text);
+  font: 600 13.5px/1.3 "Jost", sans-serif;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card-eyebrow {
+  margin: 0 0 3px;
+
+  color: var(--md-purple);
+  font: 600 9px/1.2 "Jost", sans-serif;
+
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+
+/* CAMPAIGN FACTS */
+
+.mk4-ui.mk4-assignment-page .mk4-fact-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 10px;
+}
+
+.mk4-ui.mk4-assignment-page .mk4-fact {
+  min-width: 0;
+  padding: 10px 12px;
+
+  border: 1px solid #ECEDE7;
+  border-radius: 8px;
+  background: #FBFAF8;
+}
+
+.mk4-ui.mk4-assignment-page .mk4-fact-label {
+  display: block;
+  margin-bottom: 4px;
+
+  color: var(--md-secondary);
+  font: 400 10px/1.3 "Jost",sans-serif;
+}
+
+.mk4-ui.mk4-assignment-page .mk4-fact-value {
+  color: var(--md-text);
+  font: 500 11.5px/1.4 "Jost",sans-serif;
+  overflow-wrap: anywhere;
+}
+
+/* SEPARATE BRIEF SECTION */
+
+.mk4-ui.mk4-assignment-page .mk4-brief-card {
+  border-color: var(--md-purple-border);
+}
+
+.mk4-ui.mk4-assignment-page .mk4-brief-reading {
+  padding: 14px 15px;
+
+  border: 1px solid var(--md-purple-border);
+  border-radius: 9px;
+
+  background: #FCFAFC;
+
+  color: var(--md-text);
+  font: 400 12px/1.7 "Jost",sans-serif;
+
+  overflow-wrap: anywhere;
+}
+
+/* PRESERVE RICH-TEXT FORMATTING */
+
+.mk4-ui.mk4-assignment-page
+.mk4-brief-reading p {
+  margin: 0 0 10px;
+  font-weight: 400;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-brief-reading p:last-child {
+  margin-bottom: 0;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-brief-reading :is(ul,ol) {
+  margin: 7px 0 12px;
+  padding-left: 23px;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-brief-reading li {
+  margin: 4px 0;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-brief-reading :is(h2,h3,h4) {
+  margin: 12px 0 7px;
+  color: var(--md-text);
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-brief-reading strong {
+  font-weight: 600;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-brief-reading a {
+  color: var(--md-purple);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* HASHTAGS */
+
+.mk4-ui.mk4-assignment-page .mk4-hashtag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.mk4-ui.mk4-assignment-page .mk4-hashtag {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 26px;
+  padding: 0 10px;
+
+  border: 1px solid var(--md-purple-border);
+  border-radius: 999px;
+
+  background: var(--md-purple-soft);
+  color: var(--md-purple);
+
+  font: 500 10.5px/1.3 "Jost",sans-serif;
+  overflow-wrap: anywhere;
+}
+
+.mk4-ui.mk4-assignment-page .mk4-empty-value {
+  margin: 0;
+  color: var(--md-muted);
+  font: 400 11px/1.4 "Jost",sans-serif;
+}
+
+/* OTHER ASSIGNMENT SECTIONS */
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card-content {
+  min-width: 0;
+
+  color: var(--md-secondary);
+  font: 400 12px/1.5 "Jost",sans-serif;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card-content :is(
+  button,input,select,textarea
+) {
+  font-family: "Jost",sans-serif;
+}
+
+/* COMPACT CHANNEL ROWS */
+
+.mk4-ui.mk4-assignment-page .mk4-platform-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(auto-fit,minmax(185px,1fr));
+  gap: 10px;
+  align-items: start;
+}
+
+.mk4-ui.mk4-assignment-page .mk4-platform {
+  min-width: 0;
+  padding: 11px;
+
+  border: 1px solid var(--md-border);
+  border-radius: 9px;
+  background: #FFFFFF;
+}
+
+.mk4-ui.mk4-assignment-page .mk4-checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+
+  font: 400 11px/1.4 "Jost",sans-serif;
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-checkbox-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  margin: 0;
+
+  accent-color: var(--md-purple);
+}
+
+/* SECTION TRANSITIONS */
+
+@keyframes mkDetailSectionEnter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.mk4-ui.mk4-assignment-page
+.mk4-detail-card.is-entering {
+  animation:
+    mkDetailSectionEnter .22s ease-out both;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 767px) {
+  .mk4-ui.mk4-assignment-page .mk4-detail-body {
+    padding: 12px;
+    gap: 10px;
+  }
+
+  .mk4-ui.mk4-assignment-page .mk4-detail-card {
+    padding: 13px;
+  }
+
+  .mk4-ui.mk4-assignment-page .mk4-fact-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .mk4-ui.mk4-assignment-page .mk4-brief-reading {
+    padding: 12px;
+  }
+
+  .mk4-ui.mk4-assignment-page .mk4-platform-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk4-ui.mk4-assignment-page
+  .mk4-detail-card {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+.mk4-ui.mk4-assignment-page .mk4-detail-title{font-size:20px;font-weight:600}
+.mk4-ui.mk4-assignment-page .mk4-fact-grid{margin-bottom:0}
+.mk4-ui.mk4-assignment-page .mk4-detail-card-header .mk4-detail-card-title{font-size:13.5px;margin:0}
+.mk4-ui.mk4-assignment-page .mk4-hashtag{max-width:100%;height:auto;padding:5px 10px}
+.mk4-ui.mk4-assignment-page .mk4-detail-card>p{font-weight:400;font-size:10.5px}
+.mk4-ui.mk4-assignment-page .mk4-channel-details{margin-top:10px;padding:10px;border:1px solid #E5CCDC;border-radius:9px;background:#FCFAFC}
+.mk4-ui.mk4-assignment-page .mk4-channel-details:not([hidden]),.mk4-ui.mk4-assignment-page details[open]>.mk4-brief-reading{animation:mkDetailSectionEnter .18s ease-out}
+.mk4-ui.mk4-assignment-page .mk4-owner-instructions{margin-top:12px}
+.mk4-ui.mk4-assignment-page .mk4-media-summary{display:flex;align-items:center;gap:9px;cursor:pointer}
+.mk4-ui.mk4-assignment-page details[open]>.mk4-media-summary{margin-bottom:12px}
+.mk4-ui.mk4-assignment-page .mk4-detail-card button{transition:background-color .17s ease,border-color .17s ease}
+@media(prefers-reduced-motion:reduce){.mk4-ui.mk4-assignment-page .mk4-detail-card *{animation:none!important;transition:none!important}}
