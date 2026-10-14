@@ -184,13 +184,12 @@ function marketing_content_table(array $items,string $active='active'): void {
 
 function marketing_publication_evidence_required(array $item): bool {return !empty($item['approval_required'])||!empty($item['publication_evidence_required']);}
 function marketing_content_footer(array $item,bool $owner): void {
-    $state=$item['status'];$assigned=!$owner&&(int)$item['assigned_employee_id']===marketing_employee_id();echo '<footer class="mw-details-footer mk-wf-modal-footer '.(!$owner?'mk-v3-workflow-actions':'').'">';
-    if($owner&&$state==='ready_for_review')echo '<button class="mk-v3-button mk-v3-button--primary" form="mw-workflow" name="workflow_action" value="approve">Approve</button><button class="mk-v3-button mk-v3-button--secondary" form="mw-workflow" name="workflow_action" value="request_changes">Request Changes</button><a class="mk-v3-button mk-v3-button--secondary" href="#notes">Reply</a>';
-    elseif($assigned&&in_array($state,['brief','to_create'],true))echo '<button class="mk-v3-button mk-v3-button--primary" form="mw-workflow" name="workflow_action" value="start">Start Task</button>';
+    $state=$item['status'];$assigned=!$owner&&(int)$item['assigned_employee_id']===marketing_employee_id();echo '<footer class="mk4-footer '.(!$owner?'mk4-workflow-actions':'').'">';
+    if($owner&&$state==='ready_for_review')echo '<button class="mk4-button mk4-button--primary" form="mw-workflow" name="workflow_action" value="approve">Approve</button><button class="mk4-button mk4-button--secondary" form="mw-workflow" name="workflow_action" value="request_changes">Request Changes</button><a class="mk4-button mk4-button--secondary" href="#notes">Reply</a>';
+    elseif($assigned&&in_array($state,['brief','to_create'],true))echo '<button class="mk4-button mk4-button--primary" form="mw-workflow" name="workflow_action" value="start">Start Task</button>';
     elseif($assigned&&in_array($state,['in_progress','changes_requested','approved','scheduled'],true)){
         $review=!empty($item['approval_required'])&&!marketing_execution_ready_to_publish($item);
-        echo '<button type="button" class="mk-v3-button mk-v3-button--secondary" data-mk-assistance>Ask for Assistance</button><button class="mk-v3-button mk-v3-button--primary" form="mw-progress" name="workflow_action" value="'.($review?'submit':'complete').'">'.($review?'Send for Approval':'Mark Complete').'</button>';
+        echo '<button type="button" class="mk4-button mk4-button--secondary" data-mk-assistance>Ask for Assistance</button><button class="mk4-button mk4-button--primary" form="mw-progress" name="workflow_action" value="'.($review?'submit':'complete').'">'.($review?'Send for Approval':'Mark Complete').'</button>';
     }else echo '<span>'.marketing_e(marketing_content_label($state)).'</span>';
-    if($owner&&$state!=='cancelled')echo '<a class="mk-v3-button mk-v3-button--secondary" target="_top" href="index.php?edit='.(int)$item['id'].'">Edit Assignment</a>';
     echo '</footer>';
 }
