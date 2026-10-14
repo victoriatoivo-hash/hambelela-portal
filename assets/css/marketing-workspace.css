@@ -1826,3 +1826,8 @@ html:has(.media-upload-drawer[open]){overflow:hidden}
 }
 
 .marketing-create-dialog.mk-brief-ui>.mk-brief-modal{width:100%;height:100%;border:0;border-radius:0;box-shadow:none;max-height:inherit}
+.marketing-create-dialog.mk-brief-ui .mk-field{padding:0;margin:0 0 12px}
+.marketing-create-dialog.mk-brief-ui :is(.mk-deliverable-option,.mk-priority-option,.mk-media-source-option){display:inline-flex;flex-direction:row;align-items:center;padding:0 10px;margin:0}
+.marketing-create-dialog.mk-brief-ui input[type=radio]{width:16px;min-height:16px;height:16px;padding:0;flex:0 0 16px}
+.marketing-create-dialog.mk-brief-ui input[type=checkbox]{width:17px;height:17px;min-height:17px;flex:0 0 17px}
+.marketing-create-dialog.mk-brief-ui .mk-brief-title{font:600 21px/1.25 Jost,sans-serif;color:#1C2118}
