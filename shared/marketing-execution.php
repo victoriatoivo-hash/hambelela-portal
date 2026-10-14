@@ -199,7 +199,7 @@ function marketing_execution_save(array $input): void
             if(($item['deliverable_mode']??'publish')==='publish'&&empty($input['was_posted']))throw new RuntimeException('Confirm that the required content has been posted.');
         }
         if(array_key_exists('media_source',$input)){[$source,$link]=marketing_media_reference((string)$input['media_source'],(string)($input['media_link']??''));db()->prepare('UPDATE marketing_work_items SET media_source=?,media_link=? WHERE id=?')->execute([$source,$link,$item['id']]);}
-        foreach(['work_summary','workflow_notes']as$field)if(array_key_exists($field,$input)){if(strlen((string)$input[$field])>10000)throw new RuntimeException('Keep work descriptions and notes under 10,000 characters.');db()->prepare('UPDATE marketing_work_items SET '.$field.'=? WHERE id=?')->execute([trim((string)$input[$field]),$item['id']]);}
+        foreach(['work_summary','workflow_notes','media_reference']as$field)if(array_key_exists($field,$input)){if(strlen((string)$input[$field])>($field==='media_reference'?500:10000))throw new RuntimeException('Keep work descriptions and notes under 10,000 characters.');db()->prepare('UPDATE marketing_work_items SET '.$field.'=? WHERE id=?')->execute([trim((string)$input[$field]),$item['id']]);}
         $rows=marketing_execution_rows($item);$submitted=is_array($input['channels']??null)?$input['channels']:[];$allowed=array_column($rows,'channel_key');
         if(array_diff(array_keys($submitted),$allowed))throw new RuntimeException('The channel requirements changed. Refresh this assignment.');
         $media=array_map('intval',array_column(marketing_assignment_media((int)$item['id']),'id'));$changed=false;
