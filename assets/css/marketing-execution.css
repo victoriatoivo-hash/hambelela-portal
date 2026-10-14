@@ -447,3 +447,6 @@
 .mk4-ui.mk4-assignment-page details[open]>.mk4-media-summary{margin-bottom:12px}
 .mk4-ui.mk4-assignment-page .mk4-detail-card button{transition:background-color .17s ease,border-color .17s ease}
 @media(prefers-reduced-motion:reduce){.mk4-ui.mk4-assignment-page .mk4-detail-card *{animation:none!important;transition:none!important}}
+/* Cards keep their content height inside the scrolling assignment body. */
+.mk4-ui.mk4-assignment-page .mk4-detail-body>*{flex-shrink:0}
+.mk4-ui.mk4-assignment-page .mk4-detail-card{flex-shrink:0}
