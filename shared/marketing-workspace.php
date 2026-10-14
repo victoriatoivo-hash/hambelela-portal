@@ -144,6 +144,7 @@ function marketing_media_player(array $file,bool $large=false): void {
     else echo '<span class="mk-document-icon">Document</span>';
 }
 function marketing_workspace_assets(): void {
+    echo '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap">';
     echo '<link rel="stylesheet" href="'.BASE_URL.'/assets/css/marketing-workspace.css?v='.filemtime(BASE_PATH.'/assets/css/marketing-workspace.css').'">';
     echo '<script defer src="'.BASE_URL.'/assets/js/marketing-workspace.js?v='.filemtime(BASE_PATH.'/assets/js/marketing-workspace.js').'"></script>';
 }
