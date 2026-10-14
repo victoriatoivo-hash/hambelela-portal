@@ -26,7 +26,7 @@ $stats=[['Assigned to Me',count(array_filter($myWork,$pending))+count($portalTas
  ['Awaiting My Action',count(array_filter($myWork,fn($i)=>in_array($i['status'],['brief','to_create','in_progress','changes_requested'],true)))+count($portalTasks),'circle-play'],
  ['Ready to Publish',count(array_filter($myWork,fn($i)=>in_array($i['status'],['approved','scheduled'],true))),'send'],
  ['Completed This Week',count(array_filter($myWork,fn($i)=>in_array($i['status'],['published','completed'],true)&&($i['completed_at']??$i['published_at'])>=$weekStart&&($i['completed_at']??$i['published_at'])<$weekEnd)),'circle-check']];
-$isEssDashboard=true;$pageTitle=(in_array($view,['dashboard','apps'],true)?'Marketing Applications':'My Marketing Work').' | '.APP_NAME;$activeApp='marketing';
+$isEssDashboard=true;$pageTitle=($view==='dashboard'?'Marketing Home':($view==='apps'?'Marketing Apps':'My Marketing Work')).' | '.APP_NAME;$activeApp='marketing';
 $extraStylesheets=[];foreach(['marketing','marketing-extras','marketing-execution'] as$css)$extraStylesheets[]=['path'=>'assets/css/'.$css.'.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/'.$css.'.css')];
 require_once BASE_PATH.'/shared/ess-navigation.php';$essShellApps=ess_shell_apps();$essActiveModule='Marketing';$pageUsesPortalSidebar=false;$extraStylesheets[]=['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')];include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/ess-sidebar.php';
 ?>
@@ -34,11 +34,8 @@ require_once BASE_PATH.'/shared/ess-navigation.php';$essShellApps=ess_shell_apps
 <nav class="marketing-local-nav" aria-label="Marketing"><a class="<?=$view==='dashboard'?'is-active':''?>" href="?view=dashboard">Home</a><a class="<?=$view==='apps'?'is-active':''?>" href="?view=apps">Apps</a></nav>
 <?php if($message):?><p class="marketing-notice" role="status"><?=marketing_e($message)?></p><?php endif;?>
 <?php marketing_workspace_assets(); ?>
-<?php if(in_array($view,['dashboard','apps'],true)):?>
-<section class="hb-marketing-home" aria-labelledby="marketing-home-title">
-<header><p class="mk-home-eyebrow">MARKETING WORKSPACE</p><h1 class="mk-home-title" id="marketing-home-title">Marketing Applications</h1><p class="mk-home-description">Choose an application to open your assigned work, media or calendar.</p></header>
-<?php marketing_employee_application_cards($apps,$badges); ?>
-</section>
+<?php if($view==='dashboard'):?><div class="marketing-employee-home"><?php marketing_employee_home($apps,$badges,$stats,$myWork,$portalTasks);?></div>
+<?php elseif($view==='apps'):?><section class="marketing-apps-page marketing-employee-home"><header class="marketing-section-heading"><div><p>MARKETING WORKSPACE</p><h2>Marketing Apps</h2><span>Your authorised tools to plan, create and publish content.</span></div></header><?php marketing_employee_application_cards($apps,$badges);?></section>
 <?php endif;?>
 <?php $items=array_values(array_filter($myWork,fn($i)=>marketing_work_matches_app($i,$view,false)));include __DIR__.'/app-shell.php'; ?>
 <?php if($view==='calendar') include __DIR__.'/employee-calendar.php'; ?>

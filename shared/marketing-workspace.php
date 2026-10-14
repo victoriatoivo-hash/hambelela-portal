@@ -1,15 +1,45 @@
 <?php
 declare(strict_types=1);
-function marketing_employee_application_cards(array $apps,array $badges): void {
+function marketing_employee_application_cards(array $apps,array $badges,bool $directory=true): void {
     $descriptions=['tasks'=>'Open assigned content, start work and submit for review.','calendar'=>'View your assigned deadlines and publication schedule.','social'=>'Open your assigned social media content.','reels'=>'Work on assigned reels and videos.','whatsapp'=>'Prepare your assigned WhatsApp content.','blog'=>'Open assigned blog and SEO work.','newsletter'=>'Work on assigned newsletters.','website'=>'Prepare your assigned website and product changes.','media'=>'Access images, videos, audio and shared media.','library'=>'View completed content and its saved files.'];
-    echo '<div class="mk-home-apps">';
-    foreach($apps as $key=>$app){
-        if(!marketing_employee_view_allowed($key))continue;
-        $href=$key==='media'?'media.php':'?view='.rawurlencode($key);
-        echo '<a class="mk-home-app" href="'.marketing_e($href).'"><span class="mk-home-app-icon"><i data-lucide="'.marketing_e($app[1]).'"></i></span><h2 class="mk-home-app-title">'.marketing_e($key==='media'?'Media Library':$app[0]).'</h2><p class="mk-home-app-description">'.marketing_e($descriptions[$key]??'Open your authorised Marketing work.').'</p><span class="mk-home-app-action">Open application <i data-lucide="arrow-right"></i></span></a>';
+    $groups=['PLAN'=>['tasks','calendar'],'CREATE'=>['social','reels','blog','newsletter'],'PUBLISH & MANAGE'=>['whatsapp','website','media','library']];
+    if(!$directory)echo '<div class="marketing-app-grid">';
+    foreach($groups as $label=>$keys){
+        $keys=array_values(array_filter($keys,static fn($key)=>isset($apps[$key])&&marketing_employee_view_allowed($key)));
+        if(!$keys)continue;
+        if($directory)echo '<section class="marketing-app-category"><h3>'.marketing_e($label).'</h3><div>';
+        foreach($keys as $key){
+            $app=$apps[$key];$href=$key==='media'?'media.php':'?view='.rawurlencode($key);
+            echo '<a class="'.($directory?'marketing-app-page-tile':'marketing-app-tile').'" href="'.marketing_e($href).'"><span class="marketing-app-icon"><i data-lucide="'.marketing_e($app[1]).'"></i></span><span><strong>'.marketing_e($key==='media'?'Media Library':$app[0]).'</strong><small>'.marketing_e($descriptions[$key]).'</small></span>'.($directory?'<i data-lucide="arrow-right"></i>':'').'</a>';
+        }
+        if($directory)echo '</div></section>';
     }
-    echo '</div>';
+    if(!$directory)echo '</div>';
 }
+
+/** Render the employee dashboard from employee-scoped queries, using the approved Home components. */
+function marketing_employee_home(array $apps,array $badges,array $stats,array $myWork,array $portalTasks): void {
+    $upcoming=[];
+    foreach($myWork as $item){
+        if(in_array($item['status'],['published','completed','cancelled'],true))continue;
+        $upcoming[]=['title'=>$item['title'],'due'=>$item['due_at']??null,'href'=>'execution.php?id='.(int)$item['id'],'status'=>str_replace('_',' ',$item['status'])];
+    }
+    foreach($portalTasks as $task)$upcoming[]=['title'=>$task['task_name'],'due'=>$task['deadline']??null,'href'=>BASE_URL.'/apps/operations/checklists.php?task_view=active&task_id='.(int)$task['id'],'status'=>str_replace('_',' ',$task['status'])];
+    usort($upcoming,static fn($a,$b)=>strcmp($a['due']?:'9999',$b['due']?:'9999'));
+    $upcoming=array_slice($upcoming,0,5);
+    ?>
+<section class="marketing-hero">
+ <div class="marketing-hero-copy"><p class="marketing-eyebrow">MARKETING &amp; SALES</p><h1 class="marketing-hero-title"><span class="is-olive">Create.</span> <span>Connect.</span> <span class="is-marketing">Convert.</span></h1><p class="marketing-hero-subtitle">Your assigned content, deadlines and creative tools in one workspace.</p><div class="marketing-hero-actions"><a class="marketing-btn-primary" href="?view=tasks"><i data-lucide="list-checks"></i>My Content Tasks</a><a class="marketing-btn-secondary" href="?view=calendar"><i data-lucide="calendar-days"></i>My Calendar</a></div></div>
+ <div class="marketing-hero-visual" aria-hidden="true"><?=str_replace('<svg ', '<svg class="marketing-hero-botanical" style="stroke:none" ', (string)file_get_contents(BASE_PATH.'/assets/images/marketing-botanical.svg'))?><div class="marketing-visual-words"><span>Ideas</span><span>Content</span><span>Customers</span><span>Growth</span></div><p>Marketing that moves your business forward.</p></div>
+</section>
+<section class="marketing-kpi-grid" aria-label="My Marketing overview"><?php foreach($stats as $stat):?><article class="marketing-kpi-card"><span class="marketing-kpi-icon"><i data-lucide="<?=marketing_e($stat[2])?>"></i></span><div><span class="marketing-kpi-label"><?=marketing_e($stat[0])?></span><strong><?=(int)$stat[1]?></strong><small>My assigned work</small></div></article><?php endforeach;?></section>
+<div class="marketing-main-grid">
+ <div class="marketing-home-stack"><section class="marketing-panel"><header class="marketing-panel-header"><div><h2><i data-lucide="layout-grid"></i>Marketing Apps</h2><p>Your tools to plan, create and publish.</p></div><a class="marketing-panel-link" href="?view=apps">View all apps</a></header><?php marketing_employee_application_cards($apps,$badges,false);?></section>
+ <section class="marketing-panel"><header class="marketing-panel-header"><div><h2><i data-lucide="calendar-days"></i>Upcoming Tasks</h2><p>Your next deadlines, including work still outstanding.</p></div><a class="marketing-panel-link" href="?view=tasks">View all</a></header><?php if($upcoming):?><div class="marketing-upcoming"><?php foreach($upcoming as $item):?><a href="<?=marketing_e($item['href'])?>"><span><?=marketing_e($item['due']?date('d M',strtotime($item['due'])):'No date')?></span><strong><?=marketing_e($item['title'])?></strong><small><?=marketing_e(ucfirst($item['status']))?></small></a><?php endforeach;?></div><?php else:?><div class="marketing-empty"><i data-lucide="calendar-check-2"></i><strong>No outstanding marketing tasks</strong><span>New assignments will appear here.</span></div><?php endif;?></section></div>
+ <aside class="marketing-home-aside"><section class="marketing-panel marketing-quick"><header class="marketing-panel-header"><div><h2><i data-lucide="zap"></i>Quick Actions</h2><p>Keep your work moving.</p></div></header><div><a href="?view=tasks"><i data-lucide="list-checks"></i>Open My Content Tasks</a><a href="?view=calendar"><i data-lucide="calendar-clock"></i>View My Schedule</a><a href="media.php"><i data-lucide="image"></i>Browse Media Library</a><a href="?view=library"><i data-lucide="library"></i>View Completed Content</a></div></section></aside>
+</div>
+<section class="marketing-brand-strip"><span><i data-lucide="leaf"></i>Great marketing turns ideas into opportunities.</span><small>PLAN • CREATE • PUBLISH • GROW</small></section>
+<?php }
 
 /** Additive extensions of the existing Marketing records and version storage. */
 function marketing_workspace_schema(): void {
