@@ -1525,6 +1525,8 @@ body:has(.ess-marketing-page) .portal-date-popup .portal-date-clear{color:#62675
 .mk-assignment-drawer.mk-v3-ui::backdrop,.mk-v3-editor-expanded::backdrop{background:#1C21186B;backdrop-filter:blur(3px)}
 .mk-v3-ui.is-opening{animation:mkV3Enter .24s ease-out both}
 .mk-v3-ui.is-closing{animation:mkV3Exit .18s ease-in both}
+.mk-v3-ui.mk-v3-modal.is-opening{animation:mkV3Enter .24s ease-out both}
+.mk-v3-ui.mk-v3-modal.is-closing{animation:mkV3Exit .18s ease-in both}
 .mk-v3-assignment-section{animation:mkV3SectionIn .22s ease-out both}
 .mk-v3-ui :focus-visible{outline:2px solid #9B477E;outline-offset:2px}
 .mk-v3-ui .mk-countdown{font:600 11px Jost}
@@ -1540,7 +1542,7 @@ body:has(.mk-v3-ui) .portal-time-entry input{font:400 12px Jost;border-color:#E5
 .marketing-select-menu.mk-v3-ui{--marketing-600:#9B477E;--marketing-50:#F9F2F7}
 @media(max-width:1000px){.mk-v3-progress-form{grid-template-columns:1fr}}
 @media(max-width:767px){.marketing-create-dialog.mk-v3-ui .mk-v3-grid,.marketing-create-dialog.mk-v3-ui .mk-v3-schedule{grid-template-columns:1fr}.mk-v3-ui.mk-detail{height:100dvh;max-height:100dvh}.mk-v3-ui.mk-detail .mw-details-body{padding:10px}.mk-v3-ui .mk-v3-checkbox-row,.mk-v3-ui .mk-v3-channel-chip{min-height:44px}.mk-v3-ui .mk-v3-workflow-actions .mk-v3-button{min-height:44px}.mk-v3-editor-expanded[open]{inset:0;width:100vw;height:100dvh}.mk-assignment-drawer.mk-v3-ui{height:100dvh;max-height:100dvh;width:100vw;max-width:100vw;margin:0;border-radius:0}.mk-v3-ui .mk-v3-close{width:40px;height:40px;min-height:40px}.mk-v3-ui .mk-v3-platform-grid{grid-template-columns:1fr}}
-@media(prefers-reduced-motion:reduce){.mk-v3-ui.is-opening,.mk-v3-ui.is-closing,.mk-v3-assignment-section,.mk-v3-ui .mk-v3-channel-details{animation:none!important}.mk-v3-ui *{scroll-behavior:auto!important;transition:none!important}}
+@media(prefers-reduced-motion:reduce){.mk-v3-ui.is-opening,.mk-v3-ui.is-closing,.mk-v3-ui.mk-v3-modal.is-opening,.mk-v3-ui.mk-v3-modal.is-closing,.mk-v3-assignment-section,.mk-v3-ui .mk-v3-channel-details{animation:none!important}.mk-v3-ui *{scroll-behavior:auto!important;transition:none!important}}
 .ess-marketing-page.mk-v3-ui.mk-detail{max-width:1220px}
 .mk-v3-ui .mk-owner-history{height:max-content;min-height:40px;padding:0;border:1px solid #E4E6DC;border-radius:10px;background:#fff;overflow:visible}
 .mk-v3-ui .mk-owner-history-trigger{min-height:40px;padding:10px 13px;cursor:pointer;color:#9B477E;font:500 11.5px Jost}
