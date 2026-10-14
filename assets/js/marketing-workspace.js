@@ -77,7 +77,7 @@ function createMarketingDismissal({isDirty,confirmDiscard,performClose}) {
  choices.forEach(choice=>{
   const check=choice.querySelector('input[type=checkbox]'),toggle=choice.querySelector('[data-mk-channel-toggle]'),panel=document.getElementById(toggle.getAttribute('aria-controls'));
   const update=()=>{toggle.disabled=!check.checked;choice.classList.toggle('is-selected',check.checked);if(!check.checked){panel.hidden=true;toggle.setAttribute('aria-expanded','false');}};
-  check.addEventListener('change',()=>{update();if(check.checked){closeAll();panel.hidden=false;toggle.setAttribute('aria-expanded','true');}});
+  check.addEventListener('change',update);
   toggle.addEventListener('click',()=>{const opening=panel.hidden;closeAll();panel.hidden=!opening;toggle.setAttribute('aria-expanded',String(opening));});
   check.form?.addEventListener('reset',()=>queueMicrotask(()=>{closeAll();update();}));update();
  });
