@@ -80,8 +80,8 @@ $fixtureStats=[['Assigned to Me',3,'list-checks'],['Due Today',1,'calendar-days'
 mkdir(BASE_PATH.'/assets/images',0700,true);copy($root.'/assets/images/marketing-botanical.svg',BASE_PATH.'/assets/images/marketing-botanical.svg');
 $fixtureHead='<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap">';
 foreach(['marketing','marketing-extras','marketing-execution','marketing-workspace'] as $css)$fixtureHead.='<link rel="stylesheet" href="/assets/css/'.$css.'.css">';
-$fixtureHead.='</head><body style="margin:0;padding:20px;background:#F8F7F2"><main class="ess-marketing-page hb-marketing marketing-employee-home">';
-$fixtureEnd='</main><script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script><script>lucide.createIcons();</script></body></html>';
+$fixtureHead.='</head><body style="margin:0;padding:20px;background:#F8F7F2"><main class="ess-marketing-page hb-marketing"><div class="marketing-employee-home">';
+$fixtureEnd='</div></main><script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script><script>lucide.createIcons();</script></body></html>';
 ob_start();marketing_employee_application_cards($fixtureApps,[]);$directory=ob_get_clean();
 file_put_contents($root.'/verification/rendered/employee-apps.html',$fixtureHead.'<section class="marketing-apps-page"><header class="marketing-section-heading"><div><p>MARKETING WORKSPACE</p><h2>Marketing Apps</h2></div></header>'.$directory.'</section>'.$fixtureEnd);
 ob_start();marketing_employee_home($fixtureApps,[],$fixtureStats,[marketing_execution_item($new)],[]);$dashboard=ob_get_clean();
