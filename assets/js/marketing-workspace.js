@@ -58,6 +58,45 @@
 
 })();
 
+// Shared brief editor, compact channels and assistance use the existing page/forms.
+(() => {
+ const init=()=>{
+ document.querySelectorAll('[data-mk-channel]').forEach(choice=>{
+  const check=choice.querySelector('input[type=checkbox]'),toggle=choice.querySelector('[data-mk-channel-toggle]'),panel=choice.querySelector('.mk-channel-details');
+  const update=()=>{toggle.disabled=!check.checked;if(!check.checked){panel.hidden=true;toggle.setAttribute('aria-expanded','false');}};
+  check.addEventListener('change',update);toggle.addEventListener('click',()=>{panel.hidden=!panel.hidden;toggle.setAttribute('aria-expanded',String(!panel.hidden));});update();
+ });
+ document.querySelectorAll('[data-mk-channel-read]').forEach(button=>button.addEventListener('click',()=>{const panel=document.getElementById(button.dataset.mkChannelRead);panel.hidden=!panel.hidden;button.setAttribute('aria-expanded',String(!panel.hidden));}));
+ const help=document.querySelector('[data-mk-assistance-dialog]');
+ document.querySelectorAll('[data-mk-assistance]').forEach(button=>button.addEventListener('click',()=>help?.showModal()));
+ help?.querySelector('[data-mk-assistance-close]')?.addEventListener('click',()=>help.close());
+ document.querySelectorAll('[name=media_source]').forEach(input=>input.addEventListener('change',()=>{if(input.value==='upload'){const panel=document.querySelector('[data-mk-upload-panel]');if(panel){panel.open=true;panel.scrollIntoView({block:'center'});}}}));
+ document.querySelectorAll('[data-mk-editor]').forEach(wrapper=>{
+  const field=wrapper.querySelector('[data-editor-value]'),surface=wrapper.querySelector('[data-editor-surface]'),editor=wrapper.querySelector('[contenteditable]');let range=null;
+  const remember=()=>{const selected=getSelection();if(selected.rangeCount&&editor.contains(selected.anchorNode))range=selected.getRangeAt(0).cloneRange();};
+  const sync=()=>{field.value=editor.innerHTML;};editor.addEventListener('input',sync);editor.addEventListener('keyup',remember);editor.addEventListener('mouseup',remember);
+  surface.querySelectorAll('[data-editor-command]').forEach(tool=>{
+   if(tool.tagName==='BUTTON')tool.addEventListener('mousedown',event=>event.preventDefault());
+   tool.addEventListener(tool.tagName==='SELECT'?'change':'click',()=>{
+    editor.focus();if(range){const selection=getSelection();selection.removeAllRanges();selection.addRange(range);}
+    const command=tool.dataset.editorCommand;let value=tool.tagName==='SELECT'?tool.value:null;
+    if(command==='createLink'){value=prompt('Enter an HTTP or HTTPS link');if(!value)return;try{const url=new URL(value);if(!['http:','https:'].includes(url.protocol)||url.username||url.password)throw new Error();}catch(_){alert('Use an HTTP or HTTPS link without embedded login credentials.');return;}}
+    document.execCommand(command,false,value);sync();remember();
+   });
+  });
+  editor.addEventListener('paste',event=>{event.preventDefault();document.execCommand('insertText',false,event.clipboardData.getData('text/plain'));sync();});
+  field.form.addEventListener('submit',sync);
+  const expanded=document.createElement('dialog');expanded.className='mk-editor-expanded mk-brief-overlay';expanded.setAttribute('aria-label','Expanded Brief Editor');
+  const host=document.createElement('div');host.className='mk-expanded-host';const footer=document.createElement('div');footer.className='mk-brief-footer';
+  ['Cancel / Close','Save / Apply'].forEach(label=>{const button=document.createElement('button');button.type='button';button.className='mk-action-btn '+(label==='Save / Apply'?'mk-action-btn--primary':'mk-action-btn--secondary');button.textContent=label;button.addEventListener('click',()=>expanded.close());footer.append(button);});
+  expanded.append(host,footer);wrapper.append(expanded);
+  expanded.addEventListener('close',()=>{sync();wrapper.insertBefore(surface,expanded);});
+  surface.querySelector('[data-editor-expand]').addEventListener('click',()=>{remember();host.append(surface);expanded.showModal();editor.focus();});
+ });
+ };
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+})();
+
 (()=>{
  'use strict';
  const root=document.querySelector('.hb-marketing-media');if(!root)return;

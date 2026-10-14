@@ -194,6 +194,12 @@ function marketing_execution_save(array $input): void
         $item=marketing_execution_item((int)($input['id']??0),true);$owner=marketing_is_owner();$now=marketing_now();$actor=marketing_employee_id();
         if(in_array($item['status'],['ready_for_review','published','completed','cancelled'],true))throw new RuntimeException('Channel work is read-only while awaiting review or after completion. Notes remain available.');
         if(!$owner&&in_array($item['status'],['brief','to_create'],true)&&empty($item['work_started_at']))throw new RuntimeException('Select Start Task before saving channel work.');
+        if(($input['workflow_version']??'')==='2'&&$workflow==='complete'){
+            if(empty($input['task_completed']))throw new RuntimeException('Confirm that the required work is completed.');
+            if(($item['deliverable_mode']??'publish')==='publish'&&empty($input['was_posted']))throw new RuntimeException('Confirm that the required content has been posted.');
+        }
+        if(array_key_exists('media_source',$input)){[$source,$link]=marketing_media_reference((string)$input['media_source'],(string)($input['media_link']??''));db()->prepare('UPDATE marketing_work_items SET media_source=?,media_link=? WHERE id=?')->execute([$source,$link,$item['id']]);}
+        foreach(['work_summary','workflow_notes']as$field)if(array_key_exists($field,$input)){if(strlen((string)$input[$field])>10000)throw new RuntimeException('Keep work descriptions and notes under 10,000 characters.');db()->prepare('UPDATE marketing_work_items SET '.$field.'=? WHERE id=?')->execute([trim((string)$input[$field]),$item['id']]);}
         $rows=marketing_execution_rows($item);$submitted=is_array($input['channels']??null)?$input['channels']:[];$allowed=array_column($rows,'channel_key');
         if(array_diff(array_keys($submitted),$allowed))throw new RuntimeException('The channel requirements changed. Refresh this assignment.');
         $media=array_map('intval',array_column(marketing_assignment_media((int)$item['id']),'id'));$changed=false;
@@ -206,7 +212,7 @@ function marketing_execution_save(array $input): void
             $url=trim((string)($value['proof_url']??$row['proof_url']??''));$draft=trim((string)($value['draft_url']??$row['draft_url']??''));$proof=(int)($value['proof_media_id']??$row['proof_media_id']??0);$note=trim((string)($value['note']??$row['completion_note']??''));
             foreach(['Publication proof link'=>$url,'Draft link'=>$draft] as $field=>$link)if($link!==''&&(strlen($link)>500||!filter_var($link,FILTER_VALIDATE_URL)||!in_array(strtolower((string)parse_url($link,PHP_URL_SCHEME)),['https','http'],true)))throw new RuntimeException($label.' — '.$field.': enter a valid HTTP or HTTPS link.');
             if($proof&&!in_array($proof,$media,true))throw new RuntimeException($label.': choose a proof file attached to this assignment.');
-            if($completed&&$url===''&&!$proof&&$note==='')throw new RuntimeException($label.': publication requires a URL, attached screenshot or supported evidence note.');
+            if($completed&&marketing_publication_evidence_required($item)&&$url===''&&!$proof&&$note==='')throw new RuntimeException($label.': publication requires a URL, attached screenshot or supported evidence note.');
             if(strlen($note)>10000)throw new RuntimeException($label.': evidence notes must be under 10,000 characters.');
             $publishedAt=$row['published_at']??null;
             if($completed&&!$publishedAt){$posted=trim((string)($value['published_at']??''));$publishedAt=$posted!==''?marketing_local_datetime($posted):$now;if($publishedAt>$now)throw new RuntimeException($label.': actual publication time cannot be in the future.');}
@@ -223,35 +229,10 @@ function marketing_execution_save(array $input): void
 }
 
 /** Same controls in Create, Edit and requirements; inactive evidence is retained. */
-function marketing_channel_cards(array $rows = []): void
-{
-    $byKey = array_column($rows, null, 'channel_key');
-    echo '<div class="marketing-channel-list">';
-    foreach (marketing_execution_channels() as $key => $label) {
-        $row = $byKey[$key] ?? [];
-        $selected = (!empty($row) && !isset($row['is_required'])) || !empty($row['is_required']);
-        $icon = ['instagram'=>'camera','facebook'=>'thumbs-up','tiktok'=>'music-2','whatsapp'=>'message-circle'][$key] ?? 'globe';
-        $timing = $row['publish_timing'] ?? (!empty($row['scheduled_at']) ? 'later' : 'unspecified');
-        $state = !empty($row['completed']) ? 'Completed' : (!empty($row['prepared']) ? 'In Progress' : 'Pending');
-        ?>
-        <div class="marketing-channel-card <?=$selected?'is-selected':''?>">
-          <label class="marketing-channel-header"><input type="checkbox" name="required_channels[]" value="<?=$key?>" <?=$selected?'checked':''?> aria-controls="channel-<?=$key?>">
-            <i data-lucide="<?=$icon?>" aria-hidden="true"></i><span><?=marketing_e($label)?></span><small><?=$state?></small>
-          </label>
-          <div class="marketing-channel-instructions" id="channel-<?=$key?>" <?=$selected?'':'hidden'?>>
-            <label><?=marketing_e($label)?> instructions<textarea name="channel_instructions[<?=$key?>]"><?=marketing_e((string)($row['instructions']??''))?></textarea></label>
-            <div class="marketing-publish-timing">
-              <fieldset><legend><?=marketing_e($label)?> publishing</legend><div class="marketing-publish-options">
-              <?php foreach(['unspecified'=>'Not set','now'=>'Publish now','later'=>'Schedule for later'] as $mode=>$modeLabel): ?>
-                <label><input type="radio" name="channel_timing[<?=$key?>]" value="<?=$mode?>" <?=$timing===$mode?'checked':''?>><span><?=$modeLabel?></span></label>
-              <?php endforeach; ?></div></fieldset>
-              <label data-channel-date>Scheduled date/time (Namibia)<input type="datetime-local" name="channel_schedule[<?=$key?>]" value="<?=marketing_e(substr(str_replace(' ','T',(string)($row['scheduled_at']??'')),0,16))?>"></label>
-              <small data-publish-now-note <?=$timing==='now'?'':'hidden'?>>Publish as soon as required approval is complete. Record completion after publishing.</small>
-            </div>
-          </div>
-        </div>
-        <?php
-    }
-    echo '</div>';
+function marketing_channel_cards(array $rows=[]): void {
+    $byKey=array_column($rows,null,'channel_key');echo '<div class="mk-channel-chips">';
+    foreach(marketing_execution_channels()as$key=>$label){$row=$byKey[$key]??[];$selected=(!empty($row)&&!isset($row['is_required']))||!empty($row['is_required']);$timing=$row['publish_timing']??(!empty($row['scheduled_at'])?'later':'unspecified'); ?>
+    <div class="mk-channel-choice" data-mk-channel><span class="mk-channel-chip"><input type="checkbox" name="required_channels[]" value="<?=$key?>" <?=$selected?'checked':''?> aria-label="<?=marketing_e($label)?>"><i data-lucide="<?=['instagram'=>'camera','facebook'=>'thumbs-up','tiktok'=>'music-2','whatsapp'=>'message-circle'][$key]??'globe'?>"></i><button type="button" class="mk-channel-toggle" data-mk-channel-toggle aria-expanded="false" aria-controls="mk-channel-<?=$key?>" <?=$selected?'':'disabled'?>><?=marketing_e($label)?> <span aria-hidden="true">⌄</span></button></span>
+    <div class="mk-channel-details" id="mk-channel-<?=$key?>" hidden><label class="mk-field">Additional channel instructions / special notes<textarea name="channel_instructions[<?=$key?>]"><?=marketing_e((string)($row['instructions']??''))?></textarea></label><fieldset><legend>Publishing requirements</legend><?php foreach(['unspecified'=>'Not set','now'=>'Publish now','later'=>'Schedule for later']as$mode=>$text):?><label class="mk-deliverable-option"><input type="radio" name="channel_timing[<?=$key?>]" value="<?=$mode?>" <?=$timing===$mode?'checked':''?>><?=$text?></label><?php endforeach;?></fieldset><label class="mk-field">Optional channel publishing deadline (Namibia)<input type="datetime-local" name="channel_schedule[<?=$key?>]" value="<?=marketing_e(substr(str_replace(' ','T',(string)($row['scheduled_at']??'')),0,16))?>"></label></div></div>
+    <?php }echo '</div>';
 }
-

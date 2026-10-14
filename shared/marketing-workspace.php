@@ -48,14 +48,14 @@ function marketing_note_send(int $id,string $body,string $key): int {
     try {
         $item=marketing_execution_item($id,true);
         $noteInsert=db()->prepare('INSERT IGNORE INTO marketing_notes(item_id,actor_id,actor_name,is_owner,body,request_key,created_at)VALUES(?,?,?,?,?,?,?)');$noteInsert->execute([$id,marketing_employee_id(),(string)(current_user()['name']??''),(int)marketing_is_owner(),$body,$key,marketing_now()]);
-        $noteId=$noteInsert->rowCount()?(int)db()->lastInsertId():0;
+        $noteId=$noteInsert->rowCount()?(int)db()->lastInsertId():0;$activityId=0;
         if($noteId){
-            marketing_activity($item,marketing_is_owner()?'Owner replied in Notes to Owner.':'Employee sent a note to Owner.');
+            marketing_activity($item,marketing_is_owner()?'Owner replied in Notes to Owner.':'Employee sent a note to Owner.');$activityId=(int)db()->lastInsertId();
             require_once BASE_PATH.'/shared/notifications.php';
             $recipients=marketing_is_owner()?array_filter([(int)$item['assigned_employee_id']]):notifications_role_recipients(['owner_admin']);
             if($recipients&&!notifications_create(['title'=>marketing_is_owner()?'Owner replied to your Marketing note':'New Marketing note','message'=>$item['title'],'module'=>'marketing','related_type'=>'marketing_note','related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id.'#notes','required_delivery'=>1,'deduplication_key'=>'marketing-note:'.$noteId],array_values($recipients)))throw new RuntimeException('The notification could not be saved. Please try again.');
         }
-        db()->commit();return $noteId;
+        db()->commit();if($noteId&&strpos($body,'[Assistance request]')===0)marketing_work_evidence($item,$activityId,'marketing_assistance_requested',['message_id'=>$noteId,'notification_persisted'=>true]);return $noteId;
     } catch(Throwable $e) { if(db()->inTransaction())db()->rollBack();throw $e; }
 }
 function marketing_media_scope(array &$params,string $alias='v'): string {
@@ -159,10 +159,30 @@ function marketing_safe_brief(string $text): string {
     $clean=function($node)use(&$clean):string{
         if($node instanceof DOMText)return marketing_e($node->textContent);
         if(!($node instanceof DOMElement))return '';
-        if(in_array(strtolower($node->tagName),['script','style','iframe','object','embed','svg','math'],true))return '';
+        $tag=strtolower($node->tagName);if(in_array($tag,['script','style','iframe','object','embed','svg','math'],true))return '';
         $body='';foreach($node->childNodes as$child)$body.=$clean($child);
-        $tag=strtolower($node->tagName);if(!in_array($tag,['p','br','strong','b','em','i','ul','ol','li','blockquote','h3','h4'],true))return $body;
-        return $tag==='br'?'<br>':'<'.$tag.'>'.$body.'</'.$tag.'>';
-    };
-    $out='';foreach($doc->childNodes as$child)$out.=$clean($child);return $out;
+        if($tag==='a'){$href=trim($node->getAttribute('href'));return filter_var($href,FILTER_VALIDATE_URL)&&in_array(strtolower((string)parse_url($href,PHP_URL_SCHEME)),['http','https'],true)&&!parse_url($href,PHP_URL_USER)?'<a href="'.marketing_e($href).'" target="_blank" rel="noopener noreferrer">'.$body.'</a>':$body;}
+        if(!in_array($tag,['div','p','br','strong','b','em','i','u','ul','ol','li','blockquote','h2','h3','h4','span','font'],true))return $body;
+        if($tag==='font')$tag='span';$styles=[];$style=$node->getAttribute('style');
+        if(preg_match('/(?:^|;)\s*text-align\s*:\s*(left|center|right|justify)\s*(?:;|$)/i',$style,$m))$styles[]='text-align:'.strtolower($m[1]);
+        if(preg_match('/(?:^|;)\s*font-size\s*:\s*(12|14|16|18|21|24)px\s*(?:;|$)/i',$style,$m))$styles[]='font-size:'.$m[1].'px';
+        if(preg_match('/(?:^|;)\s*font-family\s*:\s*(Jost|serif|sans-serif)\s*(?:;|$)/i',$style,$m))$styles[]='font-family:'.$m[1];
+        if($node->hasAttribute('face')&&in_array($node->getAttribute('face'),['Jost','serif','sans-serif'],true))$styles[]='font-family:'.$node->getAttribute('face');
+        $sizes=['1'=>12,'2'=>14,'3'=>16,'4'=>18,'5'=>21,'6'=>24];if(isset($sizes[$node->getAttribute('size')]))$styles[]='font-size:'.$sizes[$node->getAttribute('size')].'px';
+        return $tag==='br'?'<br>':'<'.$tag.($styles?' style="'.marketing_e(implode(';',$styles)).'"':'').'>'.$body.'</'.$tag.'>';
+    };$out='';foreach($doc->childNodes as$child)$out.=$clean($child);return $out;
 }
+function marketing_assignment_history(int $id): array {
+    marketing_require_owner();marketing_execution_item($id);
+    $q=db()->prepare('SELECT *,UNIX_TIMESTAMP(created_at) created_epoch FROM marketing_item_history WHERE item_id=? ORDER BY id DESC LIMIT 100');$q->execute([$id]);return $q->fetchAll();
+}
+function marketing_media_sources(): array {return ['portal'=>'Existing Media Library','shared_folder'=>'Shared Folder','adobe_express'=>'Adobe Express','upload'=>'Upload Media','external_file'=>'External Link'];}
+function marketing_default_assignee(array $employees,array $item): int {
+    if(array_key_exists('assigned_employee_id',$item))return (int)$item['assigned_employee_id'];
+    foreach($employees as$e)if(strcasecmp(trim($e['full_name']),'Hope Kahuika')===0)return (int)$e['id'];return 0;
+}
+function marketing_brief_editor(string $text): void { ?>
+<div class="mk-editor" data-mk-editor><textarea name="brief" data-editor-value hidden><?=marketing_e($text)?></textarea><div data-editor-surface><div class="mk-editor-toolbar" role="toolbar" aria-label="Brief formatting">
+<?php foreach(['bold'=>'Bold','italic'=>'Italic','underline'=>'Underline','insertOrderedList'=>'Numbered List','insertUnorderedList'=>'Bullet List','justifyLeft'=>'Align Left','justifyCenter'=>'Align Center','justifyRight'=>'Align Right','createLink'=>'Link','undo'=>'Undo','redo'=>'Redo','removeFormat'=>'Clear Formatting']as$cmd=>$label):?><button type="button" class="mk-editor-tool" data-editor-command="<?=$cmd?>"><?=$label?></button><?php endforeach;?>
+<label>Heading<select data-editor-command="formatBlock"><option value="p">Paragraph</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select></label><label>Font size<select data-editor-command="fontSize"><option value="1">12 px</option><option value="2">14 px</option><option value="3">16 px</option><option value="4">18 px</option><option value="5">21 px</option><option value="6">24 px</option></select></label><label>Font style<select data-editor-command="fontName"><option>Jost</option><option>serif</option><option>sans-serif</option></select></label><button type="button" class="mk-editor-tool" data-editor-expand>Expand Editor ↗</button></div><div class="mk-editor-content" contenteditable="true" role="textbox" aria-multiline="true" aria-labelledby="mk-brief-label"><?=marketing_safe_brief($text)?></div></div></div>
+<?php }

@@ -1,4 +1,7 @@
 {
+  "shared/marketing-content-workflow.php": "3ce10ca0d140613c8f5f76f3726cab6655c910fa921e0412437ebc7d25c05c42",
+  "assets/js/portal.js": "0981acc7a36540393ff1d9318bf61b991050af1091b88a67d0733408ff2ec635",
+  "shared/notifications.php": "fd7f332a93e95a37264fba96d87066696ec1e4460d54946031851c1fd445c0b6",
   "shared/marketing.php": "6362e947c50ae274335bcfe4abf83d3a1f11e777a9ac1fb8f5c26d85dcdc58d0",
   "shared/marketing-execution.php": "a781907e388b5e9a014d2f6d8e3f760d72648ad0a6f80d8f1f3ba600199aa7e2",
   "shared/marketing-workspace.php": "6f12bd3425933e20afd0d5c615eb15c4b53b5f9ab82adbca8666fe5e1808b566",
@@ -8,7 +11,7 @@
   "apps/marketing/app-shell.php": "3e35c5d8c3291e8f0042851d314b4953e24c260e7e4e8f5e2575d61565412253",
   "assets/js/marketing.js": "51bc12a834fe53d7d6ad82848411ec554b85a6f9c3f4b1e4c2cac2ccad528efa",
   "assets/js/marketing-workspace.js": "240875707119b25a557fda0ddea41be920cfceb20ebf3880f9a8a9614e066d13",
-  "assets/css/marketing-workspace.css": "1735dd4edb53b2eca5e82358d87fd5c4b8e4f2d735f972038e78538185322c82",
+  "assets/css/marketing-workspace.css": "1e579bb91b3df99b1a8054855ce0d2db73b8c21e74f79504d652b8a96414360e",
   "assets/css/marketing-execution.css": "d3c446f647e0a9075d8c554498d172dd47dd40cf9d53b866ed9c15e29be833ca",
   "assets/css/marketing.css": "07b60667eac28884c045300fa47185fb74b28ed1963ecc496ad941df606e0297",
   "assets/css/marketing-extras.css": "58b15350b812340f4745aa9434250d120425f86322b8e9a9a3565fc6c8168a03",
@@ -18,12 +21,9 @@
   "apps/marketing/media.php": "5e87f38b33eb6c5cc466fb123ec47ee57fa85b885c2bbf6b62d277b3f8b5befc",
   "apps/marketing/file.php": "5ecf04f1b68ecab66ba0b9988998d38fc174bce20344f7ba6ad2ef26edc17465",
   "apps/marketing/export.php": "944d6151381f7de2ad0ec49a14a59e849c379f31ee7aa580fec2ae127f5820e6",
-  "assets/js/portal.js": "0981acc7a36540393ff1d9318bf61b991050af1091b88a67d0733408ff2ec635",
-  "shared/notifications.php": "fd7f332a93e95a37264fba96d87066696ec1e4460d54946031851c1fd445c0b6",
   "api/notifications.php": "060427f58120a4cbfa105a0d23bf64c7ce4157c43f76eccc480cba65628486a2",
   "assets/js/notifications-ui.js": "4757cabf2c69aa8c31a216cfa969f84a691252ea73f062d5650bb4c56ec502e0",
   "shared/header.php": "e83ff644cd1bff735da855a2a598e03fe81d286db205993870eee6bef8e80833",
   "shared/auth.php": "79d3f6f913c68ffee884886762c1ee14a15705b3f037a64128dd3cb415ed5bb3",
-  "shared/employee-features.php": "e1de30478241dbcacf5f0f5a94dcf976d7ec7dd6ccbba0d2153925b02ab97ad9",
-  "shared/marketing-content-workflow.php": "3ce10ca0d140613c8f5f76f3726cab6655c910fa921e0412437ebc7d25c05c42"
+  "shared/employee-features.php": "e1de30478241dbcacf5f0f5a94dcf976d7ec7dd6ccbba0d2153925b02ab97ad9"
 }

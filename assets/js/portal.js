@@ -723,7 +723,7 @@ window.addEventListener('DOMContentLoaded', () => {
       toast.dataset.module=notificationSource;
       toast.dataset.source = notificationSource;
       const state = notification.deadline_state && notification.deadline_state !== 'normal' ? notification.deadline_state : (notification.priority === 'urgent' ? 'urgent' : 'normal');
-      const stateLabel = isMarketing ? (notification.related_type==='marketing_review'?'Marketing Content Ready for Review':'New Marketing Assignment') : isLoanAgreement ? 'Loan Agreement' : isDelivery ? 'New Delivery Assignment' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
+      const stateLabel = isMarketing ? (notification.related_type==='marketing_review'?'Marketing Assignment Ready for Review':'New Marketing Assignment') : isLoanAgreement ? 'Loan Agreement' : isDelivery ? 'New Delivery Assignment' : (({due_today:'Due Today', overdue:'Overdue', upcoming:'Upcoming', urgent:'Urgent', normal:'Task'})[state] || 'Task');
       const stateIcon = window.PortalNotificationUI?.icon('check') || '';
       if (isLoanAgreement) toast.classList.add('portal-notification--hr');
       toast.dataset.deadlineState = state;
@@ -742,7 +742,7 @@ window.addEventListener('DOMContentLoaded', () => {
           toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Prepared summary: ${escapeHtml(notification.prepared_summary || 'Required channel preparation is ready for review.')}</p>`);
         }
         if(notification.channels)toast.insertAdjacentHTML('beforeend',`<p class="portal-toast-message">Required channels: ${escapeHtml(notification.channels)}</p>`);
-        toast.insertAdjacentHTML('beforeend',`<div class="portal-toast-actions"><button type="button" data-marketing-ack>Got It</button><button type="button" data-marketing-view>${notification.related_type==='marketing_review'?'Review Content':'View Assignment'}</button></div>`);
+        toast.insertAdjacentHTML('beforeend',`<div class="portal-toast-actions"><button type="button" data-marketing-ack>Got It</button><button type="button" data-marketing-view>${notification.related_type==='marketing_review'?'Review Assignment':'View Assignment'}</button></div>`);
       }
       if(isMarketing)toast.insertAdjacentHTML('beforeend','<p class="portal-toast-message">Priority: '+escapeHtml(notification.priority||'normal')+'</p><button type="button" data-marketing-sound>Enable Notification Sounds</button>');
       if (isTask) toast.insertAdjacentHTML('beforeend', '<div class="portal-toast-actions"><select data-toast-snooze aria-label="Snooze reminder"><option value="">Snooze</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="tomorrow">Tomorrow</option></select><button type="button" data-toast-read>Mark Read</button><button type="button" data-toast-view>View Task</button></div>');

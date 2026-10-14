@@ -279,7 +279,7 @@
   root.querySelectorAll('dialog').forEach(dialog=>dialog.addEventListener('click',event=>{
     if(event.target===dialog){const rect=dialog.getBoundingClientRect();if(event.clientX<rect.left||event.clientX>rect.right||event.clientY<rect.top||event.clientY>rect.bottom)dialog.close();}
   }));
-  root.querySelectorAll('select').forEach(enhanceSelect);
+  root.querySelectorAll('select:not([data-editor-command])').forEach(enhanceSelect);
   if(form?.hasAttribute('data-auto-open')) form.showModal();
   document.addEventListener('click',event=>{if(!event.target.closest('.marketing-select'))closeSelect();});
   window.addEventListener('resize',placeSelect);
