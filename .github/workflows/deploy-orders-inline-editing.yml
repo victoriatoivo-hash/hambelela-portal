@@ -6,6 +6,10 @@ on:
         type: choice
         required: true
         options: [export, preflight, deploy]
+      scope:
+        type: choice
+        default: marketing
+        options: [marketing, orders-mobile]
       approved_sha:
         type: string
         required: true
@@ -40,7 +44,7 @@ jobs:
         with:
           node-version: '20'
       - name: Verify Marketing transitions, timers, permissions and popup persistence
-        if: inputs.mode != 'export'
+        if: inputs.mode != 'export' && inputs.scope != 'orders-mobile'
         env:
           MARKETING_TEST_DSN: mysql:host=127.0.0.1;port=3306
           MARKETING_TEST_PASSWORD: synthetic-ci-password
@@ -57,14 +61,23 @@ jobs:
           php -l shared/marketing-content-workflow.php
           php -l shared/marketing-execution.php
           php -l shared/notifications.php
+      - name: Check Orders JavaScript
+        if: inputs.scope == 'orders-mobile'
+        run: node --check assets/js/orders-board.js
       - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          RELEASE_SCOPE: ${{ inputs.scope }}
           RELEASE_MODE: ${{ inputs.mode }}
           RELEASE_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/marketing-workflow-release.py "$RELEASE_MODE" "$RELEASE_SHA"
+        run: |
+          if [ "$RELEASE_SCOPE" = "orders-mobile" ]; then
+            python3 scripts/orders-mobile-release.py "$RELEASE_MODE" "$RELEASE_SHA"
+          else
+            python3 scripts/marketing-workflow-release.py "$RELEASE_MODE" "$RELEASE_SHA"
+          fi
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -75,3 +88,6 @@ jobs:
             marketing-workflow-release-report.json
             marketing-workflow-backup.zip
             verification/rendered/
+            orders-mobile-live-source.zip
+            orders-mobile-release-report.json
+            orders-mobile-backup.zip
