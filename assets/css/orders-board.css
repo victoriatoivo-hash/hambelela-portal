@@ -1114,34 +1114,32 @@ body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-more-pane
 }
 body.ess-dashboard :where(.ess-orders-page, .ess-orders-page *).orders-more-panel.is-open{ transform: translateX(0); }
 
-/* Phone Orders: readable cards and touch-first controls without a page-wide table. */
+/* Mobile uses the same grid, row events and live updates as desktop. */
 @media (max-width:767px) {
-body.ess-dashboard .ess-orders-page{max-width:100%;min-width:0;overflow-x:clip}
-body.ess-dashboard .ess-orders-page .orders-date-groups,
-body.ess-dashboard .ess-orders-page .orders-grid-scroll{display:none}
-body.ess-dashboard .ess-orders-page .board-card-list{display:grid;gap:9px;width:100%;min-width:0;padding:8px 0 24px;box-sizing:border-box}
-body.ess-dashboard .ess-orders-page .board-mobile-card{min-width:0;margin:0;padding:13px;border:1px solid #e4e6dc;border-radius:12px;background:#fff;box-shadow:0 3px 12px rgba(38,49,31,.04);font-family:'Jost',sans-serif}
-body.ess-dashboard .ess-orders-page .board-mobile-card__top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin:0}
-body.ess-dashboard .ess-orders-page .board-mobile-card__top strong{min-width:0;color:#1c2118;font:600 13.5px/1.3 'Jost',sans-serif;overflow-wrap:anywhere}
-body.ess-dashboard .ess-orders-page .board-mobile-card__top .board-label{flex:0 0 auto;width:auto;max-width:44%;min-height:30px}
-body.ess-dashboard .ess-orders-page .board-mobile-card__grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 12px;margin-top:12px}
-body.ess-dashboard .ess-orders-page .board-mobile-card__grid>div{min-width:0}
-body.ess-dashboard .ess-orders-page .orders-mobile-label{display:block;margin-bottom:3px;color:#91968c;font:500 9.5px/1.2 'Jost',sans-serif;text-transform:uppercase;letter-spacing:.04em}
-body.ess-dashboard .ess-orders-page .orders-mobile-value{display:block;color:#34413b;font:500 11.5px/1.35 'Jost',sans-serif;overflow-wrap:anywhere}
-body.ess-dashboard .ess-orders-page .board-mobile-card__grid .board-label,
-body.ess-dashboard .ess-orders-page .board-mobile-card__grid .payment-badge{display:inline-flex;width:auto;max-width:100%;min-height:34px;overflow:hidden}
-body.ess-dashboard .ess-orders-page .board-mobile-card__packer{min-width:0;margin-top:12px}
-body.ess-dashboard .ess-orders-page .board-mobile-card__packer .orders-packed-by-selector{width:100%;min-width:0}
-body.ess-dashboard .ess-orders-page .board-mobile-card__packer .packing-person-trigger{width:100%;min-height:44px;justify-content:flex-start}
-body.ess-dashboard .ess-orders-page .board-mobile-card__actions{display:flex;align-items:center;gap:8px;margin-top:12px}
-body.ess-dashboard .ess-orders-page .board-mobile-card__actions [data-order-panel-open]{flex:1;min-height:44px;border:1px solid var(--orders-600);border-radius:9px;background:var(--orders-600);color:#fff;font:500 12px/1 'Jost',sans-serif}
-body.ess-dashboard .ess-orders-page .board-mobile-card__actions [data-order-row-menu]{display:inline-flex;width:44px;height:44px;min-width:44px;align-items:center;justify-content:center;border:1px solid var(--orders-border);border-radius:9px;background:#fff}
-body.ess-dashboard .ess-orders-page .board-mobile-card .editable-cell{width:100%;min-width:0;cursor:text}
-body.ess-dashboard .ess-orders-page .board-mobile-card__top>strong.editable-cell{display:block;flex:1 1 auto}
-body.ess-dashboard .ess-orders-page .board-mobile-card .orders-inline-cell-trigger{min-height:38px;padding:0 8px;font-size:13px}
-body.ess-dashboard .ess-orders-page .board-mobile-card .orders-inline-editor{height:44px;padding:0}
-body.ess-dashboard .ess-orders-page .board-mobile-card .orders-inline-prefix{font-size:13px}
-body.ess-dashboard .ess-orders-page .board-mobile-card .orders-inline-input{height:42px;padding:0 10px;font-size:13.5px}
+body.ess-dashboard .ess-orders-page{width:100%;max-width:100%;min-width:0;overflow-x:clip;font-family:'Jost',sans-serif}
+body.ess-dashboard .ess-orders-page .orders-date-groups{display:block!important;width:100%;max-width:100%;min-width:0;padding-bottom:calc(12px + env(safe-area-inset-bottom))}
+/* One scroll owner keeps date groups, headers and rows aligned on both axes. */
+body.ess-dashboard .ess-orders-page .orders-date-groups .orders-grid-scroll{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;max-height:65dvh!important;overflow:auto!important;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;scrollbar-width:thin!important}
+body.ess-dashboard .ess-orders-page .board-card-list,
+body.ess-dashboard .ess-orders-page .board-mobile-card{display:none!important}
+body.ess-dashboard .ess-orders-page #orders-board-body{width:max-content!important;min-width:100%!important;max-width:none!important;overflow:visible!important;--orders-table-row-height:46px;--orders-selection-column-width:38px;--orders-col-select:38px;--orders-col-task:220px;--orders-col-updates:46px;--orders-col-date:135px;--orders-col-mobile:155px;--orders-col-mode:115px;--orders-col-amount:105px;--orders-col-payment:145px;--orders-col-paid:75px;--orders-col-status:135px;--orders-col-packed-by:165px;--orders-col-text:190px;--orders-col-add:42px}
+body.ess-dashboard .ess-orders-page #orders-board-body .orders-table-grid{width:max-content;min-width:var(--orders-min-width);max-width:none}
+body.ess-dashboard .ess-orders-page #orders-board-body :is(.orders-grid-row,.orders-summary-footer){height:46px;min-height:46px;max-height:none;align-items:center}
+body.ess-dashboard .ess-orders-page #orders-board-body .orders-grid-cell{height:46px;min-height:46px;max-height:none;padding:7px 8px;font:400 11px/1.35 'Jost',sans-serif}
+body.ess-dashboard .ess-orders-page #orders-board-body .orders-grid-cell--select{padding:0}
+body.ess-dashboard .ess-orders-page #orders-board-body .orders-grid-header{height:38px;min-height:38px;max-height:none}
+body.ess-dashboard .ess-orders-page #orders-board-body .orders-grid-header-cell{height:38px;min-height:38px;font:600 9.5px/1.3 'Jost',sans-serif}
+body.ess-dashboard .ess-orders-page #orders-board-body :is(.orders-grid-cell,.orders-grid-header,.orders-date-summary){position:relative!important;left:auto!important;right:auto!important;top:auto!important;z-index:auto!important;box-shadow:none}
+body.ess-dashboard .ess-orders-page #orders-board-body .orders-date-summary{width:100%;max-width:none}
+body.ess-dashboard .ess-orders-page #orders-board-body .portal-grid-checkbox-box{width:16px;height:16px;min-width:16px;min-height:16px}
+body.ess-dashboard .ess-orders-page #orders-board-body .portal-grid-checkbox{min-width:38px;min-height:44px}
+body.ess-dashboard .ess-orders-page #orders-board-body :is(.orders-task-cell,.task-name){font:500 11.5px/1.35 'Jost',sans-serif}
+body.ess-dashboard .ess-orders-page #orders-board-body :is(.orders-inline-cell-trigger,.orders-date-trigger,.packing-person-trigger){font-size:11px;min-height:30px}
+body.ess-dashboard .ess-orders-page #orders-board-body :is(.board-label,.payment-badge){font:500 9.5px/1.25 'Jost',sans-serif}
+body.ess-dashboard .ess-orders-page #orders-board-body :is(.orders-date-summary-count,.orders-summary-label){font:400 10px/1.3 'Jost',sans-serif}
+body.ess-dashboard:has(.ess-orders-page) .portal-sticky-horizontal-scrollbar{display:none!important}
+body.ess-dashboard .ess-orders-page [data-portal-scroll-hint]::after{display:none!important}
+body.ess-dashboard #orders-bulk-action-bar.ess-orders-page{bottom:calc(76px + env(safe-area-inset-bottom))!important;max-width:calc(100% - 24px)!important;max-height:30dvh;overflow:auto;flex-wrap:wrap}
 body.ess-dashboard .ess-orders-page .order-panel{width:100vw;height:100dvh;max-height:100dvh;padding-bottom:env(safe-area-inset-bottom);border-left:0}
 body.ess-dashboard .ess-orders-page .order-panel-close,
 body.ess-dashboard .ess-orders-page .order-panel-menu{min-width:44px;min-height:44px}

@@ -1469,7 +1469,6 @@
       updateWorkMetrics(visibleOrders());
     }
     if (field === 'status') playCompleteConfettiForChanges(changes, value);
-    if (window.matchMedia('(max-width: 767px)').matches) renderMobileCards(visibleOrders());
   }
 
   async function undoLastChange() {
@@ -2232,43 +2231,6 @@
     if (clear) clear.hidden = count === 0;
   }
 
-  function ensureMobileList() {
-    let list = document.getElementById('orders-board-cards');
-    if (!list) {
-      list = document.createElement('div');
-      list.id = 'orders-board-cards';
-      list.className = 'board-card-list';
-      const desktopList = document.querySelector('.orders-date-groups');
-      if (desktopList) desktopList.after(list);
-      else page.appendChild(list);
-    }
-    return list;
-  }
-
-  function renderMobileCards(orders) {
-    const list = ensureMobileList();
-    list.innerHTML = orders.map((order) => `
-      <article class="board-mobile-card" data-mobile-order-id="${esc(order.id)}">
-        <label class="orders-mobile-select"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''}> Select order ${esc(formatOrderInvoiceReference(order.order_number))}</label>
-        <header class="board-mobile-card__top">
-          <strong class="editable-cell" data-editable-order-field="task_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0" aria-label="Edit task"><span class="orders-inline-cell-trigger task-name">${esc(buildOrderTaskName(order) || 'Customer not recorded')}</span></strong>
-          ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
-        </header>
-        <div class="board-mobile-card__grid">
-          <div><span class="orders-mobile-label">Date</span><span class="orders-mobile-value">${esc(prettyDate(orderDisplayDateTime(order)))}</span></div>
-          <div><span class="orders-mobile-label">Mobile number</span><span class="orders-mobile-value editable-cell" data-editable-order-field="mobile_number" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0" aria-label="Edit mobile number"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || 'Not recorded')}</span></span></div>
-          <div><span class="orders-mobile-label">Mode</span>${renderLabelCell(order, 'order_type', order.order_type || 'collection', modeLabels, 'mode-label')}</div>
-          <div><span class="orders-mobile-label">Amount</span><span class="orders-mobile-value">${esc(money(order.total_amount))}</span></div>
-          <div><span class="orders-mobile-label">Payment</span>${renderPaymentBadge(order)}</div>
-          <div><span class="orders-mobile-label">Paid</span><span class="orders-mobile-value">${order.payment_status === 'paid' ? 'Paid ✓' : 'Unpaid'}</span></div>
-          <div><span class="orders-mobile-label">Shipping</span><span class="orders-mobile-value">${esc(order.dispatch_courier ? `${order.dispatch_courier}${order.dispatch_box_count ? ` · ${order.dispatch_box_count} box${Number(order.dispatch_box_count) === 1 ? '' : 'es'}` : ''}` : findText(modeLabels, order.order_type || 'collection'))}</span></div>
-        </div>
-        <div class="board-mobile-card__packer"><span class="orders-mobile-label">Packed By</span>${renderPackerCell(order)}</div>
-        <div class="board-mobile-card__actions"><button type="button" data-order-panel-open data-order-id="${esc(order.id)}">View Order</button><button type="button" class="orders-task-menu-trigger" data-order-row-menu data-order-id="${esc(order.id)}" aria-label="More order actions" aria-haspopup="menu" aria-expanded="false"><span></span><span></span><span></span></button></div>
-      </article>
-    `).join('');
-  }
-
   function renderCustomCell(column) {
     if (column.col_type === 'number') return '<input class="board-custom-input" type="number" placeholder="0">';
     if (column.col_type === 'date') return '<input class="board-custom-input" type="date">';
@@ -3015,7 +2977,6 @@
       body.innerHTML = hasClientFilters()
         ? '<div class="board-empty-state orders-filter-empty"><strong>No matching orders.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
         : '<div class="board-empty-state orders-data-empty"><strong>No orders found.</strong><p>There are currently no orders in this view.</p></div>';
-      renderMobileCards([]);
       updateSelectionBar();
       previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
       hasRenderedOnce = true;
@@ -3030,7 +2991,6 @@
     renderCustomHeaders();
     body.innerHTML = groupKeys.map((key, index) => renderGroup(key, groups[key], index)).join('');
     bindOrdersColumnResizers();
-    renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();
     updateSelectionBar();
@@ -3097,7 +3057,6 @@
     updateFilterBadge();
     renderMoreFilterChips();
     bindOrdersColumnResizers();
-    renderMobileCards(visible);
     applyHiddenColumns();
     updateSelectionBar();
     if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });

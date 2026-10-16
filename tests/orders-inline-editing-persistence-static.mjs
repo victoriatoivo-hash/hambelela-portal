@@ -39,7 +39,6 @@ assert.doesNotMatch(action, /customer_name = VALUES\(customer_name\)/);
 assert.doesNotMatch(action, /customer_contact = VALUES\(customer_contact\)/);
 
 assert.match(styles, /\.orders-inline-input\{[\s\S]*height:32px[\s\S]*font:400 12px\/1\.35 'Jost'/);
-assert.match(styles, /\.board-mobile-card \.orders-inline-input\{height:42px[\s\S]*font-size:13\.5px/);
 assert.match(styles, /@media \(prefers-reduced-motion:reduce\)/);
 
 console.log('Orders inline editing persistence safeguards verified.');

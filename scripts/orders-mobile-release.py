@@ -30,8 +30,6 @@ def read(path):
         return None
     return data.getvalue()
 def put(path,data):
-    if path=='uploads/marketing/.htaccess' and 'marketing' not in names('uploads'):
-        ftp.mkd('uploads/marketing')
     ftp.storbinary('STOR '+path,io.BytesIO(data))
 try:
     before={p:read(p) for p in (EXPORT_MODULES if mode=='export' else FILES+READ_ONLY)}
@@ -56,8 +54,7 @@ try:
                     if d is not None: z.writestr(p,d)
             attempted=[]
             try:
-                dependency_order = ('shared/marketing-content-workflow.php','shared/marketing-execution.php','shared/marketing.php','shared/marketing-workspace.php','shared/notifications.php')
-                for p in sorted(desired, key=lambda p: (dependency_order.index(p) if p in dependency_order else (10 if p.startswith('assets/') else 20),p)):
+                for p in FILES:
                     d=desired[p]
                     if read(p)!=before[p]: raise RuntimeError('Concurrent live change: '+p)
                     if d==before[p]: continue

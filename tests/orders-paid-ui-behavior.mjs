@@ -44,5 +44,5 @@ function setup(ids = ['1']) {
 }
 assert.match(source,/paidUpdatesInProgress.size \|\| paidRevisionAtRequest !== paidMutationRevision/);
 assert.ok(source.indexOf('if (paidUpdatesInProgress.size || paidRevisionAtRequest') < source.indexOf('liveCursor = String(payload.cursor'), 'Stale Paid response must be discarded before moving the cursor');
-assert.match(source,/notice.firstElementChild.textContent = message/,'Errors must be rendered as text, not HTML');
+assert.match(source,/window\.showPortalToast\(\{title:[^\n]+message,type:/,'Paid feedback must use the shared plain-text toast API');
 console.log('Paid UI behavior passed: saving, success, failure, partial bulk, overlapping saves, stale refresh guard.');

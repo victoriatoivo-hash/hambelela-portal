@@ -30,11 +30,11 @@ assert.match(courier, /waybill_order_search/);
 assert.match(courier, /JOIN hambelela_waybill_orders link ON link\.waybill_id=sw\.id/);
 assert.match(courier, /if \(!\$canUploadWaybills && !\$canManageWaybills\) wb_json\(\['success' => false/);
 
-assert.match(ordersJs, /desktopList\.after\(list\)/);
-assert.match(ordersJs, /board-mobile-card__packer/);
-assert.match(ordersJs, /board-mobile-card__actions/);
+assert.doesNotMatch(ordersJs, /ensureMobileList|renderMobileCards/);
+assert.match(ordersJs, /renderPackerCell/);
+assert.match(ordersJs, /data-order-row-menu/);
 assert.match(ordersJs, /orders-mobile-filter-sheet/);
-assert.match(ordersCss, /\.orders-date-groups,\s*body\.ess-dashboard \.ess-orders-page \.orders-grid-scroll\{display:none\}/);
+assert.match(ordersCss, /max-height:65dvh!important;overflow:auto!important/);
 assert.match(ordersCss, /\.orders-person-popup\.is-open\{transform:translateY\(0\)\}/);
 
 assert.match(candidateReport, /require_login\(\)/);
