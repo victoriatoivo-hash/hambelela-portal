@@ -34,7 +34,7 @@ assert.doesNotMatch(ordersJs, /ensureMobileList|renderMobileCards/);
 assert.match(ordersJs, /renderPackerCell/);
 assert.match(ordersJs, /data-order-row-menu/);
 assert.match(ordersJs, /orders-mobile-filter-sheet/);
-assert.match(ordersCss, /max-height:65dvh!important;overflow:auto!important/);
+assert.match(ordersCss, /overflow-x:auto!important;overflow-y:hidden!important/);
 assert.match(ordersCss, /\.orders-person-popup\.is-open\{transform:translateY\(0\)\}/);
 
 assert.match(candidateReport, /require_login\(\)/);

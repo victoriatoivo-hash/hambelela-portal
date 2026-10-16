@@ -1192,7 +1192,33 @@
     });
   }
 
+  const mobileOrdersViewport = window.matchMedia('(max-width: 767px)');
+  let mobileOrdersPointerDown = false;
+  let mobileOrdersScrollUntil = 0;
+  function mobileOrdersScrolling() {
+    return mobileOrdersViewport.matches && (mobileOrdersPointerDown || Date.now() < mobileOrdersScrollUntil);
+  }
+  // Observe gestures and momentum without cancelling native vertical page scrolling.
+  page.addEventListener('pointerdown', () => {
+    if (mobileOrdersViewport.matches) mobileOrdersPointerDown = true;
+  }, { passive: true });
+  const endMobileOrdersGesture = () => {
+    if (mobileOrdersPointerDown) mobileOrdersScrollUntil = Date.now() + 250;
+    mobileOrdersPointerDown = false;
+  };
+  window.addEventListener('pointerup', endMobileOrdersGesture, { passive: true });
+  window.addEventListener('pointercancel', endMobileOrdersGesture, { passive: true });
+  window.addEventListener('blur', endMobileOrdersGesture);
+  window.addEventListener('scroll', () => {
+    if (mobileOrdersViewport.matches) mobileOrdersScrollUntil = Date.now() + 250;
+  }, { capture: true, passive: true });
+
   function getOrdersScrollContainer(element) {
+    if (mobileOrdersViewport.matches) {
+      return element?.closest?.('.orders-table-surface')
+        || element?.closest?.('[data-group-card]')?.querySelector('.orders-table-surface')
+        || null;
+    }
     return element?.closest?.('[data-orders-board-scroll]') || document.querySelector('.orders-grid-scroll[data-orders-board-scroll]');
   }
 
@@ -1201,7 +1227,7 @@
     const row = source?.closest?.('.monday-order-row')
       || (orderId ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"]`) : null);
     const group = row?.closest?.('[data-group-card]') || source?.closest?.('[data-group-card]');
-    const table = getOrdersScrollContainer(source) || group?.querySelector('[data-orders-board-scroll], .orders-table-scroll');
+    const table = getOrdersScrollContainer(source) || group?.querySelector(mobileOrdersViewport.matches ? '.orders-table-surface' : '[data-orders-board-scroll], .orders-table-scroll');
 
     return {
       groupKey: group?.dataset.groupCard || '',
@@ -1215,6 +1241,16 @@
 
   function restoreOrdersTablePosition(position) {
     if (!position) return;
+    if (mobileOrdersViewport.matches) {
+      // Surviving surfaces already have the latest position. Restore only replaced groups,
+      // synchronously, without writing vertical positions or queuing a stale animation frame.
+      if (position.table?.isConnected || mobileOrdersScrolling()) return;
+      const group = [...body.querySelectorAll('[data-group-card]')]
+        .find((node) => node.dataset.groupCard === position.groupKey);
+      const table = group?.querySelector('.orders-table-surface');
+      if (table && table.scrollLeft !== position.tableLeft) table.scrollLeft = position.tableLeft;
+      return;
+    }
     const apply = () => {
       const table = position.table?.isConnected
         ? position.table
@@ -1248,7 +1284,8 @@
   }
 
   function ordersInteractionInProgress() {
-    return activeOrderMutationCount > 0
+    return mobileOrdersScrolling()
+      || activeOrderMutationCount > 0
       || Boolean(body.querySelector('.is-editing'))
       || Boolean(personPopup?.classList.contains('is-open'))
       || Boolean(labelMenu && !labelMenu.hidden)
@@ -2016,7 +2053,7 @@
     ordersToolsPanel.setAttribute('aria-hidden', 'false');
     document.body.classList.add('orders-tools-open');
     restoreOrdersBoardPositions(ordersToolsBoardPositions);
-    window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    if (!mobileOrdersViewport.matches) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
     const ordersToolsCloseButton = ordersToolsPanel.querySelector('[data-orders-tools-close]');
     ordersToolsCloseButton?.focus({ preventScroll: true });
     window.setTimeout(() => ordersToolsCloseButton?.focus({ preventScroll: true }), 0);
@@ -2032,7 +2069,7 @@
     ordersToolsPanel.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('orders-tools-open');
     restoreOrdersBoardPositions(ordersToolsBoardPositions);
-    if (ordersToolsWindowPosition) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    if (!mobileOrdersViewport.matches && ordersToolsWindowPosition) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
     ordersToolsReturnFocus?.focus?.({ preventScroll: true });
     ordersToolsCloseTimer = window.setTimeout(() => {
       if (!ordersToolsPanel.classList.contains('is-open') && ordersToolsBackdrop) ordersToolsBackdrop.hidden = true;
@@ -2962,6 +2999,12 @@
       requestOrdersList();
       return;
     }
+    if (hasRenderedOnce && mobileOrdersScrolling()) {
+      [...ordersCache, ...orders].forEach((order) => livePendingGroupKeys.add(groupKey(order)));
+      ordersCache = orders;
+      liveRenderPending = true;
+      return;
+    }
     const savedBoardPositions = hasRenderedOnce ? captureOrdersBoardPositions() : [];
     const savedWindowPosition = { x: window.scrollX, y: window.scrollY };
     ordersCache = orders;
@@ -2997,7 +3040,7 @@
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     animateBoardRows();
     restoreOrdersBoardPositions(savedBoardPositions);
-    if (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y) {
+    if (!mobileOrdersViewport.matches && (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y)) {
       window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
     }
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
@@ -3061,7 +3104,7 @@
     updateSelectionBar();
     if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
     restoreOrdersBoardPositions(savedBoardPositions);
-    if (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y) {
+    if (!mobileOrdersViewport.matches && (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y)) {
       window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
     }
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
@@ -5007,7 +5050,7 @@
   });
 
   document.addEventListener('pointerdown', (event) => {
-    if (event.target.closest('.portal-column-resizer')) {
+    if (mobileOrdersViewport.matches || event.target.closest('.portal-column-resizer')) {
       pendingOrdersInteractionPosition = null;
       return;
     }
