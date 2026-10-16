@@ -2045,9 +2045,9 @@
     const orderIds = Array.isArray(ids) ? ids : [ids];
     const map = { 'restore-trash':'restore_trashed_orders', 'restore-archive':'restore_archived_orders', 'delete-forever':'delete_orders_forever', 'archive-selected':'archive_orders', 'trash-selected':'trash_orders' };
     if (action === 'export-selected') { exportSelectedOrders(); return; }
-    if (action === 'delete-forever' && !window.confirm('Delete this order forever?\n\nThis permanently removes the portal record and cannot be undone. The WooCommerce source order will not be deleted.')) return;
-    if (action === 'archive-selected' && !window.confirm(`Archive ${orderIds.length} selected order(s)?`)) return;
-    if (action === 'trash-selected' && !window.confirm(`Move ${orderIds.length} selected order(s) to Trash?`)) return;
+    if (action === 'delete-forever' && !await window.PortalNotice.confirm('Delete this order forever?\n\nThis permanently removes the portal record and cannot be undone. The WooCommerce source order will not be deleted.')) return;
+    if (action === 'archive-selected' && !await window.PortalNotice.confirm(`Archive ${orderIds.length} selected order(s)?`)) return;
+    if (action === 'trash-selected' && !await window.PortalNotice.confirm(`Move ${orderIds.length} selected order(s) to Trash?`)) return;
     await post(map[action], { order_ids: orderIds.join(',') });
     orderIds.forEach((id) => selectedOrders.delete(String(id)));
     await refresh(null, { preservePosition: true });
@@ -2493,8 +2493,8 @@
       exportSelectedOrders();
       return;
     }
-    if (action === 'archive' && !window.confirm(`Archive ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'}?`)) return;
-    if (action === 'delete' && !window.confirm(`Move ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'} to Trash?\n\nThe ${selectedOrders.size === 1 ? 'item' : 'items'} will be removed from the active Order page and can be restored later.`)) return;
+    if (action === 'archive' && !await window.PortalNotice.confirm(`Archive ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'}?`)) return;
+    if (action === 'delete' && !await window.PortalNotice.confirm(`Move ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'} to Trash?\n\nThe ${selectedOrders.size === 1 ? 'item' : 'items'} will be removed from the active Order page and can be restored later.`)) return;
     const actionMap = { duplicate: 'bulk_duplicate', archive: 'bulk_archive', delete: 'bulk_delete' };
     if (!actionMap[action]) return;
     if (action === 'delete' && bulkTrashInProgress) return;
@@ -2837,26 +2837,11 @@
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
+  let paidFeedback = null;
   function showPaidFeedback(message, isError = false, saving = false) {
-    let notice = document.getElementById('orders-paid-feedback');
-    if (!notice) {
-      notice = document.createElement('div');
-      notice.id = 'orders-paid-feedback';
-      notice.className = 'orders-paid-feedback';
-      const text = document.createElement('span');
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.textContent = '×';
-      dismiss.setAttribute('aria-label', 'Dismiss Paid confirmation message');
-      dismiss.addEventListener('click', () => { notice.hidden = true; });
-      notice.append(text, dismiss);
-      document.body.appendChild(notice);
-    }
-    notice.firstElementChild.textContent = message;
-    notice.setAttribute('role', isError ? 'alert' : 'status');
-    notice.classList.toggle('is-error', isError);
-    notice.lastElementChild.hidden = saving;
-    notice.hidden = false;
+    paidFeedback?.close();
+    paidFeedback = window.showPortalToast({title:saving?'Saving Paid confirmation':'Paid confirmation',message,type:isError?'error':'success',module:'orders',duration:0});
+    paidFeedback.toast.querySelector('.portal-toast-close').hidden=saving;
   }
 
   async function togglePaidCell(paidCell) {
@@ -5130,7 +5115,7 @@
         const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="task_name"]`);
         if (cell) beginEditableCell(cell);
       } else if (action === 'archive' || action === 'trash') {
-        if (!window.confirm(action === 'archive' ? 'Archive this order?' : 'Move this order to Trash?')) return;
+        if (!await window.PortalNotice.confirm(action === 'archive' ? 'Archive this order?' : 'Move this order to Trash?')) return;
         await post(action === 'archive' ? 'archive_orders' : 'trash_orders', { order_ids: orderId });
         await refresh(null, { preservePosition: true });
       }
@@ -5671,7 +5656,7 @@
       const deleteFile = event.target.closest('[data-order-file-delete]');
       if (deleteFile && currentOrder) {
         event.preventDefault();
-        if (!window.confirm(`Delete ${deleteFile.dataset.fileName || 'this file'}? The file will be removed from this order.`)) return;
+        if (!await window.PortalNotice.confirm(`Delete ${deleteFile.dataset.fileName || 'this file'}? The file will be removed from this order.`)) return;
         deleteFile.disabled = true;
         try {
           await post('delete_order_file', { order_id: currentOrder.id, file_id: deleteFile.dataset.orderFileDelete });

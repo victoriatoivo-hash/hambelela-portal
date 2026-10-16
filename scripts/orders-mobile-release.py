@@ -3,7 +3,7 @@ import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
 FILES = ('assets/css/orders-board.css','assets/js/orders-board.js')
-READ_ONLY = ('apps/operations/orders-board.php','assets/css/portal-responsive.css','assets/css/orders-table.css','assets/js/portal.js','shared/header.php')
+READ_ONLY = ('apps/operations/orders-board.php','assets/css/portal-responsive.css','assets/css/orders-essentials.css','assets/js/portal.js','shared/header.php')
 EXPORT_MODULES = FILES + READ_ONLY
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
