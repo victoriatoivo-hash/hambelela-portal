@@ -647,6 +647,20 @@
     return `<button type="button" class="board-label packing-pill ${kind}" style="--label-color:${esc(labelColor(options, value))}" data-state="${esc(normalize(value))}" data-packing-label="${esc(field)}" data-task-id="${esc(task.id)}">${esc(labelText(options, value))}</button>`;
   }
 
+  const packingMobileViewport = window.matchMedia('(max-width: 767px)');
+  let packingTouchDown = false, packingScrollUntil = 0, packingRenderTimer = null;
+  const packingInteracting = () => packingMobileViewport.matches && (packingTouchDown || Date.now() < packingScrollUntil);
+  document.addEventListener('pointerdown', event => {
+    if (packingMobileViewport.matches && event.target.closest('.packing-month-scroll')) packingTouchDown = true;
+  }, {passive:true});
+  const finishPackingTouch = () => { packingTouchDown = false; packingScrollUntil = Date.now() + 250; };
+  window.addEventListener('pointerup', finishPackingTouch, {passive:true});
+  window.addEventListener('pointercancel', finishPackingTouch, {passive:true});
+  window.addEventListener('blur', finishPackingTouch);
+  window.addEventListener('scroll', () => {
+    if (packingMobileViewport.matches) packingScrollUntil = Date.now() + 250;
+  }, {capture:true, passive:true});
+
   function capturePackingScrollState(source) {
     const container = source?.closest('[data-portal-horizontal-scroll-source]')
       || source?.closest('.packing-list-viewport')
@@ -656,6 +670,14 @@
 
   function restorePackingScrollState(state, focusTarget = null) {
     if (!state) return;
+    // Mobile uses normal page scrolling. Never replay a stale vertical position.
+    if (packingMobileViewport.matches) {
+      if (!packingInteracting()) {
+        const target = focusTarget?.isConnected ? focusTarget : null;
+        target?.focus?.({preventScroll:true});
+      }
+      return;
+    }
     requestAnimationFrame(() => {
       window.scrollTo({ left: state.windowX, top: state.windowY, behavior: 'auto' });
       if (state.container?.isConnected) { state.container.scrollLeft = state.left; state.container.scrollTop = state.top; }
@@ -2254,6 +2276,16 @@
   }
 
   function render() {
+    if (packingInteracting() && hasRenderedOnce) {
+      clearTimeout(packingRenderTimer);
+      packingRenderTimer = setTimeout(render, 280);
+      return;
+    }
+    clearTimeout(packingRenderTimer);
+    const mobileOffsets = new Map();
+    if (packingMobileViewport.matches) body.querySelectorAll('[data-packing-month-group]').forEach(group => {
+      mobileOffsets.set(group.dataset.groupKey, group.querySelector('.packing-month-scroll')?.scrollLeft || 0);
+    });
     const visible = visibleTasks();
     if (state.sort === 'name') visible.sort((a,b) => String(a.item_name || '').localeCompare(String(b.item_name || '')));
     if (state.sort === 'oldest') visible.sort((a,b) => String(a.date_loaded || '').localeCompare(String(b.date_loaded || '')));
@@ -2289,6 +2321,10 @@
       return memo;
     }, {});
     body.innerHTML = Object.keys(groups).sort((a, b) => b.localeCompare(a)).map((key, index) => renderGroupV2(key, groups[key], index)).join('');
+    if (packingMobileViewport.matches) body.querySelectorAll('[data-packing-month-group]').forEach(group => {
+      const scroller = group.querySelector('.packing-month-scroll');
+      if (scroller) scroller.scrollLeft = mobileOffsets.get(group.dataset.groupKey) || 0;
+    });
     renderMobileCards(pageRows);
     setCount(`${visible.length} showing of ${tasks.length} packing item${tasks.length === 1 ? '' : 's'}`);
     updateMetrics(visible);

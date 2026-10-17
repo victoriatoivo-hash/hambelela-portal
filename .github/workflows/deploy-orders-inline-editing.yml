@@ -69,6 +69,9 @@ jobs:
           node tests/portal-corrections-static.mjs
           node tests/orders-paid-ui-behavior.mjs
           node tests/orders-mobile-scroll.mjs
+          node --check assets/js/packing-list.js
+          node --check assets/js/portal-responsive.js
+          node tests/mobile-interface-behavior.mjs
       - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

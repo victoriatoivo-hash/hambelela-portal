@@ -1351,3 +1351,25 @@ html body.sidebar-collapsed .portal-sidebar {
     flex: 1;
   }
 }
+
+/* Safe rectangle is applied once, on the existing mobile dialog surface. */
+@media (max-width:767px) {
+ :root {--hb-safe-top:env(safe-area-inset-top,0px);--hb-safe-bottom:env(safe-area-inset-bottom,0px)}
+ :root.portal-safe-embedded {--hb-safe-top:0px;--hb-safe-bottom:0px}
+ html body .portal-mobile-safe-dialog.portal-mobile-safe-dialog {
+  position:fixed!important;inset:auto!important;
+  top:calc(var(--portal-mobile-viewport-top,0px) + var(--hb-safe-top))!important;
+  left:env(safe-area-inset-left,0px)!important;right:env(safe-area-inset-right,0px)!important;
+  width:auto!important;min-width:0!important;max-width:none!important;
+  height:calc(var(--portal-mobile-viewport-height,100dvh) - var(--hb-safe-top) - var(--hb-safe-bottom))!important;
+  min-height:0!important;max-height:calc(var(--portal-mobile-viewport-height,100dvh) - var(--hb-safe-top) - var(--hb-safe-bottom))!important;
+  margin:0!important;border-radius:0!important;box-sizing:border-box;overflow:hidden!important;
+ }
+ html body .portal-mobile-safe-dialog > .portal-mobile-safe-form {height:100%!important;min-height:0!important;max-height:100%!important}
+ html body .portal-mobile-safe-dialog .portal-mobile-safe-body {min-height:0!important;overflow-y:auto!important;overscroll-behavior-y:contain;-webkit-overflow-scrolling:touch}
+ html body .portal-mobile-safe-dialog .portal-mobile-safe-header {flex-shrink:0}
+ html body .portal-mobile-safe-dialog .portal-mobile-safe-footer {flex-shrink:0;padding-bottom:12px!important}
+ html body .portal-mobile-safe-dialog :is([data-close],.mk4-close) {min-width:36px;min-height:36px}
+ html body dialog.portal-mobile-safe-bounded {max-height:calc(var(--portal-mobile-viewport-height,100dvh) - var(--hb-safe-top) - var(--hb-safe-bottom) - 24px)!important;top:calc(var(--portal-mobile-viewport-top,0px) + var(--hb-safe-top))!important;bottom:var(--hb-safe-bottom)!important;overflow-y:auto}
+ html body dialog.portal-mobile-safe-dialog:not([open]),html body .portal-mobile-safe-dialog[hidden] {display:none!important}
+}

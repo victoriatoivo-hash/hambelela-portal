@@ -2458,3 +2458,19 @@ body.packing-list-page {
 /* The legacy board forces every table row to 35px; wizard rows contain editable
    pack sizes and must grow with their content on both desktop and phones. */
 #packing-invoice-modal .hb-packing-wizard.hb-packing-wizard.hb-packing-wizard .invoice-review-table :is(tr,th,td){height:auto!important;min-height:0!important;max-height:none!important;overflow:visible!important}
+
+/* Mobile: page owns vertical scrolling; each month owns only horizontal scrolling. */
+@media (max-width:767px) {
+ html body.ess-dashboard #packingListViewport,
+ html body.ess-dashboard #packing-list-body,
+ html body.ess-dashboard .packing-board-shell {width:100%;max-width:100%;min-width:0;height:auto;max-height:none;overflow:visible!important;scroll-behavior:auto}
+ html body.ess-dashboard #packing-list-body .packing-month-group {width:100%!important;min-width:0;max-width:100%}
+ html body.ess-dashboard main.ess-packing-page {overflow-x:clip}
+ html body.ess-dashboard #packing-list-body .packing-month-scroll {display:block;width:100%!important;max-width:100%!important;min-width:0;overflow-x:auto!important;overflow-y:hidden!important;height:auto;max-height:none!important;scroll-behavior:auto;scroll-snap-type:none;overscroll-behavior-x:contain;touch-action:auto;-webkit-overflow-scrolling:touch}
+ html body.ess-dashboard #packing-list-body :is(.packing-board-table,.packing-group-table) {width:max-content;max-width:none}
+ html body.ess-dashboard #packing-list-body#packing-list-body :is(th,td) {position:static!important;left:auto!important;right:auto!important;top:auto!important;z-index:auto!important;transform:none!important}
+ html body.ess-dashboard #packing-list-body :is(.packing-month-open-heading,.packing-month-closed-summary) {position:relative!important;left:auto!important;width:100%!important;z-index:auto!important}
+ html body.ess-dashboard #packing-list-body :is(tr,.packing-month-scroll,.packing-group-table) {animation:none!important;scroll-snap-type:none;scroll-behavior:auto}
+ body:has(.ess-packing-page) .portal-sticky-horizontal-scrollbar,
+ #packingListViewport .portal-has-horizontal-scroll::after {display:none!important;content:none!important}
+}

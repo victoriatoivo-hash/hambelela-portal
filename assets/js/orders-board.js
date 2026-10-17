@@ -313,6 +313,7 @@
       if (!money?.payment_verified) unknown++;
       else { paid += money.paid_cents; outstanding += money.outstanding_cents; }
     });
+    bar.querySelectorAll('[data-mobile-selection-total]').forEach((node) => { node.textContent = `${selectedOrders.size} order${selectedOrders.size === 1 ? '' : 's'} selected · ${missing ? 'Verifying…' : selectionCurrency(total)}`; });
     bar.querySelector('[data-selection-total]').textContent = `Total Order Value: ${missing ? 'Verifying…' : selectionCurrency(total)}`;
     bar.querySelector('[data-selection-paid]').textContent = `Amount Paid: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(paid)}`;
     bar.querySelector('[data-selection-outstanding]').textContent = `Outstanding: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(outstanding)}`;
@@ -2425,6 +2426,28 @@
     exportOrders(rows, `hambelela-selected-orders-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
+  let mobileBulkDismissed = false;
+  let mobileBulkExpanded = false;
+  let mobileBulkSelectionKey = '';
+  document.addEventListener('click', (event) => {
+    if (!mobileOrdersViewport.matches || !mobileBulkExpanded) return;
+    const bar = document.getElementById('orders-bulk-action-bar');
+    if (!bar || bar.contains(event.target)) return;
+    // Consume just this outside click so dismissing cannot also toggle an order.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    mobileBulkExpanded = false;
+    updateBulkActionBar();
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !mobileOrdersViewport.matches || !selectedOrders.size || mobileBulkDismissed) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (mobileBulkExpanded) mobileBulkExpanded = false;
+    else mobileBulkDismissed = true;
+    updateBulkActionBar();
+  }, true);
+
   function ensureBulkActionBar() {
     let bar = document.getElementById('orders-bulk-action-bar');
     if (!bar) {
@@ -2438,12 +2461,14 @@
       (page || document.body).appendChild(bar);
     }
     bar.innerHTML = `
+      <div class="orders-mobile-bulk-heading"><span data-mobile-selection-total></span><button type="button" data-order-bulk-action="mobile-actions" aria-expanded="${mobileBulkExpanded}">Actions</button></div>
+      <button type="button" class="orders-bulk-collapsed-trigger" data-order-bulk-action="mobile-reopen" aria-label="Reopen selected orders toolbar"><span data-mobile-selection-total></span></button>
       <div class="orders-selection-finances">
         <div class="orders-selection-total" data-selection-total aria-live="polite">Total: —</div>
         <button type="button" class="orders-selection-clear orders-selection-toggle" data-selection-toggle aria-expanded="${selectionExpanded}">Payment breakdown</button>
         <div class="orders-selection-meta" data-selection-breakdown ${selectionExpanded ? '' : 'data-collapsed'}><span data-selection-paid></span><span data-selection-outstanding></span><span data-selection-warning role="status"></span></div>
       </div>
-      <button type="button" class="orders-selection-clear" data-order-bulk-action="close">Clear Selection</button>
+      <button type="button" class="orders-selection-clear" data-order-bulk-action="clear-selection">Clear Selection</button>
       <div class="orders-packing-bulk-selection orders-selection-count"><span class="orders-packing-bulk-count" data-bulk-count>0</span><strong class="orders-packing-bulk-label" data-bulk-label>items selected</strong></div>
       <div class="orders-packing-bulk-divider" aria-hidden="true"></div>
       <div class="orders-packing-bulk-actions">
@@ -2452,7 +2477,7 @@
         <button type="button" class="orders-packing-bulk-action" data-bulk-action="archive" data-order-bulk-action="archive" data-needs-manage><i data-lucide="archive"></i><span>Archive</span></button>
         <button type="button" class="orders-packing-bulk-action orders-packing-bulk-action--danger" data-bulk-action="delete" data-order-bulk-action="delete" data-needs-delete><i data-lucide="trash-2"></i><span>Delete</span></button>
       </div>
-      <button type="button" class="orders-packing-bulk-close" data-order-bulk-action="close" aria-label="Close selected bar"><i data-lucide="x"></i></button>
+      <button type="button" class="orders-packing-bulk-close" data-order-bulk-action="close" aria-label="Close selected bar"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     `;
     return bar;
   }
@@ -2460,6 +2485,15 @@
   function updateBulkActionBar() {
     const bar = ensureBulkActionBar();
     const count = selectedOrders.size;
+    const selectionKey = [...selectedOrders].sort().join(',');
+    if (selectionKey !== mobileBulkSelectionKey) {
+      mobileBulkSelectionKey = selectionKey;
+      mobileBulkDismissed = false;
+      mobileBulkExpanded = false;
+    }
+    bar.classList.toggle('is-mobile-dismissed', mobileBulkDismissed);
+    bar.classList.toggle('is-mobile-expanded', mobileBulkExpanded);
+    bar.querySelector('[data-order-bulk-action="mobile-actions"]').setAttribute('aria-expanded', String(mobileBulkExpanded));
     bar.hidden = count === 0;
     bar.classList.toggle('is-visible', count > 0);
     bar.querySelector('[data-bulk-count]').textContent = String(count);
@@ -2483,7 +2517,14 @@
   }
 
   async function runOrderBulkAction(action) {
-    if (action === 'close') {
+    if (mobileOrdersViewport.matches && ['close','mobile-actions','mobile-reopen'].includes(action)) {
+      if (action === 'close') { mobileBulkDismissed = true; mobileBulkExpanded = false; }
+      if (action === 'mobile-actions') mobileBulkExpanded = !mobileBulkExpanded;
+      if (action === 'mobile-reopen') { mobileBulkDismissed = false; mobileBulkExpanded = false; }
+      updateBulkActionBar();
+      return;
+    }
+    if (action === 'close' || action === 'clear-selection') {
       clearOrderSelection();
       return;
     }

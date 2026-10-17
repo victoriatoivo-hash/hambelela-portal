@@ -1,9 +1,22 @@
 {
-  "assets/css/orders-board.css": "fd5627425e390a59cbee9067ef1832c95cc6de0558b5e2e78f42f168ec668e8d",
-  "assets/js/orders-board.js": "4d67b4905516d04827271008d72a51ef3d787611adefc6749f674aab878e7e52",
-  "apps/operations/orders-board.php": "c95a4a3b9a4c312bb0d44ce136e94fc9eda420b5892e82bb20962fe67d9de12e",
+  "assets/css/orders-board.css": "9a575d5b8dd6ac42645b30bdfe684b793e4ba9b977b91fd9b40c92c54ec8156d",
+  "assets/js/orders-board.js": "7bead86f14f1729d98ab64f1c03e4e0b36d5b1cbb986f8dbca396708da76db27",
+  "assets/css/packing-board.css": "dd5c478abf9d83ebc5de05bf6a34a2383376e32cfde55927dc3fd197163aadf6",
+  "assets/js/packing-list.js": "d856b83064e26564aceedf92663cf44bcb7fd3ddbd0997dc57799575b663cd14",
   "assets/css/portal-responsive.css": "f9a93d4a5d8361950e0c209982b8033f358fee7753c872380c8a05e99f443ae3",
+  "assets/js/portal-responsive.js": "b1a4625452f8d6d34f15ee26833a5a6c30142e6a97f377e90e5707a1c9566517",
+  "apps/operations/orders-board.php": "c95a4a3b9a4c312bb0d44ce136e94fc9eda420b5892e82bb20962fe67d9de12e",
   "assets/css/orders-essentials.css": "dac1beafdff8648c917365de3d0b5bd6f546c16f04b5a6b981529261a3b9f7bb",
   "assets/js/portal.js": "02324dd0c355401896ef576e20723b28016955d065b906c3803e0ed96bd6a953",
-  "shared/header.php": "e83ff644cd1bff735da855a2a598e03fe81d286db205993870eee6bef8e80833"
+  "shared/header.php": "e83ff644cd1bff735da855a2a598e03fe81d286db205993870eee6bef8e80833",
+  "assets/css/packing-essentials.css": "52fa5d19cecb9d46cd224acaf2aad7be4fd76cfe2abfa66d5af94199ff7a37b1",
+  "assets/js/packing-essentials.js": "05537dde6d350f53b61a95a4faef4f7937f1d41ae1ec62c6e0ed0c30526a3d4e",
+  "apps/operations/packing-list.php": null,
+  "assets/css/marketing-extras.css": "34d0a97a2d5f017cc846ea7d0c789e751e376cff01dc566546c660edb9e7abd5",
+  "assets/css/marketing-workspace.css": "bdafe29f6e7a54861818ece7a4f2f4bf8fd7cbb7ebc264b69f7d8ada87fdea8b",
+  "assets/js/marketing-workspace.js": "99ed6c96a1c1e21ca1b8ef0a3e8c1585c5dc190198b64940f2840085e21b3312",
+  "assets/css/notifications-ui.css": "a9cdb5d713743c41d249cb0a4a066d9eb92ee80d08b4a41d3098ec9c708120a0",
+  "assets/css/acknowledgments.css": "ec242312f3be2dc7dd337de17c0e73f5dbf2612558ac2b8acea2d4f10c36c526",
+  "assets/js/task-assignment-popup.js": "974e2af511b4bfa9e09c60a380aea070f43ebf591f8081d7267bc00f2a8fee62",
+  "assets/css/portal-notices.css": "780367ac39b1a00f05721a65622616a05032fe570f054c5193400dcf5f25a19d"
 }
