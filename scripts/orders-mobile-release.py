@@ -2,8 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('assets/css/orders-board.css','assets/js/orders-board.js')
-READ_ONLY = ('apps/operations/orders-board.php','assets/css/portal-responsive.css','assets/css/orders-essentials.css','assets/js/portal.js','shared/header.php')
+FILES = ('assets/css/orders-board.css','assets/js/orders-board.js','assets/css/packing-board.css','assets/js/packing-list.js','assets/css/portal-responsive.css','assets/js/portal-responsive.js')
+READ_ONLY = ('apps/operations/orders-board.php','assets/css/orders-essentials.css','assets/js/portal.js','shared/header.php','assets/css/packing-essentials.css','assets/js/packing-essentials.js','apps/operations/packing-list.php','assets/css/marketing-extras.css','assets/css/marketing-workspace.css','assets/js/marketing-workspace.js','assets/css/notifications-ui.css','assets/css/acknowledgments.css','assets/js/task-assignment-popup.js','assets/css/portal-notices.css')
 EXPORT_MODULES = FILES + READ_ONLY
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
