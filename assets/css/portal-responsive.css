@@ -1370,6 +1370,6 @@ html body.sidebar-collapsed .portal-sidebar {
  html body .portal-mobile-safe-dialog .portal-mobile-safe-header {flex-shrink:0}
  html body .portal-mobile-safe-dialog .portal-mobile-safe-footer {flex-shrink:0;padding-bottom:12px!important}
  html body .portal-mobile-safe-dialog :is([data-close],.mk4-close) {min-width:36px;min-height:36px}
- html body dialog.portal-mobile-safe-bounded {max-height:calc(var(--portal-mobile-viewport-height,100dvh) - var(--hb-safe-top) - var(--hb-safe-bottom) - 24px)!important;top:calc(var(--portal-mobile-viewport-top,0px) + var(--hb-safe-top))!important;bottom:var(--hb-safe-bottom)!important;overflow-y:auto}
+ html body dialog.portal-mobile-safe-bounded {max-height:calc(var(--portal-mobile-viewport-height,100dvh) - var(--hb-safe-top) - var(--hb-safe-bottom) - 24px)!important;top:calc(var(--portal-mobile-viewport-top,0px) + var(--hb-safe-top))!important;bottom:calc(100% - var(--portal-mobile-viewport-height,100dvh) - var(--portal-mobile-viewport-top,0px) + var(--hb-safe-bottom))!important;overflow-y:auto}
  html body dialog.portal-mobile-safe-dialog:not([open]),html body .portal-mobile-safe-dialog[hidden] {display:none!important}
 }
