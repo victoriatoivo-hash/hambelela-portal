@@ -909,3 +909,13 @@ body:has(.ess-marketing-page) .portal-date-popup .portal-date-clear{color:#62675
 @media(max-width:900px){.ess-marketing-page .marketing-main-grid{display:block}.ess-marketing-page .marketing-main-grid .marketing-panel{margin-bottom:14px}.ess-marketing-page .marketing-app-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.ess-marketing-page .marketing-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:767px){.ess-marketing-page .marketing-app-category>div,.ess-marketing-page .marketing-app-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:420px){.ess-marketing-page .marketing-app-category>div,.ess-marketing-page .marketing-app-grid,.ess-marketing-page .marketing-kpi-grid{grid-template-columns:1fr}}
+
+/* Saved assignment facts, shared by every Marketing assignment entry route. */
+.mk4-assignment-page .mk-assignment-summary{display:grid;gap:8px;margin:10px 0;font-family:Jost,sans-serif}
+.mk4-assignment-page .mk-assignment-dates{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.mk4-assignment-page .mk-assignment-info{min-width:0;display:flex;align-items:flex-start;gap:9px;padding:10px 12px;background:#F8F7F2;border:1px solid #E4E6DC;border-radius:9px}
+.mk4-assignment-page .mk-assignment-info svg{width:16px;height:16px;flex:0 0 16px;color:#9B477E;stroke-width:1.8}
+.mk4-assignment-page .mk-assignment-info-label{display:block;margin-bottom:4px;font:400 10px/1.3 Jost,sans-serif;color:#62675E}
+.mk4-assignment-page .mk-assignment-info-value{display:block;font:500 11.5px/1.4 Jost,sans-serif;color:#1C2118;overflow-wrap:anywhere}
+.mk4-assignment-page .mk-assignment-folder{background:#F9F2F7;border-color:#E5CCDC}
+@media(max-width:600px){.mk4-assignment-page .mk-assignment-info{padding:8px;gap:6px}.mk4-assignment-page .mk-assignment-dates{gap:8px}}

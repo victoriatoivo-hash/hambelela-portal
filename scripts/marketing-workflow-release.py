@@ -2,8 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('shared/marketing-content-workflow.php','assets/js/portal.js','shared/notifications.php','shared/marketing.php','shared/marketing-execution.php','shared/marketing-workspace.php','apps/marketing/index.php','apps/marketing/execution.php','apps/marketing/employee-workspace.php','apps/marketing/app-shell.php','assets/js/marketing.js','assets/js/marketing-workspace.js','assets/css/marketing-workspace.css','assets/css/marketing-execution.css','assets/css/marketing.css','assets/css/marketing-extras.css')
-READ_ONLY = ('shared/marketing-phase3.php','apps/marketing/phase3-view.php','apps/marketing/employee-calendar.php','apps/marketing/media.php','apps/marketing/file.php','apps/marketing/export.php','api/notifications.php','assets/js/notifications-ui.js','shared/header.php','shared/auth.php','shared/employee-features.php')
+FILES = ('apps/marketing/index.php', 'apps/marketing/execution.php', 'assets/js/marketing-workspace.js', 'assets/css/marketing-extras.css')
+READ_ONLY = ('shared/marketing-content-workflow.php', 'assets/js/portal.js', 'shared/notifications.php', 'shared/marketing.php', 'shared/marketing-execution.php', 'shared/marketing-workspace.php', 'apps/marketing/employee-workspace.php', 'apps/marketing/app-shell.php', 'assets/js/marketing.js', 'assets/css/marketing-workspace.css', 'assets/css/marketing-execution.css', 'assets/css/marketing.css', 'shared/marketing-phase3.php', 'apps/marketing/phase3-view.php', 'apps/marketing/employee-calendar.php', 'apps/marketing/media.php', 'apps/marketing/file.php', 'apps/marketing/export.php', 'api/notifications.php', 'assets/js/notifications-ui.js', 'shared/header.php', 'shared/auth.php', 'shared/employee-features.php')
 EXPORT_MODULES = FILES + READ_ONLY
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')

@@ -50,6 +50,7 @@ jobs:
           MARKETING_TEST_PASSWORD: synthetic-ci-password
         run: |
           php tests/marketing-workflow-db.php
+          php tests/marketing-assignment-summary.php
           php tests/notification-session-lock.php
           node tests/marketing-workflow-clock.mjs
           node tests/marketing-modal-dismissal.mjs

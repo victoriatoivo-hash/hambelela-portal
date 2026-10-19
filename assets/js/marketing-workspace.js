@@ -258,3 +258,18 @@ function createMarketingDismissal({isDirty,confirmDiscard,performClose}) {
  });
  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
 })();
+
+// Reuse the saved media reference; switching source must never erase its value.
+(function () {
+  function initialiseFolderLabels() {
+    document.querySelectorAll('[data-mk-media-reference-label]').forEach(label => {
+      const source = label.closest('form')?.querySelector('select[name="media_source"]');
+      if (!source) return;
+      const update = () => { label.textContent = source.value === 'shared_folder' ? 'Name of Shared Folder' : 'Optional project / media reference'; };
+      source.addEventListener('change', update);
+      update();
+    });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialiseFolderLabels, {once:true});
+  else initialiseFolderLabels();
+}());
