@@ -80,6 +80,7 @@ jobs:
           TASK_TEST_PASSWORD: synthetic-ci-password
         run: |
           php tests/task-owner-leave.php
+          php tests/epi-hr-absence-evidence.php
           node --check assets/js/task-admin-edit.js
           node --check assets/js/task-essentials.js
       - name: Capture or publish exact isolated files

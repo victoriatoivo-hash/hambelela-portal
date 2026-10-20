@@ -102,6 +102,7 @@ function task_admin_handle(PDO $pdo,string $action,bool $canManage,string $csrf,
             $availability['explicit_pause']=true;$availability['state']='paused';
             $values['availability_json']=json_encode($availability);
         } elseif($values['assigned_employee_id']!==(int)$task['assigned_employee_id']) {
+            if($values['status']!=='complete'&&$values['deadline']<=$now->format('Y-m-d H:i:s')) throw new RuntimeException('Choose a future due date for the covering employee.');
             $availability['covered_for']=$availability;
             $availability['original_employee_id']=$availability['original_employee_id']??(int)$task['assigned_employee_id'];
             $availability['employee_id']=$values['assigned_employee_id'];$availability['state']='review';

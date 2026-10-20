@@ -2127,7 +2127,7 @@ if ($filters['search'] !== '') {
     array_push($params, '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%', '%' . $filters['search'] . '%');
 }
 if (!$isScheduledOwnerView && $filters['overdue_only'] === '1') {
-    $where[] = "t.status <> 'complete' AND t.deadline IS NOT NULL AND t.deadline < NOW()";
+    $where[] = "t.status <> 'complete' AND t.deadline IS NOT NULL AND t.deadline < NOW() AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(t.availability_json,'$.state')),'active') NOT IN ('paused','coverage','review')";
 }
 if (!$isScheduledOwnerView && $filters['status'] !== '') {
     if ($filters['status'] === 'completed') {
@@ -2277,12 +2277,13 @@ foreach ($tasks as $task) {
     if ($savedStatus === 'new') $metrics['new']++;
     if ($savedStatus === 'in_progress') $metrics['in_progress']++;
     if ($savedStatus === 'complete' && !empty($task['date_completed']) && substr((string) $task['date_completed'], 0, 10) === date('Y-m-d')) $metrics['completed_today']++;
-    if (!empty($task['deadline']) && substr((string) $task['deadline'], 0, 10) === date('Y-m-d') && $savedStatus !== 'complete') $metrics['due_today']++;
-    $isOverdue = $savedStatus !== 'complete' && !empty($task['deadline']) && strtotime((string) $task['deadline']) < time();
+    if (!task_leave_blocked($task) && !empty($task['deadline']) && substr((string) $task['deadline'], 0, 10) === date('Y-m-d') && $savedStatus !== 'complete') $metrics['due_today']++;
+    $isOverdue = !task_leave_blocked($task) && $savedStatus !== 'complete' && !empty($task['deadline']) && strtotime((string) $task['deadline']) < time();
     if ($isOverdue) $metrics['overdue']++;
     if (checklist_task_kind($task) === 'recurring' && $isOverdue) $metrics['missed_recurring']++;
 }
 foreach ($historyTasks as $task) {
+    if(!$canManage && (task_completion_actor($task)['kind']??'')==='owner') continue;
     $completedDate = (string) ($task['date_completed'] ?: $task['completed_at']);
     if ($completedDate !== '' && substr($completedDate, 0, 7) === date('Y-m')) $metrics['completed_month']++;
 }

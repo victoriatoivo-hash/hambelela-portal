@@ -100,7 +100,7 @@ function task_leave_transition(array $task,array $evidence,string $now,$clock): 
             $next['state']='coverage';$next['returned']=true;return $next;
         }
         $return=min($now,(string)($next['pause_until']??$now));
-        $next['adjusted_deadline']=$clock->addWorkingMinutes($return,(int)($next['remaining_minutes']??0))->format('Y-m-d H:i:s');
+        if(!empty($task['deadline'])) $next['adjusted_deadline']=$clock->addWorkingMinutes($return,(int)($next['remaining_minutes']??0))->format('Y-m-d H:i:s');
         $next['resumed_at']=$return;$next['state']='resumed';
         $next['last_pause']=['from'=>$next['pause_from'],'to'=>$return,'evidence'=>$next['evidence']??[]];
         unset($next['pause_from'],$next['pause_until'],$next['explicit_pause']);
@@ -117,7 +117,7 @@ function task_leave_sync(PDO $pdo, ?PDO $hr=null, ?string $at=null): void {
         require_once __DIR__.'/task-admin-edit.php';
         task_admin_schema($pdo);
         $now=$at??(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
-        $hr=$hr??\Hambelela\EPI\HrConnection::connect();
+        try {$hr=$hr??\Hambelela\EPI\HrConnection::connect();} catch(Throwable $e) {$hr=null;}
         $clock=new \Hambelela\EPI\BusinessTimeEngine($pdo);
         $tasks=$pdo->query("SELECT * FROM ops_checklist_tasks WHERE status IN ('new','in_progress') AND deleted_at IS NULL AND archived_at IS NULL AND assigned_employee_id>0 AND (scheduled_at IS NULL OR released_at IS NOT NULL)")->fetchAll(PDO::FETCH_ASSOC);
         $cache=[];
@@ -131,7 +131,7 @@ function task_leave_sync(PDO $pdo, ?PDO $hr=null, ?string $at=null): void {
             try {
                 $q=$pdo->prepare('SELECT * FROM ops_checklist_tasks WHERE id=?'.($pdo->getAttribute(PDO::ATTR_DRIVER_NAME)==='sqlite'?'':' FOR UPDATE'));
                 $q->execute([$task['id']]);$current=$q->fetch(PDO::FETCH_ASSOC);
-                if(!$current||!in_array($current['status'],['new','in_progress'],true)||(int)$current['assigned_employee_id']!==$employee){$pdo->commit();continue;}
+                if(!$current||!empty($current['deleted_at'])||!empty($current['archived_at'])||!in_array($current['status'],['new','in_progress'],true)||(int)$current['assigned_employee_id']!==$employee){$pdo->commit();continue;}
                 $before=task_leave_data($current);
                 $after=task_leave_transition($current,$cache[$employee],$now,$clock);
                 if($before!==$after) {
@@ -145,7 +145,7 @@ function task_leave_sync(PDO $pdo, ?PDO $hr=null, ?string $at=null): void {
                 $pdo->commit();
                 if(($after['state']??'')==='coverage'&&function_exists('notifications_create')) {
                     $key=hash('sha256',json_encode([$current['id'],$employee,$after['pause_from']??'']));
-                    notifications_create(['title'=>'Task coverage required','message'=>$current['task_name'].' — employee on approved leave. Choose coverage or complete it yourself.','module'=>'tasks','priority'=>'important','deduplication_key'=>'task-coverage:'.$key,'related_type'=>'checklist_task','related_id'=>(int)$current['id'],'action_link'=>BASE_URL.'/apps/operations/checklists.php?task_id='.(int)$current['id']],notifications_role_recipients(['owner_admin']));
+                    try { notifications_create(['title'=>'Task coverage required','message'=>$current['task_name'].' — employee on approved leave. Choose coverage or complete it yourself.','module'=>'tasks','priority'=>'important','deduplication_key'=>'task-coverage:'.$key,'related_type'=>'checklist_task','related_id'=>(int)$current['id'],'action_link'=>BASE_URL.'/apps/operations/checklists.php?task_id='.(int)$current['id']],notifications_role_recipients(['owner_admin'])); } catch(Throwable $notificationError) {error_log('Task coverage notification pending for task '.(int)$current['id']);}
                 }
             } catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
         }

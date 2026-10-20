@@ -134,6 +134,7 @@ final class DeadlineEngine
             if(!empty($availability['adjusted_deadline'])&&$d['obligation_key']==='complete_task'&&$task['deadline']>$d['due_at']) {
                 $grace=max(0,strtotime($d['breach_eligible_at'])-strtotime($d['due_at']));
                 $d['due_at']=$task['deadline'];$d['breach_eligible_at']=Support::timestamp($task['deadline'])->modify('+'.$grace.' seconds')->format('Y-m-d H:i:s');
+                $this->pdo->prepare('UPDATE epi_v2_operational_deadlines SET due_at=?,breach_eligible_at=? WHERE id=? AND breach_incident_uuid IS NULL')->execute([$d['due_at'],$d['breach_eligible_at'],$d['id']]);
                 if($detected<=$d['breach_eligible_at']) return 'duplicates';
             }
         }

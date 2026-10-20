@@ -57,6 +57,15 @@ try{
     $resume=task_leave_transition($withPause,$clear,'2026-10-22 09:00:00',$clock);
     verify($resume['state']==='resumed'&&$resume['adjusted_deadline']==='2026-10-23 12:00:00','Return resumes remaining business time');
     verify($resume['original_deadline']===$task['deadline'],'Original deadline retained separately');
+    $extended=$approved;
+    $extended['evidence'][0]['effective_to']='2026-10-23 00:00:00';
+    $extension=task_leave_transition($withPause,$extended,'2026-10-21 12:00:00',$clock);
+    verify($extension['pause_until']==='2026-10-23 00:00:00'&&$extension['remaining_minutes']===780,'Leave extension preserves remaining working time');
+    $cancelled=task_leave_transition($withPause,$clear,'2026-10-20 13:00:00',$clock);
+    verify($cancelled['resumed_at']==='2026-10-20 13:00:00','Cancellation resumes at observed return without rewriting past evidence');
+    $lateApproval=$approved;$lateApproval['evidence'][0]['approved_at']='2026-10-20 10:00:00';
+    $lateApproved=task_leave_transition($task,$lateApproval,'2026-10-20 12:00:00',$clock);
+    verify($lateApproved['pause_from']==='2026-10-20 10:00:00'&&$lateApproved['late_approval'],'Late approval is prospective and explicitly recorded');
     $urgent=task_leave_transition(array_merge($task,['priority'=>'urgent']),$approved,'2026-10-20 12:00:00',$clock);
     verify($urgent['state']==='coverage','Urgent task requires coverage');
     $recurring=task_leave_transition(array_merge($task,['recurring_template_id'=>42]),$approved,'2026-10-20 12:00:00',$clock);
@@ -77,6 +86,17 @@ try{
     $auditCount=(int)$pdo->query('SELECT COUNT(*) FROM ops_task_management_audits')->fetchColumn();
     task_leave_sync($pdo,$pdo,'2026-10-20 12:05:00');
     verify((int)$pdo->query('SELECT COUNT(*) FROM ops_task_management_audits')->fetchColumn()===$auditCount,'Polling creates no duplicate audits');
+    $coverTask=array_merge($task,['id'=>2,'priority'=>'urgent']);
+    $insert->execute(array_values($coverTask));
+    task_leave_sync($pdo,$pdo,'2026-10-20 12:05:00');
+    $coverSaved=$pdo->query('SELECT * FROM ops_checklist_tasks WHERE id=2')->fetch(PDO::FETCH_ASSOC);
+    $coverInput=array_merge($input,['mark_complete'=>0,'status'=>'new','task_id'=>2,'assigned_employee_id'=>8,'priority'=>'urgent','csrf_token'=>'test-csrf','request_key'=>'synthetic-cover-123456','revision'=>task_admin_revision($coverSaved)]);
+    $cover=task_admin_handle($pdo,'admin_update_task',true,'test-csrf',$coverInput,$owner);
+    task_leave_sync($pdo,$pdo,'2026-10-20 12:10:00');
+    $coverSaved=$pdo->query('SELECT * FROM ops_checklist_tasks WHERE id=2')->fetch(PDO::FETCH_ASSOC);
+    verify($coverSaved['assigned_employee_id']==8&&!task_leave_blocked($coverSaved),'Covering employee receives an active task');
+    verify(task_leave_data($coverSaved)['original_employee_id']===7,'Coverage preserves original responsibility');
+    $events=[];
     $saveInput=array_merge($input,['actual_completed_at'=>(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->modify('-1 minute')->format('Y-m-d H:i:s'),'csrf_token'=>'test-csrf','task_id'=>1,'request_key'=>'synthetic-request-123456','revision'=>task_admin_revision($saved)]);
     try{task_admin_handle($pdo,'admin_update_task',false,'test-csrf',$saveInput,$owner);throw new LogicException('Employee allowed');}catch(RuntimeException $e){verify(!($e instanceof LogicException),'Employee cannot use management completion');}
     $save=task_admin_handle($pdo,'admin_update_task',true,'test-csrf',$saveInput,$owner);
