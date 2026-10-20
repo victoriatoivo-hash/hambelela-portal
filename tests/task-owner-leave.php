@@ -77,7 +77,7 @@ try{
     $auditCount=(int)$pdo->query('SELECT COUNT(*) FROM ops_task_management_audits')->fetchColumn();
     task_leave_sync($pdo,$pdo,'2026-10-20 12:05:00');
     verify((int)$pdo->query('SELECT COUNT(*) FROM ops_task_management_audits')->fetchColumn()===$auditCount,'Polling creates no duplicate audits');
-    $saveInput=array_merge($input,['csrf_token'=>'test-csrf','task_id'=>1,'request_key'=>'synthetic-request-123456','revision'=>task_admin_revision($saved)]);
+    $saveInput=array_merge($input,['actual_completed_at'=>(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->modify('-1 minute')->format('Y-m-d H:i:s'),'csrf_token'=>'test-csrf','task_id'=>1,'request_key'=>'synthetic-request-123456','revision'=>task_admin_revision($saved)]);
     try{task_admin_handle($pdo,'admin_update_task',false,'test-csrf',$saveInput,$owner);throw new LogicException('Employee allowed');}catch(RuntimeException $e){verify(!($e instanceof LogicException),'Employee cannot use management completion');}
     $save=task_admin_handle($pdo,'admin_update_task',true,'test-csrf',$saveInput,$owner);
     verify($save['success']&&task_completion_actor($save['task'])['kind']==='owner','Owner completion persists through real transaction');

@@ -26,6 +26,7 @@ final class V2OperationalBridge
     }
     $meta['occurred_at']=Support::timestamp($meta['occurred_at']??null)->format('Y-m-d H:i:s');
     $meta['employee_id']=$meta['employee_id']??(function_exists('ops_current_employee_id')?ops_current_employee_id():null);
+    if($type==='checklist_task'&&($meta['completion_actor']['kind']??'')==='owner') $meta['employee_id']=null;
     if($type==='checklist_task' && in_array($action,['task_completed','task_correction_completed'],true)
         && (int)($record['completion_evidence_required']??0)===1){
         $proof=$db->prepare('SELECT id FROM ops_checklist_attachments WHERE task_id=? AND removed_at IS NULL AND created_at<=? ORDER BY id');

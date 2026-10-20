@@ -19,7 +19,7 @@
       const item=textNode('div','task-edit-audit-item',''),before=JSON.parse(record.before_json),after=JSON.parse(record.after_json);
       item.append(textNode('div','task-edit-audit-title',`${record.editor_name} · ${record.correction_type}`),textNode('div','task-edit-audit-meta',`Correction recorded ${record.recorded_at} (Windhoek)`),textNode('p','task-edit-audit-reason',record.reason));
       const labels={completion_actor_json:'Performer and recorder',availability_json:'HR availability',availability:'HR availability',task_name:'Title',instructions:'Instructions',priority:'Priority',deadline:'Due',assigned_employee_id:'Responsible employee',completed_by:'Completed by',completed_at:'Actual completion',completion_evidence_required:'Proof requirement',scheduled_at:'Scheduled release',status:'Status',checked_items:'Checklist',completion_note:'Completion note'};
-      for(const [key,label] of Object.entries(labels)){if(String(before[key]??'')===String(after[key]??''))continue;const value=v=>['assigned_employee_id','completed_by'].includes(key)?person(form,v):String(v??'Not recorded');item.append(textNode('div','task-edit-audit-change',`${label}: ${value(before[key])} → ${value(after[key])}`));}history.append(item);
+      for(const [key,label] of Object.entries(labels)){if(String(before[key]??'')===String(after[key]??''))continue;const value=v=>['assigned_employee_id','completed_by'].includes(key)?person(form,v):(typeof v==='object'&&v!==null?JSON.stringify(v):String(v??'Not recorded'));item.append(textNode('div','task-edit-audit-change',`${label}: ${value(before[key])} → ${value(after[key])}`));}history.append(item);
     }
   }
   function mode(panel,editing) {
@@ -31,6 +31,8 @@
     const task=payload.task;
     form.elements.complete_myself.checked=false;form.elements.leave_action.value='';
     const availability=JSON.parse(task.availability_json||'{}');
+    form.querySelector('[data-task-leave-controls]').hidden=!['paused','coverage','review'].includes(availability.state);
+    form.elements.leave_action.querySelector('[value=pause]').disabled=!availability.pause_from||!availability.evidence?.length;
     form.querySelector('[data-task-leave-summary]').textContent=availability.state ? `${availability.state} · Original due: ${availability.original_deadline||'Not recorded'} · Adjusted due: ${availability.adjusted_deadline||'Not adjusted'} · Prior late working minutes: ${availability.prior_late_minutes||0}` : 'HR availability is checked automatically.';
     for(const name of ['task_name','instructions','priority','assigned_employee_id','completed_by','status','completion_note','deadline','scheduled_at']){
       const field=form.elements.namedItem(name);if(!field)continue;
