@@ -85,6 +85,9 @@ function task_leave_transition(array $task,array $evidence,string $now,$clock): 
         $start=max($from,$approved,(string)($task['date_assigned']??$task['created_at']??$from));
         if(empty($next['pause_from'])) {
             $due=(string)($task['deadline']??$start);
+            // Match Task Management's existing legacy date-only / midnight deadline convention.
+            if(preg_match('/^\d{4}-\d{2}-\d{2}$/',$due)||preg_match('/ 00:00(?::00)?$/',$due))
+                $due=substr($due,0,10).' 17:00:00';
             $next['pause_from']=$start;
             $next['remaining_minutes']=(int)ceil($clock->workingMinutes($start,$due));
             $next['prior_late_minutes']=$due<$start?(int)ceil($clock->workingMinutes($due,$start)):0;
@@ -104,7 +107,12 @@ function task_leave_transition(array $task,array $evidence,string $now,$clock): 
             $next['state']='coverage';$next['returned']=true;return $next;
         }
         $return=min($now,(string)($next['pause_until']??$now));
-        if(!empty($task['deadline'])) $next['adjusted_deadline']=$clock->addWorkingMinutes($return,(int)($next['remaining_minutes']??0))->format('Y-m-d H:i:s');
+        if(!empty($task['deadline'])) {
+            $remaining=(int)($next['remaining_minutes']??0);
+            $adjusted=$clock->addWorkingMinutes($return,max(1,$remaining));
+            if($remaining===0)$adjusted=$adjusted->modify('-1 minute');
+            $next['adjusted_deadline']=$adjusted->format('Y-m-d H:i:s');
+        }
         $next['resumed_at']=$return;$next['state']='resumed';
         $next['last_pause']=['from'=>$next['pause_from'],'to'=>$return,'evidence'=>$next['evidence']??[]];
         $next['pause_intervals'][]=$next['last_pause'];

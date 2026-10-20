@@ -76,6 +76,10 @@ try{
     verify($returned['state']==='coverage','Unresolved coverage survives HR outage and return');
     $late=task_leave_transition(array_merge($task,['deadline'=>'2026-10-19 12:00:00']),$approved,'2026-10-20 12:00:00',$clock);
     verify($late['prior_late_minutes']===300,'Genuine lateness before leave remains recorded');
+    $lateReturn=task_leave_transition(array_merge($task,['availability_json'=>json_encode($late)]),$clear,'2026-10-22 09:00:00',$clock);
+    verify($lateReturn['adjusted_deadline']==='2026-10-22 08:00:00','Zero remaining time resumes at working-day opening, not legacy midnight');
+    $legacy=task_leave_transition(array_merge($task,['deadline'=>'2026-10-21 00:00:00']),$approved,'2026-10-20 12:00:00',$clock);
+    verify($legacy['remaining_minutes']===1080,'Legacy midnight due dates retain the existing 17:00 convention');
     $pdo->exec('UPDATE leave_requests SET is_half_day=1');
     verify(task_leave_evidence($pdo,$pdo,7,'2026-10-20 12:00:00')['state']==='needs_review','Partial-day absence is not silently treated as a full day');
     $pdo->exec("UPDATE leave_requests SET is_half_day=0,status='pending'");
