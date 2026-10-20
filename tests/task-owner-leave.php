@@ -57,6 +57,7 @@ try{
     $resume=task_leave_transition($withPause,$clear,'2026-10-22 09:00:00',$clock);
     verify($resume['state']==='resumed'&&$resume['adjusted_deadline']==='2026-10-23 12:00:00','Return resumes remaining business time');
     verify($resume['original_deadline']===$task['deadline'],'Original deadline retained separately');
+    verify(task_active_working_minutes($pdo,array_merge($task,['availability_json'=>json_encode($resume)]),'2026-10-19 08:00:00','2026-10-22 09:00:00')===600.0,'Employee timing excludes approved pause from late-start and duration calculations');
     $extended=$approved;
     $extended['evidence'][0]['effective_to']='2026-10-23 00:00:00';
     $extension=task_leave_transition($withPause,$extended,'2026-10-21 12:00:00',$clock);

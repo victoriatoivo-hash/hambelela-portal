@@ -27,6 +27,7 @@ function task_leave_blocked(array $task): bool {
         && !in_array($task['status']??'',['complete','completed','cancelled'],true);
 }
 function task_leave_label(array $task): string {
+    if(in_array($task['status']??'',['complete','completed'],true)) return '';
     $state=task_leave_data($task)['state']??'';
     return ['paused'=>'Paused — Employee on Leave','coverage'=>'Coverage Required','review'=>'Leave status unavailable — review required','resumed'=>'Resumed after leave'][$state]??'';
 }
@@ -55,6 +56,9 @@ function task_leave_evidence(PDO $pdo, ?PDO $hr, int $employee, string $now): ar
                 return ['state'=>'needs_review','reason'=>'partial_day_requires_verified_interval','evidence'=>[]];
         foreach(['days','total_days','number_of_days','days_requested'] as $field)
             if(isset($record[$field])&&is_numeric($record[$field])&&(float)$record[$field]!==floor((float)$record[$field]))
+                return ['state'=>'needs_review','reason'=>'partial_day_requires_verified_interval','evidence'=>[]];
+        foreach(['start_time','end_time','from_time','to_time'] as $field)
+            if(!empty($record[$field]))
                 return ['state'=>'needs_review','reason'=>'partial_day_requires_verified_interval','evidence'=>[]];
     }
     return $result;
@@ -103,9 +107,25 @@ function task_leave_transition(array $task,array $evidence,string $now,$clock): 
         if(!empty($task['deadline'])) $next['adjusted_deadline']=$clock->addWorkingMinutes($return,(int)($next['remaining_minutes']??0))->format('Y-m-d H:i:s');
         $next['resumed_at']=$return;$next['state']='resumed';
         $next['last_pause']=['from'=>$next['pause_from'],'to'=>$return,'evidence'=>$next['evidence']??[]];
+        $next['pause_intervals'][]=$next['last_pause'];
         unset($next['pause_from'],$next['pause_until'],$next['explicit_pause']);
     } elseif(!in_array($next['state']??'',['resumed','active'],true)) $next['state']='active';
     return $next;
+}
+/** Performance durations exclude only the verified prospective intervals recorded on this task. */
+function task_active_working_minutes(PDO $pdo,array $task,$from,$to): float {
+    $clock=new \Hambelela\EPI\BusinessTimeEngine($pdo);
+    $start=\Hambelela\EPI\Support::timestamp($from);$end=\Hambelela\EPI\Support::timestamp($to);
+    $data=task_leave_data($task);$intervals=$data['pause_intervals']??[];
+    if(!empty($data['pause_from']))$intervals[]=['from'=>$data['pause_from'],'to'=>min($end->format('Y-m-d H:i:s'),$data['pause_until']??$end->format('Y-m-d H:i:s'))];
+    usort($intervals,static function($a,$b){return strcmp($a['from'],$b['from']);});
+    $excluded=0;$last=$start;
+    foreach($intervals as $interval) {
+        $a=max($start,$last,\Hambelela\EPI\Support::timestamp($interval['from']));
+        $b=min($end,\Hambelela\EPI\Support::timestamp($interval['to']));
+        if($b>$a){$excluded+=$clock->workingMinutes($a,$b);$last=$b;}
+    }
+    return max(0,$clock->workingMinutes($start,$end)-$excluded);
 }
 /** Changes and audit persist in one transaction; callers must never treat a failed HR read as clearance. */
 function task_leave_sync(PDO $pdo, ?PDO $hr=null, ?string $at=null): void {
@@ -140,7 +160,7 @@ function task_leave_sync(PDO $pdo, ?PDO $hr=null, ?string $at=null): void {
                     if(($after['state']??'')!=='resumed') $deadline=$current['deadline'];
                     $pdo->prepare('UPDATE ops_checklist_tasks SET availability_json=?,deadline=? WHERE id=?')->execute([json_encode($after),$deadline,$current['id']]);
                     $pdo->prepare('INSERT INTO ops_task_management_audits(request_key,task_id,editor_id,editor_name,correction_type,reason,original_json,before_json,after_json,recorded_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
-                        ->execute([bin2hex(random_bytes(16)),$current['id'],0,'HR availability synchronisation','availability','Approved HR evidence: '.($after['state']??'active'),json_encode(task_admin_original($pdo,$current,task_admin_audits($pdo,(int)$current['id']))),json_encode(['availability'=>$before,'deadline'=>$current['deadline']]),json_encode(['availability'=>$after,'deadline'=>$deadline]),$now]);
+                        ->execute([bin2hex(random_bytes(16)),$current['id'],0,'HR availability synchronisation','availability','HR availability synchronisation: '.($after['state']??'active'),json_encode(task_admin_original($pdo,$current,task_admin_audits($pdo,(int)$current['id']))),json_encode(['availability'=>$before,'deadline'=>$current['deadline']]),json_encode(['availability'=>$after,'deadline'=>$deadline]),$now]);
                 }
                 $pdo->commit();
                 if(($after['state']??'')==='coverage'&&function_exists('notifications_create')) {

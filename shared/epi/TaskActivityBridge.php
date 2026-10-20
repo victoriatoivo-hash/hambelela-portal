@@ -46,10 +46,11 @@ final class TaskActivityBridge
             $completedAt = self::date($task['date_completed'] ?? $task['completed_at'] ?? null);
             if ($action === 'task_started' && !$startedAt) $startedAt = $at;
             if ($action === 'task_completed' && !$completedAt) $completedAt = $at;
+            require_once dirname(__DIR__).'/task-leave.php';
             $durations = [
-                'created_to_started_minutes' => $assignedAt && $startedAt ? Performance::businessMinutes($assignedAt, $startedAt) : null,
-                'started_to_completed_minutes' => $startedAt && $completedAt ? Performance::businessMinutes($startedAt, $completedAt) : null,
-                'assigned_to_completed_minutes' => $assignedAt && $completedAt ? Performance::businessMinutes($assignedAt, $completedAt) : null,
+                'created_to_started_minutes' => $assignedAt && $startedAt ? \task_active_working_minutes($pdo,$task,$assignedAt, $startedAt) : null,
+                'started_to_completed_minutes' => $startedAt && $completedAt ? \task_active_working_minutes($pdo,$task,$startedAt, $completedAt) : null,
+                'assigned_to_completed_minutes' => $assignedAt && $completedAt ? \task_active_working_minutes($pdo,$task,$assignedAt, $completedAt) : null,
             ];
             $checklist = self::checklist($task);
             $attachmentCount = self::attachmentCount($pdo, $taskId);
