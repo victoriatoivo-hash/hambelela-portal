@@ -9,7 +9,7 @@ on:
       scope:
         type: choice
         default: marketing
-        options: [marketing, orders-mobile]
+        options: [marketing, orders-mobile, task-leave]
       approved_sha:
         type: string
         required: true
@@ -84,6 +84,8 @@ jobs:
         run: |
           if [ "$RELEASE_SCOPE" = "orders-mobile" ]; then
             python3 scripts/orders-mobile-release.py "$RELEASE_MODE" "$RELEASE_SHA"
+          elif [ "$RELEASE_SCOPE" = "task-leave" ]; then
+            python3 scripts/task-leave-release.py "$RELEASE_MODE" "$RELEASE_SHA"
           else
             python3 scripts/marketing-workflow-release.py "$RELEASE_MODE" "$RELEASE_SHA"
           fi
@@ -100,3 +102,6 @@ jobs:
             orders-mobile-live-source.zip
             orders-mobile-release-report.json
             orders-mobile-backup.zip
+            task-leave-live-source.zip
+            task-leave-release-report.json
+            task-leave-backup.zip
