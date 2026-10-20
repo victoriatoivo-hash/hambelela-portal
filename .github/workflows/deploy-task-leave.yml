@@ -1,0 +1,43 @@
+name: Deploy Task owner completion and leave integration
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        type: choice
+        options: [export, preflight, deploy]
+      approved_sha:
+        required: true
+        type: string
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+jobs:
+  task-leave:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql
+      - name: Capture or publish exact approved delta
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          RELEASE_MODE: ${{ inputs.mode }}
+          RELEASE_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/task-leave-release.py "$RELEASE_MODE" "$RELEASE_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: task-leave-${{ github.run_id }}
+          retention-days: 3
+          path: |
+            task-leave-live-source.zip
+            task-leave-release-report.json
+            task-leave-backup.zip
