@@ -1,4 +1,7 @@
 {
+  "shared/task-admin-edit.php": "94fceb7cdd0cb6d08a0595ba7d47d40fb426d14a2405697e3222511e31c9c2c5",
+  "assets/js/task-admin-edit.js": "75596532f8b6fcc32a1e10d64100233163e8455044fb711b32b23dead256972d",
+  "assets/css/task-admin-edit.css": "363532b2d49634be2fe2e81abf35aa86a263b8d9255729bd9ec55ddba2254491",
   "apps/operations/checklists.php": "181511eb32eeab7d4feaf765fdfe303fc7059f1348e7044b0ed048115aaada45",
   "shared/task-scheduling.php": "38292102696dde25d5e9f242977f785a5f3fe87761c8982bf9defcf0a9e5f05f",
   "shared/task-reminders.php": "fa6f9a3b005a7e1adea1e2cf51c336e166114d8aadb2e850b3ad72ce4cf1f130",
