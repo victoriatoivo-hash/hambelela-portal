@@ -68,6 +68,17 @@ final class DeadlineEngine
  }
  /** Correct recorded completion facts without rewriting responsibility at the original deadline. */
  public function correctTaskCompletion(string $ref,int $employee,string $actual,int $editor,string $reason,int $audit):void {
+    if($employee===0) {
+        $time=Support::timestamp($actual)->format('Y-m-d H:i:s');
+        V2Store::transaction($this->pdo,function()use($ref,$time,$editor,$reason,$audit){
+            $s=$this->pdo->prepare("SELECT * FROM epi_v2_operational_deadlines WHERE module='Tasks' AND object_reference=? AND state IN ('open','breached','needs_attribution') FOR UPDATE");$s->execute([$ref]);
+            foreach($s->fetchAll(PDO::FETCH_ASSOC) as $d) {
+                V2Store::audit($this->pdo,'deadline|'.$d['deadline_uuid'],$editor,$reason,$d,['actual_performer'=>'authenticated_owner','fulfilled_at'=>$time,'management_audit_id'=>$audit]);
+                $this->pdo->prepare("UPDATE epi_v2_operational_deadlines SET fulfilled_at=?,fulfilled_by=NULL,state='fulfilled' WHERE id=?")->execute([$time,$d['id']]);
+                $this->pdo->prepare("UPDATE epi_v2_performance_incidents SET current_risk_state='resolved',resolved_at=? WHERE deadline_uuid=? AND current_risk_state='open'")->execute([$time,$d['deadline_uuid']]);
+            }
+        });return;
+    }
     V2Store::employee($this->pdo,$employee);$time=Support::timestamp($actual)->format('Y-m-d H:i:s');
     V2Store::transaction($this->pdo,function()use($ref,$employee,$time,$editor,$reason,$audit){
         $s=$this->pdo->prepare("SELECT * FROM epi_v2_operational_deadlines WHERE module='Tasks' AND object_reference=? AND obligation_key='complete_task' AND starts_at<=? AND state NOT IN('cancelled','excused') FOR UPDATE");$s->execute([$ref,$time]);
@@ -114,6 +125,19 @@ final class DeadlineEngine
  }
  private function evaluateLocked(array $d,string $detected):string {
     if($d['breach_incident_uuid']||$detected<=$d['breach_eligible_at']||($d['fulfilled_at']&&$d['fulfilled_at']<=$d['breach_eligible_at']))return 'duplicates';
+    if($d['module']==='Tasks') {
+        require_once dirname(__DIR__).'/task-leave.php';
+        $task=V2Store::one($this->pdo,'SELECT * FROM ops_checklist_tasks WHERE id=?',[(int)str_replace('TASK-','',$d['object_reference'])]);
+        if($task) {
+            if(\task_leave_blocked($task)||((\task_completion_actor($task)['kind']??'')==='owner'&&$task['status']==='complete')) return 'duplicates';
+            $availability=\task_leave_data($task);
+            if(!empty($availability['adjusted_deadline'])&&$d['obligation_key']==='complete_task'&&$task['deadline']>$d['due_at']) {
+                $grace=max(0,strtotime($d['breach_eligible_at'])-strtotime($d['due_at']));
+                $d['due_at']=$task['deadline'];$d['breach_eligible_at']=Support::timestamp($task['deadline'])->modify('+'.$grace.' seconds')->format('Y-m-d H:i:s');
+                if($detected<=$d['breach_eligible_at']) return 'duplicates';
+            }
+        }
+    }
     $exception=null;
     if($d['exception_id'])$exception=V2Store::one($this->pdo,"SELECT * FROM epi_v2_exceptions WHERE id=? AND module=? AND object_reference=? AND approved_at<=? AND effective_from<=? AND effective_to>? AND kind='obligation_excusal'",[$d['exception_id'],$d['module'],$d['object_reference'],$d['due_at'],$d['due_at'],$d['due_at']]);
     if($exception){$this->pdo->prepare("UPDATE epi_v2_operational_deadlines SET state='excused' WHERE id=?")->execute([$d['id']]);V2Store::audit($this->pdo,'deadline|'.$d['deadline_uuid'],(int)$exception['approved_by'],'approved exception',$d,$exception);return 'excused';}
@@ -125,7 +149,7 @@ final class DeadlineEngine
     $eligibility=$d['historical_backfill']?'historical_recovered':($fair?'pending_rule':'needs_review');
     $reason=$d['historical_backfill']?'pre_activation':(!$employee?'insufficient_attribution':(!$fair?'insufficient_opportunity':null));
     $hrEvidence=null;
-    if($employee && FrontDeskRoster::enabled($this->pdo)){
+    if($employee && ($d['module']==='Tasks'||FrontDeskRoster::enabled($this->pdo))){
         $hrEvidence=HrAbsenceEvidence::inspect($this->pdo,$this->hr??HrConnection::connect(),$employee,$d['due_at']);
         if($hrEvidence['state']!=='no_approved_absence'){
             $employee=null;$eligibility='needs_review';

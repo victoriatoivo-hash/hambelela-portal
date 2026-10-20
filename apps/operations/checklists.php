@@ -615,6 +615,10 @@ function checklist_task_timing(array $task, ?DateTimeImmutable $now = null): arr
             'due_iso' => $due ? $due->format(DateTimeInterface::ATOM) : '',
         ];
     }
+    if ($status !== 'complete' && task_leave_blocked($task)) {
+        $label=task_leave_label($task);$availability=task_leave_data($task);
+        return ['progress'=>0,'overdue'=>false,'outcome'=>$label,'active_outcome'=>$label,'overdue_minutes'=>0,'due_label'=>$due?$due->format('d M Y · H:i'):'No due date','due_iso'=>'','availability_label'=>$label,'prior_late_minutes'=>$availability['prior_late_minutes']??0];
+    }
     $completed = null; $started = null;
     try { if (!empty($task['date_completed']) || !empty($task['completed_at'])) $completed = new DateTimeImmutable((string) ($task['date_completed'] ?: $task['completed_at']), $timezone); } catch (Throwable $e) {}
     try { if (!empty($task['started_at'])) $started = new DateTimeImmutable((string) $task['started_at'], $timezone); } catch (Throwable $e) {}
@@ -2158,7 +2162,9 @@ $completedEmployeeGroups = [];
 if ($filters['task_view'] === 'completed') {
     foreach ($employees as $employee) $completedEmployeeGroups['employee:' . (int) $employee['id']] = ['id'=>(int)$employee['id'],'name'=>(string)$employee['full_name'],'tasks'=>[], 'months'=>[]];
     foreach ($tasks as $completedTask) {
-        $employeeId = (int) ($completedTask['assigned_employee_id'] ?? 0); $key = $employeeId > 0 ? 'employee:' . $employeeId : 'unassigned';
+        $actor=task_completion_actor($completedTask);
+        if(($actor['kind']??'')==='owner') continue; // Still visible in All Employees, never counted as employee work.
+        $employeeId = (int) ($completedTask['completed_by'] ?: ($completedTask['assigned_employee_id'] ?? 0)); $key = $employeeId > 0 ? 'employee:' . $employeeId : 'unassigned';
         if (!isset($completedEmployeeGroups[$key])) $completedEmployeeGroups[$key] = ['id'=>$employeeId ?: null,'name'=>$employeeId > 0 ? ((string)($completedTask['assigned_name'] ?? '') ?: 'Former employee #' . $employeeId) : 'Unassigned Historical Tasks','tasks'=>[], 'months'=>[]];
         $completedEmployeeGroups[$key]['tasks'][] = $completedTask;
         $completedAt = (string) ($completedTask['date_completed'] ?: $completedTask['completed_at'] ?: $completedTask['created_at'] ?: '');
@@ -4195,6 +4201,7 @@ function initialiseTaskDueStates() {
   const updateCountdown = (countdown, now) => {
     const row=countdown.closest('[data-task-row]'),value=countdown.querySelector('[data-task-countdown-value]');
     if (!value) return;
+    if(row?.dataset.availabilityLabel){value.textContent=row.dataset.availabilityLabel;return;}
     if (row?.dataset.savedStatus==='complete') { value.textContent='Completed'; countdown.classList.add('is-complete'); return; }
     const due=new Date(countdown.dataset.taskDueAt||'');
     if (Number.isNaN(due.getTime())) { value.textContent='No due date'; return; }
@@ -4204,7 +4211,7 @@ function initialiseTaskDueStates() {
   };
   const update = (indicator, now) => {
     const row = indicator.closest('[data-task-row]');
-    if (row?.dataset.savedStatus === 'complete') return null;
+    if (row?.dataset.savedStatus === 'complete' || row?.dataset.availabilityLabel) return null;
     if (false) {
       indicator.replaceWith(document.createTextNode('—'));
       return null;
@@ -4223,7 +4230,7 @@ function initialiseTaskDueStates() {
     const rows=[...root.querySelectorAll('[data-task-row]')],ids=rows.map(row=>row.dataset.taskId).filter(Boolean);if(!ids.length)return;lastTimingSync=Date.now();
     const body=new FormData();body.set('action','task_timing_snapshot');body.set('csrf_token',timingCsrfToken);body.set('task_ids',ids.join(','));
     const version=++timingVersion;
-    timingRequest=(async()=>{try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(version!==timingVersion||!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;const countdown=row.querySelector('[data-task-countdown]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(countdown){countdown.classList.toggle('is-overdue',Boolean(timing.overdue));if(timing.due_iso)countdown.dataset.taskDueAt=timing.due_iso;}if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}finally{timingRequest=null}})();
+    timingRequest=(async()=>{try{const response=await fetch(`${window.location.pathname}${window.location.search}`,{method:'POST',body,headers:{'X-Requested-With':'XMLHttpRequest'}});const result=await response.json();if(version!==timingVersion||!response.ok||result.success!==true)return;rows.forEach(row=>{const timing=result.tasks?.[row.dataset.taskId];if(!timing)return;row.dataset.availabilityLabel=timing.availability_label||'';const countdown=row.querySelector('[data-task-countdown]'),outcome=row.querySelector('[data-task-timing-outcome],[data-task-due-state]'),label=row.dataset.savedStatus==='complete'?timing.outcome:timing.active_outcome;if(countdown){countdown.classList.toggle('is-overdue',Boolean(timing.overdue));countdown.dataset.taskDueAt=timing.due_iso||'';}if(outcome){outcome.textContent=label||'';outcome.classList.toggle('task-due-state--overdue',Boolean(timing.overdue));}});}catch(error){/* Retry through the next safe minute refresh. */}finally{timingRequest=null}})();
     return timingRequest;
   };
   const refresh = () => {

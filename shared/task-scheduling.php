@@ -61,5 +61,7 @@ function task_release_due_scheduled_tasks(): int
             error_log('Scheduled task release failed for task ' . (int) $row['id'] . ': ' . $e->getMessage());
         }
     }
+    require_once __DIR__.'/task-leave.php';
+    task_leave_sync(db());
     return $released;
 }

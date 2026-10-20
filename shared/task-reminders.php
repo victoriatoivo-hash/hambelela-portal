@@ -94,6 +94,8 @@ function notifications_task_reminder_log(string $action, int $taskId, int $emplo
 function notifications_schedule_task_reminders(?int $onlyEmployeeId = null, bool $loginCatchup = false): int
 {
     if (!notifications_task_reminder_migrate()) return 0;
+    require_once __DIR__.'/task-leave.php';
+    task_leave_sync(db());
     $now = notifications_windhoek_now();
     $pdo = db();
     try {
@@ -101,7 +103,7 @@ function notifications_schedule_task_reminders(?int $onlyEmployeeId = null, bool
     } catch (Throwable $ignored) {}
     $releaseFilter = function_exists('ops_column_exists') && ops_column_exists('ops_checklist_tasks', 'scheduled_at') && ops_column_exists('ops_checklist_tasks', 'released_at')
         ? ' AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)' : '';
-    $sql = "SELECT t.id,t.task_name,t.deadline,t.priority,t.assigned_employee_id,e.full_name AS assigned_name
+    $sql = "SELECT t.*,e.full_name AS assigned_name
             FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id=t.assigned_employee_id
             LEFT JOIN ops_checklist_recurring_templates rt ON rt.id=t.recurring_template_id
             WHERE t.assigned_employee_id IS NOT NULL AND t.deadline IS NOT NULL
@@ -113,6 +115,7 @@ function notifications_schedule_task_reminders(?int $onlyEmployeeId = null, bool
     if ($onlyEmployeeId) { $sql .= ' AND t.assigned_employee_id = ?'; $params[] = $onlyEmployeeId; }
     $tasks = ops_rows($sql, $params); $created = 0; $tz = new DateTimeZone('Africa/Windhoek');
     foreach ($tasks as $task) {
+        if (task_leave_blocked($task)) continue;
         $taskId=(int)$task['id']; $employeeId=(int)$task['assigned_employee_id'];
         $due=notifications_task_deadline((string)$task['deadline']);
         $state=notifications_task_deadline_state((string)$task['deadline'],$now);

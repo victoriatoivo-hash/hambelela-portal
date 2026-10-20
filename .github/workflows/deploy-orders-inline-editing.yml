@@ -44,7 +44,7 @@ jobs:
         with:
           node-version: '20'
       - name: Verify Marketing transitions, timers, permissions and popup persistence
-        if: inputs.mode != 'export' && inputs.scope != 'orders-mobile'
+        if: inputs.mode != 'export' && inputs.scope == 'marketing'
         env:
           MARKETING_TEST_DSN: mysql:host=127.0.0.1;port=3306
           MARKETING_TEST_PASSWORD: synthetic-ci-password
@@ -73,6 +73,15 @@ jobs:
           node --check assets/js/packing-list.js
           node --check assets/js/portal-responsive.js
           node tests/mobile-interface-behavior.mjs
+      - name: Verify Task completion and HR availability
+        if: inputs.scope == 'task-leave' && inputs.mode != 'export'
+        env:
+          TASK_TEST_DSN: mysql:host=127.0.0.1;port=3306
+          TASK_TEST_PASSWORD: synthetic-ci-password
+        run: |
+          php tests/task-owner-leave.php
+          node --check assets/js/task-admin-edit.js
+          node --check assets/js/task-essentials.js
       - name: Capture or publish exact isolated files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

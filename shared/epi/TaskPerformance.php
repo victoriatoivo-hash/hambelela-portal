@@ -61,10 +61,12 @@ final class TaskPerformance
         if(isset($filters['employee_id'])&&$filters['employee_id']!==''){$where[]='t.assigned_employee_id=?';$params[]=(int)$filters['employee_id'];}
         if(isset($filters['priority'])&&$filters['priority']!==''){$where[]='t.priority=?';$params[]=(string)$filters['priority'];}
         if(isset($filters['status'])&&$filters['status']!==''){$where[]='t.status=?';$params[]=(string)$filters['status'];}
-        $sql="SELECT t.id,t.task_name,t.status,t.priority,t.deadline,COALESCE(t.released_at,t.date_assigned) date_assigned,t.started_at,t.assigned_employee_id,e.full_name assigned_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id=t.assigned_employee_id WHERE ".implode(' AND ',$where).' ORDER BY COALESCE(t.deadline,\'9999-12-31\'),t.id';
+        $sql="SELECT t.*,COALESCE(t.released_at,t.date_assigned) date_assigned,t.started_at,t.assigned_employee_id,e.full_name assigned_name FROM ops_checklist_tasks t LEFT JOIN ops_employees e ON e.id=t.assigned_employee_id WHERE ".implode(' AND ',$where).' ORDER BY COALESCE(t.deadline,\'9999-12-31\'),t.id';
         $s=$this->pdo->prepare($sql);$s->execute($params);$rows=$s->fetchAll(PDO::FETCH_ASSOC)?:[];$now=new DateTimeImmutable('now');
         $out=['total_open'=>count($rows),'new'=>0,'in_progress'=>0,'due_today'=>0,'overdue'=>0,'urgent_overdue'=>0,'important_overdue'=>0,'business_minutes_overdue'=>0.0,'oldest_new'=>null,'oldest_in_progress'=>null,'oldest_overdue'=>null,'by_priority'=>[]];
         foreach($rows as $r){$status=strtolower((string)$r['status']);$priority=strtolower((string)$r['priority']);$out['by_priority'][$priority]=($out['by_priority'][$priority]??0)+1;if($status==='new'){$out['new']++;if($out['oldest_new']===null)$out['oldest_new']=$r;}if($status==='in_progress'){$out['in_progress']++;if($out['oldest_in_progress']===null)$out['oldest_in_progress']=$r;}
+            require_once dirname(__DIR__).'/task-leave.php';
+            if (\task_leave_blocked($r)) continue;
             $deadline=$this->deadline($r['deadline']??null);if($deadline&&$deadline->format('Y-m-d')===$now->format('Y-m-d'))$out['due_today']++;if($deadline&&$deadline<$now){$out['overdue']++;$delay=Performance::businessMinutes($deadline,$now);$out['business_minutes_overdue']+=$delay;$r['business_minutes_overdue']=$delay;if($priority==='urgent')$out['urgent_overdue']++;if($priority==='important')$out['important_overdue']++;if($out['oldest_overdue']===null)$out['oldest_overdue']=$r;}}
         return $out;
     }

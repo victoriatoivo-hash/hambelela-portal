@@ -29,6 +29,7 @@ final class TaskActivityBridge
             $task = self::task($pdo, $taskId);
             if (!$task) return;
             $actor = self::actor($pdo, isset($input['employee_id']) ? (int)$input['employee_id'] : null);
+            if (($input['completion_actor']['kind']??'')==='owner') $actor=['id'=>null,'name'=>$input['completion_actor']['name'],'department'=>'Owner/Admin'];
             $responsible = self::actor($pdo, isset($task['assigned_employee_id']) ? (int)$task['assigned_employee_id'] : null);
             $at = Support::timestamp($input['changed_at'] ?? $input['occurred_at'] ?? null);
             $reference = 'TASK-' . $taskId;
@@ -187,6 +188,11 @@ final class TaskActivityBridge
 
     private static function candidates(PDO $pdo,string $reference,array $task,array $actor,string $action,DateTimeImmutable $at,array $m,?string $source): void
     {
+        require_once dirname(__DIR__).'/task-leave.php';
+        if (\task_leave_blocked($task)) return;
+        $absence=HrAbsenceEvidence::inspect($pdo,HrConnection::connect(),(int)($actor['id']??0),$at->format('Y-m-d H:i:s'));
+        if($absence['state']!=='no_approved_absence') return;
+        if(!empty($task['deadline'])) { $dueAbsence=HrAbsenceEvidence::inspect($pdo,HrConnection::connect(),(int)($actor['id']??0),self::deadline($task['deadline'])->format('Y-m-d H:i:s')); if($dueAbsence['state']!=='no_approved_absence') return; }
         $rules=[];$priority=strtolower((string)($m['priority']??'normal'));
         $response=self::jsonSetting($pdo,'task_response_minutes',['urgent'=>30,'important'=>90,'normal'=>240]);
         if($action==='task_started'&&is_numeric($m['created_to_started_minutes']??null)&&(float)$m['created_to_started_minutes']>(float)($response[$priority]??$response['normal']))$rules[]=['deduction','late_start'];

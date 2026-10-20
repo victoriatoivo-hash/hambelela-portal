@@ -824,6 +824,8 @@ function notifications_task_popups(int $activeId = 0): array
 {
     $employeeId=notifications_current_employee_id();
     if (!$employeeId || !notifications_schema_ready()) return [];
+    require_once __DIR__.'/task-leave.php';
+    task_leave_sync(db());
     return ops_rows("SELECT n.id,n.title,n.message,n.created_at,n.action_link,n.related_id,n.related_type,n.deadline_state,
         nr.delivered_at,t.task_name,t.deadline AS due_at,t.priority,t.instructions,t.task_mode,t.status,
         creator.full_name AS assigned_by
@@ -833,6 +835,7 @@ function notifications_task_popups(int $activeId = 0): array
         LEFT JOIN ops_employees creator ON creator.id=n.created_by
         WHERE nr.employee_id=? AND t.assigned_employee_id=nr.employee_id AND t.employee_visible=1
         AND (t.scheduled_at IS NULL OR t.released_at IS NOT NULL)
+        AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(t.availability_json,'$.state')),'active') NOT IN ('paused','coverage','review')
         AND t.status IN ('new','in_progress') AND t.archived_at IS NULL AND t.deleted_at IS NULL
         AND (t.recurring_template_id IS NULL OR (rt.is_active=1 AND COALESCE(rt.status,'active')='active'))
         AND nr.read_at IS NULL AND nr.cleared_at IS NULL

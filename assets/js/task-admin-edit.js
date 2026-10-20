@@ -18,7 +18,7 @@
     for(const record of payload.audits){
       const item=textNode('div','task-edit-audit-item',''),before=JSON.parse(record.before_json),after=JSON.parse(record.after_json);
       item.append(textNode('div','task-edit-audit-title',`${record.editor_name} · ${record.correction_type}`),textNode('div','task-edit-audit-meta',`Correction recorded ${record.recorded_at} (Windhoek)`),textNode('p','task-edit-audit-reason',record.reason));
-      const labels={task_name:'Title',instructions:'Instructions',priority:'Priority',deadline:'Due',assigned_employee_id:'Responsible employee',completed_by:'Completed by',completed_at:'Actual completion',completion_evidence_required:'Proof requirement',scheduled_at:'Scheduled release',status:'Status',checked_items:'Checklist',completion_note:'Completion note'};
+      const labels={completion_actor_json:'Performer and recorder',availability_json:'HR availability',availability:'HR availability',task_name:'Title',instructions:'Instructions',priority:'Priority',deadline:'Due',assigned_employee_id:'Responsible employee',completed_by:'Completed by',completed_at:'Actual completion',completion_evidence_required:'Proof requirement',scheduled_at:'Scheduled release',status:'Status',checked_items:'Checklist',completion_note:'Completion note'};
       for(const [key,label] of Object.entries(labels)){if(String(before[key]??'')===String(after[key]??''))continue;const value=v=>['assigned_employee_id','completed_by'].includes(key)?person(form,v):String(v??'Not recorded');item.append(textNode('div','task-edit-audit-change',`${label}: ${value(before[key])} → ${value(after[key])}`));}history.append(item);
     }
   }
@@ -29,9 +29,12 @@
   }
   function populate(form,payload) {
     const task=payload.task;
+    form.elements.complete_myself.checked=false;form.elements.leave_action.value='';
+    const availability=JSON.parse(task.availability_json||'{}');
+    form.querySelector('[data-task-leave-summary]').textContent=availability.state ? `${availability.state} · Original due: ${availability.original_deadline||'Not recorded'} · Adjusted due: ${availability.adjusted_deadline||'Not adjusted'} · Prior late working minutes: ${availability.prior_late_minutes||0}` : 'HR availability is checked automatically.';
     for(const name of ['task_name','instructions','priority','assigned_employee_id','completed_by','status','completion_note','deadline','scheduled_at']){
       const field=form.elements.namedItem(name);if(!field)continue;
-      field.value=String(task[name]??'');field.dispatchEvent(new Event('change',{bubbles:true}));
+      field.value=name==='completed_by' && JSON.parse(task.completion_actor_json||'{}').kind==='owner'?'owner':String(task[name]??'');field.dispatchEvent(new Event('change',{bubbles:true}));
     }
     form.querySelector('[data-edit-rich-surface]').innerHTML=Object.hasOwn(payload,'instructions_html') ? payload.instructions_html : (task.instructions || '');
     form.elements.completion_evidence_required.checked=Boolean(Number(task.completion_evidence_required));
@@ -65,6 +68,8 @@
     const title=panel.querySelector('.task-edit-title');title.id=`task-admin-dialog-title-${panel.dataset.taskPanel}`;panel.setAttribute('aria-labelledby',title.id);
     const form=panel.querySelector('[data-task-admin-form]'),message=form.querySelector('[data-task-admin-message]'),save=panel.querySelector('[data-task-admin-save]'),edit=panel.querySelector('[data-task-admin-edit]');
     initialisePortalDatePickers(panel);initializePortalCustomSelects(panel);
+    form.elements.complete_myself.addEventListener('change',()=>{if(!form.elements.complete_myself.checked)return;form.elements.mark_complete.checked=true;form.elements.completed_by.value='owner';form.elements.completed_by.dispatchEvent(new Event('change',{bubbles:true}));form.elements.correction_type.value='completion';form.elements.correction_type.dispatchEvent(new Event('change',{bubbles:true}));});
+    form.elements.completed_by.addEventListener('change',()=>{if(form.elements.completed_by.value!=='owner')form.elements.complete_myself.checked=false;});
     const surface=form.querySelector('[data-edit-rich-surface]');surface.addEventListener('input',()=>{form.elements.instructions.value=surface.innerHTML.trim();});form.querySelectorAll('[data-edit-rich-command]').forEach(button=>button.addEventListener('click',()=>{surface.focus();document.execCommand(button.dataset.editRichCommand,false);form.elements.instructions.value=surface.innerHTML.trim();}));
     panel.querySelectorAll('[data-task-admin-edit]').forEach(button=>button.addEventListener('click',async()=>{if(edit.disabled)return;panel.querySelectorAll('[data-task-admin-edit]').forEach(b=>{b.disabled=true;b.textContent='Loading…';});try{const payload=await request(form,'task_admin_detail');populate(form,payload);mode(panel,true);save.disabled=false;message.textContent='';form.elements.task_name.focus();}catch(error){mode(panel,true);message.textContent=error.message;save.disabled=true;}finally{panel.querySelectorAll('[data-task-admin-edit]').forEach(b=>{b.disabled=false;b.textContent='Edit Task';});}}));
     bindAudit(panel);
