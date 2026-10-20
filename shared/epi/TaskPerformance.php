@@ -16,7 +16,7 @@ final class TaskPerformance
 
     public function getSummary(array $filters=[]): array
     {
-        $rows=$this->rows($filters,10000);$tasks=[];$started=[];$completed=[];$reopened=[];$cancelled=[];$assigned=[];$manual=[];$recurring=[];
+        $rows=array_values(array_filter($this->rows($filters,10000),function($row){return empty($this->metadata($row)['management_superseded']);}));$tasks=[];$started=[];$completed=[];$reopened=[];$cancelled=[];$assigned=[];$manual=[];$recurring=[];
         $createdStarted=[];$startedCompleted=[];$assignedCompleted=[];$onTime=0;$late=0;$checkRequired=0;$checkGood=0;$noteRequired=0;$noteGood=0;$fileRequired=0;$fileGood=0;$deductions=0;$bonuses=0;
         $priority=[];$categories=[];$firstTimeRight=[];$correctionsCompleted=[];$correctionsOnTime=0;$correctionsLate=0;$repeatCorrections=[];
         foreach($rows as $row){$m=$this->metadata($row);$ref=(string)$row['reference_number'];$tasks[$ref]=true;$action=(string)$row['action'];

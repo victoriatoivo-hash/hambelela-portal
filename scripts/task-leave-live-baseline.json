@@ -1,0 +1,22 @@
+{
+  "apps/operations/checklists.php": "181511eb32eeab7d4feaf765fdfe303fc7059f1348e7044b0ed048115aaada45",
+  "shared/task-scheduling.php": "38292102696dde25d5e9f242977f785a5f3fe87761c8982bf9defcf0a9e5f05f",
+  "shared/task-reminders.php": "fa6f9a3b005a7e1adea1e2cf51c336e166114d8aadb2e850b3ad72ce4cf1f130",
+  "shared/epi/TaskActivityBridge.php": "cebab1590f4ea5ff2d478ca263ae13aae6157d51e25c3812653091bb1e3c673a",
+  "shared/epi/TaskPerformance.php": "cfa405522b82c823bb9a90fd12012cfbc0c6a972dce0d8982f2151fb4c029e63",
+  "assets/js/task-essentials.js": "404ec8219a835a0f839c8238664a003edcbe2d4a5efe4744a3b409c3f40f45bb",
+  "assets/css/task-correction.css": "97ec8bf9df19cc38bef373f70692fd879bc8401a8ccf74669c2e2f1756c0c1ae",
+  "apps/operations/operations.php": "709868816a9b3ba6f7db87452ee120f903974bcbfb9b714918c95dec0907b21f",
+  "apps/operations/task-templates.php": "f07b01341ca7a49a0efc6cfc5f1154ad3d1b877345918ac2c687b36891be0fb2",
+  "shared/task-floating.php": "22881cfed2e18379f935f246f648b7c1413f39037d49e68ad303ed7718c448f0",
+  "shared/notifications.php": "fd7f332a93e95a37264fba96d87066696ec1e4460d54946031851c1fd445c0b6",
+  "shared/epi/HrAbsenceEvidence.php": "339abad44f0da77ff52f3874be7e6496bd6e29d291706eff36ca1340363909c1",
+  "shared/epi/HrConnection.php": "841839b9c320ebd277160d935226a6349e7c47c9bcb149ebc26a18a69a6e0c47",
+  "shared/epi/Performance.php": "28271abcbaee06914e285c2dfedf56331a8df294c7eb49470168700f803ae74e",
+  "shared/epi/DeadlineEngine.php": "4bfb34dc1394a19ffcdae4e97b5fef187c3f2f3689cc5a4aa7107f2a0a08e64c",
+  "shared/epi/bootstrap.php": "854e8530fcd63f49dfe124d9b538a76f98d9418a16f13bf0312313dbcb937191",
+  "assets/css/task-essentials.css": "db7062a2ee7ca69398cd946d561bbc15782744723b65939a9ccb3722b60ffd19",
+  "shared/task-instructions.php": "f25ad1e871533892cab50a63cc16ad046d2470c4b4e7000cacd884ee65dd57fd",
+  "apps/operations/partials/checklist-recurring-tasks.php": "9d5adf3d688e46ef6812b6fc48dae449240902ba54b9d4bdd80680e0a6065681",
+  "apps/operations/partials/checklist-completed-tasks.php": "49bf06c330838a42c13c61514bcd37db1a604ea11cb2a197d0598a45cca21d11"
+}
