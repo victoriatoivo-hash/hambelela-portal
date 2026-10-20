@@ -1,9 +1,9 @@
-"""Approved, source-only capture and hash-guarded Orders mobile delta deployment."""
+"""Approved, source-only capture and hash-guarded Task delta deployment."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('shared/task-admin-edit.php','assets/js/task-admin-edit.js','assets/css/task-admin-edit.css','apps/operations/checklists.php', 'shared/task-scheduling.php', 'shared/task-reminders.php', 'shared/epi/TaskActivityBridge.php', 'shared/epi/TaskPerformance.php', 'assets/js/task-essentials.js', 'assets/css/task-correction.css')
-READ_ONLY = ('apps/operations/operations.php', 'apps/operations/task-templates.php', 'shared/task-floating.php', 'shared/notifications.php', 'shared/epi/HrAbsenceEvidence.php', 'shared/epi/HrConnection.php', 'shared/epi/Performance.php', 'shared/epi/DeadlineEngine.php', 'shared/epi/bootstrap.php', 'assets/css/task-essentials.css', 'shared/task-instructions.php', 'apps/operations/partials/checklist-recurring-tasks.php', 'apps/operations/partials/checklist-completed-tasks.php')
+FILES = ('shared/task-leave.php','apps/operations/partials/checklist-task-table.php','shared/notifications.php','shared/epi/DeadlineEngine.php','shared/task-admin-edit.php','assets/js/task-admin-edit.js','assets/css/task-admin-edit.css','apps/operations/checklists.php', 'shared/task-scheduling.php', 'shared/task-reminders.php', 'shared/epi/TaskActivityBridge.php', 'shared/epi/TaskPerformance.php', 'assets/js/task-essentials.js', 'assets/css/task-correction.css')
+READ_ONLY = ('apps/operations/operations.php', 'apps/operations/task-templates.php', 'shared/task-floating.php', 'shared/epi/HrAbsenceEvidence.php', 'shared/epi/HrConnection.php', 'shared/epi/Performance.php', 'shared/epi/bootstrap.php', 'assets/css/task-essentials.css', 'shared/task-instructions.php', 'apps/operations/partials/checklist-recurring-tasks.php', 'apps/operations/partials/checklist-completed-tasks.php')
 EXPORT_MODULES = FILES + READ_ONLY
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
