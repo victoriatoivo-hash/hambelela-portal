@@ -46,7 +46,7 @@ filters.addEventListener('reset',()=>setTimeout(()=>load(true),0));
 one('[data-si-refresh]').addEventListener('click',()=>load());
 function setBusy(value){busy=value;all('button,input,select',drawer).forEach(el=>{el.disabled=value;});if(form.elements.transport_link_existing.value==='1')['transport_courier','transport_reference','transport_date','transport_amount','transport_currency','transport_rate','transport_vat','transport_method','transport_fx_confirmed'].forEach(name=>{form.elements[name].disabled=true;});}
 function open(kind,title){
- all('select',form).forEach(el=>el.dispatchEvent(new Event('change')));
+ all('select,input[data-portal-date-original-type],input[type="date"]',form).forEach(el=>el.dispatchEvent(new Event('change')));
  mode=kind;returnFocus=document.activeElement;dirty=false;error('');one('[data-si-discard]').hidden=true;
  one('[data-si-upload-panel]').hidden=kind!=='upload';one('[data-si-purchase-panel]').hidden=kind!=='purchase';one('[data-si-history-panel]').hidden=kind!=='history';
  one('[data-si-save]').hidden=kind!=='purchase';one('[data-si-approve]').hidden=kind!=='purchase';

@@ -58,6 +58,9 @@ $olderLine=$line;unset($olderLine['id']);$olderLine['cost_product_id']=$productI
 $pdo->beginTransaction();cw_supplier_save_lines($pdo,$older,[$olderLine]);$pdo->prepare("UPDATE cw_supplier_invoices SET approval_status='approved' WHERE id=?")->execute([$older]);lpc_refresh($pdo,[$older]);$pdo->commit();
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_products')->fetchColumn()===1,'New purchase reuses canonical product');
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_product_sources')->fetchColumn()===2,'Every purchase retained in source history');
+$pdo->exec("INSERT INTO cw_suppliers(name,normalized_name,supplier_type) VALUES('Corrected Supplier','correctedsupplier','Raw Materials')");$correctedSupplier=(int)$pdo->lastInsertId();
+$pdo->prepare("UPDATE cw_supplier_invoices SET supplier_id=?,supplier_name='Corrected Supplier' WHERE id=?")->execute([$correctedSupplier,$invoice]);lpc_refresh($pdo,[$invoice]);
+expect((int)$pdo->query('SELECT supplier_id FROM cw_landed_product_costs ORDER BY id DESC LIMIT 1')->fetchColumn()===$correctedSupplier,'Supplier correction needs a new snapshot even if the amount is unchanged');
 class SupplierTestReply extends RuntimeException { public $payload; public function __construct(array $payload){$this->payload=$payload;} }
 function si_reply(array $payload,int $status=200): void { throw new SupplierTestReply($payload); }
 function si_date($value): ?string { $d=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$value);return $d&&$d->format('Y-m-d')===$value?$value:null; }
