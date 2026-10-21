@@ -137,6 +137,81 @@ function cw_install_schema(PDO $pdo): void
     if ($version < 10) { cw_upgrade_wholesale_pricing_schema_v10($pdo); $version = 10; }
     if ($version < 11) { cw_upgrade_retail_pricing_schema_v11($pdo); $version = 11; }
     if ($version < 12) cw_upgrade_supplier_costs_schema_v12($pdo);
+    if ($version < 13) cw_upgrade_packaging_schema_v13($pdo);
+}
+
+function cw_upgrade_packaging_schema_v13(PDO $pdo): void
+{
+    $columns=[
+        'cw_packaging_items'=>['specification'=>"VARCHAR(190) NOT NULL DEFAULT ''"],
+        'cw_packaging_item_costs'=>[
+            'supplier_name'=>"VARCHAR(190) NULL",'supplier_sku'=>"VARCHAR(120) NULL",
+            'units_per_pack'=>'DECIMAL(18,6) NOT NULL DEFAULT 1','usable_units'=>'DECIMAL(18,6) NULL',
+            'print_yield'=>'DECIMAL(18,6) NULL','printed_label'=>'TINYINT NOT NULL DEFAULT 0',
+            'currency'=>"CHAR(3) NOT NULL DEFAULT 'NAD'",'exchange_rate'=>'DECIMAL(18,8) NOT NULL DEFAULT 1',
+            'fx_confirmed'=>'TINYINT NOT NULL DEFAULT 1','tax_recoverable'=>'TINYINT NOT NULL DEFAULT 1',
+            'freight_ex'=>'DECIMAL(18,8) NOT NULL DEFAULT 0','freight_inc'=>'DECIMAL(18,8) NOT NULL DEFAULT 0',
+            'transport_id'=>'BIGINT UNSIGNED NULL','transport_evidence'=>'JSON NULL',
+            'supersedes_cost_id'=>'BIGINT UNSIGNED NULL','status_key'=>"VARCHAR(40) NOT NULL DEFAULT 'ready'",
+            'request_key'=>'VARCHAR(64) NULL'
+        ],
+        'cw_packaging_setups'=>['supersedes_setup_id'=>'BIGINT UNSIGNED NULL'],
+    ];
+    foreach($columns as $table=>$fields)foreach($fields as $column=>$definition)if(!cw_column_exists($pdo,$table,$column))$pdo->exec("ALTER TABLE $table ADD COLUMN $column $definition");
+    $seed=$pdo->prepare('INSERT IGNORE INTO cw_packaging_types(name) VALUES(?)');
+    foreach(['Tub','Lid','Ribbon'] as $name)$seed->execute([$name]);
+    $pdo->exec("INSERT INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES('schema_version','13','system') ON DUPLICATE KEY UPDATE setting_value='13',updated_by_name='system'");
+}
+
+/** Purchase packages are not usable units; a ribbon unit is one printed-label equivalent. */
+function cw_packaging_calculate(array $b,string $type,float $vatRate): array
+{
+    foreach(['purchase_quantity','units_per_pack','amount_entered','exchange_rate'] as $key){
+        if(!isset($b[$key])||!is_numeric($b[$key])||!is_finite((float)$b[$key])||(float)$b[$key]<0)throw new DomainException('Enter a valid '.$key.'.');
+    }
+    $qty=(float)$b['purchase_quantity'];$pack=(float)$b['units_per_pack'];$amount=(float)$b['amount_entered'];
+    if($qty<=0||$pack<=0)throw new DomainException('Purchase quantity and units per pack must be greater than zero.');
+    $currency=strtoupper((string)($b['currency']??'NAD'));$rate=$currency==='NAD'?1:(float)$b['exchange_rate'];
+    if(!preg_match('/^[A-Z]{3}$/',$currency)||$rate<=0||($currency!=='NAD'&&empty($b['fx_confirmed'])))throw new DomainException('Confirm the source currency and exchange rate to NAD.');
+    $basis=$b['cost_basis']??'';$vat=$b['vat_treatment']??'';
+    if(!in_array($basis,['inclusive','exclusive'],true)||!in_array($vat,['standard','zero_rated','exempt'],true))throw new DomainException('Confirm VAT treatment and cost basis.');
+    $factor=1+($vat==='standard'?$vatRate:0)/100;
+    $net=($basis==='inclusive'?$amount/$factor:$amount)*$rate;$gross=($basis==='inclusive'?$amount:$amount*$factor)*$rate;
+    if(empty($b['tax_recoverable']))$net=$gross;
+    $units=$qty*$pack;$status='ready';$yield=null;
+    if(strcasecmp($type,'Ribbon')===0){$yield=is_numeric($b['print_yield']??null)?(float)$b['print_yield']:0;if($yield<=0||!is_finite($yield)){$status='print_yield_required';$units=0;}else $units*=$yield;}
+    if(!is_finite($units)||$units>1e12)throw new DomainException('Usable quantity is outside the supported range.');
+    return ['cost_ex_vat'=>$net,'cost_inc_vat'=>$gross,'usable_units'=>$units?:null,'unit_cost_ex_vat'=>$units?$net/$units:0,'unit_cost_inc_vat'=>$units?$gross/$units:0,'status_key'=>$status,'print_yield'=>$yield,'exchange_rate'=>$rate];
+}
+
+function cw_packaging_cost(PDO $pdo,int $item,string $date): ?array
+{
+    $q=$pdo->prepare('SELECT c.*,i.item_name,i.specification,i.active,t.name packaging_type FROM cw_packaging_items i JOIN cw_packaging_types t ON t.id=i.packaging_type_id JOIN cw_packaging_item_costs c ON c.packaging_item_id=i.id WHERE i.id=? AND c.effective_date<=? ORDER BY c.effective_date DESC,c.id DESC LIMIT 1');$q->execute([$item,$date]);$c=$q->fetch();
+    if(!$c)return null;
+    $units=$c['usable_units']===null?(float)$c['purchase_quantity']:(float)$c['usable_units'];
+    if($c['status_key']!=='ready'||$units<=0){$c['landed_ex']=$c['landed_inc']=null;return $c;}
+    $c['freight_unit_ex']=(float)$c['freight_ex']/$units;$c['freight_unit_inc']=(float)$c['freight_inc']/$units;
+    $c['landed_ex']=(float)$c['unit_cost_ex_vat']+$c['freight_unit_ex'];$c['landed_inc']=(float)$c['unit_cost_inc_vat']+$c['freight_unit_inc'];return $c;
+}
+
+function cw_packaging_setup_cost(PDO $pdo,int $setup,string $date): array
+{
+    $q=$pdo->prepare('SELECT * FROM cw_packaging_setups WHERE id=? AND effective_date<=?');$q->execute([$setup,$date]);$s=$q->fetch();if(!$s)throw new DomainException('Packaging setup is not effective on this date.');
+    $q=$pdo->prepare('SELECT * FROM cw_packaging_setup_components WHERE packaging_setup_id=? ORDER BY display_order,id');$q->execute([$setup]);$rows=$q->fetchAll();
+    $ex=0;$inc=0;$supplier=0;$freight=0;$waste=0;$missing=[];$printed=false;$ribbon=false;
+    foreach($rows as &$r){$c=cw_packaging_cost($pdo,(int)$r['packaging_item_id'],$date);$r['material']=$c;$m=(float)$r['quantity']*(1+(float)$r['waste_percent']/100);
+        if(!$c||!$c['active']||$c['landed_ex']===null){$missing[]=$c['item_name']??('Material '.$r['packaging_item_id']);continue;}
+        $printed=$printed||($c['packaging_type']==='Label'&&!empty($c['printed_label']));$ribbon=$ribbon||$c['packaging_type']==='Ribbon';
+        $r['current_ex']=$m*$c['landed_ex'];$r['current_inc']=$m*$c['landed_inc'];$ex+=$r['current_ex'];$inc+=$r['current_inc'];
+        $supplier+=(float)$r['quantity']*(float)$c['unit_cost_ex_vat'];$freight+=(float)$r['quantity']*$c['freight_unit_ex'];$waste+=(float)$r['quantity']*(float)$r['waste_percent']/100*$c['landed_ex'];
+    }unset($r);
+    if(!$rows)$missing[]='Components required';if($printed&&$ribbon)$missing[]='Printed labels already include printing; remove duplicate ribbon or use unprinted labels.';
+    return array_merge($s,['components'=>$rows,'component_count'=>count($rows),'complete'=>!$missing,'missing'=>$missing,'cost_ex_vat'=>$missing?null:$ex,'cost_inc_vat'=>$missing?null:$inc,'supplier_cost'=>$supplier,'freight_cost'=>$freight,'waste_cost'=>$waste]);
+}
+
+function cw_packaging_current_setups(PDO $pdo,string $date): array
+{
+    $q=$pdo->prepare("SELECT s.id FROM cw_packaging_setups s WHERE s.active=1 AND s.effective_date<=? AND NOT EXISTS(SELECT 1 FROM cw_packaging_setups n WHERE n.active=1 AND n.size_conversion_id=s.size_conversion_id AND n.scope_type=s.scope_type AND n.scope_reference=s.scope_reference AND n.effective_date<=? AND (n.effective_date>s.effective_date OR(n.effective_date=s.effective_date AND n.id>s.id))) ORDER BY FIELD(s.scope_type,'product','category','default'),s.setup_name");$q->execute([$date,$date]);$out=[];foreach($q->fetchAll(PDO::FETCH_COLUMN) as $id)$out[]=cw_packaging_setup_cost($pdo,(int)$id,$date);return $out;
 }
 
 function cw_upgrade_supplier_costs_schema_v12(PDO $pdo): void
@@ -273,6 +348,11 @@ function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, arra
     return $valid;
 }
 
+function cw_packaging_freight_claimed(PDO $pdo,int $transport): float
+{
+    $q=$pdo->prepare('SELECT c.transport_evidence FROM cw_packaging_item_costs c WHERE c.transport_id=? AND NOT EXISTS(SELECT 1 FROM cw_packaging_item_costs n WHERE n.supersedes_cost_id=c.id)');$q->execute([$transport]);$sum=0;foreach($q->fetchAll() as $c){$e=json_decode($c['transport_evidence']??'{}',true);$sum+=(float)($e['source_amount']??0);}return round($sum,2);
+}
+
 function cw_transport_save(PDO $pdo, array $body): array
 {
     $owned = !$pdo->inTransaction();
@@ -303,6 +383,9 @@ function cw_transport_save(PDO $pdo, array $body): array
             if (!$before || $before['allocation_status']==='archived') throw new DomainException('Transport record is unavailable.');
             $q=$pdo->prepare('SELECT p.* FROM cw_transport_product_allocations p JOIN cw_transport_allocations a ON a.id=p.transport_allocation_id WHERE a.transport_id=? ORDER BY p.id');$q->execute([$id]);$previousProducts=$q->fetchAll();
         }
+        $claimed=$id?cw_packaging_freight_claimed($pdo,$id):0;
+        if($claimed>0 && ($currency!==$before['currency'] || $treatment!==$before['vat_treatment'] || abs((float)($body['exchange_rate']??1)-(float)($before['exchange_rate']??1))>.00000001))throw new DomainException('Packaging allocations already use this VAT/currency basis. Review their source evidence before changing it.');
+        $budget=$allocable-$claimed;if($budget<-.001)throw new DomainException('Transport amount is below its existing packaging allocations.');
         $links=(array)($body['allocations']??[]); $weights=[]; $invoiceIds=[]; $lineGroups=[];
         foreach ($links as $link) {
             $invoiceId=(int)($link['supplier_invoice_id']??0);
@@ -333,24 +416,24 @@ function cw_transport_save(PDO $pdo, array $body): array
         }
         $shares=[];
         if ($links) {
-            if ($method==='by_weight') $shares=cw_shipping_allocation($allocable,$weights);
-            elseif ($method==='equal_split') $shares=cw_shipping_allocation($allocable,array_fill_keys(array_keys($invoiceIds),1));
+            if ($method==='by_weight') $shares=cw_shipping_allocation($budget,$weights);
+            elseif ($method==='equal_split') $shares=cw_shipping_allocation($budget,array_fill_keys(array_keys($invoiceIds),1));
             else {
                 $totalPercent=0;
                 foreach ($links as $link) {
                     $value=cw_decimal($link['value']??null);
                     if ($value===null || (float)$value<0) throw new DomainException('Confirm every allocation amount.');
                     $totalPercent+=(float)$value;
-                    $shares[(int)$link['supplier_invoice_id']]=round($method==='percentage'?$allocable*(float)$value/100:(float)$value,2);
+                    $shares[(int)$link['supplier_invoice_id']]=round($method==='percentage'?$budget*(float)$value/100:(float)$value,2);
                 }
                 if ($method==='percentage') {
                     if (abs($totalPercent-100)>.000001) throw new DomainException('Allocation percentages must total 100%.');
                     $positive=[]; foreach ($links as $link) if ((float)$link['value']>0) $positive[(int)$link['supplier_invoice_id']]=(float)$link['value'];
-                    $shares=cw_shipping_allocation($allocable,$positive)+$shares;
+                    $shares=cw_shipping_allocation($budget,$positive)+$shares;
                 }
             }
         }
-        if (array_sum($shares)>$allocable+.001) throw new DomainException('Allocated freight exceeds available freight.');
+        if (array_sum($shares)>$budget+.001) throw new DomainException('Allocated freight exceeds available freight after packaging allocations.');
         $rate=$currency==='NAD'?1:cw_decimal($body['exchange_rate']??null);
         $fx=$currency==='NAD' || (!empty($body['fx_confirmed']) && (float)$rate>0);
         $values=[$name,$reference,$date,$currency,$net,$vat,$including?$amount:(float)$amount+(float)$vat,$other,$treatment,$allocable,array_sum($weights)?:null,'Product shipping weights',$method,trim((string)($body['notes']??'')),$rate,$fx?1:0,$actor['id'],$actor['name']];
@@ -377,8 +460,8 @@ function cw_transport_save(PDO $pdo, array $body): array
                 $pdo->prepare('INSERT INTO cw_transport_product_allocations(transport_allocation_id,supplier_invoice_line_id,quantity_snapshot,pack_size_snapshot,base_quantity_snapshot,base_unit_snapshot,shipping_weight_kg_snapshot,calculated_amount,transport_cost_per_base) VALUES(?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE quantity_snapshot=VALUES(quantity_snapshot),pack_size_snapshot=VALUES(pack_size_snapshot),base_quantity_snapshot=VALUES(base_quantity_snapshot),base_unit_snapshot=VALUES(base_unit_snapshot),shipping_weight_kg_snapshot=VALUES(shipping_weight_kg_snapshot),calculated_amount=VALUES(calculated_amount),transport_cost_per_base=VALUES(transport_cost_per_base)')->execute([$aid,$line['id'],$line['quantity'],$line['pack_size'],$line['base_quantity'],$line['base_unit'],$line['shipping_weight_kg'],$piece,$piece/$base]);
             }
         }
-        $allocated=array_sum($shares); $remaining=round($allocable-$allocated,2);
-        $status=!$shares?'unlinked':($remaining<.005 && $fx && $treatment!=='unconfirmed'?'fully_allocated':'partial');
+        $allocated=array_sum($shares)+$claimed; $remaining=round($allocable-$allocated,2);
+        $status=!$shares&&!$claimed?'unlinked':($remaining<.005 && $fx && $treatment!=='unconfirmed'?'fully_allocated':'partial');
         $pdo->prepare('UPDATE cw_transport_records SET allocation_status=? WHERE id=?')->execute([$status,$id]);
         $pdo->prepare('INSERT INTO cw_transport_audit(transport_id,action_key,before_json,after_json,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,'allocation_saved',json_encode(['record'=>$before,'allocations'=>$oldAllocations,'product_allocations'=>$previousProducts]),json_encode(['request'=>$body,'allocated'=>$allocated,'remaining'=>$remaining]),$actor['id'],$actor['name']]);
         lpc_refresh($pdo,array_keys($invoiceIds));

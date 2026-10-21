@@ -3,7 +3,7 @@ import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
 BASELINE = 'ec8bdde3'
-FILES = ['shared/cost-workbook-packaging-costs.php', 'apps/cost-manager/packaging-costs-api.php', 'assets/js/packaging-costs.js', 'assets/css/cost-workbook-packaging-costs-v2.css', 'shared/cost-workbook-page-shell.php', 'shared/cost-workbook.php', 'apps/cost-manager/retail-pricing-api.php', 'apps/cost-manager/wholesale-pricing-api.php']
+FILES = ['shared/cost-workbook-packaging-costs.php', 'apps/cost-manager/packaging-costs-api.php', 'assets/js/packaging-costs.js', 'assets/css/cost-workbook-packaging-costs-v2.css', 'shared/cost-workbook-page-shell.php', 'shared/cost-workbook.php', 'apps/cost-manager/retail-pricing-api.php', 'apps/cost-manager/wholesale-pricing-api.php', 'apps/cost-manager/transport-costs-api.php']
 DEPENDENCIES = ['apps/cost-manager/packaging-costs.php', 'apps/cost-manager/workbook-page.php']
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return hashlib.sha256(data).hexdigest()
