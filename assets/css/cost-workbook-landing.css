@@ -28,6 +28,7 @@
   --sc-border: #E4E6DC;
   --sc-shadow: 0 5px 20px rgba(38,49,31,.045);
 
+  --cw-primary: #344126;
   --cw-text: #1C2118;
   --cw-muted: #62675E;
   --cw-burgundy: #344126;
@@ -144,7 +145,7 @@
 #costWorkbook[data-page="size-conversions"]
 .size-conversions__add-button,
 #costWorkbook[data-page="size-conversions"]
-.size-conversions__save-button {
+.size-conversions__drawer .size-conversions__save-button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -175,7 +176,7 @@
 #costWorkbook[data-page="size-conversions"]
 .size-conversions__add-button:hover,
 #costWorkbook[data-page="size-conversions"]
-.size-conversions__save-button:hover {
+.size-conversions__drawer .size-conversions__save-button:hover {
   background: var(--sc-deep);
   border-color: var(--sc-deep);
   color: #FFFFFF;
@@ -502,7 +503,7 @@
 
 /* Header */
 
-.size-conversions__drawer-header {
+.size-conversions__drawer .size-conversions__drawer-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -514,21 +515,21 @@
   background: #FFFFFF;
 }
 
-.size-conversions__drawer-title {
+.size-conversions__drawer .size-conversions__drawer-title {
   margin: 0;
   color: var(--sc-text);
 
   font: 600 21px/1.25 "Jost",sans-serif;
 }
 
-.size-conversions__drawer-description {
+.size-conversions__drawer .size-conversions__drawer-description {
   margin: 7px 0 0;
   color: var(--sc-secondary);
 
   font: 400 11.5px/1.5 "Jost",sans-serif;
 }
 
-.size-conversions__drawer-close {
+.size-conversions__drawer .size-conversions__drawer-close {
   width: 32px;
   height: 32px;
   flex: 0 0 32px;
@@ -547,14 +548,14 @@
   cursor: pointer;
 }
 
-.size-conversions__drawer-close svg {
+.size-conversions__drawer .size-conversions__drawer-close svg {
   width: 15px;
   height: 15px;
 }
 
 /* Form body + fixed footer */
 
-.size-conversions__form {
+.size-conversions__drawer .size-conversions__form {
   min-height: 0;
 
   display: grid;
@@ -636,7 +637,7 @@
    FORM FIELDS
    -------------------- */
 
-.size-conversions__field {
+.size-conversions__drawer .size-conversions__field {
   display: flex;
   flex-direction: column;
   gap: 7px;
@@ -644,16 +645,17 @@
   min-width: 0;
 }
 
-.size-conversions__field label {
+.size-conversions__drawer .size-conversions__field label {
   color: var(--sc-text);
   font: 500 11px/1.35 "Jost",sans-serif;
 }
 
-.size-conversions__field
+.size-conversions__drawer .size-conversions__field
 :is(input,select) {
   width: 100%;
   min-width: 0;
   height: 42px;
+  margin: 0;
 
   padding: 0 12px;
 
@@ -672,14 +674,14 @@
     box-shadow .16s ease;
 }
 
-.size-conversions__field
+.size-conversions__drawer .size-conversions__field
 :is(input,select):focus {
   border-color: #7C8B68;
   box-shadow:
     0 0 0 3px rgba(89,105,74,.11);
 }
 
-.size-conversions__field input[readonly] {
+.size-conversions__drawer .size-conversions__field input[readonly] {
   background: #F8F9F6;
   color: var(--sc-text);
   cursor: default;
@@ -692,13 +694,13 @@
 
 /* Error message */
 
-.size-conversions__field-error {
+.size-conversions__drawer .size-conversions__field-error {
   margin: 0;
   color: #A33E38;
   font: 400 11px/1.45 "Jost",sans-serif;
 }
 
-.size-conversions__field-error:empty {
+.size-conversions__drawer .size-conversions__field-error:empty {
   display: none;
 }
 
@@ -706,7 +708,7 @@
    DRAWER FOOTER
    -------------------- */
 
-.size-conversions__drawer-actions {
+.size-conversions__drawer .size-conversions__drawer-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -721,7 +723,7 @@
   background: #FFFFFF;
 }
 
-.size-conversions__cancel-button {
+.size-conversions__drawer .size-conversions__cancel-button {
   min-height: 40px;
   padding: 0 16px;
 
@@ -735,11 +737,11 @@
   cursor: pointer;
 }
 
-.size-conversions__cancel-button:hover {
+.size-conversions__drawer .size-conversions__cancel-button:hover {
   background: var(--sc-soft);
 }
 
-.size-conversions__save-button {
+.size-conversions__drawer .size-conversions__save-button {
   min-height: 40px;
   padding: 0 17px;
 
@@ -753,11 +755,11 @@
   cursor: pointer;
 }
 
-.size-conversions__save-button:hover {
+.size-conversions__drawer .size-conversions__save-button:hover {
   background: var(--sc-deep);
 }
 
-.size-conversions__save-button:disabled {
+.size-conversions__drawer .size-conversions__save-button:disabled {
   opacity: .55;
   cursor: wait;
 }

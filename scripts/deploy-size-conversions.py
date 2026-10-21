@@ -2,7 +2,7 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '3e2836169f2e9342a60159cf17e95c1fa580dd9f'
+BASELINE = 'bd03c17e'
 FILES = ['assets/css/cost-workbook-landing.css', 'assets/js/size-conversions.js', 'shared/cost-workbook-sections.php']
 DEPENDENCIES = ['apps/cost-manager/size-conversions.php', 'apps/cost-manager/workbook-page.php', 'shared/cost-workbook-page-shell.php', 'apps/cost-manager/size-conversions-api.php', 'shared/cost-workbook-size-conversions.php']
 def git(*args): return subprocess.check_output(['git', *args])
