@@ -21,7 +21,19 @@ function lpc_source_cost(array $line): ?float
     if (empty($line['fx_confirmed']) || $rate <= 0) return null;
     return (float)$amount * $rate;
 }
-function lpc_snapshot(PDO $pdo,int $productId,int $sourceId,?int $supplierId,?int $lineId,?int $transportProductId,string $basis,string $unit,float $qty,float $supplier,float $transport,string $currency,string $date,string $status):bool{$spb=$qty>0?$supplier/$qty:0;$tpb=$qty>0?$transport/$qty:0;$hash=hash('sha256',implode('|',[$productId,$sourceId,$lineId?:0,$transportProductId?:0,$basis,$unit,sprintf('%.8F',$qty),sprintf('%.8F',$supplier),sprintf('%.8F',$transport),$currency,$date,$status]));$st=$pdo->prepare('SELECT COUNT(*) FROM cw_landed_product_costs WHERE calculation_hash=?');$st->execute([$hash]);if((int)$st->fetchColumn())return false;$v=$pdo->prepare('SELECT COALESCE(MAX(calculation_version),0)+1 FROM cw_landed_product_costs WHERE product_source_id=?');$v->execute([$sourceId]);$version=(int)$v->fetchColumn();$u=lpc_user();$pdo->prepare('INSERT INTO cw_landed_product_costs(product_id,product_source_id,supplier_id,supplier_invoice_line_id,transport_product_allocation_id,costing_basis,base_unit,base_quantity,supplier_cost_used,transport_cost_used,supplier_cost_per_base,transport_cost_per_base,landed_cost_per_base,currency,cost_date,status_key,calculation_version,calculation_hash,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$productId,$sourceId,$supplierId,$lineId,$transportProductId,$basis,$unit,$qty,$supplier,$transport,$spb,$tpb,$spb+$tpb,$currency,$date,$status,$version,$hash,$u['id'],$u['name']]);return true;}
+function lpc_snapshot(PDO $pdo,int $productId,int $sourceId,?int $supplierId,?int $lineId,?int $transportProductId,string $basis,string $unit,float $qty,float $supplier,float $transport,string $currency,string $date,string $status): bool
+{
+    $q=$pdo->prepare('SELECT * FROM cw_landed_product_costs WHERE product_source_id=? ORDER BY calculation_version DESC,id DESC LIMIT 1 FOR UPDATE');
+    $q->execute([$sourceId]);$previous=$q->fetch();
+    $signature=function(array $r):string {return implode('|',[(int)$r['product_id'],(int)$r['product_source_id'],(int)($r['supplier_invoice_line_id']??0),(int)($r['transport_product_allocation_id']??0),$r['costing_basis'],$r['base_unit'],sprintf('%.8F',$r['base_quantity']),sprintf('%.8F',$r['supplier_cost_used']),sprintf('%.8F',$r['transport_cost_used']),$r['currency'],$r['cost_date'],$r['status_key']]);};
+    $values=['product_id'=>$productId,'product_source_id'=>$sourceId,'supplier_invoice_line_id'=>$lineId,'transport_product_allocation_id'=>$transportProductId,'costing_basis'=>$basis,'base_unit'=>$unit,'base_quantity'=>$qty,'supplier_cost_used'=>$supplier,'transport_cost_used'=>$transport,'currency'=>$currency,'cost_date'=>$date,'status_key'=>$status];
+    if($previous && $signature($previous)===$signature($values))return false;
+    $version=$previous?(int)$previous['calculation_version']+1:1;
+    $hash=hash('sha256',$signature($values).'|revision:'.$version);
+    $actor=lpc_user();
+    $pdo->prepare('INSERT INTO cw_landed_product_costs(product_id,product_source_id,supplier_id,supplier_invoice_line_id,transport_product_allocation_id,costing_basis,base_unit,base_quantity,supplier_cost_used,transport_cost_used,supplier_cost_per_base,transport_cost_per_base,landed_cost_per_base,currency,cost_date,status_key,calculation_version,calculation_hash,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$productId,$sourceId,$supplierId,$lineId,$transportProductId,$basis,$unit,$qty,$supplier,$transport,$supplier/$qty,$transport/$qty,($supplier+$transport)/$qty,$currency,$date,$status,$version,$hash,$actor['id'],$actor['name']]);
+    return true;
+}
 function lpc_refresh(PDO $pdo): array
 {
     $owned = !$pdo->inTransaction();
@@ -278,6 +290,17 @@ function cw_transport_save(PDO $pdo, array $body): array
             if (!$q->fetchColumn()) throw new DomainException('Linked supplier invoice is unavailable.');
             $q=$pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND active=1 ORDER BY id FOR UPDATE'); $q->execute([$invoiceId]);
             $productRows=$q->fetchAll(); if (!$productRows) throw new DomainException('The linked purchase has no eligible products.');
+            foreach ($productRows as &$productLine) {
+                $key=(int)$productLine['id'];
+                if (array_key_exists($key,(array)($body['product_weights']??[]))) {
+                    $confirmed=cw_decimal($body['product_weights'][$key]);
+                    if ($confirmed===null || (float)$confirmed<=0) throw new DomainException('Confirm a positive shipping weight for each product.');
+                    cw_supplier_cost_audit($pdo,'supplier_invoice_line',$key,'shipping_weight_confirmed',['shipping_weight_kg'=>$productLine['shipping_weight_kg']],['shipping_weight_kg'=>$confirmed]);
+                    $pdo->prepare('UPDATE cw_supplier_invoice_lines SET shipping_weight_kg=? WHERE id=?')->execute([$confirmed,$key]);
+                    $productLine['shipping_weight_kg']=$confirmed;
+                }
+            }
+            unset($productLine);
             $lineGroups[$invoiceId]=$productRows;
             $weights[$invoiceId]=0;
             foreach ($productRows as $line) {

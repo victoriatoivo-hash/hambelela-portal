@@ -47,4 +47,20 @@ expect((int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchCo
 $pdo->prepare('UPDATE cw_supplier_invoice_lines SET shipping_weight_kg=NULL WHERE id=?')->execute([$id]);
 try {cw_transport_save($pdo,$transport);throw new RuntimeException('Missing weight silently allocated');}catch(DomainException $expected){}
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_transport_product_allocations')->fetchColumn()===1,'Rejected save must retain freight');
+// Exercise the actual list handler SQL, not a separately reimplemented query.
+class SupplierTestReply extends RuntimeException { public $payload; public function __construct(array $payload){$this->payload=$payload;} }
+function si_reply(array $payload,int $status=200): void { throw new SupplierTestReply($payload); }
+function si_date($value): ?string { $d=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$value);return $d&&$d->format('Y-m-d')===$value?$value:null; }
+$api=file_get_contents(BASE_PATH.'/apps/cost-manager/supplier-invoices-api.php');
+$begin=strpos($api," if(in_array(\$action,['list','selection'],true)){");
+$end=strpos($api," if(\$action==='products'){",$begin);
+expect($begin!==false&&$end!==false,'List handler test boundaries');
+eval('function supplier_test_list(PDO $pdo,string $action){'.substr($api,$begin,$end-$begin).'}');
+$_GET=[];
+try {supplier_test_list($pdo,'list');throw new RuntimeException('No list response');}catch(SupplierTestReply $response){
+ expect($response->payload['total']===1,'One current row per canonical product');
+ expect((float)$response->payload['rows'][0]['landed_cost_per_base']===120.0,'Current sheet shows calculated cost');
+}
+$_GET=['from'=>'2026-10-07'];
+try {supplier_test_list($pdo,'list');throw new RuntimeException('No filtered list response');}catch(SupplierTestReply $response){expect($response->payload['total']===0,'Effective date filter applies to selected current source');}
 echo "Supplier costs integration: stable IDs, canonical products, audit, freight, FX, rollback and idempotency passed.\n";

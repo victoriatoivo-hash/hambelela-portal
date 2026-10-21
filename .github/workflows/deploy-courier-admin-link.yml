@@ -47,11 +47,20 @@ jobs:
           php -l apps/cost-manager/supplier-invoices-api.php
           php -l apps/cost-manager/landed-product-costs-api.php
           php tests/supplier-costs-workflow.php
+          node --check assets/js/supplier-invoices-v2.js
+          node --check assets/js/transport-costs.js
+          php -l shared/cost-workbook-supplier-invoices.php
+          php -l shared/cost-workbook-page-shell.php
+          php -l apps/cost-manager/transport-costs-api.php
           php -l shared/cost-workbook-sections.php
           node --check assets/js/size-conversions.js
           node tests/cost-workbook-size-conversions-static.mjs
           node tests/size-conversions-interactions.mjs
           php tests/size-conversions-values.php
+      - name: Drawer interaction tests (disposable DOM, no live records)
+        run: |
+          npm install --prefix "$RUNNER_TEMP/supplier-ui" --no-audit --no-fund jsdom@24.1.3
+          NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/supplier-costs-ui.cjs
       - name: Hash guarded delta with targeted backup and rollback
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
@@ -61,9 +70,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: size-conversions-release-${{ github.run_id }}
+          name: supplier-costs-release-${{ github.run_id }}
           path: |
-            size-conversions-deployment-report.json
-            size-conversions-deployment-backup.zip
+            supplier-costs-deployment-report.json
+            supplier-costs-deployment-backup.zip
           retention-days: 3
           if-no-files-found: ignore

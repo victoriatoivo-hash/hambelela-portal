@@ -3,7 +3,7 @@ import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
 BASELINE = 'be5b2c50'
-FILES = ['shared/cost-workbook-supplier-invoices.php', 'apps/cost-manager/supplier-invoices-api.php', 'assets/js/supplier-invoices-v2.js', 'assets/css/cost-workbook-supplier-invoices.css', 'shared/cost-workbook-page-shell.php', 'shared/cost-workbook-transport-costs.php', 'apps/cost-manager/transport-costs-api.php', 'apps/cost-manager/landed-product-costs-api.php', 'shared/cost-workbook.php']
+FILES = ['shared/cost-workbook-supplier-invoices.php', 'apps/cost-manager/supplier-invoices-api.php', 'assets/js/supplier-invoices-v2.js', 'assets/js/transport-costs.js', 'assets/css/cost-workbook-supplier-invoices.css', 'shared/cost-workbook-page-shell.php', 'shared/cost-workbook-transport-costs.php', 'apps/cost-manager/transport-costs-api.php', 'apps/cost-manager/landed-product-costs-api.php', 'shared/cost-workbook.php']
 DEPENDENCIES = ['apps/cost-manager/supplier-invoices.php', 'apps/cost-manager/workbook-page.php']
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return hashlib.sha256(data).hexdigest()
@@ -36,7 +36,7 @@ try:
     report['state']='preflight-pass'
     if mode=='deploy':
         changed=[p for p in FILES if before[p].replace(b'\r\n',b'\n')!=desired[p].replace(b'\r\n',b'\n')]
-        with zipfile.ZipFile('size-conversions-deployment-backup.zip','w',zipfile.ZIP_DEFLATED) as backup:
+        with zipfile.ZipFile('supplier-costs-deployment-backup.zip','w',zipfile.ZIP_DEFLATED) as backup:
             for p in changed: backup.writestr(p,before[p])
             backup.writestr('manifest.json',json.dumps(report))
         attempted=[]
@@ -53,6 +53,6 @@ try:
             report['state']='rolled-back';raise
         report['state']='deployed-and-verified';report['changed']=changed
 finally:
-    Path('size-conversions-deployment-report.json').write_text(json.dumps(report,indent=2))
+    Path('supplier-costs-deployment-report.json').write_text(json.dumps(report,indent=2))
     print(json.dumps(report))
     ftp.quit()

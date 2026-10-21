@@ -54,6 +54,49 @@ try{
   $id=(int)($_GET['product_id']??0);$q=$pdo->prepare('SELECT c.*,s.supplier_name,s.manual_reference,i.invoice_number FROM cw_landed_product_costs c JOIN cw_cost_product_sources s ON s.id=c.product_source_id LEFT JOIN cw_supplier_invoice_lines l ON l.id=c.supplier_invoice_line_id LEFT JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE c.product_id=? ORDER BY c.cost_date DESC,c.id DESC');$q->execute([$id]);$rows=$q->fetchAll();
   $audit=$pdo->prepare("SELECT * FROM cw_cost_audit_events WHERE (entity_type='supplier_invoice_line' AND entity_id IN(SELECT supplier_invoice_line_id FROM cw_cost_product_sources WHERE product_id=?)) OR (entity_type='cost_product' AND entity_id=?) ORDER BY occurred_at DESC,id DESC");$audit->execute([$id,$id]);si_reply(['rows'=>$rows,'audit'=>$audit->fetchAll()]);
  }
+ if($action==='inline'){
+  cw_require_admin();$b=si_body();$pid=(int)($b['product_id']??0);$sourceId=(int)($b['source_id']??0);$field=(string)($b['field']??'');$value=trim((string)($b['value']??''));
+  $allowed=['product_name','product_category','short_code','supplier_name','supplier_type','invoice_number','quantity','line_subtotal'];if(!in_array($field,$allowed,true))throw new DomainException('This field is calculated or cannot be edited inline.');
+  $pdo->beginTransaction();$q=$pdo->prepare('SELECT * FROM cw_cost_products WHERE id=? AND active=1 FOR UPDATE');$q->execute([$pid]);$product=$q->fetch();if(!$product)throw new DomainException('Product unavailable.');
+  if(in_array($field,['product_name','product_category','short_code'],true)){
+   if($value==='')throw new DomainException('Enter a value.');
+   if($field==='short_code' && $product['woo_sku']!=='')throw new DomainException('A valid WooCommerce SKU cannot be overwritten. The internal reference remains separate.');
+   if($field==='product_name'){$q=$pdo->prepare('SELECT id FROM cw_cost_products WHERE normalized_name=? AND id<>?');$q->execute([lpc_norm($value),$pid]);if($q->fetchColumn())throw new DomainException('Product already exists. Do not merge products by renaming.');}
+   $u=cw_user();$pdo->prepare("UPDATE cw_cost_products SET $field=?,updated_by=?,updated_by_name=? WHERE id=?")->execute([$value,$u['id'],$u['name'],$pid]);
+   if($field==='product_name')$pdo->prepare('UPDATE cw_cost_products SET normalized_name=? WHERE id=?')->execute([lpc_norm($value),$pid]);
+   cw_supplier_cost_audit($pdo,'cost_product',$pid,'inline_updated',$product,[$field=>$value]);
+  }else{
+   $q=$pdo->prepare('SELECT i.*,l.id line_id FROM cw_cost_product_sources s JOIN cw_supplier_invoice_lines l ON l.id=s.supplier_invoice_line_id JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE s.id=? AND s.product_id=? FOR UPDATE');$q->execute([$sourceId,$pid]);$invoice=$q->fetch();
+   if(!$invoice)throw new DomainException('Open the original source editor for this legacy manual record.');
+   if((string)($b['updated_at']??'')!==(string)$invoice['updated_at'])throw new DomainException('The source changed. Refresh before editing.');
+   if(in_array($field,['quantity','line_subtotal'],true)){
+    $number=si_decimal($value);if($number===null || (float)$number<0 || ($field==='quantity' && (float)$number<=0))throw new DomainException('Enter a valid positive quantity or non-negative source cost.');
+    $q=$pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? ORDER BY id');$q->execute([$invoice['id']]);$lines=$q->fetchAll();
+    foreach($lines as &$line)if((int)$line['id']===(int)$invoice['line_id'])$line[$field]=$number;unset($line);
+    cw_supplier_save_lines($pdo,(int)$invoice['id'],$lines);
+   }else{
+    if($value==='')throw new DomainException('Enter a value.');
+    if($field==='supplier_type' && !in_array($value,si_types(true),true))throw new DomainException('Select a valid supplier type.');
+    $name=$field==='supplier_name'?$value:$invoice['supplier_name'];$type=$field==='supplier_type'?$value:$invoice['supplier_type'];$ref=$field==='invoice_number'?$value:$invoice['invoice_number'];
+    $sid=si_supplier($pdo,$name,$type,true);$q=$pdo->prepare("SELECT id FROM cw_supplier_invoices WHERE id<>? AND supplier_id=? AND invoice_date=? AND LOWER(TRIM(invoice_number))=LOWER(TRIM(?)) AND approval_status<>'archived'");$q->execute([$invoice['id'],$sid,$invoice['invoice_date'],$ref]);if($q->fetchColumn())throw new DomainException('Possible duplicate invoice.');
+    $pdo->prepare('UPDATE cw_supplier_invoices SET supplier_id=?,supplier_name=?,supplier_type=?,invoice_number=? WHERE id=?')->execute([$sid,$name,$type,$ref,$invoice['id']]);
+   }
+   $u=cw_user();$pdo->prepare('UPDATE cw_supplier_invoices SET last_edited_by=?,last_edited_by_name=?,updated_at=NOW() WHERE id=?')->execute([$u['id'],$u['name'],$invoice['id']]);
+   cw_supplier_cost_audit($pdo,'supplier_invoice',(int)$invoice['id'],'inline_updated',$invoice,[$field=>$value]);
+   lpc_refresh($pdo);
+  }
+  $pdo->commit();si_reply(['ok'=>true]);
+ }
+ if(in_array($action,['archive-products','delete-products','export'],true)){
+  cw_require_admin();$b=si_body();$ids=array_values(array_unique(array_filter(array_map('intval',(array)($b['ids']??[])),function($id){return $id>0;})));if(!$ids || count($ids)>10000)throw new DomainException('Select between 1 and 10,000 products.');
+  $marks=implode(',',array_fill(0,count($ids),'?'));
+  if($action==='export'){$q=$pdo->prepare("SELECT p.product_name,p.short_code,p.woo_sku,p.product_category,c.cost_date,c.base_unit,c.supplier_cost_per_base,c.transport_cost_per_base,c.landed_cost_per_base,c.status_key FROM cw_cost_products p LEFT JOIN cw_landed_product_costs c ON c.id=(SELECT c2.id FROM cw_landed_product_costs c2 JOIN cw_cost_product_sources s ON s.id=c2.product_source_id WHERE c2.product_id=p.id AND s.active=1 AND c2.cost_date<=CURRENT_DATE ORDER BY c2.cost_date DESC,c2.id DESC LIMIT 1) WHERE p.id IN($marks) ORDER BY p.product_name");$q->execute($ids);$export=$q->fetchAll();foreach($export as &$row){if($row['status_key']!=='complete'){$row['transport_cost_per_base']=null;$row['landed_cost_per_base']=null;}if(in_array($row['status_key'],['exchange_rate_required','vat_review_required'],true))$row['supplier_cost_per_base']=null;}unset($row);si_reply(['rows'=>$export]);}
+  if(empty($b['confirmed']))throw new DomainException('Confirm this bulk action.');
+  $pdo->beginTransaction();$q=$pdo->prepare("SELECT * FROM cw_cost_products WHERE id IN($marks) FOR UPDATE");$q->execute($ids);$products=$q->fetchAll();
+  if($action==='delete-products'){$q=$pdo->prepare("SELECT COUNT(*) FROM cw_cost_product_sources WHERE product_id IN($marks)");$q->execute($ids);if((int)$q->fetchColumn())throw new DomainException('Approved or referenced product history cannot be deleted. Use Archive instead.');}
+  foreach($products as $product){cw_supplier_cost_audit($pdo,'cost_product',(int)$product['id'],$action,$product,null);}
+  $pdo->prepare($action==='archive-products'?"UPDATE cw_cost_products SET active=0 WHERE id IN($marks)":"DELETE FROM cw_cost_products WHERE id IN($marks)")->execute($ids);$pdo->commit();si_reply(['ok'=>true,'count'=>count($products)]);
+ }
  if($action==='upload'){
   cw_require_admin();if(empty($_FILES['invoice_file'])||!is_uploaded_file((string)$_FILES['invoice_file']['tmp_name']))throw new RuntimeException('Select an invoice file.');$f=$_FILES['invoice_file'];if((int)$f['error']!==UPLOAD_ERR_OK)throw new RuntimeException('The invoice did not upload successfully.');$size=(int)$f['size'];if($size<=0||$size>15*1024*1024)throw new RuntimeException('Invoice files must be 15 MB or smaller.');$ext=strtolower(pathinfo((string)$f['name'],PATHINFO_EXTENSION));$allowed=['pdf'=>'application/pdf','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png'];if(!isset($allowed[$ext]))throw new RuntimeException('Upload a supported PDF, JPG, JPEG or PNG invoice.');$mime=(string)(new finfo(FILEINFO_MIME_TYPE))->file((string)$f['tmp_name']);if($mime!==$allowed[$ext])throw new RuntimeException('The file content does not match its extension.');$hash=hash_file('sha256',(string)$f['tmp_name']);$dup=$pdo->prepare("SELECT id FROM cw_supplier_invoices WHERE file_hash=? AND approval_status<>'archived'");$dup->execute([$hash]);if($existing=(int)$dup->fetchColumn())si_reply(['error'=>'Possible duplicate: this exact invoice file already exists.','duplicate_id'=>$existing],409);
   $dir=BASE_PATH.'/uploads/cost-workbook/'.date('Y/m');if(!is_dir($dir)&&!mkdir($dir,0750,true)&&!is_dir($dir))throw new RuntimeException('Secure upload storage is unavailable.');$stored=date('YmdHis').'-'.bin2hex(random_bytes(8)).'.'.$ext;$relative='uploads/cost-workbook/'.date('Y/m').'/'.$stored;if(!move_uploaded_file((string)$f['tmp_name'],$dir.'/'.$stored))throw new RuntimeException('The invoice file could not be stored.');$u=cw_user();$pdo->prepare("INSERT INTO cw_supplier_invoices(uploaded_by,uploaded_by_name,original_filename,stored_file,file_type,file_hash,currency,extraction_status,extraction_message) VALUES(?,?,?,?,?,?,'NAD','not_started','Extracting invoice details')")->execute([$u['id'],$u['name'],basename((string)$f['name']),$relative,$mime,$hash]);$id=(int)$pdo->lastInsertId();$data=[];$message='Automatic extraction is unavailable for this file type. Enter the invoice manually.';$confidence='low';$status='manual_review';
