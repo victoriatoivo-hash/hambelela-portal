@@ -1,4 +1,4 @@
-name: Deploy Size Conversions isolated redesign
+name: Deploy Supplier Costs isolated workflow
 on:
   workflow_dispatch:
     inputs:
@@ -16,6 +16,18 @@ jobs:
   release:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
+          MYSQL_DATABASE: cw_supplier_test
+        ports: ['3306:3306']
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
     permissions:
       contents: read
     steps:
@@ -25,8 +37,16 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '7.4'
+          extensions: pdo_mysql
       - name: Focused checks
+        env:
+          CW_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=cw_supplier_test;charset=utf8mb4
+          CW_TEST_USER: root
         run: |
+          php -l shared/cost-workbook.php
+          php -l apps/cost-manager/supplier-invoices-api.php
+          php -l apps/cost-manager/landed-product-costs-api.php
+          php tests/supplier-costs-workflow.php
           php -l shared/cost-workbook-sections.php
           node --check assets/js/size-conversions.js
           node tests/cost-workbook-size-conversions-static.mjs
