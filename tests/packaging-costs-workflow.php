@@ -34,5 +34,11 @@ check((int)$pdo->query('SELECT COUNT(*) FROM cw_packaging_setup_components WHERE
 near(cw_packaging_setup_cost($pdo,$setup['id'],'2026-10-08')['cost_ex_vat'],6,'Historical effective costs preserved');
 $label=cw_packaging_cost($pdo,$ids[2],'2026-10-08');pc_save_item($pdo,material(['id'=>$ids[2],'latest_cost_id'=>$label['id'],'item_name'=>'Test Label','packaging_type_id'=>$types['Label'],'purchase_quantity'=>1,'units_per_pack'=>1,'amount_entered'=>.55,'printed_label'=>1]),15);
 check(!cw_packaging_setup_cost($pdo,$version['id'],'2026-10-10')['complete'],'Printed label and ribbon double count rejected');
-echo "Packaging database tests passed: units, freight, idempotency, duplicate prevention, labels/ribbons, finished setup, waste and immutable history.\n";
+$roundTransport=pc_insert($pdo,'cw_transport_records',['courier_name'=>'Rounding Test','invoice_number'=>'ROUND-10','transport_date'=>'2026-10-01','currency'=>'NAD','subtotal_ex_vat'=>10,'total_inc_vat'=>10,'vat_treatment'=>'exempt','allocable_amount'=>10,'exchange_rate'=>1,'fx_confirmed'=>1]);
+foreach([1,2,3] as $n)pc_save_item($pdo,material(['item_name'=>'Rounding Material '.$n,'transport_id'=>$roundTransport,'freight_method'=>'weight','shipping_weight'=>1,'shipment_weight'=>3]),15);
+near(cw_packaging_freight_claimed($pdo,$roundTransport),10,'Final shared freight share reconciles rounding exactly');
+function rp_num($v):float{return is_numeric($v)?(float)$v:0;}
+$retail=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$start=strpos($retail,'function rp_calculation');$end=strpos($retail,'function rp_sources',$start);eval(substr($retail,$start,$end-$start));
+$finished=rp_calculation(['landed_cost_per_base'=>10],['base_value'=>.5],['cost_ex_vat'=>6,'cost_inc_vat'=>6],20,0);near($finished['total_cost_ex_vat'],11,'Product Pricing includes packaging once');
+echo "Packaging database tests passed: units, freight, idempotency, duplicate prevention, labels/ribbons, finished setup, waste, pricing integration and immutable history.\n";
 

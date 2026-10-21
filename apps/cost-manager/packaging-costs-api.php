@@ -32,9 +32,11 @@ function pc_freight(PDO $pdo,array $b,int $previous):array {
   $amount=round((float)$b['freight_amount'],2);
  }
  if(!is_finite($amount)||$amount<0)throw new DomainException('Invalid freight allocation.');
- $q=$pdo->prepare('SELECT COALESCE(SUM(COALESCE(override_amount,calculated_amount)),0) FROM cw_transport_allocations WHERE transport_id=?');$q->execute([$id]);$used=(float)$q->fetchColumn();
+ $q=$pdo->prepare('SELECT COALESCE(SUM(COALESCE(override_amount,calculated_amount)),0) FROM cw_transport_allocations WHERE transport_id=?');$q->execute([$id]);$used=(float)$q->fetchColumn();$sameWeightBasis=$used===0.0;$claimedWeight=0;
  $q=$pdo->prepare('SELECT c.transport_evidence FROM cw_packaging_item_costs c WHERE c.transport_id=? AND c.id<>? AND NOT EXISTS(SELECT 1 FROM cw_packaging_item_costs n WHERE n.supersedes_cost_id=c.id)');$q->execute([$id,$previous]);
- foreach($q->fetchAll() as $c){$e=json_decode($c['transport_evidence']??'{}',true);$used+=(float)($e['source_amount']??0);}
+ foreach($q->fetchAll() as $c){$e=json_decode($c['transport_evidence']??'{}',true);$used+=(float)($e['source_amount']??0);if(($e['allocation_method']??'')!=='weight'||abs((float)($e['shipment_weight']??0)-(float)($b['shipment_weight']??0))>.000001)$sameWeightBasis=false;else $claimedWeight+=(float)($e['shipping_weight']??0);}
+ // The final confirmed weight share absorbs only the cent-rounding remainder.
+ if($method==='weight'&&$sameWeightBasis&&abs($claimedWeight+$weight-$total)<.000001)$amount=round((float)$t['allocable_amount']-$used,2);
  if(round($used+$amount,2)>round((float)$t['allocable_amount'],2))throw new DomainException('Freight exceeds the unallocated transport balance. Existing supplier and packaging allocations are protected.');
  $e=['transport_id'=>$id,'reference'=>$t['invoice_number'],'currency'=>$t['currency'],'exchange_rate'=>$rate,'source_amount'=>$amount,'allocation_method'=>$method,'shipping_weight'=>$b['shipping_weight']??null,'shipment_weight'=>$b['shipment_weight']??null,'transport_updated_at'=>$t['updated_at']];
  $net=$amount*$rate;$gross=$net;

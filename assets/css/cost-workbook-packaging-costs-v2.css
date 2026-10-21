@@ -789,7 +789,10 @@
 body:has(#costWorkbook[data-page="packaging-costs"]) .portal-date-popup{font-family:"Jost",sans-serif;border-color:#E4E6DC;color:#26311F;background:#FFFFFF}
 body:has(#costWorkbook[data-page="packaging-costs"]) .portal-date-popup :is(button,input){font-family:inherit}
 body:has(#costWorkbook[data-page="packaging-costs"]) .portal-date-popup :is(.portal-date-nav,.portal-date-cancel,.portal-date-clear,.portal-date-now,.portal-date-weekday){color:#59694A;border-color:#E4E6DC}
-body:has(#costWorkbook[data-page="packaging-costs"]) .portal-date-popup :is(.portal-date-day:hover,.portal-date-day:focus-visible,.portal-date-day.is-selected,.portal-date-nav:hover){color:#344126;background:#EFF2E9;border-color:#59694A}
+body:has(#costWorkbook[data-page="packaging-costs"]) .portal-date-popup :is(.portal-date-day:hover,.portal-date-day:focus-visible,.portal-date-day.is-selected,.portal-date-day.is-today,.portal-date-nav:hover){color:#344126;background:#EFF2E9;border-color:#59694A}
+body:has(#costWorkbook[data-page="packaging-costs"]) .portal-select-popup{font-family:"Jost",sans-serif;border-color:#E4E6DC;box-shadow:0 16px 34px #34412620;scrollbar-color:#BCC5B0 #F8F7F2}
+body:has(#costWorkbook[data-page="packaging-costs"]) .portal-select-popup .portal-select-option{color:#26311F;font-family:"Jost",sans-serif}
+body:has(#costWorkbook[data-page="packaging-costs"]) .portal-select-popup .portal-select-option:is(:hover,:focus-visible,.is-active,.is-selected){color:#344126;background:#EFF2E9}
 body:has(#costWorkbook[data-page="packaging-costs"]) .portal-date-popup .portal-date-apply{background:#59694A;border-color:#59694A;color:white}
 #costWorkbook[data-page="packaging-costs"] [hidden]{display:none!important}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__backdrop{position:fixed;inset:0;z-index:1199;background:#26311f55;opacity:0;visibility:hidden;transition:opacity .18s}
@@ -798,7 +801,8 @@ body:has(#costWorkbook[data-page="packaging-costs"]) .portal-date-popup .portal-
 #costWorkbook[data-page="packaging-costs"] .portal-custom-select-trigger,
 #costWorkbook[data-page="packaging-costs"] .portal-date-field{height:34px;min-height:34px;border:1px solid #E4E6DC;border-radius:8px;background:white;color:#26311F;font:400 11.5px/1.4 "Jost",sans-serif}
 #costWorkbook[data-page="packaging-costs"] .portal-date-icon{color:#59694A}
-#costWorkbook[data-page="packaging-costs"] .pc3-checkbox{display:flex;align-items:center;gap:8px}
+#costWorkbook[data-page="packaging-costs"] .portal-custom-select-trigger:is(:hover,:focus-visible),#costWorkbook[data-page="packaging-costs"] .portal-custom-select.is-open .portal-custom-select-trigger{border-color:#59694A;box-shadow:0 0 0 3px #59694A15}
+#costWorkbook[data-page="packaging-costs"] .pc3-checkbox{display:flex;align-items:center;gap:8px;color:#26311F;font:400 11px/1.5 "Jost",sans-serif}
 #costWorkbook[data-page="packaging-costs"] .pc3-checkbox input{width:16px;min-height:16px;height:16px;accent-color:#59694A}
 #costWorkbook[data-page="packaging-costs"] .pc3-status{display:inline-block;border-radius:20px;padding:3px 8px;background:#F2F4EC;color:#344126}
 #costWorkbook[data-page="packaging-costs"] .pc3-error{color:#9d3434;white-space:pre-wrap}
