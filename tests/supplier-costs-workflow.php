@@ -44,6 +44,9 @@ $count=(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchCo
 cw_transport_save($pdo,$transport);lpc_refresh($pdo);
 expect((int)$pdo->query('SELECT id FROM cw_transport_product_allocations')->fetchColumn()===$allocationId,'Transport reference must remain stable');
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn()===$count,'Repeated refresh must not duplicate snapshots');
+$pdo->prepare('UPDATE cw_supplier_invoice_lines SET line_subtotal=11000,line_total=11000 WHERE id=?')->execute([$id]);lpc_refresh($pdo,[$invoice]);
+$pdo->prepare('UPDATE cw_supplier_invoice_lines SET line_subtotal=10000,line_total=10000 WHERE id=?')->execute([$id]);lpc_refresh($pdo,[$invoice]);
+expect((float)$pdo->query('SELECT supplier_cost_per_base FROM cw_landed_product_costs ORDER BY id DESC LIMIT 1')->fetchColumn()===100.0,'Reverting a source cost must create a new current revision, not leave an old latest value');
 $pdo->prepare('UPDATE cw_supplier_invoice_lines SET shipping_weight_kg=NULL WHERE id=?')->execute([$id]);
 try {cw_transport_save($pdo,$transport);throw new RuntimeException('Missing weight silently allocated');}catch(DomainException $expected){}
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_transport_product_allocations')->fetchColumn()===1,'Rejected save must retain freight');
