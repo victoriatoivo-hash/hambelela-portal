@@ -198,7 +198,7 @@ function cw_supplier_cost_audit(PDO $pdo, string $entity, int $id, string $actio
 function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, array $reallocatedTransportIds=[]): int
 {
     if (!$pdo->inTransaction()) throw new LogicException('Invoice line updates require a transaction.');
-    $query = $pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? ORDER BY id FOR UPDATE');
+    $query = $pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND active=1 ORDER BY id FOR UPDATE');
     $query->execute([$invoiceId]);
     $existing = [];
     foreach ($query->fetchAll() as $line) $existing[(int)$line['id']] = $line;
@@ -255,12 +255,20 @@ function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, arra
         } elseif (!empty($line['confirm_new_product'])) {
             $q=$pdo->prepare('SELECT id FROM cw_cost_products WHERE normalized_name=? OR (woo_sku<>\'\' AND woo_sku=?)'); $q->execute([lpc_norm($name),(string)($line['supplier_sku']??'')]);
             if ($q->fetchColumn()) throw new DomainException('Product already exists. Select the existing product and Update Cost from This Purchase.');
+            $q=$pdo->prepare("SELECT product_id FROM cw_product_snapshots WHERE sync_batch_id=(SELECT id FROM cw_sync_batches WHERE is_successful_snapshot=1 ORDER BY completed_at DESC,id DESC LIMIT 1) AND (LOWER(TRIM(product_name))=LOWER(TRIM(?)) OR (sku<>'' AND sku=?)) LIMIT 1");$q->execute([$name,(string)($line['supplier_sku']??'')]);
+            if($q->fetchColumn())throw new DomainException('This product already exists in WooCommerce. Select its catalogue match so the existing SKU is reused.');
             $pdo->prepare("UPDATE cw_supplier_invoice_lines SET item_type='supplier_raw_material',match_status='confirmed' WHERE id=?")->execute([$id]);
         }
     }
-    // An omitted existing line is not permission to destroy matching, freight or cost history.
+    // Omitted unreferenced draft lines are archived, never destroyed; all references remain protected.
     foreach ($existing as $id => $line) {
-        if (!isset($seen[$id])) throw new DomainException('Existing purchase lines cannot be removed by omission. Keep them in the review; referenced history must be preserved.');
+        if (!isset($seen[$id])) {
+            $q=$pdo->prepare('SELECT approval_status FROM cw_supplier_invoices WHERE id=?');$q->execute([$invoiceId]);$draft=$q->fetchColumn()==='draft';
+            $q=$pdo->prepare('SELECT (SELECT COUNT(*) FROM cw_cost_product_sources WHERE supplier_invoice_line_id=?)+(SELECT COUNT(*) FROM cw_transport_product_allocations WHERE supplier_invoice_line_id=?)+(SELECT COUNT(*) FROM cw_product_matches WHERE supplier_invoice_line_id=?)');$q->execute([$id,$id,$id]);
+            if(!$draft || (int)$q->fetchColumn()>0 || !$submitted)throw new DomainException('Approved or referenced lines cannot be removed. Keep them in the review to preserve their history.');
+            $pdo->prepare('UPDATE cw_supplier_invoice_lines SET active=0 WHERE id=?')->execute([$id]);
+            cw_supplier_cost_audit($pdo,'supplier_invoice_line',$id,'draft_line_archived',$line,null);
+        }
     }
     return $valid;
 }

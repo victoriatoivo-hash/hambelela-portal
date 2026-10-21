@@ -77,7 +77,7 @@ function preview(){
 function addLine(value={}){
  const node=one('[data-si-line-template]').content.firstElementChild.cloneNode(true);
  all('[data-k]',node).forEach(el=>{if(value[el.dataset.k]!==undefined&&value[el.dataset.k]!==null){if(el.type==='checkbox')el.checked=!!value[el.dataset.k];else el.value=value[el.dataset.k];}});
- one('[data-si-remove-line]',node).hidden=!!value.id;
+ one('[data-si-remove-line]',node).hidden=!!value.id&&!value.allow_remove;one('[data-si-remove-line]',node).textContent=value.id?'Remove Unreferenced Draft Line':'Remove New Line';
  one('[data-si-remove-line]',node).onclick=()=>{node.remove();dirty=true;preview();};
  if(value.cost_product_id)one('[data-si-product-notice]',node).textContent='Existing product linked. This purchase will retain its product identity.';
  const search=one('[data-si-product-search]',node);
@@ -96,7 +96,7 @@ document.querySelector('[data-si-open-manual]').onclick=()=>{defaults();addLine(
 document.querySelector('[data-si-open-upload]').onclick=()=>{open('upload','Upload Supplier Invoice');};
 async function edit(id){
  if(!id){toast('Use Landed Product Costs to edit this legacy manual source.');return;}
- try{const data=await request('invoice',undefined,'id='+id);defaults();const invoice=data.invoice;Object.keys(invoice).forEach(k=>{const el=form.elements.namedItem(k);if(el){if(el.type==='checkbox')el.checked=!!Number(invoice[k]);else el.value=invoice[k]??'';}});data.lines.forEach(addLine);one('[data-si-original]').hidden=!invoice.stored_file;one('[data-si-original]').href=data.original_url;open('purchase','Review Supplier Purchase');error(invoice.extraction_message||'');}catch(e){toast(e.message);}
+ try{const data=await request('invoice',undefined,'id='+id);defaults();const invoice=data.invoice;Object.keys(invoice).forEach(k=>{const el=form.elements.namedItem(k);if(el){if(el.type==='checkbox')el.checked=!!Number(invoice[k]);else el.value=invoice[k]??'';}});data.lines.forEach(line=>addLine({...line,allow_remove:invoice.approval_status==='draft'}));one('[data-si-original]').hidden=!invoice.stored_file;one('[data-si-original]').href=data.original_url;open('purchase','Review Supplier Purchase');error(invoice.extraction_message||'');}catch(e){toast(e.message);}
 }
 one('[data-si-add-line]').onclick=()=>{addLine();dirty=true;};
 form.addEventListener('input',()=>{dirty=true;preview();});
@@ -106,7 +106,7 @@ async function upload(file,shipping=false){
  if(!file)return;if(file.size>15*1024*1024){error('Files must be 15 MB or smaller.');return;}
  const body=new FormData();body.append(shipping?'transport_file':'invoice_file',file);setBusy(true);error('');
  try{
-  let data;if(shipping){const response=await fetch('transport-costs-api.php?action=upload',{method:'POST',headers:{'X-CW-CSRF':csrf},body,credentials:'same-origin'});data=await response.json();if(!response.ok||data.error)throw Error(data.error||'Shipping upload failed.');form.elements.transport_id.value=data.id;dirty=true;toast('Shipping invoice attached. Confirm its amounts and details.');}
+  let data;if(shipping){const response=await fetch('transport-costs-api.php?action=upload',{method:'POST',headers:{'X-CW-CSRF':csrf},body,credentials:'same-origin'});data=await response.json();if(!response.ok||data.error)throw Error(data.error||'Shipping upload failed.');form.elements.transport_id.value=data.id;form.elements.transport_link_existing.value='';transportLinks=[];one('[data-si-shared-confirm]').hidden=true;dirty=true;toast('Shipping invoice attached. Confirm its amounts and details.');}
   else {data=await request('upload',body);setBusy(false);await edit(data.id);load();}
  }catch(e){error(e.message);}finally{setBusy(false);}
 }
@@ -144,9 +144,15 @@ async function inline(button){
  if(key==='short_code'&&row.woo_sku){toast('WooCommerce SKU is protected. Internal reference: '+row.short_code);return;}
  const initial=key==='quantity'?row.purchase_quantity:key==='line_subtotal'?row.source_cost:row[key];
  cell.innerHTML='<div class="si-inline-editor"><input class="si-inline-input" aria-label="'+escape(key==='line_subtotal'?'Total source cost excluding recoverable VAT':key)+'"><button type="button" class="si-btn" data-save>Save</button><button type="button" class="si-btn" data-cancel>Cancel</button></div><small data-inline-error role="alert"></small>';
- const input=one('input',cell);input.value=initial??'';input.focus();input.select();
+ let input=one('input',cell);
+ if(['supplier_type','product_category','supplier_name'].includes(key)){
+  const native=key==='supplier_type'?filters.elements.supplier_type:key==='product_category'?filters.elements.category:form.elements.supplier_id;
+  const select=document.createElement('select');select.className='si-inline-input';select.setAttribute('aria-label',key);
+  Array.from(native.options).filter(o=>o.value).forEach(o=>{const option=document.createElement('option');option.value=key==='supplier_name'?o.textContent:o.value;option.textContent=o.textContent;select.appendChild(option);});input.replaceWith(select);input=select;
+ }
+ input.value=initial??'';input.focus();if(input.select)input.select();let saving=false;
  const cancel=()=>render();one('[data-cancel]',cell).onclick=cancel;
- const save=async()=>{one('[data-save]',cell).disabled=true;try{await request('inline',{product_id:row.product_id,source_id:row.product_source_id,field:key,value:input.value,updated_at:row.updated_at});toast('Cost updated. Purchase-level supplier/reference edits apply to every line of that purchase.');await load();}catch(e){one('[data-inline-error]',cell).textContent=e.message;one('[data-save]',cell).disabled=false;}};
+ const save=async()=>{if(saving)return;saving=true;one('[data-save]',cell).disabled=true;try{await request('inline',{product_id:row.product_id,source_id:row.product_source_id,cost_id:row.id,field:key,value:input.value,updated_at:row.updated_at});toast('Cost updated. Purchase-level supplier/reference edits apply to every line of that purchase.');await load();}catch(e){one('[data-inline-error]',cell).textContent=e.message;one('[data-save]',cell).disabled=false;saving=false;}};
  one('[data-save]',cell).onclick=save;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape')cancel();};
 }
 tbody.addEventListener('click',e=>{const editButton=e.target.closest('[data-review]'),historyButton=e.target.closest('[data-history]'),inlineButton=e.target.closest('[data-inline]');if(editButton)edit(editButton.dataset.review);if(historyButton)history(historyButton.dataset.history);if(inlineButton)inline(inlineButton);});
