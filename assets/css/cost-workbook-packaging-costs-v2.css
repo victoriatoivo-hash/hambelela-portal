@@ -1,4 +1,6 @@
 /* Packaging-only layout. Shared controls live in cost-workbook-controls.css. */
+#costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer{font-family:"Jost",sans-serif}
+#costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer select.portal-custom-select-native{width:1px!important;min-width:0!important;height:1px!important;min-height:0!important}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__header{display:flex;align-items:center;justify-content:space-between;gap:16px}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__header p{color:#62675E;margin:6px 0}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__actions{display:flex;gap:9px}
@@ -18,7 +20,7 @@
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer .pc3-form-section{margin:0;padding:12px}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer .pc3-form-grid{align-items:end;row-gap:10px}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer :is(.pc3-error:empty,[hidden]){display:none!important}
-#costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer input[readonly]{background:#F2F4EC;color:#62675E;border-color:#E4E6DC}
+#costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer input[readonly]{background:#F2F4EC!important;color:#62675E;border-color:#E4E6DC}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer .pc3-form-field :is(input,select,.portal-custom-select-trigger,.portal-date-field){box-sizing:border-box;height:36px;min-height:36px;margin:0}
 #costWorkbook[data-page="packaging-costs"] .pc3-footer-summary{flex:1;min-width:140px;font:500 11px/1.4 "Jost",sans-serif;color:#344126}
 @media(max-width:767px){#costWorkbook[data-page="packaging-costs"] .packaging-costs__drawer .pc3-form-field :is(input,select,.portal-custom-select-trigger,.portal-date-field){height:44px;min-height:44px}#costWorkbook[data-page="packaging-costs"] .pc3-footer-summary{flex-basis:100%}}
