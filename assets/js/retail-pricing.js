@@ -28,6 +28,7 @@ function calculateDraft(d){
  r.margin_percent=r.profit_per_unit!=null&&r.selling_price_ex_vat>0?r.profit_per_unit/r.selling_price_ex_vat*100:null;
  r.projected_profit=r.website_stock_quantity!=null&&r.website_price_inc_vat!=null&&r.total_cost_ex_vat!=null?r.website_stock_quantity*(r.website_price_inc_vat/(1+vat/100)-r.total_cost_ex_vat):null;
  r.website_price_differs=r.website_price_inc_vat!=null&&r.selling_price_inc_vat!=null&&Math.abs(r.website_price_inc_vat-r.selling_price_inc_vat)>.005;
+ r.issues=(r.issues||[]).filter(v=>!['Selling Price Required','Low Margin','Loss-Making'].includes(v));if(!(r.selling_price_inc_vat>0))r.issues.push('Selling Price Required');if(r.profit_per_unit<0)r.issues.push('Loss-Making');else if(r.margin_percent!=null&&r.margin_percent<num(data.settings.retail_low_margin_threshold??20))r.issues.push('Low Margin');r.status=r.issues.join(' · ')||'Ready';
 }
 function filteredRows(){const f=Object.fromEntries(new FormData($('[data-rp-filters]'))),q=(f.q||'').trim().toLowerCase();return data.rows.filter(original=>{const r=drafts.get(key(original))?.row||original;return(!q||[r.product_name,r.short_code,r.category,r.supplier,r.website_name,r.website_sku,r.size_label].join(' ').toLowerCase().includes(q))&&(!f.category||f.category===r.category)&&(!f.supplier||f.supplier===r.supplier)&&(!f.basis||f.basis===r.basis)&&(!f.size||f.size===String(r.size_conversion_id))&&(!f.status||r.status.includes(f.status))&&(!f.website||(f.website==='matched'?!!r.website_key:!r.website_key))&&(!f.margin||(r.margin_percent!=null&&(f.margin==='negative'?r.margin_percent<0:f.margin==='low'?r.margin_percent>=0&&r.margin_percent<20:r.margin_percent>=20)))})}
 const fields=['product_cost_per_unit','total_cost_ex_vat','selling_price_ex_vat','profit_per_unit','markup_percent','margin_percent','website_stock_quantity','stock_cost','retail_value','projected_profit'];
@@ -40,14 +41,14 @@ function rowHTML(original){
 function renderPricing(){
  const summary=data.summary||{};Object.entries(summary).forEach(([k,v])=>{const el=$('[data-rp-metric="'+k+'"]');if(el)el.textContent=['inventory_cost','retail_value','projected_profit'].includes(k)?(summary.coverage?.[k]?fmt(v):'—'):num(v).toLocaleString('en-NA')});
  $('[data-rp-coverage-note]').textContent='Latest successful website sync: '+(data.last_sync||'Not synced')+' · Known valuation coverage: '+Object.entries(summary.coverage||{}).map(([k,v])=>k.replaceAll('_',' ')+' '+v+'/'+data.rows.length).join(' · ');
- const rows=filteredRows();$('[data-rp-rows]').innerHTML=rows.length?rows.map(rowHTML).join(''):'<tr><td colspan="17">No product sizes match these filters. Add Product Pricing to select a canonical product.</td></tr>';
+ const rows=filteredRows();$('[data-rp-results]').textContent=rows.length+' results';$('[data-rp-rows]').innerHTML=rows.length?rows.map(rowHTML).join(''):'<tr><td colspan="17">No product sizes match these filters. Add Product Pricing to select a canonical product.</td></tr>';
  $$('[data-row]').forEach(tr=>{const r=data.rows.find(r=>key(r)===tr.dataset.row),b=drafts.get(tr.dataset.row)?.body||bodyFor(r);$$('select[data-field]',tr).forEach(s=>s.value=b[s.dataset.field]??'');});
  themeSelects(root);draftCount();
 }
 function draftCount(){$('[data-rp-drafts]').textContent=drafts.size?drafts.size+' unsaved row'+(drafts.size===1?'':'s')+' · Save each row explicitly':'No unsaved changes'}
 function updateRow(tr,d){
  calculateDraft(d);tr.classList.add('has-unsaved-changes');$('[data-row-save]',tr).hidden=false;$('[data-save]',tr).textContent=d.body.id?'Save':d.original.id?'Save as New Size':'Save';
- fields.forEach(n=>{$('[data-value="'+n+'"]',tr).textContent=valueText(d.row,n)});$('[data-price-difference]',tr).textContent=d.row.website_price_differs?'Website: '+fmt(d.row.website_price_inc_vat):'';
+ fields.forEach(n=>{$('[data-value="'+n+'"]',tr).textContent=valueText(d.row,n)});$('.retail-pricing__status',tr).textContent=d.row.issues?.[0]||'Ready';$('[data-price-difference]',tr).textContent=d.row.website_price_differs?'Website: '+fmt(d.row.website_price_inc_vat):'';
  $('[data-row-error]',tr).textContent=d.error;$('[data-save]',tr).disabled=!!d.pending||d.busy;$('.rp4-match-confirm',tr).hidden=!d.body.website_key;
  $('[data-field="vat_treatment"]',tr).hidden=!!d.body.vat_treatment;
  draftCount();
@@ -76,7 +77,7 @@ root.addEventListener('change',async e=>{
  const tr=e.target.closest('[data-row]'),field=e.target.dataset.field;if(!tr||!field||field==='selling_price_inc_vat')return;
  const original=data.rows.find(r=>key(r)===tr.dataset.row),d=draftFor(original);d.requestId=null;
  if(field==='size_conversion_id'){const existing=await changeSize(d,e.target.value);if(existing){drafts.delete(key(original));renderPricing();openDrawer(existing);return;}}
- else{d.body[field]=e.target.type==='checkbox'?e.target.checked:e.target.value;if(field==='website_key')d.body.website_confirmed=false;await preview(d)}
+ else{d.body[field]=e.target.type==='checkbox'?e.target.checked:e.target.value;if(field==='website_key'){d.body.website_confirmed=false;if(!d.original.saved&&d.body.selling_price_inc_vat===''){const w=data.website.find(w=>w.product_id+':'+w.variation_id===d.body.website_key);d.body.selling_price_inc_vat=w?.active_price_inc_vat??'';}}await preview(d)}
  renderPricing();
 });
 root.addEventListener('click',async e=>{
@@ -104,7 +105,7 @@ function fillDrawer(){
 }
 function drawerControls(){
  const b=drawerDraft.body;form.elements.size_conversion_id.innerHTML='<option value="">Choose size</option>'+options(sizesFor(b.product_id),s=>s.id,s=>s.label);
- form.elements.packaging_setup_id.innerHTML='<option value="0">Automatic matching setup</option>'+options(data.setups.filter(s=>String(s.size_conversion_id)===String(b.size_conversion_id)),s=>s.id,s=>s.setup_name+' · '+fmt(s.cost_ex_vat));
+ form.elements.packaging_setup_id.innerHTML='<option value="0">Automatic matching setup</option>'+options(data.setups.filter(s=>{const p=data.products.find(p=>num(p.id)===num(b.product_id));return String(s.size_conversion_id)===String(b.size_conversion_id)&&(s.scope_type==='default'||s.scope_type==='category'&&String(s.scope_label||'').trim().toLowerCase()===String(p?.product_category||'').trim().toLowerCase()||s.scope_type==='product'&&([String(b.product_id),String(p?.woo_product_id)].includes(String(s.scope_reference))||String(s.scope_label||'').trim().toLowerCase()===String(p?.product_name||'').trim().toLowerCase()))}),s=>s.id,s=>s.setup_name+' · '+fmt(s.cost_ex_vat));
  form.elements.website_key.innerHTML=websiteOptions();
  for(const [n,v]of Object.entries(b)){const el=form.elements[n];if(el){if(el.type==='checkbox')el.checked=!!v;else el.value=v??''}}
  themeSelects(drawer);fillDrawer();
@@ -125,7 +126,7 @@ if(mode==='pricing'){
  form.addEventListener('input',e=>{if(!drawerDraft||!e.target.name)return;drawerDirty=true;drawerDraft.requestId=null;drawerDraft.body[e.target.name]=e.target.type==='checkbox'?e.target.checked:e.target.value;calculateDraft(drawerDraft);fillDrawer()});
  form.addEventListener('change',async e=>{if(!drawerDraft||!e.target.name)return;const d=drawerDraft;drawerDirty=true;d.requestId=null;d.body[e.target.name]=e.target.type==='checkbox'?e.target.checked:e.target.value;
  if(e.target.name==='size_conversion_id'){const existing=await changeSize(d,e.target.value);if(existing){openDrawer(existing);return}}
- else{if(e.target.name==='website_key')d.body.website_confirmed=false;await preview(d)}
+ else{if(e.target.name==='website_key'){d.body.website_confirmed=false;if(!d.original.saved&&d.body.selling_price_inc_vat===''){const w=data.website.find(w=>w.product_id+':'+w.variation_id===d.body.website_key);d.body.selling_price_inc_vat=w?.active_price_inc_vat??'';}}await preview(d)}
  if(drawerDraft===d)drawerControls();
  });
  form.addEventListener('submit',async e=>{e.preventDefault();const d=drawerDraft;if(!d)return;try{await saveDraft(d);drafts.delete(key(d.original));drawerDirty=false;closeDrawer(true);await loadPricing();toast('Pricing saved. Website prices unchanged.')}catch(x){d.error=x.message;fillDrawer()}});

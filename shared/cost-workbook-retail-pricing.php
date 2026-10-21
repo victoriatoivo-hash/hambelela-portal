@@ -23,7 +23,7 @@ function cw_render_product_pricing(array $period):void{ ?>
  <label>Margin Range<select name="margin"><option value="">All margins</option><option value="negative">Below 0%</option><option value="low">0–20%</option><option value="high">20% or higher</option></select></label>
  <button type="reset" class="rp4-button">Clear Filters</button><button type="button" class="rp4-button" data-rp-refresh>Refresh Costs</button>
  </form>
- <div class="rp4-sheet-note"><span data-rp-drafts role="status">No unsaved changes</span><a href="profitability-report.php">Historical Profitability Report</a></div>
+ <div class="rp4-sheet-note"><span data-rp-results>Loading results…</span><span data-rp-drafts role="status">No unsaved changes</span><a href="profitability-report.php">Historical Profitability Report</a></div>
  <section class="retail-pricing__table-card"><div class="retail-pricing__table-wrap"><table><thead><tr>
  <?php foreach(['Product Name','Short Code','Category','Size / Variation','Landed Cost / Size','Total Cost / Unit','Selling Price Incl. VAT','Price Excl. VAT','Gross Profit / Unit','Markup %','Gross Margin %','Website Qty','Total Stock Cost','Website Retail Value','Projected Gross Profit','Status','Actions'] as $heading):?><th><?= $heading ?></th><?php endforeach; ?>
  </tr></thead><tbody data-rp-rows><tr><td colspan="17">Loading pricing records…</td></tr></tbody></table></div></section>
@@ -32,23 +32,23 @@ function cw_render_product_pricing(array $period):void{ ?>
 <aside class="rp4-drawer" data-rp-drawer aria-hidden="true" inert role="dialog" aria-modal="true" aria-labelledby="retailPriceDrawerTitle">
  <header><div><h2 id="retailPriceDrawerTitle">Add Product Pricing</h2><small>Workbook pricing only. Saving does not change live website prices.</small></div><button type="button" data-rp-close aria-label="Close pricing drawer">×</button></header>
  <form data-rp-form><div class="retail-pricing__drawer-body">
- <section class="rp4-section"><h3 class="rp4-section-title">Product &amp; Source</h3>
+ <section class="rp4-section"><h3 class="rp4-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 3 3 8l9 5 9-5-9-5ZM3 8v9l9 5 9-5V8M12 13v9"/></svg>Product &amp; Source</h3>
  <div class="rp4-form-field"><label for="rpProductSearch">Search Product</label><input id="rpProductSearch" type="search" data-rp-product-search placeholder="Find an existing Cost Workbook product"><div data-rp-product-results></div></div><div data-rp-source-details></div></section>
- <section class="rp4-section"><h3 class="rp4-section-title">Size &amp; Website Variation</h3><div class="rp4-form-grid">
+ <section class="rp4-section"><h3 class="rp4-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M3 3h8l10 10-8 8L3 11V3ZM7 7h.01"/></svg>Size &amp; Website Variation</h3><div class="rp4-form-grid">
  <label class="rp4-form-field">Size / Variation<select name="size_conversion_id" required><option value="">Choose size</option></select></label>
  <label class="rp4-form-field">Packaging Setup<select name="packaging_setup_id"><option value="">Choose size first</option></select></label>
  <label class="rp4-form-field is-full">Find Website Variation<input type="search" data-rp-website-search placeholder="Product, variation, SKU or size attributes"></label>
  <label class="rp4-form-field is-full">WooCommerce Variation<select name="website_key"><option value="">Not matched</option></select></label>
  </div><label class="rp4-check"><input type="checkbox" name="website_confirmed">I verified that the website variation matches this exact product and size.</label><p data-rp-website-details></p></section>
- <section class="rp4-section"><h3 class="rp4-section-title">Cost Breakdown</h3><div class="rp4-cost-grid" data-rp-costs></div></section>
- <section class="rp4-section"><h3 class="rp4-section-title">Pricing &amp; Profitability</h3><div class="rp4-form-grid">
+ <section class="rp4-section"><h3 class="rp4-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M5 20V10m7 10V4m7 16v-7"/></svg>Cost Breakdown</h3><div class="rp4-cost-grid" data-rp-costs></div></section>
+ <section class="rp4-section"><h3 class="rp4-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 20h17M6 16l5-5 4 3 5-8"/></svg>Pricing &amp; Profitability</h3><div class="rp4-form-grid">
  <label class="rp4-form-field">Selling Price Incl. VAT<input name="selling_price_inc_vat" type="number" step="0.01" min="0.01" inputmode="decimal" required></label>
  <label class="rp4-form-field">VAT Treatment<select name="vat_treatment" required><option value="">Confirm VAT treatment</option><option value="standard">Standard-rated</option><option value="zero">Zero-rated</option><option value="exempt">Exempt</option></select></label>
  <label class="rp4-form-field">VAT Rate %<input name="vat_rate" type="number" min="0" max="100" step="0.01" required></label>
  <label class="rp4-form-field">Effective Date<input name="effective_date" type="date" required></label>
  </div><div class="rp4-cost-grid" data-rp-profit></div></section>
- <section class="rp4-section"><h3 class="rp4-section-title">Website Inventory</h3><div class="rp4-cost-grid" data-rp-inventory></div></section>
- <section class="rp4-section"><h3 class="rp4-section-title">History</h3><div data-rp-history>New pricing record; no saved history.</div></section>
+ <section class="rp4-section"><h3 class="rp4-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M4 7c0-5 16-5 16 0s-16 5-16 0Zm0 0v10c0 5 16 5 16 0V7M4 12c0 5 16 5 16 0"/></svg>Website Inventory</h3><div class="rp4-cost-grid" data-rp-inventory></div></section>
+ <section class="rp4-section"><h3 class="rp4-section-title"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 8v5l3 2M3 12a9 9 0 1 0 3-7M3 3v5h5"/></svg>History</h3><div data-rp-history>New pricing record; no saved history.</div></section>
  <div data-rp-issues></div><p data-rp-error role="alert"></p><div data-rp-discard hidden>Keep these unsaved changes?<button type="button" data-rp-keep>Keep Editing</button><button type="button" data-rp-discard-confirm>Discard</button></div>
  </div><footer><button type="button" data-rp-close>Cancel</button><button type="submit">Save Pricing</button></footer></form>
 </aside><div class="retail-pricing__toast" data-rp-toast hidden role="status"></div>

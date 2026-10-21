@@ -36,6 +36,10 @@ ins($pdo,'cw_product_snapshots',['product_id'=>12345,'variation_id'=>$i+1,'produ
 }
 $sources=rpm_sources($pdo);check(rpm_find($sources['products'],'id',$missingId)!==null,'Canonical missing-cost product discoverable');check(!array_filter($sources['website'],fn($w)=>(int)$w['product_id']===12345&&(int)$w['variation_id']===0),'Parent excluded');
 $records=[];
+$stale=['product_id'=>$pid,'size_conversion_id'=>$ids[0],'website_key'=>'12345:1','website_confirmed'=>1,'selling_price_inc_vat'=>115,'vat_treatment'=>'standard','effective_date'=>'2026-10-21','request_id'=>bin2hex(random_bytes(16)),'source_token'=>'stale'];
+try{rpm_save($pdo,$stale,$settings);throw new RuntimeException('Changed source accepted');}catch(DomainException $expected){check(strpos($expected->getMessage(),'Source costs')!==false,'Source conflict surfaced');}
+check((int)$pdo->query('SELECT COUNT(*) FROM cw_retail_prices WHERE product_id='.$pid)->fetchColumn()===0,'Stale source rollback');
+
 foreach($ids as $i=>$size){$body=['product_id'=>$pid,'size_conversion_id'=>$size,'website_key'=>'12345:'.($i+1),'website_confirmed'=>1,'selling_price_inc_vat'=>115,'vat_treatment'=>'standard','effective_date'=>'2026-10-21','request_id'=>bin2hex(random_bytes(16))];$preview=rpm_preview($sources,$settings,$body);$body['source_token']=$preview['source_token'];$saved=rpm_save($pdo,$body,$settings);check(rpm_save($pdo,$body,$settings)['replayed'],'Idempotent retry');$records[]=[$body,$saved];}
 [$body,$saved]=$records[0];$body['id']=$saved['id'];$body['version']=1;$body['request_id']=bin2hex(random_bytes(16));$body['selling_price_inc_vat']=230;$new=rpm_save($pdo,$body,$settings);check($new['version']===2,'New version saved');
 $body['request_id']=bin2hex(random_bytes(16));try{rpm_save($pdo,$body,$settings);throw new RuntimeException('Stale version accepted');}catch(DomainException $expected){}
