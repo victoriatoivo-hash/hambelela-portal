@@ -76,4 +76,36 @@ try {supplier_test_list($pdo,'list');throw new RuntimeException('No list respons
 }
 $_GET=['from'=>'2026-10-07'];
 try {supplier_test_list($pdo,'list');throw new RuntimeException('No filtered list response');}catch(SupplierTestReply $response){expect($response->payload['total']===0,'Effective date filter applies to selected current source');}
+// Test the same sheet implementation used by the authenticated API.
+$helpers=substr($api,strpos($api,'function si_normalize'),strpos($api,'try{')-strpos($api,'function si_normalize'));
+$helpers=preg_replace('/function si_date\\(.*?\\n/','',$helpers);
+eval($helpers);
+require BASE_PATH.'/shared/cost-workbook-supplier-sheet.php';
+$lineId=$id;
+$source=(int)$pdo->query("SELECT id FROM cw_cost_product_sources WHERE supplier_invoice_line_id=$lineId")->fetchColumn();
+$product=(int)$pdo->query("SELECT product_id FROM cw_cost_product_sources WHERE id=$source")->fetchColumn();
+$state=si_sheet_state($pdo,$product,$source);
+$originalSnapshot=$pdo->query("SELECT * FROM cw_landed_product_costs WHERE product_source_id=$source ORDER BY id LIMIT 1")->fetch();
+$allocationCount=(int)$pdo->query('SELECT COUNT(*) FROM cw_transport_product_allocations')->fetchColumn();
+$save=function($field,$value,$version=null,$request=null)use($pdo,$product,$source){return si_sheet_save($pdo,['product_id'=>$product,'source_id'=>$source,'field'=>$field,'value'=>$value,'version'=>$version??si_sheet_state($pdo,$product,$source)['version'],'request_id'=>$request??bin2hex(random_bytes(16))]);};
+$result=$save('quantity','125',$state['version'],'test-quantity-request-0001');
+expect((float)$result['rows'][0]['supplier_cost_per_base']===80.0,'125kg source correction recalculates supplier/base');
+expect((float)$result['rows'][0]['transport_cost_per_base']===16.0,'Existing freight divided by corrected quantity');
+expect((float)$result['rows'][0]['landed_cost_per_base']===96.0,'Landed per-base recalculates');
+$revisions=(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn();
+$save('quantity','125',$state['version'],'test-quantity-request-0001');
+expect((int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn()===$revisions,'Retry cannot duplicate versions');
+try{$save('quantity','130',$state['version']);throw new RuntimeException('Stale edit accepted');}catch(DomainException $expected){expect(strpos($expected->getMessage(),'updated elsewhere')!==false,'Explicit conflict feedback');}
+$save('line_subtotal','12500');
+expect((float)si_sheet_row(si_sheet_state($pdo,$product,$source))['supplier_cost_per_base']===100.0,'Source price correction recalculates');
+expect($originalSnapshot===$pdo->query("SELECT * FROM cw_landed_product_costs WHERE id=".$originalSnapshot['id'])->fetch(),'Historical snapshot unchanged');
+expect((int)$pdo->query('SELECT COUNT(*) FROM cw_transport_product_allocations')->fetchColumn()===$allocationCount,'Freight allocations unchanged');
+expect((int)$pdo->query("SELECT id FROM cw_supplier_invoice_lines WHERE id=$lineId")->fetchColumn()===$lineId,'Stable invoice line ID');
+$save('invoice_date','2026-10-05');expect(si_sheet_row(si_sheet_state($pdo,$product,$source))['invoice_date']==='2026-10-05','Effective date correction');
+$save('product_category','Other');$save('short_code','SHEET001');$save('product_name','Corrected test product');
+expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_products')->fetchColumn()===1,'No duplicate master product');
+$version=si_sheet_state($pdo,$product,$source)['version'];$save('invoice_number','CORRECTED');
+try{$save('product_name','Stale name',$version);throw new RuntimeException('Cross-field stale edit accepted');}catch(DomainException $expected){}
+foreach([['quantity','0'],['line_subtotal','-1'],['purchase_unit','L'],['product_category','Invalid'],['invoice_date','2026-02-31']] as $invalid){try{$save($invalid[0],$invalid[1]);throw new RuntimeException('Invalid edit accepted');}catch(DomainException $expected){}}
+echo "Spreadsheet integration: source revisions, concurrency, retries, validation, stable identities and freight preservation passed.\\n";
 echo "Supplier costs integration: stable IDs, canonical products, audit, freight, FX, rollback and idempotency passed.\n";

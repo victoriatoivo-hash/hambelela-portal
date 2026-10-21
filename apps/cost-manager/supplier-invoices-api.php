@@ -4,6 +4,7 @@ require_once dirname(__DIR__,2).'/config.php';
 require_once BASE_PATH.'/shared/auth.php';
 require_once BASE_PATH.'/shared/database.php';
 require_once BASE_PATH.'/shared/cost-workbook.php';
+require_once BASE_PATH.'/shared/cost-workbook-supplier-sheet.php';
 require_once BASE_PATH.'/shared/openai-extractor.php';
 require_once BASE_PATH.'/shared/pdf-extractor.php';
 require_role('owner_admin');
@@ -36,7 +37,7 @@ try{
   $q=$pdo->prepare('SELECT COUNT(*)'.$sql);$q->execute($params);$total=(int)$q->fetchColumn();
   if($action==='selection'){$q=$pdo->prepare('SELECT p.id'.$sql.' ORDER BY p.id');$q->execute($params);si_reply(['ids'=>$q->fetchAll(PDO::FETCH_COLUMN),'total'=>$total]);}
   $offset=max(0,(int)($_GET['offset']??0));$limit=80;
-  $q=$pdo->prepare("SELECT p.id product_id,p.product_name,p.short_code,p.woo_sku,p.product_category,c.*,s.supplier_name,s.total_purchased_quantity quantity,s.source_type,COALESCE(i.invoice_number,s.manual_reference) invoice_number,i.id supplier_invoice_id,i.updated_at,COALESCE(i.uploaded_at,s.created_at) uploaded_at,c.cost_date invoice_date,sp.supplier_type,l.id line_id,l.quantity purchase_quantity,COALESCE(l.line_subtotal,s.total_supplier_cost) source_cost,l.pack_size,l.purchase_unit,l.shipping_weight_kg".$sql." ORDER BY p.product_name,p.id LIMIT $limit OFFSET $offset");$q->execute($params);$rows=$q->fetchAll();
+  $q=$pdo->prepare("SELECT p.id product_id,p.product_name,p.short_code,p.woo_sku,p.product_category,c.*,s.supplier_name,s.total_purchased_quantity quantity,s.source_type,COALESCE(i.invoice_number,s.manual_reference) invoice_number,i.id supplier_invoice_id,i.updated_at,COALESCE(i.uploaded_at,s.created_at) uploaded_at,c.cost_date invoice_date,COALESCE(i.supplier_type,sp.supplier_type) supplier_type,l.id line_id,l.quantity purchase_quantity,COALESCE(l.line_subtotal,s.total_supplier_cost) source_cost,l.pack_size,l.purchase_unit,l.shipping_weight_kg".$sql." ORDER BY p.product_name,p.id LIMIT $limit OFFSET $offset");$q->execute($params);$rows=$q->fetchAll();
   foreach($rows as &$row){if($row['currency']!=='NAD')$row['status_key']='exchange_rate_required';if(in_array($row['status_key'],['exchange_rate_required','vat_review_required'],true))$row['supplier_cost_per_base']=null;if($row['status_key']!=='complete'){$row['transport_cost_per_base']=null;$row['landed_cost_per_base']=null;}}unset($row);
   $summary=$pdo->prepare("SELECT COUNT(*) products,SUM(c.status_key<>'complete') attention,COUNT(DISTINCT CASE WHEN c.created_at>=? THEN p.id END) updated".$fromSql.' WHERE p.active=1');$summary->execute([substr($today,0,7).'-01',$today]);$stats=$summary->fetch()?:[];
   $stats['suppliers']=(int)$pdo->query('SELECT COUNT(*) FROM cw_suppliers WHERE active=1')->fetchColumn();
@@ -57,54 +58,16 @@ try{
   $id=(int)($_GET['product_id']??0);$q=$pdo->prepare('SELECT c.*,s.supplier_name,s.manual_reference,i.invoice_number FROM cw_landed_product_costs c JOIN cw_cost_product_sources s ON s.id=c.product_source_id LEFT JOIN cw_supplier_invoice_lines l ON l.id=c.supplier_invoice_line_id LEFT JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE c.product_id=? ORDER BY c.cost_date DESC,c.id DESC');$q->execute([$id]);$rows=$q->fetchAll();
   $audit=$pdo->prepare("SELECT * FROM cw_cost_audit_events WHERE (entity_type='supplier_invoice_line' AND entity_id IN(SELECT supplier_invoice_line_id FROM cw_cost_product_sources WHERE product_id=?)) OR (entity_type='cost_product' AND entity_id=?) ORDER BY occurred_at DESC,id DESC");$audit->execute([$id,$id]);si_reply(['rows'=>$rows,'audit'=>$audit->fetchAll()]);
  }
+ if($action==='inline-source'){
+  si_reply(['row'=>si_sheet_row(si_sheet_state($pdo,(int)($_GET['product_id']??0),(int)($_GET['source_id']??0)))]);
+ }
  if($action==='inline'){
-  cw_require_admin();$b=si_body();$pid=(int)($b['product_id']??0);$sourceId=(int)($b['source_id']??0);$field=(string)($b['field']??'');$value=trim((string)($b['value']??''));
-  $allowed=['product_name','product_category','short_code','supplier_name','supplier_type','invoice_number','quantity','line_subtotal'];if(!in_array($field,$allowed,true))throw new DomainException('This field is calculated or cannot be edited inline.');
-  $pdo->beginTransaction();$q=$pdo->prepare('SELECT * FROM cw_cost_products WHERE id=? AND active=1 FOR UPDATE');$q->execute([$pid]);$product=$q->fetch();if(!$product)throw new DomainException('Product unavailable.');
-  if(in_array($field,['product_name','product_category','short_code'],true)){
-   if($value==='')throw new DomainException('Enter a value.');
-   if($field==='short_code' && $product['woo_sku']!=='')throw new DomainException('A valid WooCommerce SKU cannot be overwritten. The internal reference remains separate.');
-   if($field==='product_name'){$q=$pdo->prepare('SELECT id FROM cw_cost_products WHERE normalized_name=? AND id<>?');$q->execute([lpc_norm($value),$pid]);if($q->fetchColumn())throw new DomainException('Product already exists. Do not merge products by renaming.');}
-   $u=cw_user();$pdo->prepare("UPDATE cw_cost_products SET $field=?,updated_by=?,updated_by_name=? WHERE id=?")->execute([$value,$u['id'],$u['name'],$pid]);
-   if($field==='product_name')$pdo->prepare('UPDATE cw_cost_products SET normalized_name=? WHERE id=?')->execute([lpc_norm($value),$pid]);
-   cw_supplier_cost_audit($pdo,'cost_product',$pid,'inline_updated',$product,[$field=>$value]);
-  }else{
-   $q=$pdo->prepare('SELECT i.*,l.id line_id FROM cw_cost_product_sources s JOIN cw_supplier_invoice_lines l ON l.id=s.supplier_invoice_line_id JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE s.id=? AND s.product_id=? FOR UPDATE');$q->execute([$sourceId,$pid]);$invoice=$q->fetch();
-   if(!$invoice){
-    $q=$pdo->prepare("SELECT * FROM cw_cost_product_sources WHERE id=? AND product_id=? AND source_type='manual' AND active=1 FOR UPDATE");$q->execute([$sourceId,$pid]);$source=$q->fetch();
-    if(!$source || $source['currency']!=='NAD')throw new DomainException('Open the original source editor to confirm this source and its currency.');
-    $q=$pdo->prepare('SELECT * FROM cw_landed_product_costs WHERE product_source_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE');$q->execute([$sourceId]);$cost=$q->fetch();if(!$cost || (int)($b['cost_id']??0)!==(int)$cost['id'])throw new DomainException('This cost changed. Refresh before editing.');
-    $updated=$source;
-    if(in_array($field,['quantity','line_subtotal'],true)){$number=si_decimal($value);if($number===null || (float)$number<0 || ($field==='quantity'&&(float)$number<=0))throw new DomainException('Confirm quantity and source cost.');$updated[$field==='quantity'?'total_purchased_quantity':'total_supplier_cost']=$number;}
-    elseif($field==='invoice_number')$updated['manual_reference']=$value;
-    else{$type=$field==='supplier_type'?$value:'Uncategorised';if(!in_array($type,si_types(true),true))throw new DomainException('Select a valid supplier type.');$updated['supplier_name']=$field==='supplier_name'?$value:$source['supplier_name'];$updated['supplier_id']=si_supplier($pdo,$updated['supplier_name'],$type,true);}
-    $pdo->prepare('UPDATE cw_cost_product_sources SET supplier_id=?,supplier_name=?,manual_reference=?,total_purchased_quantity=?,total_supplier_cost=? WHERE id=?')->execute([$updated['supplier_id'],$updated['supplier_name'],$updated['manual_reference'],$updated['total_purchased_quantity'],$updated['total_supplier_cost'],$sourceId]);
-    lpc_snapshot($pdo,$pid,$sourceId,(int)$updated['supplier_id']?:null,null,null,$cost['costing_basis'],$cost['base_unit'],(float)$updated['total_purchased_quantity'],(float)$updated['total_supplier_cost'],(float)$cost['transport_cost_used'],'NAD',$source['cost_date'],$cost['status_key']);
-    cw_supplier_cost_audit($pdo,'cost_product',$pid,'manual_source_updated',$source,$updated);$pdo->commit();si_reply(['ok'=>true]);
-   }
-   if((string)($b['updated_at']??'')!==(string)$invoice['updated_at'])throw new DomainException('The source changed. Refresh before editing.');
-   if(in_array($field,['quantity','line_subtotal'],true)){
-    $number=si_decimal($value);if($number===null || (float)$number<0 || ($field==='quantity' && (float)$number<=0))throw new DomainException('Enter a valid positive quantity or non-negative source cost.');
-    $q=$pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND active=1 ORDER BY id');$q->execute([$invoice['id']]);$lines=$q->fetchAll();
-    foreach($lines as &$line)if((int)$line['id']===(int)$invoice['line_id'])$line[$field]=$number;unset($line);
-    cw_supplier_save_lines($pdo,(int)$invoice['id'],$lines);
-   }else{
-    if($value==='')throw new DomainException('Enter a value.');
-    if($field==='supplier_type' && !in_array($value,si_types(true),true))throw new DomainException('Select a valid supplier type.');
-    $name=$field==='supplier_name'?$value:$invoice['supplier_name'];$type=$field==='supplier_type'?$value:$invoice['supplier_type'];$ref=$field==='invoice_number'?$value:$invoice['invoice_number'];
-    $sid=si_supplier($pdo,$name,$type,true);$q=$pdo->prepare("SELECT id FROM cw_supplier_invoices WHERE id<>? AND supplier_id=? AND invoice_date=? AND LOWER(TRIM(invoice_number))=LOWER(TRIM(?)) AND approval_status<>'archived'");$q->execute([$invoice['id'],$sid,$invoice['invoice_date'],$ref]);if($q->fetchColumn())throw new DomainException('Possible duplicate invoice.');
-    $pdo->prepare('UPDATE cw_supplier_invoices SET supplier_id=?,supplier_name=?,supplier_type=?,invoice_number=? WHERE id=?')->execute([$sid,$name,$type,$ref,$invoice['id']]);
-   }
-   $u=cw_user();$pdo->prepare('UPDATE cw_supplier_invoices SET last_edited_by=?,last_edited_by_name=?,updated_at=NOW() WHERE id=?')->execute([$u['id'],$u['name'],$invoice['id']]);
-   cw_supplier_cost_audit($pdo,'supplier_invoice',(int)$invoice['id'],'inline_updated',$invoice,[$field=>$value]);
-   lpc_refresh($pdo,[(int)$invoice['id']]);
-  }
-  $pdo->commit();si_reply(['ok'=>true]);
+  cw_require_admin();si_reply(si_sheet_save($pdo,si_body()));
  }
  if(in_array($action,['archive-products','delete-products','export'],true)){
   cw_require_admin();$b=si_body();$ids=array_values(array_unique(array_filter(array_map('intval',(array)($b['ids']??[])),function($id){return $id>0;})));if(!$ids || count($ids)>10000)throw new DomainException('Select between 1 and 10,000 products.');
   $marks=implode(',',array_fill(0,count($ids),'?'));
-  if($action==='export'){$today=(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d');$q=$pdo->prepare("SELECT p.product_name,p.short_code,p.woo_sku,p.product_category,c.currency,c.cost_date,c.base_unit,c.supplier_cost_per_base,c.transport_cost_per_base,c.landed_cost_per_base,c.status_key FROM cw_cost_products p LEFT JOIN cw_landed_product_costs c ON c.id=(SELECT c2.id FROM cw_landed_product_costs c2 JOIN cw_cost_product_sources s ON s.id=c2.product_source_id LEFT JOIN cw_supplier_invoice_lines l ON l.id=s.supplier_invoice_line_id LEFT JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE c2.product_id=p.id AND s.active=1 AND (s.supplier_invoice_line_id IS NULL OR (i.approval_status='approved' AND l.active=1)) AND c2.cost_date<=? ORDER BY c2.cost_date DESC,c2.id DESC LIMIT 1) WHERE p.id IN($marks) ORDER BY p.product_name");$q->execute(array_merge([$today],$ids));$export=$q->fetchAll();foreach($export as &$row){if($row['currency']!=='NAD')$row['status_key']='exchange_rate_required';if($row['status_key']!=='complete'){$row['transport_cost_per_base']=null;$row['landed_cost_per_base']=null;}if(in_array($row['status_key'],['exchange_rate_required','vat_review_required'],true))$row['supplier_cost_per_base']=null;}unset($row);si_reply(['rows'=>$export]);}
+  if($action==='export'){$today=(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d');$q=$pdo->prepare("SELECT p.product_name,p.short_code,p.woo_sku,p.product_category,c.currency,c.cost_date,c.base_unit,c.supplier_cost_per_base,c.transport_cost_per_base,c.landed_cost_per_base,c.status_key FROM cw_cost_products p LEFT JOIN cw_landed_product_costs c ON c.id=(SELECT c2.id FROM cw_landed_product_costs c2 JOIN cw_cost_product_sources s ON s.id=c2.product_source_id LEFT JOIN cw_supplier_invoice_lines l ON l.id=s.supplier_invoice_line_id LEFT JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE c2.product_id=p.id AND c2.id=(SELECT latest.id FROM cw_landed_product_costs latest WHERE latest.product_source_id=c2.product_source_id ORDER BY latest.calculation_version DESC,latest.id DESC LIMIT 1) AND s.active=1 AND (s.supplier_invoice_line_id IS NULL OR (i.approval_status='approved' AND l.active=1)) AND c2.cost_date<=? ORDER BY c2.cost_date DESC,c2.id DESC LIMIT 1) WHERE p.id IN($marks) ORDER BY p.product_name");$q->execute(array_merge([$today],$ids));$export=$q->fetchAll();foreach($export as &$row){if($row['currency']!=='NAD')$row['status_key']='exchange_rate_required';if($row['status_key']!=='complete'){$row['transport_cost_per_base']=null;$row['landed_cost_per_base']=null;}if(in_array($row['status_key'],['exchange_rate_required','vat_review_required'],true))$row['supplier_cost_per_base']=null;}unset($row);si_reply(['rows'=>$export]);}
   if(empty($b['confirmed']))throw new DomainException('Confirm this bulk action.');
   $pdo->beginTransaction();$q=$pdo->prepare("SELECT * FROM cw_cost_products WHERE id IN($marks) FOR UPDATE");$q->execute($ids);$products=$q->fetchAll();
   if($action==='delete-products'){$q=$pdo->prepare("SELECT COUNT(*) FROM cw_cost_product_sources WHERE product_id IN($marks)");$q->execute($ids);if((int)$q->fetchColumn())throw new DomainException('Approved or referenced product history cannot be deleted. Use Archive instead.');}

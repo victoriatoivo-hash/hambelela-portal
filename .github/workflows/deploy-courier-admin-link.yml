@@ -1,4 +1,4 @@
-name: Deploy Supplier and Packaging UI delta
+name: Deploy Supplier spreadsheet delta
 on:
   workflow_dispatch:
     inputs:
@@ -44,26 +44,11 @@ jobs:
           CW_TEST_USER: root
         run: |
           php -l shared/cost-workbook.php
+          php -l shared/cost-workbook-supplier-sheet.php
           php -l apps/cost-manager/supplier-invoices-api.php
-          php -l apps/cost-manager/landed-product-costs-api.php
-          php tests/supplier-costs-workflow.php
-          php -l apps/cost-manager/packaging-costs-api.php
-          php -l shared/cost-workbook-packaging-costs.php
-          php -l apps/cost-manager/retail-pricing-api.php
-          php -l apps/cost-manager/wholesale-pricing-api.php
-          node --check assets/js/packaging-costs.js
-          node --check assets/js/cost-workbook-controls.js
-          php tests/packaging-costs-workflow.php
-          node --check assets/js/supplier-invoices-v2.js
-          node --check assets/js/transport-costs.js
           php -l shared/cost-workbook-supplier-invoices.php
-          php -l shared/cost-workbook-page-shell.php
-          php -l apps/cost-manager/transport-costs-api.php
-          php -l shared/cost-workbook-sections.php
-          node --check assets/js/size-conversions.js
-          node tests/cost-workbook-size-conversions-static.mjs
-          node tests/size-conversions-interactions.mjs
-          php tests/size-conversions-values.php
+          php tests/supplier-costs-workflow.php
+          node --check assets/js/supplier-invoices-v2.js
       - name: Drawer interaction tests (disposable DOM, no live records)
         run: |
           npm install --prefix "$RUNNER_TEMP/supplier-ui" --no-audit --no-fund jsdom@24.1.3

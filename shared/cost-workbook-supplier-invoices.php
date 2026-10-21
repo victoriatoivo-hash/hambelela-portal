@@ -31,7 +31,7 @@ function cw_render_supplier_invoices(array $period): void { ?>
  <p role="status" data-si-status></p>
  <section class="supplier-invoices__table-card">
  <div class="supplier-invoices__table-wrap" data-si-scroll><table class="supplier-invoices__table"><thead><tr><th><input type="checkbox" class="si-checkbox" data-si-select-all aria-label="Select all filtered products"></th>
- <?php foreach(['Invoice Date','Uploaded','Supplier','Supplier Type','Invoice No.','Product Name','SKU','Product Category','Quantity','Supplier Cost / Base','Shipping / Base','Landed Cost / Base','Status','Actions'] as $heading): ?><th><?= $heading ?></th><?php endforeach; ?>
+ <?php foreach(['Invoice Date','Uploaded','Supplier','Supplier Type','Invoice No.','Product Name','SKU','Product Category','Quantity','Purchase Unit','Supplier Cost / Base','Shipping / Base','Landed Cost / Base','Status','Actions'] as $heading): ?><th><?= $heading ?></th><?php endforeach; ?>
  </tr></thead><tbody data-si-rows></tbody></table></div>
  <footer class="si-table-footer"><span data-si-total></span><span data-si-loading role="status"></span></footer></section>
  <div class="si-bulk-toolbar" data-si-bulk hidden><strong data-si-selected-count></strong><button type="button" class="si-btn" data-si-export>Export</button><button type="button" class="si-btn" data-si-archive>Archive</button><button type="button" class="si-btn" data-si-delete>Delete Unreferenced Draft</button><button type="button" class="si-btn" data-si-clear>Clear</button><button type="button" class="si-btn" data-si-clear aria-label="Close bulk actions">×</button></div>

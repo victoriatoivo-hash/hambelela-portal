@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '67498a56'
-NEW_FILES = []
-FILES = ['assets/css/cost-workbook-controls.css','assets/js/cost-workbook-controls.js','shared/cost-workbook-supplier-invoices.php','shared/cost-workbook-packaging-costs.php','assets/js/supplier-invoices-v2.js','assets/js/packaging-costs.js','assets/css/cost-workbook-supplier-invoices.css','assets/css/cost-workbook-packaging-costs-v2.css','shared/cost-workbook-page-shell.php']
-DEPENDENCIES = ['apps/cost-manager/packaging-costs-api.php','apps/cost-manager/supplier-invoices-api.php','apps/cost-manager/workbook-page.php','shared/cost-workbook.php']
+BASELINE = 'b076bd4d'
+NEW_FILES = ['shared/cost-workbook-supplier-sheet.php']
+FILES = ['shared/cost-workbook-supplier-sheet.php','apps/cost-manager/supplier-invoices-api.php','assets/css/cost-workbook-supplier-invoices.css','assets/js/supplier-invoices-v2.js','shared/cost-workbook-supplier-invoices.php']
+DEPENDENCIES = ['assets/css/cost-workbook-controls.css','assets/js/cost-workbook-controls.js','apps/cost-manager/workbook-page.php','shared/cost-workbook-page-shell.php','shared/cost-workbook.php']
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):

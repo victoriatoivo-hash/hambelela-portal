@@ -18,17 +18,19 @@ function error(message){one('[data-si-warnings]').textContent=message;}
 function filterQuery(){return new URLSearchParams(new FormData(filters)).toString();}
 function selection(){one('[data-si-bulk]').hidden=!selected.size;one('[data-si-selected-count]').textContent=selected.size+' Products Selected';one('[data-si-select-all]').checked=total>0&&selected.size===total;all('[data-select]').forEach(el=>{el.checked=selected.has(Number(el.dataset.select));});}
 function field(r,key,value){return '<button type="button" class="si-inline-value" data-inline="'+key+'" data-product="'+r.product_id+'">'+escape(value||'—')+'</button>';}
+function rowMarkup(r){return '<tr data-row="'+r.product_id+'"><td><input type="checkbox" class="si-checkbox" data-select="'+r.product_id+'" aria-label="Select '+escape(r.product_name)+'"></td><td>'+field(r,'invoice_date',date(r.invoice_date))+'</td><td>'+date(r.uploaded_at)+'</td><td>'+field(r,'supplier_name',r.supplier_name)+'</td><td>'+field(r,'supplier_type',r.supplier_type)+'</td><td>'+field(r,'invoice_number',r.invoice_number)+'</td><td class="si-product-name">'+field(r,'product_name',r.product_name)+'</td><td>'+field(r,'short_code',r.woo_sku||r.short_code)+'</td><td>'+field(r,'product_category',r.product_category)+'</td><td class="is-number">'+field(r,'quantity',r.purchase_quantity||r.quantity)+'</td><td>'+field(r,'purchase_unit',r.purchase_unit||'—')+'</td><td class="is-number">'+field(r,'line_subtotal',cash(r.supplier_cost_per_base)+' / '+r.base_unit)+'</td><td class="is-number"><button type="button" class="si-inline-value" data-review="'+(r.supplier_invoice_id||'')+'" title="Review shipping allocation">'+cash(r.transport_cost_per_base)+' / '+escape(r.base_unit)+'</button></td><td class="is-number si-landed-cost">'+cash(r.landed_cost_per_base)+' / '+escape(r.base_unit)+'</td><td><span class="si-status '+(r.status_key==='complete'?'is-ready':'is-review')+'">'+escape(statuses[r.status_key]||r.status_key)+'</span></td><td><div class="si-header-actions"><button type="button" class="si-btn" data-review="'+(r.supplier_invoice_id||'')+'" aria-label="Edit purchase for '+escape(r.product_name)+'">Edit</button><button type="button" class="si-btn" data-history="'+r.product_id+'">History</button></div></td></tr>';}
 function render(){
- const spacer=n=>n?'<tr aria-hidden="true"><td colspan="15" style="height:'+n*42+'px;padding:0;border:0"></td></tr>':'';
- tbody.innerHTML=spacer(offset)+entries.map(r=>'<tr data-row="'+r.product_id+'"><td><input type="checkbox" class="si-checkbox" data-select="'+r.product_id+'" aria-label="Select '+escape(r.product_name)+'"></td><td>'+date(r.invoice_date)+'</td><td>'+date(r.uploaded_at)+'</td><td>'+field(r,'supplier_name',r.supplier_name)+'</td><td>'+field(r,'supplier_type',r.supplier_type)+'</td><td>'+field(r,'invoice_number',r.invoice_number)+'</td><td class="si-product-name">'+field(r,'product_name',r.product_name)+'</td><td>'+field(r,'short_code',r.woo_sku||r.short_code)+'</td><td>'+field(r,'product_category',r.product_category)+'</td><td class="is-number">'+field(r,'quantity',r.purchase_quantity||r.quantity)+'</td><td class="is-number">'+field(r,'line_subtotal',cash(r.supplier_cost_per_base)+' / '+r.base_unit)+'</td><td class="is-number">'+cash(r.transport_cost_per_base)+' / '+escape(r.base_unit)+'</td><td class="is-number si-landed-cost">'+cash(r.landed_cost_per_base)+' / '+escape(r.base_unit)+'</td><td><span class="si-status '+(r.status_key==='complete'?'is-ready':'is-review')+'">'+escape(statuses[r.status_key]||r.status_key)+'</span></td><td><div class="si-header-actions"><button type="button" class="si-btn" data-review="'+(r.supplier_invoice_id||'')+'" aria-label="Edit purchase for '+escape(r.product_name)+'">Edit</button><button type="button" class="si-btn" data-history="'+r.product_id+'">History</button></div></td></tr>').join('')+spacer(Math.max(0,total-offset-entries.length));
- if(!total)tbody.innerHTML='<tr><td colspan="15">No approved product costs match. Upload or add a purchase, then review and approve it.</td></tr>';
+ const spacer=n=>n?'<tr aria-hidden="true"><td colspan="16" style="height:'+n*42+'px;padding:0;border:0"></td></tr>':'';
+ tbody.innerHTML=spacer(offset)+entries.map(rowMarkup).join('')+spacer(Math.max(0,total-offset-entries.length));
+ if(!total)tbody.innerHTML='<tr><td colspan="16">No approved product costs match. Upload or add a purchase, then review and approve it.</td></tr>';
  one('[data-si-total]').textContent=total.toLocaleString()+' matching products';selection();
 }
 async function load(reset=false,newOffset=offset){
+ if(activeCell||openingCell){one('[data-si-status]').textContent='Finish or cancel the current cell before refreshing the table.';return;}
  if(reset){scroll.scrollTop=0;newOffset=0;selected.clear();}
  const version=++generation;one('[data-si-loading]').textContent='Loading…';
  try{
-  const data=await request('list',undefined,filterQuery()+'&offset='+newOffset);if(version!==generation)return;
+  const data=await request('list',undefined,filterQuery()+'&offset='+newOffset);if(version!==generation||activeCell||openingCell)return;
   entries=data.rows;total=Number(data.total);offset=newOffset;render();
   Object.keys(data.summary||{}).forEach(key=>{const el=one('[data-si-summary="'+key+'"]');if(el)el.textContent=Number(data.summary[key]).toLocaleString();});
   one('[data-si-pending]').textContent='Purchases to Review ('+Number(data.summary.pending||0)+')';
@@ -39,7 +41,7 @@ async function load(reset=false,newOffset=offset){
   one('[data-si-status]').textContent='';
  }catch(e){one('[data-si-status]').textContent=e.message;}finally{if(version===generation)one('[data-si-loading]').textContent='';}
 }
-scroll.addEventListener('scroll',()=>{const index=Math.max(0,Math.floor((scroll.scrollTop-36)/42));if(index<offset||index>=offset+Math.max(40,entries.length-20)){const next=Math.max(0,Math.floor(index/40)*40);if(next!==offset){offset=next;load(false,next);}}},{passive:true});
+scroll.addEventListener('scroll',()=>{if(activeCell||openingCell)return;const index=Math.max(0,Math.floor((scroll.scrollTop-36)/42));if(index<offset||index>=offset+Math.max(40,entries.length-20)){const next=Math.max(0,Math.floor(index/40)*40);if(next!==offset){offset=next;load(false,next);}}},{passive:true});
 filters.addEventListener('submit',e=>e.preventDefault());
 filters.addEventListener('input',()=>{clearTimeout(filterTimer);filterTimer=setTimeout(()=>load(true),250);});
 filters.addEventListener('cwfiltersapply',()=>load(true));
@@ -145,23 +147,98 @@ async function history(id){
  try{const data=await request('history',undefined,'product_id='+id);one('[data-si-history-panel]').innerHTML='<div class="si-allocation-table-wrap"><table class="si-allocation-table"><thead><tr><th>Effective</th><th>Source</th><th>Supplier / Base</th><th>Shipping / Base</th><th>Landed / Base</th><th>Recorded By</th></tr></thead><tbody>'+data.rows.map(r=>'<tr><td>'+date(r.cost_date)+'</td><td>'+escape(r.supplier_name)+' · '+escape(r.invoice_number||r.manual_reference)+'</td><td>'+cash(r.supplier_cost_per_base)+'</td><td>'+cash(r.transport_cost_per_base)+'</td><td>'+cash(r.landed_cost_per_base)+' / '+escape(r.base_unit)+'</td><td>'+escape(r.created_by_name)+' · '+escape(r.created_at)+'</td></tr>').join('')+'</tbody></table></div><h3>Audit History</h3>'+data.audit.map(a=>'<p>'+escape(a.occurred_at)+' · '+escape(a.actor_name)+' · '+escape(a.action_key)+'</p>').join('');open('history','Product Cost History');}catch(e){toast(e.message);}
 }
 one('[data-si-pending]').onclick=async()=>{try{const data=await request('pending');const panel=one('[data-si-history-panel]');panel.innerHTML='';data.rows.forEach(r=>{const b=document.createElement('button');b.className='si-result';b.type='button';b.textContent=(r.supplier_name||'Supplier to confirm')+' · '+(r.invoice_number||'Reference to confirm')+' · '+date(r.invoice_date||r.uploaded_at);b.onclick=()=>edit(r.id);panel.appendChild(b);});if(!data.rows.length)panel.textContent='No purchases awaiting review.';open('history','Purchases to Review');}catch(e){toast(e.message);}};
-async function inline(button){
- const row=entries.find(r=>Number(r.product_id)===Number(button.dataset.product));if(!row)return;
- const key=button.dataset.inline,cell=button.parentElement;
- if(key==='short_code'&&row.woo_sku){toast('WooCommerce SKU is protected. Internal reference: '+row.short_code);return;}
- const initial=key==='quantity'?row.purchase_quantity:key==='line_subtotal'?row.source_cost:row[key];
- cell.innerHTML='<div class="si-inline-editor"><input class="si-inline-input" aria-label="'+escape(key==='line_subtotal'?'Total source cost excluding recoverable VAT':key)+'"><button type="button" class="si-btn" data-save>Save</button><button type="button" class="si-btn" data-cancel>Cancel</button></div><small data-inline-error role="alert"></small>';
- let input=one('input',cell);
- if(['supplier_type','product_category','supplier_name'].includes(key)){
-  const native=key==='supplier_type'?filters.elements.supplier_type:key==='product_category'?filters.elements.category:form.elements.supplier_id;
-  const select=document.createElement('select');select.className='si-inline-input';select.setAttribute('aria-label',key);
-  Array.from(native.options).filter(o=>o.value).forEach(o=>{const option=document.createElement('option');option.value=key==='supplier_name'?o.textContent:o.value;option.textContent=o.textContent;select.appendChild(option);});input.replaceWith(select);input=select;
- }
- input.value=initial??'';input.focus();if(input.select)input.select();let saving=false;
- const cancel=()=>render();one('[data-cancel]',cell).onclick=cancel;
- const save=async()=>{if(saving)return;saving=true;one('[data-save]',cell).disabled=true;try{await request('inline',{product_id:row.product_id,source_id:row.product_source_id,cost_id:row.id,field:key,value:input.value,updated_at:row.updated_at});toast('Cost updated. Purchase-level supplier/reference edits apply to every line of that purchase.');await load();}catch(e){one('[data-inline-error]',cell).textContent=e.message;one('[data-save]',cell).disabled=false;saving=false;}};
- one('[data-save]',cell).onclick=save;input.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();save();}if(e.key==='Escape')cancel();};
+let activeCell=null,openingCell=false;
+function patchRows(rows){
+ rows.forEach(row=>{
+  const index=entries.findIndex(r=>Number(r.product_id)===Number(row.product_id)&&Number(r.product_source_id)===Number(row.product_source_id));
+  if(index<0)return;entries[index]=row;
+  const tr=one('[data-row="'+row.product_id+'"]',tbody);if(!tr)return;
+  const template=document.createElement('tbody');template.innerHTML=rowMarkup(row);
+  Array.from(tr.cells).forEach((cell,i)=>{cell.innerHTML=template.firstElementChild.cells[i].innerHTML;});
+ });selection();
 }
+function freezeColumns(){
+ const table=tbody.closest('table');if(table.querySelector('colgroup'))return;
+ const widths=Array.from(table.tHead.rows[0].cells).map(c=>c.getBoundingClientRect().width);
+ if(!widths.some(Boolean))return;
+ const group=document.createElement('colgroup');widths.forEach(width=>{const col=document.createElement('col');col.style.width=width+'px';group.appendChild(col);});
+ table.prepend(group);table.style.width=widths.reduce((a,b)=>a+b,0)+'px';table.style.tableLayout='fixed';
+}
+function sheetNotice(editor,message){
+ editor.panel.querySelectorAll('button').forEach(b=>b.hidden=false);editor.cell.classList.add('is-error');editor.message.textContent=message;editor.panel.hidden=false;
+}
+function finishCell(editor){
+ editor.panel.remove();editor.input.remove();editor.cell.classList.remove('is-editing','is-saving','is-error');editor.button.style.visibility='';
+ if(activeCell===editor)activeCell=null;
+}
+async function commitCell(editor){
+ if(editor.promise)return editor.promise;
+ const value=editor.input.value.trim();
+ if(value===String(editor.initial??'')||(['quantity','line_subtotal'].includes(editor.key)&&value!==''&&Number(value)===Number(editor.initial))){finishCell(editor);return true;}
+ if(!editor.input.checkValidity()){sheetNotice(editor,editor.input.validationMessage||'Enter a valid value.');editor.input.focus({preventScroll:true});return false;}
+ if(editor.lastValue!==value){editor.requestId=crypto.randomUUID();editor.lastValue=value;}
+ editor.cell.classList.add('is-saving');editor.cell.classList.remove('is-error');editor.panel.hidden=true;editor.input.disabled=true;
+ editor.promise=(async()=>{
+  try{
+   const data=await request('inline',{product_id:editor.row.product_id,source_id:editor.row.product_source_id,field:editor.key,value,version:editor.row.version,request_id:editor.requestId});
+   finishCell(editor);patchRows(data.rows);editor.cell.classList.add('is-saved');setTimeout(()=>editor.cell.classList.remove('is-saved'),2000);return true;
+  }catch(e){editor.input.disabled=false;editor.cell.classList.remove('is-saving');sheetNotice(editor,e.message);return false;}
+  finally{editor.promise=null;}
+ })();return editor.promise;
+}
+async function inline(button){
+ if(openingCell)return;
+ if(activeCell){if(activeCell.button===button)return;const pid=button.dataset.product,key=button.dataset.inline;if(!await commitCell(activeCell))return;button=one('[data-product="'+pid+'"][data-inline="'+key+'"]',tbody);if(!button)return;}
+ let row=entries.find(r=>Number(r.product_id)===Number(button.dataset.product));if(!row)return;
+ const key=button.dataset.inline,cell=button.parentElement;
+ if(key==='short_code'&&row.woo_sku){toast('WooCommerce SKU is protected. Use invoice review to change product matching.');return;}
+ if(key==='purchase_unit'&&!row.purchase_unit){toast('This manual source has no pack unit. Use its source review.');return;}
+ freezeColumns();openingCell=true;generation++;button.setAttribute('aria-busy','true');
+ try{const data=await request('inline-source',undefined,'product_id='+row.product_id+'&source_id='+row.product_source_id);row=data.row;patchRows([row]);button=one('[data-inline="'+key+'"]',cell);}
+ catch(e){toast(e.message);return;}finally{openingCell=false;button.removeAttribute('aria-busy');}
+ const initial=key==='quantity'?row.purchase_quantity:key==='line_subtotal'?row.source_cost:row[key];
+ let input=document.createElement('input');input.type=['quantity','line_subtotal'].includes(key)?'number':key==='invoice_date'?'date':'text';
+ input.className='si-sheet-input';input.setAttribute('aria-label',key==='line_subtotal'?'Original line total ('+row.source_currency+'), not cost per base':key.replaceAll('_',' '));
+ if(input.type==='number'){input.step='any';input.min=key==='quantity'?'0.000001':'0';input.inputMode='decimal';}input.required=true;
+ let options=[];
+ if(['supplier_type','product_category','supplier_name','purchase_unit'].includes(key)){
+  const native=key==='supplier_type'?filters.elements.supplier_type:key==='product_category'?filters.elements.category:form.elements.supplier_id;
+  options=key==='purchase_unit'?['g','kg','ml','L','unit'].map(v=>({value:v,text:v})):Array.from(native.options).filter(o=>o.value).map(o=>({value:key==='supplier_name'?o.textContent:o.value,text:o.textContent}));
+  if(key!=='supplier_name'){const select=document.createElement('select');select.className=input.className;select.setAttribute('aria-label',input.getAttribute('aria-label'));options.forEach(o=>select.add(new Option(o.text,o.value)));input=select;}
+ }
+ input.value=initial??'';
+ const panel=document.createElement('div');panel.className='si-sheet-feedback';panel.hidden=true;
+ const message=document.createElement('span');message.setAttribute('role','alert');panel.appendChild(message);
+ const retry=document.createElement('button'),cancel=document.createElement('button'),reload=document.createElement('button');
+ retry.textContent='Retry';cancel.textContent='Cancel';reload.textContent='Review latest';
+ [retry,cancel,reload].forEach(b=>{b.type='button';b.className='si-btn';panel.appendChild(b);});
+ cell.append(input,panel);button.style.visibility='hidden';cell.classList.add('is-editing');
+ const editor={row,key,cell,button,input,initial,panel,message,promise:null};activeCell=editor;
+ const place=()=>{const r=cell.getBoundingClientRect();panel.style.left=Math.max(8,Math.min(r.left,window.innerWidth-310))+'px';panel.style.top=Math.min(r.bottom+4,window.innerHeight-140)+'px';};
+ // The feedback/options float outside the table so neither the row nor columns resize.
+ document.body.appendChild(panel);panel.dataset.supplierSheet='';place();
+ retry.onclick=()=>commitCell(editor);cancel.onclick=()=>{finishCell(editor);button.focus({preventScroll:true});};
+ reload.onclick=async()=>{const draft=input.value;try{const data=await request('inline-source',undefined,'product_id='+row.product_id+'&source_id='+row.product_source_id);editor.row=data.row;editor.initial=key==='quantity'?data.row.purchase_quantity:key==='line_subtotal'?data.row.source_cost:data.row[key];message.textContent='Latest: '+editor.initial+'. Your draft: '+draft+'. Review it, then Retry or Cancel.';}catch(e){message.textContent=e.message;}};
+ if(key==='supplier_name'){
+  const list=document.createElement('div');list.className='si-sheet-options';panel.prepend(list);panel.hidden=false;retry.hidden=true;reload.hidden=true;
+  const choices=()=>{list.replaceChildren();options.filter(o=>o.text.toLowerCase().includes(input.value.toLowerCase())).forEach(o=>{const choice=document.createElement('button');choice.type='button';choice.textContent=o.text;choice.onmousedown=e=>e.preventDefault();choice.onclick=()=>{input.value=o.value;commitCell(editor);};list.appendChild(choice);});};input.addEventListener('input',choices);choices();
+ }
+ if(key==='line_subtotal'){panel.hidden=false;message.textContent='Correct the original line total in '+row.source_currency+'. Per-base costs are recalculated; history is retained.';retry.hidden=true;reload.hidden=true;}
+ input.focus({preventScroll:true});if(input.select&&input.type!=='date')input.select();
+ input.addEventListener('change',()=>{if(input.tagName==='SELECT'||input.type==='date')commitCell(editor);});
+ input.addEventListener('keydown',async e=>{
+  if(e.key==='Escape'){e.preventDefault();if(!editor.promise){finishCell(editor);button.focus({preventScroll:true});}return;}
+  if(e.key==='Enter'||e.key==='Tab'){
+   e.preventDefault();const buttons=all('[data-inline]',tbody).filter(b=>!(b.dataset.inline==='short_code'&&entries.find(r=>String(r.product_id)===b.dataset.product)?.woo_sku));
+   const next=buttons[buttons.indexOf(button)+(e.shiftKey?-1:1)],target=next?{pid:next.dataset.product,key:next.dataset.inline}:null;
+   if(await commitCell(editor)){if(e.key==='Tab'&&target)inline(one('[data-product="'+target.pid+'"][data-inline="'+target.key+'"]',tbody));else one('[data-product="'+row.product_id+'"][data-inline="'+key+'"]',tbody)?.focus({preventScroll:true});}
+  }
+ });
+ input.addEventListener('blur',()=>{setTimeout(()=>{if(activeCell===editor&&!panel.contains(document.activeElement))commitCell(editor);},0);});
+}
+document.addEventListener('pointerdown',e=>{if(activeCell&&!activeCell.cell.contains(e.target)&&!activeCell.panel.contains(e.target))commitCell(activeCell);});
+tbody.addEventListener('keydown',e=>{if(e.target.matches('[data-inline]')&&['ArrowLeft','ArrowRight'].includes(e.key)){const buttons=all('[data-inline]',tbody),next=buttons[buttons.indexOf(e.target)+(e.key==='ArrowLeft'?-1:1)];if(next){e.preventDefault();next.focus({preventScroll:true});}}});
+
 tbody.addEventListener('click',e=>{const editButton=e.target.closest('[data-review]'),historyButton=e.target.closest('[data-history]'),inlineButton=e.target.closest('[data-inline]');if(editButton)edit(editButton.dataset.review);if(historyButton)history(historyButton.dataset.history);if(inlineButton)inline(inlineButton);});
 tbody.addEventListener('change',e=>{if(e.target.matches('[data-select]')){const id=Number(e.target.dataset.select);if(e.target.checked)selected.add(id);else selected.delete(id);selection();}});
 one('[data-si-select-all]').onchange=async e=>{if(!e.target.checked){selected.clear();selection();return;}try{const data=await request('selection',undefined,filterQuery());selected=new Set(data.ids.map(Number));selection();}catch(error){toast(error.message);}};
