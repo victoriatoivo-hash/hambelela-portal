@@ -1,4 +1,4 @@
-name: Deploy Packaging drawer correction
+name: Deploy Product Pricing master workbook
 on:
   workflow_dispatch:
     inputs:
@@ -51,12 +51,20 @@ jobs:
           php -l shared/cost-workbook-packaging-costs.php
           php tests/packaging-costs-workflow.php
           node --check assets/js/packaging-costs.js
+          php -l shared/cost-workbook-pricing-master.php
+          php -l apps/cost-manager/retail-pricing-api.php
+          php -l shared/cost-workbook-retail-pricing.php
+          php -l shared/cost-workbook-page-shell.php
+          php tests/product-pricing-workflow.php
+          node --check assets/js/retail-pricing.js
+          node tests/cost-workbook-retail-pricing-static.mjs
           node --check assets/js/supplier-invoices-v2.js
       - name: Drawer interaction tests (disposable DOM, no live records)
         run: |
           npm install --prefix "$RUNNER_TEMP/supplier-ui" --no-audit --no-fund jsdom@24.1.3
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/supplier-costs-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/packaging-costs-ui.cjs
+          NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/product-pricing-ui.cjs
       - name: Hash guarded delta with targeted backup and rollback
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

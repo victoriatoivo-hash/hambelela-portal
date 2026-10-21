@@ -1,18 +1,1006 @@
-.retail-pricing{--rp-burgundy:#721b1a;--rp-action:#ab3619;--rp-orange:#f07420;--rp-text:#2d211c;--rp-muted:#806d63;--rp-surface:#fff;--rp-warm:#fbf6f2;--rp-border:#e8d9d0;font-family:Figtree,system-ui,sans-serif;color:var(--rp-text);display:grid;gap:16px}.retail-pricing *{box-sizing:border-box}.retail-pricing__metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}.retail-pricing__metric{min-height:82px;border:1px solid var(--rp-border);border-left:4px solid var(--rp-action);border-radius:11px;background:var(--rp-surface);padding:13px;display:flex;gap:10px;align-items:flex-start}.retail-pricing__metric:nth-child(3n+1){border-left-color:#a8d400}.retail-pricing__metric:nth-child(3n){border-left-color:var(--rp-orange);background:var(--rp-warm)}.retail-pricing__metric-icon{width:22px;height:22px;color:var(--rp-action);display:grid;place-items:center;flex:0 0 22px}.retail-pricing__metric-icon svg{width:17px;height:17px;stroke-width:1.7}.retail-pricing__metric div{min-width:0;display:grid;gap:2px}.retail-pricing__metric small{font-size:10px;line-height:1.2;text-transform:uppercase;letter-spacing:.3px;font-weight:600;color:#6b4c3b}.retail-pricing__metric strong{font-size:17px;line-height:1.15;font-weight:600;color:var(--rp-burgundy)}.retail-pricing__metric div>span{font-size:10px;line-height:1.3;color:var(--rp-muted)}
-.retail-pricing__filters{display:grid;grid-template-columns:minmax(260px,2fr) repeat(3,minmax(170px,1fr));gap:8px 10px;padding:12px;border:1px solid var(--rp-border);border-radius:11px;background:var(--rp-warm);align-items:end}.retail-pricing__filters label,.retail-pricing__drawer label{display:grid;gap:6px;color:#6b4c3b;font-size:11px;font-weight:600}.retail-pricing__filters input,.retail-pricing__filters select,.retail-pricing__drawer input,.retail-pricing__drawer select{width:100%;height:34px;border:1px solid #e4c9be;border-radius:8px;background:#fff;padding:0 12px;font:400 12px/1 Figtree,system-ui,sans-serif;color:var(--rp-text);outline:none}.retail-pricing__filters input:focus,.retail-pricing__drawer input:focus{border-color:var(--rp-action);box-shadow:0 0 0 2px rgba(171,54,25,.08)}.retail-pricing__filters button{height:34px;border:1px solid var(--rp-border);border-radius:8px;background:#fff;color:var(--rp-burgundy);font:600 11px/1 Figtree,system-ui,sans-serif;cursor:pointer}.retail-pricing__filters button:hover{border-color:var(--rp-action);background:#fff8f3}
-.retail-pricing__table-card{min-width:0;border:1px solid var(--rp-border);border-radius:11px;background:#fff;overflow:hidden}.retail-pricing__table-wrap{max-width:100%;overflow:auto}.retail-pricing table{width:100%;min-width:2280px;border-collapse:collapse}.retail-pricing th{height:36px;padding:8px 10px;background:var(--rp-warm);border-bottom:1px solid var(--rp-border);color:var(--rp-burgundy);font-size:10px;font-weight:700;line-height:1.2;text-align:left;text-transform:uppercase;letter-spacing:.28px;white-space:nowrap}.retail-pricing td{height:44px;padding:7px 10px;border-bottom:1px solid #f1e7e1;color:var(--rp-text);font-size:11px;font-weight:400;white-space:nowrap}.retail-pricing tbody tr:hover{background:#fffaf7}.retail-pricing td strong{display:block;color:var(--rp-burgundy);font-weight:600}.retail-pricing td small{display:block;max-width:230px;overflow:hidden;text-overflow:ellipsis;color:var(--rp-muted);font-size:9px}.retail-pricing td.is-price{background:#fff3ef;color:var(--rp-burgundy);font-weight:600}.retail-pricing td.is-price span{color:var(--rp-action)}.retail-pricing td.is-negative{color:#b42318}.retail-pricing td button,.retail-pricing__mobile button{height:30px;border:1px solid var(--rp-action);border-radius:7px;background:#fff;color:var(--rp-burgundy);padding:0 12px;font:600 10px/1 Figtree,system-ui,sans-serif;cursor:pointer;transition:background .18s ease,color .18s ease,border-color .18s ease}.retail-pricing td button:hover,.retail-pricing__mobile button:hover{background:var(--rp-action);color:#fff}.retail-pricing__status{display:inline-flex;align-items:center;height:22px;border-radius:999px;padding:0 8px;font-size:9px;font-weight:600}.retail-pricing__status.is-priced{background:#eff8dc;color:#486400}.retail-pricing__status.is-low_margin{background:#fff2df;color:#9a4b00}.retail-pricing__status.is-attention{background:#fbe9e6;color:#8b1f1d}.retail-pricing__mobile{display:none}
-.retail-pricing__backdrop{position:fixed;inset:0;z-index:1100;background:rgba(45,33,28,.28);backdrop-filter:blur(2px)}.retail-pricing__backdrop[hidden]{display:none}.retail-pricing__drawer{position:fixed;z-index:1110;top:0;right:0;width:min(620px,100vw);height:100dvh;background:#fff;border-left:1px solid var(--rp-border);box-shadow:-22px 0 45px rgba(74,39,24,.16);display:grid;grid-template-rows:auto minmax(0,1fr);transform:translateX(0);transition:transform .2s ease;font-family:Figtree,system-ui,sans-serif}.retail-pricing__drawer[aria-hidden=true]{transform:translateX(105%);pointer-events:none}.retail-pricing__drawer>header{min-height:76px;padding:15px 18px;border-bottom:1px solid var(--rp-border);display:flex;align-items:flex-start;justify-content:space-between;gap:16px;background:#fff}.retail-pricing__drawer>header p{margin:0 0 4px;color:var(--rp-action);font-size:10px;font-weight:700;letter-spacing:1.1px}.retail-pricing__drawer>header h2{margin:0;color:var(--rp-burgundy);font-size:17px;font-weight:600}.retail-pricing__drawer>header small{display:block;margin-top:4px;color:var(--rp-muted);font-size:10px;font-weight:400;line-height:1.4}.retail-pricing__drawer>header button{width:30px;height:30px;border:1px solid var(--rp-border);border-radius:8px;background:#fff;color:var(--rp-burgundy);display:grid;place-items:center;cursor:pointer}.retail-pricing__drawer>header button:hover{border-color:var(--rp-action);background:var(--rp-warm)}.retail-pricing__drawer>header svg{width:16px;height:16px}.retail-pricing__drawer form{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto}.retail-pricing__drawer-body{min-height:0;overflow:auto;padding:16px 18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 12px;align-content:start}.retail-pricing__drawer-body>label:first-of-type,.retail-pricing__calculation,.retail-pricing__error{grid-column:1/-1}.retail-pricing__calculation{margin-top:3px;border:1px solid var(--rp-border);border-radius:10px;background:var(--rp-warm);padding:13px}.retail-pricing__calculation h3{margin:0 0 10px;color:var(--rp-burgundy);font-size:13px;font-weight:600}.retail-pricing__calculation p,.retail-pricing__calculation small{margin:0;color:var(--rp-muted);font-size:10px;line-height:1.45}.retail-pricing__calculation dl{margin:0 0 8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}.retail-pricing__calculation dl div{min-height:30px;border-bottom:1px solid #eadbd2;display:flex;align-items:center;justify-content:space-between;gap:10px}.retail-pricing__calculation dt{font-size:10px;color:#6b4c3b}.retail-pricing__calculation dd{margin:0;color:var(--rp-burgundy);font-size:11px;font-weight:600}.retail-pricing__error{min-height:16px;margin:0;color:#a3201e;font-size:10px}.retail-pricing__drawer footer{min-height:62px;padding:13px 18px;border-top:1px solid var(--rp-border);background:#fff;display:flex;justify-content:flex-end;gap:8px}.retail-pricing__drawer footer button{height:34px;border-radius:8px;padding:0 16px;font:600 11px/1 Figtree,system-ui,sans-serif;cursor:pointer}.retail-pricing__drawer footer button:first-child{border:1px solid var(--rp-border);background:#fff;color:#6b4c3b}.retail-pricing__drawer footer button:last-child{border:1px solid var(--rp-burgundy);background:var(--rp-burgundy);color:#fff}.retail-pricing__drawer footer button:last-child:hover{border-color:var(--rp-orange);background:var(--rp-orange)}.retail-pricing__toast{position:fixed;right:22px;bottom:22px;z-index:1200;max-width:380px;border-radius:9px;background:var(--rp-burgundy);color:#fff;padding:11px 14px;font:500 11px/1.4 Figtree,system-ui,sans-serif;box-shadow:0 10px 30px rgba(45,33,28,.2)}.retail-pricing__toast.is-error{background:#9d2724}
-.retail-profitability__basis{border:1px solid #e8d9d0;border-radius:10px;background:#fbf6f2;padding:11px 13px;display:flex;align-items:flex-start;gap:9px;color:#6b4c3b;font-size:10px;line-height:1.45}.retail-profitability__basis svg{width:16px;height:16px;flex:0 0 16px;color:#ab3619}.retail-profitability__metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.retail-profitability__coverage,.retail-profitability__grid>article{border:1px solid var(--rp-border);border-radius:11px;background:#fff;overflow:hidden}.retail-profitability__coverage>header,.retail-profitability__grid article>header{padding:13px 15px;border-bottom:1px solid var(--rp-border);background:#fff}.retail-profitability__coverage header p,.retail-profitability__grid header p{margin:0 0 3px;color:var(--rp-action);font-size:9px;font-weight:700;letter-spacing:1px}.retail-profitability__coverage header h2,.retail-profitability__grid header h2{margin:0;color:var(--rp-burgundy);font-size:14px;font-weight:600}.retail-profitability__coverage>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--rp-border)}.retail-profitability__coverage>div div{min-height:62px;background:#fff;padding:12px;display:grid;gap:3px}.retail-profitability__coverage span{font-size:10px;color:var(--rp-muted)}.retail-profitability__coverage strong{font-size:12px;color:var(--rp-burgundy);font-weight:600;overflow-wrap:anywhere}.retail-profitability__grid{display:grid;grid-template-columns:1fr 1.25fr;gap:12px}.retail-profitability table{min-width:760px}
-@media(max-width:1200px){.retail-pricing__metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.retail-pricing__filters{grid-template-columns:repeat(2,minmax(0,1fr))}.retail-profitability__coverage>div{grid-template-columns:repeat(3,minmax(0,1fr))}.retail-profitability__grid{grid-template-columns:1fr}}
-@media(max-width:700px){.retail-pricing__metrics,.retail-profitability__metrics{grid-template-columns:1fr 1fr}.retail-pricing__filters{grid-template-columns:1fr}.retail-pricing__table-card{display:none}.retail-pricing__mobile{display:grid;gap:10px}.retail-pricing__mobile article{border:1px solid var(--rp-border);border-radius:10px;background:#fff;padding:12px;display:grid;gap:10px}.retail-pricing__mobile header{display:flex;justify-content:space-between;gap:10px}.retail-pricing__mobile header strong,.retail-pricing__mobile header small{display:block}.retail-pricing__mobile header strong{color:var(--rp-burgundy);font-size:12px}.retail-pricing__mobile header small{margin-top:3px;color:var(--rp-muted);font-size:9px}.retail-pricing__mobile dl{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}.retail-pricing__mobile dl div{display:grid;gap:2px}.retail-pricing__mobile dt{font-size:9px;color:var(--rp-muted)}.retail-pricing__mobile dd{margin:0;font-size:11px;color:var(--rp-text)}.retail-pricing__drawer-body{grid-template-columns:1fr}.retail-pricing__drawer-body>*{grid-column:1!important}.retail-pricing__calculation dl{grid-template-columns:1fr}.retail-profitability__coverage>div{grid-template-columns:1fr 1fr}}
-@media(prefers-reduced-motion:reduce){.retail-pricing__drawer,.retail-pricing td button{transition:none}}
-.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__toolbar,.cost-workbook-page[data-page=profitability-report] .wholesale-pricing__toolbar{margin-bottom:8px}.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__toolbar a,.cost-workbook-page[data-page=profitability-report] .wholesale-pricing__toolbar a{display:inline-flex;align-items:center;height:32px;border:1px solid #e8d9d0;border-radius:8px;background:#fff;padding:0 11px;color:#6b4c3b;font:500 11px/1 Figtree,system-ui,sans-serif;text-decoration:none}.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__header-row,.cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:14px}.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__header-row h1,.cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row h1{font-size:20px;font-weight:600;color:#721b1a}.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__header-row p,.cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row p{font:400 11px/1.45 Figtree,system-ui,sans-serif;color:#806d63}.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__header-actions{display:flex;gap:8px;align-items:center}.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__header-actions svg,.cost-workbook-page[data-page=profitability-report] .portal-button svg{width:15px;height:15px}.cost-workbook-page[data-page=product-pricing] .portal-button,.cost-workbook-page[data-page=profitability-report] .portal-button{height:34px;font-weight:500;text-decoration:none}
-.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cw-period-nav{display:flex;align-items:end;gap:8px;margin:0 0 16px;padding:0;border-bottom:1px solid #e8d9d0;overflow-x:auto;scrollbar-width:none}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cw-period-nav::-webkit-scrollbar{display:none}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cw-period-nav a{display:grid;place-items:center;flex:0 0 72px;min-width:72px;min-height:52px;padding:5px 7px 7px;border:0;border-radius:8px 8px 0 0;background:transparent;color:#6b4c3b;font:700 12px/1 Figtree,system-ui,sans-serif;text-decoration:none;text-transform:uppercase}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cw-period-nav a:hover{background:#fffaf5}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cw-period-nav a.is-active{border-bottom:2px solid #ab3619;background:#fbf6f2;color:#721b1a}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cw-period-nav a:first-of-type,.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cw-period-nav a:last-child{flex-basis:34px;min-width:34px;min-height:34px;height:34px;margin-bottom:5px;border:1px solid #e8d9d0;border-radius:8px}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cw-period-nav a svg{width:16px;height:16px}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cost-workbook__period-year{display:grid;align-content:center;justify-items:center;flex:0 0 72px;min-width:72px;min-height:52px;color:#6b4c3b}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cost-workbook__period-year small{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .cost-workbook__period-year strong{margin-top:4px;color:#2d211c;font-size:12px;font-weight:500}
+/* Existing report styling remains isolated from the Product Pricing redesign. */
+body:has([data-rp-root][data-mode="report"]) .retail-pricing{--rp-burgundy:#721b1a;--rp-action:#ab3619;--rp-orange:#f07420;--rp-text:#2d211c;--rp-muted:#806d63;--rp-surface:#fff;--rp-warm:#fbf6f2;--rp-border:#e8d9d0;font-family:Figtree,system-ui,sans-serif;color:var(--rp-text);display:grid;gap:16px}body:has([data-rp-root][data-mode="report"]) .retail-pricing *{box-sizing:border-box}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric{min-height:82px;border:1px solid var(--rp-border);border-left:4px solid var(--rp-action);border-radius:11px;background:var(--rp-surface);padding:13px;display:flex;gap:10px;align-items:flex-start}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric:nth-child(3n+1){border-left-color:#a8d400}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric:nth-child(3n){border-left-color:var(--rp-orange);background:var(--rp-warm)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric-icon{width:22px;height:22px;color:var(--rp-action);display:grid;place-items:center;flex:0 0 22px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric-icon svg{width:17px;height:17px;stroke-width:1.7}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric div{min-width:0;display:grid;gap:2px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric small{font-size:10px;line-height:1.2;text-transform:uppercase;letter-spacing:.3px;font-weight:600;color:#6b4c3b}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric strong{font-size:17px;line-height:1.15;font-weight:600;color:var(--rp-burgundy)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__metric div>span{font-size:10px;line-height:1.3;color:var(--rp-muted)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters{display:grid;grid-template-columns:minmax(260px,2fr) repeat(3,minmax(170px,1fr));gap:8px 10px;padding:12px;border:1px solid var(--rp-border);border-radius:11px;background:var(--rp-warm);align-items:end}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters label,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer label{display:grid;gap:6px;color:#6b4c3b;font-size:11px;font-weight:600}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters input,body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters select,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer input,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer select{width:100%;height:34px;border:1px solid #e4c9be;border-radius:8px;background:#fff;padding:0 12px;font:400 12px/1 Figtree,system-ui,sans-serif;color:var(--rp-text);outline:none}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters input:focus,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer input:focus{border-color:var(--rp-action);box-shadow:0 0 0 2px rgba(171,54,25,.08)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters button{height:34px;border:1px solid var(--rp-border);border-radius:8px;background:#fff;color:var(--rp-burgundy);font:600 11px/1 Figtree,system-ui,sans-serif;cursor:pointer}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters button:hover{border-color:var(--rp-action);background:#fff8f3}body:has([data-rp-root][data-mode="report"]) .retail-pricing__table-card{min-width:0;border:1px solid var(--rp-border);border-radius:11px;background:#fff;overflow:hidden}body:has([data-rp-root][data-mode="report"]) .retail-pricing__table-wrap{max-width:100%;overflow:auto}body:has([data-rp-root][data-mode="report"]) .retail-pricing table{width:100%;min-width:2280px;border-collapse:collapse}body:has([data-rp-root][data-mode="report"]) .retail-pricing th{height:36px;padding:8px 10px;background:var(--rp-warm);border-bottom:1px solid var(--rp-border);color:var(--rp-burgundy);font-size:10px;font-weight:700;line-height:1.2;text-align:left;text-transform:uppercase;letter-spacing:.28px;white-space:nowrap}body:has([data-rp-root][data-mode="report"]) .retail-pricing td{height:44px;padding:7px 10px;border-bottom:1px solid #f1e7e1;color:var(--rp-text);font-size:11px;font-weight:400;white-space:nowrap}body:has([data-rp-root][data-mode="report"]) .retail-pricing tbody tr:hover{background:#fffaf7}body:has([data-rp-root][data-mode="report"]) .retail-pricing td strong{display:block;color:var(--rp-burgundy);font-weight:600}body:has([data-rp-root][data-mode="report"]) .retail-pricing td small{display:block;max-width:230px;overflow:hidden;text-overflow:ellipsis;color:var(--rp-muted);font-size:9px}body:has([data-rp-root][data-mode="report"]) .retail-pricing td.is-price{background:#fff3ef;color:var(--rp-burgundy);font-weight:600}body:has([data-rp-root][data-mode="report"]) .retail-pricing td.is-price span{color:var(--rp-action)}body:has([data-rp-root][data-mode="report"]) .retail-pricing td.is-negative{color:#b42318}body:has([data-rp-root][data-mode="report"]) .retail-pricing td button,body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile button{height:30px;border:1px solid var(--rp-action);border-radius:7px;background:#fff;color:var(--rp-burgundy);padding:0 12px;font:600 10px/1 Figtree,system-ui,sans-serif;cursor:pointer;transition:background .18s ease,color .18s ease,border-color .18s ease}body:has([data-rp-root][data-mode="report"]) .retail-pricing td button:hover,body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile button:hover{background:var(--rp-action);color:#fff}body:has([data-rp-root][data-mode="report"]) .retail-pricing__status{display:inline-flex;align-items:center;height:22px;border-radius:999px;padding:0 8px;font-size:9px;font-weight:600}body:has([data-rp-root][data-mode="report"]) .retail-pricing__status.is-priced{background:#eff8dc;color:#486400}body:has([data-rp-root][data-mode="report"]) .retail-pricing__status.is-low_margin{background:#fff2df;color:#9a4b00}body:has([data-rp-root][data-mode="report"]) .retail-pricing__status.is-attention{background:#fbe9e6;color:#8b1f1d}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile{display:none}body:has([data-rp-root][data-mode="report"]) .retail-pricing__backdrop{position:fixed;inset:0;z-index:1100;background:rgba(45,33,28,.28);backdrop-filter:blur(2px)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__backdrop[hidden]{display:none}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer{position:fixed;z-index:1110;top:0;right:0;width:min(620px,100vw);height:100dvh;background:#fff;border-left:1px solid var(--rp-border);box-shadow:-22px 0 45px rgba(74,39,24,.16);display:grid;grid-template-rows:auto minmax(0,1fr);transform:translateX(0);transition:transform .2s ease;font-family:Figtree,system-ui,sans-serif}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer[aria-hidden=true]{transform:translateX(105%);pointer-events:none}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer>header{min-height:76px;padding:15px 18px;border-bottom:1px solid var(--rp-border);display:flex;align-items:flex-start;justify-content:space-between;gap:16px;background:#fff}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer>header p{margin:0 0 4px;color:var(--rp-action);font-size:10px;font-weight:700;letter-spacing:1.1px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer>header h2{margin:0;color:var(--rp-burgundy);font-size:17px;font-weight:600}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer>header small{display:block;margin-top:4px;color:var(--rp-muted);font-size:10px;font-weight:400;line-height:1.4}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer>header button{width:30px;height:30px;border:1px solid var(--rp-border);border-radius:8px;background:#fff;color:var(--rp-burgundy);display:grid;place-items:center;cursor:pointer}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer>header button:hover{border-color:var(--rp-action);background:var(--rp-warm)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer>header svg{width:16px;height:16px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer form{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer-body{min-height:0;overflow:auto;padding:16px 18px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 12px;align-content:start}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer-body>label:first-of-type,body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation,body:has([data-rp-root][data-mode="report"]) .retail-pricing__error{grid-column:1/-1}body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation{margin-top:3px;border:1px solid var(--rp-border);border-radius:10px;background:var(--rp-warm);padding:13px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation h3{margin:0 0 10px;color:var(--rp-burgundy);font-size:13px;font-weight:600}body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation p,body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation small{margin:0;color:var(--rp-muted);font-size:10px;line-height:1.45}body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation dl{margin:0 0 8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 16px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation dl div{min-height:30px;border-bottom:1px solid #eadbd2;display:flex;align-items:center;justify-content:space-between;gap:10px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation dt{font-size:10px;color:#6b4c3b}body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation dd{margin:0;color:var(--rp-burgundy);font-size:11px;font-weight:600}body:has([data-rp-root][data-mode="report"]) .retail-pricing__error{min-height:16px;margin:0;color:#a3201e;font-size:10px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer footer{min-height:62px;padding:13px 18px;border-top:1px solid var(--rp-border);background:#fff;display:flex;justify-content:flex-end;gap:8px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer footer button{height:34px;border-radius:8px;padding:0 16px;font:600 11px/1 Figtree,system-ui,sans-serif;cursor:pointer}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer footer button:first-child{border:1px solid var(--rp-border);background:#fff;color:#6b4c3b}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer footer button:last-child{border:1px solid var(--rp-burgundy);background:var(--rp-burgundy);color:#fff}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer footer button:last-child:hover{border-color:var(--rp-orange);background:var(--rp-orange)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__toast{position:fixed;right:22px;bottom:22px;z-index:1200;max-width:380px;border-radius:9px;background:var(--rp-burgundy);color:#fff;padding:11px 14px;font:500 11px/1.4 Figtree,system-ui,sans-serif;box-shadow:0 10px 30px rgba(45,33,28,.2)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__toast.is-error{background:#9d2724}body:has([data-rp-root][data-mode="report"]) .retail-profitability__basis{border:1px solid #e8d9d0;border-radius:10px;background:#fbf6f2;padding:11px 13px;display:flex;align-items:flex-start;gap:9px;color:#6b4c3b;font-size:10px;line-height:1.45}body:has([data-rp-root][data-mode="report"]) .retail-profitability__basis svg{width:16px;height:16px;flex:0 0 16px;color:#ab3619}body:has([data-rp-root][data-mode="report"]) .retail-profitability__metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage,body:has([data-rp-root][data-mode="report"]) .retail-profitability__grid>article{border:1px solid var(--rp-border);border-radius:11px;background:#fff;overflow:hidden}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage>header,body:has([data-rp-root][data-mode="report"]) .retail-profitability__grid article>header{padding:13px 15px;border-bottom:1px solid var(--rp-border);background:#fff}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage header p,body:has([data-rp-root][data-mode="report"]) .retail-profitability__grid header p{margin:0 0 3px;color:var(--rp-action);font-size:9px;font-weight:700;letter-spacing:1px}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage header h2,body:has([data-rp-root][data-mode="report"]) .retail-profitability__grid header h2{margin:0;color:var(--rp-burgundy);font-size:14px;font-weight:600}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage>div{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:1px;background:var(--rp-border)}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage>div div{min-height:62px;background:#fff;padding:12px;display:grid;gap:3px}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage span{font-size:10px;color:var(--rp-muted)}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage strong{font-size:12px;color:var(--rp-burgundy);font-weight:600;overflow-wrap:anywhere}body:has([data-rp-root][data-mode="report"]) .retail-profitability__grid{display:grid;grid-template-columns:1fr 1.25fr;gap:12px}body:has([data-rp-root][data-mode="report"]) .retail-profitability table{min-width:760px}
+@media(max-width:1200px){body:has([data-rp-root][data-mode="report"]) .retail-pricing__metrics{grid-template-columns:repeat(3,minmax(0,1fr))}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters{grid-template-columns:repeat(2,minmax(0,1fr))}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage>div{grid-template-columns:repeat(3,minmax(0,1fr))}body:has([data-rp-root][data-mode="report"]) .retail-profitability__grid{grid-template-columns:1fr}}
+@media(max-width:700px){body:has([data-rp-root][data-mode="report"]) .retail-pricing__metrics,body:has([data-rp-root][data-mode="report"]) .retail-profitability__metrics{grid-template-columns:1fr 1fr}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters{grid-template-columns:1fr}body:has([data-rp-root][data-mode="report"]) .retail-pricing__table-card{display:none}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile{display:grid;gap:10px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile article{border:1px solid var(--rp-border);border-radius:10px;background:#fff;padding:12px;display:grid;gap:10px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile header{display:flex;justify-content:space-between;gap:10px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile header strong,body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile header small{display:block}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile header strong{color:var(--rp-burgundy);font-size:12px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile header small{margin-top:3px;color:var(--rp-muted);font-size:9px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile dl{margin:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile dl div{display:grid;gap:2px}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile dt{font-size:9px;color:var(--rp-muted)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile dd{margin:0;font-size:11px;color:var(--rp-text)}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer-body{grid-template-columns:1fr}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer-body>*{grid-column:1!important}body:has([data-rp-root][data-mode="report"]) .retail-pricing__calculation dl{grid-template-columns:1fr}body:has([data-rp-root][data-mode="report"]) .retail-profitability__coverage>div{grid-template-columns:1fr 1fr}}
+@media(prefers-reduced-motion:reduce){body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer,body:has([data-rp-root][data-mode="report"]) .retail-pricing td button{transition:none}}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__toolbar,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__toolbar{margin-bottom:8px}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__toolbar a,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__toolbar a{display:inline-flex;align-items:center;height:32px;border:1px solid #e8d9d0;border-radius:8px;background:#fff;padding:0 11px;color:#6b4c3b;font:500 11px/1 Figtree,system-ui,sans-serif;text-decoration:none}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row{display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:14px}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row h1,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row h1{font-size:20px;font-weight:600;color:#721b1a}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row p,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row p{font:400 11px/1.45 Figtree,system-ui,sans-serif;color:#806d63}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-actions{display:flex;gap:8px;align-items:center}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-actions svg,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .portal-button svg{width:15px;height:15px}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .portal-button,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .portal-button{height:34px;font-weight:500;text-decoration:none}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cw-period-nav{display:flex;align-items:end;gap:8px;margin:0 0 16px;padding:0;border-bottom:1px solid #e8d9d0;overflow-x:auto;scrollbar-width:none}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cw-period-nav::-webkit-scrollbar{display:none}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cw-period-nav a{display:grid;place-items:center;flex:0 0 72px;min-width:72px;min-height:52px;padding:5px 7px 7px;border:0;border-radius:8px 8px 0 0;background:transparent;color:#6b4c3b;font:700 12px/1 Figtree,system-ui,sans-serif;text-decoration:none;text-transform:uppercase}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cw-period-nav a:hover{background:#fffaf5}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cw-period-nav a.is-active{border-bottom:2px solid #ab3619;background:#fbf6f2;color:#721b1a}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cw-period-nav a:first-of-type,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cw-period-nav a:last-child{flex-basis:34px;min-width:34px;min-height:34px;height:34px;margin-bottom:5px;border:1px solid #e8d9d0;border-radius:8px}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cw-period-nav a svg{width:16px;height:16px}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cost-workbook__period-year{display:grid;align-content:center;justify-items:center;flex:0 0 72px;min-width:72px;min-height:52px;color:#6b4c3b}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cost-workbook__period-year small{font-size:9px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .cost-workbook__period-year strong{margin-top:4px;color:#2d211c;font-size:12px;font-weight:500}body:has([data-rp-root][data-mode="report"]) .retail-pricing__backdrop[hidden]{display:none!important}body:has([data-rp-root][data-mode="report"]) .retail-pricing-panel-open{overflow:hidden}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters input,body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters select,body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters button,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer input,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer select,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer button,body:has([data-rp-root][data-mode="report"]) .retail-pricing td button,body:has([data-rp-root][data-mode="report"]) .retail-pricing__mobile button{box-sizing:border-box}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .wholesale-pricing__header-row>div:first-child{min-width:0}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .wholesale-pricing__header-row .eyebrow{margin:0 0 3px;color:#6b4c3b;font:600 11px/1.2 Figtree,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .wholesale-pricing__header-row h1{margin:0 0 4px;color:#721b1a;font:600 20px/1.15 Figtree,system-ui,sans-serif}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .wholesale-pricing__header-row>div:first-child>p:last-child{margin:0;color:#806d63;font:400 11px/1.45 Figtree,system-ui,sans-serif}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .wholesale-pricing__header-actions,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row>a.portal-button{flex:0 0 auto}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .portal-button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:34px;min-height:34px;padding:0 13px;border:1px solid transparent;border-radius:8px;color:#fff;font:500 12px/1 Figtree,system-ui,sans-serif;white-space:nowrap;text-decoration:none;cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .portal-button svg{width:15px;height:15px;flex:0 0 15px}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .portal-button--secondary{border-color:#f07420;background:#f07420}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .portal-button--primary{border-color:#ab3619;background:#ab3619}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .portal-button:hover,body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .portal-button:focus-visible{border-color:#721b1a;background:#721b1a;color:#fff}body:has([data-rp-root][data-mode="report"]) .retail-pricing__filters input,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer input:not([type=hidden]),body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer .portal-custom-select-trigger,body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer .portal-date-field{height:34px!important;min-height:34px!important}body:has([data-rp-root][data-mode="report"]) .retail-pricing__drawer>header button{width:30px!important;height:30px!important;min-height:30px!important}
+@media(max-width:760px){body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .wholesale-pricing__header-row{align-items:stretch;flex-direction:column}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-actions{display:grid;grid-template-columns:1fr 1fr}body:has([data-rp-root][data-mode="report"]) .cost-workbook-page:is([data-page=profitability-report],[data-page=profitability-report]) .portal-button{width:100%}}
+@media(max-width:480px){body:has([data-rp-root][data-mode="report"]) .cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-actions{grid-template-columns:1fr}}
+/* =====================================================
+   HAMBELELA ORGANIC — PRODUCT PRICING MASTER V4
+   Complete olive/cream/Jost styling
+   Includes inline table editing and detail drawers
+   Scope: Product Pricing only
+   ===================================================== */
 
-/* Authoritative Product Pricing and Profitability interaction alignment. */
-.retail-pricing__backdrop[hidden]{display:none!important}.retail-pricing-panel-open{overflow:hidden}.retail-pricing__filters input,.retail-pricing__filters select,.retail-pricing__filters button,.retail-pricing__drawer input,.retail-pricing__drawer select,.retail-pricing__drawer button,.retail-pricing td button,.retail-pricing__mobile button{box-sizing:border-box}
-.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .wholesale-pricing__header-row>div:first-child{min-width:0}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .wholesale-pricing__header-row .eyebrow{margin:0 0 3px;color:#6b4c3b;font:600 11px/1.2 Figtree,system-ui,sans-serif;letter-spacing:.06em;text-transform:uppercase}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .wholesale-pricing__header-row h1{margin:0 0 4px;color:#721b1a;font:600 20px/1.15 Figtree,system-ui,sans-serif}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .wholesale-pricing__header-row>div:first-child>p:last-child{margin:0;color:#806d63;font:400 11px/1.45 Figtree,system-ui,sans-serif}
-.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .wholesale-pricing__header-actions,.cost-workbook-page[data-page=profitability-report] .wholesale-pricing__header-row>a.portal-button{flex:0 0 auto}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .portal-button{box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;gap:7px;height:34px;min-height:34px;padding:0 13px;border:1px solid transparent;border-radius:8px;color:#fff;font:500 12px/1 Figtree,system-ui,sans-serif;white-space:nowrap;text-decoration:none;cursor:pointer;transition:background .18s ease,border-color .18s ease,color .18s ease}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .portal-button svg{width:15px;height:15px;flex:0 0 15px}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .portal-button--secondary{border-color:#f07420;background:#f07420}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .portal-button--primary{border-color:#ab3619;background:#ab3619}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .portal-button:hover,.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .portal-button:focus-visible{border-color:#721b1a;background:#721b1a;color:#fff}
-.retail-pricing__filters input,.retail-pricing__drawer input:not([type=hidden]),.retail-pricing__drawer .portal-custom-select-trigger,.retail-pricing__drawer .portal-date-field{height:34px!important;min-height:34px!important}.retail-pricing__drawer>header button{width:30px!important;height:30px!important;min-height:30px!important}
-@media(max-width:760px){.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .wholesale-pricing__header-row{align-items:stretch;flex-direction:column}.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__header-actions{display:grid;grid-template-columns:1fr 1fr}.cost-workbook-page:is([data-page=product-pricing],[data-page=profitability-report]) .portal-button{width:100%}}
-@media(max-width:480px){.cost-workbook-page[data-page=product-pricing] .wholesale-pricing__header-actions{grid-template-columns:1fr}}
+#costWorkbook[data-page="product-pricing"],
+.rp4-drawer {
+  --rp-primary: #344126;
+  --rp-deep: #26311F;
+  --rp-olive: #59694A;
+  --rp-soft: #F2F4EC;
+  --rp-selected: #E7EBDD;
+  --rp-cream: #F8F7F2;
+  --rp-white: #FFFFFF;
+  --rp-text: #1C2118;
+  --rp-secondary: #62675E;
+  --rp-muted: #91968C;
+  --rp-border: #E4E6DC;
+  --rp-shadow: 0 4px 18px rgba(38,49,31,.045);
+
+  font-family: "Jost", sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--rp-text);
+}
+
+#costWorkbook[data-page="product-pricing"] *,
+#costWorkbook[data-page="product-pricing"] *::before,
+#costWorkbook[data-page="product-pricing"] *::after,
+.rp4-drawer *,
+.rp4-drawer *::before,
+.rp4-drawer *::after {
+  box-sizing: border-box;
+}
+
+#costWorkbook[data-page="product-pricing"]
+:is(input,select,textarea,button),
+.rp4-drawer :is(input,select,textarea,button) {
+  font-family: "Jost",sans-serif;
+}
+
+/* HEADER */
+
+#costWorkbook[data-page="product-pricing"]
+.wholesale-pricing__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.wholesale-pricing__header-row h1 {
+  margin: 0 0 6px;
+  color: var(--rp-text);
+  font: 600 24px/1.2 "Jost",sans-serif;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.wholesale-pricing__header-row .eyebrow {
+  color: var(--rp-olive);
+  font: 600 9.5px/1.3 "Jost",sans-serif;
+  letter-spacing: .09em;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.wholesale-pricing__header-row
+> div:first-child > p:last-child {
+  margin: 0;
+  color: var(--rp-secondary);
+  font: 400 12px/1.45 "Jost",sans-serif;
+}
+
+/* ALL PAGE ACTION BUTTONS */
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-button {
+  min-height: 40px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  padding: 0 14px;
+  border: 1px solid var(--rp-border);
+  border-radius: 9px;
+
+  background: #FFFFFF;
+  color: var(--rp-primary);
+
+  font: 500 11.5px/1 "Jost",sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+
+  transition:
+    background-color .17s ease,
+    border-color .17s ease,
+    transform .17s ease;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-button--primary {
+  background: var(--rp-primary);
+  border-color: var(--rp-primary);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-button--primary:hover {
+  background: var(--rp-deep);
+  border-color: var(--rp-deep);
+  transform: translateY(-1px);
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-button--secondary:hover {
+  background: var(--rp-soft);
+  border-color: #C7D0BD;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-button svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.8;
+}
+
+/* SIX KPI WIDGETS */
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__metrics {
+  display: grid;
+  grid-template-columns: repeat(6,minmax(0,1fr));
+  gap: 11px;
+  margin-bottom: 15px;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__metric {
+  min-width: 0;
+  min-height: 106px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  padding: 13px;
+  border: 1px solid var(--rp-border);
+  border-radius: 12px;
+
+  background: #FFFFFF;
+  box-shadow: var(--rp-shadow);
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__metric-icon {
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+
+  display: grid;
+  place-items: center;
+
+  border-radius: 10px;
+  background: var(--rp-soft);
+  color: var(--rp-olive);
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__metric-icon svg {
+  width: 18px;
+  height: 18px;
+  stroke-width: 1.8;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__metric div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__metric small {
+  color: var(--rp-secondary);
+  font: 500 9.5px/1.3 "Jost",sans-serif;
+  text-transform: uppercase;
+  letter-spacing: .03em;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__metric strong {
+  color: var(--rp-text);
+  font: 600 18px/1.2 "Jost",sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__metric div > span {
+  color: var(--rp-muted);
+  font: 400 10px/1.35 "Jost",sans-serif;
+}
+
+/* COMPACT FILTER PANEL */
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__filters {
+  display: grid;
+  grid-template-columns:
+    minmax(190px,1.5fr)
+    repeat(4,minmax(0,1fr));
+  gap: 11px 12px;
+  align-items: end;
+
+  padding: 14px;
+  margin-bottom: 14px;
+
+  border: 1px solid var(--rp-border);
+  border-radius: 12px;
+  background: #FFFFFF;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__filters label {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+
+  color: var(--rp-text);
+  font: 500 10.5px/1.3 "Jost",sans-serif;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__filters
+:is(input,select,.portal-custom-select-trigger) {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  min-height: 34px;
+
+  padding: 0 10px;
+  border: 1px solid var(--rp-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--rp-text);
+  font: 400 11.5px/1.3 "Jost",sans-serif;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__filters
+:is(input,select):focus-visible {
+  outline: none;
+  border-color: var(--rp-olive);
+  box-shadow:
+    0 0 0 3px rgba(89,105,74,.10);
+}
+
+/* MASTER TABLE */
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__table-card {
+  min-width: 0;
+  overflow: hidden;
+
+  border: 1px solid var(--rp-border);
+  border-radius: 12px;
+  background: #FFFFFF;
+
+  box-shadow: var(--rp-shadow);
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+
+  overflow-x: auto;
+  overflow-y: hidden;
+
+  scroll-behavior: auto;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__table-wrap table {
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
+
+  border-collapse: collapse;
+  table-layout: auto;
+  font-family: "Jost",sans-serif;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__table-wrap th {
+  height: 37px;
+  padding: 8px 10px;
+
+  border-bottom: 1px solid var(--rp-border);
+  background: var(--rp-soft);
+
+  color: var(--rp-primary);
+  font: 600 9.5px/1.3 "Jost",sans-serif;
+
+  text-align: left;
+  text-transform: uppercase;
+  letter-spacing: .035em;
+  white-space: nowrap;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__table-wrap td {
+  height: 44px;
+  padding: 6px 10px;
+
+  border-bottom: 1px solid #ECEDE7;
+  background: #FFFFFF;
+
+  color: var(--rp-text);
+  font: 400 11.5px/1.4 "Jost",sans-serif;
+
+  white-space: nowrap;
+  vertical-align: middle;
+  font-variant-numeric: tabular-nums;
+
+  transition: background-color .14s ease;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__table-wrap tbody tr:hover td {
+  background: #F8FAF5;
+}
+
+/* PRODUCT NAME / IDENTITY */
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-product-name {
+  display: block;
+  max-width: 240px;
+
+  color: var(--rp-text);
+  font: 500 11.5px/1.4 "Jost",sans-serif;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-product-subtitle {
+  display: block;
+  margin-top: 3px;
+
+  color: var(--rp-muted);
+  font: 400 9.5px/1.3 "Jost",sans-serif;
+}
+
+/* INLINE EDITING FIELDS */
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-inline-input,
+#costWorkbook[data-page="product-pricing"]
+.rp4-inline-select {
+  width: 100%;
+  min-width: 100px;
+  max-width: 155px;
+  height: 34px;
+  min-height: 34px;
+
+  padding: 0 10px;
+
+  border: 1px solid var(--rp-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--rp-text);
+
+  font: 400 11.5px/1.3 "Jost",sans-serif;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-inline-input:focus,
+#costWorkbook[data-page="product-pricing"]
+.rp4-inline-select:focus {
+  outline: none;
+  border-color: var(--rp-olive);
+
+  box-shadow:
+    0 0 0 3px rgba(89,105,74,.11);
+}
+
+/* INLINE SELLING PRICE */
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-selling-price {
+  width: 110px;
+  min-width: 110px;
+
+  background: #F8FAF5;
+  border-color: #C7D0BD;
+
+  color: var(--rp-primary);
+  font-weight: 500;
+
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* EDITING ROW STATE */
+
+#costWorkbook[data-page="product-pricing"]
+tr.is-editing td {
+  background: #F9FBF7;
+}
+
+#costWorkbook[data-page="product-pricing"]
+tr.has-unsaved-changes td {
+  background: #FAFCF7;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-unsaved-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  color: #966313;
+  font: 500 9.5px/1.3 "Jost",sans-serif;
+}
+
+/* ROW SAVE / CANCEL */
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-icon-action {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+
+  display: inline-grid;
+  place-items: center;
+
+  padding: 0;
+  border: 1px solid var(--rp-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--rp-primary);
+  cursor: pointer;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-icon-action:hover {
+  background: var(--rp-soft);
+  border-color: #C7D0BD;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-icon-action.is-save {
+  background: var(--rp-primary);
+  border-color: var(--rp-primary);
+  color: #FFFFFF;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-icon-action svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.8;
+}
+
+/* CALCULATED NUMERIC VALUES */
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-cost {
+  color: var(--rp-text);
+  font: 500 11.5px/1.3 "Jost",sans-serif;
+  text-align: right;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-total-cost {
+  color: var(--rp-primary);
+  font-weight: 600;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-calculated {
+  color: var(--rp-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-profit {
+  color: #477356;
+  font-weight: 600;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-profit.is-negative {
+  color: #A33E38;
+}
+
+/* MARGIN PILLS */
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-margin {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 24px;
+  padding: 0 8px;
+
+  border-radius: 7px;
+  background: #EDF4E7;
+  color: #477356;
+
+  font: 600 10.5px/1.2 "Jost",sans-serif;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-margin.is-low {
+  background: #FAF4DF;
+  color: #966313;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.rp4-margin.is-negative {
+  background: #F9E8EA;
+  color: #A33E38;
+}
+
+/* STATUS */
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__status {
+  display: inline-flex;
+  align-items: center;
+
+  min-height: 23px;
+  padding: 0 9px;
+
+  border-radius: 999px;
+  background: var(--rp-soft);
+  color: var(--rp-primary);
+
+  font: 500 10px/1 "Jost",sans-serif;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__status.is-priced {
+  background: #E7F1EA;
+  color: #477356;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__status.is-low_margin {
+  background: #FAF4DF;
+  color: #966313;
+}
+
+#costWorkbook[data-page="product-pricing"]
+.retail-pricing__status.is-attention {
+  background: #F9E8EA;
+  color: #A33E38;
+}
+
+/* DETAIL DRAWER — OUTSIDE PAGE ROOT */
+
+.rp4-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 1110;
+
+  width: min(740px,100vw);
+  height: 100dvh;
+
+  display: grid;
+  grid-template-rows: auto minmax(0,1fr);
+
+  border-left: 1px solid var(--rp-border);
+  background: var(--rp-cream);
+
+  box-shadow:
+    -18px 0 46px rgba(38,49,31,.15);
+
+  overflow: hidden;
+
+  transform: translateX(102%);
+
+  transition:
+    transform .26s cubic-bezier(.16,1,.3,1);
+}
+
+.rp4-drawer[aria-hidden="false"] {
+  transform: translateX(0);
+}
+
+.rp4-drawer[aria-hidden="true"] {
+  pointer-events: none;
+}
+
+.rp4-drawer > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--rp-border);
+  background: #FFFFFF;
+}
+
+.rp4-drawer > header h2 {
+  margin: 0;
+
+  color: var(--rp-text);
+  font: 600 20px/1.25 "Jost",sans-serif;
+}
+
+.rp4-drawer > header small {
+  display: block;
+  margin-top: 5px;
+
+  color: var(--rp-secondary);
+  font: 400 11px/1.45 "Jost",sans-serif;
+}
+
+.rp4-drawer > header [data-rp-close] {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+
+  display: grid;
+  place-items: center;
+
+  padding: 0;
+  border: 1px solid var(--rp-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--rp-primary);
+  cursor: pointer;
+}
+
+.rp4-drawer > header [data-rp-close] svg {
+  width: 15px;
+  height: 15px;
+}
+
+/* DRAWER SCROLLING */
+
+.rp4-drawer form {
+  display: grid;
+  grid-template-rows: minmax(0,1fr) auto;
+
+  min-height: 0;
+  overflow: hidden;
+}
+
+.rp4-drawer .retail-pricing__drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  padding: 15px 18px 22px;
+}
+
+/* DRAWER SECTION CARDS */
+
+.rp4-drawer .rp4-section {
+  padding: 15px;
+  margin-bottom: 12px;
+
+  border: 1px solid var(--rp-border);
+  border-radius: 11px;
+
+  background: #FFFFFF;
+}
+
+.rp4-drawer .rp4-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin: 0 0 12px;
+
+  color: var(--rp-text);
+  font: 600 13.5px/1.3 "Jost",sans-serif;
+}
+
+.rp4-drawer .rp4-section-title svg {
+  width: 16px;
+  height: 16px;
+  color: var(--rp-olive);
+}
+
+/* DRAWER FIELD GRID */
+
+.rp4-drawer .rp4-form-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(2,minmax(0,1fr));
+
+  gap: 11px 12px;
+}
+
+.rp4-drawer .rp4-form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.rp4-drawer .rp4-form-field.is-full {
+  grid-column: 1 / -1;
+}
+
+.rp4-drawer .rp4-form-field > label {
+  color: var(--rp-text);
+  font: 500 10.5px/1.3 "Jost",sans-serif;
+}
+
+.rp4-drawer .rp4-form-field
+:is(input,select,textarea) {
+  width: 100%;
+  min-width: 0;
+  min-height: 34px;
+
+  padding: 7px 10px;
+
+  border: 1px solid var(--rp-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--rp-text);
+
+  font: 400 11.5px/1.4 "Jost",sans-serif;
+}
+
+.rp4-drawer .rp4-form-field
+:is(input,select,textarea):focus {
+  outline: none;
+  border-color: var(--rp-olive);
+
+  box-shadow:
+    0 0 0 3px rgba(89,105,74,.10);
+}
+
+/* COST BREAKDOWN */
+
+.rp4-drawer .rp4-cost-grid {
+  display: grid;
+  grid-template-columns:
+    repeat(3,minmax(0,1fr));
+
+  gap: 8px;
+}
+
+.rp4-drawer .rp4-cost-tile {
+  min-width: 0;
+  padding: 10px;
+
+  border: 1px solid var(--rp-border);
+  border-radius: 9px;
+
+  background: #F8FAF5;
+}
+
+.rp4-drawer .rp4-cost-tile-label {
+  display: block;
+  color: var(--rp-secondary);
+  font: 400 10px/1.35 "Jost",sans-serif;
+}
+
+.rp4-drawer .rp4-cost-tile-value {
+  display: block;
+  margin-top: 5px;
+
+  color: var(--rp-primary);
+  font: 600 13px/1.3 "Jost",sans-serif;
+
+  font-variant-numeric: tabular-nums;
+}
+
+.rp4-drawer .rp4-cost-tile.is-total {
+  border-color: #D3DAC6;
+  background: #E7EBDD;
+}
+
+/* DRAWER FOOTER */
+
+.rp4-drawer form > footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+
+  padding:
+    12px 18px
+    calc(12px + env(safe-area-inset-bottom));
+
+  border-top: 1px solid var(--rp-border);
+  background: #FFFFFF;
+}
+
+.rp4-drawer form > footer button {
+  min-height: 40px;
+  padding: 0 15px;
+
+  border: 1px solid var(--rp-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--rp-primary);
+
+  font: 500 11.5px/1 "Jost",sans-serif;
+  cursor: pointer;
+}
+
+.rp4-drawer form > footer
+button[type="submit"] {
+  border-color: var(--rp-primary);
+  background: var(--rp-primary);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+/* SAVE CONFIRMATION ANIMATION */
+
+@keyframes rp4RowSaved {
+  0% {
+    background: #E7EBDD;
+  }
+
+  100% {
+    background: #FFFFFF;
+  }
+}
+
+#costWorkbook[data-page="product-pricing"]
+tr.is-saved td {
+  animation: rp4RowSaved .35s ease-out;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1450px) {
+  #costWorkbook[data-page="product-pricing"]
+  .retail-pricing__metrics {
+    grid-template-columns:
+      repeat(3,minmax(0,1fr));
+  }
+}
+
+@media (max-width: 767px) {
+  #costWorkbook[data-page="product-pricing"]
+  .wholesale-pricing__header-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  #costWorkbook[data-page="product-pricing"]
+  .retail-pricing__metrics {
+    grid-template-columns:
+      repeat(2,minmax(0,1fr));
+  }
+
+  #costWorkbook[data-page="product-pricing"]
+  .retail-pricing__filters {
+    grid-template-columns: 1fr;
+  }
+
+  #costWorkbook[data-page="product-pricing"]
+  .retail-pricing__table-wrap {
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    scroll-behavior: auto;
+    scroll-snap-type: none;
+    touch-action: auto;
+  }
+
+  /* Show the editable table, not
+     oversized mobile cards */
+
+  #costWorkbook[data-page="product-pricing"]
+  .retail-pricing__mobile {
+    display: none;
+  }
+
+  .rp4-drawer {
+    top: env(safe-area-inset-top,0px);
+    bottom: env(safe-area-inset-bottom,0px);
+
+    width: 100%;
+    height: auto;
+
+    max-height: calc(
+      100dvh
+      - env(safe-area-inset-top,0px)
+      - env(safe-area-inset-bottom,0px)
+    );
+  }
+
+  .rp4-drawer .rp4-form-grid,
+  .rp4-drawer .rp4-cost-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .rp4-drawer .rp4-form-field
+  :is(input,select,textarea) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .rp4-drawer form > footer button {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 430px) {
+  #costWorkbook[data-page="product-pricing"]
+  .retail-pricing__metrics {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ACCESSIBILITY */
+
+@media (prefers-reduced-motion: reduce) {
+  #costWorkbook[data-page="product-pricing"] *,
+  .rp4-drawer,
+  .rp4-drawer * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+/* Functional layout additions for draft controls and portal widgets. */
+#costWorkbook[data-page="product-pricing"]{min-width:0;background:#F8F7F2}
+#costWorkbook[data-page="product-pricing"] .retail-pricing{display:grid;gap:12px;min-width:0}
+#costWorkbook[data-page="product-pricing"] .wholesale-pricing__header-actions{display:flex;flex-wrap:wrap;gap:8px}
+#costWorkbook[data-page="product-pricing"] .wholesale-pricing__toolbar{margin:0 0 12px}
+#costWorkbook[data-page="product-pricing"] .wholesale-pricing__toolbar a{color:#59694A;text-decoration:none}
+#costWorkbook[data-page="product-pricing"] .rp4-more{display:none}
+#costWorkbook[data-page="product-pricing"] .retail-pricing__filters>.rp4-button{height:34px;min-height:34px}
+#costWorkbook[data-page="product-pricing"] .rp4-sheet-note{display:flex;justify-content:space-between;gap:12px;color:#62675E}
+#costWorkbook[data-page="product-pricing"] .rp4-coverage{margin:0;color:#62675E;font-size:10px}
+#costWorkbook[data-page="product-pricing"] [data-row] td:first-child{max-width:245px}
+#costWorkbook[data-page="product-pricing"] [data-row] .portal-custom-select{min-width:115px;max-width:225px}
+#costWorkbook[data-page="product-pricing"] [data-row] .portal-custom-select-trigger{height:34px;min-height:34px;font:400 11.5px/1.3 "Jost",sans-serif;border:1px solid #E4E6DC;background:white}
+#costWorkbook[data-page="product-pricing"] [data-row] td>small{display:block;font-size:9.5px;color:#62675E}
+#costWorkbook[data-page="product-pricing"] [data-row] .rp4-button{height:30px;min-height:30px;padding:0 9px}
+#costWorkbook[data-page="product-pricing"] [data-row-save]{display:flex;gap:5px;margin-top:5px}
+#costWorkbook[data-page="product-pricing"] [data-row-error]{max-width:220px;white-space:normal;color:#A33E38}
+#costWorkbook[data-page="product-pricing"] :is(input,select,.portal-custom-select-trigger),.rp4-drawer :is(input,select,.portal-custom-select-trigger){font-family:"Jost",sans-serif}
+#costWorkbook[data-page="product-pricing"] input[type=number],.rp4-drawer input[type=number]{appearance:textfield;-moz-appearance:textfield}
+#costWorkbook[data-page="product-pricing"] input::-webkit-inner-spin-button,.rp4-drawer input::-webkit-inner-spin-button{appearance:none}
+#costWorkbook[data-page="product-pricing"] select.portal-custom-select-native,.rp4-drawer select.portal-custom-select-native{width:1px!important;min-width:0!important;height:1px!important;min-height:0!important}
+#costWorkbook[data-page="product-pricing"] [hidden],.rp4-drawer [hidden],.retail-pricing__backdrop[hidden]{display:none!important}
+.rp4-drawer[aria-hidden=true]{visibility:hidden}
+.rp4-drawer .rp4-form-field{font:500 10.5px/1.3 "Jost",sans-serif}
+.rp4-drawer .portal-custom-select-trigger{height:34px;min-height:34px;border:1px solid #E4E6DC;border-radius:8px;background:white;font:400 11.5px/1.3 "Jost",sans-serif}
+.rp4-drawer [data-rp-source-details]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+.rp4-drawer [data-rp-product-results]{display:grid;max-height:180px;overflow:auto}
+.rp4-drawer [data-rp-product-results] button{padding:8px;border:1px solid #E4E6DC;background:white;color:#344126;text-align:left}
+.rp4-drawer [data-rp-issues],.rp4-drawer [data-rp-error]{color:#A33E38;white-space:normal}
+.rp4-drawer [data-rp-history] pre{white-space:pre-wrap;overflow-wrap:anywhere;font:400 10px/1.4 "Jost",sans-serif}
+.rp4-drawer [data-rp-history] details{padding:8px 0;border-bottom:1px solid #E4E6DC}
+.rp4-check,.rp4-match-confirm{display:flex;gap:6px;align-items:center;margin:8px 0;font-size:10.5px;white-space:normal}
+.rp4-check input,.rp4-match-confirm input{accent-color:#59694A}
+.retail-pricing-panel-open{overflow:hidden}
+body:has([data-rp-root][data-mode=pricing]) .retail-pricing__backdrop{position:fixed;inset:0;background:#26311F55;z-index:1100}
+body:has([data-rp-root][data-mode=pricing]) .retail-pricing__toast{position:fixed;bottom:22px;right:22px;z-index:1300;background:#344126;color:white;padding:12px;border-radius:10px;font:500 12px/1.4 "Jost",sans-serif;max-width:min(380px,90vw)}
+.rp4-export{position:relative}.rp4-export>div{position:absolute;right:0;z-index:20;display:grid;background:white;padding:8px;border:1px solid #E4E6DC;box-shadow:0 8px 25px #26311F15;border-radius:9px}
+@media(max-width:767px){
+#costWorkbook[data-page="product-pricing"] .rp4-more{display:flex}
+#costWorkbook[data-page="product-pricing"] .retail-pricing__filters:not(.is-expanded)>:not(:first-child):not(.rp4-more){display:none}
+#costWorkbook[data-page="product-pricing"] .rp4-sheet-note{flex-direction:column}
+#costWorkbook[data-page="product-pricing"] .retail-pricing__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+.rp4-drawer [data-rp-source-details]{grid-template-columns:1fr}
+.rp4-drawer .portal-custom-select-trigger{min-height:44px;font-size:16px}
+}
