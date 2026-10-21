@@ -1,7 +1,7 @@
 /* Shared, page-scoped interactions. Costing and API payloads stay in their applications. */
 (() => {
 'use strict';
-const root=document.querySelector('#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"],[data-page="product-pricing"])');if(!root)return;
+const root=document.querySelector('#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"],[data-page="product-pricing"],[data-page="formulations"])');if(!root)return;
 root.querySelectorAll('[data-cost-filters]').forEach(form=>{
  const popup=form.querySelector('[data-cost-popover]'),body=popup.querySelector('.cw-cost-filter-popover__body'),quick=form.querySelector('[data-cost-quick]'),trigger=form.querySelector('[data-cost-more]'),fields=[...form.querySelectorAll('[data-cost-quick-field]')];
  let snapshot=null;

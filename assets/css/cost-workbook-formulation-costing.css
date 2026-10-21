@@ -9,7 +9,7 @@
 /* DESIGN SYSTEM */
 
 #costWorkbook[data-page="formulations"],
-.fc4-drawer {
+#costWorkbook[data-page="formulations"] .fc4-drawer {
   --fc-primary: #344126;
   --fc-deep: #26311F;
   --fc-olive: #59694A;
@@ -35,15 +35,15 @@
 #costWorkbook[data-page="formulations"] *,
 #costWorkbook[data-page="formulations"] *::before,
 #costWorkbook[data-page="formulations"] *::after,
-.fc4-drawer *,
-.fc4-drawer *::before,
-.fc4-drawer *::after {
+#costWorkbook[data-page="formulations"] .fc4-drawer *,
+#costWorkbook[data-page="formulations"] .fc4-drawer *::before,
+#costWorkbook[data-page="formulations"] .fc4-drawer *::after {
   box-sizing: border-box;
 }
 
 #costWorkbook[data-page="formulations"]
 :is(button,input,select,textarea),
-.fc4-drawer :is(button,input,select,textarea) {
+#costWorkbook[data-page="formulations"] .fc4-drawer :is(button,input,select,textarea) {
   font-family: "Jost",sans-serif;
 }
 
@@ -83,7 +83,7 @@
 
 /* PRIMARY AND SECONDARY BUTTONS */
 
-.fc4-button {
+#costWorkbook[data-page="formulations"] .fc4-button {
   min-height: 40px;
   display: inline-flex;
   align-items: center;
@@ -108,36 +108,36 @@
     transform .17s ease;
 }
 
-.fc4-button svg {
+#costWorkbook[data-page="formulations"] .fc4-button svg {
   width: 16px;
   height: 16px;
   stroke-width: 1.8;
 }
 
-.fc4-button--primary {
+#costWorkbook[data-page="formulations"] .fc4-button--primary {
   background: var(--fc-primary);
   border-color: var(--fc-primary);
   color: #FFFFFF;
   font-weight: 600;
 }
 
-.fc4-button--primary:hover {
+#costWorkbook[data-page="formulations"] .fc4-button--primary:hover {
   background: var(--fc-deep);
   border-color: var(--fc-deep);
   transform: translateY(-1px);
 }
 
-.fc4-button--secondary:hover {
+#costWorkbook[data-page="formulations"] .fc4-button--secondary:hover {
   background: var(--fc-soft);
   border-color: #C7D0BD;
 }
 
-.fc4-button:focus-visible {
+#costWorkbook[data-page="formulations"] .fc4-button:focus-visible {
   outline: 2px solid var(--fc-olive);
   outline-offset: 2px;
 }
 
-.fc4-button:disabled {
+#costWorkbook[data-page="formulations"] .fc4-button:disabled {
   opacity: .48;
   cursor: not-allowed;
   transform: none;
@@ -329,7 +329,7 @@
 
 /* DATE CREATED */
 
-.fc4-date {
+#costWorkbook[data-page="formulations"] .fc4-date {
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -338,20 +338,20 @@
   font-variant-numeric: tabular-nums;
 }
 
-.fc4-date small {
+#costWorkbook[data-page="formulations"] .fc4-date small {
   color: var(--fc-muted);
   font: 400 9.5px/1.3 "Jost",sans-serif;
 }
 
 /* FORMULATION IDENTITY */
 
-.fc4-formulation-name {
+#costWorkbook[data-page="formulations"] .fc4-formulation-name {
   display: block;
   color: var(--fc-text);
   font: 600 11.5px/1.35 "Jost",sans-serif;
 }
 
-.fc4-formulation-subtitle {
+#costWorkbook[data-page="formulations"] .fc4-formulation-subtitle {
   display: block;
   margin-top: 3px;
   color: var(--fc-muted);
@@ -360,7 +360,7 @@
 
 /* STATUS AND TYPE */
 
-.fc4-pill {
+#costWorkbook[data-page="formulations"] .fc4-pill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -376,24 +376,24 @@
   white-space: nowrap;
 }
 
-.fc4-pill--active {
+#costWorkbook[data-page="formulations"] .fc4-pill--active {
   background: #E7F1EA;
   color: #477356;
 }
 
-.fc4-pill--draft {
+#costWorkbook[data-page="formulations"] .fc4-pill--draft {
   background: #FAF4DF;
   color: #966313;
 }
 
-.fc4-pill--archived {
+#costWorkbook[data-page="formulations"] .fc4-pill--archived {
   background: #F0F1ED;
   color: #62675E;
 }
 
 /* ROW ACTIONS */
 
-.fc4-row-action {
+#costWorkbook[data-page="formulations"] .fc4-row-action {
   width: 32px;
   height: 32px;
 
@@ -409,18 +409,18 @@
   cursor: pointer;
 }
 
-.fc4-row-action:hover {
+#costWorkbook[data-page="formulations"] .fc4-row-action:hover {
   background: var(--fc-soft);
 }
 
-.fc4-row-action svg {
+#costWorkbook[data-page="formulations"] .fc4-row-action svg {
   width: 15px;
   height: 15px;
 }
 
 /* DRAWER BACKDROP */
 
-.fc4-backdrop {
+#costWorkbook[data-page="formulations"] .fc4-backdrop {
   position: fixed;
   inset: 0;
   z-index: 1190;
@@ -436,18 +436,18 @@
     visibility .18s ease;
 }
 
-.fc4-backdrop.is-open {
+#costWorkbook[data-page="formulations"] .fc4-backdrop.is-open {
   opacity: 1;
   visibility: visible;
 }
 
-.fc4-backdrop[hidden] {
+#costWorkbook[data-page="formulations"] .fc4-backdrop[hidden] {
   display: none !important;
 }
 
 /* ADD / EDIT FORMULATION DRAWER */
 
-.fc4-drawer {
+#costWorkbook[data-page="formulations"] .fc4-drawer {
   position: fixed;
   top: 0;
   right: 0;
@@ -476,7 +476,7 @@
     visibility .26s;
 }
 
-.fc4-drawer.is-open {
+#costWorkbook[data-page="formulations"] .fc4-drawer.is-open {
   transform: translateX(0);
   visibility: visible;
   pointer-events: auto;
@@ -484,7 +484,7 @@
 
 /* DRAWER HEADER */
 
-.fc4-drawer-header {
+#costWorkbook[data-page="formulations"] .fc4-drawer-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -496,7 +496,7 @@
   background: #FFFFFF;
 }
 
-.fc4-drawer-eyebrow {
+#costWorkbook[data-page="formulations"] .fc4-drawer-eyebrow {
   margin: 0 0 4px;
 
   color: var(--fc-olive);
@@ -506,19 +506,19 @@
   text-transform: uppercase;
 }
 
-.fc4-drawer-title {
+#costWorkbook[data-page="formulations"] .fc4-drawer-title {
   margin: 0;
   color: var(--fc-text);
   font: 600 20px/1.25 "Jost",sans-serif;
 }
 
-.fc4-drawer-description {
+#costWorkbook[data-page="formulations"] .fc4-drawer-description {
   margin: 5px 0 0;
   color: var(--fc-secondary);
   font: 400 11px/1.45 "Jost",sans-serif;
 }
 
-.fc4-drawer-close {
+#costWorkbook[data-page="formulations"] .fc4-drawer-close {
   width: 32px;
   height: 32px;
   flex: 0 0 32px;
@@ -535,14 +535,14 @@
   cursor: pointer;
 }
 
-.fc4-drawer-close svg {
+#costWorkbook[data-page="formulations"] .fc4-drawer-close svg {
   width: 15px;
   height: 15px;
 }
 
 /* WORKFLOW TABS */
 
-.fc4-tabs {
+#costWorkbook[data-page="formulations"] .fc4-tabs {
   display: grid;
   grid-template-columns: repeat(4,minmax(0,1fr));
   gap: 0;
@@ -552,7 +552,7 @@
   border-bottom: 1px solid var(--fc-border);
 }
 
-.fc4-tab {
+#costWorkbook[data-page="formulations"] .fc4-tab {
   position: relative;
 
   min-height: 44px;
@@ -571,12 +571,12 @@
   cursor: pointer;
 }
 
-.fc4-tab[aria-selected="true"] {
+#costWorkbook[data-page="formulations"] .fc4-tab[aria-selected="true"] {
   color: var(--fc-primary);
   font-weight: 600;
 }
 
-.fc4-tab[aria-selected="true"]::after {
+#costWorkbook[data-page="formulations"] .fc4-tab[aria-selected="true"]::after {
   content: "";
   position: absolute;
   left: 12px;
@@ -590,7 +590,7 @@
 
 /* DRAWER SCROLL AREA */
 
-.fc4-drawer-body {
+#costWorkbook[data-page="formulations"] .fc4-drawer-body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -598,13 +598,13 @@
   padding: 15px 18px 24px;
 }
 
-.fc4-panel[hidden] {
+#costWorkbook[data-page="formulations"] .fc4-panel[hidden] {
   display: none !important;
 }
 
 /* SECTION CARDS */
 
-.fc4-section {
+#costWorkbook[data-page="formulations"] .fc4-section {
   min-width: 0;
   margin-bottom: 12px;
   padding: 15px;
@@ -616,7 +616,7 @@
   box-shadow: 0 3px 11px rgba(38,49,31,.025);
 }
 
-.fc4-section-header {
+#costWorkbook[data-page="formulations"] .fc4-section-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -625,14 +625,14 @@
   margin-bottom: 13px;
 }
 
-.fc4-section-title {
+#costWorkbook[data-page="formulations"] .fc4-section-title {
   margin: 0;
 
   color: var(--fc-text);
   font: 600 13.5px/1.3 "Jost",sans-serif;
 }
 
-.fc4-section-description {
+#costWorkbook[data-page="formulations"] .fc4-section-description {
   margin: 4px 0 0;
 
   color: var(--fc-secondary);
@@ -641,7 +641,7 @@
 
 /* FORM FIELD GRID */
 
-.fc4-grid {
+#costWorkbook[data-page="formulations"] .fc4-grid {
   display: grid;
   grid-template-columns: repeat(2,minmax(0,1fr));
   gap: 11px 12px;
@@ -649,11 +649,11 @@
   align-items: start;
 }
 
-.fc4-full {
+#costWorkbook[data-page="formulations"] .fc4-full {
   grid-column: 1 / -1;
 }
 
-.fc4-field {
+#costWorkbook[data-page="formulations"] .fc4-field {
   min-width: 0;
 
   display: flex;
@@ -661,13 +661,13 @@
   gap: 5px;
 }
 
-.fc4-field > label,
-.fc4-field-label {
+#costWorkbook[data-page="formulations"] .fc4-field > label,
+#costWorkbook[data-page="formulations"] .fc4-field-label {
   color: var(--fc-text);
   font: 500 10.5px/1.3 "Jost",sans-serif;
 }
 
-.fc4-field :is(
+#costWorkbook[data-page="formulations"] .fc4-field :is(
   input,select,textarea,
   .portal-custom-select-trigger
 ) {
@@ -685,12 +685,12 @@
   font: 400 11.5px/1.4 "Jost",sans-serif;
 }
 
-.fc4-field textarea {
+#costWorkbook[data-page="formulations"] .fc4-field textarea {
   min-height: 78px;
   resize: vertical;
 }
 
-.fc4-field
+#costWorkbook[data-page="formulations"] .fc4-field
 :is(input,select,textarea):focus {
   outline: none;
   border-color: var(--fc-olive);
@@ -699,19 +699,19 @@
     0 0 0 3px rgba(89,105,74,.10);
 }
 
-.fc4-field-help {
+#costWorkbook[data-page="formulations"] .fc4-field-help {
   color: var(--fc-muted);
   font: 400 10px/1.4 "Jost",sans-serif;
 }
 
 /* INGREDIENT SEARCH */
 
-.fc4-ingredient-search {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-search {
   position: relative;
   margin-bottom: 12px;
 }
 
-.fc4-ingredient-search input {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-search input {
   width: 100%;
   min-height: 39px;
 
@@ -725,7 +725,7 @@
   font: 400 11.5px/1.3 "Jost",sans-serif;
 }
 
-.fc4-ingredient-search > svg {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-search > svg {
   position: absolute;
   left: 12px;
   top: 11px;
@@ -739,7 +739,7 @@
 
 /* INGREDIENT AUTOCOMPLETE */
 
-.fc4-ingredient-results {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-results {
   position: absolute;
   top: calc(100% + 5px);
   left: 0;
@@ -757,11 +757,11 @@
   box-shadow: 0 12px 30px rgba(38,49,31,.13);
 }
 
-.fc4-ingredient-results[hidden] {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-results[hidden] {
   display: none !important;
 }
 
-.fc4-ingredient-option {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-option {
   width: 100%;
   min-height: 45px;
 
@@ -781,17 +781,17 @@
   cursor: pointer;
 }
 
-.fc4-ingredient-option:hover,
-.fc4-ingredient-option[aria-selected="true"] {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-option:hover,
+#costWorkbook[data-page="formulations"] .fc4-ingredient-option[aria-selected="true"] {
   background: var(--fc-soft);
 }
 
-.fc4-ingredient-name {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-name {
   display: block;
   font: 500 11.5px/1.35 "Jost",sans-serif;
 }
 
-.fc4-ingredient-meta {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-meta {
   display: block;
   margin-top: 3px;
 
@@ -799,7 +799,7 @@
   font: 400 9.5px/1.3 "Jost",sans-serif;
 }
 
-.fc4-ingredient-price {
+#costWorkbook[data-page="formulations"] .fc4-ingredient-price {
   color: var(--fc-primary);
   font: 600 11px/1.3 "Jost",sans-serif;
   white-space: nowrap;
@@ -807,7 +807,7 @@
 
 /* INGREDIENT AND PRICING TABLES */
 
-.fc4-table-wrap {
+#costWorkbook[data-page="formulations"] .fc4-table-wrap {
   max-width: 100%;
   min-width: 0;
   overflow-x: auto;
@@ -819,13 +819,13 @@
   overscroll-behavior-x: contain;
 }
 
-.fc4-table {
+#costWorkbook[data-page="formulations"] .fc4-table {
   width: max-content;
   min-width: 100%;
   border-collapse: collapse;
 }
 
-.fc4-table th {
+#costWorkbook[data-page="formulations"] .fc4-table th {
   height: 35px;
   padding: 8px 10px;
 
@@ -840,7 +840,7 @@
   white-space: nowrap;
 }
 
-.fc4-table td {
+#costWorkbook[data-page="formulations"] .fc4-table td {
   height: 43px;
   padding: 6px 10px;
 
@@ -851,11 +851,11 @@
   vertical-align: middle;
 }
 
-.fc4-table tbody tr:hover td {
+#costWorkbook[data-page="formulations"] .fc4-table tbody tr:hover td {
   background: #F8FAF5;
 }
 
-.fc4-table :is(input,select) {
+#costWorkbook[data-page="formulations"] .fc4-table :is(input,select) {
   height: 32px;
   min-height: 32px;
   min-width: 65px;
@@ -870,7 +870,7 @@
   font: 400 11px/1.3 "Jost",sans-serif;
 }
 
-.fc4-table .is-number {
+#costWorkbook[data-page="formulations"] .fc4-table .is-number {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
@@ -878,7 +878,7 @@
 
 /* ADD INGREDIENT BUTTON */
 
-.fc4-add-row {
+#costWorkbook[data-page="formulations"] .fc4-add-row {
   display: inline-flex;
   align-items: center;
   gap: 7px;
@@ -897,13 +897,13 @@
   cursor: pointer;
 }
 
-.fc4-add-row:hover {
+#costWorkbook[data-page="formulations"] .fc4-add-row:hover {
   background: var(--fc-soft);
 }
 
 /* LIVE COST SUMMARY */
 
-.fc4-cost-summary {
+#costWorkbook[data-page="formulations"] .fc4-cost-summary {
   display: grid;
   grid-template-columns: repeat(3,minmax(0,1fr));
   gap: 9px;
@@ -915,7 +915,7 @@
   background: #F7F9F4;
 }
 
-.fc4-cost-tile {
+#costWorkbook[data-page="formulations"] .fc4-cost-tile {
   min-width: 0;
   padding: 11px;
 
@@ -925,18 +925,18 @@
   background: #FFFFFF;
 }
 
-.fc4-cost-tile.is-primary {
+#costWorkbook[data-page="formulations"] .fc4-cost-tile.is-primary {
   border-color: #C7D0BD;
   background: #E7EBDD;
 }
 
-.fc4-cost-label {
+#costWorkbook[data-page="formulations"] .fc4-cost-label {
   display: block;
   color: var(--fc-secondary);
   font: 400 10px/1.35 "Jost",sans-serif;
 }
 
-.fc4-cost-value {
+#costWorkbook[data-page="formulations"] .fc4-cost-value {
   display: block;
   margin-top: 5px;
 
@@ -946,7 +946,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-.fc4-cost-unit {
+#costWorkbook[data-page="formulations"] .fc4-cost-unit {
   display: block;
   margin-top: 3px;
 
@@ -956,7 +956,7 @@
 
 /* VALIDATION AND BALANCE */
 
-.fc4-validation {
+#costWorkbook[data-page="formulations"] .fc4-validation {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -973,13 +973,13 @@
   font: 400 10.5px/1.45 "Jost",sans-serif;
 }
 
-.fc4-validation.is-warning {
+#costWorkbook[data-page="formulations"] .fc4-validation.is-warning {
   border-color: #EAD9AD;
   background: #FAF6E9;
   color: #966313;
 }
 
-.fc4-validation.is-error {
+#costWorkbook[data-page="formulations"] .fc4-validation.is-error {
   border-color: #EBC7C5;
   background: #FFF8F7;
   color: #A33E38;
@@ -987,13 +987,13 @@
 
 /* SCENARIO CARDS */
 
-.fc4-scenarios {
+#costWorkbook[data-page="formulations"] .fc4-scenarios {
   display: grid;
   grid-template-columns: repeat(3,minmax(0,1fr));
   gap: 10px;
 }
 
-.fc4-scenario {
+#costWorkbook[data-page="formulations"] .fc4-scenario {
   min-width: 0;
   padding: 12px;
 
@@ -1002,13 +1002,13 @@
   background: #FFFFFF;
 }
 
-.fc4-scenario-title {
+#costWorkbook[data-page="formulations"] .fc4-scenario-title {
   margin: 0 0 8px;
   color: var(--fc-text);
   font: 600 11.5px/1.3 "Jost",sans-serif;
 }
 
-.fc4-scenario-value {
+#costWorkbook[data-page="formulations"] .fc4-scenario-value {
   display: block;
   margin-top: 7px;
 
@@ -1018,7 +1018,7 @@
 
 /* PRICING RESULTS */
 
-.fc4-pricing-result {
+#costWorkbook[data-page="formulations"] .fc4-pricing-result {
   display: grid;
   grid-template-columns: repeat(2,minmax(0,1fr));
   gap: 10px;
@@ -1030,7 +1030,7 @@
   background: #F7F9F4;
 }
 
-.fc4-pricing-result strong {
+#costWorkbook[data-page="formulations"] .fc4-pricing-result strong {
   display: block;
 
   color: var(--fc-primary);
@@ -1041,7 +1041,7 @@
 
 /* DRAFT / APPROVAL FOOTER */
 
-.fc4-drawer-footer {
+#costWorkbook[data-page="formulations"] .fc4-drawer-footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -1055,7 +1055,7 @@
   background: #FFFFFF;
 }
 
-.fc4-drawer-footer .fc4-button {
+#costWorkbook[data-page="formulations"] .fc4-drawer-footer .fc4-button {
   min-height: 40px;
 }
 
@@ -1081,11 +1081,11 @@
   }
 }
 
-.fc4-section.is-entering {
+#costWorkbook[data-page="formulations"] .fc4-section.is-entering {
   animation: fc4Enter .22s ease-out both;
 }
 
-.fc4-cost-tile.is-updated {
+#costWorkbook[data-page="formulations"] .fc4-cost-tile.is-updated {
   animation: fc4CostUpdate .35s ease-out;
 }
 
@@ -1230,28 +1230,28 @@
 
 /* REDUCED MOTION */
 
-.fc4-drawer[hidden],.fc4-validation[hidden],.fc-toast[hidden]{display:none!important}
+#costWorkbook[data-page="formulations"] .fc4-drawer[hidden],.fc4-validation[hidden],.fc-toast[hidden]{display:none!important}
 #costWorkbook[data-page="formulations"] .formulation-costing__header>div:first-child{flex:1}
-.fc4-section-title{margin-bottom:12px}
-.fc4-table td>small{display:block;max-width:210px;white-space:normal;font-size:9.5px;color:#62675E}
-.fc4-table input[data-k="density"]{display:block;margin-top:4px;width:100px}
-.fc4-table input[type="number"]{width:95px}
-.fc4-ingredient-search>i,.fc4-ingredient-search>svg{position:absolute;left:12px;top:11px;width:16px;height:16px}
-.fc4-actions{position:relative}.fc4-actions summary{cursor:pointer;list-style:none;border:1px solid #E4E6DC;border-radius:8px;padding:6px 10px;width:34px}
-.fc4-actions>div{position:absolute;right:0;bottom:100%;z-index:5;background:white;border:1px solid #E4E6DC;border-radius:8px;min-width:130px;box-shadow:0 4px 18px #34412622}
-.fc4-actions button{display:block;width:100%;padding:8px 12px;text-align:left;border:0;background:white;color:#344126;font:400 11.5px Jost,sans-serif}
-.fc4-actions button:hover{background:#F2F4EC}
-.fc4-scenario strong,.fc4-scenario small{display:block;margin:6px 0}
-.fc4-drawer-body .is-warning{color:#966313}
+#costWorkbook[data-page="formulations"] .fc4-section-title{margin-bottom:12px}
+#costWorkbook[data-page="formulations"] .fc4-table td>small{display:block;max-width:210px;white-space:normal;font-size:9.5px;color:#62675E}
+#costWorkbook[data-page="formulations"] .fc4-table input[data-k="density"]{display:block;margin-top:4px;width:100px}
+#costWorkbook[data-page="formulations"] .fc4-table input[type="number"]{width:95px}
+#costWorkbook[data-page="formulations"] .fc4-ingredient-search>i,.fc4-ingredient-search>svg{position:absolute;left:12px;top:11px;width:16px;height:16px}
+#costWorkbook[data-page="formulations"] .fc4-actions{position:relative}.fc4-actions summary{cursor:pointer;list-style:none;border:1px solid #E4E6DC;border-radius:8px;padding:6px 10px;width:34px}
+#costWorkbook[data-page="formulations"] .fc4-actions>div{position:absolute;right:0;bottom:100%;z-index:5;background:white;border:1px solid #E4E6DC;border-radius:8px;min-width:130px;box-shadow:0 4px 18px #34412622}
+#costWorkbook[data-page="formulations"] .fc4-actions button{display:block;width:100%;padding:8px 12px;text-align:left;border:0;background:white;color:#344126;font:400 11.5px Jost,sans-serif}
+#costWorkbook[data-page="formulations"] .fc4-actions button:hover{background:#F2F4EC}
+#costWorkbook[data-page="formulations"] .fc4-scenario strong,.fc4-scenario small{display:block;margin:6px 0}
+#costWorkbook[data-page="formulations"] .fc4-drawer-body .is-warning{color:#966313}
 .fc-toast{position:fixed;right:20px;bottom:20px;z-index:1400;padding:12px 18px;background:#fff;border:1px solid #E4E6DC;border-radius:9px;color:#344126;font:400 12px Jost,sans-serif}
-.fc4-formulation-subtitle{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#costWorkbook[data-page="formulations"] .fc4-formulation-subtitle{max-width:300px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 #costWorkbook[data-page="formulations"] .fc-table-wrap{overflow:auto;border:1px solid #E4E6DC;border-radius:12px}
 .fc-summary-heading{display:flex;align-items:center;gap:10px}.fc-summary-heading svg{width:28px;height:28px;color:#59694A;background:#F2F4EC;border-radius:9px;padding:4px}
-.fc4-drawer [data-fc-history]{display:flex;flex-wrap:wrap;gap:8px}
-.fc4-drawer input[type="checkbox"]{width:16px;height:16px;accent-color:#59694A}
-.fc4-drawer [data-fc-alert],.fc4-drawer [data-fc-discard]{margin-bottom:12px}
-.fc4-drawer input[readonly]{background:#F2F4EC}
-.fc4-scenario input{min-height:34px}
+#costWorkbook[data-page="formulations"] .fc4-drawer [data-fc-history]{display:flex;flex-wrap:wrap;gap:8px}
+#costWorkbook[data-page="formulations"] .fc4-drawer input[type="checkbox"]{width:16px;height:16px;accent-color:#59694A}
+#costWorkbook[data-page="formulations"] .fc4-drawer [data-fc-alert],.fc4-drawer [data-fc-discard]{margin-bottom:12px}
+#costWorkbook[data-page="formulations"] .fc4-drawer input[readonly]{background:#F2F4EC}
+#costWorkbook[data-page="formulations"] .fc4-scenario input{min-height:34px}
 
 @media (prefers-reduced-motion: reduce) {
   #costWorkbook[data-page="formulations"] *,
