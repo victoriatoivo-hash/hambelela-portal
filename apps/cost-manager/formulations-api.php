@@ -9,13 +9,14 @@ require_role('owner_admin');
 header('Content-Type: application/json; charset=utf-8');
 function fc_reply(array $data,int $status=200):void{http_response_code($status);echo json_encode($data,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);exit;}
 function fc_body():array{$b=json_decode((string)file_get_contents('php://input'),true);if(!is_array($b))throw new DomainException('Invalid request.');return $b;}
+function fc_local_timestamp(PDO $pdo,string $value):string{if($value==='')return '';static $offset=null;if($offset===null)$offset=(int)$pdo->query('SELECT TIMESTAMPDIFF(SECOND,UTC_TIMESTAMP(),CURRENT_TIMESTAMP())')->fetchColumn();$d=new DateTimeImmutable($value,new DateTimeZone('UTC'));return $d->modify(sprintf('%+d seconds',-$offset))->setTimezone(new DateTimeZone('Africa/Windhoek'))->format('Y-m-d H:i:s');}
 try{
  $pdo=db();cw_install_schema($pdo);$action=(string)($_GET['action']??'bootstrap');
  if(in_array($action,['save','preview','archive'],true)){if($_SERVER['REQUEST_METHOD']!=='POST')throw new DomainException('POST required.');cw_require_csrf();}
  if($action==='bootstrap'){
   $s=fc_sources($pdo);
   $rows=$pdo->query("SELECT f.*,v.version_status,v.header_json,v.totals_json FROM cw_formulations f LEFT JOIN cw_formulation_versions v ON v.formulation_id=f.id AND v.version_no=f.current_version ORDER BY f.created_at DESC,f.id DESC")->fetchAll();
-  foreach($rows as &$r){$r['header']=json_decode((string)$r['header_json'],true)?:[];$r['totals']=json_decode((string)$r['totals_json'],true)?:[];unset($r['header_json'],$r['totals_json']);}unset($r);
+  foreach($rows as &$r){$r['created_at_local']=fc_local_timestamp($pdo,(string)$r['created_at']);$r['header']=json_decode((string)$r['header_json'],true)?:[];$r['totals']=json_decode((string)$r['totals_json'],true)?:[];unset($r['header_json'],$r['totals_json']);}unset($r);
   fc_reply(['ok'=>true,'formulations'=>$rows]+$s);
  }
  if($action==='load'){
@@ -23,7 +24,7 @@ try{
   $version=(int)($_GET['version']??$f['current_version']);$q=$pdo->prepare('SELECT * FROM cw_formulation_versions WHERE formulation_id=? AND version_no=?');$q->execute([$id,$version]);$v=$q->fetch();if(!$v)throw new DomainException('Version not found.');
   $token=fc_version_token($f,$v);foreach(['header','ingredients','production','batches','selling_sizes','totals']as$k)$v[$k]=json_decode((string)$v[$k.'_json'],true)?:[];
   $q=$pdo->prepare('SELECT version_no,version_status,effective_date,created_by_name,created_at FROM cw_formulation_versions WHERE formulation_id=? ORDER BY version_no DESC');$q->execute([$id]);
-  fc_reply(['ok'=>true,'formulation'=>$f,'version'=>$v,'history'=>$q->fetchAll(),'version_token'=>$token]);
+  $history=$q->fetchAll();foreach($history as &$item)$item['created_at']=fc_local_timestamp($pdo,(string)$item['created_at']);unset($item);fc_reply(['ok'=>true,'formulation'=>$f,'version'=>$v,'history'=>$history,'version_token'=>$token]);
  }
  if($action==='preview'){$b=fc_body();fc_reply(['ok'=>true]+fc_calculate($b,fc_sources($pdo,$b)));}
  if($action==='save')fc_reply(fc_save($pdo,fc_body()));
