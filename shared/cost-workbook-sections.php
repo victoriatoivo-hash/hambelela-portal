@@ -20,12 +20,51 @@ function cw_render_overview(array $period): void { ?>
 function cw_render_size_conversions(array $period): void
 {
     $groups = [
-        'volume' => ['title'=>'Liquid volume','description'=>'Millilitres and litres converted to litres.','column'=>'Value in litres'],
-        'weight' => ['title'=>'Product weight','description'=>'Grams and kilograms converted to kilograms.','column'=>'Value in kilograms'],
+        'volume' => ['title'=>'Liquid Volume','description'=>'Millilitres and litres converted to litres.','column'=>'Value in litres'],
+        'weight' => ['title'=>'Product Weight','description'=>'Grams and kilograms converted to kilograms.','column'=>'Value in kilograms'],
     ]; ?>
 <aside class="size-conversions__notice" role="note"><i data-lucide="info" aria-hidden="true"></i><span>Liquid sizes are converted to litres. Weight sizes are converted to kilograms. These conversion values are used by the Cost Workbook when calculating product costs.</span></aside>
-<div class="size-conversions__grid" data-size-conversion-api="size-conversions-api.php" data-size-conversion-csrf="<?= htmlspecialchars(cw_csrf_token(),ENT_QUOTES,'UTF-8') ?>"><?php foreach($groups as $type=>$group): ?><section class="size-conversions__panel" aria-labelledby="size-conversions-<?= $type ?>"><header class="size-conversions__panel-header"><h2 class="size-conversions__panel-title" id="size-conversions-<?= $type ?>"><?= htmlspecialchars($group['title'],ENT_QUOTES,'UTF-8') ?></h2><p class="size-conversions__panel-description"><?= htmlspecialchars($group['description'],ENT_QUOTES,'UTF-8') ?></p></header><div class="size-conversions__table-wrap"><table class="size-conversions__table" data-conversion-table="<?= $type ?>"><thead><tr><th scope="col">Size</th><th scope="col"><?= htmlspecialchars($group['column'],ENT_QUOTES,'UTF-8') ?></th><th scope="col">Actions</th></tr></thead><tbody><?php foreach(cw_size_conversions_by_type($type) as $row): ?><tr data-conversion-id="<?= (int)$row['id'] ?>" data-conversion='<?= htmlspecialchars(json_encode($row,JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>'><td><?= htmlspecialchars($row['label'],ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars($row['base_value_display'],ENT_QUOTES,'UTF-8') ?></td><td><button type="button" class="size-conversions__edit-button" aria-label="Edit <?= htmlspecialchars($row['label'],ENT_QUOTES,'UTF-8') ?> conversion" title="Edit conversion" data-conversion-edit="<?= (int)$row['id'] ?>"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Z" stroke="currentColor" stroke-linejoin="round"/><path d="m13.5 6.5 4 4" stroke="currentColor"/></svg></button></td></tr><?php endforeach; ?></tbody></table></div></section><?php endforeach; ?></div>
-<div class="size-conversions__drawer-backdrop" data-conversion-backdrop></div><aside class="size-conversions__drawer" role="dialog" aria-modal="true" aria-labelledby="sizeConversionDrawerTitle" aria-hidden="true" data-conversion-drawer><header class="size-conversions__drawer-header"><div><h2 class="size-conversions__drawer-title" id="sizeConversionDrawerTitle">Add Size Conversion</h2><p class="size-conversions__drawer-description">Add a product size and its equivalent value in litres or kilograms.</p></div><button class="size-conversions__drawer-close" type="button" aria-label="Close size conversion panel" data-conversion-close><svg viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-linecap="round"/></svg></button></header><form class="size-conversions__form" data-conversion-form novalidate><input type="hidden" name="id"><input type="hidden" name="action" value="create"><div class="size-conversions__field"><label for="sizeConversionType">Measurement type</label><select id="sizeConversionType" name="measurement_type" required><option value="volume">Liquid volume</option><option value="weight">Product weight</option></select></div><div class="size-conversions__field"><label for="sizeConversionAmount">Amount</label><input id="sizeConversionAmount" name="amount" type="number" step="any" min="0.000001" inputmode="decimal" required></div><div class="size-conversions__field"><label for="sizeConversionUnit">Unit</label><select id="sizeConversionUnit" name="unit" required></select></div><div class="size-conversions__field"><label for="sizeConversionLabel">Size label</label><input id="sizeConversionLabel" name="label" readonly></div><div class="size-conversions__field"><label for="sizeConversionValue">Converted value</label><input id="sizeConversionValue" name="base_value" readonly></div><div class="size-conversions__field"><label for="sizeConversionBaseUnit">Base unit</label><input id="sizeConversionBaseUnit" name="base_unit" readonly></div><p class="size-conversions__field-error" role="alert" data-conversion-error></p><div class="size-conversions__drawer-actions"><button type="button" class="size-conversions__cancel-button" data-conversion-cancel>Cancel</button><button type="submit" class="size-conversions__save-button" data-conversion-save>Save Conversion</button></div></form></aside><div class="size-conversions__toast" role="status" aria-live="polite" hidden data-conversion-toast></div>
+<div class="size-conversions__grid" data-size-conversion-api="size-conversions-api.php" data-size-conversion-csrf="<?= htmlspecialchars(cw_csrf_token(),ENT_QUOTES,'UTF-8') ?>"><?php foreach($groups as $type=>$group): ?><section class="size-conversions__panel" aria-labelledby="size-conversions-<?= $type ?>"><header class="size-conversions__panel-header"><span class="sc-panel-icon" aria-hidden="true"><i data-lucide="<?= $type==='volume'?'droplet':'weight' ?>"></i></span><div><h2 class="size-conversions__panel-title" id="size-conversions-<?= $type ?>"><?= htmlspecialchars($group['title'],ENT_QUOTES,'UTF-8') ?></h2><p class="size-conversions__panel-description"><?= htmlspecialchars($group['description'],ENT_QUOTES,'UTF-8') ?></p></div></header><div class="size-conversions__table-wrap"><table class="size-conversions__table" data-conversion-table="<?= $type ?>"><thead><tr><th scope="col">Size</th><th scope="col"><?= htmlspecialchars($group['column'],ENT_QUOTES,'UTF-8') ?></th><th scope="col">Actions</th></tr></thead><tbody><?php foreach(cw_size_conversions_by_type($type) as $row): ?><tr data-conversion-id="<?= (int)$row['id'] ?>" data-conversion='<?= htmlspecialchars(json_encode($row,JSON_UNESCAPED_SLASHES),ENT_QUOTES,'UTF-8') ?>'><td><?= htmlspecialchars($row['label'],ENT_QUOTES,'UTF-8') ?></td><td><?= htmlspecialchars($row['base_value_display'],ENT_QUOTES,'UTF-8') ?></td><td><button type="button" class="size-conversions__edit-button" aria-label="Edit <?= htmlspecialchars($row['label'],ENT_QUOTES,'UTF-8') ?> conversion" title="Edit conversion" data-conversion-edit="<?= (int)$row['id'] ?>"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 20h4l11-11a2.8 2.8 0 0 0-4-4L4 16v4Z" stroke="currentColor" stroke-linejoin="round"/><path d="m13.5 6.5 4 4" stroke="currentColor"/></svg></button></td></tr><?php endforeach; ?></tbody></table></div></section><?php endforeach; ?></div>
+<div class="size-conversions__drawer-backdrop" data-conversion-backdrop></div>
+<aside class="size-conversions__drawer" role="dialog" aria-modal="true" aria-labelledby="sizeConversionDrawerTitle" aria-hidden="true" inert data-conversion-drawer>
+  <header class="size-conversions__drawer-header">
+    <div><h2 class="size-conversions__drawer-title" id="sizeConversionDrawerTitle">Add Conversion</h2><p class="size-conversions__drawer-description">Add a standard product size for costing calculations.</p></div>
+    <button class="size-conversions__drawer-close" type="button" aria-label="Close size conversion panel" data-conversion-close><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" stroke="currentColor" stroke-linecap="round"/></svg></button>
+  </header>
+  <form class="size-conversions__form" data-conversion-form novalidate>
+    <input type="hidden" name="id"><input type="hidden" name="action" value="create">
+    <input type="hidden" name="measurement_type" value="volume"><input type="hidden" name="amount"><input type="hidden" name="unit" value="ml">
+    <div class="sc-drawer-body">
+      <div class="sc-measurement-options" role="group" aria-label="Measurement type">
+        <button class="sc-measurement-option" type="button" data-conversion-type="volume" aria-pressed="true"><i data-lucide="droplet" aria-hidden="true"></i>Liquid Volume</button>
+        <button class="sc-measurement-option" type="button" data-conversion-type="weight" aria-pressed="false"><i data-lucide="weight" aria-hidden="true"></i>Product Weight</button>
+      </div>
+      <div class="size-conversions__field">
+        <label for="scSizeInput">Size</label>
+        <input id="scSizeInput" type="text" data-conversion-size placeholder="e.g. 500ml" autocomplete="off" spellcheck="false" aria-describedby="scSizeHelp" required>
+        <span class="sc-field-help" id="scSizeHelp">Enter the size as it appears on products, e.g. 500ml, 1L.</span>
+      </div>
+      <div class="size-conversions__field">
+        <label for="scConvertedValue" data-conversion-preview-label>Value in litres</label>
+        <input id="scConvertedValue" type="text" data-conversion-preview readonly aria-describedby="scConvertedHelp">
+        <span class="sc-field-help" id="scConvertedHelp">Automatically calculated equivalent in litres.</span>
+      </div>
+      <p class="size-conversions__field-error" role="alert" data-conversion-error></p>
+      <section class="size-conversions__discard" role="alert" hidden data-conversion-discard>
+        <p>Discard unsaved size conversion changes?</p>
+        <div class="size-conversions__discard-actions">
+          <button type="button" class="size-conversions__cancel-button" data-conversion-keep>Keep Editing</button>
+          <button type="button" class="size-conversions__save-button" data-conversion-discard-confirm>Discard Changes</button>
+        </div>
+      </section>
+    </div>
+    <footer class="size-conversions__drawer-actions">
+      <button type="button" class="size-conversions__cancel-button" data-conversion-cancel>Cancel</button>
+      <button type="submit" class="size-conversions__save-button" data-conversion-save>Save Conversion</button>
+    </footer>
+  </form>
+</aside>
+<div class="size-conversions__toast" role="status" aria-live="polite" hidden data-conversion-toast></div>
 <?php }
 
 function cw_render_purchases(bool $reviewOnly=false): void { ?>
