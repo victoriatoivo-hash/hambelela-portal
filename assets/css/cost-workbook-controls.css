@@ -67,7 +67,7 @@
 #costWorkbook .packaging-costs__component{padding:10px 0;border-bottom:1px solid var(--cc-border)}
 #costWorkbook .packaging-costs__component label{display:block;min-width:0;font-size:0}
 #costWorkbook .cw-cost-component-head{font:500 10px/1.3 "Jost",sans-serif;color:var(--cc-secondary);padding:8px 0}
-#costWorkbook .pc3-component-wrap{overflow:auto;min-width:0}
+#costWorkbook .pc3-component-wrap{overflow-x:auto;min-width:0;flex-shrink:0}
 #costWorkbook .pc3-component-wrap .pc3-row-action{width:32px;min-height:32px;padding:0}
 #costWorkbook .cw-cost-upload{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-height:190px;padding:22px 16px;border:1px dashed #B9C3A5;border-radius:11px;background:#F7F9F4;text-align:center}
 #costWorkbook .cw-cost-upload.is-dragging{background:#EDF2E6;border-color:var(--cc-olive)}
