@@ -37,7 +37,7 @@ function cw_render_supplier_invoices(array $period): void { ?>
  <div class="si-bulk-toolbar" data-si-bulk hidden><strong data-si-selected-count></strong><button type="button" class="si-btn" data-si-export>Export</button><button type="button" class="si-btn" data-si-archive>Archive</button><button type="button" class="si-btn" data-si-delete>Delete Unreferenced Draft</button><button type="button" class="si-btn" data-si-clear>Clear</button><button type="button" class="si-btn" data-si-clear aria-label="Close bulk actions">×</button></div>
  <div class="supplier-invoices__drawer-backdrop" data-si-backdrop hidden></div>
  <aside class="supplier-invoices__drawer" data-si-drawer role="dialog" aria-modal="true" aria-labelledby="siDrawerTitle" aria-hidden="true" inert>
-  <header><div><p>Supplier Costs &amp; Item Extraction</p><h2 id="siDrawerTitle">Add Supplier Cost</h2></div><button type="button" data-si-close aria-label="Close drawer">×</button></header>
+  <header><div><p>Supplier Costs</p><h2 id="siDrawerTitle">Add Supplier Cost</h2><small class="cw-cost-drawer-help">Review source details, products and landed costs.</small></div><button type="button" data-si-close aria-label="Close drawer">×</button></header>
   <form data-si-review novalidate>
    <input type="hidden" name="id"><input type="hidden" name="updated_at"><input type="hidden" name="request_id">
    <div class="supplier-invoices__drawer-scroll">
@@ -48,7 +48,7 @@ function cw_render_supplier_invoices(array $period): void { ?>
     </section>
     <section data-si-purchase-panel>
      <a data-si-original target="_blank" rel="noopener" class="si-btn" hidden>Open Original File</a>
-     <section class="si-drawer-section"><h3 class="si-drawer-section-title">Supplier Details</h3><div class="supplier-invoices__form-grid">
+     <section class="si-drawer-section"><h3 class="si-drawer-section-title"><span class="cw-cost-section__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v10"/></svg></span>Supplier Details</h3><div class="supplier-invoices__form-grid">
       <label>Existing supplier<select data-portal-custom-select data-portal-select-variant="cost-olive" name="supplier_id" data-si-review-supplier><option value="">Add a supplier</option></select></label>
       <label>Supplier name<input name="supplier_name" maxlength="190" required></label>
       <label>Supplier Type<select data-portal-custom-select data-portal-select-variant="cost-olive" name="supplier_type"><?= cw_si_options(cw_supplier_types()) ?></select></label>
@@ -60,8 +60,8 @@ function cw_render_supplier_invoices(array $period): void { ?>
       <label>VAT Treatment<select data-portal-custom-select data-portal-select-variant="cost-olive" name="vat_treatment"><option value="unconfirmed">Confirm VAT treatment</option><option value="exclusive">Source costs exclude recoverable VAT</option><option value="exempt">VAT exempt</option><option value="inclusive">Recoverable VAT separated from source cost</option></select></label>
       <label class="si-checkbox-label"><input type="checkbox" name="fx_confirmed" value="1">Exchange rate verified</label>
      </div></section>
-     <section class="si-drawer-section"><div class="cw-cost-section__header"><h3 class="si-drawer-section-title">Purchased Products</h3><button type="button" class="si-btn" data-si-add-line>+ Add Product</button></div><div data-si-lines></div></section>
-     <section class="si-drawer-section si-shipping-section"><h3 class="si-drawer-section-title">Shipping &amp; Transport Costs</h3>
+     <section class="si-drawer-section"><div class="cw-cost-section__header"><h3 class="si-drawer-section-title"><span class="cw-cost-section__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v10"/></svg></span>Purchased Products</h3><button type="button" class="si-btn" data-si-add-line>+ Add Product</button></div><div data-si-lines></div></section>
+     <section class="si-drawer-section si-shipping-section"><h3 class="si-drawer-section-title"><span class="cw-cost-section__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v10"/></svg></span>Shipping &amp; Transport Costs</h3>
       <label class="si-checkbox-label"><input type="checkbox" data-si-shipping-enabled>Attach or allocate shipping with this purchase</label>
       <div data-si-shipping-fields hidden>
        <div class="si-header-actions"><label class="si-btn">Upload Shipping Invoice<input type="file" data-si-shipping-file accept=".pdf,.jpg,.jpeg,.png" hidden></label><button type="button" class="si-btn" data-si-link-transport>Link Existing Transport Invoice</button></div>

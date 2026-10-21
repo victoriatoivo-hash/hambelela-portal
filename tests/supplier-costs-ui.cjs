@@ -23,6 +23,11 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
 (async()=>{
  await flush();await flush();
  assert.match(one('[data-si-rows]').textContent,/N\$120/);assert.equal(one('thead tr').children.length,15);
+ w.innerWidth=1400;w.dispatchEvent(new w.Event('resize'));assert(one('[data-cost-quick]').contains(one('[data-si-filters] [name="status"]')));
+ w.innerWidth=390;w.dispatchEvent(new w.Event('resize'));click('[data-cost-more]');assert.equal(one('[data-cost-popover]').hidden,false);
+ const count=calls.length;fill('[data-si-filters] [name="status"]','complete');await flush();assert.equal(calls.length,count);click('[data-cost-close]');assert.equal(one('[data-si-filters] [name="status"]').value,'');
+ click('[data-cost-more]');fill('[data-si-filters] [name="status"]','complete');click('[data-cost-apply]');await flush();await flush();assert.equal(calls.findLast(x=>x.action==='list').url.searchParams.get('status'),'complete');
+ click('[data-cost-clear]');await new Promise(r=>setTimeout(r,10));await flush();assert.equal(one('[data-si-filters] [name="status"]').value,'');
  click('[data-si-open-manual]');assert.equal(one('#siDrawerTitle').textContent,'Add Supplier Cost');
  fill('[name="supplier_name"]','Test Supplier');fill('[data-k="product_description"]','Test product');fill('[data-k="quantity"]','100');fill('[data-k="pack_size"]','1');fill('[data-k="purchase_unit"]','kg');fill('[data-k="line_subtotal"]','10000');fill('[data-k="shipping_weight_kg"]','100');
  fill('[name="transport_amount"]','2000');assert.match(one('[data-si-cost-preview]').textContent,/N\$100/);assert.match(one('[data-si-allocation]').textContent,/N\$20/);
