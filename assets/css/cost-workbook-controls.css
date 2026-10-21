@@ -3,7 +3,8 @@
 #costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) *{box-sizing:border-box}
 #costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) [hidden]{display:none!important}
 #costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(input,select,textarea,button){font-family:"Jost",sans-serif}
-#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) h1{font:600 24px/1.25 "Jost",sans-serif}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) h1{font:600 24px/1.25 "Jost",sans-serif;color:var(--cc-primary)}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(h2,h3){color:var(--cc-primary)}
 #costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(.si-btn,.pc3-button,.pc3-row-action,.portal-button){display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:39px;padding:0 13px;border:1px solid var(--cc-border);border-radius:9px;background:white;color:var(--cc-primary);font:500 11.5px/1.3 "Jost",sans-serif;cursor:pointer;transition:background .17s,border-color .17s}
 #costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(.si-btn,.pc3-button,.pc3-row-action,.portal-button):hover{background:var(--cc-soft);border-color:#C7D0BD}
 #costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(.si-btn--primary,.portal-button--primary,[data-cost-apply]){background:var(--cc-primary);border-color:var(--cc-primary);color:white}
