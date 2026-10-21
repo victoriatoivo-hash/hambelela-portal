@@ -1,0 +1,91 @@
+/* Shared Supplier/Packaging components. The page stylesheets contain only page-specific layout. */
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]){--cc-primary:#344126;--cc-deep:#26311F;--cc-olive:#59694A;--cc-soft:#F2F4EC;--cc-selected:#E7EBDD;--cc-cream:#F8F7F2;--cc-text:#1C2118;--cc-secondary:#62675E;--cc-border:#E4E6DC;min-width:0;background:var(--cc-cream);color:var(--cc-text);font:400 12px/1.5 "Jost",sans-serif}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) *{box-sizing:border-box}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) [hidden]{display:none!important}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(input,select,textarea,button){font-family:"Jost",sans-serif}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) h1{font:600 24px/1.25 "Jost",sans-serif}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(.si-btn,.pc3-button,.pc3-row-action,.portal-button){display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:39px;padding:0 13px;border:1px solid var(--cc-border);border-radius:9px;background:white;color:var(--cc-primary);font:500 11.5px/1.3 "Jost",sans-serif;cursor:pointer;transition:background .17s,border-color .17s}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(.si-btn,.pc3-button,.pc3-row-action,.portal-button):hover{background:var(--cc-soft);border-color:#C7D0BD}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(.si-btn--primary,.portal-button--primary,[data-cost-apply]){background:var(--cc-primary);border-color:var(--cc-primary);color:white}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(.si-btn--primary,.portal-button--primary,[data-cost-apply]):hover{background:var(--cc-deep);color:white}
+#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) :is(button,a,input,textarea):focus-visible{outline:2px solid var(--cc-olive);outline-offset:2px}
+#costWorkbook .cw-cost-filterbar{display:flex;align-items:center;gap:8px;min-width:0;height:60px;padding:11px 13px;margin:14px 0;background:white;border:1px solid var(--cc-border);border-radius:11px;position:relative}
+#costWorkbook .cw-cost-filterbar__search{flex:2 1 260px;min-width:140px;font-size:0;display:block}
+#costWorkbook .cw-cost-filterbar__search>label{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+#costWorkbook .cw-cost-filterbar__quick{display:flex;gap:8px;flex:1 1 280px;min-width:0}
+#costWorkbook .cw-cost-filterbar__quick>label,#costWorkbook .cw-cost-filterbar__quick>.pc3-form-field{flex:1;min-width:0;font-size:0;display:block}
+#costWorkbook .cw-cost-filterbar__quick .pc3-form-field>label{position:absolute;clip-path:inset(50%);height:1px;width:1px;overflow:hidden}
+#costWorkbook .cw-cost-filterbar__actions{display:flex;gap:7px;flex:0 0 auto}
+#costWorkbook .cw-cost-filterbar .cw-cost-filterbar__actions button{min-height:34px;height:34px}
+#costWorkbook .cw-cost-filter-popover{position:fixed;z-index:1250;width:min(440px,calc(100vw - 24px));max-height:min(75dvh,550px);display:grid;grid-template-rows:auto minmax(0,1fr) auto;border:1px solid var(--cc-border);border-radius:12px;background:white;box-shadow:0 17px 46px #26311F26;animation:cwCostEnter .18s ease}
+#costWorkbook .cw-cost-filter-popover>header,#costWorkbook .cw-cost-filter-popover>footer{display:flex;align-items:center;justify-content:space-between;padding:12px 15px;gap:8px;border-bottom:1px solid var(--cc-border)}
+#costWorkbook .cw-cost-filter-popover>footer{justify-content:flex-end;border-top:1px solid var(--cc-border);border-bottom:0}
+#costWorkbook .cw-cost-filter-popover h3{margin:0;font:600 13px/1.3 "Jost",sans-serif}
+#costWorkbook .cw-cost-filter-popover__body{overflow:auto;min-height:0;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;padding:15px}
+#costWorkbook .cw-cost-filter-popover__body>label{display:flex;flex-direction:column;gap:5px;font:500 10.5px/1.3 "Jost",sans-serif;color:var(--cc-primary)}
+#costWorkbook :is(.cw-cost-filterbar,.supplier-invoices__drawer,.packaging-costs__drawer) :is(input:not([type="checkbox"]):not([type="hidden"]):not([type="file"]),select,textarea,.portal-custom-select-trigger,.portal-date-field){width:100%;min-width:0;height:34px;min-height:34px;padding:0 10px;border:1px solid var(--cc-border);border-radius:8px;background:white;color:var(--cc-text);font:400 11.5px/1.35 "Jost",sans-serif;box-shadow:none}
+#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer) textarea{height:auto;min-height:65px;padding:8px 10px;resize:vertical}
+#costWorkbook :is(.cw-cost-filterbar,.supplier-invoices__drawer,.packaging-costs__drawer) .portal-date-icon{color:var(--cc-olive)}
+#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer){position:fixed;inset:0 0 0 auto;z-index:1200;width:min(780px,100vw);height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr);border-left:1px solid var(--cc-border);background:var(--cc-cream);color:var(--cc-text);overflow:hidden;transform:translateX(105%);visibility:hidden;transition:transform .26s cubic-bezier(.16,1,.3,1),visibility .26s;box-shadow:-18px 0 48px #26311F26}
+#costWorkbook .packaging-costs__drawer{width:min(700px,100vw)}
+#costWorkbook .cw-cost-setup-drawer{width:min(740px,100vw)}
+#costWorkbook .supplier-invoices__drawer[data-mode="upload"]{width:min(570px,100vw)}
+#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer).is-open{transform:none;visibility:visible}
+#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer)>header{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;padding:16px 20px;border-bottom:1px solid var(--cc-border);background:white}
+#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer) h2{font:600 20px/1.25 "Jost",sans-serif;margin:0}
+#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer)>header p{margin:0 0 5px;font:500 9.5px/1.3 "Jost",sans-serif;text-transform:uppercase;letter-spacing:.09em;color:var(--cc-olive)}
+#costWorkbook :is([data-si-close],[data-pc-close][aria-label],[data-cost-close]){display:grid;place-items:center;width:32px;height:32px;padding:0;flex:0 0 32px;border:1px solid var(--cc-border);border-radius:8px;background:white;color:var(--cc-primary);cursor:pointer}
+#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer)>form{min-height:0;display:grid;grid-template-rows:minmax(0,1fr) auto;overflow:hidden}
+#costWorkbook :is(.supplier-invoices__drawer-scroll,.packaging-costs__drawer-body){min-height:0;overflow-y:auto;overscroll-behavior:contain;padding:15px 18px 22px;display:flex;flex-direction:column;gap:12px}
+#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer) form>footer{display:flex;align-items:center;justify-content:flex-end;gap:9px;padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px));background:white;border-top:1px solid var(--cc-border)}
+#costWorkbook .packaging-costs__drawer form>footer button{min-height:39px;padding:0 13px;border:1px solid var(--cc-border);border-radius:9px;background:white;font:500 11.5px/1.3 "Jost",sans-serif;color:var(--cc-primary);cursor:pointer}
+#costWorkbook .packaging-costs__drawer form>footer [type="submit"]{background:var(--cc-primary);color:white}
+#costWorkbook :is(.si-drawer-section,.pc3-form-section){min-width:0;padding:15px;border:1px solid var(--cc-border);border-radius:11px;background:white;margin:0 0 12px}
+#costWorkbook :is(.si-drawer-section,.pc3-form-section) h3,#costWorkbook .packaging-costs__drawer h3{font:600 13.5px/1.3 "Jost",sans-serif;margin:0 0 13px}
+#costWorkbook .cw-cost-section__header{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
+#costWorkbook .cw-cost-section__header h3{margin:0}
+#costWorkbook :is(.supplier-invoices__form-grid,.pc3-form-grid,.cw-cost-form-grid){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px 12px;align-items:start}
+#costWorkbook :is(.supplier-invoices__form-grid,.supplier-invoices__line) label,#costWorkbook .pc3-form-field{display:flex;flex-direction:column;gap:5px;min-width:0;font:500 10.5px/1.3 "Jost",sans-serif;color:var(--cc-primary)}
+#costWorkbook .pc3-form-field>label{font:500 10.5px/1.3 "Jost",sans-serif;color:var(--cc-primary)}
+#costWorkbook :is(.si-wide,.is-full,.cw-cost-form-grid__full){grid-column:1/-1}
+#costWorkbook :is(.si-checkbox-label,.pc3-checkbox),#costWorkbook .supplier-invoices__line .si-checkbox-label,#costWorkbook .supplier-invoices__form-grid .si-checkbox-label{display:flex;flex-direction:row;align-items:center;gap:8px;font:400 11px/1.4 "Jost",sans-serif;color:var(--cc-text)}
+#costWorkbook :is(.supplier-invoices,.packaging-costs__drawer) input[type="checkbox"]{width:16px;min-width:16px;height:16px;min-height:16px;margin:0;padding:0;accent-color:var(--cc-olive)}
+#costWorkbook :is(.pc3-field-help,.si-line-preview){font:400 10px/1.4 "Jost",sans-serif;color:var(--cc-secondary)}
+#costWorkbook .cw-cost-disclosure>summary{cursor:pointer;font:600 12px/1.4 "Jost",sans-serif;color:var(--cc-primary);padding:0}
+#costWorkbook .cw-cost-disclosure[open]>summary{margin-bottom:14px}
+#costWorkbook :is(.cw-cost-summary,.pc3-cost-preview,.si-shipping-summary){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;padding:13px;border:1px solid #D3DAC6;border-radius:10px;background:#F7F9F4}
+#costWorkbook :is(.cw-cost-summary,.pc3-cost-preview,.si-shipping-summary)>div{min-width:0;padding:10px;border:1px solid var(--cc-border);border-radius:8px;background:white}
+#costWorkbook :is(.cw-cost-summary,.pc3-cost-preview,.si-shipping-summary) :is(span,.pc3-cost-preview-label){display:block;color:var(--cc-secondary);font:400 10px/1.3 "Jost",sans-serif;margin-bottom:5px}
+#costWorkbook :is(.cw-cost-summary,.pc3-cost-preview,.si-shipping-summary) strong{display:block;color:var(--cc-primary);font:600 14px/1.3 "Jost",sans-serif;font-variant-numeric:tabular-nums}
+#costWorkbook .supplier-invoices__line{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px 12px;min-width:0;padding:12px;border:1px solid var(--cc-border);border-radius:10px;background:#FBFCF9;margin-bottom:9px}
+#costWorkbook :is(.packaging-costs__component,.cw-cost-component-head){display:grid;grid-template-columns:minmax(180px,2fr) 70px 70px 85px 90px 32px;gap:8px;align-items:center;min-width:575px}
+#costWorkbook .packaging-costs__component{padding:10px 0;border-bottom:1px solid var(--cc-border)}
+#costWorkbook .packaging-costs__component label{display:block;min-width:0;font-size:0}
+#costWorkbook .cw-cost-component-head{font:500 10px/1.3 "Jost",sans-serif;color:var(--cc-secondary);padding:8px 0}
+#costWorkbook .pc3-component-wrap{overflow:auto;min-width:0}
+#costWorkbook .pc3-component-wrap .pc3-row-action{width:32px;min-height:32px;padding:0}
+#costWorkbook .cw-cost-upload{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:9px;min-height:190px;padding:22px 16px;border:1px dashed #B9C3A5;border-radius:11px;background:#F7F9F4;text-align:center}
+#costWorkbook .cw-cost-upload.is-dragging{background:#EDF2E6;border-color:var(--cc-olive)}
+#costWorkbook .cw-cost-upload h3,#costWorkbook .cw-cost-upload p{margin:0}
+#costWorkbook .cw-cost-upload p{font-size:10.5px;color:var(--cc-secondary)}
+#costWorkbook .cw-cost-upload input[type="file"]{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%)}
+#costWorkbook .cw-cost-upload__icon{display:grid;place-items:center;width:43px;height:43px;border-radius:12px;background:var(--cc-selected);color:var(--cc-primary)}
+#costWorkbook .cw-cost-upload__icon svg{width:21px;height:21px}
+#costWorkbook .cw-cost-upload__selected{display:flex;align-items:center;gap:8px;width:100%;padding:10px;border:1px solid var(--cc-border);border-radius:9px;background:white;text-align:left}
+#costWorkbook .cw-cost-upload__selected span{flex:1;min-width:0;overflow-wrap:anywhere}
+#costWorkbook :is(.supplier-invoices__drawer-backdrop,.packaging-costs__backdrop){position:fixed;inset:0;z-index:1199;background:#26311F55;animation:cwCostEnter .18s ease}
+#costWorkbook .packaging-costs__backdrop{visibility:hidden;opacity:0;transition:opacity .18s,visibility .18s}
+#costWorkbook .packaging-costs__backdrop.is-open{visibility:visible;opacity:1}
+#costWorkbook :is(.si-discard,.pc3-discard){padding:12px;border:1px solid var(--cc-border);border-radius:8px;background:var(--cc-soft)}
+#costWorkbook :is(.si-error,.pc3-error){color:#A33E38;white-space:pre-wrap;animation:cwCostEnter .18s ease}
+body:has(#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"])) :is(.portal-select-popup,.portal-date-popup){font-family:"Jost",sans-serif;border-color:#E4E6DC;border-radius:9px;background:white;color:#1C2118;box-shadow:0 17px 46px #26311F26;scrollbar-color:#BCC5B0 #F8F7F2;animation:cwCostEnter .16s ease}
+body:has(#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"])) :is(.portal-select-popup,.portal-date-popup) :is(button,input){font-family:"Jost",sans-serif;color:#344126}
+body:has(#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"])) .portal-select-popup .portal-select-option:is(:hover,:focus-visible,.is-selected,.is-active){background:#E7EBDD;color:#344126}
+body:has(#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"])) .portal-select-popup [hidden]{display:none!important}
+body:has(#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"])) [data-cost-select-search]{position:sticky;top:0;width:100%;min-height:34px;border:1px solid #E4E6DC;border-radius:8px;padding:8px;background:white}
+body:has(#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"])) .portal-date-popup :is(.portal-date-day.is-today,.portal-date-day.is-selected,.portal-date-day:hover){border-color:#59694A;background:#F2F4EC;color:#344126}
+body:has(#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"])) .portal-date-popup .portal-date-apply{background:#344126;border-color:#344126;color:white}
+@keyframes cwCostEnter{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:1100px){#costWorkbook .cw-cost-filterbar__quick{display:none}}
+@media(max-width:767px){#costWorkbook .cw-cost-filterbar{height:64px;padding:10px}#costWorkbook .cw-cost-filterbar__actions>[data-cost-clear],#costWorkbook .cw-cost-filterbar__actions>[data-cost-refresh]{display:none}#costWorkbook .cw-cost-filter-popover{left:0!important;right:0!important;top:auto!important;bottom:env(safe-area-inset-bottom,0px);width:100%;max-height:calc(90dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));border-radius:16px 16px 0 0}#costWorkbook .cw-cost-filter-popover__body{grid-template-columns:1fr}#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer){top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px);width:100%;height:auto;max-height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}#costWorkbook :is(.supplier-invoices__drawer-scroll,.packaging-costs__drawer-body){padding:12px}#costWorkbook :is(.supplier-invoices__form-grid,.pc3-form-grid,.cw-cost-form-grid,.supplier-invoices__line,.cw-cost-summary){grid-template-columns:1fr}#costWorkbook :is(.supplier-invoices__drawer,.packaging-costs__drawer) form>footer{flex-wrap:wrap;padding:12px}#costWorkbook :is(.cw-cost-filterbar,.supplier-invoices__drawer,.packaging-costs__drawer) :is(input:not([type="checkbox"]),select,.portal-custom-select-trigger,.portal-date-field){min-height:44px;font-size:16px}#costWorkbook :is(.si-btn,.pc3-button,.portal-button){min-height:44px}#costWorkbook .cw-cost-component-head{display:none}}
+@media(prefers-reduced-motion:reduce){#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"]) *,body:has(#costWorkbook:is([data-page="supplier-invoices"],[data-page="packaging-costs"])) :is(.portal-select-popup,.portal-date-popup){animation:none!important;transition:none!important}}

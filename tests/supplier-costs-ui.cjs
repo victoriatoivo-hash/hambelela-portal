@@ -15,6 +15,7 @@ w.fetch=async(url,options={})=>{const u=new URL(url,w.location.href),action=u.se
  if(action==='selection')value={ids:[5],total:1};
  if(action==='pending')value={rows:[]};
  return {ok:!value.error,json:async()=>value};};
+w.eval(fs.readFileSync('assets/js/cost-workbook-controls.js','utf8'));
 w.eval(fs.readFileSync('assets/js/supplier-invoices-v2.js','utf8'));
 const flush=()=>new Promise(resolve=>setImmediate(resolve));
 const one=s=>d.querySelector(s),click=s=>one(s).click();

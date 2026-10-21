@@ -48,6 +48,7 @@ function cw_page_url(string $route, array $period, array $extra = []): string
 
 function cw_page_begin(string $key, array $period, ?string $bootError): void
 {
+    $GLOBALS['cw_cost_controls'] = in_array($key,['supplier-invoices','packaging-costs'],true);
     $routes = cw_page_routes();
     if (!isset($routes[$key])) { http_response_code(404); exit('Cost Workbook page not found.'); }
     $page = $routes[$key];
@@ -68,6 +69,7 @@ function cw_page_begin(string $key, array $period, ?string $bootError): void
     <?php if(in_array($key,['product-pricing','profitability-report'],true)): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-retail-pricing.css?v=<?= (int) filemtime(BASE_PATH.'/assets/css/cost-workbook-retail-pricing.css') ?>"><?php endif; ?>
     <?php if(in_array($key,['overview','size-conversions','supplier-invoices'],true)): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/accounts-dashboard.css?v=<?= (int) filemtime(BASE_PATH.'/assets/css/accounts-dashboard.css') ?>"><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-landing.css?v=<?= (int) filemtime(BASE_PATH.'/assets/css/cost-workbook-landing.css') ?>"><?php endif; ?>
     <?php if($key==='transport-costs'): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-transport-costs-v2.css?v=<?= (int) filemtime(BASE_PATH.'/assets/css/cost-workbook-transport-costs-v2.css') ?>"><?php endif; ?>
+    <?php if($GLOBALS['cw_cost_controls']): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/cost-workbook-controls.css?v=<?= (int) filemtime(BASE_PATH.'/assets/css/cost-workbook-controls.css') ?>"><?php endif; ?>
     <main class="workspace cw cw-page cost-workbook-page <?= in_array($key,['overview','size-conversions','supplier-invoices','transport-costs','packaging-costs','landed-product-costs','formulations','wholesale-pricing','product-pricing','profitability-report'],true)?'cost-workbook-app accounts-workspace':'' ?>" id="costWorkbook" data-page="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" data-api="cw-api.php" data-phase2-api="cw-phase2-api.php" data-csrf="<?= htmlspecialchars(cw_csrf_token(), ENT_QUOTES, 'UTF-8') ?>" data-year="<?= (int) $period['year'] ?>" data-month="<?= (int) $period['month'] ?>">
       <?php if($key==='overview'): ?><header class="accounts-hero cw-workspace-header"><div><p class="eyebrow">Costing workspace</p><h1>Cost Workbook</h1><p><?= htmlspecialchars($page['description'], ENT_QUOTES, 'UTF-8') ?></p></div></header>
       <?php elseif($key==='size-conversions'): ?><div class="size-conversions__toolbar"><a class="size-conversions__back" href="<?= cw_page_url('workbook.php',$period) ?>"><span aria-hidden="true">←</span> Back to Cost Workbook</a></div><header class="accounts-hero cw-workspace-header"><div class="size-conversions__header-row"><div class="size-conversions__heading-group"><p class="eyebrow">Cost Workbook</p><h1>Size Conversions</h1><p><?= htmlspecialchars($page['description'], ENT_QUOTES, 'UTF-8') ?></p></div><button class="size-conversions__add-button" type="button" data-size-conversion-add><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-linecap="round"/></svg>Add Conversion</button></div></header>
@@ -91,6 +93,7 @@ function cw_page_begin(string $key, array $period, ?string $bootError): void
 function cw_page_end(array $scripts = []): void
 {
     echo '</main>';
+    if (!empty($GLOBALS['cw_cost_controls'])) echo '<script src="'.BASE_URL.'/assets/js/cost-workbook-controls.js?v='.filemtime(BASE_PATH.'/assets/js/cost-workbook-controls.js').'" ></script>';
     foreach ($scripts as $script) {
         $defer = (strpos($script, 'supplier-invoices-v2.js') === 0 || strpos($script, 'transport-costs.js') === 0 || strpos($script, 'packaging-costs.js') === 0 || strpos($script, 'landed-product-costs.js') === 0 || strpos($script, 'formulation-costing.js') === 0) ? '' : ' defer';
         echo '<script src="' . htmlspecialchars(BASE_URL . '/assets/js/' . $script, ENT_QUOTES, 'UTF-8') . '"' . $defer . '></script>';

@@ -45,7 +45,7 @@ function assign(form,values){Object.keys(values||{}).forEach(k=>{const e=form.el
 function openItem(id){
  itemForm.reset();itemForm.elements.id.value=id||'';itemForm.elements.latest_cost_id.value='';itemForm.elements.request_key.value=crypto.randomUUID();itemForm.elements.effective_date.value=filters.elements.as_of.value||today();itemForm.elements.tax_recoverable.checked=true;itemForm.elements.vat_rate.value=state.vat_rate;
  if(id){const i=state.items.find(i=>Number(i.id)===Number(id));assign(itemForm,i);if(i.cost)assign(itemForm,i.cost);itemForm.elements.id.value=i.id;itemForm.elements.latest_cost_id.value=i.latest_cost_id;itemForm.elements.request_key.value=crypto.randomUUID();const e=JSON.parse(i.cost?.transport_evidence||'null');if(e)assign(itemForm,{freight_amount:e.source_amount,freight_method:e.allocation_method,shipping_weight:e.shipping_weight,shipment_weight:e.shipment_weight,freight_confirmed:1});}
- open('item',id?'Edit Packaging Material':'Add Packaging Material');itemPreview();
+ open('item',id?'Edit Packaging Material':'Add Packaging Material');itemForm.querySelector('[type="submit"]').textContent=id?'Save Changes':'Save Packaging Material';one('[data-pc-freight-section]').open=!!itemForm.elements.transport_id.value;itemPreview();
 }
 function component(value={}){
  const node=one('[data-pc-component-template]').content.firstElementChild.cloneNode(true),s=node.querySelector('select');
@@ -68,7 +68,7 @@ function itemPreview(){
  itemForm.elements.print_yield.closest('.pc3-form-field').hidden=type!=='Ribbon';itemForm.elements.printed_label.closest('label').hidden=type!=='Label';
  const rate=b.currency.toUpperCase()==='NAD'?1:(b.fx_confirmed?Number(b.exchange_rate):0),factor=1+(b.vat_treatment==='standard'?Number(state.vat_rate):0)/100;
  const amount=Number(b.amount_entered),gross=(b.cost_basis==='inclusive'?amount:amount*factor)*rate,net=b.tax_recoverable?(b.cost_basis==='inclusive'?amount/factor:amount)*rate:gross;
- let freight=0;const t=state.transports.find(t=>String(t.id)===b.transport_id);
+ one('[data-pc-freight-fields]').hidden=!b.transport_id;let freight=0;const t=state.transports.find(t=>String(t.id)===b.transport_id);
  if(t){freight=b.freight_method==='weight'?Number(t.allocable_amount)*Number(b.shipping_weight)/Number(b.shipment_weight):Number(b.freight_amount);if(t.currency!=='NAD')freight=Number(t.fx_confirmed)&&Number(t.exchange_rate)>0?freight*Number(t.exchange_rate):null;if(t.vat_treatment==='unconfirmed')freight=null;}
  const valid=units>0&&rate>0&&b.amount_entered!==''&&b.vat_treatment;
  one('[data-pc-item-preview]').innerHTML=summary([['Total Usable Units',yieldMissing?'Print Yield Required':units>0?units.toLocaleString():'Quantity Required'],['Supplier Cost / Unit',money(valid?net/units:null)],['Freight / Unit',money(valid&&freight!==null?freight/units:null)],['Landed Cost / Unit',money(valid&&freight!==null?(net+freight)/units:null)]]);
@@ -85,7 +85,7 @@ async function history(type,id){
  const h=await request('history',null,'type='+type+'&id='+id);one('[data-pc-history]').innerHTML='<div class="packaging-costs__table-wrap"><table><thead><tr><th>Effective</th><th>Supplier / Setup</th><th>Purchase Qty</th><th>Usable Units</th><th>Supplier / Unit</th><th>Freight</th><th>Recorded By</th></tr></thead><tbody>'+h.versions.map(v=>'<tr><td>'+esc(v.effective_date)+'</td><td>'+esc(v.supplier_name||v.setup_name||'—')+'</td><td>'+esc(v.purchase_quantity||'—')+'</td><td>'+esc(v.usable_units||v.purchase_quantity||'—')+'</td><td>'+money(v.unit_cost_ex_vat)+'</td><td>'+money(v.freight_ex)+'</td><td>'+esc(v.created_by_name)+' · '+esc(v.created_at)+'</td></tr>').join('')+'</tbody></table></div><h3>Audit History</h3>'+h.audit.map(a=>'<p>'+esc(a.action_key)+' · '+esc(a.actor_name)+' · '+esc(a.created_at)+'</p>').join('');
  open('history','Cost History');
 }
-function tab(name,push){all('[data-pc-panel]').forEach(e=>e.hidden=e.dataset.pcPanel!==name);all('[data-pc-tab]').forEach(e=>{e.classList.toggle('is-active',e.dataset.pcTab===name);e.setAttribute('aria-current',e.dataset.pcTab===name?'page':'false');});if(push){const u=new URL(location.href);u.searchParams.set('tab',name);historyPush(u);}}
+function tab(name,push){all('[data-pc-material-filter]').forEach(e=>e.hidden=name==='setups');filters.elements.q.placeholder=name==='setups'?'Search setup, size or product...':'Search material, supplier or SKU...';all('[data-pc-panel]').forEach(e=>e.hidden=e.dataset.pcPanel!==name);all('[data-pc-tab]').forEach(e=>{e.classList.toggle('is-active',e.dataset.pcTab===name);e.setAttribute('aria-current',e.dataset.pcTab===name?'page':'false');});if(push){const u=new URL(location.href);u.searchParams.set('tab',name);historyPush(u);}}
 function historyPush(u){window.history.pushState({},'',u);}
 page.addEventListener('click',e=>{
  const b=e.target.closest('button,a,[data-pc-backdrop]');if(!b)return;
@@ -104,6 +104,8 @@ page.addEventListener('click',e=>{
 page.addEventListener('input',e=>{if(e.target.closest('.packaging-costs__drawer'))dirty=true;if(itemForm.contains(e.target))itemPreview();if(setupForm.contains(e.target))setupPreview();if(filters.contains(e.target)&&e.target.name!=='as_of')render();});
 page.addEventListener('change',e=>{if(!syncing&&e.target.closest('.packaging-costs__drawer'))dirty=true;if(itemForm.contains(e.target))itemPreview();if(setupForm.contains(e.target)){if(e.target.name==='effective_date')setupCosts();else setupPreview();}if(filters.contains(e.target)){if(e.target.name==='as_of')bootstrap().catch(e=>notice(e.message));else render();}});
 filters.addEventListener('submit',e=>e.preventDefault());
+filters.addEventListener('cwfiltersapply',()=>bootstrap().catch(e=>notice(e.message)));
+one('[data-cost-refresh]').addEventListener('click',()=>bootstrap().catch(e=>notice(e.message)));
 async function save(e,action){
  e.preventDefault();if(busy)return;const form=e.currentTarget,b=Object.fromEntries(new FormData(form));if(action==='save-setup')b.components=all('[data-pc-components] .packaging-costs__component').map(r=>Object.fromEntries(Array.from(r.querySelectorAll('[data-k]')).map(e=>[e.dataset.k,e.value])));
  busy=true;form.querySelector('button[type="submit"]').disabled=true;active.querySelector('[data-pc-error]').textContent='';

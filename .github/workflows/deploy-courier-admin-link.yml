@@ -1,4 +1,4 @@
-name: Deploy Packaging Costs isolated workflow
+name: Deploy Supplier and Packaging UI delta
 on:
   workflow_dispatch:
     inputs:
@@ -52,6 +52,7 @@ jobs:
           php -l apps/cost-manager/retail-pricing-api.php
           php -l apps/cost-manager/wholesale-pricing-api.php
           node --check assets/js/packaging-costs.js
+          node --check assets/js/cost-workbook-controls.js
           php tests/packaging-costs-workflow.php
           node --check assets/js/supplier-invoices-v2.js
           node --check assets/js/transport-costs.js

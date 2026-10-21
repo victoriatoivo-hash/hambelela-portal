@@ -7,7 +7,7 @@ const escape=value=>{const el=document.createElement('span');el.textContent=valu
 const cash=(v,currency='NAD')=>v===null||v===''||v===undefined?'—':(currency==='NAD'?'N$':currency+' ')+Number(v).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const date=v=>v?String(v).slice(0,10):'—';
 const statuses={complete:'Ready',transport_not_allocated:'Shipping Required',shipping_weight_required:'Shipping Weight Required',exchange_rate_required:'FX Review Required',vat_review_required:'VAT Review Required'};
-let entries=[],total=0,offset=0,generation=0,busy=false,dirty=false,mode='',returnFocus=null,selected=new Set(),filterTimer,searchTimers=new WeakMap(),transportLinks=[];
+let entries=[],total=0,offset=0,generation=0,busy=false,dirty=false,mode='',returnFocus=null,selected=new Set(),filterTimer,searchTimers=new WeakMap(),transportLinks=[],uploadFile=null;
 async function request(action,body,params=''){
  const response=await fetch(api+'?action='+encodeURIComponent(action)+(params?'&'+params:''),body===undefined?{credentials:'same-origin'}:{method:'POST',credentials:'same-origin',headers:body instanceof FormData?{'X-CW-CSRF':csrf}:{'Content-Type':'application/json','X-CW-CSRF':csrf},body:body instanceof FormData?body:JSON.stringify(body)});
  let data;try{data=await response.json();}catch(e){throw Error('The server returned an unexpected response. Your entries have been kept.');}
@@ -42,12 +42,13 @@ async function load(reset=false,newOffset=offset){
 scroll.addEventListener('scroll',()=>{const index=Math.max(0,Math.floor((scroll.scrollTop-36)/42));if(index<offset||index>=offset+Math.max(40,entries.length-20)){const next=Math.max(0,Math.floor(index/40)*40);if(next!==offset){offset=next;load(false,next);}}},{passive:true});
 filters.addEventListener('submit',e=>e.preventDefault());
 filters.addEventListener('input',()=>{clearTimeout(filterTimer);filterTimer=setTimeout(()=>load(true),250);});
-filters.addEventListener('reset',()=>setTimeout(()=>load(true),0));
+filters.addEventListener('cwfiltersapply',()=>load(true));
+filters.addEventListener('change',e=>{if(e.bubbles&&!e.target.closest('[data-cost-popover]'))load(true);});
 one('[data-si-refresh]').addEventListener('click',()=>load());
 function setBusy(value){busy=value;all('button,input,select',drawer).forEach(el=>{el.disabled=value;});if(form.elements.transport_link_existing.value==='1')['transport_courier','transport_reference','transport_date','transport_amount','transport_currency','transport_rate','transport_vat','transport_method','transport_fx_confirmed'].forEach(name=>{form.elements[name].disabled=true;});}
 function open(kind,title){
  all('select,input[data-portal-date-original-type],input[type="date"]',form).forEach(el=>el.dispatchEvent(new Event('change')));
- mode=kind;returnFocus=document.activeElement;dirty=false;error('');one('[data-si-discard]').hidden=true;
+ mode=kind;drawer.dataset.mode=kind;returnFocus=document.activeElement;dirty=false;error('');one('[data-si-discard]').hidden=true;one('[data-si-live-summary]').hidden=kind!=='purchase';one('[data-si-upload]').hidden=kind!=='upload';
  one('[data-si-upload-panel]').hidden=kind!=='upload';one('[data-si-purchase-panel]').hidden=kind!=='purchase';one('[data-si-history-panel]').hidden=kind!=='history';
  one('[data-si-save]').hidden=kind!=='purchase';one('[data-si-approve]').hidden=kind!=='purchase';
  one('#siDrawerTitle').textContent=title;one('[data-si-backdrop]').hidden=false;drawer.inert=false;drawer.classList.add('is-open');drawer.setAttribute('aria-hidden','false');document.body.style.overflow='hidden';one('[data-si-close]').focus();
@@ -73,6 +74,8 @@ function preview(){
  const sorted=weights.map((w,i)=>({i,remainder:valid?cents*w/sum-shares[i]:0})).sort((a,b)=>b.remainder-a.remainder);sorted.forEach(p=>{if(remaining>0){shares[p.i]++;remaining--;}});
  one('[data-si-allocation]').innerHTML=allocationLines.map((l,i)=>{const b=base(l);return '<tr><td>'+escape(l.product_description)+'</td><td>'+b.quantity+' '+escape(b.unit)+'</td><td>'+escape(l.shipping_weight_kg||'Required')+'</td><td>'+(valid?cash(shares[i]/100,form.elements.transport_currency.value):'Shipping Weight Required')+'</td><td>'+(valid&&b.quantity>0?cash(shares[i]/100/b.quantity,form.elements.transport_currency.value):'—')+'</td></tr>';}).join('');
  one('[data-si-freight-total]').textContent=cash(amount,form.elements.transport_currency.value);one('[data-si-freight-allocated]').textContent=valid?cash(amount,form.elements.transport_currency.value):'—';one('[data-si-freight-remaining]').textContent=cash(valid?0:amount,form.elements.transport_currency.value);
+ const fx=form.elements.currency.value==='NAD'?1:(form.elements.fx_confirmed.checked?Number(form.elements.exchange_rate.value):0),freightFx=form.elements.transport_currency.value==='NAD'?1:(form.elements.transport_fx_confirmed.checked?Number(form.elements.transport_rate.value):0),hasFreight=one('[data-si-shipping-enabled]').checked;
+ one('[data-si-summary-preview]').innerHTML=lines.map((l,i)=>{const b=base(l),source=b.quantity>0&&b.unit&&l.line_subtotal!==''&&fx>0?Number(l.line_subtotal)*fx/b.quantity:null,freight=hasFreight&&valid&&freightFx>0&&b.quantity>0?shares[i]/100*freightFx/b.quantity:null;return '<div><span>'+escape(l.product_description||'Product '+(i+1))+' · Purchased '+(b.quantity>0?b.quantity+' '+escape(b.unit):'quantity required')+'</span><span>Supplier / Base</span><strong>'+cash(source)+'</strong><span>Shipping / Base</span><strong>'+cash(freight)+'</strong><span>Landed / Base</span><strong>'+cash(source!==null&&freight!==null?source+freight:null)+'</strong><small>'+(!hasFreight?'Shipping not allocated':source===null?'Confirm source amount, unit and FX':freight===null?'Confirm shipping weights and FX':'NAD / '+escape(b.unit))+'</small></div>';}).join('');
 }
 function addLine(value={}){
  const node=one('[data-si-line-template]').content.firstElementChild.cloneNode(true);
@@ -100,19 +103,22 @@ async function edit(id){
 }
 one('[data-si-add-line]').onclick=()=>{addLine();dirty=true;};
 form.addEventListener('input',()=>{dirty=true;preview();});
+form.addEventListener('change',e=>{if(e.bubbles){dirty=true;preview();}});
 form.elements.supplier_id.onchange=()=>{const option=form.elements.supplier_id.selectedOptions[0];if(option.value){form.elements.supplier_name.value=option.textContent;form.elements.supplier_type.value=option.dataset.type;}};
 one('[data-si-shipping-enabled]').onchange=e=>{one('[data-si-shipping-fields]').hidden=!e.target.checked;dirty=true;};
 async function upload(file,shipping=false){
  if(!file)return;if(file.size>15*1024*1024){error('Files must be 15 MB or smaller.');return;}
- const body=new FormData();body.append(shipping?'transport_file':'invoice_file',file);setBusy(true);error('');
+ const body=new FormData();body.append(shipping?'transport_file':'invoice_file',file);setBusy(true);error('');one('[data-si-upload-status]').textContent='Uploading and extracting…';one('[data-si-upload]').textContent='Uploading…';
  try{
   let data;if(shipping){const response=await fetch('transport-costs-api.php?action=upload',{method:'POST',headers:{'X-CW-CSRF':csrf},body,credentials:'same-origin'});data=await response.json();if(!response.ok||data.error)throw Error(data.error||'Shipping upload failed.');form.elements.transport_id.value=data.id;form.elements.transport_link_existing.value='';transportLinks=[];one('[data-si-shared-confirm]').hidden=true;dirty=true;toast('Shipping invoice attached. Confirm its amounts and details.');}
   else {data=await request('upload',body);setBusy(false);await edit(data.id);load();}
- }catch(e){error(e.message);}finally{setBusy(false);}
+ }catch(e){error(e.message);}finally{setBusy(false);one('[data-si-upload-status]').textContent='';one('[data-si-upload]').textContent='Upload & Extract';}
 }
-one('[data-si-upload]').onclick=()=>upload(one('[data-si-file]').files[0]);
+function chooseUpload(file){uploadFile=file||null;one('[data-si-file-selected]').hidden=!file;one('[data-si-file-name]').textContent=file?file.name+' · '+(file.size/1024).toFixed(1)+' KB':'';dirty=!!file;}
+one('[data-si-file]').onchange=e=>chooseUpload(e.target.files[0]);one('[data-si-file-remove]').onclick=()=>{one('[data-si-file]').value='';chooseUpload(null);};
+one('[data-si-upload]').onclick=()=>{const file=uploadFile||one('[data-si-file]').files[0];if(!file){error('Choose an invoice first.');return;}upload(file);};
 one('[data-si-shipping-file]').onchange=e=>upload(e.target.files[0],true);
-const drop=one('[data-si-drop]');['dragover','drop'].forEach(event=>drop.addEventListener(event,e=>{e.preventDefault();if(event==='drop')upload(e.dataTransfer.files[0]);}));
+const drop=one('[data-si-drop]');['dragover','dragleave','drop'].forEach(event=>drop.addEventListener(event,e=>{e.preventDefault();drop.classList.toggle('is-dragging',event==='dragover');if(event==='drop')chooseUpload(e.dataTransfer.files[0]);}));
 one('[data-si-link-transport]').onclick=async()=>{
  try{const response=await fetch('transport-costs-api.php?action=list',{credentials:'same-origin'});const data=await response.json();if(!response.ok||data.error)throw Error(data.error||'Unable to load shipping records.');
  const result=one('[data-si-transport-results]');result.innerHTML='';

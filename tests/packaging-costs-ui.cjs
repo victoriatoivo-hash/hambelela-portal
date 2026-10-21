@@ -5,6 +5,7 @@ const w=dom.window,d=w.document;w.crypto.randomUUID=()=>crypto.randomUUID();
 const item={id:1,latest_cost_id:8,item_name:'Test Pouch',specification:'500ml',active:1,packaging_type_id:1,packaging_type:'Pouch',supplier_name:'Test Supplier',status_key:'ready',cost:{id:8,packaging_item_id:1,status_key:'ready',effective_date:'2026-10-01',purchase_quantity:10,units_per_pack:100,purchase_unit:'box',amount_entered:1500,currency:'NAD',exchange_rate:1,fx_confirmed:1,tax_recoverable:1,vat_treatment:'exempt',cost_basis:'exclusive',unit_cost_ex_vat:1.5,unit_cost_inc_vat:1.5,freight_unit_ex:.2,freight_unit_inc:.2,landed_ex:1.7,landed_inc:1.7}};
 const calls=[];let fail=false;
 w.fetch=async(url,opt={})=>{const u=new URL(url,w.location.href),a=u.searchParams.get('action'),b=opt.body?JSON.parse(opt.body):null;calls.push({a,b});const value=a==='bootstrap'?{items:[item],setups:[],types:[{id:1,name:'Pouch'},{id:2,name:'Ribbon'}],sizes:[{id:1,label:'500g'}],transports:[{id:1,courier_name:'Test Courier',invoice_number:'TEST',currency:'NAD',allocable_amount:200}],vat_rate:15,summary:{items:1,setups:0,missing:0,average:null}}:fail?{error:'Changed since opened'}:{id:1,message:'Saved'};return{ok:!value.error,json:async()=>value};};
+w.eval(fs.readFileSync('assets/js/cost-workbook-controls.js','utf8'));
 w.eval(fs.readFileSync('assets/js/packaging-costs.js','utf8'));
 const one=s=>d.querySelector(s),click=s=>one(s).click(),flush=()=>new Promise(r=>setImmediate(r));
 function fill(s,v){one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubbles:true}));}
