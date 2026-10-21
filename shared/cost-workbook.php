@@ -188,6 +188,8 @@ function cw_packaging_cost(PDO $pdo,int $item,string $date): ?array
 {
     $q=$pdo->prepare('SELECT c.*,i.item_name,i.specification,i.active,t.name packaging_type FROM cw_packaging_items i JOIN cw_packaging_types t ON t.id=i.packaging_type_id JOIN cw_packaging_item_costs c ON c.packaging_item_id=i.id WHERE i.id=? AND c.effective_date<=? ORDER BY c.effective_date DESC,c.id DESC LIMIT 1');$q->execute([$item,$date]);$c=$q->fetch();
     if(!$c)return null;
+    if($c['packaging_type']==='Ribbon'&&(float)($c['print_yield']??0)<=0)$c['status_key']='print_yield_required';
+    if($c['usable_units']===null&&!in_array(strtolower(trim($c['purchase_unit'])),['each','unit','units','piece','pieces'],true)&&$c['status_key']==='ready')$c['status_key']='usable_quantity_required';
     $units=$c['usable_units']===null?(float)$c['purchase_quantity']:(float)$c['usable_units'];
     if($c['status_key']!=='ready'||$units<=0){$c['landed_ex']=$c['landed_inc']=null;return $c;}
     $c['freight_unit_ex']=(float)$c['freight_ex']/$units;$c['freight_unit_inc']=(float)$c['freight_inc']/$units;
