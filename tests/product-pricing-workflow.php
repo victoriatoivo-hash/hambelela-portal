@@ -16,6 +16,7 @@ $b=['product_id'=>1,'size_conversion_id'=>2,'website_key'=>'100:2','selling_pric
 $b['vat_treatment']='exempt';near(rpm_preview($s,$settings,$b)['selling_price_ex_vat'],210,'Exempt VAT');
 $b['website_key']='100:3';try{rpm_preview($s,$settings,$b);throw new RuntimeException('Wrong size accepted');}catch(DomainException $expected){}
 $b['website_key']='100:2';$unknown=$s;$unknown['website'][1]['manage_stock']=0;check(rpm_preview($unknown,$settings,$b)['stock_cost']===null,'Unknown stock not zero');
+$unconfirmed=$b;$unconfirmed['vat_treatment']='';check(rpm_preview($s,$settings,$unconfirmed)['projected_profit']===null,'Unconfirmed VAT not used for projected profit');
 $missing=$s;$missing['products'][0]['landed_status']='review';check(rpm_preview($missing,$settings,$b)['total_cost_ex_vat']===null,'Missing source not zero');
 echo "Pricing three-size calculations, VAT, margins, stock and incomplete sources PASS\n";
 if(!getenv('CW_TEST_DSN'))exit;

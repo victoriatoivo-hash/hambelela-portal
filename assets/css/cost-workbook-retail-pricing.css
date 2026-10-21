@@ -13,7 +13,7 @@ body:has([data-rp-root][data-mode="report"]) .retail-pricing{--rp-burgundy:#721b
    ===================================================== */
 
 #costWorkbook[data-page="product-pricing"],
-.rp4-drawer {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer {
   --rp-primary: #344126;
   --rp-deep: #26311F;
   --rp-olive: #59694A;
@@ -37,15 +37,15 @@ body:has([data-rp-root][data-mode="report"]) .retail-pricing{--rp-burgundy:#721b
 #costWorkbook[data-page="product-pricing"] *,
 #costWorkbook[data-page="product-pricing"] *::before,
 #costWorkbook[data-page="product-pricing"] *::after,
-.rp4-drawer *,
-.rp4-drawer *::before,
-.rp4-drawer *::after {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer *,
+#costWorkbook[data-page="product-pricing"] .rp4-drawer *::before,
+#costWorkbook[data-page="product-pricing"] .rp4-drawer *::after {
   box-sizing: border-box;
 }
 
 #costWorkbook[data-page="product-pricing"]
 :is(input,select,textarea,button),
-.rp4-drawer :is(input,select,textarea,button) {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer :is(input,select,textarea,button) {
   font-family: "Jost",sans-serif;
 }
 
@@ -589,7 +589,7 @@ tr.has-unsaved-changes td {
 
 /* DETAIL DRAWER — OUTSIDE PAGE ROOT */
 
-.rp4-drawer {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer {
   position: fixed;
   top: 0;
   right: 0;
@@ -615,15 +615,15 @@ tr.has-unsaved-changes td {
     transform .26s cubic-bezier(.16,1,.3,1);
 }
 
-.rp4-drawer[aria-hidden="false"] {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer[aria-hidden="false"] {
   transform: translateX(0);
 }
 
-.rp4-drawer[aria-hidden="true"] {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer[aria-hidden="true"] {
   pointer-events: none;
 }
 
-.rp4-drawer > header {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer > header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
@@ -634,14 +634,14 @@ tr.has-unsaved-changes td {
   background: #FFFFFF;
 }
 
-.rp4-drawer > header h2 {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer > header h2 {
   margin: 0;
 
   color: var(--rp-text);
   font: 600 20px/1.25 "Jost",sans-serif;
 }
 
-.rp4-drawer > header small {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer > header small {
   display: block;
   margin-top: 5px;
 
@@ -649,7 +649,7 @@ tr.has-unsaved-changes td {
   font: 400 11px/1.45 "Jost",sans-serif;
 }
 
-.rp4-drawer > header [data-rp-close] {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer > header [data-rp-close] {
   width: 32px;
   height: 32px;
   min-width: 32px;
@@ -666,14 +666,14 @@ tr.has-unsaved-changes td {
   cursor: pointer;
 }
 
-.rp4-drawer > header [data-rp-close] svg {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer > header [data-rp-close] svg {
   width: 15px;
   height: 15px;
 }
 
 /* DRAWER SCROLLING */
 
-.rp4-drawer form {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer form {
   display: grid;
   grid-template-rows: minmax(0,1fr) auto;
 
@@ -681,7 +681,7 @@ tr.has-unsaved-changes td {
   overflow: hidden;
 }
 
-.rp4-drawer .retail-pricing__drawer-body {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .retail-pricing__drawer-body {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -691,7 +691,7 @@ tr.has-unsaved-changes td {
 
 /* DRAWER SECTION CARDS */
 
-.rp4-drawer .rp4-section {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-section {
   padding: 15px;
   margin-bottom: 12px;
 
@@ -701,7 +701,7 @@ tr.has-unsaved-changes td {
   background: #FFFFFF;
 }
 
-.rp4-drawer .rp4-section-title {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-section-title {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -712,7 +712,7 @@ tr.has-unsaved-changes td {
   font: 600 13.5px/1.3 "Jost",sans-serif;
 }
 
-.rp4-drawer .rp4-section-title svg {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-section-title svg {
   width: 16px;
   height: 16px;
   color: var(--rp-olive);
@@ -720,7 +720,7 @@ tr.has-unsaved-changes td {
 
 /* DRAWER FIELD GRID */
 
-.rp4-drawer .rp4-form-grid {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-grid {
   display: grid;
   grid-template-columns:
     repeat(2,minmax(0,1fr));
@@ -728,23 +728,23 @@ tr.has-unsaved-changes td {
   gap: 11px 12px;
 }
 
-.rp4-drawer .rp4-form-field {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-field {
   display: flex;
   flex-direction: column;
   gap: 5px;
   min-width: 0;
 }
 
-.rp4-drawer .rp4-form-field.is-full {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-field.is-full {
   grid-column: 1 / -1;
 }
 
-.rp4-drawer .rp4-form-field > label {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-field > label {
   color: var(--rp-text);
   font: 500 10.5px/1.3 "Jost",sans-serif;
 }
 
-.rp4-drawer .rp4-form-field
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-field
 :is(input,select,textarea) {
   width: 100%;
   min-width: 0;
@@ -761,7 +761,7 @@ tr.has-unsaved-changes td {
   font: 400 11.5px/1.4 "Jost",sans-serif;
 }
 
-.rp4-drawer .rp4-form-field
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-field
 :is(input,select,textarea):focus {
   outline: none;
   border-color: var(--rp-olive);
@@ -772,7 +772,7 @@ tr.has-unsaved-changes td {
 
 /* COST BREAKDOWN */
 
-.rp4-drawer .rp4-cost-grid {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-cost-grid {
   display: grid;
   grid-template-columns:
     repeat(3,minmax(0,1fr));
@@ -780,7 +780,7 @@ tr.has-unsaved-changes td {
   gap: 8px;
 }
 
-.rp4-drawer .rp4-cost-tile {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-cost-tile {
   min-width: 0;
   padding: 10px;
 
@@ -790,13 +790,13 @@ tr.has-unsaved-changes td {
   background: #F8FAF5;
 }
 
-.rp4-drawer .rp4-cost-tile-label {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-cost-tile-label {
   display: block;
   color: var(--rp-secondary);
   font: 400 10px/1.35 "Jost",sans-serif;
 }
 
-.rp4-drawer .rp4-cost-tile-value {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-cost-tile-value {
   display: block;
   margin-top: 5px;
 
@@ -806,14 +806,14 @@ tr.has-unsaved-changes td {
   font-variant-numeric: tabular-nums;
 }
 
-.rp4-drawer .rp4-cost-tile.is-total {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-cost-tile.is-total {
   border-color: #D3DAC6;
   background: #E7EBDD;
 }
 
 /* DRAWER FOOTER */
 
-.rp4-drawer form > footer {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer form > footer {
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -827,7 +827,7 @@ tr.has-unsaved-changes td {
   background: #FFFFFF;
 }
 
-.rp4-drawer form > footer button {
+#costWorkbook[data-page="product-pricing"] .rp4-drawer form > footer button {
   min-height: 40px;
   padding: 0 15px;
 
@@ -841,7 +841,7 @@ tr.has-unsaved-changes td {
   cursor: pointer;
 }
 
-.rp4-drawer form > footer
+#costWorkbook[data-page="product-pricing"] .rp4-drawer form > footer
 button[type="submit"] {
   border-color: var(--rp-primary);
   background: var(--rp-primary);
@@ -912,7 +912,7 @@ tr.is-saved td {
     display: none;
   }
 
-  .rp4-drawer {
+  #costWorkbook[data-page="product-pricing"] .rp4-drawer {
     top: env(safe-area-inset-top,0px);
     bottom: env(safe-area-inset-bottom,0px);
 
@@ -926,18 +926,18 @@ tr.is-saved td {
     );
   }
 
-  .rp4-drawer .rp4-form-grid,
-  .rp4-drawer .rp4-cost-grid {
+  #costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-grid,
+  #costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-cost-grid {
     grid-template-columns: 1fr;
   }
 
-  .rp4-drawer .rp4-form-field
+  #costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-field
   :is(input,select,textarea) {
     min-height: 44px;
     font-size: 16px;
   }
 
-  .rp4-drawer form > footer button {
+  #costWorkbook[data-page="product-pricing"] .rp4-drawer form > footer button {
     min-height: 44px;
   }
 }
@@ -953,8 +953,8 @@ tr.is-saved td {
 
 @media (prefers-reduced-motion: reduce) {
   #costWorkbook[data-page="product-pricing"] *,
-  .rp4-drawer,
-  .rp4-drawer * {
+  #costWorkbook[data-page="product-pricing"] .rp4-drawer,
+  #costWorkbook[data-page="product-pricing"] .rp4-drawer * {
     animation: none !important;
     transition: none !important;
   }
@@ -976,22 +976,22 @@ tr.is-saved td {
 #costWorkbook[data-page="product-pricing"] [data-row] .rp4-button{height:30px;min-height:30px;padding:0 9px}
 #costWorkbook[data-page="product-pricing"] [data-row-save]{display:flex;gap:5px;margin-top:5px}
 #costWorkbook[data-page="product-pricing"] [data-row-error]{max-width:220px;white-space:normal;color:#A33E38}
-#costWorkbook[data-page="product-pricing"] :is(input,select,.portal-custom-select-trigger),.rp4-drawer :is(input,select,.portal-custom-select-trigger){font-family:"Jost",sans-serif}
-#costWorkbook[data-page="product-pricing"] input[type=number],.rp4-drawer input[type=number]{appearance:textfield;-moz-appearance:textfield}
-#costWorkbook[data-page="product-pricing"] input::-webkit-inner-spin-button,.rp4-drawer input::-webkit-inner-spin-button{appearance:none}
-#costWorkbook[data-page="product-pricing"] select.portal-custom-select-native,.rp4-drawer select.portal-custom-select-native{width:1px!important;min-width:0!important;height:1px!important;min-height:0!important}
-#costWorkbook[data-page="product-pricing"] [hidden],.rp4-drawer [hidden],.retail-pricing__backdrop[hidden]{display:none!important}
-.rp4-drawer[aria-hidden=true]{visibility:hidden}
-.rp4-drawer .rp4-form-field{font:500 10.5px/1.3 "Jost",sans-serif}
-.rp4-drawer .portal-custom-select-trigger{height:34px;min-height:34px;border:1px solid #E4E6DC;border-radius:8px;background:white;font:400 11.5px/1.3 "Jost",sans-serif}
-.rp4-drawer [data-rp-source-details]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
-.rp4-drawer [data-rp-product-results]{display:grid;max-height:180px;overflow:auto}
-.rp4-drawer [data-rp-product-results] button{padding:8px;border:1px solid #E4E6DC;background:white;color:#344126;text-align:left}
-.rp4-drawer [data-rp-issues],.rp4-drawer [data-rp-error]{color:#A33E38;white-space:normal}
-.rp4-drawer [data-rp-history] pre{white-space:pre-wrap;overflow-wrap:anywhere;font:400 10px/1.4 "Jost",sans-serif}
-.rp4-drawer [data-rp-history] details{padding:8px 0;border-bottom:1px solid #E4E6DC}
-.rp4-check,.rp4-match-confirm{display:flex;gap:6px;align-items:center;margin:8px 0;font-size:10.5px;white-space:normal}
-.rp4-check input,.rp4-match-confirm input{accent-color:#59694A}
+#costWorkbook[data-page="product-pricing"] :is(input,select,.portal-custom-select-trigger),#costWorkbook[data-page="product-pricing"] .rp4-drawer :is(input,select,.portal-custom-select-trigger){font-family:"Jost",sans-serif}
+#costWorkbook[data-page="product-pricing"] input[type=number],#costWorkbook[data-page="product-pricing"] .rp4-drawer input[type=number]{appearance:textfield;-moz-appearance:textfield}
+#costWorkbook[data-page="product-pricing"] input::-webkit-inner-spin-button,#costWorkbook[data-page="product-pricing"] .rp4-drawer input::-webkit-inner-spin-button{appearance:none}
+#costWorkbook[data-page="product-pricing"] select.portal-custom-select-native,#costWorkbook[data-page="product-pricing"] .rp4-drawer select.portal-custom-select-native{width:1px!important;min-width:0!important;height:1px!important;min-height:0!important}
+#costWorkbook[data-page="product-pricing"] [hidden],#costWorkbook[data-page="product-pricing"] .rp4-drawer [hidden],.retail-pricing__backdrop[hidden]{display:none!important}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer[aria-hidden=true]{visibility:hidden}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .rp4-form-field{color:#1C2118;font:500 10.5px/1.3 "Jost",sans-serif}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .portal-custom-select-trigger{height:34px;min-height:34px;border:1px solid #E4E6DC;border-radius:8px;background:white;color:#1C2118;font:400 11.5px/1.3 "Jost",sans-serif}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer [data-rp-source-details]{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:10px}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer [data-rp-product-results]{display:grid;max-height:180px;overflow:auto}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer [data-rp-product-results] button{padding:8px;border:1px solid #E4E6DC;background:white;color:#344126;text-align:left}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer [data-rp-issues],#costWorkbook[data-page="product-pricing"] .rp4-drawer [data-rp-error]{color:#A33E38;white-space:normal}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer [data-rp-history] pre{white-space:pre-wrap;overflow-wrap:anywhere;font:400 10px/1.4 "Jost",sans-serif}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer [data-rp-history] details{padding:8px 0;border-bottom:1px solid #E4E6DC}
+#costWorkbook[data-page="product-pricing"] :is(.rp4-check,.rp4-match-confirm){display:flex;flex-direction:row;gap:8px;align-items:center;justify-content:flex-start;margin:8px 0;color:#1C2118;font:400 10.5px/1.4 "Jost",sans-serif;white-space:normal}
+#costWorkbook[data-page="product-pricing"] :is(.rp4-check,.rp4-match-confirm) input{accent-color:#59694A;width:16px;min-width:16px;height:16px;min-height:16px;flex:0 0 16px;margin:0;padding:0}
 .retail-pricing-panel-open{overflow:hidden}
 body:has([data-rp-root][data-mode=pricing]) .retail-pricing__backdrop{position:fixed;inset:0;background:#26311F55;z-index:1100}
 body:has([data-rp-root][data-mode=pricing]) .retail-pricing__toast{position:fixed;bottom:22px;right:22px;z-index:1300;background:#344126;color:white;padding:12px;border-radius:10px;font:500 12px/1.4 "Jost",sans-serif;max-width:min(380px,90vw)}
@@ -1001,8 +1001,8 @@ body:has([data-rp-root][data-mode=pricing]) .retail-pricing__toast{position:fixe
 #costWorkbook[data-page="product-pricing"] .retail-pricing__filters:not(.is-expanded)>:not(:first-child):not(.rp4-more){display:none}
 #costWorkbook[data-page="product-pricing"] .rp4-sheet-note{flex-direction:column}
 #costWorkbook[data-page="product-pricing"] .retail-pricing__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
-.rp4-drawer [data-rp-source-details]{grid-template-columns:1fr}
-.rp4-drawer .portal-custom-select-trigger{min-height:44px;font-size:16px}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer [data-rp-source-details]{grid-template-columns:1fr}
+#costWorkbook[data-page="product-pricing"] .rp4-drawer .portal-custom-select-trigger{min-height:44px;font-size:16px}
 }
 #costWorkbook[data-page="product-pricing"] select[hidden]+.portal-custom-select{display:none!important}
 

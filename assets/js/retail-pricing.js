@@ -17,16 +17,17 @@ let drawerDraft=null,drawerDirty=false,returnFocus=null,searchTimer;
 const localDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 function sizesFor(pid){const p=data.products.find(p=>num(p.id)===num(pid));if(!p)return[];const sizes=data.sizes.filter(s=>s.measurement_type===p.costing_basis||(p.costing_basis==='ready_made'&&s.measurement_type==='count'));if(['count','ready_made'].includes(p.costing_basis)&&!sizes.some(s=>num(s.id)===0))sizes.unshift({id:0,label:'1 unit'});return sizes}
 const options=(rows,value,label)=>rows.map(r=>'<option value="'+esc(value(r))+'">'+esc(label(r))+'</option>').join('');
-const websiteOptions=()=>'<option value="">Not matched</option>'+options(data.website,w=>w.product_id+':'+w.variation_id,w=>[w.product_name,w.variation_name,w.sku,w.attributes,fmt(w.active_price_inc_vat)].filter(Boolean).join(' · '));
+const attributeLabel=value=>{try{const a=JSON.parse(value||'[]');return Array.isArray(a)?a.map(v=>[v.name,v.option].filter(Boolean).join(': ')).join(', '):''}catch{return String(value||'')}};
+const websiteOptions=()=>'<option value="">Not matched</option>'+options(data.website,w=>w.product_id+':'+w.variation_id,w=>[w.product_name,w.variation_name,w.sku,attributeLabel(w.attributes),fmt(w.active_price_inc_vat)].filter(Boolean).join(' · '));
 function bodyFor(r){return {id:r.id||0,version:r.version||0,product_id:r.product_id,size_conversion_id:r.size_conversion_id??'',packaging_setup_id:r.packaging_setup_id||0,website_key:r.website_key||'',selling_price_inc_vat:r.selling_price_inc_vat??'',vat_treatment:r.vat_treatment||'',vat_rate:r.vat_rate??data.settings.retail_vat_rate??15,effective_date:r.effective_date||localDate(),source_token:r.source_token,website_confirmed:!!r.saved&&!!r.website_key}}
 function draftFor(r){const k=key(r);if(!drafts.has(k))drafts.set(k,{original:r,row:{...r},body:bodyFor(r),revision:0,busy:false,error:''});return drafts.get(k)}
 function calculateDraft(d){
  const b=d.body,r=d.row,price=b.selling_price_inc_vat===''?null:Number(b.selling_price_inc_vat),vat=['zero','exempt'].includes(b.vat_treatment)?0:num(b.vat_rate);
- r.selling_price_inc_vat=Number.isFinite(price)?price:null;r.selling_price_ex_vat=r.selling_price_inc_vat==null?null:r.selling_price_inc_vat/(1+vat/100);
+ r.selling_price_inc_vat=Number.isFinite(price)?price:null;r.selling_price_ex_vat=r.selling_price_inc_vat==null||!['standard','zero','exempt'].includes(b.vat_treatment)?null:r.selling_price_inc_vat/(1+vat/100);
  r.profit_per_unit=r.selling_price_ex_vat==null||r.total_cost_ex_vat==null?null:r.selling_price_ex_vat-r.total_cost_ex_vat;
  r.markup_percent=r.profit_per_unit!=null&&r.total_cost_ex_vat>0?r.profit_per_unit/r.total_cost_ex_vat*100:null;
  r.margin_percent=r.profit_per_unit!=null&&r.selling_price_ex_vat>0?r.profit_per_unit/r.selling_price_ex_vat*100:null;
- r.projected_profit=r.website_stock_quantity!=null&&r.website_price_inc_vat!=null&&r.total_cost_ex_vat!=null?r.website_stock_quantity*(r.website_price_inc_vat/(1+vat/100)-r.total_cost_ex_vat):null;
+ r.projected_profit=['standard','zero','exempt'].includes(b.vat_treatment)&&r.website_stock_quantity!=null&&r.website_price_inc_vat!=null&&r.total_cost_ex_vat!=null?r.website_stock_quantity*(r.website_price_inc_vat/(1+vat/100)-r.total_cost_ex_vat):null;
  r.website_price_differs=r.website_price_inc_vat!=null&&r.selling_price_inc_vat!=null&&Math.abs(r.website_price_inc_vat-r.selling_price_inc_vat)>.005;
  r.issues=(r.issues||[]).filter(v=>!['Selling Price Required','Low Margin','Loss-Making'].includes(v));if(!(r.selling_price_inc_vat>0))r.issues.push('Selling Price Required');if(r.profit_per_unit<0)r.issues.push('Loss-Making');else if(r.margin_percent!=null&&r.margin_percent<num(data.settings.retail_low_margin_threshold??20))r.issues.push('Low Margin');r.status=r.issues.join(' · ')||'Ready';
 }
@@ -87,7 +88,7 @@ root.addEventListener('click',async e=>{
  if(e.target.closest('[data-save]')){const d=drafts.get(k);try{await saveDraft(d);drafts.delete(k);await loadPricing();toast('Pricing version saved. Website price unchanged.');}catch(x){d.error=x.message;updateRow(tr,d);toast(x.message,true)}}
 });
 async function loadPricing(){
- try{data=await request('bootstrap');const f=$('[data-rp-filters]');for(const n of ['category','supplier']){const selected=f.elements[n].value;f.elements[n].innerHTML='<option value="">All '+n+(n==='category'?' categories':'s')+'</option>'+[...new Set(data.rows.map(r=>r[n]).filter(Boolean))].sort().map(v=>'<option>'+esc(v)+'</option>').join('');f.elements[n].value=selected}
+ try{data=await request('bootstrap');const f=$('[data-rp-filters]');for(const n of ['category','supplier']){const selected=f.elements[n].value;f.elements[n].innerHTML='<option value="">All '+(n==='category'?'categories':'suppliers')+'</option>'+[...new Set(data.rows.map(r=>r[n]).filter(Boolean))].sort().map(v=>'<option>'+esc(v)+'</option>').join('');f.elements[n].value=selected}
  const selected=f.elements.size.value;f.elements.size.innerHTML='<option value="">All sizes</option>'+options(data.sizes,s=>s.id,s=>s.label);f.elements.size.value=selected;renderPricing();
  }catch(x){toast(x.message,true)}
 }
@@ -134,7 +135,7 @@ if(mode==='pricing'){
  document.addEventListener('keydown',e=>{if(drawer.getAttribute('aria-hidden')!=='false')return;if(e.key==='Escape')closeDrawer();if(e.key==='Tab'){const focusable=$$('button,input,select,a[href]',drawer).filter(n=>!n.disabled&&n.getClientRects().length);const first=focusable[0],last=focusable.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first.focus()}}});
  $('[data-rp-add]')?.addEventListener('click',()=>openDrawer());
  $('[data-rp-sync]')?.addEventListener('click',syncWebsite);
- $('[data-rp-refresh]').addEventListener('click',async()=>{await loadPricing();toast('Source costs refreshed; saved prices and unsaved drafts preserved.')});
+ $('[data-rp-refresh]').addEventListener('click',async()=>{await loadPricing();await Promise.all([...drafts.values()].map(d=>preview(d)));renderPricing();toast('Source previews refreshed; selling-price drafts preserved. Review the updated costs before saving.')});
  const filters=$('[data-rp-filters]');filters.addEventListener('submit',e=>e.preventDefault());filters.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(renderPricing,250)});filters.addEventListener('change',renderPricing);filters.addEventListener('reset',()=>setTimeout(renderPricing));
  $('[data-rp-more]').onclick=e=>{const open=filters.classList.toggle('is-expanded');e.currentTarget.setAttribute('aria-expanded',String(open))};
  window.addEventListener('beforeunload',e=>{if(drafts.size||drawerDirty){e.preventDefault();e.returnValue=''}});

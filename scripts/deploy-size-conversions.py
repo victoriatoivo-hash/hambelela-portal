@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '366dcc8dc07a750b24c0279579358d32c49e5591'
-NEW_FILES = ['shared/cost-workbook-pricing-master.php']
-FILES = ['shared/cost-workbook-pricing-master.php','apps/cost-manager/retail-pricing-api.php','assets/js/cost-workbook-controls.js','assets/css/cost-workbook-retail-pricing.css','assets/js/retail-pricing.js','shared/cost-workbook-retail-pricing.php','shared/cost-workbook-page-shell.php']
-DEPENDENCIES = ['assets/css/cost-workbook-controls.css','apps/cost-manager/workbook-page.php','shared/cost-workbook.php']
+BASELINE = '4ace7317896e5349d14d0c61afad10a8fdf5c0ee'
+NEW_FILES = []
+FILES = ['shared/cost-workbook-pricing-master.php','assets/css/cost-workbook-retail-pricing.css','assets/js/retail-pricing.js']
+DEPENDENCIES = ['apps/cost-manager/retail-pricing-api.php','assets/js/cost-workbook-controls.js','shared/cost-workbook-retail-pricing.php','shared/cost-workbook-page-shell.php','assets/css/cost-workbook-controls.css','apps/cost-manager/workbook-page.php','shared/cost-workbook.php']
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):
