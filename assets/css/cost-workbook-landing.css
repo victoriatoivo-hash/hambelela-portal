@@ -6,7 +6,8 @@
 .cost-workbook-app .accounting-app-card--size-conversions{--app-accent:#f07420;--app-accent-soft:rgba(240,116,32,.1)}
 .cost-workbook-app .accounting-app-card--planned{pointer-events:none}
 
-/* Owner-managed Size Conversions. */
+/* Preserve the existing compact header on other Cost Workbook pages. */
+@media(max-width:640px){.cost-workbook-app .cw-workspace-header h1{font-size:24px}}
 
 /* =====================================================
    HAMBELELA ORGANIC — SIZE CONVERSIONS
