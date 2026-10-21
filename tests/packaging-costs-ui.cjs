@@ -16,6 +16,9 @@ function fill(s,v){one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  click('[data-cost-more]');fill('[data-pc-filters] [name="status"]','inactive');click('[data-cost-apply]');await flush();await flush();assert.match(one('[data-pc-item-rows]').textContent,/No matching/);
  click('[data-cost-clear]');await new Promise(r=>setTimeout(r,10));await flush();assert.match(one('[data-pc-item-rows]').textContent,/Test Pouch/);
  click('[data-pc-open-item]');assert(one('[data-pc-item-drawer]').classList.contains('is-open'));
+ assert.equal(one('[name="packaging_type_id"]').value,'');assert.equal(one('[name="new_purchase"]').closest('label').hidden,true);
+ fill('[data-pc-supplier-choice]','Test Supplier');one('[data-pc-supplier-choice]').dispatchEvent(new w.Event('change',{bubbles:true}));assert.equal(one('[name="supplier_name"]').value,'Test Supplier');
+ fill('[data-pc-supplier-choice]','__new__');one('[data-pc-supplier-choice]').dispatchEvent(new w.Event('change',{bubbles:true}));assert.equal(one('[name="supplier_name"]').hidden,false);fill('[name="supplier_name"]','New supplier');
  assert.equal(one('[name="exchange_rate"]').readOnly,true);assert.equal(one('[name="fx_confirmed"]').closest('label').hidden,true);assert.equal(one('[name="vat_rate"]').value,'');assert.equal(one('[name="tax_recoverable"]').closest('label').hidden,true);
  fill('[name="currency"]','USD');assert.equal(one('[name="exchange_rate"]').readOnly,false);assert.equal(one('[name="fx_confirmed"]').closest('label').hidden,false);fill('[name="currency"]','NAD');
  fill('[name="vat_treatment"]','standard');assert.equal(one('[name="vat_rate"]').value,'15');assert.equal(one('[name="tax_recoverable"]').closest('label').hidden,false);
@@ -23,10 +26,10 @@ function fill(s,v){one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  one('[name="packaging_type_id"]').value='2';one('[name="packaging_type_id"]').dispatchEvent(new w.Event('change',{bubbles:true}));
  assert.match(one('[data-pc-item-preview]').textContent,/Print Yield Required/);click('[data-pc-item-drawer] [data-pc-close]');assert.equal(one('[data-pc-item-drawer] [data-pc-discard]').hidden,false);click('[data-pc-item-drawer] [data-pc-discard-yes]');click('[data-pc-open-item]');
  fill('[data-pc-item-form] [name="packaging_type_id"]','1');fill('[name="purchase_quantity"]','10');fill('[name="units_per_pack"]','100');fill('[name="amount_entered"]','1500');fill('[name="vat_treatment"]','exempt');
- assert.match(one('[data-pc-item-preview]').textContent,/1,000/);assert.match(one('[data-pc-item-preview]').textContent,/1.50/);
+ assert.match(one('[data-pc-item-preview]').textContent,/1,000/);assert.match(one('[data-pc-item-preview]').textContent,/1.50/);assert.match(one('[data-pc-footer-summary]').textContent,/1.50/);
  fill('[name="transport_id"]','1');fill('[name="freight_amount"]','200');assert.match(one('[data-pc-item-preview]').textContent,/1.70/);
  click('[data-pc-item-drawer] [data-pc-close]');assert.equal(one('[data-pc-item-drawer] [data-pc-discard]').hidden,false);click('[data-pc-item-drawer] [data-pc-discard-yes]');
- click('[data-edit="item:1"]');assert.equal(one('[data-pc-item-form] [name="id"]').value,'1');assert.equal(one('[name="latest_cost_id"]').value,'8');
+ click('[data-edit="item:1"]');assert.equal(one('[data-pc-item-form] [name="id"]').value,'1');assert.equal(one('[name="latest_cost_id"]').value,'8');assert.equal(one('[name="new_purchase"]').closest('label').hidden,false);
  fail=true;one('[data-pc-item-form]').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await flush();await flush();assert.match(one('[data-pc-item-drawer] [data-pc-error]').textContent,/Changed/);assert.equal(one('[name="amount_entered"]').value,'1500');
  fail=false;one('[data-pc-item-form]').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await flush();await flush();assert.equal(calls.find(x=>x.a==='save-item').b.id,'1');
  click('[data-pc-open-setup]');await flush();await flush();fill('[data-k="packaging_item_id"]','1');fill('[data-k="waste_percent"]','10');assert.match(one('[data-pc-setup-preview]').textContent,/1.87/);

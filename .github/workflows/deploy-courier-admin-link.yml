@@ -1,4 +1,4 @@
-name: Deploy Supplier spreadsheet delta
+name: Deploy Packaging drawer correction
 on:
   workflow_dispatch:
     inputs:
@@ -48,6 +48,9 @@ jobs:
           php -l apps/cost-manager/supplier-invoices-api.php
           php -l shared/cost-workbook-supplier-invoices.php
           php tests/supplier-costs-workflow.php
+          php -l shared/cost-workbook-packaging-costs.php
+          php tests/packaging-costs-workflow.php
+          node --check assets/js/packaging-costs.js
           node --check assets/js/supplier-invoices-v2.js
       - name: Drawer interaction tests (disposable DOM, no live records)
         run: |

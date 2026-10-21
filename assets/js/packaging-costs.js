@@ -19,7 +19,7 @@ function sync(form){syncing=true;try{form.querySelectorAll('select,[data-portal-
 async function bootstrap(){
  state=await request('bootstrap',null,'date='+encodeURIComponent(filters.elements.as_of.value||today()));
  all('[data-pc-summary]').forEach(e=>e.textContent=e.dataset.pcSummary==='average'?money(state.summary.average):state.summary[e.dataset.pcSummary]);
- options(itemForm.elements.packaging_type_id,state.types,'name');options(setupForm.elements.size_conversion_id,state.sizes,'label');
+ options(itemForm.elements.packaging_type_id,state.types,'name','Select packaging type');options(setupForm.elements.size_conversion_id,state.sizes,'label');
  options(filters.elements.type,state.types,'name','All types');
  options(filters.elements.supplier,[...new Set(state.items.map(i=>i.supplier_name).filter(Boolean))].map(s=>({id:s,name:s})),'name','All suppliers');
  options(itemForm.elements.transport_id,state.transports.map(t=>({...t,name:t.courier_name+' · '+t.invoice_number+' · '+t.currency+' '+t.allocable_amount})),'name','No additional freight');
@@ -42,9 +42,15 @@ function close(force=false){
  active.classList.remove('is-open');active.setAttribute('aria-hidden','true');active.inert=true;active=null;previewGeneration++;dirty=false;document.body.style.overflow='';one('[data-pc-backdrop]').classList.remove('is-open');returnFocus?.focus();
 }
 function assign(form,values){Object.keys(values||{}).forEach(k=>{const e=form.elements[k];if(e){if(e.type==='checkbox')e.checked=Boolean(Number(values[k]));else e.value=values[k]??'';}});}
+function supplierChoices(current=''){
+ const select=one('[data-pc-supplier-choice]'),names=[...new Set([...state.items.map(i=>i.supplier_name),current].filter(Boolean))].sort();
+ select.innerHTML='<option value="">Select supplier</option>'+names.map(n=>'<option value="'+esc(n).replace(/"/g,'&quot;')+'">'+esc(n)+'</option>').join('')+'<option value="__new__">Add supplier name…</option>';
+ select.value=current;itemForm.elements.supplier_name.hidden=true;
+}
 function openItem(id){
  itemForm.reset();itemForm.elements.id.value=id||'';itemForm.elements.latest_cost_id.value='';itemForm.elements.request_key.value=crypto.randomUUID();itemForm.elements.effective_date.value=filters.elements.as_of.value||today();itemForm.elements.tax_recoverable.checked=true;itemForm.elements.vat_rate.value=state.vat_rate;
  if(id){const i=state.items.find(i=>Number(i.id)===Number(id));assign(itemForm,i);if(i.cost)assign(itemForm,i.cost);itemForm.elements.id.value=i.id;itemForm.elements.latest_cost_id.value=i.latest_cost_id;itemForm.elements.request_key.value=crypto.randomUUID();const e=JSON.parse(i.cost?.transport_evidence||'null');if(e)assign(itemForm,{freight_amount:e.source_amount,freight_method:e.allocation_method,shipping_weight:e.shipping_weight,shipment_weight:e.shipment_weight,freight_confirmed:1});}
+ supplierChoices(itemForm.elements.supplier_name.value);itemForm.elements.new_purchase.closest('label').hidden=!id;
  open('item',id?'Edit Packaging Material':'Add Packaging Material');itemForm.querySelector('[type="submit"]').textContent=id?'Save Changes':'Save Packaging Material';one('[data-pc-freight-section]').open=!!itemForm.elements.transport_id.value;itemPreview();
 }
 function component(value={}){
@@ -67,10 +73,12 @@ function itemPreview(){
  itemForm.elements.exchange_rate.readOnly=nad;
  if(nad)itemForm.elements.exchange_rate.value='1';
  itemForm.elements.fx_confirmed.closest('label').hidden=nad;
- itemForm.querySelector('label[for="pc-units_per_pack"]').textContent=itemForm.elements.purchase_unit.value==='each'?'Usable Items per Individual Unit *':'Usable Items per Pack / Roll / Box *';
+ const purchaseUnit=itemForm.elements.purchase_unit.value,unitLabel={each:'Individual Unit',pack:'Pack',roll:'Roll',box:'Box / Carton'}[purchaseUnit]||'Pack';
+ itemForm.querySelector('label[for="pc-purchase_quantity"]').textContent={each:'Number of Items Purchased *',pack:'Number of Packs Purchased *',roll:'Number of Rolls Purchased *',box:'Number of Boxes Purchased *'}[purchaseUnit];
+ itemForm.querySelector('label[for="pc-units_per_pack"]').textContent='Usable Items per '+unitLabel+' *';
  const treatment=itemForm.elements.vat_treatment.value;
  itemForm.elements.vat_rate.value=treatment==='standard'?state.vat_rate:treatment?'0':'';
- one('[data-pc-vat-hint]').textContent=treatment?'':'— select treatment';
+ one('[data-pc-vat-hint]').textContent=treatment?'— automatic':'— select treatment';
  itemForm.elements.tax_recoverable.closest('label').hidden=treatment!=='standard';
  const b=Object.fromEntries(new FormData(itemForm)),type=state.types.find(t=>String(t.id)===b.packaging_type_id)?.name;
  let units=Number(b.purchase_quantity)*Number(b.units_per_pack),yieldMissing=false;if(type==='Ribbon'){yieldMissing=!(Number(b.print_yield)>0);units*=Number(b.print_yield);}
@@ -80,6 +88,7 @@ function itemPreview(){
  one('[data-pc-freight-fields]').hidden=!b.transport_id;let freight=0;const t=state.transports.find(t=>String(t.id)===b.transport_id);
  if(t){freight=b.freight_method==='weight'?Number(t.allocable_amount)*Number(b.shipping_weight)/Number(b.shipment_weight):Number(b.freight_amount);if(t.currency!=='NAD')freight=Number(t.fx_confirmed)&&Number(t.exchange_rate)>0?freight*Number(t.exchange_rate):null;if(t.vat_treatment==='unconfirmed')freight=null;}
  const valid=units>0&&rate>0&&b.amount_entered!==''&&b.vat_treatment;
+ one('[data-pc-footer-summary]').textContent='Usable units: '+(units>0&&!yieldMissing?units.toLocaleString():'—')+' · Landed / unit: '+money(valid&&freight!==null?(net+freight)/units:null);
  one('[data-pc-item-preview]').innerHTML=summary([['Total Usable Units',yieldMissing?'Print Yield Required':units>0?units.toLocaleString():'Quantity Required'],['Supplier Cost / Unit',money(valid?net/units:null)],['Freight / Unit',money(valid&&freight!==null?freight/units:null)],['Landed Cost / Unit',money(valid&&freight!==null?(net+freight)/units:null)]]);
 }
 function setupPreview(){
@@ -111,7 +120,7 @@ page.addEventListener('click',e=>{
  else if(b.dataset.toggle){const [type,id,enabled]=b.dataset.toggle.split(':');b.disabled=true;request('toggle',{type,id,active:Number(enabled)}).then(bootstrap).catch(e=>notice(e.message)).finally(()=>b.disabled=false);}
 });
 page.addEventListener('input',e=>{if(e.target.closest('.packaging-costs__drawer'))dirty=true;if(itemForm.contains(e.target))itemPreview();if(setupForm.contains(e.target))setupPreview();if(filters.contains(e.target)&&e.target.name!=='as_of')render();});
-page.addEventListener('change',e=>{if(!syncing&&e.target.closest('.packaging-costs__drawer'))dirty=true;if(itemForm.contains(e.target))itemPreview();if(setupForm.contains(e.target)){if(e.target.name==='effective_date')setupCosts();else setupPreview();}if(filters.contains(e.target)){if(e.target.name==='as_of')bootstrap().catch(e=>notice(e.message));else render();}});
+page.addEventListener('change',e=>{if(e.target.matches('[data-pc-supplier-choice]')){const isNew=e.target.value==='__new__';itemForm.elements.supplier_name.hidden=!isNew;itemForm.elements.supplier_name.value=isNew?'':e.target.value;if(isNew&&!syncing)itemForm.elements.supplier_name.focus();}if(!syncing&&e.target.closest('.packaging-costs__drawer'))dirty=true;if(itemForm.contains(e.target))itemPreview();if(setupForm.contains(e.target)){if(e.target.name==='effective_date')setupCosts();else setupPreview();}if(filters.contains(e.target)){if(e.target.name==='as_of')bootstrap().catch(e=>notice(e.message));else render();}});
 filters.addEventListener('submit',e=>e.preventDefault());
 filters.addEventListener('cwfiltersapply',()=>bootstrap().catch(e=>notice(e.message)));
 one('[data-cost-refresh]').addEventListener('click',()=>bootstrap().catch(e=>notice(e.message)));
