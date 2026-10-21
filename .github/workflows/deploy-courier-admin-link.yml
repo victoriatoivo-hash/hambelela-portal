@@ -1,52 +1,49 @@
-name: Deploy Courier admin linking
-
+name: Deploy Size Conversions isolated redesign
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Preflight only or deploy the approved Courier delta
-        required: true
         type: choice
-        options:
-          - preflight
-          - deploy
-      approved_sha:
-        description: Exact main commit SHA to verify and deploy
+        options: [preflight, deploy]
         required: true
+      approved_sha:
         type: string
-
+        required: true
 concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
-
 jobs:
-  deploy-courier-admin-link:
+  release:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate Courier release
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+      - name: Focused checks
         run: |
-          php -l apps/operations/courier.php
-          node tests/courier-sent-state-static.mjs
-          python3 -m py_compile scripts/deploy-courier-admin-link.py
-      - name: Back up and publish only the approved Courier files
+          php -l shared/cost-workbook-sections.php
+          node --check assets/js/size-conversions.js
+          node tests/cost-workbook-size-conversions-static.mjs
+          node tests/size-conversions-interactions.mjs
+          php tests/size-conversions-values.php
+      - name: Hash guarded delta with targeted backup and rollback
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          MODE: ${{ inputs.mode }}
-          APPROVED_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/deploy-courier-admin-link.py "$MODE" "$APPROVED_SHA"
+        run: python3 scripts/deploy-size-conversions.py '${{ inputs.mode }}' '${{ inputs.approved_sha }}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: courier-admin-link-${{ github.run_id }}
+          name: size-conversions-release-${{ github.run_id }}
           path: |
-            courier-admin-link-deployment-report.json
-            courier-admin-link-deployment-backup.zip
-          if-no-files-found: warn
+            size-conversions-deployment-report.json
+            size-conversions-deployment-backup.zip
+          retention-days: 3
+          if-no-files-found: ignore
