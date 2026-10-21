@@ -34,7 +34,7 @@ function cw_render_supplier_invoices(array $period): void { ?>
  <div class="supplier-invoices__drawer-backdrop" data-si-backdrop hidden></div>
  <aside class="supplier-invoices__drawer" data-si-drawer role="dialog" aria-modal="true" aria-labelledby="siDrawerTitle" aria-hidden="true" inert>
   <header><div><p>Supplier Costs &amp; Item Extraction</p><h2 id="siDrawerTitle">Add Supplier Cost</h2></div><button type="button" data-si-close aria-label="Close drawer">×</button></header>
-  <form data-si-review>
+  <form data-si-review novalidate>
    <input type="hidden" name="id"><input type="hidden" name="updated_at"><input type="hidden" name="request_id">
    <div class="supplier-invoices__drawer-scroll">
     <div class="si-discard" data-si-discard hidden>Discard unsaved changes? <button type="button" class="si-btn" data-si-discard-yes>Discard</button><button type="button" class="si-btn" data-si-discard-no>Keep Editing</button></div>

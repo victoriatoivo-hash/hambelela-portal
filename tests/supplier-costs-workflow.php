@@ -51,6 +51,13 @@ $pdo->prepare('UPDATE cw_supplier_invoice_lines SET shipping_weight_kg=NULL WHER
 try {cw_transport_save($pdo,$transport);throw new RuntimeException('Missing weight silently allocated');}catch(DomainException $expected){}
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_transport_product_allocations')->fetchColumn()===1,'Rejected save must retain freight');
 // Exercise the actual list handler SQL, not a separately reimplemented query.
+$productId=(int)$pdo->query('SELECT id FROM cw_cost_products LIMIT 1')->fetchColumn();
+$pdo->prepare("INSERT INTO cw_supplier_invoices(supplier_id,supplier_name,invoice_number,invoice_date,original_filename,stored_file,file_type,currency,vat_treatment,approval_status) VALUES(?,'Test Supplier','OLDER-LATE-UPLOAD','2026-10-01','','','','NAD','exclusive','draft')")->execute([$supplier]);
+$older=(int)$pdo->lastInsertId();
+$olderLine=$line;unset($olderLine['id']);$olderLine['cost_product_id']=$productId;$olderLine['line_subtotal']=20000;
+$pdo->beginTransaction();cw_supplier_save_lines($pdo,$older,[$olderLine]);$pdo->prepare("UPDATE cw_supplier_invoices SET approval_status='approved' WHERE id=?")->execute([$older]);lpc_refresh($pdo,[$older]);$pdo->commit();
+expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_products')->fetchColumn()===1,'New purchase reuses canonical product');
+expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_product_sources')->fetchColumn()===2,'Every purchase retained in source history');
 class SupplierTestReply extends RuntimeException { public $payload; public function __construct(array $payload){$this->payload=$payload;} }
 function si_reply(array $payload,int $status=200): void { throw new SupplierTestReply($payload); }
 function si_date($value): ?string { $d=DateTimeImmutable::createFromFormat('!Y-m-d',(string)$value);return $d&&$d->format('Y-m-d')===$value?$value:null; }

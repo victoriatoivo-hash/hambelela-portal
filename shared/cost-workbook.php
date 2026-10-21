@@ -297,10 +297,11 @@ function cw_transport_save(PDO $pdo, array $body): array
         $method=(string)($body['allocation_method']??'by_weight');
         if (!in_array($method,['by_weight','percentage','manual_amount','courier_lines','equal_split'],true)) throw new DomainException('Invalid allocation method.');
         if ($method!=='by_weight' && empty($body['confirm_alternative'])) throw new DomainException('Explicitly confirm the alternative freight allocation method.');
-        $before=null;
+        $before=null; $previousProducts=[];
         if ($id) {
             $q=$pdo->prepare('SELECT * FROM cw_transport_records WHERE id=? FOR UPDATE'); $q->execute([$id]); $before=$q->fetch();
             if (!$before || $before['allocation_status']==='archived') throw new DomainException('Transport record is unavailable.');
+            $q=$pdo->prepare('SELECT p.* FROM cw_transport_product_allocations p JOIN cw_transport_allocations a ON a.id=p.transport_allocation_id WHERE a.transport_id=? ORDER BY p.id');$q->execute([$id]);$previousProducts=$q->fetchAll();
         }
         $links=(array)($body['allocations']??[]); $weights=[]; $invoiceIds=[]; $lineGroups=[];
         foreach ($links as $link) {
@@ -379,7 +380,7 @@ function cw_transport_save(PDO $pdo, array $body): array
         $allocated=array_sum($shares); $remaining=round($allocable-$allocated,2);
         $status=!$shares?'unlinked':($remaining<.005 && $fx && $treatment!=='unconfirmed'?'fully_allocated':'partial');
         $pdo->prepare('UPDATE cw_transport_records SET allocation_status=? WHERE id=?')->execute([$status,$id]);
-        $pdo->prepare('INSERT INTO cw_transport_audit(transport_id,action_key,before_json,after_json,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,'allocation_saved',json_encode(['record'=>$before,'allocations'=>$oldAllocations]),json_encode(['request'=>$body,'allocated'=>$allocated,'remaining'=>$remaining]),$actor['id'],$actor['name']]);
+        $pdo->prepare('INSERT INTO cw_transport_audit(transport_id,action_key,before_json,after_json,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,'allocation_saved',json_encode(['record'=>$before,'allocations'=>$oldAllocations,'product_allocations'=>$previousProducts]),json_encode(['request'=>$body,'allocated'=>$allocated,'remaining'=>$remaining]),$actor['id'],$actor['name']]);
         lpc_refresh($pdo,array_keys($invoiceIds));
         if ($owned) $pdo->commit();
         return ['ok'=>true,'id'=>$id,'allocated'=>$allocated,'unallocated'=>$remaining,'status'=>$status,'message'=>'Transport allocation saved.'];

@@ -130,6 +130,7 @@ one('[data-si-link-transport]').onclick=async()=>{
 };
 form.addEventListener('submit',async event=>{
  event.preventDefault();if(busy||mode!=='purchase')return;
+ if(event.submitter===one('[data-si-approve]')&&!form.reportValidity())return;
  const body=Object.fromEntries(new FormData(form));body.lines=all('.supplier-invoices__line',one('[data-si-lines]')).map(lineData);body.approve=event.submitter===one('[data-si-approve]');body.fx_confirmed=form.elements.fx_confirmed.checked?1:0;
  if(one('[data-si-shipping-enabled]').checked)body.transport={id:form.elements.transport_id.value,link_existing:form.elements.transport_link_existing.value==='1',confirm_shared:form.elements.transport_shared_confirm.checked,courier_name:form.elements.transport_courier.value,invoice_number:form.elements.transport_reference.value,transport_date:form.elements.transport_date.value,transport_amount:form.elements.transport_amount.value,currency:form.elements.transport_currency.value,exchange_rate:form.elements.transport_rate.value,vat_treatment:form.elements.transport_vat.value,vat_amount:0,amount_basis:'excluding',fx_confirmed:form.elements.transport_fx_confirmed.checked,allocation_method:form.elements.transport_method.value,confirm_alternative:form.elements.transport_alternative.checked};
  setBusy(true);error('');try{const data=await request('save',body);setBusy(false);dirty=false;close(true);toast(data.message);await load();}catch(e){error(e.message);}finally{setBusy(false);}
