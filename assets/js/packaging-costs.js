@@ -3,7 +3,7 @@
 const root=document.querySelector('[data-pc-root]');if(!root)return;
 const page=root.closest('#costWorkbook'),one=s=>page.querySelector(s),all=s=>Array.from(page.querySelectorAll(s));
 const api=root.dataset.api,csrf=root.dataset.csrf,filters=one('[data-pc-filters]');
-let state={items:[],setups:[],types:[],sizes:[],transports:[],vat_rate:0},active=null,dirty=false,busy=false,returnFocus=null,previewItems=[],previewGeneration=0;
+let state={items:[],setups:[],types:[],sizes:[],transports:[],vat_rate:0},active=null,dirty=false,busy=false,syncing=false,returnFocus=null,previewItems=[],previewGeneration=0;
 const esc=v=>{const e=document.createElement('span');e.textContent=v==null?'':String(v);return e.innerHTML;};
 const money=v=>v===null||v===undefined?'—':'N$ '+Number(v).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:6});
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -15,7 +15,7 @@ async function request(action,body,query=''){
 }
 function notice(s){const n=document.getElementById('cwNotice');n.hidden=false;n.textContent=s;}
 function options(s,rows,label,blank){const value=s.value;s.innerHTML=(blank?'<option value="">'+esc(blank)+'</option>':'')+rows.map(r=>'<option value="'+esc(r.id)+'">'+esc(r[label])+'</option>').join('');s.value=value;}
-function sync(form){form.querySelectorAll('select,[data-portal-date-original-type]').forEach(e=>e.dispatchEvent(new Event('change')));if(window.initialisePortalDatePickers)window.initialisePortalDatePickers();}
+function sync(form){syncing=true;try{form.querySelectorAll('select,[data-portal-date-original-type]').forEach(e=>e.dispatchEvent(new Event('change')));if(window.initialisePortalDatePickers)window.initialisePortalDatePickers();}finally{syncing=false;}}
 async function bootstrap(){
  state=await request('bootstrap',null,'date='+encodeURIComponent(filters.elements.as_of.value||today()));
  all('[data-pc-summary]').forEach(e=>e.textContent=e.dataset.pcSummary==='average'?money(state.summary.average):state.summary[e.dataset.pcSummary]);
@@ -102,7 +102,7 @@ page.addEventListener('click',e=>{
  else if(b.dataset.toggle){const [type,id,enabled]=b.dataset.toggle.split(':');b.disabled=true;request('toggle',{type,id,active:Number(enabled)}).then(bootstrap).catch(e=>notice(e.message)).finally(()=>b.disabled=false);}
 });
 page.addEventListener('input',e=>{if(e.target.closest('.packaging-costs__drawer'))dirty=true;if(itemForm.contains(e.target))itemPreview();if(setupForm.contains(e.target))setupPreview();if(filters.contains(e.target)&&e.target.name!=='as_of')render();});
-page.addEventListener('change',e=>{if(e.isTrusted&&e.target.closest('.packaging-costs__drawer'))dirty=true;if(itemForm.contains(e.target))itemPreview();if(setupForm.contains(e.target)){if(e.target.name==='effective_date')setupCosts();else setupPreview();}if(filters.contains(e.target)){if(e.target.name==='as_of')bootstrap().catch(e=>notice(e.message));else render();}});
+page.addEventListener('change',e=>{if(!syncing&&e.target.closest('.packaging-costs__drawer'))dirty=true;if(itemForm.contains(e.target))itemPreview();if(setupForm.contains(e.target)){if(e.target.name==='effective_date')setupCosts();else setupPreview();}if(filters.contains(e.target)){if(e.target.name==='as_of')bootstrap().catch(e=>notice(e.message));else render();}});
 filters.addEventListener('submit',e=>e.preventDefault());
 async function save(e,action){
  e.preventDefault();if(busy)return;const form=e.currentTarget,b=Object.fromEntries(new FormData(form));if(action==='save-setup')b.components=all('[data-pc-components] .packaging-costs__component').map(r=>Object.fromEntries(Array.from(r.querySelectorAll('[data-k]')).map(e=>[e.dataset.k,e.value])));

@@ -11,6 +11,8 @@ function fill(s,v){one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
 (async()=>{
  await flush();await flush();assert.match(one('[data-pc-item-rows]').textContent,/1.7/);assert.equal(one('[data-pc-item-rows]').parentElement.querySelector('thead tr').children.length,11);
  click('[data-pc-open-item]');assert(one('[data-pc-item-drawer]').classList.contains('is-open'));
+ one('[name="packaging_type_id"]').value='2';one('[name="packaging_type_id"]').dispatchEvent(new w.Event('change',{bubbles:true}));
+ assert.match(one('[data-pc-item-preview]').textContent,/Print Yield Required/);click('[data-pc-item-drawer] [data-pc-close]');assert.equal(one('[data-pc-item-drawer] [data-pc-discard]').hidden,false);click('[data-pc-item-drawer] [data-pc-discard-yes]');click('[data-pc-open-item]');
  fill('[data-pc-item-form] [name="packaging_type_id"]','1');fill('[name="purchase_quantity"]','10');fill('[name="units_per_pack"]','100');fill('[name="amount_entered"]','1500');fill('[name="vat_treatment"]','exempt');
  assert.match(one('[data-pc-item-preview]').textContent,/1,000/);assert.match(one('[data-pc-item-preview]').textContent,/1.50/);
  fill('[name="transport_id"]','1');fill('[name="freight_amount"]','200');assert.match(one('[data-pc-item-preview]').textContent,/1.70/);
