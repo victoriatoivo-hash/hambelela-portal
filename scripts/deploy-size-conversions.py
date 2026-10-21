@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '0f0d784e'
-NEW_FILES = []
-FILES = ['assets/css/cost-workbook-supplier-invoices.css','assets/js/supplier-invoices-v2.js']
-DEPENDENCIES = ['apps/cost-manager/supplier-invoices-api.php','shared/cost-workbook-supplier-sheet.php','shared/cost-workbook-supplier-invoices.php','assets/css/cost-workbook-controls.css','assets/js/cost-workbook-controls.js','shared/cost-workbook.php']
+BASELINE = 'a94bfcb8'
+NEW_FILES = ['shared/cost-workbook-formulation-engine.php']
+FILES = ['shared/cost-workbook-formulation-engine.php','shared/cost-workbook-formulations.php','apps/cost-manager/formulations-api.php','assets/js/formulation-costing.js','assets/css/cost-workbook-formulation-costing.css','shared/cost-workbook-page-shell.php']
+DEPENDENCIES = ['assets/css/cost-workbook-controls.css','assets/js/cost-workbook-controls.js','shared/cost-workbook.php','apps/cost-manager/formulations.php','apps/cost-manager/workbook-page.php']
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):
