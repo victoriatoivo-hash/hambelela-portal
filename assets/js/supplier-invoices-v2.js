@@ -198,7 +198,7 @@ async function inline(button){
  catch(e){toast(e.message);return;}finally{openingCell=false;button.removeAttribute('aria-busy');}
  const initial=key==='quantity'?row.purchase_quantity:key==='line_subtotal'?row.source_cost:row[key];
  let input=document.createElement('input');input.type=['quantity','line_subtotal'].includes(key)?'number':key==='invoice_date'?'date':'text';
- input.className='si-sheet-input';input.setAttribute('aria-label',key==='line_subtotal'?'Original line total ('+row.source_currency+'), not cost per base':key.replaceAll('_',' '));
+ input.dataset.portalDateReady='true';input.className='si-sheet-input';input.setAttribute('aria-label',key==='line_subtotal'?'Source total excluding recoverable VAT ('+row.source_currency+'), not cost per base':key.replaceAll('_',' '));
  if(input.type==='number'){input.step='any';input.min=key==='quantity'?'0.000001':'0';input.inputMode='decimal';}input.required=true;
  let options=[];
  if(['supplier_type','product_category','supplier_name','purchase_unit'].includes(key)){
@@ -223,7 +223,7 @@ async function inline(button){
   const list=document.createElement('div');list.className='si-sheet-options';panel.prepend(list);panel.hidden=false;retry.hidden=true;reload.hidden=true;
   const choices=()=>{list.replaceChildren();options.filter(o=>o.text.toLowerCase().includes(input.value.toLowerCase())).forEach(o=>{const choice=document.createElement('button');choice.type='button';choice.textContent=o.text;choice.onmousedown=e=>e.preventDefault();choice.onclick=()=>{input.value=o.value;commitCell(editor);};list.appendChild(choice);});};input.addEventListener('input',choices);choices();
  }
- if(key==='line_subtotal'){panel.hidden=false;message.textContent='Correct the original line total in '+row.source_currency+'. Per-base costs are recalculated; history is retained.';retry.hidden=true;reload.hidden=true;}
+ if(key==='line_subtotal'){panel.hidden=false;message.textContent='Correct the source total excluding recoverable VAT in '+row.source_currency+'. Per-base costs are recalculated; history is retained.';retry.hidden=true;reload.hidden=true;}
  input.focus({preventScroll:true});if(input.select&&input.type!=='date')input.select();
  input.addEventListener('change',()=>{if(input.tagName==='SELECT'||input.type==='date')commitCell(editor);});
  input.addEventListener('keydown',async e=>{

@@ -62,8 +62,9 @@ function si_sheet_save(PDO $pdo,array $b):array {
                 if($error)throw new DomainException($error);
                 $next['base_quantity']=$qty;$next['base_unit']=$unit;
                 [, $canonical]=lpc_basis($next);if($canonical!==$p['base_unit'])throw new DomainException('This changes the product costing unit. Review the purchase and product match instead.');
+                if($field==='line_subtotal'&&(float)$l['line_subtotal']>0)$next['vat_amount']=round((float)$value*(float)($l['vat_amount']??0)/(float)$l['line_subtotal'],2);
                 $next['line_total']=(float)$next['line_subtotal']+(float)($next['vat_amount']??0);
-                $pdo->prepare('UPDATE cw_supplier_invoice_lines SET quantity=?,purchase_unit=?,base_quantity=?,base_unit=?,line_subtotal=?,line_total=?,base_unit_cost=? WHERE id=? AND supplier_invoice_id=?')->execute([$next['quantity'],$next['purchase_unit'],$qty,$unit,$next['line_subtotal'],$next['line_total'],(float)$next['line_subtotal']/(float)$qty,$l['id'],$i['id']]);
+                $pdo->prepare('UPDATE cw_supplier_invoice_lines SET quantity=?,purchase_unit=?,base_quantity=?,base_unit=?,line_subtotal=?,vat_amount=?,line_total=?,base_unit_cost=? WHERE id=? AND supplier_invoice_id=?')->execute([$next['quantity'],$next['purchase_unit'],$qty,$unit,$next['line_subtotal'],$next['vat_amount'],$next['line_total'],(float)$next['line_subtotal']/(float)$qty,$l['id'],$i['id']]);
                 cw_supplier_cost_audit($pdo,'supplier_invoice_line',(int)$l['id'],'sheet_corrected',$l,$next);
             } else {
                 $next=$i;
