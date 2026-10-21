@@ -211,7 +211,7 @@ function cw_packaging_setup_cost(PDO $pdo,int $setup,string $date): array
 
 function cw_packaging_current_setups(PDO $pdo,string $date): array
 {
-    $q=$pdo->prepare("SELECT s.id FROM cw_packaging_setups s WHERE s.active=1 AND s.effective_date<=? AND NOT EXISTS(SELECT 1 FROM cw_packaging_setups n WHERE n.active=1 AND n.size_conversion_id=s.size_conversion_id AND n.scope_type=s.scope_type AND n.scope_reference=s.scope_reference AND n.effective_date<=? AND (n.effective_date>s.effective_date OR(n.effective_date=s.effective_date AND n.id>s.id))) ORDER BY FIELD(s.scope_type,'product','category','default'),s.setup_name");$q->execute([$date,$date]);$out=[];foreach($q->fetchAll(PDO::FETCH_COLUMN) as $id)$out[]=cw_packaging_setup_cost($pdo,(int)$id,$date);return $out;
+    $q=$pdo->prepare("SELECT s.id FROM cw_packaging_setups s WHERE s.active=1 AND s.effective_date<=? AND NOT EXISTS(SELECT 1 FROM cw_packaging_setups n WHERE n.size_conversion_id=s.size_conversion_id AND n.scope_type=s.scope_type AND n.scope_reference=s.scope_reference AND n.effective_date<=? AND (n.effective_date>s.effective_date OR(n.effective_date=s.effective_date AND n.id>s.id))) ORDER BY FIELD(s.scope_type,'product','category','default'),s.setup_name");$q->execute([$date,$date]);$out=[];foreach($q->fetchAll(PDO::FETCH_COLUMN) as $id)$out[]=cw_packaging_setup_cost($pdo,(int)$id,$date);return $out;
 }
 
 function cw_upgrade_supplier_costs_schema_v12(PDO $pdo): void

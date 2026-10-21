@@ -39,7 +39,7 @@ function open(kind,title){
 }
 function close(force=false){
  if(busy||!active)return;if(dirty&&!force){active.querySelector('[data-pc-discard]').hidden=false;return;}
- active.classList.remove('is-open');active.setAttribute('aria-hidden','true');active.inert=true;active=null;dirty=false;document.body.style.overflow='';one('[data-pc-backdrop]').classList.remove('is-open');returnFocus?.focus();
+ active.classList.remove('is-open');active.setAttribute('aria-hidden','true');active.inert=true;active=null;previewGeneration++;dirty=false;document.body.style.overflow='';one('[data-pc-backdrop]').classList.remove('is-open');returnFocus?.focus();
 }
 function assign(form,values){Object.keys(values||{}).forEach(k=>{const e=form.elements[k];if(e){if(e.type==='checkbox')e.checked=Boolean(Number(values[k]));else e.value=values[k]??'';}});}
 function openItem(id){
@@ -69,7 +69,7 @@ function itemPreview(){
  const rate=b.currency.toUpperCase()==='NAD'?1:(b.fx_confirmed?Number(b.exchange_rate):0),factor=1+(b.vat_treatment==='standard'?Number(state.vat_rate):0)/100;
  const amount=Number(b.amount_entered),gross=(b.cost_basis==='inclusive'?amount:amount*factor)*rate,net=b.tax_recoverable?(b.cost_basis==='inclusive'?amount/factor:amount)*rate:gross;
  let freight=0;const t=state.transports.find(t=>String(t.id)===b.transport_id);
- if(t){freight=b.freight_method==='weight'?Number(t.allocable_amount)*Number(b.shipping_weight)/Number(b.shipment_weight):Number(b.freight_amount);if(t.currency!=='NAD')freight=null;}
+ if(t){freight=b.freight_method==='weight'?Number(t.allocable_amount)*Number(b.shipping_weight)/Number(b.shipment_weight):Number(b.freight_amount);if(t.currency!=='NAD')freight=Number(t.fx_confirmed)&&Number(t.exchange_rate)>0?freight*Number(t.exchange_rate):null;if(t.vat_treatment==='unconfirmed')freight=null;}
  const valid=units>0&&rate>0&&b.amount_entered!==''&&b.vat_treatment;
  one('[data-pc-item-preview]').innerHTML=summary([['Total Usable Units',yieldMissing?'Print Yield Required':units>0?units.toLocaleString():'Quantity Required'],['Supplier Cost / Unit',money(valid?net/units:null)],['Freight / Unit',money(valid&&freight!==null?freight/units:null)],['Landed Cost / Unit',money(valid&&freight!==null?(net+freight)/units:null)]]);
 }

@@ -1,0 +1,25 @@
+const fs=require('fs'),assert=require('assert/strict'),{execFileSync}=require('child_process'),{JSDOM}=require('jsdom'),crypto=require('crypto');
+const html=execFileSync(process.env.PHP_BIN||'php',['-r',"function cw_csrf_token(){return 'test';} require 'shared/cost-workbook-packaging-costs.php';cw_render_packaging_summary();cw_render_packaging_costs([]);"],{encoding:'utf8'});
+const dom=new JSDOM('<main id="costWorkbook" data-page="packaging-costs"><p id="cwNotice" hidden></p><button data-pc-open-item>Add</button><button data-pc-open-setup>Setup</button>'+html+'</main>',{url:'https://portal.example/packaging-costs.php',runScripts:'outside-only'});
+const w=dom.window,d=w.document;w.crypto.randomUUID=()=>crypto.randomUUID();
+const item={id:1,latest_cost_id:8,item_name:'Test Pouch',specification:'500ml',active:1,packaging_type_id:1,packaging_type:'Pouch',supplier_name:'Test Supplier',status_key:'ready',cost:{id:8,packaging_item_id:1,status_key:'ready',effective_date:'2026-10-01',purchase_quantity:10,units_per_pack:100,purchase_unit:'box',amount_entered:1500,currency:'NAD',exchange_rate:1,fx_confirmed:1,tax_recoverable:1,vat_treatment:'exempt',cost_basis:'exclusive',unit_cost_ex_vat:1.5,unit_cost_inc_vat:1.5,freight_unit_ex:.2,freight_unit_inc:.2,landed_ex:1.7,landed_inc:1.7}};
+const calls=[];let fail=false;
+w.fetch=async(url,opt={})=>{const u=new URL(url,w.location.href),a=u.searchParams.get('action'),b=opt.body?JSON.parse(opt.body):null;calls.push({a,b});const value=a==='bootstrap'?{items:[item],setups:[],types:[{id:1,name:'Pouch'},{id:2,name:'Ribbon'}],sizes:[{id:1,label:'500g'}],transports:[{id:1,courier_name:'Test Courier',invoice_number:'TEST',currency:'NAD',allocable_amount:200}],vat_rate:15,summary:{items:1,setups:0,missing:0,average:null}}:fail?{error:'Changed since opened'}:{id:1,message:'Saved'};return{ok:!value.error,json:async()=>value};};
+w.eval(fs.readFileSync('assets/js/packaging-costs.js','utf8'));
+const one=s=>d.querySelector(s),click=s=>one(s).click(),flush=()=>new Promise(r=>setImmediate(r));
+function fill(s,v){one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubbles:true}));}
+(async()=>{
+ await flush();await flush();assert.match(one('[data-pc-item-rows]').textContent,/1.7/);assert.equal(one('[data-pc-item-rows]').parentElement.querySelector('thead tr').children.length,11);
+ click('[data-pc-open-item]');assert(one('[data-pc-item-drawer]').classList.contains('is-open'));
+ fill('[data-pc-item-form] [name="packaging_type_id"]','1');fill('[name="purchase_quantity"]','10');fill('[name="units_per_pack"]','100');fill('[name="amount_entered"]','1500');fill('[name="vat_treatment"]','exempt');
+ assert.match(one('[data-pc-item-preview]').textContent,/1,000/);assert.match(one('[data-pc-item-preview]').textContent,/1.50/);
+ fill('[name="transport_id"]','1');fill('[name="freight_amount"]','200');assert.match(one('[data-pc-item-preview]').textContent,/1.70/);
+ click('[data-pc-item-drawer] [data-pc-close]');assert.equal(one('[data-pc-item-drawer] [data-pc-discard]').hidden,false);click('[data-pc-item-drawer] [data-pc-discard-yes]');
+ click('[data-edit="item:1"]');assert.equal(one('[data-pc-item-form] [name="id"]').value,'1');assert.equal(one('[name="latest_cost_id"]').value,'8');
+ fail=true;one('[data-pc-item-form]').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await flush();await flush();assert.match(one('[data-pc-item-drawer] [data-pc-error]').textContent,/Changed/);assert.equal(one('[name="amount_entered"]').value,'1500');
+ fail=false;one('[data-pc-item-form]').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await flush();await flush();assert.equal(calls.find(x=>x.a==='save-item').b.id,'1');
+ click('[data-pc-open-setup]');await flush();await flush();fill('[data-k="packaging_item_id"]','1');fill('[data-k="waste_percent"]','10');assert.match(one('[data-pc-setup-preview]').textContent,/1.87/);
+ console.log('Packaging drawer, usable units, landed preview, edit identity, failed-save preservation and setup waste UI checks passed.');
+ w.close();
+})().catch(e=>{console.error(e);process.exit(1);});
+
