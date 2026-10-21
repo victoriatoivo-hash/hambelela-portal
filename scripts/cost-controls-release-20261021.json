@@ -1,0 +1,39 @@
+{
+  "scope": "Supplier Costs and Packaging Costs compact filters and unified drawers",
+  "runtime_commit": "f2693164205bd9f1ef6772a1604691c6b5d2eff7",
+  "deployed_live": true,
+  "deployment_result": "success; final live component row measured 60px with fixed footer and olive headings",
+  "deployment_run": "https://github.com/victoriatoivo-hash/hambelela-portal/actions/runs/39620546611",
+  "runtime_files": [
+    "assets/css/cost-workbook-controls.css",
+    "assets/js/cost-workbook-controls.js",
+    "assets/css/cost-workbook-supplier-invoices.css",
+    "assets/css/cost-workbook-packaging-costs-v2.css",
+    "assets/js/supplier-invoices-v2.js",
+    "assets/js/packaging-costs.js",
+    "shared/cost-workbook-supplier-invoices.php",
+    "shared/cost-workbook-packaging-costs.php",
+    "shared/cost-workbook-page-shell.php"
+  ],
+  "support_files": [
+    "tests/supplier-costs-ui.cjs",
+    "tests/packaging-costs-ui.cjs",
+    "scripts/deploy-size-conversions.py",
+    ".github/workflows/deploy-courier-admin-link.yml"
+  ],
+  "checks": {
+    "supplier_compact_filters": "PASS",
+    "packaging_compact_filters": "PASS",
+    "more_filters_draft_apply_clear": "PASS",
+    "custom_dropdowns_and_calendar": "PASS",
+    "supplier_upload_drawer": "PASS",
+    "supplier_manual_and_review_drawers": "PASS",
+    "packaging_material_and_setup_interactions": "PASS in disposable DOM regression tests",
+    "existing_costing_workflows": "PASS in isolated MySQL test database",
+    "mobile_quick_filter_reparenting": "PASS in disposable DOM regression test",
+    "live_mobile_visual_and_safe_area_check": "NOT VERIFIED: browser viewport override remained 1920px",
+    "pixel_match_to_mockups": "NOT VERIFIED: referenced mockup images were not attached"
+  },
+  "preservation": "No backend costing API or database schema changes; no live sample purchases created or approved during verification.",
+  "deployment_method": "Existing FTPS hash-guarded delta, targeted backup and rollback; no copied-source verification artifact"
+}
