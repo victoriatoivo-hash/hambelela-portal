@@ -154,7 +154,7 @@ function patchRows(rows){
   if(index<0)return;entries[index]=row;
   const tr=one('[data-row="'+row.product_id+'"]',tbody);if(!tr)return;
   const template=document.createElement('tbody');template.innerHTML=rowMarkup(row);
-  Array.from(tr.cells).forEach((cell,i)=>{cell.innerHTML=template.firstElementChild.cells[i].innerHTML;});
+  Array.from(tr.cells).forEach((cell,i)=>{const html=template.firstElementChild.cells[i].innerHTML;if(cell.innerHTML!==html)cell.innerHTML=html;});
  });selection();
 }
 function freezeColumns(){
@@ -168,6 +168,7 @@ function sheetNotice(editor,message){
  editor.panel.querySelectorAll('button').forEach(b=>b.hidden=false);editor.cell.classList.add('is-error');editor.message.textContent=message;editor.panel.hidden=false;
 }
 function finishCell(editor){
+ editor.cleanup?.();
  editor.panel.remove();editor.input.remove();editor.cell.classList.remove('is-editing','is-saving','is-error');editor.button.style.visibility='';
  if(activeCell===editor)activeCell=null;
 }
@@ -217,6 +218,8 @@ async function inline(button){
  const place=()=>{const r=cell.getBoundingClientRect();panel.style.left=Math.max(8,Math.min(r.left,window.innerWidth-310))+'px';panel.style.top=Math.min(r.bottom+4,window.innerHeight-140)+'px';};
  // The feedback/options float outside the table so neither the row nor columns resize.
  document.body.appendChild(panel);panel.dataset.supplierSheet='';place();
+ window.addEventListener('resize',place);document.addEventListener('scroll',place,true);
+ editor.cleanup=()=>{window.removeEventListener('resize',place);document.removeEventListener('scroll',place,true);};
  retry.onclick=()=>commitCell(editor);cancel.onclick=()=>{finishCell(editor);button.focus({preventScroll:true});};
  reload.onclick=async()=>{const draft=input.value;try{const data=await request('inline-source',undefined,'product_id='+row.product_id+'&source_id='+row.product_source_id);editor.row=data.row;editor.initial=key==='quantity'?data.row.purchase_quantity:key==='line_subtotal'?data.row.source_cost:data.row[key];message.textContent='Latest: '+editor.initial+'. Your draft: '+draft+'. Review it, then Retry or Cancel.';}catch(e){message.textContent=e.message;}};
  if(key==='supplier_name'){
@@ -229,7 +232,7 @@ async function inline(button){
  input.addEventListener('keydown',async e=>{
   if(e.key==='Escape'){e.preventDefault();if(!editor.promise){finishCell(editor);button.focus({preventScroll:true});}return;}
   if(e.key==='Enter'||e.key==='Tab'){
-   e.preventDefault();const buttons=all('[data-inline]',tbody).filter(b=>!(b.dataset.inline==='short_code'&&entries.find(r=>String(r.product_id)===b.dataset.product)?.woo_sku));
+   e.preventDefault();const buttons=editableCells();
    const next=buttons[buttons.indexOf(button)+(e.shiftKey?-1:1)],target=next?{pid:next.dataset.product,key:next.dataset.inline}:null;
    if(await commitCell(editor)){if(e.key==='Tab'&&target)inline(one('[data-product="'+target.pid+'"][data-inline="'+target.key+'"]',tbody));else one('[data-product="'+row.product_id+'"][data-inline="'+key+'"]',tbody)?.focus({preventScroll:true});}
   }
@@ -237,7 +240,14 @@ async function inline(button){
  input.addEventListener('blur',()=>{setTimeout(()=>{if(activeCell===editor&&!panel.contains(document.activeElement))commitCell(editor);},0);});
 }
 document.addEventListener('pointerdown',e=>{if(activeCell&&!activeCell.cell.contains(e.target)&&!activeCell.panel.contains(e.target))commitCell(activeCell);});
-tbody.addEventListener('keydown',e=>{if(e.target.matches('[data-inline]')&&['ArrowLeft','ArrowRight'].includes(e.key)){const buttons=all('[data-inline]',tbody),next=buttons[buttons.indexOf(e.target)+(e.key==='ArrowLeft'?-1:1)];if(next){e.preventDefault();next.focus({preventScroll:true});}}});
+function editableCells(){return all('[data-inline]',tbody).filter(b=>{const row=entries.find(r=>String(r.product_id)===b.dataset.product);return row&&!(b.dataset.inline==='short_code'&&row.woo_sku)&&!(b.dataset.inline==='purchase_unit'&&!row.purchase_unit);});}
+tbody.addEventListener('keydown',e=>{
+ if(!e.target.matches('[data-inline]')||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(e.key))return;
+ const buttons=editableCells();let next;
+ if(['ArrowLeft','ArrowRight'].includes(e.key))next=buttons[buttons.indexOf(e.target)+(e.key==='ArrowLeft'?-1:1)];
+ else{const column=buttons.filter(b=>b.dataset.inline===e.target.dataset.inline);next=column[column.indexOf(e.target)+(e.key==='ArrowUp'?-1:1)];}
+ if(next){e.preventDefault();next.focus({preventScroll:true});}
+});
 
 tbody.addEventListener('click',e=>{const editButton=e.target.closest('[data-review]'),historyButton=e.target.closest('[data-history]'),inlineButton=e.target.closest('[data-inline]');if(editButton)edit(editButton.dataset.review);if(historyButton)history(historyButton.dataset.history);if(inlineButton)inline(inlineButton);});
 tbody.addEventListener('change',e=>{if(e.target.matches('[data-select]')){const id=Number(e.target.dataset.select);if(e.target.checked)selected.add(id);else selected.delete(id);selection();}});

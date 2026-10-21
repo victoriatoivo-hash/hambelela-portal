@@ -47,9 +47,13 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  const originalRow=one('[data-row="5"]'),scroller=one('[data-si-scroll]');scroller.scrollLeft=180;scroller.scrollTop=42;
  let n=calls.filter(c=>c.action==='inline').length;
  await begin('product_name');await key('Enter');assert.equal(calls.filter(c=>c.action==='inline').length,n,'unchanged does not POST');
+ const untouched=one('[data-inline="invoice_number"]');
  let input=await begin('product_name');input.value='Renamed oil';await key('Escape');assert.equal(row.product_name,'Test Castor Oil');assert.equal(calls.filter(c=>c.action==='inline').length,n);
+ assert.equal(one('[data-inline="invoice_number"]'),untouched,'opening an editor preserves unrelated controls');
  input=await begin('product_name');input.value='Renamed oil';await key('Enter');assert.equal(row.product_name,'Renamed oil');assert.equal(one('[data-row="5"]'),originalRow,'row preserved');assert.equal(scroller.scrollLeft,180);assert.equal(scroller.scrollTop,42);
+ assert.equal(one('[data-inline="invoice_number"]'),untouched,'saving preserves unrelated controls');
  input=await begin('invoice_number');input.value='TEST-2';await key('Tab');assert.equal(row.invoice_number,'TEST-2');assert.equal(one('.si-sheet-input').getAttribute('aria-label'),'product name');await key('Escape');
+ input=await begin('product_name');input.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true}));await settle();assert.equal(one('.si-sheet-input').getAttribute('aria-label'),'invoice number');await key('Escape');
  input=await begin('quantity');input.value='125';input.blur();await new Promise(r=>setTimeout(r,10));await settle();assert.equal(Number(row.purchase_quantity),125);
  input=await begin('product_category');input.value='Other';input.dispatchEvent(new w.Event('change',{bubbles:true}));await settle();assert.equal(row.product_category,'Other');
  input=await begin('supplier_name');assert(one('.si-sheet-options'));input.value='Test Supplier';await key('Enter');

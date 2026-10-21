@@ -1,4 +1,4 @@
-name: Deploy Product Pricing master workbook
+name: Deploy Supplier spreadsheet editing correction
 on:
   workflow_dispatch:
     inputs:
