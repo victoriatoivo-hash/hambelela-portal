@@ -14,6 +14,8 @@
 #costWorkbook[data-page="packaging-costs"] .pc3-drawer-hint{display:block;margin-top:6px;font:400 11px/1.4 "Jost",sans-serif;color:#62675E}
 #costWorkbook[data-page="packaging-costs"] .pc3-checkbox{min-height:24px;align-items:flex-start}
 #costWorkbook[data-page="packaging-costs"] .pc3-checkbox input{flex-shrink:0;margin-top:2px}
+#costWorkbook[data-page="packaging-costs"] .pc3-form-field>label{display:block}
+#costWorkbook[data-page="packaging-costs"] .pc3-form-field>label>span{display:inline}
 #costWorkbook[data-page="packaging-costs"] .cw-cost-filterbar__quick:has(>[hidden]):not(:has(>:not([hidden]))){display:none}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__tabs{display:flex;gap:20px;border-bottom:1px solid #E4E6DC}
 #costWorkbook[data-page="packaging-costs"] .packaging-costs__tabs a{padding:12px 4px;text-decoration:none;color:#62675E}
