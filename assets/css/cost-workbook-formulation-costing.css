@@ -10,6 +10,7 @@
 
 #costWorkbook[data-page="formulations"],
 #costWorkbook[data-page="formulations"] .fc4-drawer {
+  --cw-primary:#344126;--cw-accent:#59694A;--cw-orange:#59694A;--cw-border:#E4E6DC;--cw-soft:#F2F4EC;
   --fc-primary: #344126;
   --fc-deep: #26311F;
   --fc-olive: #59694A;
@@ -1104,7 +1105,7 @@
       repeat(2,minmax(120px,1fr));
   }
 
-  .fc4-cost-summary {
+  #costWorkbook[data-page="formulations"] .fc4-cost-summary {
     grid-template-columns: repeat(2,minmax(0,1fr));
   }
 }
@@ -1133,7 +1134,7 @@
     min-width: 760px;
   }
 
-  .fc4-drawer {
+  #costWorkbook[data-page="formulations"] .fc4-drawer {
     top: env(safe-area-inset-top,0px);
     bottom: env(safe-area-inset-bottom,0px);
 
@@ -1149,51 +1150,51 @@
     border-left: 0;
   }
 
-  .fc4-drawer-header {
+  #costWorkbook[data-page="formulations"] .fc4-drawer-header {
     padding: 14px;
   }
 
-  .fc4-tabs {
+  #costWorkbook[data-page="formulations"] .fc4-tabs {
     padding: 0 5px;
   }
 
-  .fc4-tab {
+  #costWorkbook[data-page="formulations"] .fc4-tab {
     min-height: 45px;
     padding: 0 3px;
     font-size: 10px;
     text-align: center;
   }
 
-  .fc4-drawer-body {
+  #costWorkbook[data-page="formulations"] .fc4-drawer-body {
     padding: 12px;
   }
 
-  .fc4-section {
+  #costWorkbook[data-page="formulations"] .fc4-section {
     padding: 12px;
   }
 
-  .fc4-grid,
-  .fc4-cost-summary,
-  .fc4-scenarios,
-  .fc4-pricing-result {
+  #costWorkbook[data-page="formulations"] .fc4-grid,
+  #costWorkbook[data-page="formulations"] .fc4-cost-summary,
+  #costWorkbook[data-page="formulations"] .fc4-scenarios,
+  #costWorkbook[data-page="formulations"] .fc4-pricing-result {
     grid-template-columns: 1fr;
   }
 
-  .fc4-field :is(input,select,textarea) {
+  #costWorkbook[data-page="formulations"] .fc4-field :is(input,select,textarea) {
     min-height: 44px;
     font-size: 16px;
   }
 
-  .fc4-drawer-footer {
+  #costWorkbook[data-page="formulations"] .fc4-drawer-footer {
     padding: 12px;
     flex-wrap: wrap;
   }
 
-  .fc4-drawer-footer .fc4-button {
+  #costWorkbook[data-page="formulations"] .fc4-drawer-footer .fc4-button {
     min-height: 44px;
   }
 
-  .fc4-table-wrap {
+  #costWorkbook[data-page="formulations"] .fc4-table-wrap {
     overflow-x: auto;
     overflow-y: hidden;
 
@@ -1203,7 +1204,7 @@
     -webkit-overflow-scrolling: touch;
   }
 
-  .fc4-table :is(th,td) {
+  #costWorkbook[data-page="formulations"] .fc4-table :is(th,td) {
     position: static;
     left: auto;
     right: auto;
@@ -1255,9 +1256,9 @@
 
 @media (prefers-reduced-motion: reduce) {
   #costWorkbook[data-page="formulations"] *,
-  .fc4-drawer *,
-  .fc4-drawer,
-  .fc4-backdrop {
+  #costWorkbook[data-page="formulations"] .fc4-drawer *,
+  #costWorkbook[data-page="formulations"] .fc4-drawer,
+  #costWorkbook[data-page="formulations"] .fc4-backdrop {
     animation: none !important;
     transition: none !important;
   }
