@@ -31,7 +31,7 @@ function render(){
  const items=state.items.filter(i=>(!q||[i.item_name,i.specification,i.supplier_name,i.supplier_sku].join(' ').toLowerCase().includes(q))&&(!f.type||String(i.packaging_type_id)===f.type)&&(!f.supplier||i.supplier_name===f.supplier)&&(!f.status||(f.status==='review'?i.status_key!=='ready':Boolean(Number(i.active))===(f.status==='active'))));
  one('[data-pc-item-rows]').innerHTML=items.map(i=>{const c=i.cost;return '<tr><td class="pc3-material-name">'+esc(i.item_name)+'</td><td>'+esc(i.packaging_type)+'</td><td>'+esc(i.specification)+'</td><td>'+esc(i.supplier_name)+'</td><td>'+esc(i.supplier_sku)+'</td><td class="pc3-number">'+money(c&&c.status_key==='ready'?c.unit_cost_ex_vat:null)+'</td><td class="pc3-number">'+money(c?.freight_unit_ex)+'</td><td class="pc3-number">'+money(c?.landed_ex)+'</td><td>'+esc(c?.effective_date||'—')+'</td><td><span class="pc3-status">'+(Number(i.active)?status(i.status_key):'Inactive')+'</span></td><td>'+actions('item',i.id,i.active)+'</td></tr>';}).join('')||'<tr><td colspan="11">No matching packaging materials.</td></tr>';
  const setups=state.setups.filter(s=>(!q||[s.setup_name,s.size_label,s.scope_label].join(' ').toLowerCase().includes(q))&&(!f.status||(f.status==='review'?Number(s.active)&&!s.complete:Boolean(Number(s.active))===(f.status==='active'))));
- one('[data-pc-setup-rows]').innerHTML=setups.map(s=>'<tr><td>'+esc(s.setup_name)+'</td><td>'+esc(s.size_label)+'</td><td>'+esc(s.scope_type+' · '+s.scope_label)+'</td><td>'+s.component_count+'</td>'+[s.supplier_cost,s.freight_cost,s.waste_cost,s.cost_ex_vat,s.cost_inc_vat].map(v=>'<td class="pc3-number">'+money(v)+'</td>').join('')+'<td>'+esc(s.effective_date)+'</td><td><span class="pc3-status">'+(!Number(s.active)?'Inactive':s.complete?'Ready':'Needs Costing')+'</span></td><td>'+actions('setup',s.id,s.active)+'</td></tr>').join('')||'<tr><td colspan="12">No matching effective size setups.</td></tr>';
+ one('[data-pc-setup-rows]').innerHTML=setups.map(s=>'<tr><td>'+esc(s.setup_name)+'</td><td>'+esc(s.size_label)+'</td><td>'+esc(s.scope_type+' · '+s.scope_label)+'</td><td>'+s.component_count+'</td>'+[s.supplier_cost,s.freight_cost,s.waste_cost,s.cost_ex_vat,s.cost_inc_vat].map(v=>'<td class="pc3-number">'+money(v)+'</td>').join('')+'<td>'+esc(s.effective_date)+'</td><td><span class="pc3-status">'+(!Number(s.active)?'Inactive':s.complete?'Ready':'Needs Costing')+'</span></td><td>'+actions('setup',s.id,s.active)+'</td></tr>').join('')||'<tr><td colspan="12">'+(state.setups.length?'No size setups match these filters. Clear filters or create a size setup.':'No size setups yet. Choose Create Size Setup to get started.')+'</td></tr>';
 }
 function open(kind,title){
  active=one('[data-pc-'+kind+'-drawer]');returnFocus=document.activeElement;active.querySelector('h2').textContent=title;active.querySelector('[data-pc-error]').textContent='';active.querySelector('[data-pc-discard]').hidden=true;
@@ -63,6 +63,15 @@ async function openSetup(id){
 }
 const summary=(rows)=>rows.map(([label,value])=>'<div class="pc3-cost-preview-item"><span class="pc3-cost-preview-label">'+label+'</span><strong class="pc3-cost-preview-value">'+value+'</strong></div>').join('');
 function itemPreview(){
+ const nad=itemForm.elements.currency.value.trim().toUpperCase()==='NAD';
+ itemForm.elements.exchange_rate.readOnly=nad;
+ if(nad)itemForm.elements.exchange_rate.value='1';
+ itemForm.elements.fx_confirmed.closest('label').hidden=nad;
+ itemForm.querySelector('label[for="pc-units_per_pack"]').textContent=itemForm.elements.purchase_unit.value==='each'?'Usable Items per Individual Unit *':'Usable Items per Pack / Roll / Box *';
+ const treatment=itemForm.elements.vat_treatment.value;
+ itemForm.elements.vat_rate.value=treatment==='standard'?state.vat_rate:treatment?'0':'';
+ one('[data-pc-vat-hint]').textContent=treatment?'':'— select treatment';
+ itemForm.elements.tax_recoverable.closest('label').hidden=treatment!=='standard';
  const b=Object.fromEntries(new FormData(itemForm)),type=state.types.find(t=>String(t.id)===b.packaging_type_id)?.name;
  let units=Number(b.purchase_quantity)*Number(b.units_per_pack),yieldMissing=false;if(type==='Ribbon'){yieldMissing=!(Number(b.print_yield)>0);units*=Number(b.print_yield);}
  itemForm.elements.print_yield.closest('.pc3-form-field').hidden=type!=='Ribbon';itemForm.elements.printed_label.closest('label').hidden=type!=='Label';

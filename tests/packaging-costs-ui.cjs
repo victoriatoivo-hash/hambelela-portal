@@ -16,6 +16,10 @@ function fill(s,v){one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  click('[data-cost-more]');fill('[data-pc-filters] [name="status"]','inactive');click('[data-cost-apply]');await flush();await flush();assert.match(one('[data-pc-item-rows]').textContent,/No matching/);
  click('[data-cost-clear]');await new Promise(r=>setTimeout(r,10));await flush();assert.match(one('[data-pc-item-rows]').textContent,/Test Pouch/);
  click('[data-pc-open-item]');assert(one('[data-pc-item-drawer]').classList.contains('is-open'));
+ assert.equal(one('[name="exchange_rate"]').readOnly,true);assert.equal(one('[name="fx_confirmed"]').closest('label').hidden,true);assert.equal(one('[name="vat_rate"]').value,'');assert.equal(one('[name="tax_recoverable"]').closest('label').hidden,true);
+ fill('[name="currency"]','USD');assert.equal(one('[name="exchange_rate"]').readOnly,false);assert.equal(one('[name="fx_confirmed"]').closest('label').hidden,false);fill('[name="currency"]','NAD');
+ fill('[name="vat_treatment"]','standard');assert.equal(one('[name="vat_rate"]').value,'15');assert.equal(one('[name="tax_recoverable"]').closest('label').hidden,false);
+ assert.match(one('label[for="pc-units_per_pack"]').textContent,/Individual Unit/);assert.equal(d.querySelectorAll('.pc3-widget-icon').length,4);
  one('[name="packaging_type_id"]').value='2';one('[name="packaging_type_id"]').dispatchEvent(new w.Event('change',{bubbles:true}));
  assert.match(one('[data-pc-item-preview]').textContent,/Print Yield Required/);click('[data-pc-item-drawer] [data-pc-close]');assert.equal(one('[data-pc-item-drawer] [data-pc-discard]').hidden,false);click('[data-pc-item-drawer] [data-pc-discard-yes]');click('[data-pc-open-item]');
  fill('[data-pc-item-form] [name="packaging_type_id"]','1');fill('[name="purchase_quantity"]','10');fill('[name="units_per_pack"]','100');fill('[name="amount_entered"]','1500');fill('[name="vat_treatment"]','exempt');
