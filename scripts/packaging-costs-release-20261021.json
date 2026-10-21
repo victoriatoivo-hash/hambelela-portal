@@ -1,0 +1,32 @@
+{
+  "module": "Packaging Costs",
+  "released_at_utc": "2026-10-21T14:20:39Z",
+  "runtime_commit": "92d60e43014f117774444047049d716345816ca9",
+  "live_url": "https://portal.hambelelaorganic.com/apps/cost-manager/packaging-costs.php",
+  "deployment_state": "deployed-and-verified",
+  "workflow_runs": [39613997176, 39615571062, 39615715821],
+  "verification": {
+    "financial_tests": "Disposable MySQL database; units, VAT/FX, freight reservations and rounding, duplicate prevention, ribbon yield, finished setup, waste, pricing integration, immutable history passed.",
+    "ui_tests": "Disposable DOM; add/edit identity, cost previews, failed-save preservation, unsaved dropdown changes and setup waste passed.",
+    "live_checks": "Authenticated Owner; real empty dataset loaded, material/setup drawers, shared selects, ribbon yield, discard guard, desktop and 390x844 mobile layout checked. No sample financial records saved live.",
+    "deployment": "Existing FTPS delta workflow; live baseline hashes checked, targeted backups created, uploaded bytes verified. No separate live-source verification collection."
+  },
+  "runtime_files_changed": [
+    "shared/cost-workbook-packaging-costs.php",
+    "apps/cost-manager/packaging-costs-api.php",
+    "assets/js/packaging-costs.js",
+    "assets/css/cost-workbook-packaging-costs-v2.css",
+    "shared/cost-workbook-page-shell.php",
+    "shared/cost-workbook.php",
+    "apps/cost-manager/retail-pricing-api.php",
+    "apps/cost-manager/wholesale-pricing-api.php",
+    "apps/cost-manager/transport-costs-api.php"
+  ],
+  "supporting_files_changed": [
+    ".github/workflows/deploy-courier-admin-link.yml",
+    "scripts/deploy-size-conversions.py",
+    "tests/packaging-costs-workflow.php",
+    "tests/packaging-costs-ui.cjs",
+    "scripts/packaging-costs-release-20261021.json"
+  ]
+}
