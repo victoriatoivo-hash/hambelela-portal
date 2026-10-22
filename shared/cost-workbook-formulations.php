@@ -27,7 +27,7 @@ function cw_render_formulations(array $period):void{ ?>
   </div></section>
   <section class="fc4-section"><h3 class="fc4-section-title">Batch & Yield</h3><div class="fc4-grid">
   <?php $units=['kg'=>'kg','g'=>'g','L'=>'L','ml'=>'ml','each'=>'each'];fc_field('reference_batch_size','Reference Batch Size *','number',[],'1');fc_field('reference_batch_unit','Batch Unit','text',$units);fc_field('expected_yield','Expected Yield *','number',[],'1');fc_field('yield_unit','Yield Unit','text',$units);fc_field('yield_mode','Yield Interpretation','text',['pre_loss'=>'Before loss — deduct loss once','final'=>'Final measured yield — do not deduct again']);fc_field('loss_percent','Production Loss / Waste %','number',[],'0'); ?>
-  </div><p class="fc4-field-help">Final measured yield already includes production loss. Cost is calculated per kg, litre or individual usable unit.</p></section>
+  </div><p class="fc4-field-help" data-fc-yield-help></p></section>
  </div>
  <div class="fc4-panel" id="fc-panel-ingredients" role="tabpanel" data-fc-panel="ingredients" hidden>
   <section class="fc4-section"><div class="fc4-section-header"><h3 class="fc4-section-title">Ingredients</h3><button class="fc4-button" data-fc-refresh-costs>Refresh Ingredient Costs</button></div>
@@ -45,7 +45,7 @@ function cw_render_formulations(array $period):void{ ?>
  </div>
  <div class="fc4-panel" id="fc-panel-summary" role="tabpanel" data-fc-panel="summary" hidden><section class="fc4-section"><h3 class="fc4-section-title">Formulation Summary</h3><div data-fc-summary></div></section><section class="fc4-section"><h3 class="fc4-section-title">Version History</h3><div data-fc-history></div></section><button class="fc4-button" data-fc-export-detail>Export Detailed CSV</button></div>
  </div>
- <footer class="fc4-drawer-footer"><button class="fc4-button" data-fc-close>Cancel</button><button class="fc4-button" data-fc-save>Save Draft</button><button class="fc4-button fc4-button--primary" data-fc-approve>Approve Formulation</button></footer>
+ <footer class="fc4-drawer-footer"><p class="fc4-field-help" id="fcApprovalHelp" data-fc-approval-help role="status"></p><button class="fc4-button" data-fc-close>Cancel</button><button class="fc4-button" data-fc-save>Save Draft</button><button class="fc4-button fc4-button--primary" data-fc-approve aria-describedby="fcApprovalHelp" disabled>Approve Formulation</button></footer>
 </section>
 <div class="fc-toast" data-fc-toast role="status" hidden></div>
 </section>

@@ -494,13 +494,14 @@
   padding: 17px 20px;
   border-bottom: 1px solid var(--fc-border);
 
-  background: #FFFFFF;
+  background: #344126;
+  color: #FFFFFF;
 }
 
 #costWorkbook[data-page="formulations"] .fc4-drawer-eyebrow {
   margin: 0 0 4px;
 
-  color: var(--fc-olive);
+  color: #E4E6DC;
   font: 600 9.5px/1.3 "Jost",sans-serif;
 
   letter-spacing: .09em;
@@ -509,15 +510,19 @@
 
 #costWorkbook[data-page="formulations"] .fc4-drawer-title {
   margin: 0;
-  color: var(--fc-text);
+  color: #FFFFFF;
   font: 600 20px/1.25 "Jost",sans-serif;
 }
 
 #costWorkbook[data-page="formulations"] .fc4-drawer-description {
   margin: 5px 0 0;
-  color: var(--fc-secondary);
-  font: 400 11px/1.45 "Jost",sans-serif;
+  color: #FFFFFF;
+  font: 400 12px/1.5 "Jost",sans-serif;
 }
+#costWorkbook[data-page="formulations"] [data-fc-version-label]{color:#E4E6DC;font:400 11.5px/1.5 "Jost",sans-serif}
+#costWorkbook[data-page="formulations"] .fc4-drawer .portal-date-field{border-color:#E4E6DC;color:#344126;background:#FFFFFF}
+#costWorkbook[data-page="formulations"] .fc4-drawer .portal-date-field svg{color:#59694A}
+#costWorkbook[data-page="formulations"] [data-fc-approval-help]{flex-basis:100%;margin:0}
 
 #costWorkbook[data-page="formulations"] .fc4-drawer-close {
   width: 32px;
@@ -567,7 +572,7 @@
   background: transparent;
 
   color: var(--fc-secondary);
-  font: 500 11px/1.3 "Jost",sans-serif;
+  font: 500 12px/1.4 "Jost",sans-serif;
 
   cursor: pointer;
 }
@@ -701,8 +706,8 @@
 }
 
 #costWorkbook[data-page="formulations"] .fc4-field-help {
-  color: var(--fc-muted);
-  font: 400 10px/1.4 "Jost",sans-serif;
+  color: #62675E;
+  font: 400 12px/1.5 "Jost",sans-serif;
 }
 
 /* INGREDIENT SEARCH */
@@ -1044,6 +1049,7 @@
 
 #costWorkbook[data-page="formulations"] .fc4-drawer-footer {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: flex-end;
   gap: 9px;
@@ -1161,7 +1167,7 @@
   #costWorkbook[data-page="formulations"] .fc4-tab {
     min-height: 45px;
     padding: 0 3px;
-    font-size: 10px;
+    font-size: 11.5px;
     text-align: center;
   }
 
