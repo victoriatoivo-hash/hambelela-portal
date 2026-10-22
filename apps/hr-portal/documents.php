@@ -36,7 +36,18 @@ $db->exec("CREATE TABLE IF NOT EXISTS employee_documents (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-ensureEmploymentLetterTable($db);
+$letterSchemaReady=true;
+try {ensureEmploymentLetterTable($db);} catch(Throwable $e) {
+    $letterSchemaReady=false;
+    error_log('Employment letter schema check failed: '.get_class($e).' code '.(string)$e->getCode());
+}
+$letterFlash=$_SESSION['employment_letter_flash']??null;unset($_SESSION['employment_letter_flash']);
+$letterInput=$_SESSION['employment_letter_input']??[];unset($_SESSION['employment_letter_input']);
+if($_SERVER['REQUEST_METHOD']!=='POST') {
+    $letterFormToken=bin2hex(random_bytes(32));
+    $_SESSION['employment_letter_tokens'][$letterFormToken]=true;
+    $_SESSION['employment_letter_tokens']=array_slice($_SESSION['employment_letter_tokens'],-12,null,true);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
@@ -118,56 +129,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if ($action === 'create_employment_letter') {
-        $emp_id = (int)($_POST['letter_employee'] ?? 0);
-        $issuedDate = $_POST['issued_date'] ?? date('Y-m-d');
-        $responsibilities = trim((string)($_POST['letter_responsibilities'] ?? ''));
-        $status = !empty($_POST['publish_now']) ? 'published' : 'draft';
-
-        if ($emp_id) {
-            $stmt = $db->prepare("SELECT * FROM employees WHERE id=? LIMIT 1");
-            $stmt->execute([$emp_id]);
-            $employee = $stmt->fetch();
-
-            if ($employee) {
-                $letterNo = 'ECL-' . date('Ymd', strtotime($issuedDate ?: date('Y-m-d'))) . '-' . preg_replace('/[^A-Za-z0-9]/', '', (string)$employee['emp_number']) . '-' . str_pad((string)$emp_id, 4, '0', STR_PAD_LEFT);
-                $baseLetterNo = $letterNo;
-                $suffix = 1;
-                while (true) {
-                    $exists = $db->prepare("SELECT id FROM employment_letters WHERE letter_no=? LIMIT 1");
-                    $exists->execute([$letterNo]);
-                    if (!$exists->fetch()) break;
-                    $suffix++;
-                    $letterNo = $baseLetterNo . '-' . $suffix;
-                }
-
-                $letterSettings = employmentLetterSettings($db);
-                if ($responsibilities === '') {
-                    $responsibilities = $letterSettings['letter_default_responsibilities'];
-                }
-                $bodyHtml = buildEmploymentLetterBody($employee, $issuedDate, $letterNo, $responsibilities, $letterSettings);
-                $publishedAt = $status === 'published' ? date('Y-m-d H:i:s') : null;
-                $db->prepare("INSERT INTO employment_letters (employee_id,letter_no,issued_date,title,body_html,responsibilities,status,download_limit,created_by,published_at) VALUES (?,?,?,?,?,?,?,?,?,?)")
-                   ->execute([$emp_id,$letterNo,$issuedDate,'Employment Confirmation Letter',$bodyHtml,$responsibilities,$status,2,$user['id'],$publishedAt]);
-
-                if ($status === 'published') {
-                    notifyEmploymentLetterPublished($db, $emp_id);
-                }
-            }
+        try {
+            if(!$letterSchemaReady)throw new RuntimeException('schema_unavailable');
+            $token=(string)($_POST['letter_token']??'');
+            if(empty($_SESSION['employment_letter_tokens'][$token]))throw new DomainException('Your form expired. Reopen it and try again.');
+            $result=createEmploymentLetter($db,$_POST,(int)$user['id'],$token);
+            if($result['warning'])$_SESSION['employment_letter_flash']=['error'=>false,'text'=>'Letter saved and published. Employee notification or email could not be delivered. Please contact HR support; do not create another copy.'];
+        }catch(Throwable $e){
+            error_log('Employment letter creation failed: '.get_class($e).' code '.(string)$e->getCode());
+            $_SESSION['employment_letter_flash']=['error'=>true,'text'=>$e instanceof DomainException?$e->getMessage():'The letter could not be saved. Please try again or contact support.'];
+            $_SESSION['employment_letter_input']=array_intersect_key($_POST,array_flip(['letter_employee','issued_date','letter_responsibilities','publish_now']));
+            header('Location: documents.php?tab=letters');exit;
         }
         header('Location: documents.php?tab=letters&msg=letter_created'); exit;
     }
 
     if ($action === 'publish_employment_letter') {
         $id = (int)($_POST['letter_id'] ?? 0);
-        if ($id) {
-            $stmt = $db->prepare("SELECT employee_id,status FROM employment_letters WHERE id=? LIMIT 1");
-            $stmt->execute([$id]);
-            $letter = $stmt->fetch();
-            if ($letter && $letter['status'] !== 'published') {
-                $db->prepare("UPDATE employment_letters SET status='published', published_at=NOW() WHERE id=?")->execute([$id]);
-                notifyEmploymentLetterPublished($db, (int)$letter['employee_id']);
-            }
-        }
+        try {
+            if(!$letterSchemaReady)throw new RuntimeException('schema_unavailable');
+            if(empty($_SESSION['employment_letter_tokens'][(string)($_POST['letter_token']??'')]))throw new DomainException('Your form expired. Reload the page and try again.');
+            $result=publishEmploymentLetter($db,$id);
+            if($result['warning'])$_SESSION['employment_letter_flash']=['error'=>false,'text'=>'Letter published. Employee notification or email could not be delivered. Do not publish or create another copy.'];
+        }catch(Throwable $e){error_log('Employment letter publication failed: '.get_class($e).' code '.(string)$e->getCode());$_SESSION['employment_letter_flash']=['error'=>true,'text'=>$e instanceof DomainException?$e->getMessage():'The letter could not be published. Please contact support.'];header('Location: documents.php?tab=letters');exit;}
         header('Location: documents.php?tab=letters&msg=letter_published'); exit;
     }
 
@@ -231,6 +215,7 @@ $currentPage = 'documents.php';
     </div>
   </div>
   <div class="content">
+    <?php if($letterFlash): ?><div class="toast <?= !empty($letterFlash['error'])?'error':'' ?>" role="alert"><?= htmlspecialchars($letterFlash['text'],ENT_QUOTES,'UTF-8') ?></div><?php endif; ?>
 
     <?php if ($msg==='uploaded'): ?><div class="toast"><i class="fa-solid fa-check"></i> Document uploaded.</div>
     <?php elseif ($msg==='emp_uploaded'): ?><div class="toast"><i class="fa-solid fa-check"></i> Employee document uploaded.</div>
@@ -337,6 +322,7 @@ $currentPage = 'documents.php';
             <?php if ($l['status'] !== 'published'): ?>
             <form method="POST" style="display:inline" onsubmit="return confirm('Publish this letter to the employee?')">
               <input type="hidden" name="action" value="publish_employment_letter">
+              <input type="hidden" name="letter_token" value="<?= htmlspecialchars($letterFormToken,ENT_QUOTES,'UTF-8') ?>">
               <input type="hidden" name="letter_id" value="<?=$l['id']?>">
               <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-paper-plane"></i> Publish</button>
             </form>
@@ -440,18 +426,19 @@ $currentPage = 'documents.php';
     <div class="modal-header"><div class="modal-title"><i class="fa-solid fa-file-signature"></i> Employment Confirmation Letter</div><button class="modal-close" onclick="closeModal('letterModal')"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST">
       <input type="hidden" name="action" value="create_employment_letter">
+      <input type="hidden" name="letter_token" value="<?= htmlspecialchars($letterFormToken,ENT_QUOTES,'UTF-8') ?>">
       <div class="modal-body">
         <div class="form-grid">
           <div class="form-group full">
             <label class="form-label">Employee</label>
             <select class="form-select" name="letter_employee" required>
               <option value="">Select employee...</option>
-              <?php foreach ($employees as $e): ?><option value="<?=$e['id']?>"><?=htmlspecialchars($e['name'])?> (<?=htmlspecialchars($e['emp_number'])?>)</option><?php endforeach ?>
+              <?php foreach ($employees as $e): ?><option value="<?=$e['id']?>" <?= (int)($letterInput['letter_employee']??0)===(int)$e['id']?'selected':'' ?>><?=htmlspecialchars($e['name'])?> (<?=htmlspecialchars($e['emp_number'])?>)</option><?php endforeach ?>
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">Letter Date</label>
-            <input class="form-input" type="date" name="issued_date" value="<?=date('Y-m-d')?>" required>
+            <input class="form-input" type="date" name="issued_date" value="<?=htmlspecialchars($letterInput['issued_date']??date('Y-m-d'),ENT_QUOTES,'UTF-8')?>" required>
           </div>
           <div class="form-group">
             <label class="form-label">Employee Downloads</label>
@@ -459,11 +446,11 @@ $currentPage = 'documents.php';
           </div>
           <div class="form-group full">
             <label class="form-label">Responsibilities</label>
-            <textarea class="form-input" name="letter_responsibilities" rows="4" placeholder="packaging products, packing customer orders, preparing orders for courier, delivery or collection, handling inventory with care, maintaining dispatch records, and ensuring a clean and organised workspace"></textarea>
+            <textarea class="form-input" name="letter_responsibilities" rows="4" placeholder="packaging products, packing customer orders, preparing orders for courier, delivery or collection, handling inventory with care, maintaining dispatch records, and ensuring a clean and organised workspace"><?=htmlspecialchars($letterInput['letter_responsibilities']??'',ENT_QUOTES,'UTF-8')?></textarea>
           </div>
           <div class="form-group full">
             <label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer">
-              <input type="checkbox" name="publish_now" value="1" checked>
+              <input type="checkbox" name="publish_now" value="1" <?= !$letterInput||!empty($letterInput['publish_now'])?'checked':'' ?>>
               Publish to employee immediately
             </label>
           </div>
@@ -486,6 +473,8 @@ function toggleSpecific() {
 document.querySelectorAll('.overlay').forEach(function(o) {
   o.addEventListener('click', function(e) { if(e.target===o) o.classList.remove('open'); });
 });
+document.querySelectorAll('form').forEach(function(form){if(!form.querySelector('[name="action"][value="create_employment_letter"],[name="action"][value="publish_employment_letter"]'))return;form.addEventListener('submit',function(e){if(form.dataset.submitting){e.preventDefault();return;}form.dataset.submitting='1';form.querySelectorAll('button[type="submit"]').forEach(function(b){b.disabled=true;b.setAttribute('aria-busy','true');});});});
+<?php if(!empty($letterFlash['error']) && $letterInput): ?>openModal('letterModal');<?php endif; ?>
 </script>
 </body>
 </html>

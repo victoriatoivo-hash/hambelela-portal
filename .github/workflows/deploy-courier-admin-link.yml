@@ -1,4 +1,4 @@
-name: Deploy Cost Workbook landing page
+name: Deploy isolated HR employment-letter repair
 on:
   workflow_dispatch:
     inputs:
@@ -43,6 +43,9 @@ jobs:
           CW_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=cw_supplier_test;charset=utf8mb4
           CW_TEST_USER: root
         run: |
+          php -l apps/hr-portal/documents.php
+          php -l apps/hr-portal/includes/employment-letter.php
+          php tests/employment-letters-workflow.php
           php -l shared/cost-workbook.php
           php -l shared/cost-workbook-supplier-sheet.php
           php -l apps/cost-manager/supplier-invoices-api.php

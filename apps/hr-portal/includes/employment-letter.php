@@ -22,15 +22,67 @@ function ensureEmploymentLetterTable(PDO $db): void {
 }
 
 function employmentLetterEnsureColumn(PDO $db, string $column, string $ddl): void {
-    try {
-        $stmt = $db->prepare("SHOW COLUMNS FROM employment_letters LIKE ?");
-        $stmt->execute([$column]);
-        if (!$stmt->fetch()) {
-            $db->exec($ddl);
+    $stmt = $db->prepare("SELECT COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='employment_letters' AND COLUMN_NAME=?");
+    $stmt->execute([$column]);
+    if (!$stmt->fetchColumn()) {
+        try { $db->exec($ddl); }
+        catch (PDOException $e) {
+            // Another request may have completed this additive migration first.
+            if ((int)($e->errorInfo[1] ?? 0) !== 1060) throw $e;
         }
-    } catch (Throwable $e) {
-        // The base table still works if the host does not allow metadata checks.
     }
+}
+
+function createEmploymentLetter(PDO $db, array $input, int $actorId, string $requestToken, ?callable $notify = null): array {
+    $employeeId = filter_var($input['letter_employee'] ?? '', FILTER_VALIDATE_INT);
+    $date = (string)($input['issued_date'] ?? '');
+    $parsed = DateTimeImmutable::createFromFormat('!Y-m-d', $date);
+    if (!$employeeId || $employeeId < 1) throw new DomainException('Select a valid employee.');
+    if (!$parsed || $parsed->format('Y-m-d') !== $date) throw new DomainException('Enter a valid letter date.');
+    if (!preg_match('/^[a-f0-9]{64}$/D', $requestToken) || $actorId < 1) throw new DomainException('Reopen the letter form and try again.');
+    $responsibilities = trim((string)($input['letter_responsibilities'] ?? ''));
+    if (strlen($responsibilities) > 16000) throw new DomainException('Please shorten the responsibilities to 16,000 characters or fewer.');
+    $settings = employmentLetterSettings($db);
+    if ($responsibilities === '') $responsibilities = $settings['letter_default_responsibilities'];
+    $status = !empty($input['publish_now']) ? 'published' : 'draft';
+    $db->beginTransaction();
+    try {
+        $q=$db->prepare('SELECT * FROM employees WHERE id=? FOR UPDATE');$q->execute([$employeeId]);$employee=$q->fetch();
+        if (!$employee || ($employee['status'] ?? '') !== 'active') throw new DomainException('Select an active employee.');
+        // The same form request always has the same unique letter number.
+        $letterNo='ECL-'.$parsed->format('Ymd').'-'.substr(preg_replace('/[^A-Za-z0-9]/','',(string)$employee['emp_number']),0,18).'-'.substr(hash('sha256',$actorId.':'.$requestToken),0,20);
+        $q=$db->prepare('SELECT id,employee_id,issued_date,responsibilities,status FROM employment_letters WHERE letter_no=?');$q->execute([$letterNo]);$existing=$q->fetch();
+        if ($existing) {
+            if ((int)$existing['employee_id']!==$employeeId || $existing['issued_date']!==$date || (string)$existing['responsibilities']!==$responsibilities) throw new DomainException('This form was already saved. Open a new form to create another letter.');
+            $db->commit();return ['id'=>(int)$existing['id'],'duplicate'=>true,'warning'=>false];
+        }
+        $body=buildEmploymentLetterBody($employee,$date,$letterNo,$responsibilities,$settings);
+        $q=$db->prepare('INSERT INTO employment_letters (employee_id,letter_no,issued_date,title,body_html,responsibilities,status,download_limit,created_by,published_at) VALUES (?,?,?,?,?,?,?,?,?,?)');
+        $q->execute([$employeeId,$letterNo,$date,'Employment Confirmation Letter',$body,$responsibilities,$status,2,$actorId,$status==='published'?date('Y-m-d H:i:s'):null]);
+        $id=(int)$db->lastInsertId();$db->commit();
+    } catch (Throwable $e) {if($db->inTransaction())$db->rollBack();throw $e;}
+    $warning=false;
+    if($status==='published') {
+        try {$warning=($notify?$notify($db,$employeeId):notifyEmploymentLetterPublished($db,$employeeId))===false;}
+        catch(Throwable $e){error_log('Employment letter notification failed: '.get_class($e).' code '.(string)$e->getCode());$warning=true;}
+    }
+    if($warning)error_log('Employment letter saved; notification delivery incomplete.');
+    return ['id'=>$id,'duplicate'=>false,'warning'=>$warning];
+}
+
+function publishEmploymentLetter(PDO $db, int $id, ?callable $notify = null): array {
+    if($id<1)throw new DomainException('Select a valid letter.');
+    $db->beginTransaction();
+    try {
+        $q=$db->prepare('SELECT employee_id,status FROM employment_letters WHERE id=? FOR UPDATE');$q->execute([$id]);$letter=$q->fetch();
+        if(!$letter)throw new DomainException('This letter could not be found.');
+        if($letter['status']==='published'){$db->commit();return ['duplicate'=>true,'warning'=>false];}
+        $db->prepare("UPDATE employment_letters SET status='published',published_at=NOW() WHERE id=?")->execute([$id]);$db->commit();
+    }catch(Throwable $e){if($db->inTransaction())$db->rollBack();throw $e;}
+    try {$warning=($notify?$notify($db,(int)$letter['employee_id']):notifyEmploymentLetterPublished($db,(int)$letter['employee_id']))===false;}
+    catch(Throwable $e){error_log('Employment letter notification failed: '.get_class($e).' code '.(string)$e->getCode());$warning=true;}
+    if($warning)error_log('Employment letter published; notification delivery incomplete.');
+    return ['duplicate'=>false,'warning'=>$warning];
 }
 
 function employmentLetterDefaults(): array {
@@ -300,11 +352,11 @@ function renderEmploymentLetterPdf(PDO $db, array $letter): string {
     return $pdf;
 }
 
-function notifyEmploymentLetterPublished(PDO $db, int $employeeId): void {
+function notifyEmploymentLetterPublished(PDO $db, int $employeeId): bool {
     $eu = $db->prepare("SELECT u.id, u.email AS user_email, u.name AS user_name, e.email AS employee_email, CONCAT(e.first_name,' ',e.last_name) AS employee_name FROM employees e LEFT JOIN users u ON u.employee_id=e.id WHERE e.id=? LIMIT 1");
     $eu->execute([$employeeId]);
     $eu = $eu->fetch();
-    if (!$eu) return;
+    if (!$eu) return false;
 
     if (!empty($eu['id'])) {
         $db->prepare("INSERT INTO notifications (user_id,title,message,type) VALUES (?,?,?,'info')")
@@ -314,6 +366,7 @@ function notifyEmploymentLetterPublished(PDO $db, int $employeeId): void {
     $toEmail = trim((string)($eu['user_email'] ?: $eu['employee_email']));
     $toName = $eu['user_name'] ?: $eu['employee_name'];
     if ($toEmail !== '' && function_exists('emailDocumentUploaded')) {
-        emailDocumentUploaded($toEmail, $toName, 'Employment Confirmation Letter');
+        return (bool)emailDocumentUploaded($toEmail, $toName, 'Employment Confirmation Letter');
     }
+    return !empty($eu['id']);
 }
