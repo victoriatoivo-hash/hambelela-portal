@@ -434,6 +434,10 @@ function cw_supplier_resolve_products(PDO $pdo,int $invoiceId): void
         if($line['woo_product_id'])continue; // Preserve established historical website relationships.
         $options=cw_supplier_identity_options($pdo,(int)$line['supplier_id'],$line['product_description'],$line['supplier_sku']??'',$line['purchase_unit']);
         $pid=$options['automatic_id'];
+        if(!$pid){
+            $same=$pdo->prepare("SELECT DISTINCT cost_product_id FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND id<>? AND active=1 AND cost_product_id IS NOT NULL AND purchase_unit=? AND product_category=? AND ((?<>'' AND supplier_sku=?) OR (?='' AND COALESCE(supplier_sku,'')='' AND BINARY product_description=BINARY ?))");
+            $sku=$line['supplier_sku']??'';$same->execute([$invoiceId,$line['id'],$line['purchase_unit'],$line['product_category'],$sku,$sku,$sku,$line['product_description']]);$ids=$same->fetchAll(PDO::FETCH_COLUMN);if(count($ids)===1)$pid=(int)$ids[0];
+        }
         if(!$pid && $options['candidates'] && empty($line['identity_new_confirmed']))throw new DomainException('Possible Existing Product: '.$line['product_description'].'. Choose Use Existing or confirm Create New.');
         if(!$pid){
             [$basis,$unit]=lpc_basis($line);if(!$basis)throw new DomainException('Confirm purchase unit for '.$line['product_description']);

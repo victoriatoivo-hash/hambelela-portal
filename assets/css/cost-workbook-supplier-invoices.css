@@ -52,7 +52,7 @@
 
 .si-purchase-review .si-transport-methods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:13px}
 .si-purchase-review .si-transport-option{display:flex;align-items:center;gap:9px;min-height:43px;padding:10px 12px;border:1px solid #E4E6DC;border-radius:9px;background:#fff;color:#1C2118;font:500 11.5px/1.35 Jost,sans-serif;cursor:pointer}
-.si-purchase-review .si-transport-option input{width:16px;height:16px;margin:0;accent-color:#59694A}
+#costWorkbook .si-purchase-review .si-transport-methods .si-transport-option input[type="radio"]{width:16px;min-width:16px;max-width:16px;height:16px;min-height:16px;max-height:16px;padding:0;margin:0;flex:0 0 16px;accent-color:#59694A}
 .si-purchase-review .si-transport-option:has(input:checked){background:#F2F4EC;border-color:#B9C3A5}
 .si-purchase-review [hidden]{display:none!important}
 .si-purchase-review .si-identity-choice{padding:9px;border:1px solid #D3DAC6;border-radius:8px;background:#F2F4EC;font:400 11.5px Jost,sans-serif}
