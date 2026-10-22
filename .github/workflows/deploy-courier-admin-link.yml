@@ -1,4 +1,4 @@
-name: Deploy Cost Workbook landing page
+name: Deploy Supplier product matching
 on:
   workflow_dispatch:
     inputs:
