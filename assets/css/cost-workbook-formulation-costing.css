@@ -460,7 +460,7 @@
   display: grid;
   grid-template-rows: auto auto minmax(0,1fr) auto;
 
-  overflow: hidden;
+  overflow: clip;
 
   border-left: 1px solid var(--fc-border);
   background: var(--fc-cream);
