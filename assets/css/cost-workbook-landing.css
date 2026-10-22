@@ -7,7 +7,9 @@
 #costWorkbook[data-page="overview"]{--cw4-primary:#344126;--cw4-deep:#26311F;--cw4-olive:#59694A;--cw4-soft:#F2F4EC;--cw4-selected:#E7EBDD;--cw4-cream:#F8F7F2;--cw4-text:#1C2118;--cw4-secondary:#62675E;--cw4-muted:#91968C;--cw4-border:#E4E6DC;width:100%;min-width:0;background:var(--cw4-cream);color:var(--cw4-text);font:400 12px/1.5 "Jost",sans-serif}
 #costWorkbook[data-page="overview"] *,#costWorkbook[data-page="overview"] *::before,#costWorkbook[data-page="overview"] *::after{box-sizing:border-box}
 #costWorkbook[data-page="overview"] .cw4-landing{width:100%;max-width:1560px;min-width:0;margin:0 auto}
-#costWorkbook[data-page="overview"] .cw4-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,.36fr);align-items:center;gap:28px;max-width:1560px;min-height:154px;margin:0 auto 22px;padding:20px 23px;border:1px solid var(--cw4-border);border-radius:14px;background:#FFFFFF;overflow:hidden;animation:cw4FadeUp .26s ease-out}
+#costWorkbook[data-page="overview"]{padding-top:88px}
+#costWorkbook[data-page="overview"] .cw4-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,.36fr);align-items:center;gap:28px;max-width:1560px;min-height:154px;margin:0 auto 22px;padding:20px 23px;border:1px solid var(--cw4-border);border-radius:14px;background:#FFFFFF;animation:cw4FadeUp .26s ease-out}
+#costWorkbook[data-page="overview"] .cw4-hero>.portal-header-status{position:absolute;top:-68px;right:0;margin:0;max-width:100%}
 #costWorkbook[data-page="overview"] .cw4-hero-content{position:relative;z-index:1;min-width:0}
 #costWorkbook[data-page="overview"] .cw4-eyebrow{display:block;margin:0 0 7px;color:var(--cw4-olive);font:600 10px/1.3 "Jost",sans-serif;letter-spacing:.095em;text-transform:uppercase}
 #costWorkbook[data-page="overview"] .cw4-hero-title{margin:0;color:var(--cw4-text);font:600 28px/1.18 "Jost",sans-serif;letter-spacing:-.025em}
