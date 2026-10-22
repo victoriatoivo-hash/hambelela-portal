@@ -679,6 +679,7 @@
   flex-direction: column;
   gap: 5px;
 }
+#costWorkbook[data-page="formulations"] .fc4-field > :is(input,textarea,.portal-date-field,.portal-custom-select){margin:0}
 
 #costWorkbook[data-page="formulations"] .fc4-field > label,
 #costWorkbook[data-page="formulations"] .fc4-field-label {
