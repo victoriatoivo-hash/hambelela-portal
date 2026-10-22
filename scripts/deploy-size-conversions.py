@@ -3,7 +3,8 @@ import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
 BASELINE = '64066539'
-NEW_FILES = ['shared/cost-workbook.php','shared/cost-workbook-supplier-invoices.php','apps/cost-manager/supplier-invoices-api.php','assets/js/supplier-invoices-v2.js','assets/css/cost-workbook-supplier-invoices.css']
+NEW_FILES = []
+FILES = ['shared/cost-workbook.php','shared/cost-workbook-supplier-invoices.php','apps/cost-manager/supplier-invoices-api.php','assets/js/supplier-invoices-v2.js','assets/css/cost-workbook-supplier-invoices.css']
 DEPENDENCIES = ['shared/cost-workbook-supplier-sheet.php','apps/cost-manager/landed-product-costs-api.php','apps/cost-manager/retail-pricing-api.php','shared/cost-workbook-pricing-master.php','assets/js/cost-workbook-controls.js']
 
 def git(*args): return subprocess.check_output(['git', *args])

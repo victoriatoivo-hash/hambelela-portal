@@ -147,5 +147,6 @@ $matchLine['cost_product_id']=$pid;$matchLine['product_description']='Test Chast
 $pdo->beginTransaction();cw_supplier_save_lines($pdo,$purchase,[$matchLine]);lpc_refresh($pdo,[$purchase]);$pdo->commit();
 expect($beforeMatches===(int)$pdo->query('SELECT COUNT(*) FROM cw_product_matches')->fetchColumn(),'Repeated save does not duplicate product links');
 require_once BASE_PATH.'/shared/cost-workbook-pricing-master.php';
+$pricingApi=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$start=strpos($pricingApi,'function rp_reply');$end=strpos($pricingApi,'try{$pdo=db()',$start);eval(substr($pricingApi,$start,$end-$start));
 $pricing=rpm_sources($pdo);expect(count(array_filter($pricing['products'],function($p)use($pid){return(int)$p['id']===$pid;}))===1,'Approved identity available in Product Pricing sources');
 echo "Matching integration: canonical/catalogue search, parent identity, SKU separation, repeated purchases, receipt/effective dates, landed costs, pricing, immutable approved identity and website preservation passed.\n";
