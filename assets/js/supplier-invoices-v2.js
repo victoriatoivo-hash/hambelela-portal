@@ -97,16 +97,17 @@ function addLine(value={}){
    const data=await request('products',undefined,'q='+encodeURIComponent(term));if(version!==searchVersion||!node.isConnected)return;
    result.replaceChildren();
    (data.rows||[]).forEach(product=>{
+    const canonicalId=Number(product.id)||0;
     const card=document.createElement('div');card.className='si-match-result';
     const label=document.createElement('small');label.textContent=product.source==='woocommerce'?'WooCommerce catalogue · Parent product':'Cost Workbook · Canonical product';
     const name=document.createElement('strong');name.textContent=product.product_name;
-    const info=document.createElement('span');info.textContent=[product.woo_sku?'Website SKU: '+product.woo_sku:'',product.short_code?'Internal code: '+product.short_code:'',product.product_category||'',product.id?'Cost Workbook #'+product.id:'',product.woo_product_id?'Website #'+product.woo_product_id:''].filter(Boolean).join(' · ');
+    const info=document.createElement('span');info.textContent=[product.woo_sku?'Website SKU: '+product.woo_sku:'',product.short_code?'Internal code: '+product.short_code:'',(product.product_category||'').replace(/&amp;/g,'&'),canonicalId?'Cost Workbook #'+canonicalId:'',product.woo_product_id?'Website #'+product.woo_product_id:''].filter(Boolean).join(' · ');
     const button=document.createElement('button');button.type='button';button.className='si-btn';button.textContent=product.source==='woocommerce'?'Link WooCommerce Product':'Use Existing Product';
     button.disabled=form.dataset.approved==='true'||(product.canonical_ids||[]).length>1;
     button.onclick=()=>{
      // Link a website identity to an explicitly selected, unlinked canonical record, if any.
-     const retainCanonical=product.source==='woocommerce'&&!product.id&&input('cost_product_id').value&&!input('woo_product_id').value;
-     if(!retainCanonical)input('cost_product_id').value=product.id||'';
+     const retainCanonical=product.source==='woocommerce'&&!canonicalId&&Number(input('cost_product_id').value)&&!input('woo_product_id').value;
+     if(!retainCanonical)input('cost_product_id').value=canonicalId||'';
      input('woo_product_id').value=product.woo_product_id||'';input('woo_variation_id').value=product.woo_variation_id||'';
      input('confirm_new_product').checked=false;newProduct.hidden=true;result.replaceChildren();showMatch();
      notice.append(document.createTextNode(' · '+product.product_name));dirty=true;preview();

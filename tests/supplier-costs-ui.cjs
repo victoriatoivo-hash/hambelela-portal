@@ -15,7 +15,7 @@ w.fetch=async(url,options={})=>{const u=new URL(url,w.location.href),action=u.se
  if(action==='inline'){if(failInline)value={error:'This record was updated elsewhere. Review the latest value before saving.'};else{row[body.field==='quantity'?'purchase_quantity':body.field]=body.value;row.version+='x';value={ok:true,rows:[{...row}]};}}
  if(action==='save')value=failSave?{error:'Source changed; reopen before saving.'}:{ok:true,id:3,message:'Saved'};
  if(action==='selection')value={ids:[5],total:1};
- if(action==='products')value={snapshot_id:1,rows:u.searchParams.get('q')==='Brand New Herb'?[]:[{id:5,product_name:'Test Castor Oil',short_code:'TCO001',product_category:'Carrier Oils',source:'canonical'},{id:0,product_name:'Test Chastetree Berries',woo_product_id:99001,woo_variation_id:0,woo_sku:'HERB-PARENT',source:'woocommerce'}]};
+ if(action==='products')value={snapshot_id:1,rows:u.searchParams.get('q')==='Brand New Herb'?[]:[{id:5,product_name:'Test Castor Oil',short_code:'TCO001',product_category:'Carrier Oils',source:'canonical'},{id:'0',product_name:'Test Chastetree Berries',woo_product_id:99001,woo_variation_id:0,woo_sku:'HERB-PARENT',source:'woocommerce'}]};
  if(action==='pending')value={rows:[]};
  return {ok:!value.error,json:async()=>value};};
 w.eval(fs.readFileSync('assets/js/cost-workbook-controls.js','utf8'));
@@ -36,6 +36,7 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  assert.equal(one('[data-si-new-product]').hidden,true,'new identity requires a completed search');
  fill('[data-si-product-search]','Castor');await new Promise(r=>setTimeout(r,300));await flush();
  assert.match(one('[data-si-product-results]').textContent,/Cost Workbook · Canonical product/);assert.match(one('[data-si-product-results]').textContent,/WooCommerce catalogue · Parent product/);
+ assert.doesNotMatch(one('[data-si-product-results]').textContent,/Cost Workbook #0/);
  click('[data-si-product-results] button');assert.equal(one('[data-k="cost_product_id"]').value,'5');assert.match(one('[data-si-product-notice]').textContent,/Matched/);
  assert.equal(one('[data-k="product_description"]').value,'Test product','matching preserves supplier description');
  assert.equal(one('[name="date_received"]').value,'','receipt never inferred');
