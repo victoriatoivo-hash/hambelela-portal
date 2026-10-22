@@ -661,12 +661,16 @@
 
 /* Compact Details only; keep the costing and pricing grids unchanged. */
 @media (min-width:768px) {
-  #costWorkbook[data-page="formulations"] #fc-panel-details .fc4-grid {grid-template-columns:repeat(3,minmax(0,1fr));gap:9px 12px}
+  #costWorkbook[data-page="formulations"] #fc-panel-details .fc4-grid {grid-template-columns:repeat(4,minmax(0,1fr));gap:9px 12px}
+  #costWorkbook[data-page="formulations"] #fc-panel-details :is(.fc4-name-field,.fc4-description-field,.fc4-field:has([name="product_id"])) {grid-column:span 2}
+  #costWorkbook[data-page="formulations"] #fc-panel-details .fc4-batch-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
   #costWorkbook[data-page="formulations"] #fc-panel-details .fc4-section {padding:12px;margin-bottom:10px}
   #costWorkbook[data-page="formulations"] #fc-panel-details .fc4-section-title {margin-bottom:9px}
   #costWorkbook[data-page="formulations"] #fc-panel-details textarea {min-height:40px;height:40px}
   #costWorkbook[data-page="formulations"] #fc-panel-details .fc4-field-help {margin:6px 0 0;font-size:11.5px}
 }
+#costWorkbook[data-page="formulations"] .fc4-amount-unit{display:grid;grid-template-columns:minmax(0,1fr) 90px;gap:8px;min-width:0}
+#costWorkbook[data-page="formulations"] .fc4-category-help{margin:8px 0 0}
 
 #costWorkbook[data-page="formulations"] .fc4-field {
   min-width: 0;

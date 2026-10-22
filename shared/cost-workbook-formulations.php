@@ -21,12 +21,16 @@ function cw_render_formulations(array $period):void{ ?>
  <div class="fc4-validation" data-fc-discard hidden>Discard unsaved changes? <button class="fc4-button" data-fc-keep>Keep Editing</button><button class="fc4-button" data-fc-discard-yes>Discard</button></div>
  <div class="fc4-panel" id="fc-panel-details" role="tabpanel" data-fc-panel="details">
   <section class="fc4-section"><h3 class="fc4-section-title">Formulation Details</h3><div class="fc4-grid">
-  <?php fc_field('formulation_name','Formulation Name *');fc_field('formulation_code','Formulation Code');fc_field('category','Category *');fc_field('business_type','Type *','text',['Base Formulation'=>'Base Formulation','Finished Product'=>'Finished Product']);fc_field('formulation_type','Calculation Basis','text',['weight'=>'Weight','volume'=>'Volume','count'=>'Count','mixed'=>'Mixed']);fc_field('mode_key','Entry Mode','text',['quantity'=>'Quantity','percentage'=>'Percentage']);fc_field('effective_date','Effective Date','date'); ?>
+  <div class="fc4-name-field"><?php fc_field('formulation_name','Formulation Name *'); ?></div>
+  <?php fc_field('formulation_code','Formulation Code');fc_field('category','Category *');fc_field('business_type','Type *','text',['Base Formulation'=>'Base Formulation','Finished Product'=>'Finished Product']);fc_field('formulation_type','Calculation Basis','text',['weight'=>'Weight','volume'=>'Volume','count'=>'Count','mixed'=>'Mixed']);fc_field('mode_key','Entry Mode','text',['quantity'=>'Quantity','percentage'=>'Percentage']);fc_field('effective_date','Effective Date','date'); ?>
   <label class="fc4-field">Linked finished product (optional)<select name="product_id" data-fc-field data-portal-custom-select data-portal-select-variant="cost-olive"><option value="">No product link — category/default packaging</option></select></label>
   <div class="fc4-description-field"><?php fc_field('notes','Description','textarea'); ?></div>
-  </div></section>
-  <section class="fc4-section"><h3 class="fc4-section-title">Batch & Yield</h3><div class="fc4-grid">
-  <?php $units=['kg'=>'kg','g'=>'g','L'=>'L','ml'=>'ml','each'=>'each'];fc_field('reference_batch_size','Reference Batch Size *','number',[],'1');fc_field('reference_batch_unit','Batch Unit','text',$units);fc_field('expected_yield','Expected Yield *','number',[],'1');fc_field('yield_unit','Yield Unit','text',$units);fc_field('yield_mode','Yield Interpretation','text',['pre_loss'=>'Before loss — deduct loss once','final'=>'Final measured yield — do not deduct again']);fc_field('loss_percent','Production Loss / Waste %','number',[],'0'); ?>
+  </div><p class="fc4-field-help fc4-category-help">Choose an existing category or type a new one. Without a product link, packaging uses the category or default setup.</p></section>
+  <section class="fc4-section"><h3 class="fc4-section-title">Batch & Yield</h3><div class="fc4-grid fc4-batch-grid">
+  <?php $units=['kg'=>'kg','g'=>'g','L'=>'L','ml'=>'ml','each'=>'each']; ?>
+  <div class="fc4-amount-unit"><?php fc_field('reference_batch_size','Reference Batch Size *','number',[],'1');fc_field('reference_batch_unit','Batch Unit','text',$units); ?></div>
+  <div class="fc4-amount-unit"><?php fc_field('expected_yield','Expected Yield *','number',[],'1');fc_field('yield_unit','Yield Unit','text',$units); ?></div>
+  <?php fc_field('yield_mode','Yield Interpretation','text',['pre_loss'=>'Before loss — deduct loss once','final'=>'Final yield — loss already included']);fc_field('loss_percent','Production Loss / Waste %','number',[],'0'); ?>
   </div><p class="fc4-field-help" data-fc-yield-help></p></section>
  </div>
  <div class="fc4-panel" id="fc-panel-ingredients" role="tabpanel" data-fc-panel="ingredients" hidden>
