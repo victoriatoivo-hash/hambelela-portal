@@ -96,7 +96,7 @@ function cw_render_supplier_invoices(array $period): void { ?>
    <label>Search existing products<span class="si-product-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" data-si-product-search placeholder="Search existing product by name, short code or SKU" autocomplete="off"></span></label>
    <div class="si-product-results" data-si-product-results aria-live="polite"></div>
    <p data-si-product-notice role="status"></p>
-   <label class="si-checkbox-label" data-si-new-product hidden><input type="checkbox" data-k="confirm_new_product" value="1">Create New Cost Workbook Product — I confirm no appropriate record exists.</label>
+   <label class="si-checkbox-label" data-si-new-product hidden><input type="checkbox" data-k="confirm_new_product" value="1">Create New Cost Workbook Product â€” I confirm no appropriate record exists.</label>
   </section>
   <label>Product Name<input data-k="product_description" maxlength="255" required></label><label>Supplier SKU / Reference<input data-k="supplier_sku" maxlength="100"></label>
   <label>Product Category<select data-portal-custom-select data-portal-select-variant="cost-olive" data-k="product_category"><?= cw_si_options(cw_product_categories()) ?></select></label>

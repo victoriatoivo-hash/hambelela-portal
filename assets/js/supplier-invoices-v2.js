@@ -86,21 +86,21 @@ function addLine(value={}){
  one('[data-si-remove-line]',node).onclick=()=>{node.remove();dirty=true;preview();};
  const notice=one('[data-si-product-notice]',node),result=one('[data-si-product-results]',node),search=one('[data-si-product-search]',node),newProduct=one('[data-si-new-product]',node);
  const input=k=>one('[data-k="'+k+'"]',node);
- const showMatch=()=>{const matched=!!input('cost_product_id').value||!!input('woo_product_id').value;notice.textContent=matched?(input('cost_product_id').value?'Matched · Cost Workbook #'+input('cost_product_id').value:'Product identity selected')+' · '+(input('woo_product_id').value?'Website Linked #'+input('woo_product_id').value:'Website Match Optional')+' · '+(form.dataset.approved==='true'?'Approved purchase — existing cost status retained.':'Awaiting Cost Approval'):'Needs Matching';node.classList.toggle('is-product-matched',matched);};
+ const showMatch=()=>{const matched=!!input('cost_product_id').value||!!input('woo_product_id').value;notice.textContent=matched?(input('cost_product_id').value?'Matched Â· Cost Workbook #'+input('cost_product_id').value:'Product identity selected')+' Â· '+(input('woo_product_id').value?'Website Linked #'+input('woo_product_id').value:'Website Match Optional')+' Â· '+(form.dataset.approved==='true'?'Approved purchase â€” existing cost status retained.':'Awaiting Cost Approval'):'Needs Matching';node.classList.toggle('is-product-matched',matched);};
  showMatch();
  let searchVersion=0;
  search.addEventListener('input',()=>{
   const version=++searchVersion;clearTimeout(searchTimers.get(node));newProduct.hidden=true;input('confirm_new_product').checked=false;result.replaceChildren();
   const term=search.value.trim();if(!term)return;
-  result.textContent='Searching Cost Workbook and synced WooCommerce catalogue…';
+  result.textContent='Searching Cost Workbook and synced WooCommerce catalogueâ€¦';
   searchTimers.set(node,setTimeout(async()=>{try{
    const data=await request('products',undefined,'q='+encodeURIComponent(term));if(version!==searchVersion||!node.isConnected)return;
    result.replaceChildren();
    (data.rows||[]).forEach(product=>{
     const card=document.createElement('div');card.className='si-match-result';
-    const label=document.createElement('small');label.textContent=product.source==='woocommerce'?'WooCommerce catalogue · Parent product':'Cost Workbook · Canonical product';
+    const label=document.createElement('small');label.textContent=product.source==='woocommerce'?'WooCommerce catalogue Â· Parent product':'Cost Workbook Â· Canonical product';
     const name=document.createElement('strong');name.textContent=product.product_name;
-    const info=document.createElement('span');info.textContent=[product.woo_sku?'Website SKU: '+product.woo_sku:'',product.short_code?'Internal code: '+product.short_code:'',product.product_category||'',product.id?'Cost Workbook #'+product.id:'',product.woo_product_id?'Website #'+product.woo_product_id:''].filter(Boolean).join(' · ');
+    const info=document.createElement('span');info.textContent=[product.woo_sku?'Website SKU: '+product.woo_sku:'',product.short_code?'Internal code: '+product.short_code:'',product.product_category||'',product.id?'Cost Workbook #'+product.id:'',product.woo_product_id?'Website #'+product.woo_product_id:''].filter(Boolean).join(' Â· ');
     const button=document.createElement('button');button.type='button';button.className='si-btn';button.textContent=product.source==='woocommerce'?'Link WooCommerce Product':'Use Existing Product';
     button.disabled=form.dataset.approved==='true'||(product.canonical_ids||[]).length>1;
     button.onclick=()=>{
@@ -109,7 +109,7 @@ function addLine(value={}){
      if(!retainCanonical)input('cost_product_id').value=product.id||'';
      input('woo_product_id').value=product.woo_product_id||'';input('woo_variation_id').value=product.woo_variation_id||'';
      input('confirm_new_product').checked=false;newProduct.hidden=true;result.replaceChildren();showMatch();
-     notice.append(document.createTextNode(' · '+product.product_name));dirty=true;preview();
+     notice.append(document.createTextNode(' Â· '+product.product_name));dirty=true;preview();
     };
     card.append(label,name,info,button);result.append(card);
    });
@@ -118,9 +118,10 @@ function addLine(value={}){
   }catch(e){if(version===searchVersion){result.textContent='Product search failed: '+e.message+' Please search again to retry.';newProduct.hidden=true;}}},250));
  });
  input('product_description').addEventListener('input',()=>{newProduct.hidden=true;input('confirm_new_product').checked=false;});
- input('confirm_new_product').addEventListener('change',()=>{notice.textContent=input('confirm_new_product').checked?'New product confirmed · Website Match Optional · Awaiting Cost Approval':'Needs Matching';});
+ input('confirm_new_product').addEventListener('change',()=>{notice.textContent=input('confirm_new_product').checked?'New product confirmed Â· Website Match Optional Â· Awaiting Cost Approval':'Needs Matching';});
  if(form.dataset.approved==='true'){notice.append(document.createTextNode(' Matching is protected after approval; changing identity requires an audited correction.'));search.disabled=true;}
  search.value=value.product_description||'';
+ search.addEventListener('focus',()=>{if(search.value.trim()&&!result.childNodes.length)search.dispatchEvent(new Event('input'));});
  one('[data-si-lines]').appendChild(node);preview();
 }
 function defaults(){form.reset();form.dataset.approved='false';form.elements.id.value='';form.elements.updated_at.value='';form.elements.request_id.value=crypto.randomUUID();form.elements.invoice_date.value=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());form.elements.transport_date.value=form.elements.invoice_date.value;form.elements.currency.value='NAD';form.elements.exchange_rate.value='1';form.elements.invoice_type.value='Mixed';one('[data-si-lines]').innerHTML='';one('[data-si-original]').hidden=true;one('[data-si-shipping-enabled]').checked=false;one('[data-si-shipping-fields]').hidden=true;one('[data-si-shared-confirm]').hidden=true;form.elements.transport_link_existing.value='';transportLinks=[];setBusy(false);}
