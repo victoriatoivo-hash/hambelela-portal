@@ -46,6 +46,11 @@ try{
   $suppliers=$pdo->query('SELECT id,name,supplier_type FROM cw_suppliers WHERE active=1 ORDER BY name')->fetchAll();
   si_reply(['rows'=>$rows,'total'=>$total,'offset'=>$offset,'has_more'=>$offset+count($rows)<$total,'summary'=>$stats,'suppliers'=>$suppliers]);
  }
+ if($action==='product-options'){
+  $supplier=(int)($_GET['supplier_id']??0);
+  if(!$supplier){$q=$pdo->prepare('SELECT id FROM cw_suppliers WHERE LOWER(TRIM(name))=LOWER(TRIM(?))');$q->execute([trim((string)($_GET['supplier_name']??''))]);$supplier=(int)$q->fetchColumn();}
+  si_reply(cw_supplier_identity_options($pdo,$supplier,trim((string)($_GET['name']??'')),trim((string)($_GET['sku']??'')),(string)($_GET['unit']??'')));
+ }
  if($action==='products'){si_reply(cw_supplier_product_search($pdo,(string)($_GET['q']??'')));}
  if($action==='pending'){
   $q=$pdo->query("SELECT id,supplier_name,invoice_number,invoice_date,uploaded_at,extraction_status FROM cw_supplier_invoices WHERE approval_status='draft' ORDER BY uploaded_at DESC,id DESC");si_reply(['rows'=>$q->fetchAll()]);
@@ -119,23 +124,29 @@ try{
   $pdo->prepare('UPDATE cw_supplier_invoices SET date_received=?,cost_effective_date=? WHERE id=?')->execute([$received,$effective,$id]);
   $valid=cw_supplier_save_lines($pdo,$id,$lines,[(int)($b['transport']['id']??0)]);
   if($approve){
+   if(!$fx||$vat==='unconfirmed')throw new DomainException('Confirm source currency, exchange rate and VAT before approval.');
+   cw_supplier_resolve_products($pdo,$id);
    $q=$pdo->prepare("SELECT COUNT(*) FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND active=1 AND (review_status<>'valid' OR match_status<>'confirmed' OR item_type='unclassified')");$q->execute([$id]);
-   if((int)$q->fetchColumn())throw new DomainException('Confirm product matching, quantities and source costs before approval.');
+   if((int)$q->fetchColumn())throw new DomainException('Confirm purchased quantities, units and source costs before approval.');
    $pdo->prepare("UPDATE cw_supplier_invoices SET approval_status='approved',approved_by=?,approved_by_name=?,approved_at=COALESCE(approved_at,NOW()) WHERE id=?")->execute([$actor['id'],$actor['name'],$id]);
   }
-  if(isset($b['transport']) && is_array($b['transport'])){
-   $transport=$b['transport'];$transport['allocations']=[['supplier_invoice_id'=>$id]];
-   if(!empty($transport['link_existing']) && !empty($transport['id'])){
-    $q=$pdo->prepare("SELECT * FROM cw_transport_records WHERE id=? AND allocation_status<>'archived' FOR UPDATE");$q->execute([(int)$transport['id']]);$record=$q->fetch();if(!$record)throw new DomainException('Shipping record is unavailable.');
-    $q=$pdo->prepare('SELECT supplier_invoice_id,allocation_percentage,calculated_amount FROM cw_transport_allocations WHERE transport_id=? AND supplier_invoice_id<>?');$q->execute([(int)$transport['id'],$id]);$otherLinks=$q->fetchAll();
-    if($otherLinks && empty($transport['confirm_shared']))throw new DomainException('Confirm the shared-shipment allocation preview before linking this purchase.');
-    if($otherLinks && $record['allocation_method']!=='by_weight')throw new DomainException('Revise this alternative shared allocation in Transport Costs so its complete amounts can be explicitly confirmed.');
-    foreach($otherLinks as $link)$transport['allocations'][]=['supplier_invoice_id'=>$link['supplier_invoice_id'],'value'=>$record['allocation_method']==='percentage'?$link['allocation_percentage']:$link['calculated_amount']];
-    foreach(['courier_name','invoice_number','transport_date','currency','exchange_rate','fx_confirmed','vat_treatment','vat_amount','non_transport_charges','allocation_method','notes'] as $key)$transport[$key]=$record[$key];
-    $transport['transport_amount']=$record['subtotal_ex_vat'];$transport['amount_basis']='excluding';
+  $treatment=(string)($b['transport_choice']??($before['transport_treatment']??'pending'));
+  if(!in_array($treatment,['pending','manual','existing','upload','none'],true))throw new DomainException('Choose a valid transport treatment.');
+  $transport=(array)($b['transport']??[]);
+  $q=$pdo->prepare("SELECT COUNT(*) FROM cw_transport_allocations a JOIN cw_transport_records t ON t.id=a.transport_id WHERE a.supplier_invoice_id=? AND t.allocation_status<>'archived'");$q->execute([$id]);$hasFreight=(int)$q->fetchColumn()>0;
+  if($treatment==='none' && $hasFreight)throw new DomainException('Existing freight cannot be removed with No Additional Transport. Use an audited freight correction.');
+  if($approve && in_array($treatment,['manual','existing','upload'],true)){
+   if($treatment==='existing'){
+    if(($transport['allocation_method']??'by_weight')!=='by_weight' && empty($transport['confirm_alternative']))throw new DomainException('Confirm the alternative allocation method.');
+    $saved=cw_supplier_link_transport($pdo,$id,(int)($transport['id']??0),$transport['allocation_method']??'by_weight');
+   }else{
+    if($treatment==='upload'&&empty($transport['id']))throw new DomainException('Upload the transport invoice and confirm its details.');
+    if(($transport['vat_treatment']??'unconfirmed')==='unconfirmed'||(($transport['currency']??'NAD')!=='NAD'&&empty($transport['fx_confirmed'])))throw new DomainException('Confirm transport VAT and exchange rate.');
+    $transport['allocations']=[['supplier_invoice_id'=>$id]];$saved=cw_transport_save($pdo,$transport);
    }
-   cw_transport_save($pdo,$transport);
+   $transport['id']=$saved['id'];
   }
+  $pdo->prepare('UPDATE cw_supplier_invoices SET transport_treatment=?,transport_review=? WHERE id=?')->execute([$treatment,json_encode($transport),$id]);
   lpc_refresh($pdo,[$id]);
   cw_supplier_cost_audit($pdo,'supplier_invoice',$id,$approve?'approved':'saved',$before,['request'=>$b,'supplier_id'=>$supplierId]);
   $pdo->commit();si_reply(['ok'=>true,'id'=>$id,'valid_lines'=>$valid,'message'=>$approve?'Supplier cost approved. Historical sources are preserved.':'Purchase saved for review.']);

@@ -150,3 +150,27 @@ require_once BASE_PATH.'/shared/cost-workbook-pricing-master.php';
 $pricingApi=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$start=strpos($pricingApi,'function rp_reply');$end=strpos($pricingApi,'try{$pdo=db()',$start);eval(substr($pricingApi,$start,$end-$start));
 $pricing=rpm_sources($pdo);expect(count(array_filter($pricing['products'],function($p)use($pid){return(int)$p['id']===$pid;}))===1,'Approved identity available in Product Pricing sources');
 echo "Matching integration: canonical/catalogue search, parent identity, SKU separation, repeated purchases, receipt/effective dates, landed costs, pricing, immutable approved identity and website preservation passed.\n";
+
+// Supplier workflow: no website requirement, explicit zero freight, and remaining-only linking.
+$autoLine=['product_description'=>'Workflow Maca Root','supplier_sku'=>'SUP-MACA','quantity'=>10,'pack_size'=>1,'purchase_unit'=>'kg','line_subtotal'=>1000,'vat_amount'=>0,'shipping_weight_kg'=>10];
+$approvePurchase=function($ref,$lines,$treatment='pending')use($pdo,$makeInvoice){$i=$makeInvoice($ref);$pdo->beginTransaction();cw_supplier_save_lines($pdo,$i,$lines);cw_supplier_resolve_products($pdo,$i);$pdo->prepare("UPDATE cw_supplier_invoices SET approval_status='approved',transport_treatment=? WHERE id=?")->execute([$treatment,$i]);lpc_refresh($pdo,[$i]);$pdo->commit();return $i;};
+$a=$approvePurchase('AUTO-1',[$autoLine],'none');
+$q=$pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=?');$q->execute([$a]);$al=$q->fetch();$ap=(int)$al['cost_product_id'];
+expect($ap>0 && empty($al['woo_product_id']),'Supplier product approved without any website identity');
+$cost=$pdo->query("SELECT * FROM cw_landed_product_costs WHERE supplier_invoice_line_id=".$al['id'].' ORDER BY id DESC LIMIT 1')->fetch();
+expect($cost['status_key']==='complete'&&(float)$cost['transport_cost_per_base']===0.0&&(float)$cost['landed_cost_per_base']===100.0,'Explicit no transport is complete, without fictional freight');
+$autoLine['product_description']='Supplier renamed Maca label';$a2=$approvePurchase('AUTO-2',[$autoLine]);$q->execute([$a2]);$al2=$q->fetch();
+expect((int)$al2['cost_product_id']===$ap,'Established same-supplier SKU reuses canonical product despite label change');
+$cost=$pdo->query("SELECT * FROM cw_landed_product_costs WHERE supplier_invoice_line_id=".$al2['id'].' ORDER BY id DESC LIMIT 1')->fetch();expect($cost['status_key']==='transport_not_allocated','Unresolved transport is not zero');
+$amb=cw_supplier_identity_options($pdo,999999,'Workflow Maca Root','','kg');expect(count($amb['candidates'])===1 && !$amb['automatic_id'],'Name alone requires confirmation, never automatic merge');
+$bLine=$autoLine;$bLine['supplier_sku']='SUP-B';$bLine['product_description']='Workflow second product';$bLine['quantity']=5;$bLine['shipping_weight_kg']=5;$bLine['line_subtotal']=500;
+$a3=$approvePurchase('AUTO-3',[$autoLine,$bLine]);
+$freight=['courier_name'=>'Workflow Courier','invoice_number'=>'WF-600','transport_date'=>'2026-10-02','currency'=>'NAD','transport_amount'=>600,'vat_amount'=>0,'vat_treatment'=>'exempt','allocation_method'=>'by_weight','allocations'=>[['supplier_invoice_id'=>$a3]]];$ft=cw_transport_save($pdo,$freight);
+$parts=$pdo->query('SELECT p.calculated_amount FROM cw_transport_product_allocations p JOIN cw_transport_allocations a ON a.id=p.transport_allocation_id WHERE a.transport_id='.$ft['id'].' ORDER BY p.id')->fetchAll(PDO::FETCH_COLUMN);expect(array_map('floatval',$parts)===[400.0,200.0],'600 freight is split 400/200 using actual weights');
+$freight['invoice_number']='WF-REMAINING';$freight['transport_amount']=1000;$freight['allocation_method']='manual_amount';$freight['confirm_alternative']=true;$freight['allocations']=[['supplier_invoice_id'=>$a2,'value'=>400]];$partial=cw_transport_save($pdo,$freight);
+$before=$pdo->query('SELECT * FROM cw_transport_product_allocations p JOIN cw_transport_allocations a ON a.id=p.transport_allocation_id WHERE a.transport_id='.$partial['id'].' AND a.supplier_invoice_id='.$a2)->fetchAll();
+$pdo->beginTransaction();$linked=cw_supplier_link_transport($pdo,$a3,$partial['id'],'by_weight');$pdo->commit();expect($linked['allocated']===600.0,'Only remaining freight is added');
+expect($before===$pdo->query('SELECT * FROM cw_transport_product_allocations p JOIN cw_transport_allocations a ON a.id=p.transport_allocation_id WHERE a.transport_id='.$partial['id'].' AND a.supplier_invoice_id='.$a2)->fetchAll(),'Previous purchase freight and snapshots preserved byte for byte');
+$n=(int)$pdo->query('SELECT COUNT(*) FROM cw_transport_allocations')->fetchColumn();$pdo->beginTransaction();cw_supplier_link_transport($pdo,$a3,$partial['id'],'by_weight');$pdo->commit();expect($n===(int)$pdo->query('SELECT COUNT(*) FROM cw_transport_allocations')->fetchColumn(),'Retry links no duplicate charges');
+$freight['invoice_number']='WF-VAT';$freight['transport_amount']=100;$freight['vat_amount']=15;$freight['vat_treatment']='non_recoverable';$freight['allocation_method']='by_weight';$freight['allocations']=[];$vatResult=cw_transport_save($pdo,$freight);expect((float)$pdo->query('SELECT allocable_amount FROM cw_transport_records WHERE id='.$vatResult['id'])->fetchColumn()===115.0,'Nonrecoverable VAT is included in transport cost');
+echo "Supplier workflow: automatic identities, repeat supplier SKU, ambiguity, no/missing freight, 400/200 allocation, remaining freight, preserved allocations and transport VAT PASS.\n";

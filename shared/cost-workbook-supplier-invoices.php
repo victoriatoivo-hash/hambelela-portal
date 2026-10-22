@@ -36,7 +36,7 @@ function cw_render_supplier_invoices(array $period): void { ?>
  <footer class="si-table-footer"><span data-si-total></span><span data-si-loading role="status"></span></footer></section>
  <div class="si-bulk-toolbar" data-si-bulk hidden><strong data-si-selected-count></strong><button type="button" class="si-btn" data-si-export>Export</button><button type="button" class="si-btn" data-si-archive>Archive</button><button type="button" class="si-btn" data-si-delete>Delete Unreferenced Draft</button><button type="button" class="si-btn" data-si-clear>Clear</button><button type="button" class="si-btn" data-si-clear aria-label="Close bulk actions">×</button></div>
  <div class="supplier-invoices__drawer-backdrop" data-si-backdrop hidden></div>
- <aside class="supplier-invoices__drawer" data-si-drawer role="dialog" aria-modal="true" aria-labelledby="siDrawerTitle" aria-hidden="true" inert>
+ <aside class="supplier-invoices__drawer si-purchase-review" data-si-drawer role="dialog" aria-modal="true" aria-labelledby="siDrawerTitle" aria-hidden="true" inert>
   <header><div><p>Supplier Costs</p><h2 id="siDrawerTitle">Add Supplier Cost</h2><small class="cw-cost-drawer-help">Review source details, products and landed costs.</small></div><button type="button" data-si-close aria-label="Close drawer">×</button></header>
   <form data-si-review novalidate>
    <input type="hidden" name="id"><input type="hidden" name="updated_at"><input type="hidden" name="request_id">
@@ -64,18 +64,20 @@ function cw_render_supplier_invoices(array $period): void { ?>
      </div></section>
      <section class="si-drawer-section"><div class="cw-cost-section__header"><h3 class="si-drawer-section-title"><span class="cw-cost-section__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v10"/></svg></span>Purchased Products</h3><button type="button" class="si-btn" data-si-add-line>+ Add Product</button></div><div data-si-lines></div></section>
      <section class="si-drawer-section si-shipping-section"><h3 class="si-drawer-section-title"><span class="cw-cost-section__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v10"/></svg></span>Shipping &amp; Transport Costs</h3>
-      <label class="si-checkbox-label"><input type="checkbox" data-si-shipping-enabled>Attach or allocate shipping with this purchase</label>
+      <div class="si-transport-methods">
+       <?php foreach(['manual'=>'Enter Transport Manually','existing'=>'Link Existing Transport Record','upload'=>'Upload Transport Invoice','none'=>'No Additional Transport'] as $key=>$label): ?><label class="si-transport-option"><input type="radio" name="transport_choice" value="<?= $key ?>"><?= $label ?></label><?php endforeach; ?>
+      </div><p data-si-transport-message>Transport not yet recorded. Choose a method when confirmed.</p>
       <div data-si-shipping-fields hidden>
-       <div class="si-header-actions"><label class="si-btn">Upload Shipping Invoice<input type="file" data-si-shipping-file accept=".pdf,.jpg,.jpeg,.png" hidden></label><button type="button" class="si-btn" data-si-link-transport>Link Existing Transport Invoice</button></div>
-       <div data-si-transport-results></div><input type="hidden" name="transport_id"><input type="hidden" name="transport_link_existing">
-       <label class="si-checkbox-label" data-si-shared-confirm hidden><input type="checkbox" name="transport_shared_confirm">I confirm reallocating this shared shipment across the existing purchases and this purchase, using the weights previewed below.</label>
+       <div data-si-transport-upload hidden><label class="si-btn">Upload Transport Invoice<input type="file" data-si-shipping-file accept=".pdf,.jpg,.jpeg,.png" hidden></label><p data-si-transport-upload-status>Upload, then review and confirm the transport details below.</p></div>
+       <div data-si-transport-picker hidden><label>Search company, reference or date<input type="search" data-si-transport-search></label><button type="button" class="si-btn" data-si-link-transport>Find Transport Records</button><div data-si-transport-results></div></div>
+       <input type="hidden" name="transport_id"><input type="hidden" name="transport_link_existing">
        <div class="supplier-invoices__form-grid">
         <label>Courier / Transport Supplier<input name="transport_courier"></label><label>Invoice / Waybill Reference<input name="transport_reference"></label>
-        <label>Transport Date<input type="date" name="transport_date"></label><label>Shipping Amount Excluding Recoverable VAT<input type="number" name="transport_amount" min="0" step="0.01"></label>
-        <label>Shipping Currency<input name="transport_currency" value="NAD" maxlength="3"></label><label>Exchange Rate to NAD<input type="number" name="transport_rate" min="0" step="0.00000001"></label>
+        <label>Transport Date<input type="date" name="transport_date"></label><label>Transport Amount<input type="number" name="transport_amount" min="0" step="0.01"></label>
+        <label>Amount Basis<select name="transport_basis"><option value="excluding">Excluding VAT</option><option value="including">Including VAT</option></select></label><label>VAT Amount<input type="number" min="0" step="0.01" name="transport_vat_amount" value="0"></label><label>Notes<input name="transport_notes"></label><label>Shipping Currency<input name="transport_currency" value="NAD" maxlength="3"></label><label data-si-transport-fx>Exchange Rate to NAD<input type="number" name="transport_rate" min="0" step="0.00000001"></label>
         <label>VAT Treatment<select data-portal-custom-select data-portal-select-variant="cost-olive" name="transport_vat"><option value="unconfirmed">Confirm VAT treatment</option><option value="recoverable">Recoverable VAT excluded</option><option value="non_recoverable">Non-recoverable VAT included in cost</option><option value="exempt">Exempt</option></select></label>
         <label>Allocation Method<select data-portal-custom-select data-portal-select-variant="cost-olive" name="transport_method"><option value="by_weight">By Confirmed Shipping Weight</option><option value="equal_split">Equal Split — explicitly authorised</option></select></label>
-        <label class="si-checkbox-label"><input type="checkbox" name="transport_fx_confirmed">Shipping FX verified</label><label class="si-checkbox-label"><input type="checkbox" name="transport_alternative">I authorise the alternative allocation</label>
+        <label class="si-checkbox-label" data-si-transport-fx><input type="checkbox" name="transport_fx_confirmed">Shipping FX verified</label><label class="si-checkbox-label"><input type="checkbox" name="transport_alternative">I authorise the alternative allocation</label>
        </div>
        <div class="si-allocation-table-wrap"><table class="si-allocation-table"><thead><tr><th>Product</th><th>Quantity / Basis</th><th>Weight kg</th><th>Freight Allocated</th><th>Freight / Base</th></tr></thead><tbody data-si-allocation></tbody></table></div>
        <div class="si-shipping-summary"><div><span>Total Freight</span><strong data-si-freight-total>—</strong></div><div><span>Total Allocated</span><strong data-si-freight-allocated>—</strong></div><div><span>Unallocated</span><strong data-si-freight-remaining>—</strong></div></div>
@@ -91,13 +93,8 @@ function cw_render_supplier_invoices(array $period): void { ?>
  <div class="si-toast" role="status" data-si-toast hidden></div>
  <template data-si-line-template><article class="supplier-invoices__line">
   <input type="hidden" data-k="id"><input type="hidden" data-k="cost_product_id"><input type="hidden" data-k="woo_product_id"><input type="hidden" data-k="woo_variation_id">
-  <section class="si-product-match si-wide" aria-label="Product Matching">
-   <h4>Product Matching</h4><p>Link this purchase to its product identity. Retail sizes are linked separately in Product Pricing.</p>
-   <label>Search existing products<span class="si-product-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" data-si-product-search placeholder="Search existing product by name, short code or SKU" autocomplete="off"></span></label>
-   <div class="si-product-results" data-si-product-results aria-live="polite"></div>
-   <p data-si-product-notice role="status"></p>
-   <label class="si-checkbox-label" data-si-new-product hidden><input type="checkbox" data-k="confirm_new_product" value="1">Create New Cost Workbook Product — I confirm no appropriate record exists.</label>
-  </section>
+  <input type="hidden" data-k="confirm_new_product" value="0">
+  <div class="si-identity-choice si-wide" data-si-identity hidden><strong>Possible Existing Product</strong><div data-si-identity-options></div></div>
   <label>Product Name<input data-k="product_description" maxlength="255" required></label><label>Supplier SKU / Reference<input data-k="supplier_sku" maxlength="100"></label>
   <label>Product Category<select data-portal-custom-select data-portal-select-variant="cost-olive" data-k="product_category"><?= cw_si_options(cw_product_categories()) ?></select></label>
   <label>Purchased Quantity<input data-k="quantity" type="number" min="0.000001" step="0.000001" required></label>

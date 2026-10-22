@@ -15,6 +15,7 @@ w.fetch=async(url,options={})=>{const u=new URL(url,w.location.href),action=u.se
  if(action==='inline'){if(failInline)value={error:'This record was updated elsewhere. Review the latest value before saving.'};else{row[body.field==='quantity'?'purchase_quantity':body.field]=body.value;row.version+='x';value={ok:true,rows:[{...row}]};}}
  if(action==='save')value=failSave?{error:'Source changed; reopen before saving.'}:{ok:true,id:3,message:'Saved'};
  if(action==='selection')value={ids:[5],total:1};
+ if(action==='product-options')value={automatic_id:0,candidates:[]};
  if(action==='products')value={snapshot_id:1,rows:u.searchParams.get('q')==='Brand New Herb'?[]:[{id:5,product_name:'Test Castor Oil',short_code:'TCO001',product_category:'Carrier Oils',source:'canonical'},{id:'0',product_name:'Test Chastetree Berries',woo_product_id:99001,woo_variation_id:0,woo_sku:'HERB-PARENT',source:'woocommerce'}]};
  if(action==='pending')value={rows:[]};
  return {ok:!value.error,json:async()=>value};};
@@ -33,24 +34,11 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  click('[data-cost-clear]');await new Promise(r=>setTimeout(r,10));await flush();assert.equal(one('[data-si-filters] [name="status"]').value,'');
  click('[data-si-open-manual]');assert.equal(one('#siDrawerTitle').textContent,'Add Supplier Cost');
  fill('[name="supplier_name"]','Test Supplier');fill('[data-k="product_description"]','Test product');fill('[data-k="quantity"]','100');fill('[data-k="pack_size"]','1');fill('[data-k="purchase_unit"]','kg');fill('[data-k="line_subtotal"]','10000');fill('[data-k="shipping_weight_kg"]','100');
- assert.equal(one('[data-si-new-product]').hidden,true,'new identity requires a completed search');
- fill('[data-si-product-search]','Castor');await new Promise(r=>setTimeout(r,300));await flush();
- assert.match(one('[data-si-product-results]').textContent,/Cost Workbook · Canonical product/);assert.match(one('[data-si-product-results]').textContent,/WooCommerce catalogue · Parent product/);
- assert.doesNotMatch(one('[data-si-product-results]').textContent,/Cost Workbook #0/);
- click('[data-si-product-results] button');assert.equal(one('[data-k="cost_product_id"]').value,'5');assert.match(one('[data-si-product-notice]').textContent,/Matched/);
- assert.equal(one('[data-k="product_description"]').value,'Test product','matching preserves supplier description');
+ assert.equal(d.querySelectorAll('.si-product-match').length,0,'no repeated matching cards');
  assert.equal(one('[name="date_received"]').value,'','receipt never inferred');
- fill('[data-si-product-search]','Chastetree');await new Promise(r=>setTimeout(r,300));await flush();
- one('[data-si-product-results]').querySelectorAll('button')[1].click();
- assert.equal(one('[data-k="cost_product_id"]').value,'5','optional website link retains explicitly selected canonical identity');
- assert.equal(one('[data-k="woo_product_id"]').value,'99001');
- assert.match(one('[data-si-product-notice]').textContent,/Awaiting Cost Approval/);
+ click('[name="transport_choice"][value="manual"]');assert.equal(one('[data-si-shipping-fields]').hidden,false);assert.equal(one('[data-si-transport-picker]').hidden,true);
  fill('[name="transport_amount"]','2000');assert.match(one('[data-si-cost-preview]').textContent,/N\$100/);assert.match(one('[data-si-allocation]').textContent,/N\$20/);
  click('[data-si-close]');assert.equal(one('[data-si-discard]').hidden,false);click('[data-si-discard-no]');assert(one('[data-si-drawer]').classList.contains('is-open'));click('[data-si-close]');click('[data-si-discard-yes]');assert(!one('[data-si-drawer]').classList.contains('is-open'));
- click('[data-si-open-manual]');fill('[data-k="product_description"]','Brand New Herb');fill('[data-si-product-search]','Brand New Herb');await new Promise(r=>setTimeout(r,300));await flush();
- assert.equal(one('[data-si-new-product]').hidden,false,'empty exact-name search offers explicit new identity confirmation');
- fill('[data-k="product_description"]','Different Herb');assert.equal(one('[data-si-new-product]').hidden,true,'changed name invalidates search confirmation');
- click('[data-si-close]');click('[data-si-discard-yes]');
  click('[data-review]');await flush();await flush();assert.equal(one('[data-k="id"]').value,'11');assert.equal(one('[data-si-remove-line]').hidden,true);
  failSave=true;one('[data-si-review]').dispatchEvent(new w.SubmitEvent('submit',{bubbles:true,cancelable:true,submitter:one('[data-si-save]')}));await flush();await flush();assert.match(one('[data-si-warnings]').textContent,/Source changed/);assert.equal(one('[data-k="id"]').value,'11');assert.equal(calls.findLast(x=>x.action==='save').body.lines[0].id,'11');
  failSave=false;one('[data-si-review]').dispatchEvent(new w.SubmitEvent('submit',{bubbles:true,cancelable:true,submitter:one('[data-si-approve]')}));await flush();await flush();assert.equal(calls.findLast(x=>x.action==='save').body.approve,true);assert(!one('[data-si-drawer]').classList.contains('is-open'));
