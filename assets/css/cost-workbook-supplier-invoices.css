@@ -48,7 +48,7 @@
 @media(max-width:900px){#costWorkbook[data-page="supplier-invoices"] .supplier-invoices__summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:767px){#costWorkbook[data-page="supplier-invoices"] .si-bulk-toolbar{left:12px;right:12px;transform:none;flex-wrap:wrap;bottom:calc(80px + env(safe-area-inset-bottom,0px))}}
 
-/* Product identity matching stays within each purchased-product card. */
+/* Compact purchase identity exceptions and mutually exclusive transport choices. */
 
 .si-purchase-review .si-transport-methods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin-bottom:13px}
 .si-purchase-review .si-transport-option{display:flex;align-items:center;gap:9px;min-height:43px;padding:10px 12px;border:1px solid #E4E6DC;border-radius:9px;background:#fff;color:#1C2118;font:500 11.5px/1.35 Jost,sans-serif;cursor:pointer}
