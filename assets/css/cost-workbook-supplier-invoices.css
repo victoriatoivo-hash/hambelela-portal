@@ -47,3 +47,19 @@
 #costWorkbook[data-page="supplier-invoices"] .si-toast{position:fixed;bottom:24px;right:24px;z-index:1300;padding:12px 18px;border:1px solid #E4E6DC;border-radius:10px;background:white;animation:cwCostEnter .2s ease}
 @media(max-width:900px){#costWorkbook[data-page="supplier-invoices"] .supplier-invoices__summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:767px){#costWorkbook[data-page="supplier-invoices"] .si-bulk-toolbar{left:12px;right:12px;transform:none;flex-wrap:wrap;bottom:calc(80px + env(safe-area-inset-bottom,0px))}}
+
+/* Product identity matching stays within each purchased-product card. */
+[data-si-root] .si-product-match {padding:14px;border:1px solid #E4E6DC;border-radius:10px;background:#F8F7F2;min-width:0;}
+[data-si-root] .si-product-match h4 {margin:0 0 5px;color:#344126;font:600 13px/1.4 Jost,sans-serif;}
+[data-si-root] .si-product-match p,[data-si-root] .si-match-result span,[data-si-root] .si-match-result small {font:400 11px/1.5 Jost,sans-serif;color:#62675E;}
+[data-si-root] .si-product-search {display:flex;align-items:center;gap:8px;background:#fff;border:1px solid #E4E6DC;border-radius:7px;padding:0 9px;}
+[data-si-root] .si-product-search svg {width:16px;height:16px;flex:none;color:#59694A;}
+[data-si-root] .si-product-search input {height:34px;min-height:34px;border:0!important;box-shadow:none!important;margin:0!important;min-width:0;width:100%;}
+[data-si-root] .si-product-results {position:static;max-height:260px;overflow:auto;display:grid;gap:8px;}
+[data-si-root] .si-match-result {display:grid;gap:3px;padding:10px;background:#fff;border:1px solid #E4E6DC;border-radius:8px;}
+[data-si-root] .si-match-result strong {font:500 12px/1.4 Jost,sans-serif;}
+[data-si-root] .si-match-result .si-btn {justify-self:start;margin-top:5px;}
+[data-si-root] .is-product-matched .si-product-match {background:#F2F4EC;border-color:#B8C4A7;}
+[data-si-root] .is-product-matched [data-si-product-notice] {color:#344126;}
+[data-si-root] [data-si-product-notice] {overflow-wrap:anywhere;}
+[data-si-root] [data-si-new-product][hidden] {display:none!important;}

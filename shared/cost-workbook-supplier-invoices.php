@@ -54,7 +54,9 @@ function cw_render_supplier_invoices(array $period): void { ?>
       <label>Supplier Type<select data-portal-custom-select data-portal-select-variant="cost-olive" name="supplier_type"><?= cw_si_options(cw_supplier_types()) ?></select></label>
       <label>Invoice Type<select data-portal-custom-select data-portal-select-variant="cost-olive" name="invoice_type"><?= cw_si_options(cw_invoice_types()) ?></select></label>
       <label>Invoice / Reference<input name="invoice_number" maxlength="100" placeholder="Generated for manual entry if blank"></label>
-      <label>Effective Date<input type="date" name="invoice_date" required></label>
+      <label>Supplier Invoice Date<input type="date" name="invoice_date" required></label>
+      <label>Date Received<input type="date" name="date_received"><small>Leave blank while receipt is pending.</small></label>
+      <label>Cost Effective Date<input type="date" name="cost_effective_date"><small>Uses invoice date if not specified; never the upload date.</small></label>
       <label>Currency<input name="currency" maxlength="3" value="NAD" required></label>
       <label>Exchange Rate to NAD<input name="exchange_rate" type="number" step="0.00000001" min="0"></label>
       <label>VAT Treatment<select data-portal-custom-select data-portal-select-variant="cost-olive" name="vat_treatment"><option value="unconfirmed">Confirm VAT treatment</option><option value="exclusive">Source costs exclude recoverable VAT</option><option value="exempt">VAT exempt</option><option value="inclusive">Recoverable VAT separated from source cost</option></select></label>
@@ -89,8 +91,13 @@ function cw_render_supplier_invoices(array $period): void { ?>
  <div class="si-toast" role="status" data-si-toast hidden></div>
  <template data-si-line-template><article class="supplier-invoices__line">
   <input type="hidden" data-k="id"><input type="hidden" data-k="cost_product_id"><input type="hidden" data-k="woo_product_id"><input type="hidden" data-k="woo_variation_id">
-  <label class="si-wide">Find existing product<input type="search" data-si-product-search placeholder="Search name, SKU or internal reference"><div class="si-product-results" data-si-product-results></div></label>
-  <p class="si-wide" data-si-product-notice></p>
+  <section class="si-product-match si-wide" aria-label="Product Matching">
+   <h4>Product Matching</h4><p>Link this purchase to its product identity. Retail sizes are linked separately in Product Pricing.</p>
+   <label>Search existing products<span class="si-product-search"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10" cy="10" r="6"/><path d="m15 15 5 5"/></svg><input type="search" data-si-product-search placeholder="Search existing product by name, short code or SKU" autocomplete="off"></span></label>
+   <div class="si-product-results" data-si-product-results aria-live="polite"></div>
+   <p data-si-product-notice role="status"></p>
+   <label class="si-checkbox-label" data-si-new-product hidden><input type="checkbox" data-k="confirm_new_product" value="1">Create New Cost Workbook Product — I confirm no appropriate record exists.</label>
+  </section>
   <label>Product Name<input data-k="product_description" maxlength="255" required></label><label>Supplier SKU / Reference<input data-k="supplier_sku" maxlength="100"></label>
   <label>Product Category<select data-portal-custom-select data-portal-select-variant="cost-olive" data-k="product_category"><?= cw_si_options(cw_product_categories()) ?></select></label>
   <label>Purchased Quantity<input data-k="quantity" type="number" min="0.000001" step="0.000001" required></label>
@@ -100,7 +107,6 @@ function cw_render_supplier_invoices(array $period): void { ?>
   <label>Recoverable VAT<input data-k="vat_amount" type="number" min="0" step="0.01" value="0"></label>
   <label>Confirmed Shipping Weight kg<input data-k="shipping_weight_kg" type="number" min="0.000001" step="0.000001" placeholder="Do not substitute litres"></label>
   <label>Notes<input data-k="line_notes" maxlength="500"></label>
-  <label class="si-checkbox-label si-wide"><input type="checkbox" data-k="confirm_new_product" value="1">I verified this is a genuinely new product</label>
   <div class="si-line-preview si-wide" data-si-cost-preview></div><button type="button" class="si-btn" data-si-remove-line>Remove New Line</button>
  </article></template>
 </section>

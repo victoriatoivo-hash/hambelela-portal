@@ -46,16 +46,12 @@ try{
   $suppliers=$pdo->query('SELECT id,name,supplier_type FROM cw_suppliers WHERE active=1 ORDER BY name')->fetchAll();
   si_reply(['rows'=>$rows,'total'=>$total,'offset'=>$offset,'has_more'=>$offset+count($rows)<$total,'summary'=>$stats,'suppliers'=>$suppliers]);
  }
- if($action==='products'){
-  $search='%'.substr(trim((string)($_GET['q']??'')),0,100).'%';
-  $q=$pdo->prepare("SELECT id,product_name,short_code,woo_sku,product_category,base_unit,woo_product_id,woo_variation_id FROM cw_cost_products WHERE active=1 AND (product_name LIKE ? OR short_code LIKE ? OR woo_sku LIKE ?) ORDER BY product_name LIMIT 40");$q->execute([$search,$search,$search]);$products=$q->fetchAll();
-  $q=$pdo->prepare("SELECT 0 id,CONCAT(w.product_name,IF(w.variation_name<>'',CONCAT(' · ',w.variation_name),'')) product_name,'Website catalogue' short_code,w.sku woo_sku,w.category product_category,NULL base_unit,w.product_id woo_product_id,w.variation_id woo_variation_id FROM cw_product_snapshots w WHERE w.sync_batch_id=(SELECT id FROM cw_sync_batches WHERE is_successful_snapshot=1 ORDER BY completed_at DESC,id DESC LIMIT 1) AND (w.product_name LIKE ? OR w.sku LIKE ?) AND NOT EXISTS(SELECT 1 FROM cw_cost_products p WHERE p.woo_product_id=w.product_id AND COALESCE(p.woo_variation_id,0)=w.variation_id) ORDER BY w.product_name LIMIT 40");$q->execute([$search,$search]);si_reply(['rows'=>array_merge($products,$q->fetchAll())]);
- }
+ if($action==='products'){si_reply(cw_supplier_product_search($pdo,(string)($_GET['q']??'')));}
  if($action==='pending'){
   $q=$pdo->query("SELECT id,supplier_name,invoice_number,invoice_date,uploaded_at,extraction_status FROM cw_supplier_invoices WHERE approval_status='draft' ORDER BY uploaded_at DESC,id DESC");si_reply(['rows'=>$q->fetchAll()]);
  }
  if($action==='history'){
-  $id=(int)($_GET['product_id']??0);$q=$pdo->prepare('SELECT c.*,s.supplier_name,s.manual_reference,i.invoice_number FROM cw_landed_product_costs c JOIN cw_cost_product_sources s ON s.id=c.product_source_id LEFT JOIN cw_supplier_invoice_lines l ON l.id=c.supplier_invoice_line_id LEFT JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE c.product_id=? ORDER BY c.cost_date DESC,c.id DESC');$q->execute([$id]);$rows=$q->fetchAll();
+  $id=(int)($_GET['product_id']??0);$q=$pdo->prepare('SELECT c.*,s.supplier_name,s.manual_reference,i.invoice_number,i.invoice_date,i.date_received FROM cw_landed_product_costs c JOIN cw_cost_product_sources s ON s.id=c.product_source_id LEFT JOIN cw_supplier_invoice_lines l ON l.id=c.supplier_invoice_line_id LEFT JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE c.product_id=? ORDER BY c.cost_date DESC,c.id DESC');$q->execute([$id]);$rows=$q->fetchAll();
   $audit=$pdo->prepare("SELECT * FROM cw_cost_audit_events WHERE (entity_type='supplier_invoice_line' AND entity_id IN(SELECT supplier_invoice_line_id FROM cw_cost_product_sources WHERE product_id=?)) OR (entity_type='cost_product' AND entity_id=?) ORDER BY occurred_at DESC,id DESC");$audit->execute([$id,$id]);si_reply(['rows'=>$rows,'audit'=>$audit->fetchAll()]);
  }
  if($action==='inline-source'){
@@ -117,6 +113,10 @@ try{
   $dup->execute([$id,$supplierId,$number,$date]);if($dup->fetchColumn())throw new DomainException('Possible duplicate: this supplier, invoice reference and date already exist.');
   $rate=$currency==='NAD'?1:si_decimal($b['exchange_rate']??null);$fx=$currency==='NAD'||(!empty($b['fx_confirmed'])&&(float)$rate>0);
   $pdo->prepare("UPDATE cw_supplier_invoices SET supplier_id=?,supplier_name=?,supplier_type=?,invoice_type=?,invoice_number=?,invoice_date=?,currency=?,exchange_rate=?,fx_confirmed=?,vat_treatment=?,subtotal=?,vat_amount=?,invoice_total=?,shipping_amount=?,review_status='reviewed',last_edited_by=?,last_edited_by_name=? WHERE id=?")->execute([$supplierId,$supplierName,$supplierType,$invoiceType,$number,$date,$currency,$rate?:1,$fx?1:0,$vat,si_decimal($b['subtotal']??($before['subtotal']??null)),si_decimal($b['vat_amount']??($before['vat_amount']??null)),si_decimal($b['invoice_total']??($before['invoice_total']??null)),si_decimal($b['shipping_amount']??($before['shipping_amount']??null)),$actor['id'],$actor['name'],$id]);
+  $received=si_date($b['date_received']??($before['date_received']??''));
+  $effective=si_date($b['cost_effective_date']??($before['cost_effective_date']??''));
+  foreach(['date_received'=>$received,'cost_effective_date'=>$effective] as $key=>$value)if(!empty($b[$key])&&!$value)throw new DomainException('Enter a valid '.$key.'.');
+  $pdo->prepare('UPDATE cw_supplier_invoices SET date_received=?,cost_effective_date=? WHERE id=?')->execute([$received,$effective,$id]);
   $valid=cw_supplier_save_lines($pdo,$id,$lines,[(int)($b['transport']['id']??0)]);
   if($approve){
    $q=$pdo->prepare("SELECT COUNT(*) FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND active=1 AND (review_status<>'valid' OR match_status<>'confirmed' OR item_type='unclassified')");$q->execute([$id]);

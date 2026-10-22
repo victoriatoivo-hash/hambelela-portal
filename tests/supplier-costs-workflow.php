@@ -109,3 +109,43 @@ try{$save('product_name','Stale name',$version);throw new RuntimeException('Cros
 foreach([['quantity','0'],['line_subtotal','-1'],['purchase_unit','L'],['product_category','Invalid'],['invoice_date','2026-02-31']] as $invalid){try{$save($invalid[0],$invalid[1]);throw new RuntimeException('Invalid edit accepted');}catch(DomainException $expected){}}
 echo "Spreadsheet integration: source revisions, concurrency, retries, validation, stable identities and freight preservation passed.\\n";
 echo "Supplier costs integration: stable IDs, canonical products, audit, freight, FX, rollback and idempotency passed.\n";
+
+// Product-matching regression: only the disposable cw_supplier_test database.
+$pdo->exec("INSERT INTO cw_sync_batches(sync_uuid,status,is_successful_snapshot,completed_at) VALUES('matching-good','completed',1,'2026-10-20 12:00:00')");$batch=(int)$pdo->lastInsertId();
+$insert=$pdo->prepare("INSERT INTO cw_product_snapshots(product_id,variation_id,product_name,variation_name,sku,category,product_type,sync_batch_id) VALUES(?,?,?,?,?,'Dried Herbs',?,?)");
+$insert->execute([99001,0,'Test Chastetree Berries','','HERB-PARENT','variable',$batch]);
+$insert->execute([99001,99002,'Test Chastetree Berries','50g','HERB-50','variation',$batch]);
+$pdo->exec("INSERT INTO cw_sync_batches(sync_uuid,status,is_successful_snapshot,completed_at) VALUES('matching-failed','failed',0,'2026-10-21 12:00:00')");$failed=(int)$pdo->lastInsertId();
+$insert->execute([99001,0,'Failed new catalogue','','DO-NOT-USE','variable',$failed]);
+$catalogueBefore=$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll();
+$search=cw_supplier_product_search($pdo,'HERB-50');
+expect(count($search['rows'])===1 && (int)$search['rows'][0]['woo_variation_id']===0,'Retail SKU search returns parent identity only');
+expect($search['rows'][0]['woo_sku']==='HERB-PARENT','Latest successful catalogue, not failed sync');
+expect(count(cw_supplier_product_search($pdo,'SHEET001')['rows'])===1,'Canonical short code search');
+expect(cw_supplier_product_search($pdo,'')['searched']===false,'Empty search cannot enable creation');
+$makeInvoice=function($reference)use($pdo,$supplier){$q=$pdo->prepare("INSERT INTO cw_supplier_invoices(supplier_id,supplier_name,invoice_number,invoice_date,date_received,cost_effective_date,original_filename,stored_file,file_type,currency,vat_treatment,approval_status) VALUES(?,'Test Supplier',?,'2026-10-01',NULL,'2026-10-02','','','','NAD','exclusive','draft')");$q->execute([$supplier,$reference]);return(int)$pdo->lastInsertId();};
+$purchase=$makeInvoice('MATCH-1');
+$matchLine=['product_description'=>'Test Chastetree Berries','supplier_sku'=>'SUPPLIER-PRIVATE','quantity'=>2,'pack_size'=>1,'purchase_unit'=>'kg','line_subtotal'=>200,'vat_amount'=>0,'woo_product_id'=>99001,'woo_variation_id'=>0];
+$pdo->beginTransaction();cw_supplier_save_lines($pdo,$purchase,[$matchLine]);$pdo->prepare("UPDATE cw_supplier_invoices SET approval_status='approved' WHERE id=?")->execute([$purchase]);lpc_refresh($pdo,[$purchase]);$pdo->commit();
+$q=$pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=?');$q->execute([$purchase]);$matched=$q->fetch();$pid=(int)$matched['cost_product_id'];
+$q=$pdo->prepare('SELECT * FROM cw_cost_products WHERE id=?');$q->execute([$pid]);$master=$q->fetch();
+expect($master['woo_sku']==='HERB-PARENT' && $matched['supplier_sku']==='SUPPLIER-PRIVATE','Website SKU and supplier reference remain separate');
+$q=$pdo->prepare('SELECT * FROM cw_landed_product_costs WHERE product_id=? ORDER BY id DESC LIMIT 1');$q->execute([$pid]);$cost=$q->fetch();
+expect((float)$cost['supplier_cost_per_base']===100.0 && $cost['cost_date']==='2026-10-02','Approved supplier/base and explicit effective date flow to landed costs');
+expect($cost['status_key']==='transport_not_allocated','Website match does not imply freight completion');
+expect($pdo->query("SELECT date_received FROM cw_supplier_invoices WHERE id=$purchase")->fetchColumn()===null,'Unknown receipt stays pending');
+$second=$makeInvoice('MATCH-2');$matchLine['cost_product_id']=$pid;$matchLine['product_description']='Supplier spelling differs';
+$pdo->beginTransaction();cw_supplier_save_lines($pdo,$second,[$matchLine]);$pdo->prepare("UPDATE cw_supplier_invoices SET approval_status='approved' WHERE id=?")->execute([$second]);lpc_refresh($pdo,[$second]);$pdo->commit();
+expect((int)$pdo->query("SELECT COUNT(*) FROM cw_cost_products WHERE woo_product_id=99001")->fetchColumn()===1,'Repeat purchase uses stable canonical ID without duplicates');
+expect((int)$pdo->query("SELECT COUNT(*) FROM cw_cost_product_sources WHERE product_id=$pid")->fetchColumn()===2,'Two historical supplier purchases remain');
+$q->execute([$pid]);expect((float)$q->fetch()['supplier_cost_per_base']===100.0,'Approved source available downstream');
+$matchLine['id']=$matched['id'];$matchLine['cost_product_id']=$product;
+try{$pdo->beginTransaction();cw_supplier_save_lines($pdo,$purchase,[$matchLine]);throw new RuntimeException('Approved rematch accepted');}catch(DomainException $e){$pdo->rollBack();}
+expect($catalogueBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'Catalogue records never modified');
+$beforeMatches=(int)$pdo->query('SELECT COUNT(*) FROM cw_product_matches')->fetchColumn();
+$matchLine['cost_product_id']=$pid;$matchLine['product_description']='Test Chastetree Berries';
+$pdo->beginTransaction();cw_supplier_save_lines($pdo,$purchase,[$matchLine]);lpc_refresh($pdo,[$purchase]);$pdo->commit();
+expect($beforeMatches===(int)$pdo->query('SELECT COUNT(*) FROM cw_product_matches')->fetchColumn(),'Repeated save does not duplicate product links');
+require_once BASE_PATH.'/shared/cost-workbook-pricing-master.php';
+$pricing=rpm_sources($pdo);expect(count(array_filter($pricing['products'],function($p)use($pid){return(int)$p['id']===$pid;}))===1,'Approved identity available in Product Pricing sources');
+echo "Matching integration: canonical/catalogue search, parent identity, SKU separation, repeated purchases, receipt/effective dates, landed costs, pricing, immutable approved identity and website preservation passed.\n";

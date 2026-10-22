@@ -84,24 +84,51 @@ function addLine(value={}){
  all('[data-k]',node).forEach(el=>{if(value[el.dataset.k]!==undefined&&value[el.dataset.k]!==null){if(el.type==='checkbox')el.checked=!!value[el.dataset.k];else el.value=value[el.dataset.k];}});
  one('[data-si-remove-line]',node).hidden=!!value.id&&!value.allow_remove;one('[data-si-remove-line]',node).textContent=value.id?'Remove Unreferenced Draft Line':'Remove New Line';
  one('[data-si-remove-line]',node).onclick=()=>{node.remove();dirty=true;preview();};
- if(value.cost_product_id)one('[data-si-product-notice]',node).textContent='Existing product linked. This purchase will retain its product identity.';
- const search=one('[data-si-product-search]',node);
+ const notice=one('[data-si-product-notice]',node),result=one('[data-si-product-results]',node),search=one('[data-si-product-search]',node),newProduct=one('[data-si-new-product]',node);
+ const input=k=>one('[data-k="'+k+'"]',node);
+ const showMatch=()=>{const matched=!!input('cost_product_id').value||!!input('woo_product_id').value;notice.textContent=matched?(input('cost_product_id').value?'Matched · Cost Workbook #'+input('cost_product_id').value:'Product identity selected')+' · '+(input('woo_product_id').value?'Website Linked #'+input('woo_product_id').value:'Website Match Optional')+' · '+(form.dataset.approved==='true'?'Approved purchase — existing cost status retained.':'Awaiting Cost Approval'):'Needs Matching';node.classList.toggle('is-product-matched',matched);};
+ showMatch();
+ let searchVersion=0;
  search.addEventListener('input',()=>{
-  clearTimeout(searchTimers.get(node));searchTimers.set(node,setTimeout(async()=>{const term=search.value;try{const data=await request('products',undefined,'q='+encodeURIComponent(term));if(search.value!==term)return;const result=one('[data-si-product-results]',node);result.innerHTML='';data.rows.forEach(product=>{const button=document.createElement('button');button.type='button';button.className='si-result';button.textContent=product.product_name+' Â· '+(product.woo_sku||product.short_code);button.onclick=()=>{
-   one('[data-si-product-notice]',node).innerHTML='Product already exists. <button type="button" class="si-btn" data-accept>Update Cost from This Purchase</button> <button type="button" class="si-btn" data-existing>View Existing Cost</button> <button type="button" class="si-btn" data-abort>Cancel</button>';
-   one('[data-accept]',node).onclick=()=>{one('[data-k="cost_product_id"]',node).value=product.id||'';one('[data-k="woo_product_id"]',node).value=product.woo_product_id||'';one('[data-k="woo_variation_id"]',node).value=product.woo_variation_id||'';one('[data-k="product_description"]',node).value=product.product_name;one('[data-k="product_category"]',node).value=product.product_category;one('[data-k="confirm_new_product"]',node).checked=false;result.innerHTML='';one('[data-si-product-notice]',node).textContent='Linked to '+product.product_name+' Â· '+(product.woo_sku||product.short_code)+'. A new purchase source will be retained in history.';dirty=true;preview();};
-   one('[data-existing]',node).onclick=async()=>{try{const data=await request('history',undefined,'product_id='+product.id);const latest=data.rows[0];one('[data-si-product-notice]',node).append(document.createTextNode(latest?' Latest source: '+date(latest.cost_date)+' Â· '+cash(latest.landed_cost_per_base)+' / '+latest.base_unit:' No approved cost yet.'));}catch(e){error(e.message);}};
-   one('[data-abort]',node).onclick=()=>{result.innerHTML='';one('[data-si-product-notice]',node).textContent='';};
-  };result.appendChild(button);});}catch(e){error(e.message);}},250));
+  const version=++searchVersion;clearTimeout(searchTimers.get(node));newProduct.hidden=true;input('confirm_new_product').checked=false;result.replaceChildren();
+  const term=search.value.trim();if(!term)return;
+  result.textContent='Searching Cost Workbook and synced WooCommerce catalogue…';
+  searchTimers.set(node,setTimeout(async()=>{try{
+   const data=await request('products',undefined,'q='+encodeURIComponent(term));if(version!==searchVersion||!node.isConnected)return;
+   result.replaceChildren();
+   (data.rows||[]).forEach(product=>{
+    const card=document.createElement('div');card.className='si-match-result';
+    const label=document.createElement('small');label.textContent=product.source==='woocommerce'?'WooCommerce catalogue · Parent product':'Cost Workbook · Canonical product';
+    const name=document.createElement('strong');name.textContent=product.product_name;
+    const info=document.createElement('span');info.textContent=[product.woo_sku?'Website SKU: '+product.woo_sku:'',product.short_code?'Internal code: '+product.short_code:'',product.product_category||'',product.id?'Cost Workbook #'+product.id:'',product.woo_product_id?'Website #'+product.woo_product_id:''].filter(Boolean).join(' · ');
+    const button=document.createElement('button');button.type='button';button.className='si-btn';button.textContent=product.source==='woocommerce'?'Link WooCommerce Product':'Use Existing Product';
+    button.disabled=form.dataset.approved==='true'||(product.canonical_ids||[]).length>1;
+    button.onclick=()=>{
+     // Link a website identity to an explicitly selected, unlinked canonical record, if any.
+     const retainCanonical=product.source==='woocommerce'&&!product.id&&input('cost_product_id').value&&!input('woo_product_id').value;
+     if(!retainCanonical)input('cost_product_id').value=product.id||'';
+     input('woo_product_id').value=product.woo_product_id||'';input('woo_variation_id').value=product.woo_variation_id||'';
+     input('confirm_new_product').checked=false;newProduct.hidden=true;result.replaceChildren();showMatch();
+     notice.append(document.createTextNode(' · '+product.product_name));dirty=true;preview();
+    };
+    card.append(label,name,info,button);result.append(card);
+   });
+   if(!(data.rows||[]).length){result.textContent='No matching records found. Confirm the purchased product name before creating a new identity.';newProduct.hidden=form.dataset.approved==='true'||!!input('cost_product_id').value||!!input('woo_product_id').value||term.toLowerCase()!==input('product_description').value.trim().toLowerCase();}
+   if(!data.snapshot_id){const note=document.createElement('small');note.textContent='No successful website catalogue sync is available. Canonical ingredients can still be matched without a website link.';result.append(note);}
+  }catch(e){if(version===searchVersion){result.textContent='Product search failed: '+e.message+' Please search again to retry.';newProduct.hidden=true;}}},250));
  });
+ input('product_description').addEventListener('input',()=>{newProduct.hidden=true;input('confirm_new_product').checked=false;});
+ input('confirm_new_product').addEventListener('change',()=>{notice.textContent=input('confirm_new_product').checked?'New product confirmed · Website Match Optional · Awaiting Cost Approval':'Needs Matching';});
+ if(form.dataset.approved==='true'){notice.append(document.createTextNode(' Matching is protected after approval; changing identity requires an audited correction.'));search.disabled=true;}
+ search.value=value.product_description||'';
  one('[data-si-lines]').appendChild(node);preview();
 }
-function defaults(){form.reset();form.elements.id.value='';form.elements.updated_at.value='';form.elements.request_id.value=crypto.randomUUID();form.elements.invoice_date.value=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());form.elements.transport_date.value=form.elements.invoice_date.value;form.elements.currency.value='NAD';form.elements.exchange_rate.value='1';form.elements.invoice_type.value='Mixed';one('[data-si-lines]').innerHTML='';one('[data-si-original]').hidden=true;one('[data-si-shipping-enabled]').checked=false;one('[data-si-shipping-fields]').hidden=true;one('[data-si-shared-confirm]').hidden=true;form.elements.transport_link_existing.value='';transportLinks=[];setBusy(false);}
+function defaults(){form.reset();form.dataset.approved='false';form.elements.id.value='';form.elements.updated_at.value='';form.elements.request_id.value=crypto.randomUUID();form.elements.invoice_date.value=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());form.elements.transport_date.value=form.elements.invoice_date.value;form.elements.currency.value='NAD';form.elements.exchange_rate.value='1';form.elements.invoice_type.value='Mixed';one('[data-si-lines]').innerHTML='';one('[data-si-original]').hidden=true;one('[data-si-shipping-enabled]').checked=false;one('[data-si-shipping-fields]').hidden=true;one('[data-si-shared-confirm]').hidden=true;form.elements.transport_link_existing.value='';transportLinks=[];setBusy(false);}
 document.querySelector('[data-si-open-manual]').onclick=()=>{defaults();addLine();open('purchase','Add Supplier Cost');};
 document.querySelector('[data-si-open-upload]').onclick=()=>{open('upload','Upload Supplier Invoice');};
 async function edit(id){
  if(!id){toast('Use Landed Product Costs to edit this legacy manual source.');return;}
- try{const data=await request('invoice',undefined,'id='+id);defaults();const invoice=data.invoice;Object.keys(invoice).forEach(k=>{const el=form.elements.namedItem(k);if(el){if(el.type==='checkbox')el.checked=!!Number(invoice[k]);else el.value=invoice[k]??'';}});data.lines.forEach(line=>addLine({...line,allow_remove:invoice.approval_status==='draft'}));one('[data-si-original]').hidden=!invoice.stored_file;one('[data-si-original]').href=data.original_url;open('purchase','Review Supplier Purchase');error(invoice.extraction_message||'');}catch(e){toast(e.message);}
+ try{const data=await request('invoice',undefined,'id='+id);defaults();const invoice=data.invoice;form.dataset.approved=String(invoice.approval_status==='approved');Object.keys(invoice).forEach(k=>{const el=form.elements.namedItem(k);if(el){if(el.type==='checkbox')el.checked=!!Number(invoice[k]);else el.value=invoice[k]??'';}});data.lines.forEach(line=>addLine({...line,allow_remove:invoice.approval_status==='draft'}));one('[data-si-original]').hidden=!invoice.stored_file;one('[data-si-original]').href=data.original_url;open('purchase','Review Supplier Purchase');error(invoice.extraction_message||'');}catch(e){toast(e.message);}
 }
 one('[data-si-add-line]').onclick=()=>{addLine();dirty=true;};
 form.addEventListener('input',()=>{dirty=true;preview();});
@@ -144,7 +171,7 @@ form.addEventListener('submit',async event=>{
  setBusy(true);error('');try{const data=await request('save',body);setBusy(false);dirty=false;close(true);toast(data.message);await load();}catch(e){error(e.message);}finally{setBusy(false);}
 });
 async function history(id){
- try{const data=await request('history',undefined,'product_id='+id);one('[data-si-history-panel]').innerHTML='<div class="si-allocation-table-wrap"><table class="si-allocation-table"><thead><tr><th>Effective</th><th>Source</th><th>Supplier / Base</th><th>Shipping / Base</th><th>Landed / Base</th><th>Recorded By</th></tr></thead><tbody>'+data.rows.map(r=>'<tr><td>'+date(r.cost_date)+'</td><td>'+escape(r.supplier_name)+' Â· '+escape(r.invoice_number||r.manual_reference)+'</td><td>'+cash(r.supplier_cost_per_base)+'</td><td>'+cash(r.transport_cost_per_base)+'</td><td>'+cash(r.landed_cost_per_base)+' / '+escape(r.base_unit)+'</td><td>'+escape(r.created_by_name)+' Â· '+escape(r.created_at)+'</td></tr>').join('')+'</tbody></table></div><h3>Audit History</h3>'+data.audit.map(a=>'<p>'+escape(a.occurred_at)+' Â· '+escape(a.actor_name)+' Â· '+escape(a.action_key)+'</p>').join('');open('history','Product Cost History');}catch(e){toast(e.message);}
+ try{const data=await request('history',undefined,'product_id='+id);one('[data-si-history-panel]').innerHTML='<div class="si-allocation-table-wrap"><table class="si-allocation-table"><thead><tr><th>Effective</th><th>Received</th><th>Source</th><th>Supplier / Base</th><th>Shipping / Base</th><th>Landed / Base</th><th>Recorded By</th></tr></thead><tbody>'+data.rows.map(r=>'<tr><td>'+date(r.cost_date)+'</td><td>'+date(r.date_received)+'</td><td>'+escape(r.supplier_name)+' Â· '+escape(r.invoice_number||r.manual_reference)+'</td><td>'+cash(r.supplier_cost_per_base)+'</td><td>'+cash(r.transport_cost_per_base)+'</td><td>'+cash(r.landed_cost_per_base)+' / '+escape(r.base_unit)+'</td><td>'+escape(r.created_by_name)+' Â· '+escape(r.created_at)+'</td></tr>').join('')+'</tbody></table></div><h3>Audit History</h3>'+data.audit.map(a=>'<p>'+escape(a.occurred_at)+' Â· '+escape(a.actor_name)+' Â· '+escape(a.action_key)+'</p>').join('');open('history','Product Cost History');}catch(e){toast(e.message);}
 }
 one('[data-si-pending]').onclick=async()=>{try{const data=await request('pending');const panel=one('[data-si-history-panel]');panel.innerHTML='';data.rows.forEach(r=>{const b=document.createElement('button');b.className='si-result';b.type='button';b.textContent=(r.supplier_name||'Supplier to confirm')+' Â· '+(r.invoice_number||'Reference to confirm')+' Â· '+date(r.invoice_date||r.uploaded_at);b.onclick=()=>edit(r.id);panel.appendChild(b);});if(!data.rows.length)panel.textContent='No purchases awaiting review.';open('history','Purchases to Review');}catch(e){toast(e.message);}};
 let activeCell=null,openingCell=false;
