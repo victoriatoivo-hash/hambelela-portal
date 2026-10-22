@@ -2,18 +2,23 @@
 declare(strict_types=1);
 
 function cw_render_overview(array $period): void { ?>
-<section class="accounts-app-section" aria-labelledby="costing-tools-title"><header><div><p class="eyebrow">Applications</p><h2 id="costing-tools-title">Costing Tools</h2></div></header><div class="accounts-app-grid">
-<a class="accounts-app-card accounting-app-card accounting-app-card--size-conversions" href="<?= cw_page_url('size-conversions.php',$period) ?>"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="ruler"></i></span><div class="accounting-app-card__content"><div class="accounting-app-card__status"><small class="accounts-app-status is-available">Available</small><span class="accounts-owner-label"><i data-lucide="shield-lock" aria-hidden="true"></i>Owner only</span><span class="accounting-app-visual" aria-hidden="true"><i></i><i></i><i></i></span></div><h3>Size Conversions</h3><p>Manage the standard liquid and weight sizes used in product costing calculations.</p><strong>Open Size Conversions <span aria-hidden="true">&rarr;</span></strong></div></a>
+<section class="cw4-landing" aria-labelledby="costing-tools-title"><header class="cw4-section-header"><div><h2 class="cw4-section-heading" id="costing-tools-title">Costing Tools</h2><p class="cw4-section-description">Use the tools below to manage your product costs, packaging and pricing.</p></div></header><div class="cw4-app-grid">
 <?php $cards=[
-['supplier-invoices.php','receipt-text','Supplier Invoices','Upload supplier invoices, extract purchased items and review product costs by supplier and date.'],
-['transport-costs.php','truck','Transport Costs','Upload or record transport charges, link them to supplier invoices and allocate delivery costs by weight.'],
-['packaging-costs.php','package-open','Packaging Costs','Record packaging materials, calculate unit costs and assign containers and labels to product sizes.'],
-['landed-product-costs.php','calculator','Landed Product Costs','Combine supplier and transport costs to calculate each product’s landed cost by kilogram, litre or individual unit.'],
-['product-pricing.php','badge-dollar-sign','Product Pricing','Load sellable sizes and website variations, set the VAT-inclusive selling price and calculate cost, profit, markup and margin.'],
-['profitability-report.php','chart-no-axes-combined','Profitability Report','Review actual sales revenue, projected inventory profit, average margins and report coverage.'],
-['formulations.php','flask-conical','Formulation Costing','Build formulations, calculate batch and unit costs, and generate recommended selling prices.'],
-['wholesale-pricing.php','boxes','Wholesale Pricing','Calculate wholesale prices, VAT, packaging, profit and margins for bulk product sizes.']
-]; foreach($cards as $card): ?><a class="accounts-app-card accounting-app-card" href="<?= cw_page_url($card[0],$period) ?>"><span class="accounts-app-icon" aria-hidden="true"><i data-lucide="<?= htmlspecialchars($card[1],ENT_QUOTES,'UTF-8') ?>"></i></span><div class="accounting-app-card__content"><div class="accounting-app-card__status"><small class="accounts-app-status is-available">Available</small><span class="accounts-owner-label"><i data-lucide="shield-lock" aria-hidden="true"></i>Owner only</span><span class="accounting-app-visual" aria-hidden="true"><i></i><i></i><i></i></span></div><h3><?= htmlspecialchars($card[2],ENT_QUOTES,'UTF-8') ?></h3><p><?= htmlspecialchars($card[3],ENT_QUOTES,'UTF-8') ?></p><strong>Open <?= htmlspecialchars($card[2],ENT_QUOTES,'UTF-8') ?> <span aria-hidden="true">&rarr;</span></strong></div></a><?php endforeach; ?>
+['size-conversions','ruler','Manage standard weight and liquid product sizes used in costing calculations.'],
+['supplier-invoices','receipt-text','Record supplier purchases, review extracted items and manage approved product costs.'],
+['transport-costs','truck','Record freight charges, link supplier purchases and allocate transport costs.'],
+['packaging-costs','package','Calculate material, container, label and packaging costs by finished-product size.'],
+['landed-product-costs','calculator','Combine supplier prices and allocated freight to establish product landed costs.'],
+['product-pricing','badge-dollar-sign','Manage product sizes, selling prices, VAT, margins and website inventory profitability.'],
+['profitability-report','chart-no-axes-combined','Review sales profitability, margins, cost coverage and projected inventory profit.'],
+['formulations','flask-conical','Build product formulations, calculate batch costs and generate recommended selling prices.'],
+['wholesale-pricing','boxes','Calculate profitable wholesale prices for bulk quantities and product sizes.']
+]; $routes=cw_page_routes(); foreach($cards as $index=>$card): $module=$routes[$card[0]]; $title=$card[0]==='transport-costs'?$module['label']:$module['title']; ?>
+<a class="cw4-app-card" style="--cw4-index:<?= $index ?>" href="<?= htmlspecialchars(cw_page_url($module['route'],$period),ENT_QUOTES,'UTF-8') ?>">
+ <span class="cw4-app-icon" aria-hidden="true"><i data-lucide="<?= $card[1] ?>"></i></span>
+ <div class="cw4-app-content"><h3 class="cw4-app-title"><?= htmlspecialchars($title,ENT_QUOTES,'UTF-8') ?></h3><span class="cw4-app-description"><?= htmlspecialchars($card[2],ENT_QUOTES,'UTF-8') ?></span><span class="cw4-app-action">Open <?= htmlspecialchars($title,ENT_QUOTES,'UTF-8') ?><i data-lucide="arrow-right" aria-hidden="true"></i></span></div>
+ <span class="cw4-card-art" aria-hidden="true"><i data-lucide="<?= $card[1] ?>"></i></span>
+</a><?php endforeach; ?>
 </div></section>
 <?php }
 

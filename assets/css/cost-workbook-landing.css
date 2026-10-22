@@ -1,10 +1,49 @@
-/* Cost Workbook Phase 1. Accounts supplies the shared application-card system. */
-.cost-workbook-app{--cw-burgundy:#721b1a;--cw-orange:#f07420;--cw-text:#6b4c3b;--cw-muted:#8c7467;--cw-border:#e8d8cf;--cw-border-soft:#f0e5df;--cw-surface:#fff;--cw-surface-soft:#fff9f5;width:100%;min-width:0;color:var(--cw-text);font-family:Figtree,system-ui,sans-serif}
-.cost-workbook-app *,.cost-workbook-app *::before,.cost-workbook-app *::after{box-sizing:border-box}
-.cost-workbook-app .cw-workspace-header{margin:0 0 18px}.cost-workbook-app .cw-workspace-header .eyebrow{margin:0 0 4px;color:var(--cw-text);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}.cost-workbook-app .cw-workspace-header h1{margin:0;color:var(--cw-burgundy);font-size:clamp(24px,2vw,29px);font-weight:700;line-height:1.12}.cost-workbook-app .cw-workspace-header>div>p:last-child{max-width:760px;margin:4px 0 0;color:var(--cw-text);font-size:13px;line-height:1.5}
-.cost-workbook-app .accounts-app-section>header .eyebrow{margin:0 0 6px;color:#dc7483;font-size:12px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
-.cost-workbook-app .accounting-app-card--size-conversions{--app-accent:#f07420;--app-accent-soft:rgba(240,116,32,.1)}
-.cost-workbook-app .accounting-app-card--planned{pointer-events:none}
+/* Preserve existing internal application styling. Overview has its own components. */
+.cost-workbook-app:not([data-page="overview"]){--cw-burgundy:#721b1a;--cw-orange:#f07420;--cw-text:#6b4c3b;--cw-muted:#8c7467;--cw-border:#e8d8cf;--cw-border-soft:#f0e5df;--cw-surface:#fff;--cw-surface-soft:#fff9f5;width:100%;min-width:0;color:var(--cw-text);font-family:Figtree,system-ui,sans-serif}
+.cost-workbook-app:not([data-page="overview"]) *,.cost-workbook-app:not([data-page="overview"]) *::before,.cost-workbook-app:not([data-page="overview"]) *::after{box-sizing:border-box}
+.cost-workbook-app:not([data-page="overview"]) .cw-workspace-header{margin:0 0 18px}.cost-workbook-app:not([data-page="overview"]) .cw-workspace-header .eyebrow{margin:0 0 4px;color:var(--cw-text);font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase}.cost-workbook-app:not([data-page="overview"]) .cw-workspace-header h1{margin:0;color:var(--cw-burgundy);font-size:clamp(24px,2vw,29px);font-weight:700;line-height:1.12}.cost-workbook-app:not([data-page="overview"]) .cw-workspace-header>div>p:last-child{max-width:760px;margin:4px 0 0;color:var(--cw-text);font-size:13px;line-height:1.5}
+
+/* Cost Workbook directory: canonical olive / cream / Jost components. */
+#costWorkbook[data-page="overview"]{--cw4-primary:#344126;--cw4-deep:#26311F;--cw4-olive:#59694A;--cw4-soft:#F2F4EC;--cw4-selected:#E7EBDD;--cw4-cream:#F8F7F2;--cw4-text:#1C2118;--cw4-secondary:#62675E;--cw4-muted:#91968C;--cw4-border:#E4E6DC;width:100%;min-width:0;background:var(--cw4-cream);color:var(--cw4-text);font:400 12px/1.5 "Jost",sans-serif}
+#costWorkbook[data-page="overview"] *,#costWorkbook[data-page="overview"] *::before,#costWorkbook[data-page="overview"] *::after{box-sizing:border-box}
+#costWorkbook[data-page="overview"] .cw4-landing{width:100%;max-width:1560px;min-width:0;margin:0 auto}
+#costWorkbook[data-page="overview"] .cw4-hero{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(190px,.36fr);align-items:center;gap:28px;max-width:1560px;min-height:154px;margin:0 auto 22px;padding:20px 23px;border:1px solid var(--cw4-border);border-radius:14px;background:#FFFFFF;overflow:hidden;animation:cw4FadeUp .26s ease-out}
+#costWorkbook[data-page="overview"] .cw4-hero-content{position:relative;z-index:1;min-width:0}
+#costWorkbook[data-page="overview"] .cw4-eyebrow{display:block;margin:0 0 7px;color:var(--cw4-olive);font:600 10px/1.3 "Jost",sans-serif;letter-spacing:.095em;text-transform:uppercase}
+#costWorkbook[data-page="overview"] .cw4-hero-title{margin:0;color:var(--cw4-text);font:600 28px/1.18 "Jost",sans-serif;letter-spacing:-.025em}
+#costWorkbook[data-page="overview"] .cw4-hero-description{max-width:740px;margin:9px 0 0;color:var(--cw4-secondary);font:400 12px/1.55 "Jost",sans-serif}
+#costWorkbook[data-page="overview"] .cw4-hero-art{position:relative;isolation:isolate;min-height:110px;display:flex;align-items:center;justify-content:center;padding:12px;border-radius:12px;background:#F5F7F1;overflow:hidden}
+#costWorkbook[data-page="overview"] .cw4-hero-art::before,#costWorkbook[data-page="overview"] .cw4-hero-art::after{content:"";position:absolute;width:190px;height:190px;right:-70px;top:-94px;border:1px solid #D3DAC6;border-radius:50%;opacity:.65;pointer-events:none}
+#costWorkbook[data-page="overview"] .cw4-hero-art::after{width:135px;height:135px;left:-45px;bottom:-80px;top:auto;right:auto;opacity:.55}
+#costWorkbook[data-page="overview"] .cw4-hero-art>svg{width:55px;height:85px;flex:0 0 55px;color:#99A58A;opacity:.62}
+#costWorkbook[data-page="overview"] .cw4-hero-note{position:relative;z-index:1;max-width:200px;margin:0 0 0 14px;color:var(--cw4-primary);font:400 11.5px/1.5 "Jost",sans-serif}
+#costWorkbook[data-page="overview"] .cw4-section-header{display:flex;align-items:end;justify-content:space-between;gap:14px;margin:0 0 14px;padding:0 2px}
+#costWorkbook[data-page="overview"] .cw4-section-heading{margin:0;color:var(--cw4-text);font:600 16px/1.3 "Jost",sans-serif}
+#costWorkbook[data-page="overview"] .cw4-section-description{margin:4px 0 0;color:var(--cw4-secondary);font:400 11.5px/1.5 "Jost",sans-serif}
+#costWorkbook[data-page="overview"] .cw4-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:stretch;gap:14px}
+#costWorkbook[data-page="overview"] .cw4-app-card{position:relative;isolation:isolate;display:grid;grid-template-columns:44px minmax(0,1fr);gap:14px;min-width:0;min-height:148px;padding:18px;border:1px solid var(--cw4-border);border-radius:12px;background:#FFFFFF;color:var(--cw4-text);text-decoration:none;box-shadow:0 4px 18px rgba(38,49,31,.045);overflow:hidden;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease;animation:cw4CardEnter .22s ease-out backwards;animation-delay:calc(var(--cw4-index,0) * 20ms)}
+#costWorkbook[data-page="overview"] .cw4-app-card::after{content:"";position:absolute;right:-53px;bottom:-67px;width:150px;height:150px;border-radius:50%;border:1px solid #E7EBDD;background:#F2F4EC77;pointer-events:none;z-index:-1}
+#costWorkbook[data-page="overview"] .cw4-app-card:hover{transform:translateY(-2px);border-color:#C7D0BD;box-shadow:0 10px 25px rgba(38,49,31,.085)}
+#costWorkbook[data-page="overview"] .cw4-app-card:focus-visible{outline:2px solid var(--cw4-olive);outline-offset:3px}
+#costWorkbook[data-page="overview"] .cw4-app-icon{width:44px;height:44px;display:grid;place-items:center;border-radius:11px;background:var(--cw4-soft);color:var(--cw4-primary);transition:background-color .16s,color .16s}
+#costWorkbook[data-page="overview"] .cw4-app-icon svg{width:20px;height:20px;stroke-width:1.8}
+#costWorkbook[data-page="overview"] .cw4-app-card:hover .cw4-app-icon{background:var(--cw4-selected);color:var(--cw4-deep)}
+#costWorkbook[data-page="overview"] .cw4-app-content{min-width:0;position:relative;z-index:1;display:flex;flex-direction:column;align-items:flex-start}
+#costWorkbook[data-page="overview"] .cw4-app-title{margin:1px 0 0;color:var(--cw4-text);font:600 14px/1.3 "Jost",sans-serif}
+#costWorkbook[data-page="overview"] .cw4-app-description{max-width:460px;margin:7px 0 11px;color:var(--cw4-secondary);font:400 11.5px/1.48 "Jost",sans-serif;overflow-wrap:anywhere}
+#costWorkbook[data-page="overview"] .cw4-app-action{display:inline-flex;align-items:center;gap:7px;margin-top:auto;min-height:30px;color:var(--cw4-primary);font:500 11px/1.3 "Jost",sans-serif}
+#costWorkbook[data-page="overview"] .cw4-app-action svg{width:15px;height:15px;stroke-width:1.8;transition:transform .18s ease}
+#costWorkbook[data-page="overview"] .cw4-app-card:hover .cw4-app-action svg{transform:translateX(3px)}
+#costWorkbook[data-page="overview"] .cw4-card-art{position:absolute;right:20px;bottom:12px;color:var(--cw4-olive);opacity:.09;pointer-events:none}
+#costWorkbook[data-page="overview"] .cw4-card-art svg{width:54px;height:54px;stroke-width:1.2}
+#costWorkbook[data-page="overview"] .cw4-app-card:nth-child(4n+2) .cw4-app-icon{background:#F5F3E9}
+#costWorkbook[data-page="overview"] .cw4-app-card:nth-child(4n+3) .cw4-app-icon{background:#EEF2E7}
+@keyframes cw4FadeUp{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes cw4CardEnter{from{opacity:0;translate:0 6px}to{opacity:1;translate:0 0}}
+@media(max-width:1050px){#costWorkbook[data-page="overview"] .cw4-hero{grid-template-columns:minmax(0,1fr) minmax(160px,.3fr);gap:18px}#costWorkbook[data-page="overview"] .cw4-app-card{grid-template-columns:40px minmax(0,1fr);padding:15px;gap:11px}#costWorkbook[data-page="overview"] .cw4-app-icon{width:40px;height:40px}}
+@media(max-width:900px){#costWorkbook[data-page="overview"] .cw4-app-grid{grid-template-columns:1fr}#costWorkbook[data-page="overview"] .cw4-hero-art{display:none}#costWorkbook[data-page="overview"] .cw4-hero{grid-template-columns:1fr;min-height:auto}}
+@media(max-width:767px){#costWorkbook[data-page="overview"]{padding-inline:14px}#costWorkbook[data-page="overview"] .cw4-hero{margin-bottom:18px;padding:17px 15px}#costWorkbook[data-page="overview"] .cw4-hero-title{font-size:23px}#costWorkbook[data-page="overview"] .cw4-app-grid{gap:10px}#costWorkbook[data-page="overview"] .cw4-app-card{min-height:124px;grid-template-columns:38px minmax(0,1fr);gap:11px;padding:14px}#costWorkbook[data-page="overview"] .cw4-app-icon{width:38px;height:38px;border-radius:9px}#costWorkbook[data-page="overview"] .cw4-app-icon svg{width:18px;height:18px}#costWorkbook[data-page="overview"] .cw4-app-title{font-size:13px}#costWorkbook[data-page="overview"] .cw4-app-description{margin:5px 0 8px;font-size:11px}#costWorkbook[data-page="overview"] .cw4-app-action{font-size:10.5px}}
+@media(prefers-reduced-motion:reduce){#costWorkbook[data-page="overview"] :is(.cw4-app-card,.cw4-hero,.cw4-app-action svg,.cw4-app-icon){animation:none!important;transition:none!important;transform:none!important;translate:none!important}}
 
 /* Preserve the existing compact header on other Cost Workbook pages. */
 @media(max-width:640px){.cost-workbook-app .cw-workspace-header h1{font-size:24px}}
