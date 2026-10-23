@@ -6,6 +6,8 @@ BASELINE = '7cffccbd'
 NEW_FILES = []
 FILES = ['shared/cost-workbook-pricing-master.php','shared/cost-workbook-retail-pricing.php','assets/js/retail-pricing.js','assets/css/cost-workbook-retail-pricing.css']
 DEPENDENCIES = ['apps/cost-manager/retail-pricing-api.php','shared/cost-workbook.php']
+# Verified against the live hash in preflight 39923008905; never upload this dependency.
+DEPENDENCY_BASELINES = {'shared/cost-workbook.php':'5606141c7e8550452922eac347141a84dfa39cb0'}
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):
@@ -28,7 +30,7 @@ try:
     desired = {p:git('show', sha+':'+p) for p in FILES}
     conflicts = []
     for p,data in before.items():
-        baseline = None if p in NEW_FILES else git('show', BASELINE+':'+p)
+        baseline = None if p in NEW_FILES else git('show', DEPENDENCY_BASELINES.get(p, BASELINE)+':'+p)
         approved = desired.get(p, baseline)
         # Git checkout line-ending differences do not change PHP/JS/CSS semantics.
         norm = lambda value:None if value is None else value.replace(b'\r\n',b'\n')

@@ -19,6 +19,11 @@ $b['website_key']='100:2';$unknown=$s;$unknown['website'][1]['manage_stock']=0;c
 $unconfirmed=$b;$unconfirmed['vat_treatment']='';check(rpm_preview($s,$settings,$unconfirmed)['projected_profit']===null,'Unconfirmed VAT not used for projected profit');
 $missing=$s;$missing['products'][0]['landed_status']='review';check(rpm_preview($missing,$settings,$b)['total_cost_ex_vat']===null,'Missing source not zero');
 echo "Pricing three-size calculations, VAT, margins, stock and incomplete sources PASS\n";
+$manual=['product_id'=>1,'size_conversion_id'=>1,'website_key'=>'','selling_price_inc_vat'=>115,'vat_treatment'=>'standard','packaging_mode'=>'manual','packaging_manual_cost'=>'2.50','packaging_confirmed'=>false];
+$r=rpm_preview($s,$settings,$manual);near($r['total_cost_ex_vat'],27.5,'Manual packaging added once');check($r['status']==='Packaging Estimate','Unconfirmed cost remains an estimate');check($r['website_status']==='Not Linked'&&$r['stock_cost']===null,'Unlinked is not a pricing error or zero stock');
+$manual['packaging_confirmed']=true;$r=rpm_preview($s,$settings,$manual);check($r['status']==='Pricing Complete','Unlinked price can be complete');$manual['packaging_manual_cost']=2.5;check(rpm_preview($s,$settings,$manual)['source_token']===$r['source_token'],'Numeric packaging token survives JSON round trip');
+$manual['packaging_mode']='none';$manual['packaging_confirmed']=false;check(rpm_preview($s,$settings,$manual)['total_cost_ex_vat']===null,'Unconfirmed no packaging is unknown');$manual['packaging_confirmed']=true;near(rpm_preview($s,$settings,$manual)['total_cost_ex_vat'],25,'Explicit not applicable packaging is zero');
+echo "Independent packaging choices, optional website link and status separation PASS\n";
 if(!getenv('CW_TEST_DSN'))exit;
 $pdo=new PDO(getenv('CW_TEST_DSN'),getenv('CW_TEST_USER')?:'root','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);check($pdo->query('SELECT DATABASE()')->fetchColumn()==='cw_supplier_test','Disposable database required');cw_install_schema($pdo);
 function ins(PDO $pdo,string $table,array $data):int{$pdo->prepare('INSERT INTO '.$table.'('.implode(',',array_keys($data)).') VALUES('.implode(',',array_fill(0,count($data),'?')).')')->execute(array_values($data));return(int)$pdo->lastInsertId();}
@@ -50,4 +55,20 @@ check($pdo->query('SELECT short_code FROM cw_cost_products WHERE id='.$pid)->fet
 [$body,$saved]=$records[1];$body['request_id']=bin2hex(random_bytes(16));try{rpm_save($pdo,$body,$settings);throw new RuntimeException('Duplicate row accepted');}catch(DomainException $expected){}
 $rows=rpm_rows($pdo,rpm_sources($pdo),$settings);check(count(array_filter($rows,fn($r)=>(int)$r['product_id']===$pid))===3,'No duplicate discovery rows');
 echo "Pricing database saves, safe new sizes, source validation, duplicate protection, concurrency, immutable history and canonical identity PASS\n";
+
+// Disposable acceptance fixture only: these are not authorised live selling prices.
+$lemon=ins($pdo,'cw_cost_products',['product_name'=>'Lemon Balm fixture','normalized_name'=>'lemonbalmfixture','short_code'=>'LB001','product_category'=>'Dried Herbs','costing_basis'=>'weight','base_unit'=>'kg']);
+$src=ins($pdo,'cw_cost_product_sources',['product_id'=>$lemon,'source_type'=>'manual','cost_date'=>'2026-10-01','total_purchased_quantity'=>1,'total_supplier_cost'=>400]);
+ins($pdo,'cw_landed_product_costs',['product_id'=>$lemon,'product_source_id'=>$src,'costing_basis'=>'weight','base_unit'=>'kg','base_quantity'=>1,'supplier_cost_used'=>400,'transport_cost_used'=>22.4,'supplier_cost_per_base'=>400,'transport_cost_per_base'=>22.4,'landed_cost_per_base'=>422.4,'cost_date'=>'2026-10-01','status_key'=>'complete','calculation_hash'=>hash('sha256','lemon pricing fixture')]);
+$lemonSaved=[];
+foreach([50,100,250] as $grams){$pdo->prepare("INSERT IGNORE INTO cw_size_conversions(label,measurement_type,quantity,unit,base_value,base_unit) VALUES(?,'weight',?,'g',?,'kg')")->execute([$grams.'g',$grams,$grams/1000]);$q=$pdo->prepare("SELECT id FROM cw_size_conversions WHERE measurement_type='weight' AND base_value=? LIMIT 1");$q->execute([$grams/1000]);$sid=(int)$q->fetchColumn();
+ $b=['product_id'=>$lemon,'size_conversion_id'=>$sid,'website_key'=>'','selling_price_inc_vat'=>$grams*2,'vat_treatment'=>'standard','packaging_mode'=>'manual','packaging_manual_cost'=>3,'packaging_confirmed'=>true,'effective_date'=>'2026-10-21','request_id'=>bin2hex(random_bytes(16))];$p=rpm_preview(rpm_sources($pdo),$settings,$b);$b['source_token']=$p['source_token'];$saved=rpm_save($pdo,$b,$settings);$lemonSaved[$grams]=[$b,$saved];
+ near($p['product_cost_per_unit'],422.4*$grams/1000,'Actual size conversion');
+}
+$lemonRows=array_values(array_filter(rpm_rows($pdo,rpm_sources($pdo),$settings),fn($r)=>$r['product_id']===$lemon));check(count($lemonRows)===3,'Three unlinked sizes persist');foreach($lemonRows as $r){check($r['status']==='Pricing Complete'&&$r['website_status']==='Not Linked','Unlinked rows complete after reload');near($r['packaging_cost_ex_vat'],3,'Manual packaging survives reload');check($r['website_stock_quantity']===null,'Unlinked stock stays unknown');}
+$sum=rpm_summary($lemonRows);check($sum['rows']===3&&$sum['priced']===3&&$sum['attention']===0&&$sum['coverage']['inventory_cost']===0,'Unlinked saved widgets');
+ins($pdo,'cw_product_snapshots',['product_id'=>98765,'variation_id'=>50,'product_name'=>'Lemon Balm','variation_name'=>'50g','product_type'=>'variation','sync_batch_id'=>$batch,'stock_quantity'=>12,'manage_stock'=>1,'active_price_inc_vat'=>110]);
+[$b,$saved]=$lemonSaved[50];$b['id']=$saved['id'];$b['version']=1;$b['website_key']='98765:50';$b['website_confirmed']=true;$b['request_id']=bin2hex(random_bytes(16));$b['source_token']=rpm_preview(rpm_sources($pdo),$settings,$b)['source_token'];rpm_save($pdo,$b,$settings);
+$lemonRows=array_values(array_filter(rpm_rows($pdo,rpm_sources($pdo),$settings),fn($r)=>$r['product_id']===$lemon));$linked=array_values(array_filter($lemonRows,fn($r)=>$r['website_key']!==''));check(count($linked)===1,'Only selected size linked');near($linked[0]['selling_price_inc_vat'],100,'Workbook price retained');near($linked[0]['retail_value'],1320,'Actual website price used for valuation');check($linked[0]['website_price_differs'],'Price difference flagged');
+echo "Lemon Balm fixture: 50g/100g/250g unlinked save, reload, packaging, canonical identity, widgets and optional 50g website link PASS\n";
 

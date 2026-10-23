@@ -16,16 +16,18 @@ w.eval(fs.readFileSync('assets/js/retail-pricing.js','utf8'));
 const one=s=>d.querySelector(s),click=s=>one(s).click(),flush=()=>new Promise(r=>setImmediate(r));
 function fill(s,v,type='input'){one(s).value=v;one(s).dispatchEvent(new w.Event(type,{bubbles:true}));}
 (async()=>{
-await flush();await flush();assert.equal(d.querySelectorAll('[data-rp-rows] tr').length,2);assert.equal(one('[data-row]').children.length,17);
+await flush();await flush();assert.equal(d.querySelectorAll('[data-rp-rows] tr').length,2);assert.equal(one('[data-row]').children.length,19);
 fill('[data-row="id-1"] [data-field="selling_price_inc_vat"]','230');assert.match(one('[data-row="id-1"] [data-value="selling_price_ex_vat"]').textContent,/200.00/);assert.match(one('[data-row="id-1"] [data-value="profit_per_unit"]').textContent,/173.00/);
 fill('[data-row="id-2"] [data-field="selling_price_inc_vat"]','345');assert.equal(calls.filter(c=>c.action==='save').length,0);
 click('[data-row="id-1"] [data-save]');await flush();await flush();assert.equal(calls.filter(c=>c.action==='save').length,1);assert.equal(one('[data-row="id-2"] [data-field="selling_price_inc_vat"]').value,'345');
 click('[data-row="id-2"] [data-cancel]');assert.equal(one('[data-row="id-2"] [data-field="selling_price_inc_vat"]').value,'115');
-fill('[data-row="id-1"] [data-field="size_conversion_id"]','3','change');await flush();await flush();assert.equal(one('[data-row="id-1"] [data-save]').textContent,'Save as New Size');assert.equal(calls.filter(c=>c.action==='save').length,1);
-click('[data-row="id-1"] [data-cancel]');
-fill('[data-row="id-1"] [data-field="size_conversion_id"]','2','change');await flush();await flush();assert.equal(one('[data-rp-drawer]').getAttribute('aria-hidden'),'false');assert.equal(one('[data-rp-form] [name="size_conversion_id"]').value,'2');
+assert.equal(one('[data-row="id-1"] [data-field="size_conversion_id"]'),null,'Saved size identity is not editable');
+click('[data-row="id-1"] [data-add-size]');await flush();assert.equal(one('[data-rp-form] [name="size_conversion_id"]').value,'');assert.equal(one('[data-rp-form] [name="selling_price_inc_vat"]').value,'');assert.equal(one('[data-rp-form] [name="website_key"]').value,'');
+fill('[data-rp-form] [name="size_conversion_id"]','2','change');await flush();await flush();assert.equal(one('[data-rp-drawer]').getAttribute('aria-hidden'),'false');assert.equal(one('[data-rp-form] [name="size_conversion_id"]').value,'2');
 click('[data-rp-drawer] [data-rp-close]');click('[data-rp-add]');fill('[data-rp-product-search]','Shea');click('[data-product="1"]');await flush();await flush();assert.match(one('[data-rp-source-details]').textContent,/USB01/);
-click('[data-rp-close]');click('[data-rp-discard-confirm]');
+assert.equal(one('[data-rp-form] [name="size_conversion_id"]').value,'','Product search starts a new size, not existing row');click('[data-rp-close]');click('[data-rp-discard-confirm]');
+click('[data-row="id-2"] [data-packaging]');fill('.pp-cell-popover [name="packaging_mode"]','manual','change');fill('.pp-cell-popover [name="packaging_manual_cost"]','3.25');one('.pp-cell-popover').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await flush();assert.equal(one('.pp-cell-popover'),null);assert.equal(calls.filter(c=>c.action==='preview').at(-1).body.packaging_manual_cost,'3.25');click('[data-row="id-2"] [data-cancel]');
+fill('[data-row="id-1"] [data-field="selling_price_inc_vat"]','240');one('[data-row="id-1"] [data-field="selling_price_inc_vat"]').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',bubbles:true}));await flush();await flush();assert.equal(one('[data-row="id-1"] [data-save-state]').textContent,'Saved');
 fill('[data-row="id-2"] [data-field="selling_price_inc_vat"]','220');fail=true;click('[data-row="id-2"] [data-save]');await flush();assert.match(one('[data-row="id-2"] [data-row-error]').textContent,/Concurrent/);assert.equal(one('[data-row="id-2"] [data-field="selling_price_inc_vat"]').value,'220');
 assert.deepEqual(errors,[]);console.log('Product Pricing UI: drafts, immediate profit, independent saves, cancellation, safe sizes, drawer selection and error retention PASS');w.close();
 })().catch(e=>{console.error(e);process.exit(1)});
