@@ -14,7 +14,7 @@ const drafts=new Map(),fmt=v=>v==null?'—':money(v),pct=v=>v==null?'Not Calcula
 const key=r=>r.id?'id-'+r.id:'new-'+r.product_id+'-'+(r.size_conversion_id??'none');
 const form=$('[data-rp-form]'),drawer=$('[data-rp-drawer]');
 let drawerDraft=null,drawerDirty=false,returnFocus=null,searchTimer;
-const localDate=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const localDate=()=>{const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(p=>[p.type,p.value]));return p.year+'-'+p.month+'-'+p.day};
 function sizesFor(pid){const p=data.products.find(p=>num(p.id)===num(pid));if(!p)return[];const sizes=data.sizes.filter(s=>s.measurement_type===p.costing_basis||(p.costing_basis==='ready_made'&&s.measurement_type==='count'));if(['count','ready_made'].includes(p.costing_basis)&&!sizes.some(s=>num(s.id)===0))sizes.unshift({id:0,label:'1 unit'});return sizes}
 const options=(rows,value,label)=>rows.map(r=>'<option value="'+esc(value(r))+'">'+esc(label(r))+'</option>').join('');
 const attributeLabel=value=>{try{const a=JSON.parse(value||'[]');return Array.isArray(a)?a.map(v=>[v.name,v.option].filter(Boolean).join(': ')).join(', '):''}catch{return String(value||'')}};
@@ -150,6 +150,8 @@ function drawerControls(){
  form.elements.packaging_setup_id.innerHTML='<option value="0">Automatic matching setup</option>'+options(data.setups.filter(s=>{const p=data.products.find(p=>num(p.id)===num(b.product_id));return String(s.size_conversion_id)===String(b.size_conversion_id)&&(s.scope_type==='default'||s.scope_type==='category'&&String(s.scope_label||'').trim().toLowerCase()===String(p?.product_category||'').trim().toLowerCase()||s.scope_type==='product'&&([String(b.product_id),String(p?.woo_product_id)].includes(String(s.scope_reference))||String(s.scope_label||'').trim().toLowerCase()===String(p?.product_name||'').trim().toLowerCase()))}),s=>s.id,s=>s.setup_name+' · '+fmt(s.cost_ex_vat));
  form.elements.website_key.innerHTML=websiteOptions();
  for(const [n,v]of Object.entries(b)){const el=form.elements[n];if(el){if(el.type==='checkbox')el.checked=!!v;else el.value=v??''}}
+ // The shared picker renders a separate label; synchronize it without triggering another preview.
+ form.elements.effective_date.dispatchEvent(new Event('change'));
  form.elements.size_conversion_id.disabled=!!b.id;
  $('[data-pack-setup]',form).hidden=b.packaging_mode!=='setup';$('[data-pack-manual]',form).hidden=b.packaging_mode!=='manual';$('[data-pack-confirm]',form).hidden=b.packaging_mode==='setup';
  $('[data-pack-confirm] span',form).textContent=b.packaging_mode==='none'?'I confirm no packaging is needed for this size':'Owner confirms this cost (otherwise an estimate)';
