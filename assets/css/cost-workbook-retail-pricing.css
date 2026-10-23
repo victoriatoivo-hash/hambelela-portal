@@ -986,8 +986,8 @@ tr.is-saved td {
 .pp-cell-popover *{box-sizing:border-box;font-family:"Jost",sans-serif}
 .pp-cell-popover header,.pp-cell-popover footer{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .pp-cell-popover label{display:grid;gap:5px;margin-top:12px;font-size:11px}
-.pp-cell-popover input:not([type=checkbox]),.pp-cell-popover select,.pp-cell-popover button{min-height:38px;border:1px solid #E4E6DC;border-radius:8px;background:#FFFFFF;color:#344126;padding:0 10px;font-size:12px;max-width:100%}
-.pp-cell-popover input:not([type=checkbox]),.pp-cell-popover select{width:100%}
+.pp-cell-popover input:not([type=checkbox]),.pp-cell-popover select:not(.portal-custom-select-native),.pp-cell-popover button{min-height:38px;border:1px solid #E4E6DC;border-radius:8px;background:#FFFFFF;color:#344126;padding:0 10px;font-size:12px;max-width:100%}
+.pp-cell-popover input:not([type=checkbox]),.pp-cell-popover select:not(.portal-custom-select-native){width:100%}
 .pp-cell-popover label.rp4-check{display:flex;align-items:flex-start;gap:8px}
 .pp-cell-popover input[type=checkbox]{accent-color:#59694A;margin-top:3px}
 .pp-cell-popover p{font-size:11px;color:#62675E}
