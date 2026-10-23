@@ -113,3 +113,14 @@ $review=rps_save($pdo,$manualRow,$settings);check($review['state']==='draft','In
 check($websiteBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'New workbook paths never write Woo snapshot');
 echo "Unmatched catalogue import, independent website/cost matching, provisional margins, manual autosave and no website writes PASS\n";
 
+// Existing material identity and cost evidence survive financial and sheet-draft reload.
+$materialBefore=$pdo->query('SELECT * FROM cw_packaging_items ORDER BY id')->fetchAll();$materialCostsBefore=$pdo->query('SELECT * FROM cw_packaging_item_costs ORDER BY id')->fetchAll();
+[$materialBody,$materialSaved]=$lemonSaved[250];$materialBody['id']=$materialSaved['id'];$materialBody['version']=1;$materialBody['packaging_mode']='material';$materialBody['packaging_material_id']=$pack;$materialBody['packaging_setup_id']=0;
+$materialBody['source_token']=rpm_preview(rpm_sources($pdo),$settings,$materialBody)['source_token'];
+$materialDraft=['row_key'=>'material-'.bin2hex(random_bytes(8)),'revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>$materialBody];$materialResult=rps_save($pdo,$materialDraft,$settings);check($materialResult['state']==='priced','Saved material selection autosaves a financial version');
+$materialReload=array_values(array_filter(rpm_rows($pdo,rpm_sources($pdo),$settings),fn($r)=>(int)$r['id']===(int)$materialSaved['id']))[0];check($materialReload['packaging_mode']==='material'&&(int)$materialReload['packaging_material_id']===$pack,'Material identity survives financial reload');near($materialReload['packaging_cost_ex_vat'],cw_packaging_cost($pdo,$pack,rpm_today())['landed_ex'],'Actual saved landed unit cost used');
+$materialEntry=array_values(array_filter(rps_list($pdo,rpm_sources($pdo),$settings),fn($r)=>$r['row_key']===$materialDraft['row_key']))[0];check((int)$materialEntry['body']['packaging_material_id']===$pack,'Material identity survives sheet reload');
+$q=$pdo->prepare('SELECT source_json FROM cw_retail_price_versions WHERE retail_price_id=? ORDER BY version_no DESC LIMIT 1');$q->execute([$materialSaved['id']]);$evidence=json_decode($q->fetchColumn(),true);check((int)$evidence['packaging_material']['cost_id']>0,'Saved history contains source material cost identity');
+check($materialBefore===$pdo->query('SELECT * FROM cw_packaging_items ORDER BY id')->fetchAll(),'Selecting material never rewrites packaging records');check($materialCostsBefore===$pdo->query('SELECT * FROM cw_packaging_item_costs ORDER BY id')->fetchAll(),'Selecting material never rewrites packaging source costs');
+echo "Saved packaging materials: landed costs, VAT, stale evidence, autosave, financial history and reload PASS\n";
+

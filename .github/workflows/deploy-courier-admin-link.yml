@@ -62,7 +62,7 @@ jobs:
           php -l shared/cost-workbook-retail-pricing.php
           php -l shared/cost-workbook-page-shell.php
           php -l shared/cost-workbook-sections.php
-          php tests/product-pricing-workflow.php
+          php tests/product-pricing-workflow.php && php tests/product-pricing-sync.php
           node --check assets/js/retail-pricing.js
           node tests/cost-workbook-retail-pricing-static.mjs
           node --check assets/js/supplier-invoices-v2.js

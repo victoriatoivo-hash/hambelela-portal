@@ -64,7 +64,7 @@ try{$pdo=db();cw_install_schema($pdo);$action=(string)($_GET['action']??'bootstr
 
  if(in_array($action,['save','preview','autosave'],true)&&$_SERVER['REQUEST_METHOD']!=='POST')rp_reply(['ok'=>false,'message'=>'Use POST for this action.'],405);
  if(in_array($action,['bootstrap','autosave'],true))rps_install($pdo);
- if($action==='bootstrap'){$sources=rpm_sources($pdo);$rows=rpd_website_rows(rpm_rows($pdo,$sources,$settings),$sources,$settings);$entries=rps_list($pdo,$sources,$settings);rp_reply(['ok'=>true,'rows'=>$rows,'sheet_entries'=>$entries,'summary'=>rpd_summary(rpd_merge($rows,$entries)),'products'=>$sources['products'],'sizes'=>$sources['sizes'],'setups'=>$sources['setups'],'website'=>$sources['website'],'settings'=>$settings,'last_sync'=>$sources['lastSync']]);}
+ if($action==='bootstrap'){$sources=rpm_sources($pdo);$rows=rpd_website_rows(rpm_rows($pdo,$sources,$settings),$sources,$settings);$entries=rps_list($pdo,$sources,$settings);rp_reply(['ok'=>true,'rows'=>$rows,'sheet_entries'=>$entries,'summary'=>rpd_summary(rpd_merge($rows,$entries)),'products'=>$sources['products'],'sizes'=>$sources['sizes'],'setups'=>$sources['setups'],'materials'=>$sources['materials'],'website'=>$sources['website'],'settings'=>$settings,'last_sync'=>$sources['lastSync']]);}
  if($action==='autosave'){cw_require_admin();rp_reply(rps_save($pdo,rp_body(),$settings));}
  if($action==='preview'){rp_reply(['ok'=>true,'row'=>rpm_preview(rpm_sources($pdo),$settings,rp_body())]);}
  if($action==='save'){cw_require_admin();rp_reply(rpm_save($pdo,rp_body(),$settings));}
