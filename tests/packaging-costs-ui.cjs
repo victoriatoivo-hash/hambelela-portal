@@ -11,7 +11,10 @@ w.eval(fs.readFileSync('assets/js/packaging-costs.js','utf8'));
 const one=s=>d.querySelector(s),click=s=>one(s).click(),flush=()=>new Promise(r=>setImmediate(r));
 function fill(s,v){one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubbles:true}));}
 (async()=>{
- await flush();await flush();assert.match(one('[data-pc-item-rows]').textContent,/1.7/);assert.equal(one('[data-pc-item-rows]').parentElement.querySelector('thead tr').children.length,11);
+ item.supplier_sku='SUP-123';item.cost.created_at='2026-10-23 10:00:00';
+ await flush();await flush();assert.match(one('[data-pc-item-rows]').textContent,/1.7/);assert.equal(one('[data-pc-item-rows]').parentElement.querySelector('thead tr').children.length,12);
+ assert.match(one('[data-pc-item-rows]').textContent,/2026-10-23/);
+ fill('[name="q"]','SUP-123');assert.match(one('[data-pc-item-rows]').textContent,/Test Pouch/);fill('[name="q"]','');
  click('[data-cost-more]');fill('[data-pc-filters] [name="status"]','inactive');click('[data-cost-close]');assert.equal(one('[data-pc-filters] [name="status"]').value,'active');
  click('[data-cost-more]');fill('[data-pc-filters] [name="status"]','inactive');click('[data-cost-apply]');await flush();await flush();assert.match(one('[data-pc-item-rows]').textContent,/No matching/);
  click('[data-cost-clear]');await new Promise(r=>setTimeout(r,10));await flush();assert.match(one('[data-pc-item-rows]').textContent,/Test Pouch/);
@@ -32,7 +35,7 @@ function fill(s,v){one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  click('[data-edit="item:1"]');assert.equal(one('[data-pc-item-form] [name="id"]').value,'1');assert.equal(one('[name="latest_cost_id"]').value,'8');assert.equal(one('[name="new_purchase"]').closest('label').hidden,false);
  fail=true;one('[data-pc-item-form]').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await flush();await flush();assert.match(one('[data-pc-item-drawer] [data-pc-error]').textContent,/Changed/);assert.equal(one('[name="amount_entered"]').value,'1500');
  fail=false;one('[data-pc-item-form]').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await flush();await flush();assert.equal(calls.find(x=>x.a==='save-item').b.id,'1');
- click('[data-pc-open-setup]');await flush();await flush();fill('[data-k="packaging_item_id"]','1');fill('[data-k="waste_percent"]','10');assert.match(one('[data-pc-setup-preview]').textContent,/1.87/);
+ click('[data-pc-open-setup]');await flush();await flush();assert.match(one('[data-k="packaging_item_id"]').textContent,/Test Pouch · Test Supplier · SUP-123/);fill('[data-k="packaging_item_id"]','1');fill('[data-k="waste_percent"]','10');assert.match(one('[data-pc-setup-preview]').textContent,/1.87/);
  assert.equal(one('[data-pc-freight-section]').tagName,'DETAILS');assert.equal(one('[data-pc-setup-drawer]').parentElement.id,'costWorkbook');assert.deepEqual(uiErrors,[]);
  console.log('Packaging drawer, usable units, landed preview, edit identity, failed-save preservation and setup waste UI checks passed.');
  w.close();

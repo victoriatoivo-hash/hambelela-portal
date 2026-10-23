@@ -50,5 +50,17 @@ foreach(['10ml Amber Glass Bottle + Black Dropper Cap'=>4.88,'50ml Amber Glass B
  near(rp_calculation(['landed_cost_per_base'=>10],['base_value'=>.5],$cost,30,0)['total_cost_ex_vat'],5+$amount,'Pricing adds exact bundle cost');
  try{pc_save_item($pdo,array_merge($body,['transport_id'=>$transport,'request_key'=>bin2hex(random_bytes(16))]),15);throw new RuntimeException('Duplicate freight accepted for landed bundle');}catch(DomainException $ok){if($pdo->inTransaction())$pdo->rollBack();}
 }
-echo "Packaging database tests passed: units, freight, idempotency, duplicate prevention, labels/ribbons, finished setup, waste, pricing integration and immutable history.\n";
+$catalog=['items'=>[]];
+// Synthetic fixtures only: the owner's supplier catalog remains local pending approval.
+for($n=0;$n<20;$n++)$catalog['items'][]=['item_name'=>$n===0?'Test Pouch':'Synthetic packaging '.$n,'packaging_type'=>'Pouch','supplier_name'=>'Synthetic Supplier '.($n%4),'supplier_sku'=>'SYN-'.$n.($n%2?' + SYN-CAP-'.$n:''),'unit_cost_ex_vat'=>number_format($n+0.1234,4,'.',''),'includes_carton_and_transport'=>$n>=14];
+foreach($catalog['items'] as $entry){
+ $existing=pc_fetch($pdo,'SELECT id FROM cw_packaging_items WHERE item_name=?',[$entry['item_name']]);$id=(int)($existing['id']??0);
+ $prior=$id?pc_fetch($pdo,'SELECT * FROM cw_packaging_item_costs WHERE packaging_item_id=? ORDER BY id DESC LIMIT 1',[$id]):null;
+ $b=material(['id'=>$id,'latest_cost_id'=>$prior['id']??0,'item_name'=>$entry['item_name'],'packaging_type_id'=>$types[$entry['packaging_type']],'supplier_name'=>$entry['supplier_name'],'supplier_sku'=>$entry['supplier_sku'],'purchase_quantity'=>1,'units_per_pack'=>1,'amount_entered'=>$entry['unit_cost_ex_vat'],'cost_basis'=>'exclusive','vat_treatment'=>$entry['includes_carton_and_transport']?'provisional_landed':'standard','tax_recoverable'=>$entry['includes_carton_and_transport']?0:1,'effective_date'=>'2026-10-24']);
+ $result=pc_save_item($pdo,$b,15);if($id)check($result['id']===$id,'Update imported item in place');
+ $saved=cw_packaging_cost($pdo,$result['id'],'2026-10-24');near($saved['landed_ex'],(float)$entry['unit_cost_ex_vat'],'Four-decimal net costs preserved');check($saved['supplier_sku']===$entry['supplier_sku'],'Supplier code stored separately');check($saved['supplier_name']===$entry['supplier_name'],'Supplier stored');
+ if($prior)check(pc_fetch($pdo,'SELECT * FROM cw_packaging_item_costs WHERE id=?',[$prior['id']])===$prior,'Prior cost row unchanged');
+ check((int)pc_fetch($pdo,'SELECT COUNT(*) n FROM cw_packaging_items WHERE item_name=?',[$entry['item_name']])['n']===1,'No duplicate material');
+}
+echo "Packaging database tests passed: units, freight, idempotency, duplicate prevention, supplier/SKU updates, four-decimal costs, pricing integration and immutable history.\n";
 

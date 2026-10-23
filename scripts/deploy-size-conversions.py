@@ -2,7 +2,7 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'fe9f0c2b'
+BASELINE = '3268d523'
 NEW_FILES = []
 FILES = ['apps/cost-manager/packaging-costs-api.php','shared/cost-workbook-packaging-costs.php','assets/js/packaging-costs.js']
 DEPENDENCIES = ['shared/cost-workbook.php']
