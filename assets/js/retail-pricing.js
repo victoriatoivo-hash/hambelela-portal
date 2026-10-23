@@ -95,7 +95,7 @@ async function commitRow(tr,explicit=false){
  const sent=d.inflight;d.busy=true;d.error='';retainPending(d);paintSaveState(tr,d);
  try{const result=await request('autosave',{method:'POST',body:sent});
   const newer=JSON.stringify(d.body)!==JSON.stringify(sent.body);d.serverRevision=result.revision;d.inflight=null;d.ack=JSON.stringify(result.body);d.note=result.note||'';
-  const saved={...result.row,client_key:k,sheet_key:d.sheetKey,sheet_revision:result.revision,sheet_body:result.body,sheet_note:result.note};d.original=saved;localRows.set(k,saved);data.rows=data.rows.filter(r=>key(r)!==k);
+  const saved={...result.row,client_key:k,sheet_key:d.sheetKey,sheet_revision:result.revision,sheet_body:result.body,sheet_note:result.note};d.original=saved;localRows.set(k,saved);data.rows=data.rows.filter(r=>{if(key(r)===k)return false;const superseded=!r.saved&&!drafts.has(key(r))&&num(saved.product_id)>0&&num(r.product_id)===num(saved.product_id)&&(r.size_conversion_id==null||String(r.size_conversion_id)===String(saved.size_conversion_id));if(superseded)rowElement(key(r))?.remove();return !superseded});
   if(newer){d.body.id=result.body.id||0;d.body.version=result.body.version||0;d.row.id=d.body.id;d.row.version=d.body.version;d.row.saved=!!d.body.id;}else{d.body={...result.body};d.row={...saved};}
   if(saved.saved){tr.children[0].innerHTML='<strong class="rp4-product-name">'+esc(saved.product_name)+'</strong>';tr.classList.remove('rp-sheet__row--new')}
   // Never replace the focused input, table, filters, or other row drafts.
