@@ -24,9 +24,9 @@ function cw_render_product_pricing(array $period):void{ ?>
  <button type="reset" class="rp4-button">Clear Filters</button><button type="button" class="rp4-button" data-rp-refresh>Refresh Costs</button>
  </form>
  <div class="rp4-sheet-note"><span data-rp-results>Loading results…</span><span data-rp-drafts role="status">No unsaved changes</span><a href="profitability-report.php">Historical Profitability Report</a></div>
- <section class="retail-pricing__table-card"><div class="retail-pricing__table-wrap"><table><thead><tr>
+ <section class="retail-pricing__table-card"><div class="rp-sheet__toolbar"><strong>Product pricing sheet</strong><button type="button" class="rp-sheet__add" data-rp-add>+ Add New Item</button></div><div class="retail-pricing__table-wrap"><table class="rp-sheet__table"><colgroup><?php foreach([240,95,135,135,150,150,145,175,145,145,100,110,220,110,155,165,165,180,240] as $width):?><col style="width:<?= $width ?>px"><?php endforeach;?></colgroup><thead><tr>
  <?php foreach(['Product Name','Short Code','Category','Size / Variation','Contents Cost / Size','Packaging / Size','Final Cost / Unit','Selling Price Incl. VAT','Price Excl. VAT','Gross Profit / Unit','Markup %','Gross Margin %','WooCommerce Variation','Website Qty','Total Stock Cost','Website Retail Value','Projected Gross Profit','Status','Actions'] as $heading):?><th><?= $heading ?></th><?php endforeach; ?>
- </tr></thead><tbody data-rp-rows><tr><td colspan="19">Loading pricing records…</td></tr></tbody></table></div></section>
+ </tr></thead><tbody data-rp-rows><tr><td colspan="19">Loading pricing records…</td></tr></tbody></table></div><button type="button" class="rp-sheet__add-row" data-rp-add>+ Add Item</button></section>
 </section>
 <div class="retail-pricing__backdrop" data-rp-backdrop hidden></div>
 <aside class="rp4-drawer" data-rp-drawer aria-hidden="true" inert role="dialog" aria-modal="true" aria-labelledby="retailPriceDrawerTitle">
