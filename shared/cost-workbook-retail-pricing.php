@@ -6,7 +6,7 @@ function cw_retail_metric_card(string $key,string $label,string $helper,string $
 <?php }
 
 function cw_render_product_pricing(array $period):void{ ?>
-<section class="retail-pricing" data-rp-root data-mode="pricing" data-api="retail-pricing-api.php" data-csrf="<?= htmlspecialchars(cw_csrf_token(),ENT_QUOTES,'UTF-8') ?>">
+<section class="retail-pricing" data-rp-root data-mode="pricing" data-owner="<?= function_exists('current_user')?(int)(current_user()['id']??0):0 ?>" data-api="retail-pricing-api.php" data-csrf="<?= htmlspecialchars(cw_csrf_token(),ENT_QUOTES,'UTF-8') ?>">
  <section class="retail-pricing__metrics" aria-label="Product pricing summary">
  <?php foreach([['rows','Sellable Variations','Product and size records','package'],['priced','Priced Variations','Valid saved prices','badge-check'],['attention','Needs Attention','Missing data or review','triangle-alert'],['inventory_cost','Inventory Cost Value','Known stock · excl. VAT','boxes'],['retail_value','Website Retail Value','Active website prices · incl. VAT','shopping-basket'],['projected_profit','Projected Gross Profit','Inventory projection · excl. VAT','chart-no-axes-combined']] as $m)cw_retail_metric_card(...$m); ?>
  </section>

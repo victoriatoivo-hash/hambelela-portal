@@ -57,6 +57,7 @@ jobs:
           php tests/packaging-costs-workflow.php
           node --check assets/js/packaging-costs.js
           php -l shared/cost-workbook-pricing-master.php
+          php -l shared/cost-workbook-pricing-autosave.php
           php -l apps/cost-manager/retail-pricing-api.php
           php -l shared/cost-workbook-retail-pricing.php
           php -l shared/cost-workbook-page-shell.php

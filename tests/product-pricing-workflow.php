@@ -4,6 +4,7 @@ define('BASE_PATH',dirname(__DIR__));
 function current_user():array{return ['id'=>93,'name'=>'Pricing test owner'];}
 require BASE_PATH.'/shared/cost-workbook.php';
 require BASE_PATH.'/shared/cost-workbook-pricing-master.php';
+require BASE_PATH.'/shared/cost-workbook-pricing-autosave.php';
 $api=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$start=strpos($api,'function rp_reply');$end=strpos($api,'try{$pdo=db()',$start);eval(substr($api,$start,$end-$start));
 function check($v,string $m):void{if(!$v)throw new RuntimeException($m);}
 function near($a,$b,string $m):void{check(abs($a-$b)<.00001,$m);}
@@ -71,4 +72,24 @@ ins($pdo,'cw_product_snapshots',['product_id'=>98765,'variation_id'=>50,'product
 [$b,$saved]=$lemonSaved[50];$b['id']=$saved['id'];$b['version']=1;$b['website_key']='98765:50';$b['website_confirmed']=true;$b['request_id']=bin2hex(random_bytes(16));$b['source_token']=rpm_preview(rpm_sources($pdo),$settings,$b)['source_token'];rpm_save($pdo,$b,$settings);
 $lemonRows=array_values(array_filter(rpm_rows($pdo,rpm_sources($pdo),$settings),fn($r)=>$r['product_id']===$lemon));$linked=array_values(array_filter($lemonRows,fn($r)=>$r['website_key']!==''));check(count($linked)===1,'Only selected size linked');near($linked[0]['selling_price_inc_vat'],100,'Workbook price retained');near($linked[0]['retail_value'],1320,'Actual website price used for valuation');check($linked[0]['website_price_differs'],'Price difference flagged');
 echo "Lemon Balm fixture: 50g/100g/250g unlinked save, reload, packaging, canonical identity, widgets and optional 50g website link PASS\n";
+
+rps_install($pdo);
+$websiteBefore=$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll();
+$countBefore=(int)$pdo->query('SELECT COUNT(*) FROM cw_retail_price_versions')->fetchColumn();
+$draft=['row_key'=>'test-sheet-'.bin2hex(random_bytes(8)),'revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>['product_id'=>$lemon,'size_conversion_id'=>'','selling_price_inc_vat'=>'','vat_treatment'=>'','effective_date'=>'2026-10-23']];
+$partial=rps_save($pdo,$draft,$settings);check($partial['state']==='draft'&&$partial['revision']===1,'Incomplete row persists as draft');
+check((int)$pdo->query('SELECT COUNT(*) FROM cw_retail_price_versions')->fetchColumn()===$countBefore,'Incomplete draft does not create financial version');
+check(rps_save($pdo,$draft,$settings)===$partial,'Lost-response retry idempotent');
+$stale=$draft;$stale['mutation_id']=bin2hex(random_bytes(16));$stale['body']['selling_price_inc_vat']=20;
+try{rps_save($pdo,$stale,$settings);throw new RuntimeException('Stale draft overwrote newer revision');}catch(DomainException $expected){}
+$entries=rps_list($pdo,rpm_sources($pdo),$settings);$restored=array_values(array_filter($entries,fn($r)=>$r['row_key']===$draft['row_key']))[0];check($restored['body']['size_conversion_id']===''&&$restored['body']['selling_price_inc_vat']==='','Blank fields survive reload');
+$draft['revision']=1;$draft['mutation_id']=bin2hex(random_bytes(16));[$valid,$priorSaved]=$lemonSaved[100];$valid['id']=$priorSaved['id'];$valid['version']=1;$valid['selling_price_inc_vat']=230;$valid['source_token']=rpm_preview(rpm_sources($pdo),$settings,$valid)['source_token'];$draft['body']=$valid;
+$complete=rps_save($pdo,$draft,$settings);check($complete['state']==='priced'&&$complete['body']['version']===2,'Autosave creates audited financial update atomically');
+check(rps_save($pdo,$draft,$settings)===$complete,'Complete retry creates no extra version');
+$draft['revision']=2;$draft['mutation_id']=bin2hex(random_bytes(16));$draft['body']=$complete['body'];$draft['body']['selling_price_inc_vat']='';$incomplete=rps_save($pdo,$draft,$settings);check($incomplete['state']==='draft','Clearing existing price retains incomplete draft');
+$q=$pdo->prepare('SELECT current_version FROM cw_retail_prices WHERE id=?');$q->execute([$priorSaved['id']]);check((int)$q->fetchColumn()===2,'Incomplete correction preserves last valid history');
+$duplicate=['row_key'=>'duplicate-'.bin2hex(random_bytes(8)),'revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>$valid];$duplicate['body']['id']=0;$duplicate['body']['version']=0;
+$dup=rps_save($pdo,$duplicate,$settings);check($dup['state']==='draft'&&strpos($dup['note'],'already exists')!==false,'Duplicate financial identity retained for review, never duplicated');
+check($websiteBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'Autosave never changes website data or prices');
+echo "Autosave persistence, partial drafts, reload, revision conflicts, idempotent retries, valid history and no Woo changes PASS\n";
 

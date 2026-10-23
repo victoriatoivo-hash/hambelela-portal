@@ -5,6 +5,7 @@ require_once BASE_PATH.'/shared/auth.php';
 require_once BASE_PATH.'/shared/database.php';
 require_once BASE_PATH.'/shared/cost-workbook.php';
 require_once BASE_PATH.'/shared/cost-workbook-pricing-master.php';
+require_once BASE_PATH.'/shared/cost-workbook-pricing-autosave.php';
 require_role('owner_admin');
 header('Content-Type: application/json; charset=utf-8');
 
@@ -60,8 +61,10 @@ function rp_find(array$rows,int$id):?array{foreach($rows as$row)if((int)$row['id
 
 try{$pdo=db();cw_install_schema($pdo);$action=(string)($_GET['action']??'bootstrap');if($_SERVER['REQUEST_METHOD']!=='GET')cw_require_csrf();$settings=rp_settings($pdo);
 
- if(in_array($action,['save','preview'],true)&&$_SERVER['REQUEST_METHOD']!=='POST')rp_reply(['ok'=>false,'message'=>'Use POST for this action.'],405);
- if($action==='bootstrap'){$sources=rpm_sources($pdo);$rows=rpm_rows($pdo,$sources,$settings);rp_reply(['ok'=>true,'rows'=>$rows,'summary'=>rpm_summary($rows),'products'=>$sources['products'],'sizes'=>$sources['sizes'],'setups'=>$sources['setups'],'website'=>$sources['website'],'settings'=>$settings,'last_sync'=>$sources['lastSync']]);}
+ if(in_array($action,['save','preview','autosave'],true)&&$_SERVER['REQUEST_METHOD']!=='POST')rp_reply(['ok'=>false,'message'=>'Use POST for this action.'],405);
+ if(in_array($action,['bootstrap','autosave'],true))rps_install($pdo);
+ if($action==='bootstrap'){$sources=rpm_sources($pdo);$rows=rpm_rows($pdo,$sources,$settings);rp_reply(['ok'=>true,'rows'=>$rows,'sheet_entries'=>rps_list($pdo,$sources,$settings),'summary'=>rpm_summary($rows),'products'=>$sources['products'],'sizes'=>$sources['sizes'],'setups'=>$sources['setups'],'website'=>$sources['website'],'settings'=>$settings,'last_sync'=>$sources['lastSync']]);}
+ if($action==='autosave'){cw_require_admin();rp_reply(rps_save($pdo,rp_body(),$settings));}
  if($action==='preview'){rp_reply(['ok'=>true,'row'=>rpm_preview(rpm_sources($pdo),$settings,rp_body())]);}
  if($action==='save'){cw_require_admin();rp_reply(rpm_save($pdo,rp_body(),$settings));}
  if($action==='history'){$id=(int)($_GET['id']??0);$q=$pdo->prepare('SELECT * FROM cw_retail_price_versions WHERE retail_price_id=? ORDER BY version_no DESC');$q->execute([$id]);$versions=$q->fetchAll();$q=$pdo->prepare('SELECT * FROM cw_retail_price_audit WHERE retail_price_id=? ORDER BY id DESC');$q->execute([$id]);rp_reply(['ok'=>true,'versions'=>$versions,'audit'=>$q->fetchAll()]);}

@@ -13,6 +13,7 @@ async function syncWebsite(){const button=$('[data-rp-sync]');if(!button)return;
 const drafts=new Map(),localRows=new Map(),fmt=v=>v==null?'—':money(v),pct=v=>v==null?'Not Calculated':percent(v);
 const key=r=>r.client_key||(r.id?'id-'+r.id:'new-'+r.product_id+'-'+(r.size_conversion_id??'none'));
 const findRow=k=>data.rows.find(r=>key(r)===k)||localRows.get(k);
+const allRows=()=>[...data.rows,...localRows.values()];
 const form=$('[data-rp-form]'),drawer=$('[data-rp-drawer]');
 let drawerDraft=null,drawerDirty=false,returnFocus=null,searchTimer;
 const localDate=()=>{const p=Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(p=>[p.type,p.value]));return p.year+'-'+p.month+'-'+p.day};
@@ -20,8 +21,12 @@ function sizesFor(pid){const p=data.products.find(p=>num(p.id)===num(pid));if(!p
 const options=(rows,value,label)=>rows.map(r=>'<option value="'+esc(value(r))+'">'+esc(label(r))+'</option>').join('');
 const attributeLabel=value=>{try{const a=JSON.parse(value||'[]');return Array.isArray(a)?a.map(v=>[v.name,v.option].filter(Boolean).join(': ')).join(', '):''}catch{return String(value||'')}};
 const websiteOptions=()=>'<option value="">Not matched</option>'+options(data.website,w=>w.product_id+':'+w.variation_id,w=>[w.product_name,w.variation_name,w.sku,attributeLabel(w.attributes),fmt(w.active_price_inc_vat)].filter(Boolean).join(' · '));
-function bodyFor(r){return {id:r.id||0,version:r.version||0,product_id:r.product_id,size_conversion_id:r.size_conversion_id??'',packaging_setup_id:r.packaging_setup_id||0,packaging_mode:r.packaging_mode||'setup',packaging_manual_cost:r.packaging_manual_cost??'',packaging_confirmed:!!r.packaging_confirmed,website_key:r.website_key||'',selling_price_inc_vat:r.selling_price_inc_vat??'',vat_treatment:r.vat_treatment||'',vat_rate:r.vat_rate??data.settings.retail_vat_rate??15,effective_date:r.effective_date||localDate(),source_token:r.source_token,website_confirmed:!!r.saved&&!!r.website_key}}
-function draftFor(r){const k=key(r);if(!drafts.has(k))drafts.set(k,{original:r,row:{...r},body:bodyFor(r),revision:0,busy:false,error:''});return drafts.get(k)}
+function bodyFor(r){return r.sheet_body?{...r.sheet_body}:{id:r.id||0,version:r.version||0,product_id:r.product_id,size_conversion_id:r.size_conversion_id??'',packaging_setup_id:r.packaging_setup_id||0,packaging_mode:r.packaging_mode||'setup',packaging_manual_cost:r.packaging_manual_cost??'',packaging_confirmed:!!r.packaging_confirmed,website_key:r.website_key||'',selling_price_inc_vat:r.selling_price_inc_vat??'',vat_treatment:r.vat_treatment||'',vat_rate:r.vat_rate??data.settings.retail_vat_rate??15,effective_date:r.effective_date||localDate(),source_token:r.source_token,website_confirmed:!!r.saved&&!!r.website_key}}
+function draftFor(r){const k=key(r);if(!drafts.has(k)){r.sheet_key=r.sheet_key||(r.id?'price-row-'+r.id:'sheet-'+crypto.randomUUID());drafts.set(k,{original:r,row:{...r},body:bodyFor(r),ack:r.sheet_revision||r.saved?JSON.stringify(bodyFor(r)):null,sheetKey:r.sheet_key,serverRevision:r.sheet_revision||0,revision:0,busy:false,error:''})}return drafts.get(k)}
+const pendingPrefix='hambelela-pricing-pending-v1-'+(root.dataset.owner||'0')+'-';
+function retainPending(d){try{localStorage.setItem(pendingPrefix+d.sheetKey,JSON.stringify({original:d.original,body:d.body,sheetKey:d.sheetKey,serverRevision:d.serverRevision,inflight:d.inflight||null}))}catch{d.storageWarning=true}}
+function queueSave(tr,d){if(!d||d.busy||d.error||d.pending||JSON.stringify(d.body)===d.ack)return;retainPending(d);clearTimeout(d.timer);d.timer=setTimeout(()=>commitRow(rowElement(key(d.original))||tr),650)}
+function pendingCount(){return [...drafts.values()].filter(d=>d.busy||d.inflight||JSON.stringify(d.body)!==d.ack).length}
 function calculateDraft(d){
  const b=d.body,r=d.row,price=b.selling_price_inc_vat===''?null:Number(b.selling_price_inc_vat),vat=['zero','exempt'].includes(b.vat_treatment)?0:num(b.vat_rate);
  r.selling_price_inc_vat=Number.isFinite(price)?price:null;r.selling_price_ex_vat=r.selling_price_inc_vat==null||!['standard','zero','exempt'].includes(b.vat_treatment)?null:r.selling_price_inc_vat/(1+vat/100);
@@ -33,7 +38,7 @@ function calculateDraft(d){
  r.issues=(r.issues||[]).filter(v=>!['Selling Price Required','Low Margin','Loss-Making'].includes(v));if(!(r.selling_price_inc_vat>0))r.issues.push('Selling Price Required');if(r.profit_per_unit<0)r.issues.push('Loss-Making');else if(r.margin_percent!=null&&r.margin_percent<num(data.settings.retail_low_margin_threshold??20))r.issues.push('Low Margin');
  r.status=r.product_cost_per_unit==null?(b.size_conversion_id===''?'Not Started':'Costing Required'):r.packaging_cost_ex_vat==null?'Packaging Required':b.packaging_mode==='manual'&&!b.packaging_confirmed?'Packaging Estimate':!(r.selling_price_inc_vat>0)||r.selling_price_ex_vat==null?'Not Started':r.profit_per_unit<0?'Loss-Making':r.margin_percent<num(data.settings.retail_low_margin_threshold??20)?'Low Margin':'Pricing Complete';
 }
-function filteredRows(){const f=Object.fromEntries(new FormData($('[data-rp-filters]'))),q=(f.q||'').trim().toLowerCase();return data.rows.filter(original=>{const r=drafts.get(key(original))?.row||original;return(!q||[r.product_name,r.short_code,r.category,r.supplier,r.website_name,r.website_sku,r.size_label].join(' ').toLowerCase().includes(q))&&(!f.category||f.category===r.category)&&(!f.supplier||f.supplier===r.supplier)&&(!f.basis||f.basis===r.basis)&&(!f.size||f.size===String(r.size_conversion_id))&&(!f.status||r.status.includes(f.status))&&(!f.website||(f.website==='matched'?!!r.website_key:!r.website_key))&&(!f.margin||(r.margin_percent!=null&&(f.margin==='negative'?r.margin_percent<0:f.margin==='low'?r.margin_percent>=0&&r.margin_percent<20:r.margin_percent>=20)))})}
+function filteredRows(){const f=Object.fromEntries(new FormData($('[data-rp-filters]'))),q=(f.q||'').trim().toLowerCase();return allRows().filter(original=>{const r=drafts.get(key(original))?.row||original;return(!q||[r.product_name,r.short_code,r.category,r.supplier,r.website_name,r.website_sku,r.size_label].join(' ').toLowerCase().includes(q))&&(!f.category||f.category===r.category)&&(!f.supplier||f.supplier===r.supplier)&&(!f.basis||f.basis===r.basis)&&(!f.size||f.size===String(r.size_conversion_id))&&(!f.status||(r.status||'Draft').includes(f.status))&&(!f.website||(f.website==='matched'?!!r.website_key:!r.website_key))&&(!f.margin||(r.margin_percent!=null&&(f.margin==='negative'?r.margin_percent<0:f.margin==='low'?r.margin_percent>=0&&r.margin_percent<20:r.margin_percent>=20)))})}
 const fields=['product_cost_per_unit','total_cost_ex_vat','selling_price_ex_vat','profit_per_unit','markup_percent','margin_percent','website_stock_quantity','stock_cost','retail_value','projected_profit'];
 function valueText(r,n){return ['markup_percent','margin_percent'].includes(n)?pct(r[n]):n==='website_stock_quantity'?(r[n]==null?'Unknown':Number(r[n]).toLocaleString('en-NA')):fmt(r[n])}
 function rowHTML(original){
@@ -49,26 +54,28 @@ function renderPricingSummary(){
 }
 function renderPricing(){
  renderPricingSummary();
- const rows=[...filteredRows(),...localRows.values()];$('[data-rp-results]').textContent=rows.length+' results';$('[data-rp-rows]').innerHTML=rows.length?rows.map(rowHTML).join(''):'<tr data-empty><td colspan="19">No matching sizes. Use Add New Item to start a pricing row.</td></tr>';
- themeSelects(root);draftCount();
+ const rows=filteredRows();$('[data-rp-results]').textContent=rows.length+' results';$('[data-rp-rows]').innerHTML=rows.length?rows.map(rowHTML).join(''):'<tr data-empty><td colspan="19">No matching sizes. Use Add New Item to start a pricing row.</td></tr>';
+ themeSelects(root);$$('[data-row]').forEach(tr=>{const d=drafts.get(tr.dataset.row);if(d)paintSaveState(tr,d);else if(findRow(tr.dataset.row)?.sheet_revision)$('[data-save-state]',tr).textContent='✓ Saved'});draftCount();
 }
-function draftCount(){$('[data-rp-drafts]').textContent=drafts.size?drafts.size+' unsaved row'+(drafts.size===1?'':'s')+' · New rows: Save Item · Existing prices: Enter, Tab or leave the field':'No unsaved changes';$('[data-rp-results]').textContent=$$('[data-rp-rows] [data-row]').length+' results'}
+function draftCount(){const count=pendingCount();$('[data-rp-drafts]').textContent=count?count+' row'+(count===1?'':'s')+' with unsaved changes · Autosave enabled':'All changes saved · Internal pricing sheet only';$('[data-rp-results]').textContent=$$('[data-rp-rows] [data-row]').length+' results'}
+function paintSaveState(tr,d){const dirty=JSON.stringify(d.body)!==d.ack;$('[data-save-state]',tr).textContent=d.busy?'Saving…':d.error?'Save failed · Retry':dirty?'Unsaved changes':'✓ Saved';$('[data-save-state]',tr).title=d.note||'';$('[data-row-error]',tr).hidden=!d.error;$('[data-row-error]',tr).textContent=d.error?'Save failed · Retry':'';$('[data-row-error]',tr).title=d.error||'';tr.classList.toggle('has-unsaved-changes',dirty);if(d.note&&!dirty)$('.retail-pricing__status',tr).textContent='Draft · '+d.row.status}
 function updateRow(tr,d){
- calculateDraft(d);tr.classList.add('has-unsaved-changes');$('[data-row-save]',tr).hidden=!!d.original.saved;
+ if(!d.sheetKey){d.original.sheet_key=d.original.sheet_key||'sheet-'+crypto.randomUUID();d.sheetKey=d.original.sheet_key;d.serverRevision=d.original.sheet_revision||0;d.ack=d.original.sheet_revision||d.original.saved?JSON.stringify(bodyFor(d.original)):null;}
+ calculateDraft(d);tr.classList.add('has-unsaved-changes');$('[data-row-save]',tr).hidden=true;
  fields.forEach(n=>{$('[data-value="'+n+'"]',tr).textContent=valueText(d.row,n)});$('.retail-pricing__status',tr).textContent=d.row.status;$('[data-price-difference]',tr).textContent=d.row.website_price_differs?'Website: '+fmt(d.row.website_price_inc_vat):'';
  $('[data-row-error]',tr).textContent=d.error?'Error · Retry':'';$('[data-row-error]',tr).title=d.error||'';$('[data-row-error]',tr).hidden=!d.error;$('[data-save]',tr).disabled=!!d.pending||d.busy;$('[data-packaging]',tr).textContent=fmt(d.row.packaging_cost_ex_vat);$('[data-save-state]',tr).textContent=d.busy?'Saving…':d.error?'Error':'Unsaved';
  $('[data-code]',tr).textContent=d.row.short_code||'—';$('[data-category]',tr).textContent=d.row.category||'—';$('[data-size-cell]',tr).textContent=d.row.size_label||'Select Size';const product=$('[data-product-cell]',tr);if(product)product.textContent=d.row.product_name||'Search product…';
  $('[data-website]',tr).textContent=d.body.website_key?(d.row.website_sku||d.row.website_name||'Linked'):'Link Website (optional)';$('[data-website-status]',tr).textContent=d.row.website_status||'Not Linked';
- draftCount();
+ paintSaveState(tr,d);queueSave(tr,d);draftCount();
 }
 async function preview(d){
  const generation=++d.revision;d.pending=true;d.error='';
  try{const result=await request('preview',{method:'POST',body:d.body});if(generation!==d.revision)return;d.row={...d.row,...result.row};d.body.source_token=result.row.source_token;d.body.packaging_setup_id=result.row.packaging_setup_id;calculateDraft(d);}
- catch(e){if(generation===d.revision){d.error=e.message;d.body.source_token='';}}
+ catch(e){if(generation===d.revision){d.previewError=e.message;d.body.source_token='';}}
  finally{if(generation===d.revision)d.pending=false}
 }
 async function changeSize(d,value){
- const existing=data.rows.find(r=>r.id&&num(r.product_id)===num(d.body.product_id)&&String(r.size_conversion_id)===value&&r.id!==d.original.id);
+ const existing=allRows().find(r=>r.id&&num(r.product_id)===num(d.body.product_id)&&String(r.size_conversion_id)===value&&r.id!==d.original.id);
  if(existing){toast('This product-size already exists. Opening its pricing record.');return existing}
  d.body.size_conversion_id=value;d.body.id=String(value)===String(d.original.size_conversion_id)?d.original.id||0:0;d.body.version=d.body.id?d.original.version:0;
  d.body.packaging_setup_id=0;d.body.packaging_mode='setup';d.body.packaging_manual_cost='';d.body.packaging_confirmed=false;d.body.website_key='';d.body.website_confirmed=false;d.body.source_token='';await preview(d);return null;
@@ -79,29 +86,30 @@ async function saveDraft(d){
 }
 root.addEventListener('input',e=>{
  const tr=e.target.closest('[data-row]');if(!tr||e.target.dataset.field!=='selling_price_inc_vat')return;
- const original=findRow(tr.dataset.row),d=draftFor(original);d.body.selling_price_inc_vat=e.target.value;d.requestId=null;d.error='';updateRow(tr,d);
+ const original=findRow(tr.dataset.row),d=draftFor(original);d.body.selling_price_inc_vat=e.target.value;d.requestId=null;d.error='';retainPending(d);updateRow(tr,d);
 });
 async function commitRow(tr,explicit=false){
- const k=tr.dataset.row,d=drafts.get(k);if(!d||d.busy||d.pending||d.committing)return;
- if(!d.original.saved&&!explicit)return;
- if(!d.body.product_id||d.body.size_conversion_id===''){d.error='Select a product and size. This draft remains in the table.';updateRow(tr,d);return}
- const previous=bodyFor(d.original),same=d.original.saved&&Object.keys(previous).every(n=>String(previous[n]??'')===String(d.body[n]??''));if(same){drafts.delete(k);tr.classList.remove('has-unsaved-changes');$('[data-row-save]',tr).hidden=true;$('[data-save-state]',tr).textContent='';draftCount();return}
- if(!(Number(d.body.selling_price_inc_vat)>0)){d.error='Enter a selling price greater than zero.';updateRow(tr,d);return}
- const input=$('[data-field="selling_price_inc_vat"]',tr);input.readOnly=true;d.committing=true;
- try{const pending=saveDraft(d);updateRow(tr,d);const result=await pending;
-  // Refresh only this record: preserve the other row drafts, DOM focus and table scroll.
-  const latest=await request('bootstrap'),saved=latest.rows.find(r=>Number(r.id)===Number(result.id));if(!saved)throw Error('Saved, but the refreshed record could not be loaded. Refresh before editing again.');
-  if(localRows.has(k)){localRows.delete(k);data.rows.push(saved)}else data.rows=data.rows.map(r=>key(r)===k?saved:r);data.summary=latest.summary;data.last_sync=latest.last_sync;drafts.delete(k);tr.dataset.row=key(saved);tr.classList.remove('has-unsaved-changes','rp-sheet__row--new');tr.children[0].innerHTML='<strong class="rp4-product-name">'+esc(saved.product_name)+'</strong>';$('[data-size-cell]',tr).textContent=saved.size_label;renderPricingSummary();
-  // Remove only untouched discovery placeholders superseded by this saved identity.
-  data.rows=data.rows.filter(r=>{const stale=!r.saved&&!drafts.has(key(r))&&num(r.product_id)===num(saved.product_id)&&(r.size_conversion_id==null||String(r.size_conversion_id)===String(saved.size_conversion_id));if(stale)rowElement(key(r))?.remove();return !stale});
-  fields.forEach(n=>{$('[data-value="'+n+'"]',tr).textContent=valueText(saved,n)});$('.retail-pricing__status',tr).textContent=saved.status;$('[data-website-status]',tr).textContent=saved.website_status||'Not Linked';$('[data-row-save]',tr).hidden=true;$('[data-row-error]',tr).textContent='';$('[data-row-error]',tr).hidden=true;$('[data-save-state]',tr).textContent='✓ Saved';draftCount();
- }catch(x){d.error=x.message;updateRow(tr,d)}finally{d.committing=false;input.readOnly=false}
+ if(!tr)return;const k=tr.dataset.row,d=drafts.get(k);if(!d||d.busy||d.pending)return;clearTimeout(d.timer);
+ if(!d.inflight&&JSON.stringify(d.body)===d.ack){paintSaveState(tr,d);return}
+ d.inflight=d.inflight||{row_key:d.sheetKey,revision:d.serverRevision,mutation_id:crypto.randomUUID(),body:JSON.parse(JSON.stringify(d.body))};
+ const sent=d.inflight;d.busy=true;d.error='';retainPending(d);paintSaveState(tr,d);
+ try{const result=await request('autosave',{method:'POST',body:sent});
+  const newer=JSON.stringify(d.body)!==JSON.stringify(sent.body);d.serverRevision=result.revision;d.inflight=null;d.ack=JSON.stringify(result.body);d.note=result.note||'';
+  const saved={...result.row,client_key:k,sheet_key:d.sheetKey,sheet_revision:result.revision,sheet_body:result.body,sheet_note:result.note};d.original=saved;localRows.set(k,saved);data.rows=data.rows.filter(r=>key(r)!==k);
+  if(newer){d.body.id=result.body.id||0;d.body.version=result.body.version||0;d.row.id=d.body.id;d.row.version=d.body.version;d.row.saved=!!d.body.id;}else{d.body={...result.body};d.row={...saved};}
+  if(saved.saved){tr.children[0].innerHTML='<strong class="rp4-product-name">'+esc(saved.product_name)+'</strong>';tr.classList.remove('rp-sheet__row--new')}
+  // Never replace the focused input, table, filters, or other row drafts.
+  updateRow(rowElement(k)||tr,d);
+  if(JSON.stringify(d.body)===d.ack){try{localStorage.removeItem(pendingPrefix+d.sheetKey)}catch{}}else retainPending(d);
+  request('bootstrap').then(latest=>{data.summary=latest.summary;data.last_sync=latest.last_sync;renderPricingSummary()}).catch(()=>{});
+ }catch(x){d.error=x.message;retainPending(d);paintSaveState(rowElement(k)||tr,d)}
+ finally{d.busy=false;paintSaveState(rowElement(k)||tr,d);draftCount();if(!d.error)queueSave(rowElement(k)||tr,d)}
 }
 root.addEventListener('focusout',e=>{if(e.target.matches('[data-field="selling_price_inc_vat"]'))commitRow(e.target.closest('[data-row]'))});
 root.addEventListener('keydown',e=>{
  if(!e.target.matches('[data-field="selling_price_inc_vat"]'))return;const tr=e.target.closest('[data-row]');
  if(e.key==='Enter'){e.preventDefault();commitRow(tr)}
- if(e.key==='Escape'){const d=drafts.get(tr.dataset.row);if(d&&!d.busy){e.target.value=d.original.selling_price_inc_vat??'';d.body.selling_price_inc_vat=e.target.value;d.error='';updateRow(tr,d);if(JSON.stringify(d.body)===JSON.stringify(bodyFor(d.original))){drafts.delete(tr.dataset.row);$('[data-row-save]',tr).hidden=true;$('[data-save-state]',tr).textContent='';draftCount()}}}
+ if(e.key==='Escape'){const d=drafts.get(tr.dataset.row);if(d&&!d.busy&&!d.inflight){clearTimeout(d.timer);e.target.value=bodyFor(d.original).selling_price_inc_vat??'';d.body.selling_price_inc_vat=e.target.value;d.error='';updateRow(tr,d);if(JSON.stringify(d.body)===d.ack){try{localStorage.removeItem(pendingPrefix+d.sheetKey)}catch{}}}}
 });
 root.addEventListener('click',async e=>{
  const tr=e.target.closest('[data-row]');if(!tr||drafts.get(tr.dataset.row)?.committing)return;const original=findRow(tr.dataset.row),k=key(original);
@@ -124,8 +132,8 @@ function positionEditor(){if(!cellEditor||!cellAnchor?.isConnected)return;const 
 document.addEventListener('pointerdown',e=>{if(cellEditor&&!cellEditor.contains(e.target)&&!cellAnchor?.contains(e.target)&&!e.target.closest('[role="listbox"]'))closeCellEditor(false)});
 window.addEventListener('resize',positionEditor);document.addEventListener('scroll',positionEditor,true);
 function rowElement(k){return $$('[data-row]').find(tr=>tr.dataset.row===k)}
-function cancelRow(tr){const k=tr.dataset.row,d=drafts.get(k);if(d?.busy)return;if(d)d.revision++;drafts.delete(k);if(localRows.has(k)){localRows.delete(k);tr.remove()}else{const original=findRow(k),replacement=document.createElement('tbody');replacement.innerHTML=rowHTML(original);tr.replaceWith(replacement.firstElementChild)}draftCount()}
-function addSheetRow(pid=0){const r={...freshProduct(pid),client_key:'draft-'+crypto.randomUUID()},k=key(r);localRows.set(k,r);draftFor(r);$('[data-empty]')?.remove();$('[data-rp-rows]').insertAdjacentHTML('beforeend',rowHTML(r));const tr=rowElement(k);if(pid){const d=drafts.get(k);preview(d).then(()=>{if(tr.isConnected)updateRow(tr,d)});openSizePicker(tr)}else openProductPicker(tr);draftCount();return tr}
+async function cancelRow(tr){const k=tr.dataset.row,d=draftFor(findRow(k));if(d.busy)return;clearTimeout(d.timer);if(d.inflight){await commitRow(tr,true);if(d.error)return}if(d.original.saved){d.body=bodyFor(d.original);d.row={...d.original};d.error='';d.inflight=null;$('[data-field]',tr).value=d.body.selling_price_inc_vat??'';updateRow(tr,d);return}try{if(d.serverRevision){await request('autosave',{method:'POST',body:{row_key:d.sheetKey,revision:d.serverRevision,mutation_id:crypto.randomUUID(),body:d.body,archive:true}})}localStorage.removeItem(pendingPrefix+d.sheetKey);d.revision++;drafts.delete(k);localRows.delete(k);data.rows=data.rows.filter(r=>key(r)!==k);tr.remove();draftCount()}catch(e){d.error=e.message;paintSaveState(tr,d)}}
+function addSheetRow(pid=0){const r={...freshProduct(pid),client_key:'draft-'+crypto.randomUUID()},k=key(r);localRows.set(k,r);const d=draftFor(r);$('[data-empty]')?.remove();$('[data-rp-rows]').insertAdjacentHTML('beforeend',rowHTML(r));const tr=rowElement(k);if(pid){preview(d).then(()=>{if(tr.isConnected)updateRow(tr,d)});openSizePicker(tr)}else openProductPicker(tr);queueSave(tr,d);draftCount();return tr}
 function showExisting(r){closeCellEditor();let tr=rowElement(key(r));if(!tr){$('[data-rp-rows]').insertAdjacentHTML('beforeend',rowHTML(r));tr=rowElement(key(r))}const input=$('[data-field="selling_price_inc_vat"]',tr);input.focus();toast('Existing product-size record selected. No duplicate created.')}
 function openProductPicker(tr){
  const original=findRow(tr.dataset.row);if(original.saved)return;const popup=document.createElement('div');popup.className='rp-sheet__popover';popup.setAttribute('role','dialog');popup.setAttribute('aria-label','Search existing product');popup.innerHTML='<input class="rp-sheet__popover-search" type="search" aria-label="Search existing product" placeholder="Product, code, category or supplier reference"><div data-product-options role="listbox"></div>';
@@ -136,14 +144,14 @@ function openProductPicker(tr){
 }
 function openSizePicker(tr){
  const original=findRow(tr.dataset.row),source=drafts.get(tr.dataset.row),b=source?.body||bodyFor(original);if(!b.product_id){openProductPicker(tr);return}if(source?.busy)return;
- const popup=document.createElement('div');popup.className='rp-sheet__popover';popup.setAttribute('role','dialog');popup.setAttribute('aria-label','Select size');popup.innerHTML='<strong>Select Size / Variation</strong><div role="listbox">'+sizesFor(b.product_id).map(s=>{const existing=data.rows.find(r=>r.saved&&num(r.product_id)===num(b.product_id)&&String(r.size_conversion_id)===String(s.id));return '<button type="button" role="option" class="rp-sheet__popover-option" data-size="'+s.id+'">'+esc(s.label)+(existing?'<small>Already priced — open existing row</small>':'')+'</button>'}).join('')+'</div>';
- popup.addEventListener('click',async e=>{const choice=e.target.closest('[data-size]');if(!choice)return;const value=choice.dataset.size,existing=data.rows.find(r=>r.saved&&num(r.product_id)===num(b.product_id)&&String(r.size_conversion_id)===value);if(existing){showExisting(existing);return}const other=[...localRows.values()].find(r=>key(r)!==tr.dataset.row&&num(drafts.get(key(r))?.body.product_id)===num(b.product_id)&&String(drafts.get(key(r))?.body.size_conversion_id)===value);if(other){showExisting(other);return}let target=tr,d=source||draftFor(original);closeCellEditor();if(original.saved){target=addSheetRow(b.product_id);closeCellEditor();d=drafts.get(target.dataset.row)}await changeSize(d,value);if(target.isConnected){updateRow(target,d);$('[data-packaging]',target).focus()}});
+ const popup=document.createElement('div');popup.className='rp-sheet__popover';popup.setAttribute('role','dialog');popup.setAttribute('aria-label','Select size');popup.innerHTML='<strong>Select Size / Variation</strong><div role="listbox">'+sizesFor(b.product_id).map(s=>{const existing=allRows().find(r=>r.saved&&num(r.product_id)===num(b.product_id)&&String(r.size_conversion_id)===String(s.id));return '<button type="button" role="option" class="rp-sheet__popover-option" data-size="'+s.id+'">'+esc(s.label)+(existing?'<small>Already priced — open existing row</small>':'')+'</button>'}).join('')+'</div>';
+ popup.addEventListener('click',async e=>{const choice=e.target.closest('[data-size]');if(!choice)return;const value=choice.dataset.size,existing=allRows().find(r=>r.saved&&num(r.product_id)===num(b.product_id)&&String(r.size_conversion_id)===value);if(existing){showExisting(existing);return}const other=[...localRows.values()].find(r=>key(r)!==tr.dataset.row&&num((drafts.get(key(r))?.body||bodyFor(r)).product_id)===num(b.product_id)&&String((drafts.get(key(r))?.body||bodyFor(r)).size_conversion_id)===value);if(other){showExisting(other);return}let target=tr,d=source||draftFor(original);closeCellEditor();if(original.saved){target=addSheetRow(b.product_id);closeCellEditor();d=drafts.get(target.dataset.row)}await changeSize(d,value);if(target.isConnected){updateRow(target,d);$('[data-packaging]',target).focus()}});
  anchorEditor(popup,$('[data-size-cell]',tr));$('button',popup)?.focus();
 }
 function openActions(tr){
  const original=findRow(tr.dataset.row),d=drafts.get(tr.dataset.row);if(d?.busy)return;const popup=document.createElement('div');popup.className='rp-sheet__actions-menu';popup.setAttribute('role','menu');
  const entries=[['size','Add Another Size'],['cost','View Cost Breakdown'],['history','View Pricing History'],['refresh','Refresh Product Cost'],['website','Link Website Variation'],['vat','VAT Treatment']];if(d?.error)entries.push(['retry','Retry Save'],['cancel','Cancel Changes']);if(!original.saved)entries.push(['remove','Remove Draft Row']);
- popup.innerHTML=entries.map(([id,label])=>'<button type="button" role="menuitem" data-action="'+id+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'+label+'</button>').join('');
+ popup.innerHTML=(d?.error?'<p role="alert">'+esc(d.error)+'</p>':'')+entries.map(([id,label])=>'<button type="button" role="menuitem" data-action="'+id+'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 12h14M12 5l7 7-7 7"/></svg>'+label+'</button>').join('');
  popup.addEventListener('click',async e=>{const action=e.target.closest('[data-action]')?.dataset.action;if(!action)return;closeCellEditor();if(action==='size')addSheetRow(d?.body.product_id||original.product_id);if(action==='cost'||action==='history')openDrawer(original);if(action==='website')openCellEditor(tr,'website');if(action==='vat')openVatPicker(tr);if(action==='remove'||action==='cancel')cancelRow(tr);if(action==='refresh'){const draft=draftFor(original);await preview(draft);if(tr.isConnected)updateRow(tr,draft);if(!draft.error&&original.saved)await commitRow(tr)}if(action==='retry'){d.error='';await commitRow(tr,true)}});
  popup.addEventListener('keydown',e=>{const items=$$('button',popup),i=items.indexOf(document.activeElement);if(['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();items[(i+(e.key==='ArrowDown'?1:-1)+items.length)%items.length]?.focus()}});anchorEditor(popup,$('[data-actions]',tr));$('button',popup).focus();
 }
@@ -164,8 +172,10 @@ function openCellEditor(tr,kind){
  themeSelects(popup);watchEditorSize();($('.portal-custom-select-trigger',popup)||$('select',popup)).focus();
 }
 async function loadPricing(){
- try{data=await request('bootstrap');const f=$('[data-rp-filters]');for(const n of ['category','supplier']){const selected=f.elements[n].value;f.elements[n].innerHTML='<option value="">All '+(n==='category'?'categories':'suppliers')+'</option>'+[...new Set(data.rows.map(r=>r[n]).filter(Boolean))].sort().map(v=>'<option>'+esc(v)+'</option>').join('');f.elements[n].value=selected}
- const selected=f.elements.size.value;f.elements.size.innerHTML='<option value="">All sizes</option>'+options(data.sizes,s=>s.id,s=>s.label);f.elements.size.value=selected;renderPricing();
+ try{data=await request('bootstrap');for(const entry of data.sheet_entries||[]){let k=[...localRows.keys()].find(k=>localRows.get(k).sheet_key===entry.row_key)||entry.row_key;const r={...entry.row,client_key:k,sheet_key:entry.row_key,sheet_revision:entry.revision,sheet_body:entry.body,sheet_note:entry.note};if(!drafts.has(k))localRows.set(k,r);data.rows=data.rows.filter(row=>!(r.id&&num(row.id)===num(r.id))&&!(!row.saved&&num(row.product_id)===num(r.product_id)&&(row.size_conversion_id==null||String(row.size_conversion_id)===String(r.size_conversion_id))))}
+  if(!loadPricing.recovered){loadPricing.recovered=true;try{for(let i=0;i<localStorage.length;i++){const storedKey=localStorage.key(i);if(!storedKey.startsWith(pendingPrefix))continue;const stored=JSON.parse(localStorage.getItem(storedKey));if(!stored?.sheetKey||!stored.body)continue;const k=[...localRows.keys()].find(k=>localRows.get(k).sheet_key===stored.sheetKey)||key(stored.original),r={...stored.original,client_key:k,sheet_key:stored.sheetKey};localRows.set(k,r);data.rows=data.rows.filter(row=>key(row)!==k&&!(r.id&&num(row.id)===num(r.id)));const d={original:r,row:{...r},body:stored.body,sheetKey:stored.sheetKey,serverRevision:stored.serverRevision,ack:null,inflight:stored.inflight,revision:0,error:''};drafts.set(k,d);calculateDraft(d)}}catch(e){toast('Some locally retained edits could not be restored. '+e.message,true)}}
+  const f=$('[data-rp-filters]');for(const n of ['category','supplier']){const selected=f.elements[n].value;f.elements[n].innerHTML='<option value="">All '+(n==='category'?'categories':'suppliers')+'</option>'+[...new Set([...data.rows,...localRows.values()].map(r=>r[n]).filter(Boolean))].sort().map(v=>'<option>'+esc(v)+'</option>').join('');f.elements[n].value=selected}
+ const selected=f.elements.size.value;f.elements.size.innerHTML='<option value="">All sizes</option>'+options(data.sizes,s=>s.id,s=>s.label);f.elements.size.value=selected;renderPricing();drafts.forEach(d=>queueSave(rowElement(key(d.original)),d));
  }catch(x){toast(x.message,true)}
 }
 const tiles=entries=>entries.map(([label,value])=>'<div class="rp4-cost-tile"><span class="rp4-cost-tile-label">'+esc(label)+'</span><strong class="rp4-cost-tile-value">'+esc(value)+'</strong></div>').join('');
@@ -221,7 +231,8 @@ if(mode==='pricing'){
  $('[data-rp-refresh]').addEventListener('click',async()=>{await loadPricing();await Promise.all([...drafts.values()].map(d=>preview(d)));renderPricing();toast('Source previews refreshed; selling-price drafts preserved. Review the updated costs before saving.')});
  const filters=$('[data-rp-filters]');filters.addEventListener('submit',e=>e.preventDefault());filters.addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(renderPricing,250)});filters.addEventListener('change',renderPricing);filters.addEventListener('reset',()=>setTimeout(renderPricing));
  $('[data-rp-more]').onclick=e=>{const open=filters.classList.toggle('is-expanded');e.currentTarget.setAttribute('aria-expanded',String(open))};
- window.addEventListener('beforeunload',e=>{if(drafts.size||drawerDirty){e.preventDefault();e.returnValue=''}});
+ window.addEventListener('beforeunload',e=>{drafts.forEach(d=>{if(JSON.stringify(d.body)!==d.ack)retainPending(d)});if(pendingCount()||drawerDirty){e.preventDefault();e.returnValue=''}});
+ window.addEventListener('online',()=>drafts.forEach(d=>{d.error='';commitRow(rowElement(key(d.original)),true)}));
  loadPricing();
 }else loadReport();
 
