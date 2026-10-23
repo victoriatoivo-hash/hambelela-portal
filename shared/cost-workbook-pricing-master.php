@@ -90,7 +90,7 @@ function rpm_rows(PDO $pdo,array $s,array $settings):array {
     foreach($s['products']as $p){$proposals=[];foreach($s['website']as $site){if(function_exists('rpd_match')&&(($candidate=rpd_match($site,$s))!==null)&&(int)$candidate['id']===(int)$p['id']){$size=rpm_site_size($site,$s['sizes']);if($size!==null&&!isset($covered[$p['id'].':'.$size]))$proposals[$size]=['size_conversion_id'=>$size,'website_key'=>isset($proposals[$size])?'':$site['product_id'].':'.$site['variation_id']];}}
         $has=false;foreach($covered as $key=>$v)if(strpos($key,$p['id'].':')===0)$has=true;
         if(!$has&&!$proposals)$proposals[]=['size_conversion_id'=>null,'website_key'=>''];
-        foreach($proposals as $b){$b['product_id']=$p['id'];$row=rpm_preview($s,$settings,$b);$row['id']=0;$row['version']=0;$row['saved']=false;$row['effective_date']=rpm_today();$row['cost_changed']=false;$rows[]=$row;}
+        foreach($proposals as $b){$b['product_id']=$p['id'];if(!empty($b['website_key']))foreach($s['website'] as $web)if($web['product_id'].':'.$web['variation_id']===$b['website_key']){$b=array_merge($b,cwp_vat($web,$settings));$b['website_confirmed']=true;break;}$row=rpm_preview($s,$settings,$b);$row['id']=0;$row['version']=0;$row['saved']=false;$row['effective_date']=rpm_today();$row['cost_changed']=false;$rows[]=$row;}
     }
     $counts=[];foreach($rows as $r)if($r['website_key'])$counts[$r['website_key']]=($counts[$r['website_key']]??0)+1;
     foreach($rows as &$r){if($r['website_key']&&$counts[$r['website_key']]>1){$r['website_status']='Conflicting Website Match';$r['stock_cost']=$r['retail_value']=$r['projected_profit']=null;}}unset($r);return $rows;

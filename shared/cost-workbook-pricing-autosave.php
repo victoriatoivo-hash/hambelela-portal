@@ -16,7 +16,7 @@ function rps_install(PDO $pdo):void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 function rps_body(array $input):array {
-    $fields=['manual_name','manual_code','manual_category','manual_basis','id','version','product_id','size_conversion_id','packaging_setup_id','packaging_material_id','packaging_mode','packaging_manual_cost','packaging_confirmed','website_key','selling_price_inc_vat','vat_treatment','vat_rate','effective_date','source_token','website_confirmed'];
+    $fields=['website_origin','manual_name','manual_code','manual_category','manual_basis','id','version','product_id','size_conversion_id','packaging_setup_id','packaging_material_id','packaging_mode','packaging_manual_cost','packaging_confirmed','website_key','selling_price_inc_vat','vat_treatment','vat_rate','effective_date','source_token','website_confirmed'];
     $body=[];foreach($fields as $name)if(array_key_exists($name,$input)){if(!is_scalar($input[$name])&&$input[$name]!==null)throw new DomainException('Invalid cell value.');if(strlen((string)$input[$name])>500)throw new DomainException('Cell value is too long.');$body[$name]=$input[$name];}
     return $body;
 }
@@ -24,6 +24,7 @@ function rps_row(array $body,array $sources,array $settings):array {
     $p=rpm_find($sources['products'],'id',(int)($body['product_id']??0));
     $row=['product_id'=>(int)($body['product_id']??0),'product_name'=>$p['product_name']??'','short_code'=>$p['short_code']??'','category'=>$p['product_category']??'','basis'=>$p['costing_basis']??'','status'=>'Draft','issues'=>[]];
     try{$row=array_merge($row,rpm_preview($sources,$settings,$body));}catch(DomainException $e){$row['issues']=[$e->getMessage()];}
+    if(!empty($body['website_origin']))foreach($sources['website'] as $site)if($site['product_id'].':'.$site['variation_id']===($body['website_key']??'')){$row['product_name']=$site['product_name'];$row['short_code']=$site['sku']??'';$row['category']=$site['category']??'';break;}
     return array_merge($row,['id'=>(int)($body['id']??0),'version'=>(int)($body['version']??0),'saved'=>!empty($body['id']),'effective_date'=>$body['effective_date']??rpm_today()]);
 }
 function rps_list(PDO $pdo,array $sources,array $settings):array {

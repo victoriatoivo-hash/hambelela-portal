@@ -21,7 +21,7 @@ function rpd_website_rows(array $rows,array $sources,array $settings):array {
         $key=$site['product_id'].':'.$site['variation_id'];if(isset($covered[$key]))continue;
         $p=rpd_match($site,$sources);$sid=rpm_site_size($site,$sources['sizes']);$size=rpm_find($sources['sizes'],'id',$sid??'');
         if($sid===null&&(($p&&in_array($p['costing_basis'],['count','ready_made'],true))||(!$p&&($site['product_type']??'')==='simple')))$sid=0;
-        $b=['product_id'=>$p['id']??0,'size_conversion_id'=>$sid,'website_key'=>$key,'website_confirmed'=>true,'selling_price_inc_vat'=>$site['active_price_inc_vat']??'',
+        $b=['website_origin'=>true,'product_id'=>$p['id']??0,'size_conversion_id'=>$sid,'website_key'=>$key,'website_confirmed'=>true,'selling_price_inc_vat'=>$site['active_price_inc_vat']??'',
             'manual_name'=>$p?'':$site['product_name'],'manual_code'=>$p?'':($site['sku']??''),'manual_category'=>$p?'':($site['category']??''),'manual_basis'=>$size['measurement_type']??'count',
             'effective_date'=>rpm_today(),'vat_treatment'=>''];
         $b=array_merge($b,cwp_vat($site,$settings));$r=rpm_preview($sources,$settings,$b);$r['client_key']='website-'.$site['product_id'].'-'.$site['variation_id'];$r['sheet_key']=$r['client_key'];
