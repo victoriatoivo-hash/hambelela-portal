@@ -28,7 +28,11 @@ function rpm_site_size(array $site,array $sizes):?int {
     return count($found)===1?(int)array_key_first($found):null;
 }
 function rpm_preview(array $sources,array $settings,array $b):array {
-    $p=rpm_find($sources['products'],'id',$b['product_id']??0);if(!$p)throw new DomainException('Select an existing Cost Workbook product.');
+    $p=rpm_find($sources['products'],'id',$b['product_id']??0);
+    if(!$p){
+        if(!empty($b['product_id']))throw new DomainException('This supplier product is no longer available. Choose a current cost source.');
+        $p=['id'=>0,'product_name'=>trim((string)($b['manual_name']??'')),'short_code'=>trim((string)($b['manual_code']??'')),'product_category'=>trim((string)($b['manual_category']??'')),'costing_basis'=>$b['manual_basis']??'weight','base_unit'=>'','landed_cost_id'=>null,'landed_status'=>'unmatched','landed_cost_per_base'=>null,'supplier_name'=>'','cost_date'=>null,'supplier_cost_per_base'=>null,'transport_cost_per_base'=>null];
+    }
     $size=rpm_find(rpm_sizes($sources,$p),'id',$b['size_conversion_id']??'');
     if(!$size&&($b['size_conversion_id']??null)!==null&&$b['size_conversion_id']!==''&&in_array($p['costing_basis'],['count','ready_made'],true)&&(int)$b['size_conversion_id']===0)$size=['id'=>0,'label'=>'1 unit','base_value'=>1,'base_unit'=>$p['base_unit'],'measurement_type'=>'count'];
     $packMode=(string)($b['packaging_mode']??'setup');
@@ -46,13 +50,16 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $vat=is_numeric($b['vat_rate']??null)?(float)$b['vat_rate']:(float)($settings['retail_vat_rate']??15);
     $treatment=(string)($b['vat_treatment']??'');if(in_array($treatment,['zero','exempt'],true))$vat=0;
     if($vat<0||$vat>100)throw new DomainException('Enter a valid VAT rate.');
-    $issues=[];if(!$p['landed_cost_id'])$issues[]='Supplier Cost Missing';elseif($p['landed_status']!=='complete')$issues[]='Transport / Source Review';
+    $issues=[];if(!$p['landed_cost_id'])$issues[]='Cost Not Matched';elseif($p['landed_status']!=='complete')$issues[]='Transport / Source Review';
     if(!$size)$issues[]='Size Required';if($pack===null)$issues[]='Packaging Required';
     if($packMode==='manual'&&!$confirmed)$issues[]='Packaging Estimate';
     if(!$treatment)$issues[]='Confirm VAT Treatment';if($selling===null||$selling<=0)$issues[]='Selling Price Required';
     $contents=$size&&$p['landed_status']==='complete'?(float)$p['landed_cost_per_base']*(float)$size['base_value']:null;
-    $total=$contents!==null&&$pack!==null?$contents+$pack:null;$priceEx=$selling===null||!in_array($treatment,['standard','zero','exempt'],true)?null:$selling/(1+$vat/100);$profit=$priceEx!==null&&$total!==null?$priceEx-$total:null;
-    $margin=$profit!==null&&$priceEx>0?$profit/$priceEx*100:null;$markup=$profit!==null&&$total>0?$profit/$total*100:null;
+    $complete=$contents!==null&&$pack!==null&&($packMode==='setup'||$confirmed);
+    $known=$contents!==null||$pack!==null?(float)$contents+(float)$pack:null;
+    $total=$complete?$known:null;$priceEx=$selling===null||!in_array($treatment,['standard','zero','exempt'],true)?null:$selling/(1+$vat/100);
+    $profit=$priceEx!==null&&$known>0?$priceEx-$known:($complete&&$known===0.0&&$priceEx!==null?$priceEx:null);
+    $margin=$profit!==null&&$priceEx>0?$profit/$priceEx*100:null;$markup=$profit!==null&&$known>0?$profit/$known*100:null;
     if($profit!==null&&$profit<0)$issues[]='Loss-Making';elseif($margin!==null&&$margin<(float)($settings['retail_low_margin_threshold']??20))$issues[]='Low Margin';
     $stock=$site&&!empty($site['manage_stock'])&&is_numeric($site['stock_quantity'])?(float)$site['stock_quantity']:null;
     $webPrice=$site&&is_numeric($site['active_price_inc_vat'])?(float)$site['active_price_inc_vat']:null;
@@ -61,7 +68,15 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $websiteStatus=!$site?'Not Linked':($stock===null?'Stock Unknown':($outdated?'Sync Outdated':($difference?'Price Difference':'Linked')));
     $pricingStatus=$contents===null?($size?'Costing Required':'Not Started'):($pack===null?'Packaging Required':($packMode==='manual'&&!$confirmed?'Packaging Estimate':($selling===null||$selling<=0||$priceEx===null?'Not Started':($profit<0?'Loss-Making':($margin<(float)($settings['retail_low_margin_threshold']??20)?'Low Margin':'Pricing Complete')))));
     $token=hash('sha256',json_encode([$p,$size,$setup,$site,$sources['batch'],$packMode,$packMode==='manual'?$pack:null,$packMode==='setup'?true:$confirmed,$settings]));
-    return ['product_id'=>(int)$p['id'],'product_name'=>$p['product_name'],'short_code'=>$p['short_code'],'category'=>$p['product_category'],'supplier'=>$p['supplier_name'],'basis'=>$p['costing_basis'],'base_unit'=>$p['base_unit'],'landed_cost_id'=>$p['landed_cost_id'],'cost_date'=>$p['cost_date'],'supplier_cost_per_base'=>$p['supplier_cost_per_base'],'transport_cost_per_base'=>$p['transport_cost_per_base'],'landed_cost_per_base'=>$p['landed_status']==='complete'?$p['landed_cost_per_base']:null,'size_conversion_id'=>$size['id']??null,'size_label'=>$size['label']??'Select Size','conversion_base_value'=>$size['base_value']??null,'packaging_setup_id'=>$setup['id']??0,'packaging_setup'=>$packLabel,'packaging_mode'=>$packMode,'packaging_manual_cost'=>$packMode==='manual'?$pack:null,'packaging_confirmed'=>$packMode==='setup'?$pack!==null:$confirmed,'packaging_cost_ex_vat'=>$pack,'packaging_cost_inc_vat'=>$packInc,'product_cost_per_unit'=>$contents,'total_cost_ex_vat'=>$total,'selling_price_inc_vat'=>$selling,'selling_price_ex_vat'=>$priceEx,'profit_per_unit'=>$profit,'markup_percent'=>$markup,'margin_percent'=>$margin,'vat_rate'=>$vat,'vat_treatment'=>$treatment,'website_key'=>$site?$site['product_id'].':'.$site['variation_id']:'','website_name'=>$site?trim($site['product_name'].' · '.$site['variation_name']):'Not linked to website','website_sku'=>$site['sku']??'','website_price_inc_vat'=>$webPrice,'website_stock_quantity'=>$stock,'website_sync_at'=>$site?$sync:null,'stock_cost'=>$stock!==null&&$total!==null?$stock*$total:null,'retail_value'=>$stock!==null&&$webPrice!==null?$stock*$webPrice:null,'projected_profit'=>$priceEx!==null&&$stock!==null&&$webPrice!==null&&$total!==null?$stock*($webPrice/(1+$vat/100)-$total):null,'source_token'=>$token,'issues'=>$issues,'pricing_status'=>$pricingStatus,'website_status'=>$websiteStatus,'status'=>$pricingStatus,'website_price_differs'=>$difference];
+    $extra=['known_cost_ex_vat'=>$known,'provisional'=>!$complete,'cost_status'=>$contents===null?'Cost Not Matched':'Matched','completion_status'=>$complete&&$priceEx!==null&&$selling>0?'Complete':'Incomplete','website_link_status'=>$site?'Linked':'Not Linked'];
+    foreach(['manual_name','manual_code','manual_category','manual_basis'] as $field)$extra[$field]=$b[$field]??'';
+    if(!empty($b['manual_name'])){$extra['product_name']=$b['manual_name'];$extra['short_code']=$b['manual_code']??'';$extra['category']=$b['manual_category']??'';}
+    // Keep older detailed status values for historical consumers; expose the sheet's clear grouping separately.
+    if($pack===null)$issues[]='Missing Packaging Cost';
+    if(!$complete&&$profit!==null)$issues[]='Provisional / Incomplete Cost';
+    $extra['issues']=$issues;
+    if(in_array('Transport / Source Review',$issues,true)||in_array('Packaging Estimate',$issues,true))$extra['completion_status']='Needs Review';
+    return $extra + ['product_id'=>(int)$p['id'],'product_name'=>$p['product_name'],'short_code'=>$p['short_code'],'category'=>$p['product_category'],'supplier'=>$p['supplier_name'],'basis'=>$p['costing_basis'],'base_unit'=>$p['base_unit'],'landed_cost_id'=>$p['landed_cost_id'],'cost_date'=>$p['cost_date'],'supplier_cost_per_base'=>$p['supplier_cost_per_base'],'transport_cost_per_base'=>$p['transport_cost_per_base'],'landed_cost_per_base'=>$p['landed_status']==='complete'?$p['landed_cost_per_base']:null,'size_conversion_id'=>$size['id']??null,'size_label'=>$size['label']??'Select Size','conversion_base_value'=>$size['base_value']??null,'packaging_setup_id'=>$setup['id']??0,'packaging_setup'=>$packLabel,'packaging_mode'=>$packMode,'packaging_manual_cost'=>$packMode==='manual'?$pack:null,'packaging_confirmed'=>$packMode==='setup'?$pack!==null:$confirmed,'packaging_cost_ex_vat'=>$pack,'packaging_cost_inc_vat'=>$packInc,'product_cost_per_unit'=>$contents,'total_cost_ex_vat'=>$total,'selling_price_inc_vat'=>$selling,'selling_price_ex_vat'=>$priceEx,'profit_per_unit'=>$profit,'markup_percent'=>$markup,'margin_percent'=>$margin,'vat_rate'=>$vat,'vat_treatment'=>$treatment,'website_key'=>$site?$site['product_id'].':'.$site['variation_id']:'','website_name'=>$site?trim($site['product_name'].' · '.$site['variation_name']):'Not linked to website','website_sku'=>$site['sku']??'','website_price_inc_vat'=>$webPrice,'website_stock_quantity'=>$stock,'website_sync_at'=>$site?$sync:null,'stock_cost'=>$stock!==null&&$total!==null?$stock*$total:null,'retail_value'=>$stock!==null&&$webPrice!==null?$stock*$webPrice:null,'projected_profit'=>$priceEx!==null&&$stock!==null&&$webPrice!==null&&$total!==null?$stock*($webPrice/(1+$vat/100)-$total):null,'source_token'=>$token,'issues'=>$issues,'pricing_status'=>$pricingStatus,'website_status'=>$websiteStatus,'status'=>$pricingStatus,'website_price_differs'=>$difference];
 }
 function rpm_rows(PDO $pdo,array $s,array $settings):array {
     $q=$pdo->prepare('SELECT r.*,r.id pricing_id,v.selling_price_inc_vat,v.vat_rate,v.source_json,v.total_cost_ex_vat saved_cost FROM cw_retail_prices r JOIN cw_retail_price_versions v ON v.retail_price_id=r.id AND v.version_no=(SELECT v2.version_no FROM cw_retail_price_versions v2 WHERE v2.retail_price_id=r.id AND v2.effective_date<=? ORDER BY v2.effective_date DESC,v2.version_no DESC LIMIT 1) WHERE r.active=1');$q->execute([rpm_today()]);$prices=$q->fetchAll();$rows=[];$covered=[];

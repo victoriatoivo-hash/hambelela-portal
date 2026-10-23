@@ -1049,4 +1049,10 @@ body:has([data-rp-root][data-mode=pricing]) .retail-pricing__toast{position:fixe
 #costWorkbook[data-page="product-pricing"] .rp4-drawer .portal-custom-select-trigger{min-height:44px;font-size:16px}
 }
 #costWorkbook[data-page="product-pricing"] select[hidden]+.portal-custom-select{display:none!important}
+[data-pack-cell] input[type=number]{width:100%;height:34px;margin-top:5px;border:1px solid #E4E6DC;border-radius:8px;padding:6px;font:400 11.5px "Jost",sans-serif}
+[data-pack-cell] [data-pack-check]{display:flex;align-items:center;gap:5px;font:400 10.5px "Jost",sans-serif;margin-top:4px}
+[data-pack-cell] input[type=checkbox]{accent-color:#59694A;width:14px;height:14px}
+[data-source-cell]{cursor:pointer;text-decoration:underline;text-decoration-color:#E4E6DC;text-underline-offset:4px}
+.pp-manual-fields{display:grid;gap:8px;border-top:1px solid #E4E6DC;padding-top:10px;margin-top:10px;font-family:"Jost",sans-serif}
+.pp-manual-fields label{display:grid;gap:4px}.pp-manual-fields input{height:38px;border:1px solid #E4E6DC;border-radius:8px;padding:6px;font:400 12px "Jost",sans-serif}
 

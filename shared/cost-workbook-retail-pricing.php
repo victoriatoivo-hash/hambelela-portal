@@ -16,7 +16,7 @@ function cw_render_product_pricing(array $period):void{ ?>
  <button class="rp4-button rp4-more" type="button" data-rp-more aria-expanded="false">More Filters</button>
  <label>Category<select name="category"><option value="">All categories</option></select></label>
  <label>Supplier<select name="supplier"><option value="">All suppliers</option></select></label>
- <label>Pricing Status<select name="status"><option value="">All statuses</option><?php foreach(['Not Started','Costing Required','Packaging Required','Packaging Estimate','Pricing Complete','Low Margin','Loss-Making'] as $status):?><option><?= $status ?></option><?php endforeach; ?></select></label>
+ <label>Pricing Status<select name="status"><option value="">All statuses</option><?php foreach(['Complete','Incomplete','Needs Review'] as $status):?><option><?= $status ?></option><?php endforeach; ?></select></label>
  <label>Website Match<select name="website"><option value="">All matches</option><option value="matched">Matched</option><option value="unmatched">Unmatched</option></select></label>
  <label>Costing Basis<select name="basis"><option value="">All bases</option><option value="weight">Weight</option><option value="volume">Volume</option><option value="count">Count</option><option value="ready_made">Ready-made</option></select></label>
  <label>Product Size<select name="size"><option value="">All sizes</option></select></label>
@@ -25,7 +25,7 @@ function cw_render_product_pricing(array $period):void{ ?>
  </form>
  <div class="rp4-sheet-note"><span data-rp-results>Loading results…</span><span data-rp-drafts role="status">No unsaved changes</span><a href="profitability-report.php">Historical Profitability Report</a></div>
  <section class="retail-pricing__table-card"><div class="rp-sheet__toolbar"><strong>Product pricing sheet</strong><button type="button" class="rp-sheet__add" data-rp-add>+ Add New Item</button></div><div class="retail-pricing__table-wrap"><table class="rp-sheet__table"><colgroup><?php foreach([240,95,135,135,150,150,145,175,145,145,100,110,220,110,155,165,165,180,240] as $width):?><col style="width:<?= $width ?>px"><?php endforeach;?></colgroup><thead><tr>
- <?php foreach(['Product Name','Short Code','Category','Size / Variation','Contents Cost / Size','Packaging / Size','Final Cost / Unit','Selling Price Incl. VAT','Price Excl. VAT','Gross Profit / Unit','Markup %','Gross Margin %','WooCommerce Variation','Website Qty','Total Stock Cost','Website Retail Value','Projected Gross Profit','Status','Actions'] as $heading):?><th><?= $heading ?></th><?php endforeach; ?>
+ <?php foreach(['Product Name','Short Code','Category','Size / Variation','Contents Cost / Size','Packaging / Size','Final Cost / Unit','Working Price Incl. VAT','Price Excl. VAT','Gross Profit / Unit','Markup %','Gross Margin %','WooCommerce Variation','Website Qty','Total Stock Cost','Website Retail Value','Projected Gross Profit','Status','Actions'] as $heading):?><th><?= $heading ?></th><?php endforeach; ?>
  </tr></thead><tbody data-rp-rows><tr><td colspan="19">Loading pricing records…</td></tr></tbody></table></div><button type="button" class="rp-sheet__add-row" data-rp-add>+ Add Item</button></section>
 </section>
 <div class="retail-pricing__backdrop" data-rp-backdrop hidden></div>

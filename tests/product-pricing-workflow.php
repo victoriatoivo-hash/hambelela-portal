@@ -4,7 +4,7 @@ define('BASE_PATH',dirname(__DIR__));
 function current_user():array{return ['id'=>93,'name'=>'Pricing test owner'];}
 require BASE_PATH.'/shared/cost-workbook.php';
 require BASE_PATH.'/shared/cost-workbook-pricing-master.php';
-require BASE_PATH.'/shared/cost-workbook-pricing-autosave.php';
+require BASE_PATH.'/shared/cost-workbook-pricing-autosave.php';require BASE_PATH.'/shared/cost-workbook-pricing-discovery.php';require BASE_PATH.'/shared/cost-workbook-website-pricing.php';
 $api=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$start=strpos($api,'function rp_reply');$end=strpos($api,'try{$pdo=db()',$start);eval(substr($api,$start,$end-$start));
 function check($v,string $m):void{if(!$v)throw new RuntimeException($m);}
 function near($a,$b,string $m):void{check(abs($a-$b)<.00001,$m);}
@@ -21,7 +21,7 @@ $unconfirmed=$b;$unconfirmed['vat_treatment']='';check(rpm_preview($s,$settings,
 $missing=$s;$missing['products'][0]['landed_status']='review';check(rpm_preview($missing,$settings,$b)['total_cost_ex_vat']===null,'Missing source not zero');
 echo "Pricing three-size calculations, VAT, margins, stock and incomplete sources PASS\n";
 $manual=['product_id'=>1,'size_conversion_id'=>1,'website_key'=>'','selling_price_inc_vat'=>115,'vat_treatment'=>'standard','packaging_mode'=>'manual','packaging_manual_cost'=>'2.50','packaging_confirmed'=>false];
-$r=rpm_preview($s,$settings,$manual);near($r['total_cost_ex_vat'],27.5,'Manual packaging added once');check($r['status']==='Packaging Estimate','Unconfirmed cost remains an estimate');check($r['website_status']==='Not Linked'&&$r['stock_cost']===null,'Unlinked is not a pricing error or zero stock');
+$r=rpm_preview($s,$settings,$manual);near($r['known_cost_ex_vat'],27.5,'Manual packaging added once');check($r['total_cost_ex_vat']===null,'Estimate excluded from confirmed cost');check($r['status']==='Packaging Estimate','Unconfirmed cost remains an estimate');check($r['website_status']==='Not Linked'&&$r['stock_cost']===null,'Unlinked is not a pricing error or zero stock');
 $manual['packaging_confirmed']=true;$r=rpm_preview($s,$settings,$manual);check($r['status']==='Pricing Complete','Unlinked price can be complete');$manual['packaging_manual_cost']=2.5;check(rpm_preview($s,$settings,$manual)['source_token']===$r['source_token'],'Numeric packaging token survives JSON round trip');
 $manual['packaging_mode']='none';$manual['packaging_confirmed']=false;check(rpm_preview($s,$settings,$manual)['total_cost_ex_vat']===null,'Unconfirmed no packaging is unknown');$manual['packaging_confirmed']=true;near(rpm_preview($s,$settings,$manual)['total_cost_ex_vat'],25,'Explicit not applicable packaging is zero');
 echo "Independent packaging choices, optional website link and status separation PASS\n";
@@ -92,4 +92,24 @@ $duplicate=['row_key'=>'duplicate-'.bin2hex(random_bytes(8)),'revision'=>0,'muta
 $dup=rps_save($pdo,$duplicate,$settings);check($dup['state']==='draft'&&strpos($dup['note'],'already exists')!==false,'Duplicate financial identity retained for review, never duplicated');
 check($websiteBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'Autosave never changes website data or prices');
 echo "Autosave persistence, partial drafts, reload, revision conflicts, idempotent retries, valid history and no Woo changes PASS\n";
+
+// Website-only and manual rows are editable without manufacturing supplier records.
+$catalog=$s;$catalog['products']=[];$catalog['setups']=[];
+$catalog['website'][0]['website_tax_status']='taxable';$catalog['website'][0]['website_tax_class']='';
+$discovered=rpd_website_rows([],$catalog,$settings);check(count($discovered)===3,'Every unmatched website variation discovered');
+check(count(rpd_website_rows($discovered,$catalog,$settings))===3,'Discovery is idempotent');
+$unmatched=$discovered[0];check($unmatched['product_id']===0&&$unmatched['website_link_status']==='Linked'&&$unmatched['cost_status']==='Cost Not Matched','Website link is not cost evidence');
+near($unmatched['selling_price_ex_vat'],100,'Website default VAT metadata');check($unmatched['profit_per_unit']===null,'No invented zero-cost margin');
+$partialSource=$s;$partialSource['setups']=[];$calc=rpm_preview($partialSource,$settings,['product_id'=>1,'size_conversion_id'=>1,'selling_price_inc_vat'=>115,'vat_treatment'=>'standard']);
+near($calc['known_cost_ex_vat'],25,'Known contents subtotal');near($calc['profit_per_unit'],75,'Provisional profit');check($calc['provisional']&&$calc['total_cost_ex_vat']===null&&$calc['stock_cost']===null,'Provisional never confirmed valuation');
+$named=$catalog;$named['products']=$s['products'];$named['products'][0]['product_name']=$catalog['website'][0]['product_name'];check(rpd_match($catalog['website'][0],$named)===null,'Name alone never matches supplier');
+$named['products'][0]['woo_sku']=$catalog['website'][0]['sku'];check(rpd_match($catalog['website'][0],$named)!==null,'Exact SKU and compatible size match');
+$named['products'][]=array_merge($named['products'][0],['id'=>2]);check(rpd_match($catalog['website'][0],$named)===null,'Ambiguous code does not auto-match');
+$manualRow=['row_key'=>'manual-new-product','revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>['manual_name'=>'Disposable new product','manual_code'=>'NEW-TEST','manual_category'=>'Fixture','manual_basis'=>'weight','product_id'=>0,'size_conversion_id'=>$ids[0],'selling_price_inc_vat'=>115,'vat_treatment'=>'standard','packaging_mode'=>'manual','packaging_manual_cost'=>2,'packaging_confirmed'=>true,'effective_date'=>'2026-10-23']];
+$a=rps_save($pdo,$manualRow,$settings);check($a['row']['product_name']==='Disposable new product'&&$a['state']==='draft','Manual product saves without Woo or source');
+$manualRow['revision']=$a['revision'];$manualRow['mutation_id']=bin2hex(random_bytes(16));$manualRow['body']=$a['body'];$manualRow['body']['website_key']='12345:999';
+// A missing or obsolete website link is retained for review, never published.
+$review=rps_save($pdo,$manualRow,$settings);check($review['state']==='draft','Invalid website association does not delete internal row');
+check($websiteBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'New workbook paths never write Woo snapshot');
+echo "Unmatched catalogue import, independent website/cost matching, provisional margins, manual autosave and no website writes PASS\n";
 
