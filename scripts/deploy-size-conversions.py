@@ -2,12 +2,12 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '3268d523'
+BASELINE = '56e816c08765124fb8be1930e108462f2837aa7b'
 NEW_FILES = []
-FILES = ['apps/cost-manager/packaging-costs-api.php','shared/cost-workbook-packaging-costs.php','assets/js/packaging-costs.js']
-DEPENDENCIES = ['shared/cost-workbook.php']
-# Verified against the live hash in preflight 39923008905; never upload this dependency.
-DEPENDENCY_BASELINES = {'shared/cost-workbook.php':'5606141c7e8550452922eac347141a84dfa39cb0'}
+FILES = ['assets/js/retail-pricing.js','assets/css/cost-workbook-retail-pricing.css']
+DEPENDENCIES = ['shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','apps/cost-manager/retail-pricing-api.php']
+DEPENDENCY_BASELINES = {}
+
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):
