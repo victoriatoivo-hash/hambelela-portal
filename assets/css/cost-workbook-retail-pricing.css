@@ -977,7 +977,9 @@ tr.is-saved td {
 #costWorkbook[data-page="product-pricing"] [data-row-save]{display:inline-flex;gap:5px;margin:0}
 #costWorkbook[data-page="product-pricing"] .pp-row-actions{display:flex;align-items:center;gap:5px}
 #costWorkbook[data-page="product-pricing"] .pp-website-link{max-width:190px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#costWorkbook[data-page="product-pricing"] [data-save-state]{height:12px;font-size:9px;line-height:12px;color:#59694A}
+#costWorkbook[data-page="product-pricing"] td:has([data-save-state]){position:relative}
+#costWorkbook[data-page="product-pricing"] .rp4-selling-price{padding-right:48px}
+#costWorkbook[data-page="product-pricing"] [data-save-state]{position:absolute;right:16px;top:50%;transform:translateY(-50%);font-size:9px;line-height:12px;color:#59694A;pointer-events:none}
 
 /* Cell editor lives outside the scrolling table so its controls are not clipped. */
 .pp-cell-popover{position:fixed;z-index:1250;box-sizing:border-box;width:340px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:16px;border:1px solid #E4E6DC;border-radius:12px;background:#FFFFFF;color:#344126;box-shadow:0 12px 36px #34412626;font:400 12px/1.5 "Jost",sans-serif}

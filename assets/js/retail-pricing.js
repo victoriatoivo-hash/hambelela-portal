@@ -41,9 +41,12 @@ function rowHTML(original){
  const size=r.saved?esc(r.size_label):'<select class="rp4-inline-select" data-field="size_conversion_id" aria-label="Size for '+esc(r.product_name)+'"><option value="">Select Size</option>'+options(sizesFor(r.product_id),s=>s.id,s=>s.label)+'</select>';
  return '<tr data-row="'+esc(k)+'" class="'+(d?'has-unsaved-changes':'')+'"><td><strong class="rp4-product-name">'+esc(r.product_name)+'</strong></td><td>'+esc(r.short_code)+'</td><td>'+esc(r.category||'—')+'</td><td>'+size+'</td>'+cell('product_cost_per_unit')+'<td><button type="button" class="rp4-inline-select" data-packaging title="Edit packaging for this size">'+fmt(r.packaging_cost_ex_vat)+'</button></td>'+cell('total_cost_ex_vat')+'<td><input class="rp4-inline-input rp4-selling-price" data-field="selling_price_inc_vat" aria-label="Selling price for '+esc(r.product_name)+'" type="number" min=".01" step=".01" value="'+esc(b.selling_price_inc_vat)+'"><small data-save-state role="status">'+(d?'Unsaved':'')+'</small></td>'+fields.slice(2,6).map(cell).join('')+'<td><button type="button" class="rp4-inline-select pp-website-link" data-website title="'+esc(r.website_name||'Not linked')+'">'+esc(r.website_key?(r.website_sku||r.website_name||'Linked'):'Link Website (optional)')+'</button><small data-price-difference>'+ (r.website_price_differs?'Website: '+fmt(r.website_price_inc_vat):'')+'</small></td>'+fields.slice(6).map(cell).join('')+'<td><span class="retail-pricing__status">'+esc(r.status||'Not Started')+'</span><small data-website-status>'+esc(r.website_status||'Not Linked')+'</small></td><td><div class="pp-row-actions"><button type="button" class="rp4-button" data-add-size>Add Size</button><button type="button" class="rp4-button" data-details>Details / History</button><span data-row-save '+(d?'':'hidden')+'><button type="button" class="rp4-button" data-save>Save</button><button type="button" class="rp4-button" data-cancel>Cancel</button></span></div><small data-row-error role="alert">'+esc(d?.error||'')+'</small><select data-field="vat_treatment" aria-label="VAT treatment" '+(d&&!b.vat_treatment?'':'hidden')+'><option value="">Confirm VAT</option><option value="standard">Standard-rated</option><option value="zero">Zero-rated</option><option value="exempt">Exempt</option></select></td></tr>';
 }
-function renderPricing(){
+function renderPricingSummary(){
  const summary=data.summary||{};Object.entries(summary).forEach(([k,v])=>{const el=$('[data-rp-metric="'+k+'"]');if(el)el.textContent=['inventory_cost','retail_value','projected_profit'].includes(k)?(summary.coverage?.[k]?fmt(v):'—'):num(v).toLocaleString('en-NA')});
  $('[data-rp-coverage-note]').textContent='Latest successful website sync: '+(data.last_sync||'Not synced')+' · Known valuation coverage (linked saved sizes): '+Object.entries(summary.coverage||{}).map(([k,v])=>k.replaceAll('_',' ')+' '+v+'/'+(summary.linked||0)).join(' · ');
+}
+function renderPricing(){
+ renderPricingSummary();
  const rows=filteredRows();$('[data-rp-results]').textContent=rows.length+' results';$('[data-rp-rows]').innerHTML=rows.length?rows.map(rowHTML).join(''):'<tr><td colspan="19">No product sizes match these filters. Add Product Pricing to select a canonical product.</td></tr>';
  $$('[data-row]').forEach(tr=>{const r=data.rows.find(r=>key(r)===tr.dataset.row),b=drafts.get(tr.dataset.row)?.body||bodyFor(r);$$('select[data-field]',tr).forEach(s=>s.value=b[s.dataset.field]??'');});
  themeSelects(root);draftCount();
@@ -78,12 +81,13 @@ root.addEventListener('input',e=>{
 });
 async function commitRow(tr){
  const k=tr.dataset.row,d=drafts.get(k);if(!d||d.busy||d.pending)return;
+ const previous=bodyFor(d.original),same=Object.keys(previous).filter(n=>n!=='source_token').every(n=>String(previous[n]??'')===String(d.body[n]??''));if(same){drafts.delete(k);$('[data-row-save]',tr).hidden=true;$('[data-save-state]',tr).textContent='';draftCount();return}
  if(!(Number(d.body.selling_price_inc_vat)>0)){d.error='Enter a selling price greater than zero.';updateRow(tr,d);return}
  const input=$('[data-field="selling_price_inc_vat"]',tr);input.readOnly=true;
  try{const pending=saveDraft(d);updateRow(tr,d);const result=await pending;
   // Refresh only this record: preserve the other row drafts, DOM focus and table scroll.
   const latest=await request('bootstrap'),saved=latest.rows.find(r=>Number(r.id)===Number(result.id));if(!saved)throw Error('Saved, but the refreshed record could not be loaded. Refresh before editing again.');
-  data.rows=data.rows.map(r=>key(r)===k?saved:r);data.summary=latest.summary;drafts.delete(k);tr.dataset.row=key(saved);tr.classList.remove('has-unsaved-changes');
+  data.rows=data.rows.map(r=>key(r)===k?saved:r);data.summary=latest.summary;data.last_sync=latest.last_sync;drafts.delete(k);tr.dataset.row=key(saved);tr.classList.remove('has-unsaved-changes');tr.children[3].textContent=saved.size_label;renderPricingSummary();
   fields.forEach(n=>{$('[data-value="'+n+'"]',tr).textContent=valueText(saved,n)});$('.retail-pricing__status',tr).textContent=saved.status;$('[data-website-status]',tr).textContent=saved.website_status||'Not Linked';$('[data-row-save]',tr).hidden=true;$('[data-row-error]',tr).textContent='';$('[data-save-state]',tr).textContent='Saved';draftCount();
  }catch(x){d.error=x.message;updateRow(tr,d)}finally{input.readOnly=false}
 }
@@ -182,7 +186,7 @@ if(mode==='pricing'){
  loadPricing();
 }else loadReport();
 
-const exportColumns=[['Product Name','product_name'],['Short Code','short_code'],['Category','category'],['Size / Variation','size_label'],['Landed Cost / Size','product_cost_per_unit'],['Total Cost / Unit','total_cost_ex_vat'],['Selling Price Incl. VAT','selling_price_inc_vat'],['Price Excl. VAT','selling_price_ex_vat'],['Gross Profit / Unit','profit_per_unit'],['Markup %','markup_percent'],['Gross Margin %','margin_percent'],['Website Qty','website_stock_quantity'],['Total Stock Cost','stock_cost'],['Website Retail Value','retail_value'],['Projected Gross Profit','projected_profit'],['Status','status'],['Cost Source Date','cost_date'],['Website Sync','website_sync_at'],['Draft State','draft_state']];
+const exportColumns=[['Product Name','product_name'],['Short Code','short_code'],['Category','category'],['Size / Variation','size_label'],['Contents Cost / Size','product_cost_per_unit'],['Packaging / Size','packaging_cost_ex_vat'],['Final Cost / Unit','total_cost_ex_vat'],['Selling Price Incl. VAT','selling_price_inc_vat'],['Price Excl. VAT','selling_price_ex_vat'],['Gross Profit / Unit','profit_per_unit'],['Markup %','markup_percent'],['Gross Margin %','margin_percent'],['WooCommerce Variation','website_name'],['Website Qty','website_stock_quantity'],['Total Stock Cost','stock_cost'],['Website Retail Value','retail_value'],['Projected Gross Profit','projected_profit'],['Pricing Status','status'],['Website Status','website_status'],['Cost Source Date','cost_date'],['Website Sync','website_sync_at'],['Draft State','draft_state']];
 function exportSheet(type){
  const rows=filteredRows().map(r=>({...drafts.get(key(r))?.row||r,draft_state:drafts.has(key(r))?'Unsaved preview':'Saved / source preview'}));
  const cells=[exportColumns.map(c=>c[0]),...rows.map(r=>exportColumns.map(c=>r[c[1]]??''))];
