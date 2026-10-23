@@ -19,6 +19,11 @@ $b['website_key']='100:3';try{rpm_preview($s,$settings,$b);throw new RuntimeExce
 $b['website_key']='100:2';$unknown=$s;$unknown['website'][1]['manage_stock']=0;check(rpm_preview($unknown,$settings,$b)['stock_cost']===null,'Unknown stock not zero');
 $unconfirmed=$b;$unconfirmed['vat_treatment']='';check(rpm_preview($s,$settings,$unconfirmed)['projected_profit']===null,'Unconfirmed VAT not used for projected profit');
 $missing=$s;$missing['products'][0]['landed_status']='review';check(rpm_preview($missing,$settings,$b)['total_cost_ex_vat']===null,'Missing source not zero');
+$s['materials']=[['id'=>77,'item_name'=>'100ml pouch','cost_id'=>7,'cost_ex_vat'=>1.36,'cost_inc_vat'=>1.564]];
+$materialBody=['product_id'=>1,'size_conversion_id'=>1,'selling_price_inc_vat'=>115,'vat_treatment'=>'standard','packaging_mode'=>'material','packaging_material_id'=>77,'packaging_manual_cost'=>999];
+$materialPreview=rpm_preview($s,$settings,$materialBody);near($materialPreview['packaging_cost_ex_vat'],1.36,'Saved landed material cost used, never submitted manual cost');near($materialPreview['packaging_cost_inc_vat'],1.564,'Material VAT preserved');near($materialPreview['total_cost_ex_vat'],26.36,'One material per finished unit, no grams-to-ml conversion');
+$changedMaterial=$s;$changedMaterial['materials'][0]['cost_ex_vat']=2;check(rpm_preview($changedMaterial,$settings,$materialBody)['source_token']!==$materialPreview['source_token'],'Changed material costs invalidate preview');
+$materialBody['packaging_material_id']=999;check(rpm_preview($s,$settings,$materialBody)['total_cost_ex_vat']===null,'Missing material is unresolved, never zero');
 echo "Pricing three-size calculations, VAT, margins, stock and incomplete sources PASS\n";
 $manual=['product_id'=>1,'size_conversion_id'=>1,'website_key'=>'','selling_price_inc_vat'=>115,'vat_treatment'=>'standard','packaging_mode'=>'manual','packaging_manual_cost'=>'2.50','packaging_confirmed'=>false];
 $r=rpm_preview($s,$settings,$manual);near($r['total_cost_ex_vat'],27.5,'Manual packaging added once');check($r['status']==='Packaging Estimate','Unconfirmed cost remains an estimate');check($r['website_status']==='Not Linked'&&$r['stock_cost']===null,'Unlinked is not a pricing error or zero stock');
@@ -93,3 +98,14 @@ $dup=rps_save($pdo,$duplicate,$settings);check($dup['state']==='draft'&&strpos($
 check($websiteBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'Autosave never changes website data or prices');
 echo "Autosave persistence, partial drafts, reload, revision conflicts, idempotent retries, valid history and no Woo changes PASS\n";
 
+
+// Existing material identity and cost evidence survive financial and sheet-draft reload.
+$materialBefore=$pdo->query('SELECT * FROM cw_packaging_items ORDER BY id')->fetchAll();$materialCostsBefore=$pdo->query('SELECT * FROM cw_packaging_item_costs ORDER BY id')->fetchAll();
+[$materialBody,$materialSaved]=$lemonSaved[250];$materialBody['id']=$materialSaved['id'];$materialBody['version']=1;$materialBody['packaging_mode']='material';$materialBody['packaging_material_id']=$pack;$materialBody['packaging_setup_id']=0;
+$materialBody['source_token']=rpm_preview(rpm_sources($pdo),$settings,$materialBody)['source_token'];
+$materialDraft=['row_key'=>'material-'.bin2hex(random_bytes(8)),'revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>$materialBody];$materialResult=rps_save($pdo,$materialDraft,$settings);check($materialResult['state']==='priced','Saved material selection autosaves a financial version');
+$materialReload=array_values(array_filter(rpm_rows($pdo,rpm_sources($pdo),$settings),fn($r)=>(int)$r['id']===(int)$materialSaved['id']))[0];check($materialReload['packaging_mode']==='material'&&(int)$materialReload['packaging_material_id']===$pack,'Material identity survives financial reload');near($materialReload['packaging_cost_ex_vat'],cw_packaging_cost($pdo,$pack,rpm_today())['landed_ex'],'Actual saved landed unit cost used');
+$materialEntry=array_values(array_filter(rps_list($pdo,rpm_sources($pdo),$settings),fn($r)=>$r['row_key']===$materialDraft['row_key']))[0];check((int)$materialEntry['body']['packaging_material_id']===$pack,'Material identity survives sheet reload');
+$q=$pdo->prepare('SELECT source_json FROM cw_retail_price_versions WHERE retail_price_id=? ORDER BY version_no DESC LIMIT 1');$q->execute([$materialSaved['id']]);$evidence=json_decode($q->fetchColumn(),true);check((int)$evidence['packaging_material']['cost_id']>0,'Saved history contains source material cost identity');
+check($materialBefore===$pdo->query('SELECT * FROM cw_packaging_items ORDER BY id')->fetchAll(),'Selecting material never rewrites packaging records');check($materialCostsBefore===$pdo->query('SELECT * FROM cw_packaging_item_costs ORDER BY id')->fetchAll(),'Selecting material never rewrites packaging source costs');
+echo "Saved packaging materials: landed costs, VAT, stale evidence, autosave, financial history and reload PASS\n";

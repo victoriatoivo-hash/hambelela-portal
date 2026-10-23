@@ -16,7 +16,7 @@ function rps_install(PDO $pdo):void {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 function rps_body(array $input):array {
-    $fields=['id','version','product_id','size_conversion_id','packaging_setup_id','packaging_mode','packaging_manual_cost','packaging_confirmed','website_key','selling_price_inc_vat','vat_treatment','vat_rate','effective_date','source_token','website_confirmed'];
+    $fields=['id','version','product_id','size_conversion_id','packaging_setup_id','packaging_material_id','packaging_mode','packaging_manual_cost','packaging_confirmed','website_key','selling_price_inc_vat','vat_treatment','vat_rate','effective_date','source_token','website_confirmed'];
     $body=[];foreach($fields as $name)if(array_key_exists($name,$input)){if(!is_scalar($input[$name])&&$input[$name]!==null)throw new DomainException('Invalid cell value.');if(strlen((string)$input[$name])>500)throw new DomainException('Cell value is too long.');$body[$name]=$input[$name];}
     return $body;
 }
