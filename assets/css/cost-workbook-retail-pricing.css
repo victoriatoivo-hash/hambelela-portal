@@ -1007,11 +1007,11 @@ tr.is-saved td {
 .pp-cell-popover{position:fixed;z-index:1250;box-sizing:border-box;width:340px;max-width:calc(100vw - 24px);max-height:calc(100dvh - 24px);overflow:auto;padding:16px;border:1px solid #E4E6DC;border-radius:12px;background:#FFFFFF;color:#344126;box-shadow:0 12px 36px #34412626;font:400 12px/1.5 "Jost",sans-serif}
 .pp-cell-popover *{box-sizing:border-box;font-family:"Jost",sans-serif}
 .pp-cell-popover header,.pp-cell-popover footer{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.pp-cell-popover label{display:grid;gap:5px;margin-top:12px;font-size:11px}
+.pp-cell-popover label{display:grid;gap:5px;margin-top:12px;font:500 11px/1.4 "Jost",sans-serif}
 .pp-cell-popover input:not([type=checkbox]),.pp-cell-popover select:not(.portal-custom-select-native),.pp-cell-popover button{min-height:38px;border:1px solid #E4E6DC;border-radius:8px;background:#FFFFFF;color:#344126;padding:0 10px;font-size:12px;max-width:100%}
 .pp-cell-popover input:not([type=checkbox]),.pp-cell-popover select:not(.portal-custom-select-native){width:100%}
 .pp-cell-popover label.rp4-check{display:flex;align-items:flex-start;gap:8px}
-.pp-cell-popover input[type=checkbox]{accent-color:#59694A;margin-top:3px}
+.pp-cell-popover input[type=checkbox]{accent-color:#59694A;width:16px;min-width:16px;height:16px;min-height:16px;flex:0 0 16px;margin:2px 0 0;padding:0}
 .pp-cell-popover p{font-size:11px;color:#62675E}
 .pp-cell-popover [data-pop-error]{color:#A32F32}
 .pp-cell-popover button{cursor:pointer}
