@@ -298,7 +298,7 @@ body:has([data-rp-root][data-mode="report"]) .retail-pricing{--rp-burgundy:#721b
 
 #costWorkbook[data-page="product-pricing"]
 .retail-pricing__table-wrap table {
-  width: 3060px;
+  width: 2960px;
   min-width: 100%;
   max-width: none;
 

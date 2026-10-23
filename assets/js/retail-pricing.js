@@ -52,7 +52,7 @@ function renderPricing(){
  const rows=[...filteredRows(),...localRows.values()];$('[data-rp-results]').textContent=rows.length+' results';$('[data-rp-rows]').innerHTML=rows.length?rows.map(rowHTML).join(''):'<tr data-empty><td colspan="19">No matching sizes. Use Add New Item to start a pricing row.</td></tr>';
  themeSelects(root);draftCount();
 }
-function draftCount(){$('[data-rp-drafts]').textContent=drafts.size?drafts.size+' unsaved row'+(drafts.size===1?'':'s')+' · Prices save on Enter, Tab or leaving the field':'No unsaved changes'}
+function draftCount(){$('[data-rp-drafts]').textContent=drafts.size?drafts.size+' unsaved row'+(drafts.size===1?'':'s')+' · New rows: Save Item · Existing prices: Enter, Tab or leave the field':'No unsaved changes';$('[data-rp-results]').textContent=$$('[data-rp-rows] [data-row]').length+' results'}
 function updateRow(tr,d){
  calculateDraft(d);tr.classList.add('has-unsaved-changes');$('[data-row-save]',tr).hidden=!!d.original.saved;
  fields.forEach(n=>{$('[data-value="'+n+'"]',tr).textContent=valueText(d.row,n)});$('.retail-pricing__status',tr).textContent=d.row.status;$('[data-price-difference]',tr).textContent=d.row.website_price_differs?'Website: '+fmt(d.row.website_price_inc_vat):'';
@@ -92,6 +92,8 @@ async function commitRow(tr,explicit=false){
   // Refresh only this record: preserve the other row drafts, DOM focus and table scroll.
   const latest=await request('bootstrap'),saved=latest.rows.find(r=>Number(r.id)===Number(result.id));if(!saved)throw Error('Saved, but the refreshed record could not be loaded. Refresh before editing again.');
   if(localRows.has(k)){localRows.delete(k);data.rows.push(saved)}else data.rows=data.rows.map(r=>key(r)===k?saved:r);data.summary=latest.summary;data.last_sync=latest.last_sync;drafts.delete(k);tr.dataset.row=key(saved);tr.classList.remove('has-unsaved-changes','rp-sheet__row--new');tr.children[0].innerHTML='<strong class="rp4-product-name">'+esc(saved.product_name)+'</strong>';$('[data-size-cell]',tr).textContent=saved.size_label;renderPricingSummary();
+  // Remove only untouched discovery placeholders superseded by this saved identity.
+  data.rows=data.rows.filter(r=>{const stale=!r.saved&&!drafts.has(key(r))&&num(r.product_id)===num(saved.product_id)&&(r.size_conversion_id==null||String(r.size_conversion_id)===String(saved.size_conversion_id));if(stale)rowElement(key(r))?.remove();return !stale});
   fields.forEach(n=>{$('[data-value="'+n+'"]',tr).textContent=valueText(saved,n)});$('.retail-pricing__status',tr).textContent=saved.status;$('[data-website-status]',tr).textContent=saved.website_status||'Not Linked';$('[data-row-save]',tr).hidden=true;$('[data-row-error]',tr).textContent='';$('[data-row-error]',tr).hidden=true;$('[data-save-state]',tr).textContent='✓ Saved';draftCount();
  }catch(x){d.error=x.message;updateRow(tr,d)}finally{d.committing=false;input.readOnly=false}
 }
