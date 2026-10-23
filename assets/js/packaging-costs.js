@@ -5,7 +5,7 @@ const page=root.closest('#costWorkbook'),one=s=>page.querySelector(s),all=s=>Arr
 const api=root.dataset.api,csrf=root.dataset.csrf,filters=one('[data-pc-filters]');
 let state={items:[],setups:[],types:[],sizes:[],transports:[],vat_rate:0},active=null,dirty=false,busy=false,syncing=false,returnFocus=null,previewItems=[],previewGeneration=0;
 const esc=v=>{const e=document.createElement('span');e.textContent=v==null?'':String(v);return e.innerHTML;};
-const money=v=>v===null||v===undefined?'—':'N$ '+Number(v).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:6});
+const money=v=>v===null||v===undefined?'—':'N$ '+Number(v).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
 const status=k=>({ready:'Ready',print_yield_required:'Print Yield Required',price_required:'Price Required',usable_quantity_required:'Usable Quantity Required'})[k]||'Needs Costing';
 const itemForm=one('[data-pc-item-form]'),setupForm=one('[data-pc-setup-form]');

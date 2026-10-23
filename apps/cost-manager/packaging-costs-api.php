@@ -89,9 +89,9 @@ function pc_save_setup(PDO $pdo,array $b):array {
  foreach($rows as $order=>$r){$item=(int)($r['packaging_item_id']??0);$q=(float)($r['quantity']??0);$w=(float)($r['waste_percent']??0);
   if(!$item||isset($seen[$item])||$q<=0||!is_finite($q)||$w<0||$w>1000)throw new DomainException('Components must be unique with a positive quantity and valid waste percentage.');$seen[$item]=true;
   $c=cw_packaging_cost($pdo,$item,$date);if(!$c||!$c['active']||$c['landed_ex']===null)throw new DomainException('Every component needs a confirmed cost and print yield on the setup date.');
-  $landedBundle=$landedBundle||(($c['vat_treatment']??'')==='provisional_landed'&&stripos($c['item_name'],'+ ')!==false&&stripos($c['item_name'],'Cap')!==false);
+  $landedBundle=$landedBundle||(bool)preg_match('/\+\s.*\b(cap|lid)\b/i',$c['item_name']);
   $extraClosure=$extraClosure||in_array(strtolower($c['packaging_type']),['cap','lid','carton','box'],true);
-  if($landedBundle&&$extraClosure)throw new DomainException('This landed bottle bundle already includes its cap and allocated carton. Remove the separate cap, lid or carton to avoid counting it twice.');
+  if($landedBundle&&$extraClosure)throw new DomainException('This combined packaging already includes its closure. Use the bundle alone, or separate components, to avoid counting caps, lids or cartons twice.');
   $m=$q*(1+$w/100);pc_insert($pdo,'cw_packaging_setup_components',['packaging_setup_id'=>$new,'packaging_item_id'=>$item,'packaging_cost_id'=>$c['id'],'quantity'=>$q,'waste_percent'=>$w,'unit_cost_ex_snapshot'=>$c['landed_ex'],'unit_cost_inc_snapshot'=>$c['landed_inc'],'component_cost_ex'=>$m*$c['landed_ex'],'component_cost_inc'=>$m*$c['landed_inc'],'display_order'=>$order]);
  }
  $cost=cw_packaging_setup_cost($pdo,$new,$date);if(!$cost['complete'])throw new DomainException(implode(' ',$cost['missing']));
