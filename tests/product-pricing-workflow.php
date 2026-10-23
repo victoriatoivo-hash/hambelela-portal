@@ -110,6 +110,8 @@ $a=rps_save($pdo,$manualRow,$settings);check($a['row']['product_name']==='Dispos
 $manualRow['revision']=$a['revision'];$manualRow['mutation_id']=bin2hex(random_bytes(16));$manualRow['body']=$a['body'];$manualRow['body']['website_key']='12345:999';
 // A missing or obsolete website link is retained for review, never published.
 $review=rps_save($pdo,$manualRow,$settings);check($review['state']==='draft','Invalid website association does not delete internal row');
+$audit=$pdo->prepare('SELECT history_json FROM cw_retail_sheet_drafts WHERE owner_id=? AND row_key=?');$audit->execute([93,$manualRow['row_key']]);$events=json_decode($audit->fetchColumn(),true);check(count($events)===2&&$events[0]['body']['manual_name']==='Disposable new product','Manual revisions preserved when website association changes');
+rps_save($pdo,$manualRow,$settings);$audit->execute([93,$manualRow['row_key']]);check(count(json_decode($audit->fetchColumn(),true))===2,'Retry does not duplicate worksheet history');
 check($websiteBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'New workbook paths never write Woo snapshot');
 echo "Unmatched catalogue import, independent website/cost matching, provisional margins, manual autosave and no website writes PASS\n";
 

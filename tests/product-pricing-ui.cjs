@@ -10,7 +10,7 @@ function preview(body){const contents=!body.product_id||body.size_conversion_id=
 w.fetch=async(url,opt={})=>{const action=new URL(url,w.location.href).searchParams.get('action'),body=opt.body?JSON.parse(opt.body):null;calls.push({action,body});if(action==='autosave'&&hold){hold=false;await new Promise(resolve=>releaseSave=resolve)}let value;
 if(action==='bootstrap')value={rows:structuredClone(rows),sheet_entries:[...entries.values()],summary:{rows:rows.length,priced:rows.length,attention:0,coverage:{}},products:[product],sizes,website:[],setups:[],settings:{retail_vat_rate:15}};
 else if(action==='preview')value={row:preview(body)};
-else if(action==='history')value={versions:[]};
+else if(action==='history')value={versions:[]};else if(action==='sheet-history')value={events:[]};
 else if(action==='autosave'){const payload=body.body,prior=entries.get(body.row_key);if(fail)value={ok:false,message:'Concurrent update'};else if(prior?.mutation===body.mutation_id)value=prior;else{let row=preview(payload),savedBody={...payload},state='draft';if(payload.vat_treatment&&row.total_cost_ex_vat!=null&&Number(payload.selling_price_inc_vat)>0){const id=Number(payload.id)||nextId++;savedBody={...payload,id,version:Number(payload.version||0)+1};row={...preview(savedBody),saved:true};rows=rows.filter(r=>r.id!==id);rows.push(row);state='priced'}value={ok:true,row_key:body.row_key,revision:(prior?.revision||0)+1,body:savedBody,row,state,note:state==='draft'?'Draft saved':'',mutation:body.mutation_id};if(body.archive)entries.delete(body.row_key);else entries.set(body.row_key,value)}}
 else throw Error('Unexpected action '+action);
 return{ok:value.ok!==false,json:async()=>value};};

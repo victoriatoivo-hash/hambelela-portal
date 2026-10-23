@@ -9,11 +9,12 @@ function rps_install(PDO $pdo):void {
       revision INT UNSIGNED NOT NULL DEFAULT 0, pricing_id BIGINT NULL,
       state_key VARCHAR(20) NOT NULL DEFAULT 'draft', payload_json LONGTEXT NOT NULL,
       mutation_id VARCHAR(80) NOT NULL DEFAULT '', mutation_hash CHAR(64) NOT NULL DEFAULT '',
-      response_json LONGTEXT NULL, note_text TEXT NULL, active TINYINT NOT NULL DEFAULT 1,
+      response_json LONGTEXT NULL, note_text TEXT NULL, history_json LONGTEXT NULL, active TINYINT NOT NULL DEFAULT 1,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       UNIQUE KEY owner_row (owner_id,row_key), KEY owner_active (owner_id,active)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    if(!cw_column_exists($pdo,'cw_retail_sheet_drafts','history_json'))$pdo->exec('ALTER TABLE cw_retail_sheet_drafts ADD COLUMN history_json LONGTEXT NULL');
 }
 function rps_body(array $input):array {
     $fields=['website_origin','manual_name','manual_code','manual_category','manual_basis','id','version','product_id','size_conversion_id','packaging_setup_id','packaging_material_id','packaging_mode','packaging_manual_cost','packaging_confirmed','website_key','selling_price_inc_vat','vat_treatment','vat_rate','effective_date','source_token','website_confirmed'];
@@ -23,12 +24,12 @@ function rps_body(array $input):array {
 function rps_row(array $body,array $sources,array $settings):array {
     $p=rpm_find($sources['products'],'id',(int)($body['product_id']??0));
     $row=['product_id'=>(int)($body['product_id']??0),'product_name'=>$p['product_name']??'','short_code'=>$p['short_code']??'','category'=>$p['product_category']??'','basis'=>$p['costing_basis']??'','status'=>'Draft','issues'=>[]];
-    try{$row=array_merge($row,rpm_preview($sources,$settings,$body));}catch(DomainException $e){$row['issues']=[$e->getMessage()];}
+    try{$row=array_merge($row,rpm_preview($sources,$settings,$body));}catch(DomainException $e){$row['issues']=[$e->getMessage()];$row['completion_status']='Needs Review';$row['provisional']=true;foreach(['total_cost_ex_vat','known_cost_ex_vat','product_cost_per_unit','packaging_cost_ex_vat','profit_per_unit','markup_percent','margin_percent','stock_cost','projected_profit'] as $field)$row[$field]=null;}
     if(!empty($body['website_origin']))foreach($sources['website'] as $site)if($site['product_id'].':'.$site['variation_id']===($body['website_key']??'')){$row['product_name']=$site['product_name'];$row['short_code']=$site['sku']??'';$row['category']=$site['category']??'';break;}
     return array_merge($row,['id'=>(int)($body['id']??0),'version'=>(int)($body['version']??0),'saved'=>!empty($body['id']),'effective_date'=>$body['effective_date']??rpm_today()]);
 }
 function rps_list(PDO $pdo,array $sources,array $settings):array {
-    $q=$pdo->prepare('SELECT * FROM cw_retail_sheet_drafts WHERE owner_id=? AND active=1 ORDER BY id');$q->execute([rp_user()['id']]);$out=[];
+    $q=$pdo->prepare('SELECT row_key,revision,state_key,payload_json,note_text FROM cw_retail_sheet_drafts WHERE owner_id=? AND active=1 ORDER BY id');$q->execute([rp_user()['id']]);$out=[];
     foreach($q->fetchAll() as $entry){$body=json_decode($entry['payload_json'],true)?:[];$out[]=['row_key'=>$entry['row_key'],'revision'=>(int)$entry['revision'],'state'=>$entry['state_key'],'body'=>$body,'row'=>rps_row($body,$sources,$settings),'note'=>$entry['note_text']];}return $out;
 }
 function rps_save(PDO $pdo,array $input,array $settings):array {
@@ -62,6 +63,8 @@ function rps_save(PDO $pdo,array $input,array $settings):array {
         $values=[$revision,!empty($body['id'])?(int)$body['id']:null,$state,json_encode($body),$mutation,$hash,json_encode($result),$note,empty($input['archive'])?1:0];
         if($existing){$values[]=$existing['id'];$pdo->prepare('UPDATE cw_retail_sheet_drafts SET revision=?,pricing_id=?,state_key=?,payload_json=?,mutation_id=?,mutation_hash=?,response_json=?,note_text=?,active=? WHERE id=?')->execute($values);}
         else{$pdo->prepare('INSERT INTO cw_retail_sheet_drafts(revision,pricing_id,state_key,payload_json,mutation_id,mutation_hash,response_json,note_text,active,owner_id,row_key) VALUES(?,?,?,?,?,?,?,?,?,?,?)')->execute(array_merge($values,[$owner,$key]));}
+        $event=['revision'=>$revision,'at'=>gmdate('c'),'actor_id'=>$owner,'body'=>$body,'state'=>$state,'archived'=>!empty($input['archive'])];
+        $pdo->prepare("UPDATE cw_retail_sheet_drafts SET history_json=JSON_ARRAY_APPEND(COALESCE(history_json,'[]'),'$',JSON_EXTRACT(?,'$')) WHERE owner_id=? AND row_key=?")->execute([json_encode($event),$owner,$key]);
         $pdo->commit();return $result;
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
