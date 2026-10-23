@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '64066539'
+BASELINE = '7cffccbd'
 NEW_FILES = []
-FILES = ['apps/hr-portal/includes/employment-letter.php','apps/hr-portal/documents.php']
-DEPENDENCIES = ['apps/hr-portal/includes/email.php','apps/hr-portal/download-employment-letter.php']
+FILES = ['shared/cost-workbook-pricing-master.php','shared/cost-workbook-retail-pricing.php','assets/js/retail-pricing.js','assets/css/cost-workbook-retail-pricing.css']
+DEPENDENCIES = ['apps/cost-manager/retail-pricing-api.php','shared/cost-workbook.php']
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):

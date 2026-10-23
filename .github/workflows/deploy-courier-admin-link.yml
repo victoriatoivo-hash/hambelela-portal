@@ -1,4 +1,4 @@
-name: Deploy isolated HR employment-letter repair
+name: Deploy isolated Product Pricing correction
 on:
   workflow_dispatch:
     inputs:
