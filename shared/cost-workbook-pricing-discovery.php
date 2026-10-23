@@ -7,7 +7,7 @@ function rpd_match(array $site,array $sources):?array {
     foreach($sources['products'] as $p){
         $exactVariation=!empty($p['woo_variation_id'])&&(int)$p['woo_variation_id']===(int)$site['variation_id']&&(int)($p['woo_product_id']??0)===(int)$site['product_id'];
         $parent=!empty($p['woo_product_id'])&&(int)$p['woo_product_id']===(int)$site['product_id']&&empty($p['woo_variation_id']);
-        $code=$sku!==''&&in_array(strtolower($sku),array_map('strtolower',array_filter([$p['woo_sku']??'',$p['short_code']??''])),true);
+        $code=$sku!==''&&in_array(strtolower($sku),array_map('strtolower',array_filter(array_merge([$p['woo_sku']??'',$p['short_code']??''],$p['supplier_codes']??[]))),true);
         if($exactVariation||$parent||$code)$matches[(int)$p['id']]=$p;
     }
     if(count($matches)!==1)return null;
@@ -20,7 +20,7 @@ function rpd_website_rows(array $rows,array $sources,array $settings):array {
     foreach($sources['website'] as $site){
         $key=$site['product_id'].':'.$site['variation_id'];if(isset($covered[$key]))continue;
         $p=rpd_match($site,$sources);$sid=rpm_site_size($site,$sources['sizes']);$size=rpm_find($sources['sizes'],'id',$sid??'');
-        if($p&&in_array($p['costing_basis'],['count','ready_made'],true)&&$sid===null)$sid=0;
+        if($sid===null&&(($p&&in_array($p['costing_basis'],['count','ready_made'],true))||(!$p&&($site['product_type']??'')==='simple')))$sid=0;
         $b=['product_id'=>$p['id']??0,'size_conversion_id'=>$sid,'website_key'=>$key,'website_confirmed'=>true,'selling_price_inc_vat'=>$site['active_price_inc_vat']??'',
             'manual_name'=>$p?'':$site['product_name'],'manual_code'=>$p?'':($site['sku']??''),'manual_category'=>$p?'':($site['category']??''),'manual_basis'=>$size['measurement_type']??'count',
             'effective_date'=>rpm_today(),'vat_treatment'=>''];
