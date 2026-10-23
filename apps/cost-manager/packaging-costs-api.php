@@ -12,6 +12,12 @@ function pc_date($v):string {$v=(string)$v;$d=DateTimeImmutable::createFromForma
 function pc_audit(PDO $pdo,string $type,int $id,string $action,$before,$after):void {$u=cw_user();$pdo->prepare('INSERT INTO cw_packaging_audit(entity_type,entity_id,action_key,before_json,after_json,actor_id,actor_name) VALUES(?,?,?,?,?,?,?)')->execute([$type,$id,$action,$before===null?null:json_encode($before),$after===null?null:json_encode($after),$u['id'],$u['name']]);}
 function pc_fetch(PDO $pdo,string $sql,array $params=[]):?array {$q=$pdo->prepare($sql);$q->execute($params);return $q->fetch()?:null;}
 function pc_insert(PDO $pdo,string $table,array $values):int {$cols=array_keys($values);$pdo->prepare('INSERT INTO '.$table.'('.implode(',',$cols).') VALUES('.implode(',',array_fill(0,count($cols),'?')).')')->execute(array_values($values));return(int)$pdo->lastInsertId();}
+function pc_install_landed(PDO $pdo):void {
+ $column=$pdo->query("SHOW COLUMNS FROM cw_packaging_item_costs LIKE 'vat_treatment'")->fetch();
+ if(strpos($column['Type'],"'provisional_landed'")!==false)return;
+ if($column['Type']!=="enum('standard','zero_rated','exempt')")throw new RuntimeException('Unexpected packaging VAT schema; no schema changes made.');
+ $pdo->exec("ALTER TABLE cw_packaging_item_costs MODIFY vat_treatment ENUM('standard','zero_rated','exempt','provisional_landed') NOT NULL DEFAULT 'standard'");
+}
 function pc_items(PDO $pdo,string $date):array {
  $items=$pdo->query('SELECT i.*,t.name packaging_type FROM cw_packaging_items i JOIN cw_packaging_types t ON t.id=i.packaging_type_id ORDER BY i.item_name')->fetchAll();
  foreach($items as &$i){$c=cw_packaging_cost($pdo,(int)$i['id'],$date);$i['cost']=$c;$i['status_key']=$c['status_key']??'price_required';if($c){$i['supplier_name']=$c['supplier_name']??$i['supplier_name'];$i['supplier_sku']=$c['supplier_sku']??$i['supplier_sku'];}}unset($i);return $items;
@@ -44,6 +50,11 @@ function pc_freight(PDO $pdo,array $b,int $previous):array {
  return ['freight_ex'=>$net,'freight_inc'=>$gross,'transport_id'=>$id,'transport_evidence'=>json_encode($e)];
 }
 function pc_save_item(PDO $pdo,array $b,float $vatRate):array {
+ $landed=($b['vat_treatment']??'')==='provisional_landed';
+ if($landed){
+  if(!empty($b['transport_id'])||!empty($b['tax_recoverable']))throw new DomainException('Provisional landed costs already include freight and retain all tax. Remove additional freight and VAT recovery.');
+  $b['cost_basis']='inclusive';$b['tax_recoverable']=0;$vatRate=0;
+ }
  $name=trim((string)($b['item_name']??''));$spec=trim((string)($b['specification']??''));$type=(int)($b['packaging_type_id']??0);$id=(int)($b['id']??0);$date=pc_date($b['effective_date']??'');
  if($name===''||strlen($name)>190||strlen($spec)>190)throw new DomainException('Enter a material name and valid specification.');
  $pdo->beginTransaction();
@@ -55,7 +66,9 @@ function pc_save_item(PDO $pdo,array $b,float $vatRate):array {
  $dup=pc_fetch($pdo,'SELECT id FROM cw_packaging_items WHERE LOWER(TRIM(item_name))=LOWER(?) AND LOWER(TRIM(specification))=LOWER(?) AND packaging_type_id=? AND id<>? LIMIT 1',[$name,$spec,$type,$id]);if($dup)throw new DomainException('This material already exists. Edit its cost rather than creating another material.');
  $prior=$id?pc_fetch($pdo,'SELECT * FROM cw_packaging_item_costs WHERE packaging_item_id=? ORDER BY id DESC LIMIT 1',[$id]):null;
  if($prior&&(int)($b['latest_cost_id']??0)!==(int)$prior['id'])throw new DomainException('This material changed since you opened it. Reload before saving.');
- $c=cw_packaging_calculate($b,$typeRow['name'],$vatRate);$u=cw_user();$supplier=trim((string)($b['supplier_name']??''));$sku=trim((string)($b['supplier_sku']??''));$notes=trim((string)($b['notes']??''));
+ // Reuse the zero-adjustment arithmetic without recording an exempt tax classification.
+ $calculation=$b;if($landed)$calculation['vat_treatment']='exempt';
+ $c=cw_packaging_calculate($calculation,$typeRow['name'],$vatRate);$u=cw_user();$supplier=trim((string)($b['supplier_name']??''));$sku=trim((string)($b['supplier_sku']??''));$notes=trim((string)($b['notes']??''));
  if($id)$pdo->prepare('UPDATE cw_packaging_items SET item_name=?,specification=?,packaging_type_id=?,supplier_name=?,supplier_sku=?,notes=?,updated_by=?,updated_by_name=? WHERE id=?')->execute([$name,$spec,$type,$supplier,$sku,$notes,$u['id'],$u['name'],$id]);
  else $id=pc_insert($pdo,'cw_packaging_items',['item_name'=>$name,'specification'=>$spec,'packaging_type_id'=>$type,'supplier_name'=>$supplier,'supplier_sku'=>$sku,'notes'=>$notes,'created_by'=>$u['id'],'created_by_name'=>$u['name']]);
  $previous=empty($b['new_purchase'])?(int)($prior['id']??0):0;
@@ -72,17 +85,20 @@ function pc_save_setup(PDO $pdo,array $b):array {
  $ref=$scope==='default'?'':$ref;
  if(!$id&&pc_fetch($pdo,'SELECT id FROM cw_packaging_setups WHERE size_conversion_id=? AND scope_type=? AND scope_reference=? AND active=1',[$size,$scope,$ref]))throw new DomainException('A setup already exists for this size and scope. Edit it to add a version.');
  $u=cw_user();$new=pc_insert($pdo,'cw_packaging_setups',['setup_name'=>$name,'size_conversion_id'=>$size,'scope_type'=>$scope,'scope_reference'=>$ref,'scope_label'=>$scope==='default'?'Global default':trim((string)($b['scope_label']??$ref)),'effective_date'=>$date,'supersedes_setup_id'=>$id?:null,'created_by'=>$u['id'],'created_by_name'=>$u['name']]);
- $rows=(array)($b['components']??[]);if(!$rows)throw new DomainException('Add at least one component.');$seen=[];
+ $rows=(array)($b['components']??[]);if(!$rows)throw new DomainException('Add at least one component.');$seen=[];$landedBundle=false;$extraClosure=false;
  foreach($rows as $order=>$r){$item=(int)($r['packaging_item_id']??0);$q=(float)($r['quantity']??0);$w=(float)($r['waste_percent']??0);
   if(!$item||isset($seen[$item])||$q<=0||!is_finite($q)||$w<0||$w>1000)throw new DomainException('Components must be unique with a positive quantity and valid waste percentage.');$seen[$item]=true;
   $c=cw_packaging_cost($pdo,$item,$date);if(!$c||!$c['active']||$c['landed_ex']===null)throw new DomainException('Every component needs a confirmed cost and print yield on the setup date.');
+  $landedBundle=$landedBundle||(($c['vat_treatment']??'')==='provisional_landed'&&stripos($c['item_name'],'+ ')!==false&&stripos($c['item_name'],'Cap')!==false);
+  $extraClosure=$extraClosure||in_array(strtolower($c['packaging_type']),['cap','lid','carton','box'],true);
+  if($landedBundle&&$extraClosure)throw new DomainException('This landed bottle bundle already includes its cap and allocated carton. Remove the separate cap, lid or carton to avoid counting it twice.');
   $m=$q*(1+$w/100);pc_insert($pdo,'cw_packaging_setup_components',['packaging_setup_id'=>$new,'packaging_item_id'=>$item,'packaging_cost_id'=>$c['id'],'quantity'=>$q,'waste_percent'=>$w,'unit_cost_ex_snapshot'=>$c['landed_ex'],'unit_cost_inc_snapshot'=>$c['landed_inc'],'component_cost_ex'=>$m*$c['landed_ex'],'component_cost_inc'=>$m*$c['landed_inc'],'display_order'=>$order]);
  }
  $cost=cw_packaging_setup_cost($pdo,$new,$date);if(!$cost['complete'])throw new DomainException(implode(' ',$cost['missing']));
  pc_audit($pdo,'setup',$new,$id?'version_created':'created',$before,$cost);$pdo->commit();return ['id'=>$new,'message'=>'Size setup saved with component snapshots. Earlier versions are preserved.'];
 }
 try {
- $pdo=db();cw_install_schema($pdo);$action=(string)($_GET['action']??'bootstrap');$today=(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d');$date=pc_date($_GET['date']??$today);
+ $pdo=db();cw_install_schema($pdo);pc_install_landed($pdo);$action=(string)($_GET['action']??'bootstrap');$today=(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d');$date=pc_date($_GET['date']??$today);
  if(in_array($action,['save-item','save-setup','toggle'],true)){if($_SERVER['REQUEST_METHOD']!=='POST')pc_reply(['error'=>'POST required.'],405);cw_require_csrf();}
  $b=json_decode((string)file_get_contents('php://input'),true)?:[];
  if($action==='bootstrap'){

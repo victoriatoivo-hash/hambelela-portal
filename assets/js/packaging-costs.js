@@ -77,8 +77,11 @@ function itemPreview(){
  itemForm.querySelector('label[for="pc-purchase_quantity"]').textContent={each:'Number of Items Purchased *',pack:'Number of Packs Purchased *',roll:'Number of Rolls Purchased *',box:'Number of Boxes Purchased *'}[purchaseUnit];
  itemForm.querySelector('label[for="pc-units_per_pack"]').textContent='Usable Items per '+unitLabel+' *';
  const treatment=itemForm.elements.vat_treatment.value;
+ const landed=treatment==='provisional_landed';
+ if(landed){itemForm.elements.tax_recoverable.checked=false;itemForm.elements.cost_basis.value='inclusive';itemForm.elements.transport_id.value='';}
+ itemForm.elements.cost_basis.disabled=landed;itemForm.elements.transport_id.disabled=landed;
  itemForm.elements.vat_rate.value=treatment==='standard'?state.vat_rate:treatment?'0':'';
- one('[data-pc-vat-hint]').textContent=treatment?'— automatic':'— select treatment';
+ one('[data-pc-vat-hint]').textContent=landed?'— no tax adjustment; freight included':treatment?'— automatic':'— select treatment';
  itemForm.elements.tax_recoverable.closest('label').hidden=treatment!=='standard';
  const b=Object.fromEntries(new FormData(itemForm)),type=state.types.find(t=>String(t.id)===b.packaging_type_id)?.name;
  let units=Number(b.purchase_quantity)*Number(b.units_per_pack),yieldMissing=false;if(type==='Ribbon'){yieldMissing=!(Number(b.print_yield)>0);units*=Number(b.print_yield);}

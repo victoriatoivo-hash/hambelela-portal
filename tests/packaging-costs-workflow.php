@@ -17,6 +17,7 @@ $pdo=new PDO(getenv('CW_TEST_DSN'),getenv('CW_TEST_USER')?:'root','',[PDO::ATTR_
 check($pdo->query('SELECT DATABASE()')->fetchColumn()==='cw_supplier_test','Only disposable test database permitted');cw_install_schema($pdo);
 $api=file_get_contents(BASE_PATH.'/apps/cost-manager/packaging-costs-api.php');$start=strpos($api,'function pc_reply');$end=strpos($api,"\ntry {",$start);eval(substr($api,$start,$end-$start));
 $types=$pdo->query('SELECT id,name FROM cw_packaging_types')->fetchAll(PDO::FETCH_KEY_PAIR);$types=array_flip($types);
+pc_install_landed($pdo);pc_install_landed($pdo);
 function material(array $over=[]):array{global $pdo,$base,$types;return array_merge($base,['packaging_type_id'=>$types['Pouch'],'item_name'=>'Test Pouch','specification'=>'500ml','supplier_name'=>'Test Supplier','supplier_sku'=>'TEST-P','purchase_unit'=>'box','effective_date'=>'2026-10-01','request_key'=>bin2hex(random_bytes(16))],$over);}
 $b=material();$a=pc_save_item($pdo,$b,15);$id=$a['id'];$cost=cw_packaging_cost($pdo,$id,'2026-10-08');near($cost['landed_ex'],1.5,'Stored unit cost');
 $retry=pc_save_item($pdo,$b,15);check($retry['id']===$id,'Idempotent save');check((int)$pdo->query('SELECT COUNT(*) FROM cw_packaging_item_costs WHERE packaging_item_id='.$id)->fetchColumn()===1,'No duplicate cost on retry');
@@ -40,5 +41,14 @@ near(cw_packaging_freight_claimed($pdo,$roundTransport),10,'Final shared freight
 function rp_num($v):float{return is_numeric($v)?(float)$v:0;}
 $retail=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$start=strpos($retail,'function rp_calculation');$end=strpos($retail,'function rp_sources',$start);eval(substr($retail,$start,$end-$start));
 $finished=rp_calculation(['landed_cost_per_base'=>10],['base_value'=>.5],['cost_ex_vat'=>6,'cost_inc_vat'=>6],20,0);near($finished['total_cost_ex_vat'],11,'Product Pricing includes packaging once');
+foreach(['10ml Amber Glass Bottle + Black Dropper Cap'=>4.88,'50ml Amber Glass Bottle + Black Dropper Cap'=>5.89,'100ml Amber Glass Bottle + Black Cap'=>4.76,'500ml Amber Glass Bottle + Black Cap'=>19.85,'250ml PET Tall Bottle + White Cap'=>7.32,'500ml PET Boston Bottle + White Cap'=>8.19] as $name=>$amount){
+ $body=material(['item_name'=>$name,'packaging_type_id'=>$types['Bottle'],'purchase_quantity'=>1,'units_per_pack'=>1,'amount_entered'=>$amount,'vat_treatment'=>'provisional_landed','tax_recoverable'=>0,'effective_date'=>'2026-10-23']);
+ $saved=pc_save_item($pdo,$body,15);$c=cw_packaging_cost($pdo,$saved['id'],'2026-10-23');near($c['landed_ex'],$amount,'Bundled landed cost unchanged');near($c['landed_inc'],$amount,'No invented VAT');near($c['freight_unit_ex'],0,'No duplicate freight');check($c['vat_treatment']==='provisional_landed','Preserve provisional classification');
+ check(cw_packaging_cost($pdo,$saved['id'],'2026-10-22')===null,'No historical changes');check(pc_save_item($pdo,$body,15)['id']===$saved['id'],'Bundle retry idempotent');
+ $setup=pc_save_setup($pdo,['setup_name'=>$name,'size_conversion_id'=>$size,'scope_type'=>'product','scope_reference'=>'bundle-'.$saved['id'],'effective_date'=>'2026-10-23','components'=>[['packaging_item_id'=>$saved['id'],'quantity'=>1,'waste_percent'=>0]]]);
+ $cost=cw_packaging_setup_cost($pdo,$setup['id'],'2026-10-23');near($cost['cost_ex_vat'],$amount,'Selectable setup includes bundle once');
+ near(rp_calculation(['landed_cost_per_base'=>10],['base_value'=>.5],$cost,30,0)['total_cost_ex_vat'],5+$amount,'Pricing adds exact bundle cost');
+ try{pc_save_item($pdo,array_merge($body,['transport_id'=>$transport,'request_key'=>bin2hex(random_bytes(16))]),15);throw new RuntimeException('Duplicate freight accepted for landed bundle');}catch(DomainException $ok){if($pdo->inTransaction())$pdo->rollBack();}
+}
 echo "Packaging database tests passed: units, freight, idempotency, duplicate prevention, labels/ribbons, finished setup, waste, pricing integration and immutable history.\n";
 
