@@ -7,6 +7,7 @@ $request=['correction_note'=>'Correct the second product caption and update the 
 $due=marketing_local_datetime($request['correction_due_at']);
 rejected(fn()=>marketing_request_correction($correctionId,$request),'Employee cannot request Owner corrections');
 $owner=true;$actor=99;
+$ownerCorrectionHtml=renderAssignment($correctionId,true,'owner-correction-request');ok(strpos($ownerCorrectionHtml,'id="correction-request"')!==false&&strpos($ownerCorrectionHtml,'Send Change Request')!==false,'Completed assignment renders the Owner correction form');
 ob_start();marketing_content_footer($original,true);$footer=ob_get_clean();ok(strpos($footer,'Request Changes')!==false,'Completed Owner footer offers Request Changes');
 ob_start();marketing_correction_form($original);$correctionForm=ob_get_clean();ok(strpos($correctionForm,'datetime-local')!==false&&strpos($correctionForm,'correction_due_at')!==false&&strpos($correctionForm,'What needs to change?')!==false,'Correction form includes instructions and independent Namibia deadline');
 rejected(fn()=>marketing_request_correction($correctionId,array_merge($request,['correction_note'=>''])),'Blank correction rejected');
