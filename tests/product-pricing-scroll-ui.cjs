@@ -12,7 +12,10 @@ d.querySelector('main').getBoundingClientRect=()=>({left:100});
 const portal=fs.readFileSync('assets/js/portal.js','utf8');
 // Accept CRLF checkouts too, but exercise the production controller unchanged.
 const normalized=portal.replace(/\r\n/g,'\n');
-w.eval(normalized.slice(normalized.indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')));
+const scrollbarCode=text=>text.replace(/\r\n/g,'\n').slice(text.replace(/\r\n/g,'\n').indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar'));
+const liveApproved=execFileSync('git',['show','2c758a0cb67a8c3bd2e4621ee9cbacaed5960f1b:assets/js/portal.js'],{encoding:'utf8'});
+assert.equal(scrollbarCode(normalized),scrollbarCode(liveApproved),'Shared scrollbar matches verified live Git revision; unrelated notifications remain untouched');
+w.eval(scrollbarCode(liveApproved));
 const mirror=d.querySelector('[data-portal-horizontal-scroll-mirror]');
 Object.defineProperties(mirror,{clientWidth:{get:()=>width+20},scrollWidth:{get:()=>parseFloat(mirror.firstElementChild.style.width)||0}});
 const frame=()=>new Promise(r=>w.requestAnimationFrame(()=>w.requestAnimationFrame(r)));
