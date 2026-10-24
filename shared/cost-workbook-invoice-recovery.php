@@ -20,6 +20,13 @@ function si_recovery_token(array $invoice,array $lines): string
 {
     return hash('sha256',json_encode([$invoice,$lines]));
 }
+/** A manually captured current product may already be listed under another purchase reference. */
+function si_recovery_listed_products(PDO $pdo,array $invoice): array
+{
+    $today=(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d');
+    $q=$pdo->prepare("SELECT DISTINCT p.id,p.product_name,p.normalized_name,p.base_unit,s.supplier_invoice_line_id FROM cw_cost_products p JOIN cw_cost_product_sources s ON s.product_id=p.id JOIN cw_landed_product_costs c ON c.product_source_id=s.id LEFT JOIN cw_supplier_invoice_lines l ON l.id=s.supplier_invoice_line_id LEFT JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE p.active=1 AND s.active=1 AND s.supplier_id=? AND c.cost_date<=? AND (s.supplier_invoice_line_id IS NULL OR (i.approval_status='approved' AND i.id<>? AND l.active=1))");
+    $q->execute([$invoice['supplier_id'],$today,$invoice['id']]);return $q->fetchAll();
+}
 
 /** Reuse stable line IDs, including lines removed during partial review; never change posted lines. */
 function si_recover_invoice(PDO $pdo,int $id,array $extracted): array
@@ -29,12 +36,27 @@ function si_recover_invoice(PDO $pdo,int $id,array $extracted): array
         $q=$pdo->prepare("SELECT * FROM cw_supplier_invoices WHERE id=? AND approval_status<>'archived' FOR UPDATE");$q->execute([$id]);$invoice=$q->fetch();
         if(!$invoice)throw new DomainException('The original invoice is no longer available for review.');
         $q=$pdo->prepare("SELECT l.*,(SELECT COUNT(*) FROM cw_cost_product_sources s WHERE s.supplier_invoice_line_id=l.id)+(SELECT COUNT(*) FROM cw_transport_product_allocations t WHERE t.supplier_invoice_line_id=l.id)+(SELECT COUNT(*) FROM cw_product_matches m WHERE m.supplier_invoice_line_id=l.id) reference_count FROM cw_supplier_invoice_lines l WHERE supplier_invoice_id=? ORDER BY id FOR UPDATE");$q->execute([$id]);$saved=$q->fetchAll();
-        $added=0;$restored=0;$skipped=0;$ambiguous=0;$used=[];
+        $added=0;$restored=0;$skipped=0;$ambiguous=0;$used=[];$listed=[];$known=si_recovery_listed_products($pdo,$invoice);
         foreach($extracted as $item){
             $name=trim((string)($item['name']??''));if($name==='')continue;
             $sku=trim((string)($item['supplier_sku']??$item['sku']??''));$key=si_recovery_key($name);$matches=[];
             foreach($saved as $line){
                 if(($sku!=='' && si_recovery_key($sku)===si_recovery_key((string)($line['supplier_sku']??''))) || in_array($key,[si_recovery_key((string)$line['raw_description']),si_recovery_key((string)$line['product_description'])],true))$matches[]=$line;
+            }
+            $other=[];
+            foreach($known as $product){
+                $keys=[$key];foreach($matches as $match)$keys[]=si_recovery_key((string)$match['product_description']);
+                if(in_array(si_recovery_key((string)$product['product_name']),$keys,true))$other[(int)$product['id']]=$product;
+            }
+            // Do not create another cost for a product already present on the saved sheet.
+            // This is a review exclusion, not an assertion that two purchase histories are identical.
+            if($other && (!$matches || (count($matches)===1 && !(int)$matches[0]['reference_count']))){
+                $listed[]=$name;$skipped++;
+                if($matches && (int)$matches[0]['active']){
+                    $pdo->prepare('UPDATE cw_supplier_invoice_lines SET active=0 WHERE id=?')->execute([$matches[0]['id']]);
+                    cw_supplier_cost_audit($pdo,'supplier_invoice_line',(int)$matches[0]['id'],'already_listed_review_excluded',$matches[0],['existing_product_ids'=>array_keys($other)]);
+                }
+                continue;
             }
             if($matches){
                 // Never guess between repeated descriptions/SKUs or differing invoice lines.
@@ -56,6 +78,7 @@ function si_recover_invoice(PDO $pdo,int $id,array $extracted): array
         $pending=si_recovery_lines($pdo,$id);
         $message='Existing invoice recognised. '.$added.' missing items extracted; '.$restored.' previously omitted items restored; '.$skipped.' existing items kept unchanged. '.count($pending).' items awaiting review.';
         if($ambiguous)$message.=' '.$ambiguous.' repeated/ambiguous lines were not added automatically. Check the original invoice before proceeding.';
+        if($listed)$message.=' Already listed under another saved purchase (not added again): '.implode(', ',$listed).'.';
         if(!$extracted)$message.=' Extraction returned no items; review the original file and the saved pending items. This does not confirm that the invoice is complete.';
         $pdo->prepare('UPDATE cw_supplier_invoices SET extraction_message=?,updated_at=NOW() WHERE id=?')->execute([substr($message,0,500),$id]);
         cw_supplier_cost_audit($pdo,'supplier_invoice',$id,'missing_items_reviewed',null,['added'=>$added,'restored'=>$restored,'skipped'=>$skipped,'ambiguous'=>$ambiguous]);
@@ -73,7 +96,10 @@ function si_save_recovered(PDO $pdo,array $body): array
         $pending=si_recovery_lines($pdo,$id);$allowed=array_map('intval',array_column($pending,'id'));$ids=[];$lines=(array)($body['lines']??[]);
         if(!hash_equals(si_recovery_token($invoice,$pending),(string)($body['recovery_token']??'')))throw new DomainException('These missing items changed since you opened them. Reopen the review before saving.');
         if(!$lines)throw new DomainException('Select at least one missing item to save.');
-        foreach($lines as $line){$lid=(int)($line['id']??0);if(!$lid||!in_array($lid,$allowed,true)||in_array($lid,$ids,true))throw new DomainException('An item was already approved or changed. Reopen the missing-item review; no duplicate was saved.');$ids[]=$lid;}
+        $known=si_recovery_listed_products($pdo,$invoice);
+        foreach($lines as $line){$lid=(int)($line['id']??0);if(!$lid||!in_array($lid,$allowed,true)||in_array($lid,$ids,true))throw new DomainException('An item was already approved or changed. Reopen the missing-item review; no duplicate was saved.');$ids[]=$lid;
+            foreach($known as $product)if((int)($line['cost_product_id']??0)===(int)$product['id'] || si_recovery_key((string)($line['product_description']??''))===si_recovery_key((string)$product['product_name']))throw new DomainException('This product is already listed under another saved purchase. Re-upload the invoice to refresh its missing-item list.');
+        }
         if((string)($body['updated_at']??'')!==(string)$invoice['updated_at'])throw new DomainException('This invoice changed. Reopen its missing items before saving.');
         $valid=cw_supplier_save_lines($pdo,$id,$lines,[],$allowed);
         $marks=implode(',',array_fill(0,count($ids),'?'));

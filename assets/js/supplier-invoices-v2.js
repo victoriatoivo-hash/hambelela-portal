@@ -53,7 +53,7 @@ function recoveryControls(){
  [form.elements.supplier_name.closest('section'),one('.si-shipping-section')].forEach(section=>{section.hidden=missing;all('input,select,button',section).forEach(el=>el.disabled=missing||busy);});
  one('[data-si-add-line]').hidden=missing;
  one('[data-si-recovery-info]').hidden=!missing;
- one('[data-si-recovery-info]').textContent=missing?'Invoice '+form.elements.invoice_number.value+' · Only missing items are shown. Untick any item to leave it for later. Existing approved products and freight stay unchanged. Set new item transport individually after approval.':'';
+ one('[data-si-recovery-info]').textContent=missing?(form.dataset.recoveryMessage||'')+' Invoice '+form.elements.invoice_number.value+' · Only missing items are shown. Untick any item to leave it for later. Existing approved products and freight stay unchanged. Set new item transport individually after approval.':'';
  if(missing){one('[data-si-save]').hidden=one('[data-si-approve]').hidden=!one('.supplier-invoices__line');}
 }
 function open(kind,title){
@@ -112,7 +112,7 @@ document.querySelector('[data-si-open-manual]').onclick=()=>{defaults();addLine(
 document.querySelector('[data-si-open-upload]').onclick=()=>{open('upload','Upload Supplier Invoice');};
 async function edit(id,missingOnly=false){
  if(!id){toast('Use Landed Product Costs to edit this legacy manual source.');return;}
- try{const data=await request(missingOnly?'missing-items':'invoice',undefined,'id='+id);defaults();const invoice=data.invoice;form.dataset.missingOnly=String(!!data.missing_only);form.dataset.recoveryToken=data.recovery_token||'';form.dataset.approved=String(invoice.approval_status==='approved'&&!data.missing_only);Object.keys(invoice).forEach(k=>{const el=form.elements.namedItem(k);if(el){if(el.type==='checkbox')el.checked=!!Number(invoice[k]);else el.value=invoice[k]??'';}});data.lines.forEach(line=>addLine({...line,allow_remove:invoice.approval_status==='draft'}));one('[data-si-original]').hidden=!invoice.stored_file;one('[data-si-original]').href=data.original_url;open('purchase',missingOnly?'Review Missing Invoice Items':'Review Supplier Purchase');restoreTransport(missingOnly?{transport_treatment:invoice.transport_treatment==='none'?'none':'pending'}:invoice);recoveryControls();error(invoice.extraction_message||'');}catch(e){toast(e.message);}
+ try{const data=await request(missingOnly?'missing-items':'invoice',undefined,'id='+id);defaults();const invoice=data.invoice;form.dataset.missingOnly=String(!!data.missing_only);form.dataset.recoveryToken=data.recovery_token||'';form.dataset.recoveryMessage=invoice.extraction_message||'';form.dataset.approved=String(invoice.approval_status==='approved'&&!data.missing_only);Object.keys(invoice).forEach(k=>{const el=form.elements.namedItem(k);if(el){if(el.type==='checkbox')el.checked=!!Number(invoice[k]);else el.value=invoice[k]??'';}});data.lines.forEach(line=>addLine({...line,allow_remove:invoice.approval_status==='draft'}));one('[data-si-original]').hidden=!invoice.stored_file;one('[data-si-original]').href=data.original_url;open('purchase',missingOnly?'Review Missing Invoice Items':'Review Supplier Purchase');restoreTransport(missingOnly?{transport_treatment:invoice.transport_treatment==='none'?'none':'pending'}:invoice);recoveryControls();error(missingOnly?'':invoice.extraction_message||'');}catch(e){toast(e.message);}
 }
 one('[data-si-add-line]').onclick=()=>{addLine();dirty=true;};
 form.addEventListener('input',()=>{dirty=true;preview();});
