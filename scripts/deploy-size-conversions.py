@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'fc1f3879033543d2928118d6f5e622cfbbced19a'
+BASELINE = 'd4c06dc6aab9f51cf2a8304173a13f3ecaec5201'
 NEW_FILES = []
-FILES = ['shared/cost-workbook-retail-pricing.php','assets/css/cost-workbook-retail-pricing.css','assets/js/retail-pricing.js']
-DEPENDENCIES = ['shared/cost-workbook.php']
+FILES = ['shared/cost-workbook.php','shared/cost-workbook-supplier-sheet.php','assets/js/supplier-invoices-v2.js']
+DEPENDENCIES = ['apps/cost-manager/supplier-invoices-api.php']
 # Verified against the live hash in preflight 39923008905; never upload this dependency.
 DEPENDENCY_BASELINES = {'shared/cost-workbook.php':'5606141c7e8550452922eac347141a84dfa39cb0'}
 def git(*args): return subprocess.check_output(['git', *args])

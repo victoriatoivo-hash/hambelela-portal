@@ -61,6 +61,13 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  const retry=Array.from(d.querySelectorAll('.si-sheet-feedback button')).find(b=>b.textContent==='Retry');retry.click();await settle();assert.equal(row.product_name,'Retained draft');
  const saves=calls.filter(c=>c.action==='inline');assert.equal(saves.at(-1).body.request_id,saves.at(-2).body.request_id,'retry uses same idempotency key');
  input=await begin('invoice_number');const beforeList=calls.filter(c=>c.action==='list').length;click('[data-si-refresh]');await settle();assert.equal(calls.filter(c=>c.action==='list').length,beforeList,'refresh cannot replace active editor');await key('Escape');
+ const invoiceCalls=calls.filter(c=>c.action==='invoice').length;
+ input=await begin('transport_cost_per_base');assert.equal(input.type,'number');assert.match(input.getAttribute('aria-label'),/Transport NAD per kg/);assert.match(one('.si-sheet-feedback').textContent,/never split across other products/);
+ assert(!one('[data-si-drawer]').classList.contains('is-open'),'Transport must not open invoice review');
+ input.value='34';await key('Enter');assert.equal(row.transport_cost_per_base,'34');assert.equal(calls.at(-1).body.source_id,7);assert.equal(calls.at(-1).body.product_id,5);
+ assert.equal(calls.filter(c=>c.action==='invoice').length,invoiceCalls,'No whole-invoice request from transport cell');
+ input=await begin('transport_cost_per_base');input.value='99';await key('Escape');assert.equal(row.transport_cost_per_base,'34');
+ console.log('Individual transport editor: scoped source/product, Enter save, Escape cancel, no invoice drawer passed.');
  console.log('Spreadsheet editing: Enter, Tab, blur, Escape, unchanged, dropdowns, retry, row identity, scroll and refresh guard passed.');
  console.log('Supplier Costs UI: drawers, calculation preview, stable IDs, failed-save preservation, approval, selection and upload path passed.');
  w.close();

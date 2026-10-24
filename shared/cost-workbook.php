@@ -42,8 +42,9 @@ function lpc_refresh(PDO $pdo, array $invoiceIds=[]): array
     if ($owned) $pdo->beginTransaction();
     $created = 0; $snapshots = 0;
     try {
+        $pdo->query("SELECT setting_key FROM cw_settings WHERE setting_key='schema_version' FOR UPDATE")->fetchColumn();
         $scope=$invoiceIds?' AND i.id IN('.implode(',',array_map('intval',$invoiceIds)).')':'';
-        $lines = $pdo->query("SELECT l.*,i.supplier_id,i.supplier_name,i.invoice_number,i.invoice_date,i.currency,i.exchange_rate,i.fx_confirmed,i.vat_treatment,i.approval_status FROM cw_supplier_invoice_lines l JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE i.approval_status='approved' AND l.active=1 AND l.review_status='valid' AND l.item_type NOT IN('additional_cost','unclassified')".$scope." ORDER BY i.invoice_date,l.id FOR UPDATE")->fetchAll();
+        $lines = $pdo->query("SELECT l.*,i.supplier_id,i.supplier_name,i.invoice_number,i.invoice_date,i.cost_effective_date,i.transport_treatment,i.currency,i.exchange_rate,i.fx_confirmed,i.vat_treatment,i.approval_status FROM cw_supplier_invoice_lines l JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE i.approval_status='approved' AND l.active=1 AND l.review_status='valid' AND l.item_type NOT IN('additional_cost','unclassified')".$scope." ORDER BY i.invoice_date,l.id FOR UPDATE")->fetchAll();
         foreach ($lines as $line) {
             $name = trim((string)$line['product_description']);
             if ($name === '') continue;
@@ -55,17 +56,19 @@ function lpc_refresh(PDO $pdo, array $invoiceIds=[]): array
             $srcQuery->execute([(int)$line['id']]); $source = $srcQuery->fetch();
             $pid = (int)($line['cost_product_id'] ?? ($source['product_id'] ?? 0));
             if (!$pid) {
-                $find = $pdo->prepare('SELECT id FROM cw_cost_products WHERE active=1 AND ((woo_product_id IS NOT NULL AND woo_product_id=? AND COALESCE(woo_variation_id,0)=?) OR normalized_name=?) ORDER BY id');
-                $find->execute([(int)($line['woo_product_id']??0),(int)($line['woo_variation_id']??0),lpc_norm($name)]);
+                $find = $pdo->prepare('SELECT id FROM cw_cost_products WHERE active=1 AND woo_product_id>0 AND woo_product_id=? AND COALESCE(woo_variation_id,0)=? ORDER BY id');
+                $find->execute([(int)($line['woo_product_id']??0),(int)($line['woo_variation_id']??0)]);
                 $matches = $find->fetchAll(PDO::FETCH_COLUMN);
                 if (count($matches)>1) throw new DomainException('Confirm the canonical product for '.$name.'; several products match.');
                 $pid = (int)($matches[0] ?? 0);
             }
             if (!$pid) {
+                $duplicate=$pdo->prepare('SELECT id FROM cw_cost_products WHERE normalized_name=? FOR UPDATE');$duplicate->execute([lpc_norm($name)]);
+                if($duplicate->fetchColumn())throw new DomainException('An existing canonical product has this name. Select its stable product ID; no records were merged.');
                 $u = lpc_user();
                 $sku = '';
                 if ((int)($line['woo_product_id']??0)>0) {
-                    $woo = $pdo->prepare('SELECT sku FROM cw_product_snapshots WHERE product_id=? AND variation_id=? ORDER BY sync_batch_id DESC LIMIT 1');
+                    $woo = $pdo->prepare("SELECT sku FROM cw_product_snapshots WHERE product_id=? AND variation_id=? AND sync_batch_id=(SELECT id FROM cw_sync_batches WHERE is_successful_snapshot=1 AND status='completed' ORDER BY completed_at DESC,id DESC LIMIT 1) LIMIT 1");
                     $woo->execute([(int)$line['woo_product_id'],(int)($line['woo_variation_id']??0)]); $sku=(string)$woo->fetchColumn();
                 }
                 $pdo->prepare('INSERT INTO cw_cost_products(product_name,normalized_name,short_code,woo_product_id,woo_variation_id,woo_sku,product_category,costing_basis,base_unit,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?,?,?,?)')->execute([$name,lpc_norm($name),lpc_code($pdo,$name),(int)($line['woo_product_id']??0)?:null,(int)($line['woo_variation_id']??0)?:null,$sku,$line['product_category']??'Other',$basis,$unit,$u['id'],$u['name']]);
@@ -76,7 +79,7 @@ function lpc_refresh(PDO $pdo, array $invoiceIds=[]): array
             if (!$p || ($p['base_unit'] && $unit!==$p['base_unit'])) throw new DomainException('The product costing unit does not match this purchase. Confirm the product before saving.');
             $pdo->prepare('UPDATE cw_supplier_invoice_lines SET cost_product_id=? WHERE id=?')->execute([$pid,$line['id']]);
             $sourceId=(int)($source['id']??0);
-            $date=(string)$line['invoice_date'];
+            $date=(string)($line['cost_effective_date']?:$line['invoice_date']);
             if (!$date) throw new DomainException('Approved purchases require an effective date.');
             if (!$sourceId) {
                 $u=lpc_user();
@@ -87,7 +90,7 @@ function lpc_refresh(PDO $pdo, array $invoiceIds=[]): array
             }
             $ta=$pdo->prepare("SELECT pa.id,COALESCE(pa.override_amount,pa.calculated_amount) amount,t.currency,t.exchange_rate,t.fx_confirmed,t.vat_treatment,t.allocation_status FROM cw_transport_product_allocations pa JOIN cw_transport_allocations a ON a.id=pa.transport_allocation_id JOIN cw_transport_records t ON t.id=a.transport_id WHERE pa.supplier_invoice_line_id=? AND t.allocation_status<>'archived' ORDER BY pa.id");
             $ta->execute([$line['id']]); $transportRows=$ta->fetchAll();
-            $transport=0; $transportId=null; $status=$transportRows?'complete':'transport_not_allocated';
+            $transport=0; $transportId=null; $status=$transportRows||($line['transport_treatment']??'')==='none'?'complete':'transport_not_allocated';
             foreach ($transportRows as $tr) {
                 $transportId=(int)$tr['id'];
                 if ($tr['allocation_status']==='missing_weight') $status='shipping_weight_required';
@@ -95,6 +98,12 @@ function lpc_refresh(PDO $pdo, array $invoiceIds=[]): array
                 $rate=strtoupper($tr['currency'])==='NAD'?1:(empty($tr['fx_confirmed'])?0:(float)$tr['exchange_rate']);
                 if ($rate<=0) $status='exchange_rate_required';
                 else $transport+=(float)$tr['amount']*$rate;
+            }
+            // A confirmed manual amount replaces freight for this source only; never redistribute it.
+            if (isset($source['manual_transport_per_base'])) {
+                $transport=(float)$source['manual_transport_per_base']*$qty;
+                $transportId=null;
+                $status='complete';
             }
             if ($cost===null) $status=strtoupper($line['currency'])!=='NAD'?'exchange_rate_required':'vat_review_required';
             if (!$basis || !$unit || $qty<=0) continue;
@@ -138,6 +147,52 @@ function cw_install_schema(PDO $pdo): void
     if ($version < 11) { cw_upgrade_retail_pricing_schema_v11($pdo); $version = 11; }
     if ($version < 12) cw_upgrade_supplier_costs_schema_v12($pdo);
     if ($version < 13) cw_upgrade_packaging_schema_v13($pdo);
+    if ($version < 14) cw_upgrade_supplier_matching_schema_v14($pdo);
+    if ($version < 15) {
+        if(!cw_column_exists($pdo,'cw_supplier_invoices','transport_treatment'))$pdo->exec("ALTER TABLE cw_supplier_invoices ADD COLUMN transport_treatment VARCHAR(20) NOT NULL DEFAULT 'pending', ADD COLUMN transport_review JSON NULL");
+        if(!cw_column_exists($pdo,'cw_supplier_invoice_lines','identity_new_confirmed'))$pdo->exec("ALTER TABLE cw_supplier_invoice_lines ADD COLUMN identity_new_confirmed TINYINT NOT NULL DEFAULT 0");
+        $pdo->exec("UPDATE cw_settings SET setting_value='15' WHERE setting_key='schema_version'");
+    }
+    if ($version < 16) cw_upgrade_manual_transport_schema($pdo);
+}
+
+function cw_upgrade_manual_transport_schema(PDO $pdo): void
+{
+    // Nullable: existing sources retain their existing shipment allocation.
+    if (!cw_column_exists($pdo,'cw_cost_product_sources','manual_transport_per_base')) {
+        $pdo->exec("ALTER TABLE cw_cost_product_sources ADD COLUMN manual_transport_per_base DECIMAL(18,8) NULL");
+    }
+    $pdo->exec("UPDATE cw_settings SET setting_value='16' WHERE setting_key='schema_version'");
+}
+
+function cw_upgrade_supplier_matching_schema_v14(PDO $pdo): void
+{
+    foreach (['date_received','cost_effective_date'] as $column) {
+        if (!cw_column_exists($pdo,'cw_supplier_invoices',$column)) $pdo->exec("ALTER TABLE cw_supplier_invoices ADD COLUMN $column DATE NULL");
+    }
+    $pdo->exec("INSERT INTO cw_settings(setting_key,setting_value,updated_by_name) VALUES('schema_version','14','system') ON DUPLICATE KEY UPDATE setting_value='14',updated_by_name='system'");
+}
+
+/** Search identities, not retail sizes. A variation SKU can find its parent identity. */
+function cw_supplier_product_search(PDO $pdo,string $term): array
+{
+    $term=trim(substr($term,0,100));
+    if ($term==='') return ['rows'=>[],'searched'=>false];
+    $like='%'.str_replace(['!','%','_'],['!!','!%','!_'],$term).'%';
+    $q=$pdo->prepare("SELECT id,product_name,short_code,woo_sku,product_category,base_unit,woo_product_id,woo_variation_id,'canonical' source FROM cw_cost_products WHERE active=1 AND (product_name LIKE ? ESCAPE '!' OR short_code LIKE ? ESCAPE '!' OR woo_sku LIKE ? ESCAPE '!') ORDER BY product_name,id LIMIT 40");
+    $q->execute([$like,$like,$like]); $rows=$q->fetchAll();
+    $batch=(int)$pdo->query("SELECT id FROM cw_sync_batches WHERE is_successful_snapshot=1 AND status='completed' ORDER BY completed_at DESC,id DESC LIMIT 1")->fetchColumn();
+    if ($batch) {
+        $q=$pdo->prepare("SELECT 0 id,w.product_name,'' short_code,w.sku woo_sku,w.category product_category,NULL base_unit,w.product_id woo_product_id,0 woo_variation_id,'woocommerce' source FROM cw_product_snapshots w WHERE w.sync_batch_id=? AND w.variation_id=0 AND (w.product_name LIKE ? ESCAPE '!' OR w.sku LIKE ? ESCAPE '!' OR EXISTS(SELECT 1 FROM cw_product_snapshots v WHERE v.sync_batch_id=w.sync_batch_id AND v.product_id=w.product_id AND v.sku LIKE ? ESCAPE '!')) ORDER BY w.product_name,w.product_id LIMIT 40");
+        $q->execute([$batch,$like,$like,$like]);
+        foreach ($q->fetchAll() as $row) {
+            $linked=$pdo->prepare('SELECT id FROM cw_cost_products WHERE woo_product_id=? AND COALESCE(woo_variation_id,0)=0 AND active=1 ORDER BY id');$linked->execute([$row['woo_product_id']]);
+            $ids=$linked->fetchAll(PDO::FETCH_COLUMN);$row['canonical_ids']=array_map('intval',$ids);
+            if(count($ids)===1)$row['id']=(int)$ids[0];
+            $rows[]=$row;
+        }
+    }
+    return ['rows'=>$rows,'searched'=>true,'snapshot_id'=>$batch?:null];
 }
 
 function cw_upgrade_packaging_schema_v13(PDO $pdo): void
@@ -275,6 +330,8 @@ function cw_supplier_cost_audit(PDO $pdo, string $entity, int $id, string $actio
 function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, array $reallocatedTransportIds=[]): int
 {
     if (!$pdo->inTransaction()) throw new LogicException('Invoice line updates require a transaction.');
+    $pdo->query("SELECT setting_key FROM cw_settings WHERE setting_key='schema_version' FOR UPDATE")->fetchColumn();
+    $invoiceQuery=$pdo->prepare('SELECT approval_status FROM cw_supplier_invoices WHERE id=? FOR UPDATE');$invoiceQuery->execute([$invoiceId]);$approved=$invoiceQuery->fetchColumn()==='approved';
     $query = $pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND active=1 ORDER BY id FOR UPDATE');
     $query->execute([$invoiceId]);
     $existing = [];
@@ -285,6 +342,11 @@ function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, arra
         $id = (int)($line['id'] ?? 0);
         if ($id && (!isset($existing[$id]) || isset($seen[$id]))) throw new DomainException('An invoice line is duplicated or does not belong to this purchase. Refresh before saving.');
         if ($id) $seen[$id] = true;
+        if ($approved && $id) {
+            foreach(['cost_product_id','woo_product_id','woo_variation_id'] as $key) {
+                if(array_key_exists($key,$line) && (int)$line[$key] !== (int)($existing[$id][$key]??0)) throw new DomainException('Approved product matching is protected. An audited product correction is required; ordinary review cannot move purchase history to another product.');
+            }
+        }
         $name = trim((string)($line['product_description'] ?? ''));
         if ($name === '') throw new DomainException('Every purchase line needs a product name.');
         if (strlen($name) > 255) throw new DomainException('Product names must be 255 bytes or shorter.');
@@ -317,24 +379,43 @@ function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, arra
             $id = (int)$pdo->lastInsertId();
             cw_supplier_cost_audit($pdo,'supplier_invoice_line',$id,'created',null,$line);
         }
-        $pdo->prepare('UPDATE cw_supplier_invoice_lines SET shipping_weight_kg=? WHERE id=?')->execute([$shippingWeight,$id]);
+        $pdo->prepare('UPDATE cw_supplier_invoice_lines SET shipping_weight_kg=?,identity_new_confirmed=? WHERE id=?')->execute([$shippingWeight,!empty($line['confirm_new_product'])?1:0,$id]);
         if (!empty($line['cost_product_id'])) {
             $q=$pdo->prepare('SELECT * FROM cw_cost_products WHERE id=? AND active=1 FOR UPDATE'); $q->execute([(int)$line['cost_product_id']]); $p=$q->fetch();
             if (!$p) throw new DomainException('Select an active Cost Workbook product.');
+            $requestedWoo=(int)($line['woo_product_id']??0);
+            if($requestedWoo && ($requestedWoo!==(int)$p['woo_product_id'] || (int)($line['woo_variation_id']??0)!==(int)($p['woo_variation_id']??0))){
+                if(!empty($p['woo_product_id']) || !empty($line['woo_variation_id']))throw new DomainException('This canonical product already has a website identity, or a retail variation was selected. Review the existing link.');
+                $catalogue=$pdo->prepare("SELECT sku FROM cw_product_snapshots WHERE product_id=? AND variation_id=0 AND sync_batch_id=(SELECT id FROM cw_sync_batches WHERE is_successful_snapshot=1 AND status='completed' ORDER BY completed_at DESC,id DESC LIMIT 1)");$catalogue->execute([$requestedWoo]);$website=$catalogue->fetch();
+                if(!$website)throw new DomainException('Select a parent product from the latest verified WooCommerce catalogue.');
+                $duplicate=$pdo->prepare('SELECT id FROM cw_cost_products WHERE woo_product_id=? AND COALESCE(woo_variation_id,0)=0 AND id<>? FOR UPDATE');$duplicate->execute([$requestedWoo,$p['id']]);
+                if($duplicate->fetchColumn())throw new DomainException('This website identity already belongs to another canonical product. Select that existing product.');
+                $pdo->prepare('UPDATE cw_cost_products SET woo_product_id=?,woo_variation_id=0,woo_sku=? WHERE id=?')->execute([$requestedWoo,(string)$website['sku'],$p['id']]);
+                cw_supplier_cost_audit($pdo,'cost_product',(int)$p['id'],'website_linked',$p,['woo_product_id'=>$requestedWoo,'woo_variation_id'=>0,'woo_sku'=>$website['sku']]);
+                $p['woo_product_id']=$requestedWoo;$p['woo_variation_id']=0;$p['woo_sku']=$website['sku'];
+            }
             $expected=$baseUnit==='unit'?'each':$baseUnit;
             if ($p['base_unit'] && $p['base_unit']!==$expected) throw new DomainException('The purchase unit differs from the selected product costing unit.');
             $pdo->prepare("UPDATE cw_supplier_invoice_lines SET cost_product_id=?,woo_product_id=?,woo_variation_id=?,match_status='confirmed',item_type=? WHERE id=?")->execute([$p['id'],$p['woo_product_id'],$p['woo_variation_id'],$p['woo_product_id']?'website_product':'supplier_raw_material',$id]);
         } elseif (!empty($line['woo_product_id'])) {
-            $q=$pdo->prepare('SELECT product_id,variation_id,sku FROM cw_product_snapshots WHERE product_id=? AND variation_id=? AND sync_batch_id=(SELECT id FROM cw_sync_batches WHERE is_successful_snapshot=1 ORDER BY completed_at DESC,id DESC LIMIT 1) LIMIT 1');
+            if(!empty($line['woo_variation_id']))throw new DomainException('Match the parent product identity here. Link retail sizes in Product Pricing.');
+            $q=$pdo->prepare("SELECT product_id,variation_id,sku FROM cw_product_snapshots WHERE product_id=? AND variation_id=? AND sync_batch_id=(SELECT id FROM cw_sync_batches WHERE is_successful_snapshot=1 AND status='completed' ORDER BY completed_at DESC,id DESC LIMIT 1) LIMIT 1");
             $q->execute([(int)$line['woo_product_id'],(int)($line['woo_variation_id']??0)]);$website=$q->fetch();
             if(!$website)throw new DomainException('The selected WooCommerce product is no longer in the verified catalogue snapshot.');
-            $pdo->prepare("UPDATE cw_supplier_invoice_lines SET woo_product_id=?,woo_variation_id=?,item_type=?,match_status='confirmed' WHERE id=?")->execute([$website['product_id'],$website['variation_id'],$website['variation_id']?'website_variation':'website_product',$id]);
+            $pdo->prepare("UPDATE cw_supplier_invoice_lines SET cost_product_id=NULL,woo_product_id=?,woo_variation_id=?,item_type=?,match_status='confirmed' WHERE id=?")->execute([$website['product_id'],$website['variation_id'],$website['variation_id']?'website_variation':'website_product',$id]);
         } elseif (!empty($line['confirm_new_product'])) {
-            $q=$pdo->prepare('SELECT id FROM cw_cost_products WHERE normalized_name=? OR (woo_sku<>\'\' AND woo_sku=?)'); $q->execute([lpc_norm($name),(string)($line['supplier_sku']??'')]);
-            if ($q->fetchColumn()) throw new DomainException('Product already exists. Select the existing product and Update Cost from This Purchase.');
-            $q=$pdo->prepare("SELECT product_id FROM cw_product_snapshots WHERE sync_batch_id=(SELECT id FROM cw_sync_batches WHERE is_successful_snapshot=1 ORDER BY completed_at DESC,id DESC LIMIT 1) AND (LOWER(TRIM(product_name))=LOWER(TRIM(?)) OR (sku<>'' AND sku=?)) LIMIT 1");$q->execute([$name,(string)($line['supplier_sku']??'')]);
-            if($q->fetchColumn())throw new DomainException('This product already exists in WooCommerce. Select its catalogue match so the existing SKU is reused.');
-            $pdo->prepare("UPDATE cw_supplier_invoice_lines SET item_type='supplier_raw_material',match_status='confirmed' WHERE id=?")->execute([$id]);
+            $pdo->prepare("UPDATE cw_supplier_invoice_lines SET identity_new_confirmed=1,item_type='supplier_raw_material',match_status='confirmed' WHERE id=?")->execute([$id]);
+        } elseif (empty($existing[$id]['cost_product_id']) && empty($existing[$id]['woo_product_id'])) {
+            $pdo->prepare("UPDATE cw_supplier_invoice_lines SET item_type='supplier_raw_material' WHERE id=?")->execute([$id]);
+        }
+        $matched=$pdo->prepare('SELECT cost_product_id,woo_product_id,woo_variation_id,match_status FROM cw_supplier_invoice_lines WHERE id=?');$matched->execute([$id]);$afterMatch=$matched->fetch();
+        $beforeMatch=$existing[$id]??[];
+        $changed=false;foreach(['cost_product_id','woo_product_id','woo_variation_id'] as $key)if((int)($beforeMatch[$key]??0)!==(int)($afterMatch[$key]??0))$changed=true;
+        if($changed){
+            cw_supplier_cost_audit($pdo,'supplier_invoice_line',$id,'product_matched',$beforeMatch,$afterMatch);
+            if(!empty($afterMatch['woo_product_id'])){
+                $u=cw_user();$pdo->prepare("INSERT INTO cw_product_matches(supplier_invoice_line_id,woo_product_id,woo_variation_id,match_method,match_confidence,confirmed_by,confirmed_by_name) VALUES(?,?,?,'manual',100,?,?)")->execute([$id,$afterMatch['woo_product_id'],$afterMatch['woo_variation_id']?:0,$u['id'],$u['name']]);
+            }
         }
     }
     // Omitted unreferenced draft lines are archived, never destroyed; all references remain protected.
@@ -348,6 +429,59 @@ function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, arra
         }
     }
     return $valid;
+}
+
+/** Supplier identity evidence is internal: prior supplier SKU, or exact supplier description and unit. */
+function cw_supplier_identity_options(PDO $pdo,int $supplier,string $name,string $sku,string $unit): array
+{
+    $base=['g'=>'kg','kg'=>'kg','ml'=>'L','L'=>'L','unit'=>'each'][$unit]??'';
+    $q=$pdo->prepare("SELECT DISTINCT p.id,p.product_name,p.short_code,p.base_unit FROM cw_cost_products p JOIN cw_supplier_invoice_lines l ON l.cost_product_id=p.id JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE p.active=1 AND i.approval_status='approved' AND i.supplier_id=? AND p.base_unit=? AND ((?<>' ' AND ?<>'' AND l.supplier_sku=?) OR (?='' AND LOWER(TRIM(l.product_description))=LOWER(TRIM(?))))");
+    $q->execute([$supplier,$base,$sku,$sku,$sku,$sku,$name]);$prior=$q->fetchAll();
+    if(count($prior)===1)return ['automatic_id'=>(int)$prior[0]['id'],'candidates'=>[]];
+    $q=$pdo->prepare('SELECT id,product_name,short_code,base_unit FROM cw_cost_products WHERE active=1 AND normalized_name=? ORDER BY id');$q->execute([lpc_norm($name)]);
+    return ['automatic_id'=>0,'candidates'=>$prior?:$q->fetchAll()];
+}
+function cw_supplier_resolve_products(PDO $pdo,int $invoiceId): void
+{
+    $pdo->query("SELECT setting_key FROM cw_settings WHERE setting_key='schema_version' FOR UPDATE")->fetchColumn();
+    $q=$pdo->prepare('SELECT l.*,i.supplier_id FROM cw_supplier_invoice_lines l JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE l.supplier_invoice_id=? AND l.active=1 ORDER BY l.id FOR UPDATE');$q->execute([$invoiceId]);
+    foreach($q->fetchAll() as $line){
+        if($line['cost_product_id'])continue;
+        if($line['woo_product_id'])continue; // Preserve established historical website relationships.
+        $options=cw_supplier_identity_options($pdo,(int)$line['supplier_id'],$line['product_description'],$line['supplier_sku']??'',$line['purchase_unit']);
+        $pid=$options['automatic_id'];
+        if(!$pid){
+            $same=$pdo->prepare("SELECT DISTINCT cost_product_id FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND id<>? AND active=1 AND cost_product_id IS NOT NULL AND purchase_unit=? AND product_category=? AND ((?<>'' AND supplier_sku=?) OR (?='' AND COALESCE(supplier_sku,'')='' AND BINARY product_description=BINARY ?))");
+            $sku=$line['supplier_sku']??'';$same->execute([$invoiceId,$line['id'],$line['purchase_unit'],$line['product_category'],$sku,$sku,$sku,$line['product_description']]);$ids=$same->fetchAll(PDO::FETCH_COLUMN);if(count($ids)===1)$pid=(int)$ids[0];
+        }
+        if(!$pid && $options['candidates'] && empty($line['identity_new_confirmed']))throw new DomainException('Possible Existing Product: '.$line['product_description'].'. Choose Use Existing or confirm Create New.');
+        if(!$pid){
+            [$basis,$unit]=lpc_basis($line);if(!$basis)throw new DomainException('Confirm purchase unit for '.$line['product_description']);
+            $u=cw_user();$pdo->prepare('INSERT INTO cw_cost_products(product_name,normalized_name,short_code,product_category,costing_basis,base_unit,preferred_supplier_id,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?,?)')->execute([$line['product_description'],lpc_norm($line['product_description']),lpc_code($pdo,$line['product_description']),$line['product_category'],$basis,$unit,$line['supplier_id'],$u['id'],$u['name']]);$pid=(int)$pdo->lastInsertId();
+        }
+        $pdo->prepare("UPDATE cw_supplier_invoice_lines SET cost_product_id=?,match_status='confirmed',item_type='supplier_raw_material' WHERE id=?")->execute([$pid,$line['id']]);
+        cw_supplier_cost_audit($pdo,'supplier_invoice_line',(int)$line['id'],'internal_identity_resolved',$line,['cost_product_id'=>$pid]);
+    }
+}
+/** Allocate only remaining freight; never recalculate another purchase's saved allocation. */
+function cw_supplier_link_transport(PDO $pdo,int $invoiceId,int $transportId,string $method): array
+{
+    $q=$pdo->prepare("SELECT * FROM cw_transport_records WHERE id=? AND allocation_status<>'archived' FOR UPDATE");$q->execute([$transportId]);$r=$q->fetch();if(!$r)throw new DomainException('Select an existing transport record.');
+    if($r['vat_treatment']==='unconfirmed'||($r['currency']!=='NAD'&&!$r['fx_confirmed']))throw new DomainException('Confirm the existing transport VAT and exchange rate in Transport Costs first.');
+    $q=$pdo->prepare('SELECT * FROM cw_transport_allocations WHERE transport_id=? FOR UPDATE');$q->execute([$transportId]);$old=$q->fetchAll();$other=0;$own=null;
+    foreach($old as $a){if((int)$a['supplier_invoice_id']===$invoiceId)$own=$a;else $other+=(float)$a['calculated_amount'];}
+    $available=round((float)$r['allocable_amount']-$other-cw_packaging_freight_claimed($pdo,$transportId),2);
+    $amount=$own?(float)$own['calculated_amount']:$available;
+    if($amount<=0||$amount>$available+.001)throw new DomainException('This transport record has no eligible unallocated freight. Existing charges were preserved.');
+    $q=$pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND active=1 ORDER BY id FOR UPDATE');$q->execute([$invoiceId]);$lines=$q->fetchAll();$weights=[];
+    foreach($lines as $l){if((float)$l['base_quantity']<=0)throw new DomainException('Confirm purchased quantity for '.$l['product_description']);$weights[(int)$l['id']]=$method==='equal_split'?1:$l['shipping_weight_kg'];}
+    if(!in_array($method,['by_weight','equal_split'],true))throw new DomainException('Select a supported product allocation method.');
+    $shares=cw_shipping_allocation($amount,$weights);
+    if(!$own){$pdo->prepare("INSERT INTO cw_transport_allocations(transport_id,supplier_invoice_id,allocation_method,weight_kg_snapshot,weight_status,calculated_amount,calculation_date) VALUES(?,?,?,?,'actual',?,NOW())")->execute([$transportId,$invoiceId,$method,array_sum($weights),$amount]);$aid=(int)$pdo->lastInsertId();}else $aid=(int)$own['id'];
+    foreach($lines as $l){$piece=$shares[(int)$l['id']];$pdo->prepare('INSERT INTO cw_transport_product_allocations(transport_allocation_id,supplier_invoice_line_id,quantity_snapshot,pack_size_snapshot,base_quantity_snapshot,base_unit_snapshot,shipping_weight_kg_snapshot,calculated_amount,transport_cost_per_base) VALUES(?,?,?,?,?,?,?,?,?) ON DUPLICATE KEY UPDATE calculated_amount=VALUES(calculated_amount),transport_cost_per_base=VALUES(transport_cost_per_base)')->execute([$aid,$l['id'],$l['quantity'],$l['pack_size'],$l['base_quantity'],$l['base_unit'],$l['shipping_weight_kg'],$piece,$piece/$l['base_quantity']]);}
+    $u=cw_user();$remaining=round($available-$amount,2);$pdo->prepare('UPDATE cw_transport_records SET allocation_status=?,updated_by=?,updated_by_name=? WHERE id=?')->execute([$remaining<.005?'fully_allocated':'partial',$u['id'],$u['name'],$transportId]);
+    $pdo->prepare('INSERT INTO cw_transport_audit(transport_id,action_key,before_json,after_json,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$transportId,'remaining_freight_linked',json_encode($old),json_encode(['supplier_invoice_id'=>$invoiceId,'amount'=>$amount,'shares'=>$shares]),$u['id'],$u['name']]);
+    return ['id'=>$transportId,'allocated'=>$amount,'unallocated'=>$remaining];
 }
 
 function cw_packaging_freight_claimed(PDO $pdo,int $transport): float
@@ -373,7 +507,7 @@ function cw_transport_save(PDO $pdo, array $body): array
         $treatment=(string)($body['vat_treatment']??'unconfirmed');
         if (!in_array($treatment,['recoverable','non_recoverable','exempt','unconfirmed'],true)) throw new DomainException('Confirm shipping VAT treatment.');
         $including=($body['amount_basis']??'excluding')==='including';
-        $net=(float)$amount-($including && $treatment==='recoverable'?(float)$vat:0);
+        $net=(float)$amount-($including && $treatment==='recoverable'?(float)$vat:0)+(!$including && $treatment==='non_recoverable'?(float)$vat:0);
         $allocable=$net-(float)$other;
         if ($allocable<0) throw new DomainException('VAT and non-transport charges exceed the transport amount.');
         $method=(string)($body['allocation_method']??'by_weight');

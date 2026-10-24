@@ -107,5 +107,35 @@ expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_products')->fetchColumn()=
 $version=si_sheet_state($pdo,$product,$source)['version'];$save('invoice_number','CORRECTED');
 try{$save('product_name','Stale name',$version);throw new RuntimeException('Cross-field stale edit accepted');}catch(DomainException $expected){}
 foreach([['quantity','0'],['line_subtotal','-1'],['purchase_unit','L'],['product_category','Invalid'],['invoice_date','2026-02-31']] as $invalid){try{$save($invalid[0],$invalid[1]);throw new RuntimeException('Invalid edit accepted');}catch(DomainException $expected){}}
+// Product-local transport: do not revise or redistribute the invoice's freight.
+$existing=$pdo->query("SELECT * FROM cw_supplier_invoice_lines WHERE id=$lineId")->fetch();
+$second=$line;unset($second['id']);$second['product_description']='Independent freight neighbour';$second['confirm_new_product']=true;
+$pdo->beginTransaction();cw_supplier_save_lines($pdo,$invoice,[$existing,$second]);lpc_refresh($pdo,[$invoice]);$pdo->commit();
+$neighbour=$pdo->query("SELECT * FROM cw_cost_product_sources WHERE supplier_invoice_line_id<>$lineId AND product_id<>$product ORDER BY id DESC LIMIT 1")->fetch();
+$neighbourBefore=si_sheet_state($pdo,(int)$neighbour['product_id'],(int)$neighbour['id']);
+$allocationsBefore=$pdo->query('SELECT * FROM cw_transport_product_allocations ORDER BY id')->fetchAll();
+$historyBefore=$pdo->query("SELECT * FROM cw_landed_product_costs WHERE product_source_id=$source ORDER BY id")->fetchAll();
+$priorVersion=si_sheet_state($pdo,$product,$source)['version'];
+$result=$save('transport_cost_per_base','34',$priorVersion,'individual-transport-0001');
+expect(count($result['rows'])===1,'Only edited product returned');
+expect((float)$result['rows'][0]['transport_cost_per_base']===34.0,'34 NAD per kg is not split');
+expect((float)$result['rows'][0]['landed_cost_per_base']===134.0,'Manual freight replaces rather than adds existing allocation');
+expect((float)$result['rows'][0]['transport_cost_used']===4250.0,'125kg purchase uses 34 per kg');
+expect($neighbourBefore===si_sheet_state($pdo,(int)$neighbour['product_id'],(int)$neighbour['id']),'Neighbour source, audit and snapshot unchanged');
+$count=(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn();
+$save('transport_cost_per_base','34',$priorVersion,'individual-transport-0001');
+expect($count===(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn(),'Transport retry idempotent');
+lpc_refresh($pdo,[$invoice]);
+expect((float)si_sheet_row(si_sheet_state($pdo,$product,$source))['transport_cost_per_base']===34.0,'Manual amount survives refresh/recalculation');
+$save('quantity','100');
+expect((float)si_sheet_row(si_sheet_state($pdo,$product,$source))['transport_cost_per_base']===34.0,'Manual per-base amount survives quantity correction');
+$save('transport_cost_per_base','0');
+expect((float)si_sheet_row(si_sheet_state($pdo,$product,$source))['transport_cost_per_base']===0.0,'Explicit zero allowed');
+$save('transport_cost_per_base','34.12345678');lpc_refresh($pdo,[$invoice]);
+expect(abs((float)si_sheet_row(si_sheet_state($pdo,$product,$source))['transport_cost_per_base']-34.12345678)<0.00000001,'Eight decimal precision retained');
+foreach(['-1','','NaN','100000000000000'] as $bad){try{$save('transport_cost_per_base',$bad);throw new RuntimeException('Bad transport accepted');}catch(DomainException $expected){}}
+expect($allocationsBefore===$pdo->query('SELECT * FROM cw_transport_product_allocations ORDER BY id')->fetchAll(),'Shipment allocations never rewritten');
+foreach($historyBefore as $historical)expect($historical===$pdo->query('SELECT * FROM cw_landed_product_costs WHERE id='.(int)$historical['id'])->fetch(),'Historical cost unchanged');
+echo "Individual transport: isolated edits, replacement not double-counting, precision, zero, retries, refresh and history passed.\n";
 echo "Spreadsheet integration: source revisions, concurrency, retries, validation, stable identities and freight preservation passed.\\n";
 echo "Supplier costs integration: stable IDs, canonical products, audit, freight, FX, rollback and idempotency passed.\n";

@@ -1,4 +1,4 @@
-name: Deploy isolated Product Pricing correction
+name: Deploy isolated per-product transport correction
 on:
   workflow_dispatch:
     inputs:
@@ -43,8 +43,7 @@ jobs:
           CW_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=cw_supplier_test;charset=utf8mb4
           CW_TEST_USER: root
         run: |
-          # Test against the exact shared costing dependency verified live, without deploying it.
-          git restore --source=5606141c7e8550452922eac347141a84dfa39cb0 -- shared/cost-workbook.php
+          # Shared costing changes are based on the verified live version and tested as deployed.
           php -l apps/hr-portal/documents.php
           php -l apps/hr-portal/includes/employment-letter.php
           php tests/employment-letters-workflow.php

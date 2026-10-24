@@ -27,23 +27,34 @@ function si_sheet_row(array $a):array {
 }
 function si_sheet_save(PDO $pdo,array $b):array {
     $pid=(int)($b['product_id']??0);$sid=(int)($b['source_id']??0);$field=(string)($b['field']??'');$value=trim((string)($b['value']??''));
-    $allowed=['invoice_date','supplier_name','supplier_type','invoice_number','product_name','short_code','product_category','quantity','purchase_unit','line_subtotal'];
+    $allowed=['invoice_date','supplier_name','supplier_type','invoice_number','product_name','short_code','product_category','quantity','purchase_unit','line_subtotal','transport_cost_per_base'];
     if(!in_array($field,$allowed,true))throw new DomainException('This field is calculated or cannot be edited inline.');
     $request=(string)($b['request_id']??'');if(!preg_match('/^[a-zA-Z0-9-]{16,80}$/',$request))throw new DomainException('Missing correction request ID.');
     if(strlen($value)>255)throw new DomainException('Use no more than 255 characters.');
     $fingerprint=hash('sha256',json_encode([$pid,$sid,$field,$value]));
     $pdo->beginTransaction();
     try {
+        $pdo->query("SELECT setting_key FROM cw_settings WHERE setting_key='schema_version' FOR UPDATE")->fetchColumn();
         $a=si_sheet_state($pdo,$pid,$sid,true);extract($a);
         $q=$pdo->prepare("SELECT after_json FROM cw_cost_audit_events WHERE entity_type='cost_product' AND entity_id=? AND action_key='sheet_committed' AND JSON_UNQUOTE(JSON_EXTRACT(after_json,'$.request_id'))=? ORDER BY id DESC LIMIT 1");$q->execute([$pid,$request]);$previous=$q->fetchColumn();
         if($previous){$previous=json_decode($previous,true);if(($previous['fingerprint']??'')!==$fingerprint)throw new DomainException('This request was already used for a different correction.');$pdo->commit();return ['ok'=>true,'rows'=>[si_sheet_row($a)],'replayed'=>true];}
         if(!hash_equals($version,(string)($b['version']??'')))throw new DomainException('This record was updated elsewhere. Review the latest value before saving.');
         $r=si_sheet_row($a);$initial=$field==='quantity'?$r['purchase_quantity']:($field==='line_subtotal'?$r['source_cost']:$r[$field]);
-        $numeric=in_array($field,['quantity','line_subtotal'],true);
+        $numeric=in_array($field,['quantity','line_subtotal','transport_cost_per_base'],true);
         if($numeric){$n=cw_decimal($value);if($n===null||!is_finite((float)$n)||(float)$n<0||($field==='quantity'&&(float)$n<=0))throw new DomainException('Enter a positive quantity or a non-negative source total.');$value=$n;}
-        if(($numeric&&(float)$initial===(float)$value)||(!$numeric&&(string)$initial===$value)){$pdo->commit();return ['ok'=>true,'rows'=>[$r],'unchanged'=>true];}
+        if(($numeric&&$initial!==null&&(float)$initial===(float)$value&&($field!=='transport_cost_per_base'||isset($s['manual_transport_per_base'])))||(!$numeric&&(string)$initial===$value)){$pdo->commit();return ['ok'=>true,'rows'=>[$r],'unchanged'=>true];}
         $u=cw_user();
-        if(in_array($field,['product_name','short_code','product_category'],true)){
+        if($field==='transport_cost_per_base'){
+            if((float)$value>9999999999.99999999||(float)$value*(float)$c['base_quantity']>9999999999.99999999)throw new DomainException('Transport amount is too large.');
+            $pdo->prepare('UPDATE cw_cost_product_sources SET manual_transport_per_base=? WHERE id=? AND product_id=?')->execute([$value,$sid,$pid]);
+            $status=in_array($c['status_key'],['exchange_rate_required','vat_review_required'],true)?$c['status_key']:'complete';
+            if($l){
+                $sourceLine=array_merge($l,['currency'=>$i['currency'],'exchange_rate'=>$i['exchange_rate'],'fx_confirmed'=>$i['fx_confirmed'],'vat_treatment'=>$i['vat_treatment']]);
+                $cost=lpc_source_cost($sourceLine);
+                $status=$cost!==null?'complete':($i['currency']!=='NAD'?'exchange_rate_required':'vat_review_required');
+            }
+            lpc_snapshot($pdo,$pid,$sid,(int)$s['supplier_id']?:null,$l?(int)$l['id']:null,null,$c['costing_basis'],$c['base_unit'],(float)$c['base_quantity'],(float)$c['supplier_cost_used'],(float)$value*(float)$c['base_quantity'],'NAD',$c['cost_date'],$status);
+        } elseif(in_array($field,['product_name','short_code','product_category'],true)){
             if($value==='')throw new DomainException('Enter a value.');
             if($field==='product_category'&&!in_array($value,si_categories(),true))throw new DomainException('Select a valid category.');
             if($field==='short_code'){
@@ -88,11 +99,12 @@ function si_sheet_save(PDO $pdo,array $b):array {
             elseif($field==='supplier_name'){$q=$pdo->prepare('SELECT id,name FROM cw_suppliers WHERE name=? AND active=1');$q->execute([$value]);$supplier=$q->fetch();if(!$supplier)throw new DomainException('Select an existing supplier.');$next['supplier_id']=$supplier['id'];$next['supplier_name']=$supplier['name'];}
             else {if(!in_array($value,si_types(true),true))throw new DomainException('Select a valid supplier type.');$pdo->prepare('UPDATE cw_suppliers SET supplier_type=?,type_confirmed=1 WHERE id=?')->execute([$value,$s['supplier_id']]);cw_supplier_cost_audit($pdo,'supplier',(int)$s['supplier_id'],'type_corrected',$sp,['supplier_type'=>$value]);}
             $pdo->prepare('UPDATE cw_cost_product_sources SET supplier_id=?,supplier_name=?,manual_reference=?,cost_date=?,total_purchased_quantity=?,total_supplier_cost=? WHERE id=?')->execute([$next['supplier_id'],$next['supplier_name'],$next['manual_reference'],$next['cost_date'],$next['total_purchased_quantity'],$next['total_supplier_cost'],$sid]);
-            lpc_snapshot($pdo,$pid,$sid,(int)$next['supplier_id']?:null,null,null,$c['costing_basis'],$c['base_unit'],(float)$next['total_purchased_quantity'],(float)$next['total_supplier_cost'],(float)$c['transport_cost_used'],'NAD',$next['cost_date'],$c['status_key']);
+            $transport=isset($s['manual_transport_per_base'])?(float)$s['manual_transport_per_base']*(float)$next['total_purchased_quantity']:(float)$c['transport_cost_used'];
+            lpc_snapshot($pdo,$pid,$sid,(int)$next['supplier_id']?:null,null,null,$c['costing_basis'],$c['base_unit'],(float)$next['total_purchased_quantity'],(float)$next['total_supplier_cost'],$transport,'NAD',$next['cost_date'],$c['status_key']);
         }
         cw_supplier_cost_audit($pdo,'cost_product',$pid,'sheet_committed',$a,['field'=>$field,'value'=>$value,'request_id'=>$request,'fingerprint'=>$fingerprint]);
         $ids=[['product_id'=>$pid,'id'=>$sid]];
-        if($i){$q=$pdo->prepare('SELECT s.product_id,s.id FROM cw_cost_product_sources s JOIN cw_supplier_invoice_lines l ON l.id=s.supplier_invoice_line_id WHERE l.supplier_invoice_id=? AND s.active=1 AND l.active=1');$q->execute([$i['id']]);$ids=$q->fetchAll();}
+        if($i&&$field!=='transport_cost_per_base'){$q=$pdo->prepare('SELECT s.product_id,s.id FROM cw_cost_product_sources s JOIN cw_supplier_invoice_lines l ON l.id=s.supplier_invoice_line_id WHERE l.supplier_invoice_id=? AND s.active=1 AND l.active=1');$q->execute([$i['id']]);$ids=$q->fetchAll();}
         $rows=[];foreach($ids as $id)$rows[]=si_sheet_row(si_sheet_state($pdo,(int)$id['product_id'],(int)$id['id']));
         $pdo->commit();return ['ok'=>true,'rows'=>$rows];
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
