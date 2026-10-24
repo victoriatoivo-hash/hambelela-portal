@@ -1,33 +1,11 @@
 (() => {
   'use strict';
   if (!document.body.classList.contains('ess-dashboard')) return;
-  const sidebarToggle = document.querySelector('[data-ess-sidebar-toggle]');
-  const setSidebarCollapsed = (collapsed, remember = true) => {
-    document.body.classList.toggle('ess-sidebar-collapsed', collapsed);
-    sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
-    sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
-    sidebarToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
-    if (collapsed) document.querySelectorAll('.ess-sidebar [data-ess-subnav-toggle]').forEach(button => {
-      button.setAttribute('aria-expanded', 'false');
-      document.getElementById(button.getAttribute('aria-controls')).hidden = true;
-    });
-    if (remember) { try { localStorage.setItem('ess-sidebar-collapsed', String(collapsed)); } catch (_) {} }
-  };
-  let savedSidebar = null;
-  try { savedSidebar = localStorage.getItem('ess-sidebar-collapsed'); } catch (_) {}
-  setSidebarCollapsed(savedSidebar === null ? matchMedia('(max-width:1024px)').matches : savedSidebar === 'true', false);
-  sidebarToggle.addEventListener('click', () => setSidebarCollapsed(!document.body.classList.contains('ess-sidebar-collapsed')));
-  document.querySelectorAll('[data-ess-subnav-toggle]').forEach(button => {
-    button.addEventListener('click', () => {
-      const open = button.getAttribute('aria-expanded') !== 'true';
-      if (open && button.closest('.ess-sidebar') && document.body.classList.contains('ess-sidebar-collapsed')) setSidebarCollapsed(false);
-      button.setAttribute('aria-expanded', String(open));
-      document.getElementById(button.getAttribute('aria-controls')).hidden = !open;
-    });
-  });
+  // Sidebar and submenu handlers are loaded by the shared sidebar on every page.
+  window.EssSidebar?.initialise();
   const search = document.querySelector('[data-ess-search]');
   const cards = [...document.querySelectorAll('[data-ess-module]')];
-  search.addEventListener('input', () => {
+  search?.addEventListener('input', () => {
     if (!cards.length) return;
     const query = search.value.trim().toLocaleLowerCase();
     let count = 0;
@@ -38,7 +16,7 @@
     document.querySelector('[data-ess-search-empty]').hidden = count !== 0;
     document.querySelector('[data-ess-search-status]').textContent = `${count} module${count === 1 ? '' : 's'} found`;
   });
-  if (!cards.length) {
+  if (search && !cards.length) {
     search.setAttribute('aria-label', 'Find a portal module (press Enter to open)');
     search.removeAttribute('aria-controls');
     search.addEventListener('keydown', event => {
@@ -50,7 +28,7 @@
   }
   document.addEventListener('keydown', event => {
     if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.closest('input,textarea,select,[contenteditable="true"]')) {
-      event.preventDefault(); search.focus();
+      if (search) { event.preventDefault(); search.focus(); }
     }
   });
   const more = document.querySelector('[data-ess-more]');

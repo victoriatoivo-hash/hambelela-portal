@@ -8,7 +8,6 @@ function cw_render_overview(array $period): void { ?>
 ['supplier-invoices','receipt-text','Record supplier purchases, review extracted items and manage approved product costs.'],
 ['transport-costs','truck','Record freight charges, link supplier purchases and allocate transport costs.'],
 ['packaging-costs','package','Calculate material, container, label and packaging costs by finished-product size.'],
-['landed-product-costs','calculator','Combine supplier prices and allocated freight to establish product landed costs.'],
 ['product-pricing','badge-dollar-sign','Manage product sizes, selling prices, VAT, margins and website inventory profitability.'],
 ['profitability-report','chart-no-axes-combined','Review sales profitability, margins, cost coverage and projected inventory profit.'],
 ['formulations','flask-conical','Build product formulations, calculate batch costs and generate recommended selling prices.'],
