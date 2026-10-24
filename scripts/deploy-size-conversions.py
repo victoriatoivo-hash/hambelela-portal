@@ -9,6 +9,7 @@ FILES += ['shared/ess-navigation.php']
 DEPENDENCIES = ['shared/cost-workbook.php','apps/cost-manager/retail-pricing-api.php','shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-website-pricing.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
 DEPENDENCY_BASELINES = {'assets/js/portal.js':'2c758a0cb67a8c3bd2e4621ee9cbacaed5960f1b','shared/ess-sidebar.php':'f83f5aca091c10bfa37d29dffac35bb44a287a48','assets/js/ess-dashboard.js':'a8e39f8f162e23cff0a5d54de424f67e7948b44f'}
+DEPENDENCY_BASELINES['shared/ess-navigation.php'] = '6e2cb23a7cf0d7f720be8ba26a71d532c97ad294'
 DEPENDENCIES += ['assets/js/retail-pricing.js','assets/js/portal.js','assets/css/portal-sticky-scrollbar.css']
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
@@ -40,11 +41,6 @@ try:
         report['hashes'][p] = {'live':digest(data),'baseline':digest(baseline),'approved':digest(approved),'matches':matches}
         if not matches: conflicts.append(p)
     if conflicts:
-        # User-approved, navigation-only source comparison; no extra source artifact.
-        if mode == 'preflight' and 'shared/ess-navigation.php' in conflicts:
-            import difflib
-            p = 'shared/ess-navigation.php'
-            print(''.join(difflib.unified_diff(git('show', BASELINE+':'+p).decode().splitlines(True), before[p].decode().splitlines(True), fromfile='git-navigation', tofile='live-navigation')))
         report['state']='blocked-live-baseline-mismatch';report['conflicts']=conflicts
         raise RuntimeError('Newer/different live files; nothing uploaded: '+', '.join(conflicts))
     report['state']='preflight-pass'

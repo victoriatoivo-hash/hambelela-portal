@@ -11,7 +11,7 @@ function ess_navigation_children(string $name): array
         'Cost Workbook' => ['cost-manager', [
             'size-conversions.php'=>'Size Conversions', 'supplier-invoices.php'=>'Supplier Invoices',
             'transport-costs.php'=>'Transport Costs', 'packaging-costs.php'=>'Packaging Costs',
-            'landed-product-costs.php'=>'Landed Product Costs', 'product-pricing.php'=>'Product Pricing',
+            'product-pricing.php'=>'Product Pricing',
             'formulations.php'=>'Formulation Costing', 'wholesale-pricing.php'=>'Wholesale Pricing',
             'profitability-report.php'=>'Profitability Report',
         ]],

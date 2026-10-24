@@ -33,13 +33,15 @@
   });
   const more = document.querySelector('[data-ess-more]');
   const dialog = document.querySelector('#ess-more-dialog');
+  if (more && dialog) {
   more.addEventListener('click', () => { dialog.showModal(); more.setAttribute('aria-expanded', 'true'); });
-  document.querySelector('[data-ess-close]').addEventListener('click', () => dialog.close());
+  document.querySelector('[data-ess-close]')?.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => { more.setAttribute('aria-expanded', 'false'); more.focus(); });
   dialog.addEventListener('click', event => {
     const box = dialog.getBoundingClientRect();
     if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close();
   });
+  }
   if (!document.querySelector('#ess-inspiration-data')) return;
   const catalog = JSON.parse(document.querySelector('#ess-inspiration-data').textContent);
   const hero = document.querySelector('[data-ess-inspiration]');
