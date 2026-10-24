@@ -36,7 +36,7 @@ function lpc_snapshot(PDO $pdo,int $productId,int $sourceId,?int $supplierId,?in
     $pdo->prepare('INSERT INTO cw_landed_product_costs(product_id,product_source_id,supplier_id,supplier_invoice_line_id,transport_product_allocation_id,costing_basis,base_unit,base_quantity,supplier_cost_used,transport_cost_used,supplier_cost_per_base,transport_cost_per_base,landed_cost_per_base,currency,cost_date,status_key,calculation_version,calculation_hash,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$productId,$sourceId,$supplierId,$lineId,$transportProductId,$basis,$unit,$qty,$supplier,$transport,$supplier/$qty,$transport/$qty,($supplier+$transport)/$qty,$currency,$date,$status,$version,$hash,$actor['id'],$actor['name']]);
     return true;
 }
-function lpc_refresh(PDO $pdo, array $invoiceIds=[]): array
+function lpc_refresh(PDO $pdo, array $invoiceIds=[], ?array $lineIds=null): array
 {
     $owned = !$pdo->inTransaction();
     if ($owned) $pdo->beginTransaction();
@@ -44,6 +44,7 @@ function lpc_refresh(PDO $pdo, array $invoiceIds=[]): array
     try {
         $pdo->query("SELECT setting_key FROM cw_settings WHERE setting_key='schema_version' FOR UPDATE")->fetchColumn();
         $scope=$invoiceIds?' AND i.id IN('.implode(',',array_map('intval',$invoiceIds)).')':'';
+        if ($lineIds!==null) $scope.=' AND l.id IN('.implode(',',array_map('intval',$lineIds?:[0])).')';
         $lines = $pdo->query("SELECT l.*,i.supplier_id,i.supplier_name,i.invoice_number,i.invoice_date,i.cost_effective_date,i.transport_treatment,i.currency,i.exchange_rate,i.fx_confirmed,i.vat_treatment,i.approval_status FROM cw_supplier_invoice_lines l JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE i.approval_status='approved' AND l.active=1 AND l.review_status='valid' AND l.item_type NOT IN('additional_cost','unclassified')".$scope." ORDER BY i.invoice_date,l.id FOR UPDATE")->fetchAll();
         foreach ($lines as $line) {
             $name = trim((string)$line['product_description']);
@@ -327,7 +328,7 @@ function cw_supplier_cost_audit(PDO $pdo, string $entity, int $id, string $actio
 }
 
 /** Update a purchase without replacing line IDs or deleting downstream references. Caller owns transaction. */
-function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, array $reallocatedTransportIds=[]): int
+function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, array $reallocatedTransportIds=[], ?array $reviewLineIds=null): int
 {
     if (!$pdo->inTransaction()) throw new LogicException('Invoice line updates require a transaction.');
     $pdo->query("SELECT setting_key FROM cw_settings WHERE setting_key='schema_version' FOR UPDATE")->fetchColumn();
@@ -336,13 +337,16 @@ function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, arra
     $query->execute([$invoiceId]);
     $existing = [];
     foreach ($query->fetchAll() as $line) $existing[(int)$line['id']] = $line;
+    // Recovery callers validate this subset under the invoice lock. Other lines are untouched.
+    if ($reviewLineIds!==null) $existing=array_intersect_key($existing,array_flip($reviewLineIds));
     $seen = []; $valid = 0;
     foreach ($submitted as $line) {
         if (!is_array($line)) throw new DomainException('Invalid invoice line.');
         $id = (int)($line['id'] ?? 0);
         if ($id && (!isset($existing[$id]) || isset($seen[$id]))) throw new DomainException('An invoice line is duplicated or does not belong to this purchase. Refresh before saving.');
         if ($id) $seen[$id] = true;
-        if ($approved && $id) {
+        if ($reviewLineIds!==null && !$id) throw new DomainException('Select an extracted missing invoice item.');
+        if ($approved && $id && $reviewLineIds===null) {
             foreach(['cost_product_id','woo_product_id','woo_variation_id'] as $key) {
                 if(array_key_exists($key,$line) && (int)$line[$key] !== (int)($existing[$id][$key]??0)) throw new DomainException('Approved product matching is protected. An audited product correction is required; ordinary review cannot move purchase history to another product.');
             }
@@ -421,6 +425,7 @@ function cw_supplier_save_lines(PDO $pdo, int $invoiceId, array $submitted, arra
     // Omitted unreferenced draft lines are archived, never destroyed; all references remain protected.
     foreach ($existing as $id => $line) {
         if (!isset($seen[$id])) {
+            if ($reviewLineIds!==null) continue; // Unselected recovered items remain pending.
             $q=$pdo->prepare('SELECT approval_status FROM cw_supplier_invoices WHERE id=?');$q->execute([$invoiceId]);$draft=$q->fetchColumn()==='draft';
             $q=$pdo->prepare('SELECT (SELECT COUNT(*) FROM cw_cost_product_sources WHERE supplier_invoice_line_id=?)+(SELECT COUNT(*) FROM cw_transport_product_allocations WHERE supplier_invoice_line_id=?)+(SELECT COUNT(*) FROM cw_product_matches WHERE supplier_invoice_line_id=?)');$q->execute([$id,$id,$id]);
             if(!$draft || (int)$q->fetchColumn()>0 || !$submitted)throw new DomainException('Approved or referenced lines cannot be removed. Keep them in the review to preserve their history.');
@@ -441,11 +446,12 @@ function cw_supplier_identity_options(PDO $pdo,int $supplier,string $name,string
     $q=$pdo->prepare('SELECT id,product_name,short_code,base_unit FROM cw_cost_products WHERE active=1 AND normalized_name=? ORDER BY id');$q->execute([lpc_norm($name)]);
     return ['automatic_id'=>0,'candidates'=>$prior?:$q->fetchAll()];
 }
-function cw_supplier_resolve_products(PDO $pdo,int $invoiceId): void
+function cw_supplier_resolve_products(PDO $pdo,int $invoiceId,?array $lineIds=null): void
 {
     $pdo->query("SELECT setting_key FROM cw_settings WHERE setting_key='schema_version' FOR UPDATE")->fetchColumn();
     $q=$pdo->prepare('SELECT l.*,i.supplier_id FROM cw_supplier_invoice_lines l JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE l.supplier_invoice_id=? AND l.active=1 ORDER BY l.id FOR UPDATE');$q->execute([$invoiceId]);
     foreach($q->fetchAll() as $line){
+        if($lineIds!==null && !in_array((int)$line['id'],$lineIds,true))continue;
         if($line['cost_product_id'])continue;
         if($line['woo_product_id'])continue; // Preserve established historical website relationships.
         $options=cw_supplier_identity_options($pdo,(int)$line['supplier_id'],$line['product_description'],$line['supplier_sku']??'',$line['purchase_unit']);

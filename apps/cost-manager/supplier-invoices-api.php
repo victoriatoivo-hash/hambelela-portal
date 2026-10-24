@@ -5,6 +5,7 @@ require_once BASE_PATH.'/shared/auth.php';
 require_once BASE_PATH.'/shared/database.php';
 require_once BASE_PATH.'/shared/cost-workbook.php';
 require_once BASE_PATH.'/shared/cost-workbook-supplier-sheet.php';
+require_once BASE_PATH.'/shared/cost-workbook-invoice-recovery.php';
 require_once BASE_PATH.'/shared/openai-extractor.php';
 require_once BASE_PATH.'/shared/pdf-extractor.php';
 require_role('owner_admin');
@@ -42,7 +43,7 @@ try{
   $summary=$pdo->prepare("SELECT COUNT(*) products,SUM(c.status_key<>'complete') attention,COUNT(DISTINCT CASE WHEN c.created_at>=? THEN p.id END) updated".$fromSql.' WHERE p.active=1');$summary->execute([substr($today,0,7).'-01',$today]);$stats=$summary->fetch()?:[];
   $stats['suppliers']=(int)$pdo->query('SELECT COUNT(*) FROM cw_suppliers WHERE active=1')->fetchColumn();
   $stats['attention']=(int)($stats['attention']??0)+(int)$pdo->query("SELECT COUNT(DISTINCT COALESCE(CONCAT('product:',l.cost_product_id),CONCAT('line:',l.product_description))) FROM cw_supplier_invoice_lines l JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE i.approval_status='draft' AND l.active=1")->fetchColumn();
-  $stats['pending']=(int)$pdo->query("SELECT COUNT(*) FROM cw_supplier_invoices WHERE approval_status='draft'")->fetchColumn();
+  $stats['pending']=(int)$pdo->query("SELECT COUNT(*) FROM cw_supplier_invoices i WHERE approval_status='draft' OR (approval_status='approved' AND ".si_recovery_pending_sql().")")->fetchColumn();
   $suppliers=$pdo->query('SELECT id,name,supplier_type FROM cw_suppliers WHERE active=1 ORDER BY name')->fetchAll();
   si_reply(['rows'=>$rows,'total'=>$total,'offset'=>$offset,'has_more'=>$offset+count($rows)<$total,'summary'=>$stats,'suppliers'=>$suppliers]);
  }
@@ -53,7 +54,7 @@ try{
  }
  if($action==='products'){si_reply(cw_supplier_product_search($pdo,(string)($_GET['q']??'')));}
  if($action==='pending'){
-  $q=$pdo->query("SELECT id,supplier_name,invoice_number,invoice_date,uploaded_at,extraction_status FROM cw_supplier_invoices WHERE approval_status='draft' ORDER BY uploaded_at DESC,id DESC");si_reply(['rows'=>$q->fetchAll()]);
+  $q=$pdo->query("SELECT id,supplier_name,invoice_number,invoice_date,uploaded_at,extraction_status,(approval_status='approved') missing_only FROM cw_supplier_invoices i WHERE approval_status='draft' OR (approval_status='approved' AND ".si_recovery_pending_sql().") ORDER BY uploaded_at DESC,id DESC");si_reply(['rows'=>$q->fetchAll()]);
  }
  if($action==='history'){
   $id=(int)($_GET['product_id']??0);$q=$pdo->prepare('SELECT c.*,s.supplier_name,s.manual_reference,i.invoice_number,i.invoice_date,i.date_received FROM cw_landed_product_costs c JOIN cw_cost_product_sources s ON s.id=c.product_source_id LEFT JOIN cw_supplier_invoice_lines l ON l.id=c.supplier_invoice_line_id LEFT JOIN cw_supplier_invoices i ON i.id=l.supplier_invoice_id WHERE c.product_id=? ORDER BY c.cost_date DESC,c.id DESC');$q->execute([$id]);$rows=$q->fetchAll();
@@ -76,16 +77,41 @@ try{
   $pdo->prepare($action==='archive-products'?"UPDATE cw_cost_products SET active=0 WHERE id IN($marks)":"DELETE FROM cw_cost_products WHERE id IN($marks)")->execute($ids);$pdo->commit();si_reply(['ok'=>true,'count'=>count($products)]);
  }
  if($action==='upload'){
+  // Serialise identical uploads before the existing hash check, without holding a transaction during extraction.
+  if(!empty($_FILES['invoice_file']['tmp_name']) && is_uploaded_file((string)$_FILES['invoice_file']['tmp_name'])){
+   $recoveryFile=$_FILES['invoice_file'];$recoveryHash=hash_file('sha256',(string)$recoveryFile['tmp_name']);
+   $uploadLock='cw-invoice:'.substr($recoveryHash,0,50);$lock=$pdo->prepare('SELECT GET_LOCK(?,1)');$lock->execute([$uploadLock]);
+   if((int)$lock->fetchColumn()!==1)throw new DomainException('This invoice is already being processed. Please try again shortly.');
+   $q=$pdo->prepare("SELECT id,file_type FROM cw_supplier_invoices WHERE file_hash=? AND approval_status<>'archived' ORDER BY id LIMIT 1");$q->execute([$recoveryHash]);$original=$q->fetch();
+   if($original){
+    if((int)$recoveryFile['error']!==UPLOAD_ERR_OK || (int)$recoveryFile['size']<=0 || (int)$recoveryFile['size']>15*1024*1024)throw new DomainException('The invoice file could not be uploaded. Maximum size is 15 MB.');
+    $data=[];
+    if($original['file_type']==='application/pdf'){
+     $result=openai_extract_pdf((string)$recoveryFile['tmp_name'],basename((string)$recoveryFile['name']),'supplier','');
+     if(!empty($result['ok']))$data=$result['data'];else{$text=extract_pdf_text((string)$recoveryFile['tmp_name']);if(!empty($text['text']))$data=parse_supplier_invoice_text((string)$text['text']);}
+    }
+    $reply=si_recover_invoice($pdo,(int)$original['id'],array_merge((array)($data['raw_materials']??[]),(array)($data['packaging']??[])));
+    $pdo->prepare('SELECT RELEASE_LOCK(?)')->execute([$uploadLock]);unset($uploadLock);si_reply($reply);
+   }
+  }
   cw_require_admin();if(empty($_FILES['invoice_file'])||!is_uploaded_file((string)$_FILES['invoice_file']['tmp_name']))throw new RuntimeException('Select an invoice file.');$f=$_FILES['invoice_file'];if((int)$f['error']!==UPLOAD_ERR_OK)throw new RuntimeException('The invoice did not upload successfully.');$size=(int)$f['size'];if($size<=0||$size>15*1024*1024)throw new RuntimeException('Invoice files must be 15 MB or smaller.');$ext=strtolower(pathinfo((string)$f['name'],PATHINFO_EXTENSION));$allowed=['pdf'=>'application/pdf','jpg'=>'image/jpeg','jpeg'=>'image/jpeg','png'=>'image/png'];if(!isset($allowed[$ext]))throw new RuntimeException('Upload a supported PDF, JPG, JPEG or PNG invoice.');$mime=(string)(new finfo(FILEINFO_MIME_TYPE))->file((string)$f['tmp_name']);if($mime!==$allowed[$ext])throw new RuntimeException('The file content does not match its extension.');$hash=hash_file('sha256',(string)$f['tmp_name']);$dup=$pdo->prepare("SELECT id FROM cw_supplier_invoices WHERE file_hash=? AND approval_status<>'archived'");$dup->execute([$hash]);if($existing=(int)$dup->fetchColumn())si_reply(['error'=>'Possible duplicate: this exact invoice file already exists.','duplicate_id'=>$existing],409);
   $dir=BASE_PATH.'/uploads/cost-workbook/'.date('Y/m');if(!is_dir($dir)&&!mkdir($dir,0750,true)&&!is_dir($dir))throw new RuntimeException('Secure upload storage is unavailable.');$stored=date('YmdHis').'-'.bin2hex(random_bytes(8)).'.'.$ext;$relative='uploads/cost-workbook/'.date('Y/m').'/'.$stored;if(!move_uploaded_file((string)$f['tmp_name'],$dir.'/'.$stored))throw new RuntimeException('The invoice file could not be stored.');$u=cw_user();$pdo->prepare("INSERT INTO cw_supplier_invoices(uploaded_by,uploaded_by_name,original_filename,stored_file,file_type,file_hash,currency,extraction_status,extraction_message) VALUES(?,?,?,?,?,?,'NAD','not_started','Extracting invoice details')")->execute([$u['id'],$u['name'],basename((string)$f['name']),$relative,$mime,$hash]);$id=(int)$pdo->lastInsertId();$data=[];$message='Automatic extraction is unavailable for this file type. Enter the invoice manually.';$confidence='low';$status='manual_review';
   if($ext==='pdf'){$result=openai_extract_pdf($dir.'/'.$stored,basename((string)$f['name']),'supplier','');if($result['ok']){$data=$result['data'];$message=$result['message'];$confidence=(string)($data['confidence']??'medium');$status='complete';}else{$text=extract_pdf_text($dir.'/'.$stored);if(!empty($text['text'])){$data=parse_supplier_invoice_text((string)$text['text']);$message=$result['message'].' '.$text['message'];}$status=$data?'manual_review':'failed';}}
   $supplierName=trim((string)($data['supplier_name']??''));$supplierId=$supplierName!==''?si_supplier($pdo,$supplierName):0;$pdo->prepare('UPDATE cw_supplier_invoices SET supplier_id=?,supplier_name=?,invoice_number=?,invoice_date=?,currency=?,subtotal=?,vat_amount=?,invoice_total=?,extraction_status=?,extraction_confidence=?,extraction_message=? WHERE id=?')->execute([$supplierId?:null,$supplierName,(string)($data['invoice_number']??''),si_date($data['invoice_date']??''),strtoupper(substr((string)($data['currency']??'NAD'),0,3)),si_decimal($data['subtotal']??null),si_decimal($data['vat_amount']??null),si_decimal($data['total']??null),$status,$confidence,substr($message,0,500),$id]);
   $lines=array_merge((array)($data['raw_materials']??[]),(array)($data['packaging']??[]));$insert=$pdo->prepare("INSERT INTO cw_supplier_invoice_lines(supplier_invoice_id,raw_description,product_description,product_category,quantity,purchase_unit,unit_price,line_subtotal,line_total,item_type,match_status,review_status,extraction_confidence) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)");foreach($lines as $line){$name=trim((string)($line['name']??''));if($name==='')continue;$quantity=si_decimal($line['quantity']??null);$unit=trim((string)($line['unit']??''));$total=si_decimal($line['line_total']??null);$unitPrice=si_decimal($line['unit_price']??null);if($total===null&&$quantity!==null&&$unitPrice!==null)$total=number_format((float)$quantity*(float)$unitPrice,2,'.','');$insert->execute([$id,$name,$name,si_category($name),$quantity,$unit,$unitPrice,$total,$total,'unclassified','unmatched','needs_review',$confidence]);}
+  if(isset($uploadLock)){$pdo->prepare('SELECT RELEASE_LOCK(?)')->execute([$uploadLock]);unset($uploadLock);}
   si_reply(['ok'=>true,'id'=>$id,'message'=>$message,'stage'=>'ready_for_review']);
+ }
+ if($action==='missing-items'){
+  $id=(int)($_GET['id']??0);$q=$pdo->prepare("SELECT * FROM cw_supplier_invoices WHERE id=? AND approval_status='approved'");$q->execute([$id]);$invoice=$q->fetch();
+  if(!$invoice)throw new DomainException('Original approved invoice not found.');
+  $pending=si_recovery_lines($pdo,$id);si_reply(['invoice'=>$invoice,'lines'=>$pending,'recovery_token'=>si_recovery_token($invoice,$pending),'missing_only'=>true,'original_url'=>'supplier-invoices-api.php?action=file&id='.$id]);
  }
  if($action==='invoice'){$id=(int)($_GET['id']??0);$st=$pdo->prepare('SELECT * FROM cw_supplier_invoices WHERE id=?');$st->execute([$id]);$invoice=$st->fetch();if(!$invoice)si_reply(['error'=>'Invoice not found.'],404);if(empty($invoice['transport_review'])){$legacy=$pdo->prepare("SELECT t.*,a.calculated_amount purchase_freight FROM cw_transport_allocations a JOIN cw_transport_records t ON t.id=a.transport_id WHERE a.supplier_invoice_id=? AND t.allocation_status<>'archived'");$legacy->execute([$id]);$freight=$legacy->fetchAll();if(count($freight)===1){$r=$freight[0];$invoice['transport_treatment']='existing';$invoice['transport_review']=json_encode(['id'=>$r['id'],'courier_name'=>$r['courier_name'],'invoice_number'=>$r['invoice_number'],'transport_date'=>$r['transport_date'],'transport_amount'=>$r['purchase_freight'],'currency'=>$r['currency'],'exchange_rate'=>$r['exchange_rate'],'fx_confirmed'=>(bool)$r['fx_confirmed'],'vat_treatment'=>$r['vat_treatment'],'amount_basis'=>'excluding','vat_amount'=>0,'allocation_method'=>$r['allocation_method']==='equal_split'?'equal_split':'by_weight','confirm_alternative'=>$r['allocation_method']==='equal_split','notes'=>$r['notes']]);}}$st=$pdo->prepare('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=? AND active=1 ORDER BY id');$st->execute([$id]);$suppliers=$pdo->query('SELECT id,name,supplier_type FROM cw_suppliers WHERE active=1 ORDER BY name')->fetchAll();si_reply(['invoice'=>$invoice,'lines'=>$st->fetchAll(),'suppliers'=>$suppliers,'original_url'=>'supplier-invoices-api.php?action=file&id='.$id]);}
  if($action==='save'){
   cw_require_admin(); $b=si_body(); $id=(int)($b['id']??0);
+  if(!empty($b['missing_only']))si_reply(si_save_recovered($pdo,$b));
+  if($id){$check=$pdo->prepare("SELECT id FROM cw_supplier_invoices i WHERE id=? AND approval_status='approved' AND ".si_recovery_pending_sql());$check->execute([$id]);if($check->fetchColumn())throw new DomainException('This invoice has missing items awaiting review. Open Purchases to Review to approve those separately before editing the original purchase.');}
   $supplierName=trim((string)($b['supplier_name']??''));
   $supplierType=(string)($b['supplier_type']??'Uncategorised');
   $invoiceType=(string)($b['invoice_type']??'Mixed');
@@ -153,4 +179,4 @@ try{
  }
  if($action==='file'){$id=(int)($_GET['id']??0);$st=$pdo->prepare('SELECT original_filename,stored_file,file_type FROM cw_supplier_invoices WHERE id=?');$st->execute([$id]);$file=$st->fetch();$path=$file?BASE_PATH.'/'.$file['stored_file']:'';if(!$file||!is_file($path))throw new RuntimeException('Original invoice file is unavailable.');header_remove('Content-Type');header('Content-Type: '.$file['file_type']);header('Content-Disposition: inline; filename="'.rawurlencode((string)$file['original_filename']).'"');header('X-Content-Type-Options: nosniff');readfile($path);exit;}
  si_reply(['error'=>'Unknown action.'],404);
-}catch(Throwable $e){if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();si_reply(['error'=>$e->getMessage()],http_response_code()>=400?http_response_code():422);}
+}catch(Throwable $e){if(isset($pdo)&&$pdo->inTransaction())$pdo->rollBack();if(isset($uploadLock))$pdo->prepare('SELECT RELEASE_LOCK(?)')->execute([$uploadLock]);si_reply(['error'=>$e->getMessage()],http_response_code()>=400?http_response_code():422);}

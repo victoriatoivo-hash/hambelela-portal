@@ -18,6 +18,8 @@ w.fetch=async(url,options={})=>{const u=new URL(url,w.location.href),action=u.se
  if(action==='product-options')value={automatic_id:0,candidates:[]};
  if(action==='products')value={snapshot_id:1,rows:u.searchParams.get('q')==='Brand New Herb'?[]:[{id:5,product_name:'Test Castor Oil',short_code:'TCO001',product_category:'Carrier Oils',source:'canonical'},{id:'0',product_name:'Test Chastetree Berries',woo_product_id:99001,woo_variation_id:0,woo_sku:'HERB-PARENT',source:'woocommerce'}]};
  if(action==='pending')value={rows:[]};
+ if(action==='upload')value={ok:true,id:3,reused:true,missing_only:true,message:'Existing invoice recognised. 2 missing items awaiting review.'};
+ if(action==='missing-items')value={invoice:{id:3,supplier_name:'Test Supplier',invoice_number:'TEST-1',approval_status:'approved',updated_at:'2026-10-21 12:00:00',stored_file:'fixture.pdf',currency:'NAD',vat_treatment:'exclusive',transport_treatment:'manual'},recovery_token:'fixture-version',missing_only:true,original_url:'supplier-invoices-api.php?action=file&id=3',lines:[12,13].map(id=>({id,product_description:'Missing herb '+id,quantity:1,pack_size:1,purchase_unit:'kg',line_subtotal:75}))};
  return {ok:!value.error,json:async()=>value};};
 w.eval(fs.readFileSync('assets/js/cost-workbook-controls.js','utf8'));
 w.eval(fs.readFileSync('assets/js/supplier-invoices-v2.js','utf8'));
@@ -79,5 +81,14 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  console.log('Individual transport editor: scoped source/product, Enter save, Escape cancel, no invoice drawer passed.');
  console.log('Spreadsheet editing: Enter, Tab, blur, Escape, unchanged, dropdowns, retry, row identity, scroll and refresh guard passed.');
  console.log('Supplier Costs UI: drawers, calculation preview, stable IDs, failed-save preservation, approval, selection and upload path passed.');
+ click('[data-si-open-upload]');const file=new w.File(['fixture'],'invoice.pdf',{type:'application/pdf'});Object.defineProperty(one('[data-si-file]'),'files',{value:[file],configurable:true});one('[data-si-file]').dispatchEvent(new w.Event('change'));click('[data-si-upload]');await flush();await flush();await flush();
+ assert.equal(one('#siDrawerTitle').textContent,'Review Missing Invoice Items');assert.equal(one('[data-si-review]').dataset.approved,'false','Missing lines allow product matching');
+ assert.equal(d.querySelectorAll('[data-si-include]').length,2);assert.equal(one('[data-k="id"]').value,'12','Existing approved line excluded');
+ assert.equal(one('[name="supplier_name"]').disabled,true);assert(one('.si-shipping-section').hidden,'No freight redistribution controls');assert(one('[data-si-add-line]').hidden);
+ assert.match(one('[data-si-recovery-info]').textContent,/Existing approved products and freight stay unchanged/);
+ one('[data-si-include]').checked=false;one('[data-si-review]').dispatchEvent(new w.SubmitEvent('submit',{bubbles:true,cancelable:true,submitter:one('[data-si-save]')}));await flush();await flush();
+ const recoverySave=calls.findLast(c=>c.action==='save').body;assert.equal(recoverySave.missing_only,true);assert.equal(recoverySave.recovery_token,'fixture-version');assert.deepEqual(recoverySave.lines.map(l=>l.id),['13']);
+ click('[data-si-open-manual]');assert(!one('[name="supplier_name"]').disabled);assert(!one('.si-shipping-section').hidden);assert(!one('[data-si-add-line]').hidden,'Ordinary entry restored');
+ console.log('Invoice recovery UI: reupload, missing-only review, selected saves, protected invoice/freight and normal form reset passed.');
  await flush();w.close();
 })().catch(e=>{console.error(e);w.close();process.exitCode=1;});

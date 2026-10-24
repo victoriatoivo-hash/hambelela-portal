@@ -47,7 +47,15 @@ filters.addEventListener('input',()=>{clearTimeout(filterTimer);filterTimer=setT
 filters.addEventListener('cwfiltersapply',()=>load(true));
 filters.addEventListener('change',e=>{if(e.bubbles&&!e.target.closest('[data-cost-popover]'))load(true);});
 one('[data-si-refresh]').addEventListener('click',()=>load());
-function setBusy(value){busy=value;all('button,input,select',drawer).forEach(el=>{el.disabled=value;});if(form.elements.transport_link_existing.value==='1')['transport_courier','transport_reference','transport_date','transport_amount','transport_currency','transport_rate','transport_vat','transport_fx_confirmed','transport_basis','transport_vat_amount'].forEach(name=>{form.elements[name].disabled=true;});}
+function setBusy(value){busy=value;all('button,input,select',drawer).forEach(el=>{el.disabled=value;});if(form.elements.transport_link_existing.value==='1')['transport_courier','transport_reference','transport_date','transport_amount','transport_currency','transport_rate','transport_vat','transport_fx_confirmed','transport_basis','transport_vat_amount'].forEach(name=>{form.elements[name].disabled=true;});if(form.dataset.missingOnly==='true')recoveryControls();}
+function recoveryControls(){
+ const missing=form.dataset.missingOnly==='true';
+ [form.elements.supplier_name.closest('section'),one('.si-shipping-section')].forEach(section=>{section.hidden=missing;all('input,select,button',section).forEach(el=>el.disabled=missing||busy);});
+ one('[data-si-add-line]').hidden=missing;
+ one('[data-si-recovery-info]').hidden=!missing;
+ one('[data-si-recovery-info]').textContent=missing?'Invoice '+form.elements.invoice_number.value+' · Only missing items are shown. Untick any item to leave it for later. Existing approved products and freight stay unchanged. Set new item transport individually after approval.':'';
+ if(missing){one('[data-si-save]').hidden=one('[data-si-approve]').hidden=!one('.supplier-invoices__line');}
+}
 function open(kind,title){
  all('select,input[data-portal-date-original-type],input[type="date"]',form).forEach(el=>el.dispatchEvent(new Event('change')));
  mode=kind;drawer.dataset.mode=kind;returnFocus=document.activeElement;dirty=false;error('');one('[data-si-discard]').hidden=true;one('[data-si-live-summary]').hidden=kind!=='purchase';one('[data-si-upload]').hidden=kind!=='upload';
@@ -81,6 +89,7 @@ function preview(){
 }
 function addLine(value={}){
  const node=one('[data-si-line-template]').content.firstElementChild.cloneNode(true);
+ if(form.dataset.missingOnly==='true'){const label=document.createElement('label');label.className='si-checkbox-label';const check=document.createElement('input');check.type='checkbox';check.checked=true;check.dataset.siInclude='';label.append(check,document.createTextNode(' Include this missing item'));node.prepend(label);}
  all('[data-k]',node).forEach(el=>{if(value[el.dataset.k]!==undefined&&value[el.dataset.k]!==null){if(el.type==='checkbox')el.checked=!!value[el.dataset.k];else el.value=value[el.dataset.k];}});
  one('[data-si-remove-line]',node).hidden=!!value.id&&!value.allow_remove;one('[data-si-remove-line]',node).textContent=value.id?'Remove Unreferenced Draft Line':'Remove New Line';
  one('[data-si-remove-line]',node).onclick=()=>{node.remove();dirty=true;preview();};
@@ -98,12 +107,12 @@ function addLine(value={}){
  setTimeout(checkIdentity,0);
  one('[data-si-lines]').appendChild(node);preview();
 }
-function defaults(){form.reset();form.dataset.approved='false';form.elements.id.value='';form.elements.updated_at.value='';form.elements.request_id.value=crypto.randomUUID();form.elements.invoice_date.value=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());form.elements.transport_date.value=form.elements.invoice_date.value;form.elements.currency.value='NAD';form.elements.exchange_rate.value='1';form.elements.invoice_type.value='Mixed';one('[data-si-lines]').innerHTML='';one('[data-si-original]').hidden=true;form.dataset.transportChoice='pending';transportMode();form.elements.transport_link_existing.value='';transportLinks=[];setBusy(false);}
+function defaults(){form.reset();form.dataset.missingOnly='false';form.dataset.recoveryToken='';recoveryControls();form.dataset.approved='false';form.elements.id.value='';form.elements.updated_at.value='';form.elements.request_id.value=crypto.randomUUID();form.elements.invoice_date.value=new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());form.elements.transport_date.value=form.elements.invoice_date.value;form.elements.currency.value='NAD';form.elements.exchange_rate.value='1';form.elements.invoice_type.value='Mixed';one('[data-si-lines]').innerHTML='';one('[data-si-original]').hidden=true;form.dataset.transportChoice='pending';transportMode();form.elements.transport_link_existing.value='';transportLinks=[];setBusy(false);}
 document.querySelector('[data-si-open-manual]').onclick=()=>{defaults();addLine();open('purchase','Add Supplier Cost');};
 document.querySelector('[data-si-open-upload]').onclick=()=>{open('upload','Upload Supplier Invoice');};
-async function edit(id){
+async function edit(id,missingOnly=false){
  if(!id){toast('Use Landed Product Costs to edit this legacy manual source.');return;}
- try{const data=await request('invoice',undefined,'id='+id);defaults();const invoice=data.invoice;form.dataset.approved=String(invoice.approval_status==='approved');Object.keys(invoice).forEach(k=>{const el=form.elements.namedItem(k);if(el){if(el.type==='checkbox')el.checked=!!Number(invoice[k]);else el.value=invoice[k]??'';}});data.lines.forEach(line=>addLine({...line,allow_remove:invoice.approval_status==='draft'}));one('[data-si-original]').hidden=!invoice.stored_file;one('[data-si-original]').href=data.original_url;open('purchase','Review Supplier Purchase');restoreTransport(invoice);error(invoice.extraction_message||'');}catch(e){toast(e.message);}
+ try{const data=await request(missingOnly?'missing-items':'invoice',undefined,'id='+id);defaults();const invoice=data.invoice;form.dataset.missingOnly=String(!!data.missing_only);form.dataset.recoveryToken=data.recovery_token||'';form.dataset.approved=String(invoice.approval_status==='approved'&&!data.missing_only);Object.keys(invoice).forEach(k=>{const el=form.elements.namedItem(k);if(el){if(el.type==='checkbox')el.checked=!!Number(invoice[k]);else el.value=invoice[k]??'';}});data.lines.forEach(line=>addLine({...line,allow_remove:invoice.approval_status==='draft'}));one('[data-si-original]').hidden=!invoice.stored_file;one('[data-si-original]').href=data.original_url;open('purchase',missingOnly?'Review Missing Invoice Items':'Review Supplier Purchase');restoreTransport(missingOnly?{transport_treatment:invoice.transport_treatment==='none'?'none':'pending'}:invoice);recoveryControls();error(invoice.extraction_message||'');}catch(e){toast(e.message);}
 }
 one('[data-si-add-line]').onclick=()=>{addLine();dirty=true;};
 form.addEventListener('input',()=>{dirty=true;preview();});
@@ -131,7 +140,7 @@ async function upload(file,shipping=false){
  const body=new FormData();body.append(shipping?'transport_file':'invoice_file',file);setBusy(true);error('');one('[data-si-upload-status]').textContent='Uploading and extracting…';one('[data-si-upload]').textContent='Uploading…';
  try{
   let data;if(shipping){const response=await fetch('transport-costs-api.php?action=upload',{method:'POST',headers:{'X-CW-CSRF':csrf},body,credentials:'same-origin'});data=await response.json();if(!response.ok||data.error)throw Error(data.error||'Shipping upload failed.');form.elements.transport_id.value=data.id;form.elements.transport_link_existing.value='';transportLinks=[];dirty=true;one('[data-si-transport-upload-status]').textContent='Automatic extraction unavailable — please confirm the transport details manually.';toast('File stored securely. Review and confirm transport details before approval.');}
-  else {data=await request('upload',body);setBusy(false);await edit(data.id);load();}
+  else {data=await request('upload',body);setBusy(false);await edit(data.id,!!data.missing_only);if(data.reused)toast(data.message);load();}
  }catch(e){error(e.message);}finally{setBusy(false);one('[data-si-upload-status]').textContent='';one('[data-si-upload]').textContent='Upload & Extract';}
 }
 function chooseUpload(file){uploadFile=file||null;one('[data-si-file-selected]').hidden=!file;one('[data-si-file-name]').textContent=file?file.name+' · '+(file.size/1024).toFixed(1)+' KB':'';dirty=!!file;}
@@ -148,15 +157,16 @@ one('[data-si-link-transport]').onclick=async()=>{
 };
 form.addEventListener('submit',async event=>{
  event.preventDefault();if(busy||mode!=='purchase')return;
- if(event.submitter===one('[data-si-approve]')&&!form.reportValidity())return;
+ if(event.submitter===one('[data-si-approve]')&&form.dataset.missingOnly!=='true'&&!form.reportValidity())return;
  const body=Object.fromEntries(new FormData(form));body.lines=all('.supplier-invoices__line',one('[data-si-lines]')).map(lineData);body.approve=event.submitter===one('[data-si-approve]');body.fx_confirmed=form.elements.fx_confirmed.checked?1:0;
+ if(form.dataset.missingOnly==='true'){body.missing_only=true;body.recovery_token=form.dataset.recoveryToken;body.lines=all('.supplier-invoices__line',one('[data-si-lines]')).filter(node=>one('[data-si-include]',node).checked).map(lineData);if(!body.lines.length){error('Select at least one missing item to save.');return;}}
  body.transport_choice=form.elements.transport_choice.value||'pending';if(['manual','existing','upload'].includes(body.transport_choice))body.transport={id:form.elements.transport_id.value,link_existing:form.elements.transport_link_existing.value==='1',courier_name:form.elements.transport_courier.value,invoice_number:form.elements.transport_reference.value,transport_date:form.elements.transport_date.value,transport_amount:form.elements.transport_amount.value,currency:form.elements.transport_currency.value,exchange_rate:form.elements.transport_rate.value,vat_treatment:form.elements.transport_vat.value,vat_amount:form.elements.transport_vat_amount.value,amount_basis:form.elements.transport_basis.value,notes:form.elements.transport_notes.value,fx_confirmed:form.elements.transport_fx_confirmed.checked,allocation_method:form.elements.transport_method.value,confirm_alternative:form.elements.transport_alternative.checked};
  setBusy(true);error('');try{const data=await request('save',body);setBusy(false);dirty=false;close(true);toast(data.message);await load();}catch(e){error(e.message);}finally{setBusy(false);}
 });
 async function history(id){
  try{const data=await request('history',undefined,'product_id='+id);one('[data-si-history-panel]').innerHTML='<div class="si-allocation-table-wrap"><table class="si-allocation-table"><thead><tr><th>Effective</th><th>Received</th><th>Source</th><th>Supplier / Base</th><th>Shipping / Base</th><th>Landed / Base</th><th>Recorded By</th></tr></thead><tbody>'+data.rows.map(r=>'<tr><td>'+date(r.cost_date)+'</td><td>'+date(r.date_received)+'</td><td>'+escape(r.supplier_name)+' · '+escape(r.invoice_number||r.manual_reference)+'</td><td>'+cash(r.supplier_cost_per_base)+'</td><td>'+cash(r.transport_cost_per_base)+'</td><td>'+cash(r.landed_cost_per_base)+' / '+escape(r.base_unit)+'</td><td>'+escape(r.created_by_name)+' · '+escape(r.created_at)+'</td></tr>').join('')+'</tbody></table></div><h3>Audit History</h3>'+data.audit.map(a=>'<p>'+escape(a.occurred_at)+' · '+escape(a.actor_name)+' · '+escape(a.action_key)+'</p>').join('');open('history','Product Cost History');}catch(e){toast(e.message);}
 }
-one('[data-si-pending]').onclick=async()=>{try{const data=await request('pending');const panel=one('[data-si-history-panel]');panel.innerHTML='';data.rows.forEach(r=>{const b=document.createElement('button');b.className='si-result';b.type='button';b.textContent=(r.supplier_name||'Supplier to confirm')+' · '+(r.invoice_number||'Reference to confirm')+' · '+date(r.invoice_date||r.uploaded_at);b.onclick=()=>edit(r.id);panel.appendChild(b);});if(!data.rows.length)panel.textContent='No purchases awaiting review.';open('history','Purchases to Review');}catch(e){toast(e.message);}};
+one('[data-si-pending]').onclick=async()=>{try{const data=await request('pending');const panel=one('[data-si-history-panel]');panel.innerHTML='';data.rows.forEach(r=>{const b=document.createElement('button');b.className='si-result';b.type='button';b.textContent=(r.supplier_name||'Supplier to confirm')+' · '+(r.invoice_number||'Reference to confirm')+' · '+date(r.invoice_date||r.uploaded_at)+(Number(r.missing_only)?' · Missing items':'');b.onclick=()=>edit(r.id,!!Number(r.missing_only));panel.appendChild(b);});if(!data.rows.length)panel.textContent='No purchases awaiting review.';open('history','Purchases to Review');}catch(e){toast(e.message);}};
 let activeCell=null,openingCell=false;
 function patchRows(rows){
  rows.forEach(row=>{

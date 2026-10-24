@@ -2,15 +2,12 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '70b903213eeb6399ebed97ecfaf59e85af0f588c'
-NEW_FILES = ['assets/js/ess-sidebar.js']
-FILES = ['assets/js/ess-sidebar.js','shared/ess-sidebar.php','assets/js/ess-dashboard.js','shared/cost-workbook-sections.php','shared/cost-workbook-page-shell.php']
-FILES += ['shared/ess-navigation.php']
-DEPENDENCIES = ['shared/cost-workbook.php','apps/cost-manager/retail-pricing-api.php','shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-website-pricing.php']
+BASELINE = '38e9ebc31db131a0615a4b3dc5842b320f0e7a31'
+NEW_FILES = ['shared/cost-workbook-invoice-recovery.php']
+FILES = ['shared/cost-workbook-invoice-recovery.php','shared/cost-workbook.php','shared/cost-workbook-supplier-invoices.php','assets/js/supplier-invoices-v2.js','apps/cost-manager/supplier-invoices-api.php']
+DEPENDENCIES = ['shared/cost-workbook-supplier-sheet.php','shared/openai-extractor.php','shared/pdf-extractor.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
-DEPENDENCY_BASELINES = {'assets/js/portal.js':'2c758a0cb67a8c3bd2e4621ee9cbacaed5960f1b','shared/ess-sidebar.php':'f83f5aca091c10bfa37d29dffac35bb44a287a48','assets/js/ess-dashboard.js':'a8e39f8f162e23cff0a5d54de424f67e7948b44f'}
-DEPENDENCY_BASELINES['shared/ess-navigation.php'] = '6e2cb23a7cf0d7f720be8ba26a71d532c97ad294'
-DEPENDENCIES += ['assets/js/retail-pricing.js','assets/js/portal.js','assets/css/portal-sticky-scrollbar.css']
+DEPENDENCY_BASELINES = {}
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):

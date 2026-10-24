@@ -1,4 +1,4 @@
-name: Deploy shared sidebar and workbook navigation correction
+name: Deploy supplier invoice missing-item recovery
 on:
   workflow_dispatch:
     inputs:
@@ -48,6 +48,7 @@ jobs:
           php -l apps/hr-portal/includes/employment-letter.php
           php tests/employment-letters-workflow.php
           php -l shared/cost-workbook.php
+          php -l shared/cost-workbook-invoice-recovery.php
           php -l shared/cost-workbook-supplier-sheet.php
           php -l apps/cost-manager/supplier-invoices-api.php
           php -l shared/cost-workbook-supplier-invoices.php

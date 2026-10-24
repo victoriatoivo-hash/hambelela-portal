@@ -47,6 +47,7 @@ function cw_render_supplier_invoices(array $period): void { ?>
      <div class="cw-cost-upload" data-si-drop><span class="cw-cost-upload__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/></svg></span><h3>Drag an invoice here</h3><p>Or choose a file</p><input type="file" id="si-upload-file" data-si-file accept=".pdf,.jpg,.jpeg,.png"><label for="si-upload-file" class="si-btn">Browse Files</label><p>PDF, JPG, JPEG or PNG · maximum 15 MB</p><div class="cw-cost-upload__selected" data-si-file-selected hidden><span data-si-file-name></span><button type="button" class="si-btn" data-si-file-remove>Remove</button></div><p data-si-upload-status role="status"></p></div>
     </section>
     <section data-si-purchase-panel>
+     <p data-si-recovery-info role="status" hidden></p>
      <a data-si-original target="_blank" rel="noopener" class="si-btn" hidden>Open Original File</a>
      <section class="si-drawer-section"><h3 class="si-drawer-section-title"><span class="cw-cost-section__icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><path d="m4 7 8-4 8 4v10l-8 4-8-4V7Zm0 0 8 4 8-4m-8 4v10"/></svg></span>Supplier Details</h3><div class="supplier-invoices__form-grid">
       <label>Existing supplier<select data-portal-custom-select data-portal-select-variant="cost-olive" name="supplier_id" data-si-review-supplier><option value="">Add a supplier</option></select></label>

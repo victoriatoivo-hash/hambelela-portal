@@ -3,6 +3,7 @@ declare(strict_types=1);
 define('BASE_PATH',dirname(__DIR__));
 function current_user(): array { return ['id'=>91,'name'=>'Costing test owner']; }
 require BASE_PATH.'/shared/cost-workbook.php';
+require BASE_PATH.'/shared/cost-workbook-invoice-recovery.php';
 function expect($condition,string $message): void { if (!$condition) throw new RuntimeException($message); }
 $split=cw_shipping_allocation(3000,[10=>100,20=>50]);
 expect($split===[10=>2000.0,20=>1000.0],'100kg/50kg freight allocation');
@@ -139,3 +140,34 @@ foreach($historyBefore as $historical)expect($historical===$pdo->query('SELECT *
 echo "Individual transport: isolated edits, replacement not double-counting, precision, zero, retries, refresh and history passed.\n";
 echo "Spreadsheet integration: source revisions, concurrency, retries, validation, stable identities and freight preservation passed.\\n";
 echo "Supplier costs integration: stable IDs, canonical products, audit, freight, FX, rollback and idempotency passed.\n";
+
+// Re-upload a partially approved invoice, using disposable records only.
+$pdo->prepare("INSERT INTO cw_supplier_invoices(supplier_id,supplier_name,invoice_number,invoice_date,original_filename,stored_file,file_type,file_hash,currency,vat_treatment,approval_status,transport_treatment) VALUES(?,'Recovery Supplier','RECOVERY-1','2026-10-06','fixture.pdf','fixture.pdf','application/pdf',?,'NAD','exclusive','draft','pending')")->execute([$supplier,hash('sha256','recovery fixture')]);$recovery=(int)$pdo->lastInsertId();
+$old=['product_description'=>'Recovery Existing Herb','quantity'=>2,'pack_size'=>1,'purchase_unit'=>'kg','line_subtotal'=>200,'vat_amount'=>0,'confirm_new_product'=>1];
+$pdo->beginTransaction();cw_supplier_save_lines($pdo,$recovery,[$old]);cw_supplier_resolve_products($pdo,$recovery);$pdo->prepare("UPDATE cw_supplier_invoices SET approval_status='approved' WHERE id=?")->execute([$recovery]);lpc_refresh($pdo,[$recovery]);$pdo->commit();
+$oldLine=$pdo->query('SELECT * FROM cw_supplier_invoice_lines WHERE supplier_invoice_id='.$recovery)->fetch();
+$pdo->prepare('UPDATE cw_cost_product_sources SET manual_transport_per_base=34 WHERE supplier_invoice_line_id=?')->execute([$oldLine['id']]);lpc_refresh($pdo,[$recovery]);
+$oldSources=$pdo->query('SELECT * FROM cw_cost_product_sources ORDER BY id')->fetchAll();$oldHistory=$pdo->query('SELECT * FROM cw_landed_product_costs ORDER BY id')->fetchAll();$oldAllocations=$pdo->query('SELECT * FROM cw_transport_product_allocations ORDER BY id')->fetchAll();
+$pdo->prepare("INSERT INTO cw_supplier_invoice_lines(supplier_invoice_id,raw_description,product_description,active,review_status) VALUES(?,'Recovery Omitted Herb','Recovery Omitted Herb',0,'needs_review')")->execute([$recovery]);$omitted=(int)$pdo->lastInsertId();
+$extracted=[['name'=>'Recovery Existing Herb','quantity'=>2,'unit'=>'kg','line_total'=>200],['name'=>'Recovery Omitted Herb','quantity'=>1,'unit'=>'kg','line_total'=>90],['name'=>'Recovery New Herb','quantity'=>1,'unit'=>'kg','line_total'=>75]];
+$invoiceCount=(int)$pdo->query('SELECT COUNT(*) FROM cw_supplier_invoices')->fetchColumn();
+$result=si_recover_invoice($pdo,$recovery,$extracted);expect($result['reused']&&$result['missing_only']&&$result['pending_count']===2,'Missing review reuses approved invoice');
+expect((int)$pdo->query('SELECT COUNT(*) FROM cw_supplier_invoices')->fetchColumn()===$invoiceCount,'Reupload never creates a second invoice');
+$pending=si_recovery_lines($pdo,$recovery);expect((int)$pending[0]['id']===$omitted,'Previously omitted line restored with stable ID');
+si_recover_invoice($pdo,$recovery,$extracted);expect(count(si_recovery_lines($pdo,$recovery))===2,'Retry cannot duplicate missing items');
+expect((int)$pdo->query('SELECT COUNT(*) FROM cw_supplier_invoice_lines WHERE supplier_invoice_id='.$recovery)->fetchColumn()===3,'Only missing extracted product inserted');
+$makeBody=function()use($pdo,$recovery){$inv=$pdo->query('SELECT * FROM cw_supplier_invoices WHERE id='.$recovery)->fetch();$pending=si_recovery_lines($pdo,$recovery);return ['id'=>$recovery,'updated_at'=>$inv['updated_at'],'recovery_token'=>si_recovery_token($inv,$pending),'lines'=>array_map(function($l){return array_merge($l,['quantity'=>1,'pack_size'=>1,'purchase_unit'=>'kg','line_subtotal'=>75,'vat_amount'=>0,'confirm_new_product'=>1]);},$pending)];};
+$body=$makeBody();$body['lines']=[$body['lines'][0]];si_save_recovered($pdo,$body);lpc_refresh($pdo,[$recovery]);
+expect($oldSources===$pdo->query('SELECT * FROM cw_cost_product_sources ORDER BY id')->fetchAll(),'Draft recovery cannot publish through global refresh');
+try{si_save_recovered($pdo,$body);throw new RuntimeException('Stale recovery accepted');}catch(DomainException $expected){}
+$body=$makeBody();$body['lines']=[$body['lines'][0]];$body['approve']=true;
+$bad=$body;$bad['lines'][0]['id']=$oldLine['id'];try{si_save_recovered($pdo,$bad);throw new RuntimeException('Posted line accepted');}catch(DomainException $expected){}
+si_save_recovered($pdo,$body);expect(count(si_recovery_lines($pdo,$recovery))===1,'Unselected items remain pending');
+try{si_save_recovered($pdo,$body);throw new RuntimeException('Approval retry duplicated');}catch(DomainException $expected){}
+foreach($oldSources as $sourceRow)expect($sourceRow===$pdo->query('SELECT * FROM cw_cost_product_sources WHERE id='.(int)$sourceRow['id'])->fetch(),'Existing source untouched by recovery');
+foreach($oldHistory as $historyRow)expect($historyRow===$pdo->query('SELECT * FROM cw_landed_product_costs WHERE id='.(int)$historyRow['id'])->fetch(),'Historical snapshot unchanged by recovery');
+expect($oldAllocations===$pdo->query('SELECT * FROM cw_transport_product_allocations ORDER BY id')->fetchAll(),'Recovery must never redistribute freight');
+$body=$makeBody();$body['approve']=true;si_save_recovered($pdo,$body);expect(!si_recovery_lines($pdo,$recovery),'All selected missing items approved');
+si_recover_invoice($pdo,$recovery,$extracted);expect(!si_recovery_lines($pdo,$recovery),'Fully captured invoice remains captured after reupload');
+expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_product_sources WHERE supplier_invoice_line_id IN(SELECT id FROM cw_supplier_invoice_lines WHERE supplier_invoice_id='.$recovery.')')->fetchColumn()===3,'Exactly one source per invoice item');
+echo "Invoice recovery: missing-only extraction, archived line restoration, stable IDs, retry, selected approval, saved drafts, stale review, protected history and freight passed.\n";
