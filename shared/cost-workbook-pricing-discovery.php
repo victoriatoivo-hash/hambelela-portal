@@ -39,6 +39,8 @@ function rpd_merge(array $rows,array $entries):array {
         $rows=array_values(array_filter($rows,function($old)use($r,$b){
             if(!empty($r['id'])&&(int)$r['id']===(int)($old['id']??0))return false;
             if(!empty($b['website_key'])&&$b['website_key']===($old['website_key']??''))return false;
+            // A different website size remains visible even if its unit conversion is unknown.
+            if(!empty($old['website_key']))return true;
             return !empty($old['saved'])||empty($r['product_id'])||(int)$r['product_id']!==(int)$old['product_id']||($old['size_conversion_id']!==null&&(string)$old['size_conversion_id']!==(string)($r['size_conversion_id']??''));
         }));$rows[]=$r;
     }return $rows;
