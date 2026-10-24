@@ -1,4 +1,4 @@
-name: Deploy pricing column explanations and gross profit percentage
+name: Deploy alphabetical product and size grouping
 on:
   workflow_dispatch:
     inputs:
@@ -63,6 +63,7 @@ jobs:
           php -l shared/cost-workbook-sections.php
           php tests/product-pricing-workflow.php && php tests/product-pricing-sync.php
           node --check assets/js/retail-pricing.js
+          node tests/product-pricing-order.cjs
           node tests/cost-workbook-retail-pricing-static.mjs
           node --check assets/js/supplier-invoices-v2.js
           php -l shared/cost-workbook-formulation-engine.php
