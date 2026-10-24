@@ -6,7 +6,7 @@ require BASE_PATH.'/shared/cost-workbook.php';
 require BASE_PATH.'/shared/cost-workbook-pricing-master.php';
 require BASE_PATH.'/shared/cost-workbook-pricing-autosave.php';
 require BASE_PATH.'/shared/cost-workbook-pricing-discovery.php';
-require BASE_PATH.'/shared/cost-workbook-website-pricing.php';
+require_once BASE_PATH.'/shared/cost-workbook-website-pricing.php';
 require BASE_PATH.'/shared/cost-workbook-cost-linking.php';
 $api=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$start=strpos($api,'function rp_reply');$end=strpos($api,'try{$pdo=db()',$start);eval(substr($api,$start,$end-$start));
 function check($v,string $m):void{if(!$v)throw new RuntimeException($m);}
