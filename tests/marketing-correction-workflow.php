@@ -1,0 +1,31 @@
+<?php
+// Included by the existing isolated Marketing database test. No live records.
+$correctionId=assignment('prepare',0);$owner=false;$actor=2;marketing_content_action($correctionId,'start');prepare($correctionId);marketing_content_action($correctionId,'complete');
+$original=marketing_execution_item($correctionId);$channelsBefore=marketing_execution_rows($original);
+$due=(new DateTimeImmutable(marketing_now(),new DateTimeZone('Africa/Windhoek')))->modify('+2 days')->format('Y-m-d H:i:s');
+$request=['correction_note'=>'Correct the second product caption and update the scheduled post.','correction_due_at'=>str_replace(' ','T',substr($due,0,16)),'request_key'=>str_repeat('c',32),'expected_status'=>'completed','expected_correction_key'=>''];
+$due=marketing_local_datetime($request['correction_due_at']);
+rejected(fn()=>marketing_request_correction($correctionId,$request),'Employee cannot request Owner corrections');
+$owner=true;$actor=99;
+ob_start();marketing_content_footer($original,true);$footer=ob_get_clean();ok(strpos($footer,'Request Changes')!==false,'Completed Owner footer offers Request Changes');
+ob_start();marketing_correction_form($original);$correctionForm=ob_get_clean();ok(strpos($correctionForm,'datetime-local')!==false&&strpos($correctionForm,'correction_due_at')!==false&&strpos($correctionForm,'What needs to change?')!==false,'Correction form includes instructions and independent Namibia deadline');
+rejected(fn()=>marketing_request_correction($correctionId,array_merge($request,['correction_note'=>''])),'Blank correction rejected');
+rejected(fn()=>marketing_request_correction($correctionId,array_merge($request,['correction_due_at'=>'2020-01-01T10:00'])),'Past correction deadline rejected');
+rejected(fn()=>marketing_request_correction($correctionId,array_merge($request,['correction_due_at'=>'2026-02-30T10:00'])),'Invalid calendar date rejected');
+$GLOBALS['fail_notice']=true;rejected(fn()=>marketing_request_correction($correctionId,$request),'Notification failure rolls back reopening');unset($GLOBALS['fail_notice']);ok(marketing_execution_item($correctionId)===$original,'Failed notification preserves original task');
+$noticeBefore=(int)$pdo->query('SELECT COUNT(*) FROM notifications')->fetchColumn();marketing_request_correction($correctionId,$request);$reopened=marketing_execution_item($correctionId);
+ok($reopened['status']==='changes_requested'&&$reopened['correction_due_at']===$due&&$reopened['correction_note']===$request['correction_note'],'Same completed assignment reopened with saved correction deadline');
+ok($reopened['due_at']===$original['due_at']&&$reopened['completed_at']===$original['completed_at']&&$reopened['completed_by']===$original['completed_by']&&$reopened['assigned_employee_id']===$original['assigned_employee_id'],'Original deadline, completion, attribution and assignee unchanged');
+ok(marketing_execution_rows($reopened)===$channelsBefore,'Channel preparation, scheduling and publication evidence unchanged');
+$notice=$pdo->query('SELECT * FROM notifications ORDER BY id DESC LIMIT 1')->fetch();$recipient=$pdo->query('SELECT employee_id FROM notification_recipients WHERE notification_id='.(int)$notice['id'])->fetchColumn();ok((int)$recipient===2&&strpos($notice['message'],$due)!==false&&$notice['related_type']==='marketing_assignment','Assigned employee gets persistent correction notification with due date');
+marketing_request_correction($correctionId,$request);ok((int)$pdo->query('SELECT COUNT(*) FROM notifications')->fetchColumn()===$noticeBefore+1,'Double-click retry creates no duplicate correction or popup');
+rejected(fn()=>marketing_request_correction($correctionId,array_merge($request,['request_key'=>str_repeat('d',32)])),'Stale completed form cannot reopen active correction again');
+$checkAt=(new DateTimeImmutable($due,new DateTimeZone('Africa/Windhoek')))->modify('-20 minutes')->format('Y-m-d H:i:s');ok(marketing_review_clock($reopened,$checkAt)['remaining_seconds']===1200,'Countdown uses correction deadline, not old overdue assignment date');
+$owner=false;$actor=2;$employeeHtml=renderAssignment($correctionId,false,'employee-correction');ok(strpos($employeeHtml,$request['correction_note'])!==false&&strpos($employeeHtml,'Correction Deadline')!==false&&strpos($employeeHtml,'Original completion retained')!==false,'Employee sees corrections and both deadline contexts');
+ok(strpos($employeeHtml,'name="action" value="request_correction"')===false,'Employee cannot access Owner correction form');
+marketing_content_action($correctionId,'complete');$resolved=marketing_execution_item($correctionId);ok($resolved['status']==='completed'&&!empty($resolved['correction_completed_at'])&&$resolved['completed_at']===$original['completed_at'],'Correction completion timestamp is separate from original completion');
+$owner=true;$actor=99;$again=array_merge($request,['request_key'=>str_repeat('e',32),'expected_correction_key'=>$request['request_key'],'correction_note'=>'A second correction round']);marketing_request_correction($correctionId,$again);ok((int)$pdo->query('SELECT COUNT(*) FROM notifications')->fetchColumn()===$noticeBefore+3,'A new correction round gets its own notification');
+// Approval-required work still submits to Owner and freezes the correction clock.
+$reviewId=assignment('prepare',1);$owner=false;$actor=2;marketing_content_action($reviewId,'start');prepare($reviewId);marketing_content_action($reviewId,'submit');$owner=true;$actor=99;marketing_content_action($reviewId,'approve');
+$reviewRequest=array_merge($request,['request_key'=>str_repeat('f',32)]);marketing_request_correction($reviewId,$reviewRequest);$owner=false;$actor=2;marketing_content_action($reviewId,'submit');$waiting=marketing_execution_item($reviewId);ok($waiting['status']==='ready_for_review'&&marketing_review_clock($waiting)['paused'],'Corrected work respects existing Owner approval and timer pause');$owner=true;$actor=99;marketing_content_action($reviewId,'approve');ok(!empty(marketing_execution_item($reviewId)['correction_completed_at']),'Owner approval completes the correction round');
+echo "PASS correction requests: roles, dates, preserved history, notification atomicity, retries, repeated rounds and completion\n";

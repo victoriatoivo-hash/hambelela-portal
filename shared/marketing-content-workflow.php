@@ -5,6 +5,7 @@ declare(strict_types=1);
 function marketing_content_schema(): void {
     $columns=['media_reference'=>'VARCHAR(500) NULL','work_summary'=>'TEXT NULL','workflow_notes'=>'TEXT NULL','publication_evidence_required'=>'TINYINT NOT NULL DEFAULT 0','work_started_at'=>'DATETIME NULL','work_started_by'=>'INT NULL','review_submitted_at'=>'DATETIME NULL','review_submitted_by'=>'INT NULL','reviewed_at'=>'DATETIME NULL','reviewed_by'=>'INT NULL','review_version_ids'=>'TEXT NULL','deliverable_mode'=>"VARCHAR(20) NOT NULL DEFAULT 'publish'",'preparation_evidence_required'=>'TINYINT NOT NULL DEFAULT 0','review_remaining_seconds'=>'BIGINT NULL','review_paused_seconds'=>'BIGINT NOT NULL DEFAULT 0','review_wait_seconds'=>'BIGINT NOT NULL DEFAULT 0','completed_at'=>'DATETIME NULL','completed_by'=>'INT NULL','published_by'=>'INT NULL','media_source'=>"VARCHAR(30) NOT NULL DEFAULT 'portal'",'media_link'=>'VARCHAR(1000) NULL'];
     $columns['review_clock_version']='INT NOT NULL DEFAULT 0';
+    $columns+=['correction_due_at'=>'DATETIME NULL','correction_note'=>'TEXT NULL','correction_requested_at'=>'DATETIME NULL','correction_requested_by'=>'INT NULL','correction_request_key'=>'VARCHAR(64) NULL','correction_completed_at'=>'DATETIME NULL'];
     foreach($columns as $name=>$type) if(!marketing_column_exists('marketing_work_items',$name)) db()->exec("ALTER TABLE marketing_work_items ADD COLUMN `$name` $type");
     foreach(['prepared_at'=>'DATETIME NULL','prepared_by'=>'INT NULL','published_at'=>'DATETIME NULL','published_by'=>'INT NULL','draft_url'=>'VARCHAR(500) NULL','proof_media_id'=>'BIGINT UNSIGNED NULL'] as $name=>$type) if(!marketing_column_exists('marketing_channel_execution',$name)) db()->exec("ALTER TABLE marketing_channel_execution ADD COLUMN `$name` $type");
     // Recover the known most recent legacy review interval once, without rewriting
@@ -25,10 +26,36 @@ function marketing_created_local(array $item): ?string {
     return $item['created_at']??null;
 }
 
+function marketing_action_due(array $item): ?string {return $item['correction_due_at']??$item['due_at']??null;}
+function marketing_can_request_correction(array $item): bool {return empty($item['cancelled_at'])&&in_array($item['status'],['ready_for_review','approved','scheduled','published','completed'],true);}
+
+/** Reopen the same assignment, retaining original completion and publication evidence. */
+function marketing_request_correction(int $id,array $input): void {
+    marketing_require_owner();$note=trim((string)($input['correction_note']??''));$key=(string)($input['request_key']??'');
+    $due=marketing_local_datetime((string)($input['correction_due_at']??''));
+    if($note===''||strlen($note)>10000)throw new RuntimeException('Describe the required corrections in 1–10,000 characters.');
+    if(!$due)throw new RuntimeException('Set a correction deadline in Namibia time.');
+    if(!preg_match('/^[a-f0-9]{32}$/D',$key))throw new RuntimeException('Reload the correction form before submitting.');
+    require_once BASE_PATH.'/shared/notifications.php';if(!notifications_schema_ready())throw new RuntimeException('Notifications are unavailable. Please retry.');
+    db()->beginTransaction();
+    try {
+        $item=marketing_execution_item($id,true);$now=marketing_now();$actor=marketing_employee_id();
+        if(($item['correction_request_key']??'')===$key){if($item['correction_due_at']!==$due||$item['correction_note']!==$note)throw new RuntimeException('This request was already saved with different details. Reload the assignment.');db()->commit();return;}
+        if(!marketing_can_request_correction($item)||($input['expected_correction_key']??'')!==($item['correction_request_key']??'')||($input['expected_status']??'')!==$item['status'])throw new RuntimeException('This assignment changed. Reload it before requesting corrections.');
+        if($due<=$now)throw new RuntimeException('The correction deadline must be in the future, in Namibia time.');
+        if((int)$item['assigned_employee_id']<1)throw new RuntimeException('Assign an employee before requesting corrections.');
+        $snapshot=['original_due_at'=>$item['due_at'],'original_completed_at'=>$item['completed_at'],'original_completed_by'=>$item['completed_by'],'previous_correction_due_at'=>$item['correction_due_at']??null,'previous_correction_completed_at'=>$item['correction_completed_at']??null,'review_paused_seconds'=>$item['review_paused_seconds'],'review_wait_seconds'=>$item['review_wait_seconds'],'channels'=>marketing_execution_rows($item),'correction_due_at'=>$due];
+        db()->prepare("UPDATE marketing_work_items SET status='changes_requested',correction_due_at=?,correction_note=?,correction_requested_at=?,correction_requested_by=?,correction_request_key=?,correction_completed_at=NULL,review_remaining_seconds=NULL,review_paused_seconds=0,review_submitted_at=NULL,review_submitted_by=NULL,reviewed_at=NULL,reviewed_by=NULL WHERE id=?")->execute([$due,$note,$now,$actor,$key,$id]);
+        db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,$item['status'],'changes_requested','Owner requested corrections: '.$note.' · Due '.$due.' Africa/Windhoek · Previous evidence: '.json_encode($snapshot,JSON_UNESCAPED_UNICODE),$actor,(string)(current_user()['name']??'Owner')]);$event=(int)db()->lastInsertId();
+        if(!notifications_create(['title'=>'Marketing corrections requested','message'=>$item['title'].' — '.$note.' — Corrections due '.$due.' Namibia time. Check and update any post already scheduled on the social platform.','module'=>'marketing','related_type'=>'marketing_assignment','related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id,'required_delivery'=>true,'deduplication_key'=>'marketing-correction:'.$id.':'.$key],[(int)$item['assigned_employee_id']]))throw new RuntimeException('The correction notification could not be saved. Please retry.');
+        db()->commit();marketing_work_evidence(marketing_execution_item($id),$event,'marketing_corrections_requested',$snapshot);
+    }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw $e;}
+}
+
 function marketing_review_clock(array $item, ?string $now=null): array {
     $now=$now?:marketing_now();$zone=new DateTimeZone('Africa/Windhoek');
     $epoch=static function(?string $v)use($zone):?int {return $v?(new DateTimeImmutable($v,$zone))->getTimestamp():null;};
-    $at=$epoch($now);$due=$epoch($item['due_at']??null);$paused=(int)($item['review_paused_seconds']??0);
+    $at=$epoch($now);$due=$epoch(marketing_action_due($item));$paused=(int)($item['review_paused_seconds']??0);
     $review=$item['status']==='ready_for_review';$submitted=$epoch($item['review_submitted_at']??null);
     $remaining=$due===null?null:($review?(isset($item['review_remaining_seconds'])?(int)$item['review_remaining_seconds']:$due+$paused-($submitted??$at)):$due+$paused-$at);
     return ['remaining_seconds'=>$remaining,'paused'=>$review,'review_seconds'=>$review&&$submitted!==null?max(0,$at-$submitted):0,'effective_due'=>$due===null?null:(new DateTimeImmutable('@'.($due+$paused)))->setTimezone($zone)->format('Y-m-d H:i:s'),'review_total_seconds'=>(int)($item['review_wait_seconds']??0)];
@@ -36,6 +63,7 @@ function marketing_review_clock(array $item, ?string $now=null): array {
 
 function marketing_clock_markup(array $item): string {
     $clock=marketing_review_clock($item);
+    if(!empty($item['correction_due_at']))$item['completed_at']=$item['correction_completed_at']??null;
     $wait=$clock['paused']?'<small data-review-wait="'.marketing_e(marketing_time_iso($item['review_submitted_at']??null)).'"></small>':'';
     return '<span class="mk-countdown mk-wf-countdown" data-due="'.marketing_e(marketing_time_iso($clock['effective_due'])).'" data-submitted="'.marketing_e(marketing_time_iso($item['review_submitted_at']??null)).'" data-remaining="'.marketing_e($clock['remaining_seconds']===null?'':(string)$clock['remaining_seconds']).'" data-status="'.marketing_e($item['status']).'" data-completed="'.marketing_e(marketing_time_iso($item['completed_at']??$item['published_at']??null)).'"></span>'.$wait;
 }
@@ -128,6 +156,7 @@ function marketing_content_action(int $id,string $action,string $note=''): void 
             $evidence=['review_duration_seconds'=>$clock['review_seconds'],'remaining_at_submission'=>$clock['remaining_seconds']];
         }else throw new RuntimeException('Choose a valid workflow action.');
         db()->prepare('UPDATE marketing_work_items SET status=?,completed_at=IF(? IN("published","completed"),COALESCE(completed_at,?),completed_at),completed_by=IF(? IN("published","completed"),COALESCE(completed_by,?),completed_by),published_at=IF(?="published",COALESCE(published_at,?),published_at),published_by=IF(?="published",COALESCE(published_by,?),published_by) WHERE id=?')->execute([$next,$next,$now,$next,$actor,$next,$now,$next,$actor,$id]);
+        if(!empty($item['correction_due_at'])&&in_array($next,['completed','published'],true))db()->prepare('UPDATE marketing_work_items SET correction_completed_at=COALESCE(correction_completed_at,?) WHERE id=?')->execute([$now,$id]);
         db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,$status,$next,$title.($note?': '.$note:'').' · Workflow evidence: '.json_encode($evidence,JSON_UNESCAPED_UNICODE),$actor,(string)(current_user()['name']??'')]);$event=(int)db()->lastInsertId();
         $recipients=$owner?array_filter([(int)$item['assigned_employee_id']]):notifications_role_recipients(['owner_admin']);
         if($recipients&&!notifications_create(['title'=>$title,'message'=>$item['title'].' · '.(current_user()['name']??'Employee'),'module'=>'marketing','related_type'=>$owner?'marketing_assignment':($action==='submit'?'marketing_review':'marketing_update'),'related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id,'required_delivery'=>true,'deduplication_key'=>'marketing-workflow:'.$event],array_values($recipients)))throw new RuntimeException('The workflow notification could not be saved. Please retry.');
@@ -167,7 +196,7 @@ function marketing_content_edit_config(int $id,?array $previous,array $input): i
 
 function marketing_content_rank(array $item,string $now): array {
     if(in_array($item['status'],['published','completed'],true))return [8,$item['completed_at']??$item['published_at']??'',(int)$item['id']];
-    $clock=marketing_review_clock($item,$now);return [$item['status']==='cancelled'?9:($clock['paused']?6:($clock['remaining_seconds']!==null&&$clock['remaining_seconds']<0?0:4)),$item['due_at']??'9999',(int)$item['id']];
+    $clock=marketing_review_clock($item,$now);return [$item['status']==='cancelled'?9:($clock['paused']?6:($clock['remaining_seconds']!==null&&$clock['remaining_seconds']<0?0:4)),marketing_action_due($item)??'9999',(int)$item['id']];
 }
 
 function marketing_content_table(array $items,string $active='active'): void {
@@ -175,6 +204,7 @@ function marketing_content_table(array $items,string $active='active'): void {
     echo '<section class="mk-work mk-workflow mw-work"><nav class="mk-tabs" aria-label="Assignment views">';foreach(['active'=>'Active Tasks','review'=>'Awaiting Review','scheduled'=>'Scheduled','completed'=>'Completed','history'=>'History'] as $key=>$label)echo '<button type="button" data-work-tab="'.$key.'" aria-selected="'.($active===$key?'true':'false').'">'.$label.'</button>';
     $waiting=count(array_filter($items,fn($i)=>$i['status']==='ready_for_review'));echo '</nav><p class="mk-wf-body-text">Waiting on Owner: <strong>'.$waiting.'</strong> assignment'.($waiting===1?'':'s').' — employee timers paused.</p><div class="mk-wf-filters"><label>Search<input class="mk-wf-input" data-work-search placeholder="Content title, employee or channel"></label><label>Sort<select class="mk-wf-select" data-work-sort><option value="created_desc">Newest assignments</option><option value="created_asc">Oldest assignments</option><option value="due_asc">Due date</option><option value="status_asc">Status</option></select></label><label>Assigned employee<select class="mk-wf-select" data-work-person><option value="">All employees</option>';foreach($people as $id=>$name)echo '<option value="'.$id.'">'.marketing_e($name).'</option>';echo '</select></label><label>Status<select class="mk-wf-select" data-work-status><option value="">All statuses</option>';foreach(marketing_statuses() as $status)echo '<option value="'.$status.'">'.marketing_e(marketing_content_label($status)).'</option>';echo '</select></label></div><div class="mk-wf-table-shell"><table class="mk-wf-table"><thead><tr>';foreach(['Date','Content','Assigned To','Status','Due','Time Left','Progress','Files','Actions'] as $label)echo '<th>'.$label.'</th>';echo '</tr></thead><tbody>';
     foreach($items as $i) {
+        $i['due_at']=marketing_action_due($i); // Table and sort use the same active deadline as the countdown.
         $rows=$i['execution_channels']??marketing_execution_rows($i);$p=marketing_execution_progress($rows);$prepared=count(array_filter($rows,fn($r)=>!empty($r['prepared'])));$complete=($i['deliverable_mode']??'publish')==='prepare'?$prepared:$p['complete'];$group=['published'=>'completed','completed'=>'completed','cancelled'=>'history','ready_for_review'=>'review','scheduled'=>'scheduled'][$i['status']]??'active';$names=array_map(fn($r)=>marketing_execution_channels()[$r['channel_key']]??'Assigned channel',$rows);$name=(string)($i['assigned_name']??current_user()['name']??'Assigned employee');$href=BASE_URL.'/apps/marketing/execution.php?id='.(int)$i['id'];
         echo '<tr data-work-group="'.$group.'" data-work-person-id="'.(int)$i['assigned_employee_id'].'" data-work-status-key="'.marketing_e($i['status']).'" data-work-created="'.marketing_e($i['created_at']??'').'" data-work-due="'.marketing_e($i['due_at']??'').'" data-work-search-text="'.marketing_e($i['title'].' '.$name.' '.implode(' ',$names)).'">';
         $cells=['Date'=>marketing_e(marketing_display_time(marketing_created_local($i))),'Content'=>'<a data-assignment-drawer href="'.$href.'"><strong>'.marketing_e($i['title']).'</strong></a><small>'.marketing_e(implode(', ',$names)).'</small>','Assigned To'=>marketing_e($name),'Status'=>'<span class="mk-wf-status '.($i['status']==='ready_for_review'?'is-review':(in_array($i['status'],['completed','published'],true)?'is-complete':'')).'">'.marketing_e(marketing_content_label($i['status'])).'</span>','Due'=>marketing_e(marketing_display_time($i['due_at']??null)),'Time Left'=>marketing_clock_markup($i),'Progress'=>$complete.' of '.$p['total'].(($i['deliverable_mode']??'publish')==='prepare'?' prepared':' published'),'Files'=>(string)($i['version_count']??count(marketing_assignment_media((int)$i['id']))),'Actions'=>'<a class="mk-open-assignment" data-assignment-drawer href="'.$href.'">Open</a>'];foreach($cells as $label=>$value)echo '<td data-label="'.$label.'">'.$value.'</td>';echo '</tr>';
@@ -183,9 +213,25 @@ function marketing_content_table(array $items,string $active='active'): void {
 }
 
 function marketing_publication_evidence_required(array $item): bool {return !empty($item['approval_required'])||!empty($item['publication_evidence_required']);}
+function marketing_correction_form(array $item,bool $failed=false): void {
+    if(!marketing_is_owner()||!marketing_can_request_correction($item))return;
+    $posted=$failed&&($_POST['action']??'')==='request_correction'; ?>
+    <section id="correction-request" class="mk4-section mk4-detail-card">
+    <header class="mk4-detail-card-header"><span class="mk4-detail-card-icon"><i data-lucide="message-square-warning"></i></span><h2 class="mk4-detail-card-title">Request Changes</h2></header>
+    <form method="post" class="mk4-workflow-fields mk4-detail-card-content">
+      <input type="hidden" name="csrf" value="<?=marketing_csrf()?>"><input type="hidden" name="action" value="request_correction"><input type="hidden" name="id" value="<?=(int)$item['id']?>">
+      <input type="hidden" name="request_key" value="<?=marketing_e($posted?(string)($_POST['request_key']??''):bin2hex(random_bytes(16)))?>">
+      <input type="hidden" name="expected_status" value="<?=marketing_e($item['status'])?>"><input type="hidden" name="expected_correction_key" value="<?=marketing_e($item['correction_request_key']??'')?>">
+      <label class="mk4-workflow-field">What needs to change?<textarea class="mk4-textarea" name="correction_note" required maxlength="10000" placeholder="Identify the post or item and explain the correction."><?=marketing_e($posted?(string)($_POST['correction_note']??''):'')?></textarea></label>
+      <label class="mk4-field">Corrections Due Date &amp; Time · Namibia<input type="datetime-local" name="correction_due_at" required value="<?=marketing_e($posted?(string)($_POST['correction_due_at']??''):'')?>"></label>
+      <p class="mk-meta">Reopens this assignment for the same employee and sends a notification. The original deadline, completion and publication evidence remain in history. Check externally scheduled posts separately.</p>
+      <button class="mk4-button mk4-button--primary" type="submit">Send Change Request</button>
+    </form></section>
+<?php }
 function marketing_content_footer(array $item,bool $owner): void {
     $state=$item['status'];$assigned=!$owner&&(int)$item['assigned_employee_id']===marketing_employee_id();echo '<footer class="mk4-footer '.(!$owner?'mk4-workflow-actions':'').'">';
     if($owner&&$state==='ready_for_review')echo '<button class="mk4-button mk4-button--primary" form="mw-workflow" name="workflow_action" value="approve">Approve</button><button class="mk4-button mk4-button--secondary" form="mw-workflow" name="workflow_action" value="request_changes">Request Changes</button><a class="mk4-button mk4-button--secondary" href="#notes">Reply</a>';
+    elseif($owner&&marketing_can_request_correction($item))echo '<a class="mk4-button mk4-button--primary" href="#correction-request">Request Changes</a>';
     elseif($assigned&&in_array($state,['brief','to_create'],true))echo '<button class="mk4-button mk4-button--primary" form="mw-workflow" name="workflow_action" value="start">Start Task</button>';
     elseif($assigned&&in_array($state,['in_progress','changes_requested','approved','scheduled'],true)){
         $review=!empty($item['approval_required'])&&!marketing_execution_ready_to_publish($item);
