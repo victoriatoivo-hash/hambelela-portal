@@ -4,7 +4,7 @@ define('BASE_PATH',dirname(__DIR__));
 function current_user():array{return ['id'=>93,'name'=>'Pricing test owner'];}
 require BASE_PATH.'/shared/cost-workbook.php';
 require BASE_PATH.'/shared/cost-workbook-pricing-master.php';
-require BASE_PATH.'/shared/cost-workbook-pricing-autosave.php';require BASE_PATH.'/shared/cost-workbook-pricing-discovery.php';require BASE_PATH.'/shared/cost-workbook-website-pricing.php';
+require BASE_PATH.'/shared/cost-workbook-pricing-autosave.php';require BASE_PATH.'/shared/cost-workbook-pricing-discovery.php';require_once BASE_PATH.'/shared/cost-workbook-website-pricing.php';
 $api=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$start=strpos($api,'function rp_reply');$end=strpos($api,'try{$pdo=db()',$start);eval(substr($api,$start,$end-$start));
 function check($v,string $m):void{if(!$v)throw new RuntimeException($m);}
 function near($a,$b,string $m):void{check(abs($a-$b)<.00001,$m);}
@@ -14,10 +14,13 @@ $s=['products'=>[$p],'sizes'=>[],'setups'=>[],'website'=>[],'batch'=>1,'lastSync
 foreach([.25,.5,1]as $i=>$base){$id=$i+1;$s['sizes'][]=['id'=>$id,'label'=>($base*1000).'g','base_value'=>$base,'base_unit'=>'kg','measurement_type'=>'weight'];$s['setups'][]=['id'=>$id,'size_conversion_id'=>$id,'scope_type'=>'default','setup_name'=>'Size packaging','cost_ex_vat'=>2+$i,'cost_inc_vat'=>(2+$i)*1.15,'complete'=>true];$s['website'][]=['product_id'=>100,'variation_id'=>$id,'variation_name'=>($base*1000).'g','attributes'=>'{}','product_name'=>'Shea','sku'=>'USB01-'.$id,'active_price_inc_vat'=>115,'manage_stock'=>1,'stock_quantity'=>10];}
 foreach([1=>27,2=>53,3=>104]as $id=>$cost){$b=['product_id'=>1,'size_conversion_id'=>$id,'website_key'=>'100:'.$id,'selling_price_inc_vat'=>115,'vat_treatment'=>'standard'];$r=rpm_preview($s,$settings,$b);near($r['total_cost_ex_vat'],$cost,'Independent size packaging');near($r['selling_price_ex_vat'],100,'VAT');near($r['profit_per_unit'],100-$cost,'Profit');near($r['stock_cost'],10*$cost,'Inventory cost');near($r['retail_value'],1150,'Website retail');near($r['projected_profit'],10*(100-$cost),'Projected profit');}
 $b=['product_id'=>1,'size_conversion_id'=>2,'website_key'=>'100:2','selling_price_inc_vat'=>210,'vat_treatment'=>'standard'];$r=rpm_preview($s,$settings,$b);near($r['selling_price_ex_vat'],210/1.15,'210 VAT conversion');
-$b['vat_treatment']='exempt';near(rpm_preview($s,$settings,$b)['selling_price_ex_vat'],210,'Exempt VAT');
+$b['vat_treatment']='exempt';$b['vat_rate']=0;near(rpm_preview($s,$settings,$b)['selling_price_ex_vat'],210/1.15,'Automatic VAT overrides stale treatment and rate');
 $b['website_key']='100:3';try{rpm_preview($s,$settings,$b);throw new RuntimeException('Wrong size accepted');}catch(DomainException $expected){}
 $b['website_key']='100:2';$unknown=$s;$unknown['website'][1]['manage_stock']=0;check(rpm_preview($unknown,$settings,$b)['stock_cost']===null,'Unknown stock not zero');
-$unconfirmed=$b;$unconfirmed['vat_treatment']='';check(rpm_preview($s,$settings,$unconfirmed)['projected_profit']===null,'Unconfirmed VAT not used for projected profit');
+$unconfirmed=$b;$unconfirmed['vat_treatment']='';near(rpm_preview($s,$settings,$unconfirmed)['projected_profit'],10*(115/1.15-53),'Missing VAT confirmation no longer blocks projected profit');
+$hibiscus=$s;$hibiscus['products'][0]['landed_cost_per_base']=420;$hibiscus['sizes'][0]['base_value']=.1;$hibiscus['sizes'][0]['label']='100g';$hibiscus['website']=[];
+$hr=rpm_preview($hibiscus,$settings,['product_id'=>1,'size_conversion_id'=>1,'selling_price_inc_vat'=>105,'packaging_mode'=>'manual','packaging_manual_cost'=>3.29,'packaging_confirmed'=>true]);
+near($hr['total_cost_ex_vat'],45.29,'Hibiscus contents and packaging');near($hr['selling_price_ex_vat'],105/1.15,'Hibiscus automatic VAT');near($hr['profit_per_unit'],105/1.15-45.29,'Hibiscus profit');near($hr['markup_percent'],(105/1.15-45.29)/45.29*100,'Hibiscus markup');near($hr['margin_percent'],(105/1.15-45.29)/(105/1.15)*100,'Hibiscus margin');
 $missing=$s;$missing['products'][0]['landed_status']='review';check(rpm_preview($missing,$settings,$b)['total_cost_ex_vat']===null,'Missing source not zero');
 echo "Pricing three-size calculations, VAT, margins, stock and incomplete sources PASS\n";
 $manual=['product_id'=>1,'size_conversion_id'=>1,'website_key'=>'','selling_price_inc_vat'=>115,'vat_treatment'=>'standard','packaging_mode'=>'manual','packaging_manual_cost'=>'2.50','packaging_confirmed'=>false];
@@ -78,6 +81,7 @@ $websiteBefore=$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fe
 $countBefore=(int)$pdo->query('SELECT COUNT(*) FROM cw_retail_price_versions')->fetchColumn();
 $draft=['row_key'=>'test-sheet-'.bin2hex(random_bytes(8)),'revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>['product_id'=>$lemon,'size_conversion_id'=>'','selling_price_inc_vat'=>'','vat_treatment'=>'','effective_date'=>'2026-10-23']];
 $partial=rps_save($pdo,$draft,$settings);check($partial['state']==='draft'&&$partial['revision']===1,'Incomplete row persists as draft');
+check($partial['body']['vat_treatment']==='standard'&&(float)$partial['body']['vat_rate']===15.0,'Blank VAT automatically persisted as standard 15%');
 check((int)$pdo->query('SELECT COUNT(*) FROM cw_retail_price_versions')->fetchColumn()===$countBefore,'Incomplete draft does not create financial version');
 check(json_encode(rps_save($pdo,$draft,$settings))===json_encode($partial),'Lost-response retry idempotent');
 $stale=$draft;$stale['mutation_id']=bin2hex(random_bytes(16));$stale['body']['selling_price_inc_vat']=20;

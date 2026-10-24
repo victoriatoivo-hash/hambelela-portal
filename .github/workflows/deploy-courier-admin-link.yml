@@ -1,4 +1,4 @@
-name: Deploy isolated per-product transport correction
+name: Deploy automatic pricing sheet VAT correction
 on:
   workflow_dispatch:
     inputs:

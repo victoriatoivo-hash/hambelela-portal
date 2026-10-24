@@ -16,8 +16,7 @@ function cwp_snapshot_tax(PDO $pdo,int $batch,int $pid,int $vid,array $item,arra
     $pdo->prepare('UPDATE cw_product_snapshots SET website_tax_status=?,website_tax_class=? WHERE sync_batch_id=? AND product_id=? AND variation_id=?')->execute([$status,$class,$batch,$pid,$vid]);
 }
 function cwp_vat(array $site,array $settings):array {
-    if(($site['website_tax_status']??'')==='none')return ['vat_treatment'=>'exempt','vat_rate'=>0];
-    // Custom tax classes must be explicitly confirmed, not treated as the default rate.
-    if(($site['website_tax_status']??'')==='taxable'&&isset($site['website_tax_class'])&&$site['website_tax_class']===''&&is_numeric($settings['retail_vat_rate']??null))return ['vat_treatment'=>'standard','vat_rate'=>(float)$settings['retail_vat_rate']];
-    return ['vat_treatment'=>''];
+    // Owner-confirmed workbook policy: every product uses 15% VAT.
+    // Imported tax metadata is retained, but never changes internal pricing policy.
+    return ['vat_treatment'=>'standard','vat_rate'=>15.0];
 }

@@ -19,7 +19,7 @@ function rps_install(PDO $pdo):void {
 function rps_body(array $input):array {
     $fields=['website_origin','manual_name','manual_code','manual_category','manual_basis','id','version','product_id','size_conversion_id','packaging_setup_id','packaging_material_id','packaging_mode','packaging_manual_cost','packaging_confirmed','website_key','selling_price_inc_vat','vat_treatment','vat_rate','effective_date','source_token','website_confirmed'];
     $body=[];foreach($fields as $name)if(array_key_exists($name,$input)){if(!is_scalar($input[$name])&&$input[$name]!==null)throw new DomainException('Invalid cell value.');if(strlen((string)$input[$name])>500)throw new DomainException('Cell value is too long.');$body[$name]=$input[$name];}
-    return $body;
+    return rpm_apply_vat($body);
 }
 function rps_row(array $body,array $sources,array $settings):array {
     $p=rpm_find($sources['products'],'id',(int)($body['product_id']??0));
@@ -30,7 +30,7 @@ function rps_row(array $body,array $sources,array $settings):array {
 }
 function rps_list(PDO $pdo,array $sources,array $settings):array {
     $q=$pdo->prepare('SELECT row_key,revision,state_key,payload_json,note_text FROM cw_retail_sheet_drafts WHERE owner_id=? AND active=1 ORDER BY id');$q->execute([rp_user()['id']]);$out=[];
-    foreach($q->fetchAll() as $entry){$body=json_decode($entry['payload_json'],true)?:[];$out[]=['row_key'=>$entry['row_key'],'revision'=>(int)$entry['revision'],'state'=>$entry['state_key'],'body'=>$body,'row'=>rps_row($body,$sources,$settings),'note'=>$entry['note_text']];}return $out;
+    foreach($q->fetchAll() as $entry){$body=rpm_apply_vat(json_decode($entry['payload_json'],true)?:[]);$out[]=['row_key'=>$entry['row_key'],'revision'=>(int)$entry['revision'],'state'=>$entry['state_key'],'body'=>$body,'row'=>rps_row($body,$sources,$settings),'note'=>$entry['note_text']];}return $out;
 }
 function rps_save(PDO $pdo,array $input,array $settings):array {
     $owner=rp_user()['id'];$key=(string)($input['row_key']??'');$mutation=(string)($input['mutation_id']??'');
@@ -52,7 +52,7 @@ function rps_save(PDO $pdo,array $input,array $settings):array {
         }
         if(!empty($prior['id'])&&((int)($body['id']??0)!==(int)$prior['id']||(int)($body['product_id']??0)!==(int)$prior['product_id']||(string)($body['size_conversion_id']??'')!==(string)$prior['size_conversion_id']))throw new DomainException('Saved product and size identity cannot be reassigned. Add another size instead.');
         if(!empty($input['archive'])&&!empty($body['id']))throw new DomainException('A saved pricing record cannot be removed as a draft.');
-        $sources=rpm_sources($pdo);$row=rps_row($body,$sources,$settings);$state='draft';$note='Draft saved. Complete product, size, costs, selling price and VAT to include it in pricing reports.';
+        $sources=rpm_sources($pdo);$row=rps_row($body,$sources,$settings);$state='draft';$note='Draft saved. Complete product, size, costs and selling price to include it in pricing reports. VAT is automatic at 15%.';
         $ready=empty($body['manual_name'])&&!empty($body['product_id'])&&isset($body['size_conversion_id'])&&$body['size_conversion_id']!==''&&($row['total_cost_ex_vat']??null)!==null&&($row['selling_price_inc_vat']??0)>0&&in_array($body['vat_treatment']??'',['standard','zero','exempt'],true);
         if($ready&&empty($input['archive'])){
             $financial=$body;$financial['request_id']='sheet-'.$mutation;

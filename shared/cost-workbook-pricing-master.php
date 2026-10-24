@@ -1,5 +1,8 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/cost-workbook-website-pricing.php';
+
+function rpm_apply_vat(array $body):array { return array_merge($body,cwp_vat([],[])); }
 
 function rpm_today():string{return (new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d');}
 function rpm_sources(PDO $pdo):array {
@@ -29,6 +32,7 @@ function rpm_site_size(array $site,array $sizes):?int {
     return count($found)===1?(int)array_key_first($found):null;
 }
 function rpm_preview(array $sources,array $settings,array $b):array {
+    $b=rpm_apply_vat($b);
     $p=rpm_find($sources['products'],'id',$b['product_id']??0);
     if(!$p){
         if(!empty($b['product_id']))throw new DomainException('This supplier product is no longer available. Choose a current cost source.');
@@ -101,6 +105,7 @@ function rpm_summary(array $rows):array {
     return $out;
 }
 function rpm_save(PDO $pdo,array $b,array $settings):array {
+    $b=rpm_apply_vat($b);
     if(!empty($b['manual_name']))throw new DomainException('This manual catalogue entry is saved by sheet autosave. Its identity must not be replaced by the linked supplier product.');
     $pid=(int)($b['product_id']??0);$sizeId=(int)($b['size_conversion_id']??-1);$id=(int)($b['id']??0);$date=(string)($b['effective_date']??'');$dt=DateTimeImmutable::createFromFormat('!Y-m-d',$date);
     if(!$dt||$dt->format('Y-m-d')!==$date||$date>rpm_today())throw new DomainException('Choose a valid effective date no later than today.');

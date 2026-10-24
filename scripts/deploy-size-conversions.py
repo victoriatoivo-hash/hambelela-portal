@@ -2,12 +2,12 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'd4c06dc6aab9f51cf2a8304173a13f3ecaec5201'
+BASELINE = '71060db451d781dd50f39b25e1c48577459a1034'
 NEW_FILES = []
-FILES = ['shared/cost-workbook.php','shared/cost-workbook-supplier-sheet.php','assets/js/supplier-invoices-v2.js']
-DEPENDENCIES = ['apps/cost-manager/supplier-invoices-api.php','shared/cost-workbook-supplier-invoices.php']
+FILES = ['shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-website-pricing.php','shared/cost-workbook-retail-pricing.php','assets/js/retail-pricing.js','assets/css/cost-workbook-retail-pricing.css']
+DEPENDENCIES = ['shared/cost-workbook.php','apps/cost-manager/retail-pricing-api.php','shared/cost-workbook-pricing-discovery.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
-DEPENDENCY_BASELINES = {'shared/cost-workbook.php':'5606141c7e8550452922eac347141a84dfa39cb0','assets/js/supplier-invoices-v2.js':'5606141c7e8550452922eac347141a84dfa39cb0','apps/cost-manager/supplier-invoices-api.php':'2c4203991082bbb6a597684292e9075db5c6c02a','shared/cost-workbook-supplier-invoices.php':'5606141c7e8550452922eac347141a84dfa39cb0'}
+DEPENDENCY_BASELINES = {}
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):

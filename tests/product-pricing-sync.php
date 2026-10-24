@@ -9,6 +9,5 @@ function cw_sync_wc_get(string $path,array $query):array {
 }
 if(count(cwp_variations(99))!==103||$pages!==[1,2])throw new RuntimeException('Variation pagination failed');
 if(cwp_vat(['website_tax_status'=>'taxable','website_tax_class'=>''],['retail_vat_rate'=>15])!==['vat_treatment'=>'standard','vat_rate'=>15.0])throw new RuntimeException('Default VAT metadata');
-if(cwp_vat(['website_tax_status'=>'taxable','website_tax_class'=>'special'],['retail_vat_rate'=>15])!==['vat_treatment'=>''])throw new RuntimeException('Custom class must not be assumed');
-if(cwp_vat([],['retail_vat_rate'=>15])!==['vat_treatment'=>''])throw new RuntimeException('Missing metadata must not be assumed');
-echo "Website variation pagination and explicit VAT metadata PASS\n";
+foreach([[],['website_tax_status'=>'none'],['website_tax_status'=>'taxable','website_tax_class'=>'special']] as $site)if(cwp_vat($site,['retail_vat_rate'=>0])!==['vat_treatment'=>'standard','vat_rate'=>15.0])throw new RuntimeException('Owner-confirmed internal VAT policy must apply independently of imported metadata');
+echo "Website variation pagination and automatic internal 15% VAT policy PASS\n";
