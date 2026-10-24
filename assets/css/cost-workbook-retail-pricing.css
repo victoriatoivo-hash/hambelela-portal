@@ -999,6 +999,10 @@ tr.is-saved td {
 .rp-sheet__popover-option small{color:#62675E;font:400 9.5px "Jost",sans-serif}
 .rp-sheet__actions-menu{width:205px;z-index:1650}
 .rp-sheet__actions-menu button{flex-direction:row;align-items:center;gap:9px;font-size:11px}
+.rp-sheet__pagination{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid #E4E6DC;font:400 11.5px/1.4 "Jost",sans-serif;flex-wrap:wrap}
+.rp-sheet__pagination span{margin-right:auto;color:#59694A}
+.rp-sheet__pagination button{border:1px solid #E4E6DC;border-radius:8px;background:white;color:#344126;padding:8px 12px;font:500 11.5px "Jost",sans-serif;cursor:pointer}
+.rp-sheet__pagination button:disabled{opacity:.45;cursor:default}
 .rp-sheet__actions-menu svg{width:15px;height:15px;flex:0 0 15px;stroke-width:1.8}
 .rp-sheet__popover-option:hover,.rp-sheet__popover-option:focus-visible,.rp-sheet__actions-menu button:hover,.rp-sheet__actions-menu button:focus-visible{background:#F2F4EC;outline:1px solid #B9C3A5}
 @media(max-width:767px){.rp-sheet__popover-search{font-size:16px}.rp-sheet__popover,.rp-sheet__actions-menu{max-height:60dvh}}

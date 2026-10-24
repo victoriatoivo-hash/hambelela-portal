@@ -2,9 +2,9 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '7cb11bb430c6bfdf5e43366205a214276f74dc3d'
-NEW_FILES = ['shared/cost-workbook-pricing-discovery.php','shared/cost-workbook-website-pricing.php']
-FILES = NEW_FILES + ['shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-retail-pricing.php','assets/css/cost-workbook-retail-pricing.css','assets/js/retail-pricing.js','apps/cost-manager/cw-api.php','apps/cost-manager/retail-pricing-api.php']
+BASELINE = 'fc1f3879033543d2928118d6f5e622cfbbced19a'
+NEW_FILES = []
+FILES = ['shared/cost-workbook-retail-pricing.php','assets/css/cost-workbook-retail-pricing.css','assets/js/retail-pricing.js']
 DEPENDENCIES = ['shared/cost-workbook.php']
 # Verified against the live hash in preflight 39923008905; never upload this dependency.
 DEPENDENCY_BASELINES = {'shared/cost-workbook.php':'5606141c7e8550452922eac347141a84dfa39cb0'}
