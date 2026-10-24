@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+$workflowTestsFinished=false;register_shutdown_function(function()use(&$workflowTestsFinished){if(!$workflowTestsFinished){fwrite(STDERR,"Marketing test harness exited before completing all cases.\n");exit(1);}});
 $dsn=getenv('MARKETING_TEST_DSN')?:'mysql:host=127.0.0.1;port=3306';
 if(!preg_match('/^mysql:host=127\.0\.0\.1;port=\d+$/D',$dsn))throw new RuntimeException('Synthetic database must be loopback only.');
 $pdo=new PDO($dsn,'root',getenv('MARKETING_TEST_PASSWORD')?:'synthetic-ci-password',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);$database='marketing_workflow_'.bin2hex(random_bytes(5));$pdo->exec('CREATE DATABASE '.$database);$pdo->exec('USE '.$database);
@@ -136,4 +137,5 @@ ok($xpath->query('//*[@data-mk-stage]')->length===5&&$xpath->query('//*[@data-mk
 $editItem=marketing_execution_item($work);$editChannels=marketing_execution_rows($editItem);ob_start();eval('?>'.substr($formSource,$formStart,$formEnd-$formStart));$editHtml=ob_get_clean();file_put_contents($root.'/verification/rendered/owner-edit.html',str_replace($formHtml,$editHtml,file_get_contents($root.'/verification/rendered/owner-form.html')));ok(strpos($editHtml,'Edit Content')!==false&&strpos($editHtml,'value="'.(int)$work.'"')!==false,'Edit uses the same staged form with the existing record ID');
 foreach(['owner-form','owner-edit']as$screen){$path=$root.'/verification/rendered/'.$screen.'.html';file_put_contents($path,str_replace('</head>', '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap"><script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script><script defer src="/assets/js/portal-date-picker.js"></script><link rel="stylesheet" href="/assets/css/portal-date-picker.css"></head>',file_get_contents($path)));}
 require $root.'/tests/marketing-correction-workflow.php';
+$workflowTestsFinished=true;
 echo "PASS workflow roles, review clocks, notes/media, exact tables and persistent review popup SQL\n";

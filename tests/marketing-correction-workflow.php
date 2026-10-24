@@ -5,7 +5,7 @@ $original=marketing_execution_item($correctionId);$channelsBefore=marketing_exec
 $due=(new DateTimeImmutable(marketing_now(),new DateTimeZone('Africa/Windhoek')))->modify('+2 days')->format('Y-m-d H:i:s');
 $request=['correction_note'=>'Correct the second product caption and update the scheduled post.','correction_due_at'=>str_replace(' ','T',substr($due,0,16)),'request_key'=>str_repeat('c',32),'expected_status'=>'completed','expected_correction_key'=>''];
 $due=marketing_local_datetime($request['correction_due_at']);
-rejected(fn()=>marketing_request_correction($correctionId,$request),'Employee cannot request Owner corrections');
+$denialCode='<?php function marketing_is_owner(){return false;} require '.var_export($root.'/shared/marketing-execution.php',true).'; require '.var_export($root.'/shared/marketing-content-workflow.php',true).'; marketing_request_correction(1,[]); echo "CORRECTION_ALLOWED";';file_put_contents($fixture.'/correction-denial.php',$denialCode);$denial=shell_exec(escapeshellarg(PHP_BINARY).' '.escapeshellarg($fixture.'/correction-denial.php'));ok(strpos((string)$denial,'owner only')!==false&&strpos((string)$denial,'CORRECTION_ALLOWED')===false,'Employee cannot request Owner corrections');
 $owner=true;$actor=99;
 $ownerCorrectionHtml=renderAssignment($correctionId,true,'owner-correction-request');ok(strpos($ownerCorrectionHtml,'id="correction-request"')!==false&&strpos($ownerCorrectionHtml,'Send Change Request')!==false,'Completed assignment renders the Owner correction form');
 ob_start();marketing_content_footer($original,true);$footer=ob_get_clean();ok(strpos($footer,'Request Changes')!==false,'Completed Owner footer offers Request Changes');
