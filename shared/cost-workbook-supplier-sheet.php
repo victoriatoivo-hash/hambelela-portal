@@ -41,7 +41,10 @@ function si_sheet_save(PDO $pdo,array $b):array {
         if(!hash_equals($version,(string)($b['version']??'')))throw new DomainException('This record was updated elsewhere. Review the latest value before saving.');
         $r=si_sheet_row($a);$initial=$field==='quantity'?$r['purchase_quantity']:($field==='line_subtotal'?$r['source_cost']:$r[$field]);
         $numeric=in_array($field,['quantity','line_subtotal','transport_cost_per_base'],true);
-        if($numeric){$n=cw_decimal($value);if($n===null||!is_finite((float)$n)||(float)$n<0||($field==='quantity'&&(float)$n<=0))throw new DomainException('Enter a positive quantity or a non-negative source total.');$value=$n;}
+        if($numeric){
+            $n=$field==='transport_cost_per_base'?(preg_match('/^\d+(?:\.\d{1,8})?$/',$value)?$value:null):cw_decimal($value);
+            if($n===null||!is_finite((float)$n)||(float)$n<0||($field==='quantity'&&(float)$n<=0))throw new DomainException('Enter a positive quantity or a non-negative cost (transport supports up to 8 decimals).');$value=$n;
+        }
         if(($numeric&&$initial!==null&&(float)$initial===(float)$value&&($field!=='transport_cost_per_base'||isset($s['manual_transport_per_base'])))||(!$numeric&&(string)$initial===$value)){$pdo->commit();return ['ok'=>true,'rows'=>[$r],'unchanged'=>true];}
         $u=cw_user();
         if($field==='transport_cost_per_base'){
