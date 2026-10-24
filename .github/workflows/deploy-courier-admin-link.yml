@@ -1,4 +1,4 @@
-name: Deploy automatic pricing sheet VAT correction
+name: Deploy pricing column explanations and gross profit percentage
 on:
   workflow_dispatch:
     inputs:

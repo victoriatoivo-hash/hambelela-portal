@@ -1001,6 +1001,10 @@ tr.is-saved td {
 .rp-sheet__actions-menu button{flex-direction:row;align-items:center;gap:9px;font-size:11px}
 .rp-sheet__pagination{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding:10px 14px;border-top:1px solid #E4E6DC;font:400 11.5px/1.4 "Jost",sans-serif;flex-wrap:wrap}
 .rp-sheet__pagination span{margin-right:auto;color:#59694A}
+#costWorkbook[data-page="product-pricing"] .rp-sheet__heading-help{display:inline;padding:3px 0;border:0;border-radius:3px;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;text-align:left;cursor:help;text-decoration:underline dotted #9AA58F;text-underline-offset:4px}
+#costWorkbook[data-page="product-pricing"] .rp-sheet__heading-help:focus-visible{outline:2px solid #59694A;outline-offset:3px}
+.rp-sheet__column-tooltip{position:fixed;z-index:1800;box-sizing:border-box;width:280px;max-width:calc(100vw - 16px);padding:11px 13px;border:1px solid #D8DECF;border-radius:9px;background:#F8F7F2;color:#344126;box-shadow:0 6px 20px #26311F26;font:400 12px/1.5 "Jost",sans-serif}
+.rp-sheet__column-tooltip[hidden]{display:none}
 .rp-sheet__pagination button{border:1px solid #E4E6DC;border-radius:8px;background:white;color:#344126;padding:8px 12px;font:500 11.5px "Jost",sans-serif;cursor:pointer}
 .rp-sheet__pagination button:disabled{opacity:.45;cursor:default}
 .rp-sheet__actions-menu svg{width:15px;height:15px;flex:0 0 15px;stroke-width:1.8}
