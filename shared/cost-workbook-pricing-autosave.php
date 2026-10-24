@@ -52,10 +52,13 @@ function rps_save(PDO $pdo,array $input,array $settings):array {
         }
         if(!empty($prior['id'])&&((int)($body['id']??0)!==(int)$prior['id']||(int)($body['product_id']??0)!==(int)$prior['product_id']||(string)($body['size_conversion_id']??'')!==(string)$prior['size_conversion_id']))throw new DomainException('Saved product and size identity cannot be reassigned. Add another size instead.');
         if(!empty($input['archive'])&&!empty($body['id']))throw new DomainException('A saved pricing record cannot be removed as a draft.');
-        $sources=rpm_sources($pdo);$row=rps_row($body,$sources,$settings);$state='draft';$note='Draft saved. Complete product, size, costs and selling price to include it in pricing reports. VAT is automatic at 15%.';
-        $ready=empty($body['manual_name'])&&!empty($body['product_id'])&&isset($body['size_conversion_id'])&&$body['size_conversion_id']!==''&&($row['total_cost_ex_vat']??null)!==null&&($row['selling_price_inc_vat']??0)>0&&in_array($body['vat_treatment']??'',['standard','zero','exempt'],true);
+        $sources=rpm_sources($pdo);
+        if(!empty($body['website_key'])&&empty($input['archive']))foreach($sources['products'] as $linked){if(!empty($linked['woo_product_id']) && (int)$linked['woo_product_id']===(int)explode(':',$body['website_key'])[0] && empty($linked['woo_variation_id']) && (int)($body['product_id']??0)!==(int)$linked['id'])throw new DomainException('This website product now has a shared supplier-cost link. Reload the sheet before saving; your edits are retained.');}
+        $row=rps_row($body,$sources,$settings);$state='draft';$note='Draft saved. Complete product, size, costs and selling price to include it in pricing reports. VAT is automatic at 15%.';
+        $ready=(empty($body['manual_name'])||(!empty($body['website_origin'])&&!empty($body['website_key'])))&&!empty($body['product_id'])&&isset($body['size_conversion_id'])&&$body['size_conversion_id']!==''&&($row['total_cost_ex_vat']??null)!==null&&($row['selling_price_inc_vat']??0)>0&&in_array($body['vat_treatment']??'',['standard','zero','exempt'],true);
         if($ready&&empty($input['archive'])){
             $financial=$body;$financial['request_id']='sheet-'.$mutation;
+            if(!empty($body['website_origin']))$financial['manual_name']=''; // Website display name remains in the sheet; financial identity is the confirmed supplier product.
             try{$saved=rpm_save($pdo,$financial,$settings);$body['id']=$saved['id'];$body['version']=$saved['version']??$body['version'];$row['id']=$body['id'];$row['version']=$body['version'];$row['saved']=true;$state='priced';$note='';}
             catch(DomainException $e){$note='Draft saved; pricing update needs review: '.$e->getMessage();}
         }

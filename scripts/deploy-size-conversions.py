@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'c07702c6d0f0166da6e39ce4bd523fcfbe52634c'
-NEW_FILES = []
-FILES = ['shared/cost-workbook-invoice-recovery.php','assets/js/supplier-invoices-v2.js','apps/cost-manager/supplier-invoices-api.php']
-DEPENDENCIES = ['shared/cost-workbook.php','shared/cost-workbook-supplier-invoices.php','shared/cost-workbook-supplier-sheet.php','shared/openai-extractor.php','shared/pdf-extractor.php']
+BASELINE = 'a434274b054318b59560ae1cd4954e1835a9d9d8'
+NEW_FILES = ['shared/cost-workbook-cost-linking.php']
+FILES = ['shared/cost-workbook-cost-linking.php','shared/cost-workbook-pricing-discovery.php','shared/cost-workbook-pricing-autosave.php','apps/cost-manager/retail-pricing-api.php','assets/js/retail-pricing.js','shared/cost-workbook-retail-pricing.php','assets/css/cost-workbook-retail-pricing.css','shared/cost-workbook-supplier-invoices.php']
+DEPENDENCIES = ['shared/cost-workbook.php','shared/cost-workbook-pricing-master.php','shared/cost-workbook-website-pricing.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
 DEPENDENCY_BASELINES = {}
 def git(*args): return subprocess.check_output(['git', *args])

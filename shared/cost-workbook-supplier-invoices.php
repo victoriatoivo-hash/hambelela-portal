@@ -28,6 +28,7 @@ function cw_render_supplier_invoices(array $period): void { ?>
   </div><footer><button type="reset" class="si-btn">Clear</button><button type="button" class="si-btn si-btn--primary" data-cost-apply>Apply Filters</button></footer></section>
  </form>
  <button type="button" class="si-btn" data-si-pending>Purchases to Review</button>
+ <a class="si-btn" href="product-pricing.php?matching=1">Products Needing Matching</a>
  <p role="status" data-si-status></p>
  <section class="supplier-invoices__table-card">
  <div class="supplier-invoices__table-wrap" data-si-scroll><table class="supplier-invoices__table"><thead><tr><th><input type="checkbox" class="si-checkbox" data-si-select-all aria-label="Select all filtered products"></th>

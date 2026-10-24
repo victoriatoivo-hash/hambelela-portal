@@ -11,6 +11,7 @@ function cw_render_product_pricing(array $period):void{ ?>
  <?php foreach([['rows','Sellable Variations','Product and size records','package'],['priced','Priced Variations','Valid saved prices','badge-check'],['attention','Needs Attention','Missing data or review','triangle-alert'],['inventory_cost','Inventory Cost Value','Known stock · excl. VAT','boxes'],['retail_value','Website Retail Value','Active website prices · incl. VAT','shopping-basket'],['projected_profit','Projected Gross Profit','Inventory projection · excl. VAT','chart-no-axes-combined']] as $m)cw_retail_metric_card(...$m); ?>
  </section>
  <p class="rp4-coverage" data-rp-coverage-note></p>
+ <div class="rp4-sheet-note"><button class="rp4-button" type="button" data-rp-matching>Products Needing Matching</button><span>Website links and supplier-cost links are checked separately. Confirm matches before applying them.</span></div>
  <form class="retail-pricing__filters" data-rp-filters>
  <label>Search<input name="q" type="search" placeholder="Product, code, SKU, size or supplier"></label>
  <button class="rp4-button rp4-more" type="button" data-rp-more aria-expanded="false">More Filters</button>

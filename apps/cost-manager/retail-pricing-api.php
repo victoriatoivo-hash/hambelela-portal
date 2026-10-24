@@ -7,6 +7,7 @@ require_once BASE_PATH.'/shared/cost-workbook.php';
 require_once BASE_PATH.'/shared/cost-workbook-pricing-master.php';
 require_once BASE_PATH.'/shared/cost-workbook-pricing-autosave.php';
 require_once BASE_PATH.'/shared/cost-workbook-pricing-discovery.php';require_once BASE_PATH.'/shared/cost-workbook-website-pricing.php';
+require_once BASE_PATH.'/shared/cost-workbook-cost-linking.php';
 require_role('owner_admin');
 header('Content-Type: application/json; charset=utf-8');
 
@@ -66,6 +67,11 @@ try{$pdo=db();cw_install_schema($pdo);$action=(string)($_GET['action']??'bootstr
  if(in_array($action,['bootstrap','autosave'],true))rps_install($pdo);
  if($action==='bootstrap'){$sources=rpm_sources($pdo);$rows=rpd_website_rows(rpm_rows($pdo,$sources,$settings),$sources,$settings);$entries=rps_list($pdo,$sources,$settings);rp_reply(['ok'=>true,'rows'=>$rows,'sheet_entries'=>$entries,'summary'=>rpd_summary(rpd_merge($rows,$entries)),'products'=>$sources['products'],'sizes'=>$sources['sizes'],'setups'=>$sources['setups'],'materials'=>$sources['materials'],'website'=>$sources['website'],'settings'=>$settings,'last_sync'=>$sources['lastSync']]);}
  if($action==='autosave'){cw_require_admin();rp_reply(rps_save($pdo,rp_body(),$settings));}
+ if(in_array($action,['cost-link-preview','cost-link-save'],true)){
+  cw_require_admin();if($_SERVER['REQUEST_METHOD']!=='POST')rp_reply(['ok'=>false,'message'=>'Use POST for this action.'],405);rps_install($pdo);
+  if($action==='cost-link-save')rp_reply(rpl_save($pdo,rp_body(),$settings));
+  $plan=rpl_preview($pdo,rp_body(),$settings);unset($plan['drafts']);rp_reply($plan);
+ }
  if($action==='sheet-history'){rps_install($pdo);$q=$pdo->prepare('SELECT history_json FROM cw_retail_sheet_drafts WHERE owner_id=? AND row_key=?');$q->execute([rp_user()['id'],(string)($_GET['row_key']??'')]);rp_reply(['ok'=>true,'events'=>json_decode((string)($q->fetchColumn()?:'[]'),true)?:[]]);}
  if($action==='preview'){rp_reply(['ok'=>true,'row'=>rpm_preview(rpm_sources($pdo),$settings,rp_body())]);}
  if($action==='save'){cw_require_admin();rp_reply(rpm_save($pdo,rp_body(),$settings));}

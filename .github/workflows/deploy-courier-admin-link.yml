@@ -1,4 +1,4 @@
-name: Deploy supplier invoice missing-item recovery
+name: Deploy explicit supplier to website cost matching
 on:
   workflow_dispatch:
     inputs:
@@ -58,6 +58,7 @@ jobs:
           node --check assets/js/packaging-costs.js
           php -l shared/cost-workbook-pricing-discovery.php && php -l shared/cost-workbook-website-pricing.php && php -l apps/cost-manager/cw-api.php && php -l shared/cost-workbook-pricing-master.php
           php -l shared/cost-workbook-pricing-autosave.php
+          php -l shared/cost-workbook-cost-linking.php
           php -l apps/cost-manager/retail-pricing-api.php
           php -l shared/cost-workbook-retail-pricing.php
           php -l shared/cost-workbook-page-shell.php
@@ -67,6 +68,7 @@ jobs:
           node --check assets/js/ess-dashboard.js
           php -l shared/cost-workbook-sections.php
           php tests/product-pricing-workflow.php && php tests/product-pricing-sync.php
+          php tests/product-cost-linking.php
           node --check assets/js/retail-pricing.js
           node tests/product-pricing-order.cjs
           node tests/cost-workbook-retail-pricing-static.mjs
@@ -82,6 +84,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/supplier-costs-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/packaging-costs-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/product-pricing-ui.cjs
+          NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/product-cost-linking-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/product-pricing-filters-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/product-pricing-scroll-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/ess-sidebar-ui.cjs

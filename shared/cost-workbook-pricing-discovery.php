@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 // Website identities and supplier-cost identities are intentionally independent.
 function rpd_match(array $site,array $sources):?array {
+    $explicit=[];foreach($sources['products'] as $p)if(!empty($p['woo_product_id'])&&(int)$p['woo_product_id']===(int)$site['product_id']&&(empty($p['woo_variation_id'])||(int)$p['woo_variation_id']===(int)$site['variation_id']))$explicit[]=$p;
+    if($explicit)return count($explicit)===1?$explicit[0]:null;
     $matches=[];$sku=trim((string)($site['sku']??''));
     foreach($sources['products'] as $p){
         $exactVariation=!empty($p['woo_variation_id'])&&(int)$p['woo_variation_id']===(int)$site['variation_id']&&(int)($p['woo_product_id']??0)===(int)$site['product_id'];
@@ -29,6 +31,7 @@ function rpd_website_rows(array $rows,array $sources,array $settings):array {
         if(!$size&&$sid!==0)$r['size_label']=trim((string)($site['variation_name']??''))?:'Select Size';
         $rows[]=$r;$covered[$key]=true;
     }
+    foreach($rows as &$row){if(empty($row['website_key']))continue;foreach($sources['website'] as $site)if($site['product_id'].':'.$site['variation_id']===$row['website_key']){$p=rpm_find($sources['products'],'id',$row['product_id']??0);if($p&&(int)($p['woo_product_id']??0)===(int)$site['product_id']){$row['product_name']=$site['product_name'];$row['website_origin']=true;}break;}}unset($row);
     return $rows;
 }
 function rpd_merge(array $rows,array $entries):array {
