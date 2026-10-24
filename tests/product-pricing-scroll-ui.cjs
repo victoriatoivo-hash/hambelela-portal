@@ -1,0 +1,30 @@
+const fs=require('fs'),assert=require('assert/strict'),{execFileSync}=require('child_process'),{JSDOM}=require('jsdom');
+const html=execFileSync(process.env.PHP_BIN||'php',['-r',"function cw_csrf_token(){return 'test';} require 'shared/cost-workbook-retail-pricing.php';cw_render_product_pricing([]);"],{encoding:'utf8'});
+const css=fs.readFileSync('assets/css/portal-sticky-scrollbar.css','utf8')+'\n'+fs.readFileSync('assets/css/cost-workbook-retail-pricing.css','utf8');
+const dom=new JSDOM('<style>'+css+'</style><main id="costWorkbook" data-page="product-pricing">'+html+'</main>',{runScripts:'outside-only',pretendToBeVisual:true});
+const w=dom.window,d=w.document,source=d.querySelector('.retail-pricing__table-wrap');
+assert.ok(source.hasAttribute('data-portal-horizontal-scroll-source'),'Pricing registers with existing portal scrollbar');
+let top=320,bottom=3600,width=1000,viewport=800,scrollWidth=2960;
+Object.defineProperty(w,'innerHeight',{get:()=>viewport});
+Object.defineProperties(source,{clientWidth:{get:()=>width},scrollWidth:{get:()=>scrollWidth}});
+source.getBoundingClientRect=()=>({left:120,right:120+width,top,bottom,width,height:bottom-top});
+d.querySelector('main').getBoundingClientRect=()=>({left:100});
+const portal=fs.readFileSync('assets/js/portal.js','utf8');
+// Accept CRLF checkouts too, but exercise the production controller unchanged.
+const normalized=portal.replace(/\r\n/g,'\n');
+w.eval(normalized.slice(normalized.indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')));
+const mirror=d.querySelector('[data-portal-horizontal-scroll-mirror]');
+Object.defineProperties(mirror,{clientWidth:{get:()=>width+20},scrollWidth:{get:()=>parseFloat(mirror.firstElementChild.style.width)||0}});
+const frame=()=>new Promise(r=>w.requestAnimationFrame(()=>w.requestAnimationFrame(r)));
+(async()=>{
+ await frame();assert.equal(mirror.hidden,false);assert.equal(w.getComputedStyle(mirror).position,'fixed');assert.equal(mirror.style.getPropertyValue('--portal-sticky-scroll-bottom'),'0px');assert.ok(source.classList.contains('portal-horizontal-scroll-source'));assert.equal(d.querySelectorAll('[data-portal-horizontal-scroll-mirror]').length,1);
+ source.scrollLeft=980;source.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(mirror.scrollLeft,970,'Source trackpad scroll synchronises bottom rail proportionally');
+ mirror.scrollLeft=1940;mirror.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(source.scrollLeft,1960,'Bottom rail reaches final column');
+ top=-1000;bottom=2200;w.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(mirror.hidden,false,'Remains at bottom midway down long product list');
+ width=360;viewport=600;w.dispatchEvent(new w.Event('resize'));await frame();assert.equal(mirror.hidden,false);assert.equal(mirror.firstElementChild.style.width,'2960px');assert.ok(Math.abs(mirror.scrollLeft/(2960-380)-source.scrollLeft/(2960-360))<.001,'Narrow screen maintains scroll position');
+ d.body.classList.add('retail-pricing-panel-open');await frame();assert.equal(w.getComputedStyle(mirror).display,'none','Never covers drawer footer');d.body.classList.remove('retail-pricing-panel-open');await frame();assert.notEqual(w.getComputedStyle(mirror).display,'none');
+ bottom=-10;top=-100;w.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(mirror.hidden,true,'Hidden when table leaves viewport');
+ top=300;bottom=400;w.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(mirror.hidden,false,'Short filtered table keeps bottom control');
+ scrollWidth=width;w.dispatchEvent(new w.Event('resize'));await frame();assert.equal(mirror.hidden,true,'No unnecessary scrollbar without overflow');
+ w.close();console.log('Pricing bottom scrollbar: shared controller, fixed position, bidirectional sync, resize, filtering and drawer protection PASS');
+})().catch(e=>{console.error(e);process.exit(1)});

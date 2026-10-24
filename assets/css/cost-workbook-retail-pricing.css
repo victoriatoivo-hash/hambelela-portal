@@ -268,6 +268,20 @@ body:has([data-rp-root][data-mode="report"]) .retail-pricing{--rp-burgundy:#721b
     0 0 0 3px rgba(89,105,74,.10);
 }
 
+/* Reuse the portal's single bottom scroll rail; never add a second scroll controller. */
+body:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar {
+  z-index: 1090;
+  background: #F8F7F2;
+  border-top-color: #E4E6DC;
+  box-shadow: 0 -3px 12px #3441260D;
+  scrollbar-color: #87947A #E4E6DC;
+}
+body:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-track { background: #E4E6DC; }
+body:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb { background: #87947A; border-color: #F8F7F2; }
+body:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb:hover { background: #59694A; }
+body.retail-pricing-panel-open:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar { display: none; }
+#costWorkbook[data-page="product-pricing"] { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+
 /* MASTER TABLE */
 
 #costWorkbook[data-page="product-pricing"]

@@ -1,4 +1,4 @@
-name: Deploy alphabetical product and size grouping
+name: Deploy fixed bottom pricing scrollbar
 on:
   workflow_dispatch:
     inputs:
@@ -78,6 +78,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/packaging-costs-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/product-pricing-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/product-pricing-filters-ui.cjs
+          NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/product-pricing-scroll-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/formulations-ui.cjs
       - name: Hash guarded delta with targeted backup and rollback
         env:
