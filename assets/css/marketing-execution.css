@@ -416,8 +416,7 @@
     overflow: visible;
   }
 
-  .mk4-ui.mk4-assignment-page .mk4-detail-header,
-  .mk4-ui.mk4-assignment-page .mk4-footer {
+  .mk4-ui.mk4-assignment-page .mk4-detail-header {
     position: static;
   }
 
@@ -445,12 +444,15 @@
   }
 
   .mk4-ui.mk4-assignment-page .mk4-footer {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 20;
     padding-bottom: calc(12px + env(safe-area-inset-bottom));
   }
 
   .mk4-ui.mk4-assignment-page .mk4-detail-body {
     overflow: visible;
-    padding: 12px;
+    padding: 12px 12px calc(12px + var(--mk-assignment-footer-height, 90px));
     gap: 10px;
   }
 

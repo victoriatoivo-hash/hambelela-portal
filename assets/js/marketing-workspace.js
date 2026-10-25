@@ -13,6 +13,17 @@ function installMarketingMobileTyping(win, doc) {
  const mobile=()=>win.matchMedia('(max-width: 767px)').matches;
  const viewport=win.visualViewport;
  const normalScale=()=>!viewport||Math.abs(viewport.scale-1)<0.05;
+ const page=doc.querySelector('.mk4-assignment-page');
+ const footer=page?.querySelector('.mk4-footer');
+ const sizeFooter=()=>{
+  if(!footer)return;
+  page.style.setProperty('--mk-assignment-footer-height',footer.getBoundingClientRect().height+'px');
+  // Standalone pages need a keyboard inset; embedded pages already resize with the drawer.
+  if(mobile()&&normalScale())footer.style.bottom=Math.max(0,win.innerHeight-(viewport?.height||win.innerHeight)-(viewport?.offsetTop||0))+'px';
+  else footer.style.removeProperty('bottom');
+ };
+ if(footer&&win.ResizeObserver)new win.ResizeObserver(sizeFooter).observe(footer);
+ sizeFooter();
  const resizeDrawer=drawer=>{
   if(!drawer)return;
   if(!mobile()||!normalScale()||!drawer.open){
@@ -29,7 +40,7 @@ function installMarketingMobileTyping(win, doc) {
   if(!mobile()||!normalScale())return;
   const field=doc.activeElement;
   if(!field?.matches('textarea,input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,[contenteditable="true"]')||!field.closest('.mk4-assignment-page'))return;
-  const rect=field.getBoundingClientRect(),top=(viewport?.offsetTop||0)+16,bottom=(viewport?.offsetTop||0)+(viewport?.height||win.innerHeight)-16;
+  const rect=field.getBoundingClientRect(),top=(viewport?.offsetTop||0)+16,bottom=(viewport?.offsetTop||0)+(viewport?.height||win.innerHeight)-(footer?.getBoundingClientRect().height||0)-16;
   if(rect.top<top||rect.bottom>bottom)field.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
  };
  let frame=0,timer=0;
@@ -37,10 +48,20 @@ function installMarketingMobileTyping(win, doc) {
  doc.addEventListener('focusin',()=>{
   scheduleReveal();win.clearTimeout(timer);timer=win.setTimeout(scheduleReveal,350);
  });
- const resized=()=>{resizeDrawers();scheduleReveal();};
+ // Repeated taps must still open/focus the form even when its URL hash is unchanged.
+ doc.addEventListener('click',event=>{
+  const link=event.target.closest('.mk4-assignment-page .mk4-footer a[href="#correction-request"]');
+  if(!link||!mobile())return;
+  const field=doc.querySelector('#correction-request textarea[name="correction_note"]');
+  if(!field)return;
+  event.preventDefault();field.focus({preventScroll:true});
+  field.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
+  scheduleReveal();
+ });
+ const resized=()=>{resizeDrawers();sizeFooter();scheduleReveal();};
  viewport?.addEventListener('resize',resized);
  // Follow Safari's viewport pan, but do not fight manual scrolling or pinch zoom.
- viewport?.addEventListener('scroll',resizeDrawers);
+ viewport?.addEventListener('scroll',()=>{resizeDrawers();sizeFooter();});
  win.addEventListener('resize',resized);
  return {resizeDrawer};
 }
