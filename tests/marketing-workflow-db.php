@@ -138,5 +138,6 @@ ok($xpath->query('//*[@data-mk-stage]')->length===5&&$xpath->query('//*[@data-mk
 $editItem=marketing_execution_item($work);$editChannels=marketing_execution_rows($editItem);ob_start();eval('?>'.substr($formSource,$formStart,$formEnd-$formStart));$editHtml=ob_get_clean();file_put_contents($root.'/verification/rendered/owner-edit.html',str_replace($formHtml,$editHtml,file_get_contents($root.'/verification/rendered/owner-form.html')));ok(strpos($editHtml,'Edit Content')!==false&&strpos($editHtml,'value="'.(int)$work.'"')!==false,'Edit uses the same staged form with the existing record ID');
 foreach(['owner-form','owner-edit']as$screen){$path=$root.'/verification/rendered/'.$screen.'.html';file_put_contents($path,str_replace('</head>', '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap"><script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script><script defer src="/assets/js/portal-date-picker.js"></script><link rel="stylesheet" href="/assets/css/portal-date-picker.css"></head>',file_get_contents($path)));}
 require $root.'/tests/marketing-correction-workflow.php';
+require $root.'/tests/marketing-correction-upload.php';
 $workflowTestsFinished=true;
 echo "PASS workflow roles, review clocks, notes/media, exact tables and persistent review popup SQL\n";

@@ -6,6 +6,7 @@ function marketing_content_schema(): void {
     $columns=['media_reference'=>'VARCHAR(500) NULL','work_summary'=>'TEXT NULL','workflow_notes'=>'TEXT NULL','publication_evidence_required'=>'TINYINT NOT NULL DEFAULT 0','work_started_at'=>'DATETIME NULL','work_started_by'=>'INT NULL','review_submitted_at'=>'DATETIME NULL','review_submitted_by'=>'INT NULL','reviewed_at'=>'DATETIME NULL','reviewed_by'=>'INT NULL','review_version_ids'=>'TEXT NULL','deliverable_mode'=>"VARCHAR(20) NOT NULL DEFAULT 'publish'",'preparation_evidence_required'=>'TINYINT NOT NULL DEFAULT 0','review_remaining_seconds'=>'BIGINT NULL','review_paused_seconds'=>'BIGINT NOT NULL DEFAULT 0','review_wait_seconds'=>'BIGINT NOT NULL DEFAULT 0','completed_at'=>'DATETIME NULL','completed_by'=>'INT NULL','published_by'=>'INT NULL','media_source'=>"VARCHAR(30) NOT NULL DEFAULT 'portal'",'media_link'=>'VARCHAR(1000) NULL'];
     $columns['review_clock_version']='INT NOT NULL DEFAULT 0';
     $columns+=['correction_due_at'=>'DATETIME NULL','correction_note'=>'TEXT NULL','correction_requested_at'=>'DATETIME NULL','correction_requested_by'=>'INT NULL','correction_request_key'=>'VARCHAR(64) NULL','correction_completed_at'=>'DATETIME NULL'];
+    $columns['correction_media_id']='BIGINT UNSIGNED NULL';
     foreach($columns as $name=>$type) if(!marketing_column_exists('marketing_work_items',$name)) db()->exec("ALTER TABLE marketing_work_items ADD COLUMN `$name` $type");
     foreach(['prepared_at'=>'DATETIME NULL','prepared_by'=>'INT NULL','published_at'=>'DATETIME NULL','published_by'=>'INT NULL','draft_url'=>'VARCHAR(500) NULL','proof_media_id'=>'BIGINT UNSIGNED NULL'] as $name=>$type) if(!marketing_column_exists('marketing_channel_execution',$name)) db()->exec("ALTER TABLE marketing_channel_execution ADD COLUMN `$name` $type");
     // Recover the known most recent legacy review interval once, without rewriting
@@ -30,26 +31,41 @@ function marketing_action_due(array $item): ?string {return $item['correction_du
 function marketing_can_request_correction(array $item): bool {return empty($item['cancelled_at'])&&in_array($item['status'],['ready_for_review','approved','scheduled','published','completed'],true);}
 
 /** Reopen the same assignment, retaining original completion and publication evidence. */
-function marketing_request_correction(int $id,array $input): void {
+function marketing_request_correction(int $id,array $input,array $file=[]): void {
     marketing_require_owner();$note=trim((string)($input['correction_note']??''));$key=(string)($input['request_key']??'');
     $due=marketing_local_datetime((string)($input['correction_due_at']??''));
     if($note===''||strlen($note)>10000)throw new RuntimeException('Describe the required corrections in 1–10,000 characters.');
     if(!$due)throw new RuntimeException('Set a correction deadline in Namibia time.');
     if(!preg_match('/^[a-f0-9]{32}$/D',$key))throw new RuntimeException('Reload the correction form before submitting.');
     require_once BASE_PATH.'/shared/notifications.php';if(!notifications_schema_ready())throw new RuntimeException('Notifications are unavailable. Please retry.');
-    db()->beginTransaction();
+    $uploadedPath=null;db()->beginTransaction();
     try {
         $item=marketing_execution_item($id,true);$now=marketing_now();$actor=marketing_employee_id();
         if(($item['correction_request_key']??'')===$key){if($item['correction_due_at']!==$due||$item['correction_note']!==$note)throw new RuntimeException('This request was already saved with different details. Reload the assignment.');db()->commit();return;}
         if(!marketing_can_request_correction($item)||($input['expected_correction_key']??'')!==($item['correction_request_key']??'')||($input['expected_status']??'')!==$item['status'])throw new RuntimeException('This assignment changed. Reload it before requesting corrections.');
         if($due<=$now)throw new RuntimeException('The correction deadline must be in the future, in Namibia time.');
         if((int)$item['assigned_employee_id']<1)throw new RuntimeException('Assign an employee before requesting corrections.');
+        $mediaId=null;
+        if($file&&(int)($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE){
+            $mediaId=marketing_media_upload($file,$id);
+            $q=db()->prepare('SELECT stored_name FROM marketing_item_versions WHERE id=?');$q->execute([$mediaId]);
+            $uploadedPath=BASE_PATH.'/uploads/marketing/'.basename((string)$q->fetchColumn());
+            db()->prepare("UPDATE marketing_item_versions SET version_label='Correction reference' WHERE id=?")->execute([$mediaId]);
+        }
         $snapshot=['original_due_at'=>$item['due_at'],'original_completed_at'=>$item['completed_at'],'original_completed_by'=>$item['completed_by'],'previous_correction_due_at'=>$item['correction_due_at']??null,'previous_correction_completed_at'=>$item['correction_completed_at']??null,'review_submitted_at'=>$item['review_submitted_at'],'reviewed_at'=>$item['reviewed_at'],'review_remaining_seconds'=>$item['review_remaining_seconds'],'review_paused_seconds'=>$item['review_paused_seconds'],'review_wait_seconds'=>$item['review_wait_seconds'],'current_review_seconds'=>marketing_review_clock($item,$now)['review_seconds'],'channels'=>marketing_execution_rows($item),'correction_due_at'=>$due];
-        db()->prepare("UPDATE marketing_work_items SET status='changes_requested',correction_due_at=?,correction_note=?,correction_requested_at=?,correction_requested_by=?,correction_request_key=?,correction_completed_at=NULL,review_remaining_seconds=NULL,review_paused_seconds=0,review_submitted_at=NULL,review_submitted_by=NULL,reviewed_at=NULL,reviewed_by=NULL WHERE id=?")->execute([$due,$note,$now,$actor,$key,$id]);
+        $snapshot['previous_correction_media_id']=$item['correction_media_id']??null;$snapshot['correction_media_id']=$mediaId;
+        db()->prepare("UPDATE marketing_work_items SET status='changes_requested',correction_due_at=?,correction_note=?,correction_requested_at=?,correction_requested_by=?,correction_request_key=?,correction_media_id=?,correction_completed_at=NULL,review_remaining_seconds=NULL,review_paused_seconds=0,review_submitted_at=NULL,review_submitted_by=NULL,reviewed_at=NULL,reviewed_by=NULL WHERE id=?")->execute([$due,$note,$now,$actor,$key,$mediaId,$id]);
         db()->prepare('INSERT INTO marketing_item_history(item_id,old_status,new_status,note,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$id,$item['status'],'changes_requested','Owner requested corrections: '.$note.' · Due '.$due.' Africa/Windhoek · Previous evidence: '.json_encode($snapshot,JSON_UNESCAPED_UNICODE),$actor,(string)(current_user()['name']??'Owner')]);$event=(int)db()->lastInsertId();
         if(!notifications_create(['title'=>'Marketing corrections requested','message'=>$item['title'].' — '.$note.' — Corrections due '.$due.' Namibia time. Check and update any post already scheduled on the social platform.','module'=>'marketing','related_type'=>'marketing_assignment','related_id'=>$id,'action_link'=>BASE_URL.'/apps/marketing/execution.php?id='.$id,'required_delivery'=>true,'deduplication_key'=>'marketing-correction:'.$id.':'.$key],[(int)$item['assigned_employee_id']]))throw new RuntimeException('The correction notification could not be saved. Please retry.');
         db()->commit();marketing_work_evidence(marketing_execution_item($id),$event,'marketing_corrections_requested',$snapshot);
-    }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();throw $e;}
+    }catch(Throwable $e){if(db()->inTransaction()){db()->rollBack();if($uploadedPath!==null&&is_file($uploadedPath))@unlink($uploadedPath);}throw $e;}
+}
+
+/** Render through the same recipient-checked media route as the assignment library. */
+function marketing_correction_attachment(array $item): void {
+    if(empty($item['correction_media_id']))return;
+    try{$file=marketing_media_get((int)$item['correction_media_id']);}catch(Throwable $e){echo '<p class="mk-meta">Correction attachment is no longer available.</p>';return;}
+    echo '<div class="mk-correction-attachment"><strong>Correction reference</strong><a class="mk4-button mk4-button--secondary" href="file.php?id='.(int)$file['id'].'">'.marketing_e($file['file_name']).'</a><details><summary>Preview attachment</summary><div class="mk-correction-preview">';marketing_media_player($file);echo '</div></details></div>';
 }
 
 function marketing_review_clock(array $item, ?string $now=null): array {
@@ -218,12 +234,13 @@ function marketing_correction_form(array $item,bool $failed=false): void {
     $posted=$failed&&($_POST['action']??'')==='request_correction'; ?>
     <section id="correction-request" class="mk4-section mk4-detail-card">
     <header class="mk4-detail-card-header"><span class="mk4-detail-card-icon"><i data-lucide="message-square-warning"></i></span><h2 class="mk4-detail-card-title">Request Changes</h2></header>
-    <form method="post" class="mk4-workflow-fields mk4-detail-card-content">
+    <form method="post" enctype="multipart/form-data" class="mk4-workflow-fields mk4-detail-card-content">
       <input type="hidden" name="csrf" value="<?=marketing_csrf()?>"><input type="hidden" name="action" value="request_correction"><input type="hidden" name="id" value="<?=(int)$item['id']?>">
       <input type="hidden" name="request_key" value="<?=marketing_e($posted?(string)($_POST['request_key']??''):bin2hex(random_bytes(16)))?>">
       <input type="hidden" name="expected_status" value="<?=marketing_e($item['status'])?>"><input type="hidden" name="expected_correction_key" value="<?=marketing_e($item['correction_request_key']??'')?>">
       <label class="mk4-workflow-field">What needs to change?<textarea class="mk4-textarea" name="correction_note" required maxlength="10000" placeholder="Identify the post or item and explain the correction."><?=marketing_e($posted?(string)($_POST['correction_note']??''):'')?></textarea></label>
       <label class="mk4-field">Corrections Due Date &amp; Time · Namibia<input type="datetime-local" name="correction_due_at" required value="<?=marketing_e($posted?(string)($_POST['correction_due_at']??''):'')?>"></label>
+      <label class="mk4-field mk-correction-attachment">Attach reference media (optional)<input type="file" name="correction_asset" accept=".jpg,.jpeg,.png,.webp,.gif,.mp4,.webm,.mp3,.m4a,.wav,.pdf,.txt,.docx,.xlsx,.pptx"><small>Image, video, audio or document · maximum 30 MB. Shared with the assigned employee when you send this request.<?= $posted?' Please select your attachment again before retrying.':'' ?></small></label>
       <p class="mk-meta">Reopens this assignment for the same employee and sends a notification. The original deadline, completion and publication evidence remain in history. Check externally scheduled posts separately.</p>
       <button class="mk4-button mk4-button--primary" type="submit">Send Change Request</button>
     </form></section>

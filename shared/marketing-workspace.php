@@ -132,13 +132,13 @@ function marketing_media_upload(array $file,int $itemId=0,string $channel=''): i
     $dir=BASE_PATH.'/uploads/marketing';if(!is_dir($dir)&&!mkdir($dir,0750,true))throw new RuntimeException('The upload folder is unavailable.');
     $stored=bin2hex(random_bytes(24)).'.bin';
     if(!move_uploaded_file($file['tmp_name'],$dir.'/'.$stored))throw new RuntimeException('Upload failed.');
-    db()->beginTransaction();
+    $ownsTransaction=!db()->inTransaction();if($ownsTransaction)db()->beginTransaction();
     try {
         if($item)$item=marketing_execution_item($itemId,true);
         $count=db()->prepare('SELECT COUNT(*) FROM marketing_item_versions WHERE item_id=?');$count->execute([$itemId]);$n=(int)$count->fetchColumn()+1;
         db()->prepare('INSERT INTO marketing_item_versions(item_id,version_label,file_name,stored_name,mime_type,file_size,uploaded_by,uploaded_by_name,channel_key)VALUES(?,?,?,?,?,?,?,?,?)')->execute([$itemId,$item?($n===1&&marketing_is_owner()?'Original':'Draft '.$n):'Media',$name,$stored,$mime,$size,marketing_employee_id(),(string)(current_user()['name']??''),$channel?:null]);
-        $id=(int)db()->lastInsertId();if($item)marketing_activity($item,'Uploaded '.$name.($channel?' for '.$channel:''));db()->commit();return $id;
-    }catch(Throwable $e){if(db()->inTransaction())db()->rollBack();@unlink($dir.'/'.$stored);throw $e;}
+        $id=(int)db()->lastInsertId();if($item)marketing_activity($item,'Uploaded '.$name.($channel?' for '.$channel:''));if($ownsTransaction)db()->commit();return $id;
+    }catch(Throwable $e){if($ownsTransaction&&db()->inTransaction())db()->rollBack();@unlink($dir.'/'.$stored);throw $e;}
 }
 function marketing_media_attach(int $fileId,int $itemId,string $channel=''): void {
     db()->beginTransaction();try{

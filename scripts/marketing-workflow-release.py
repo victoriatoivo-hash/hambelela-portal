@@ -2,8 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-FILES = ('apps/marketing/execution.php', 'assets/css/marketing-execution.css')
-READ_ONLY = ('shared/marketing-content-workflow.php', 'assets/js/marketing-workspace.js', 'shared/notifications.php', 'shared/marketing.php', 'shared/marketing-execution.php', 'shared/marketing-workspace.php', 'assets/css/marketing-extras.css', 'assets/css/marketing-workspace.css', 'assets/css/portal-date-picker.css', 'assets/js/portal-date-picker.js')
+FILES = ('shared/marketing-workspace.php', 'shared/marketing-content-workflow.php', 'apps/marketing/execution.php', 'assets/css/marketing-execution.css')
+READ_ONLY = ('assets/js/marketing-workspace.js', 'shared/notifications.php', 'shared/marketing.php', 'shared/marketing-execution.php', 'assets/css/marketing-extras.css', 'assets/css/marketing-workspace.css', 'assets/css/portal-date-picker.css', 'assets/js/portal-date-picker.js')
 EXPORT_MODULES = FILES + READ_ONLY
 mode, sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')

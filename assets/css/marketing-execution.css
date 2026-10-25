@@ -421,6 +421,35 @@ body:has(.mk4-assignment-page) .portal-date-popup .portal-date-day.is-outside-mo
 body:has(.mk4-assignment-page) .portal-date-popup .portal-date-day:not(.is-selected):is(:hover,:focus-visible) {background: #F9F2F7; color: #813766;}
 body:has(.mk4-assignment-page) .portal-date-popup .portal-time-entry input:focus {outline: 2px solid #E5CCDC; border-color: #9B477E;}
 
+.mk4-assignment-page .mk-correction-attachment {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #E5CCDC;
+  border-radius: 10px;
+  background: #FCFAFC;
+  overflow-wrap: anywhere;
+}
+.mk4-assignment-page .mk-correction-attachment input[type=file] {
+  padding: 6px;
+  background: #fff;
+}
+.mk4-assignment-page .mk-correction-attachment input::file-selector-button {
+  margin-right: 10px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid #E5CCDC;
+  border-radius: 8px;
+  background: #F9F2F7;
+  color: #813766;
+  font: 500 11.5px/1 "Jost", sans-serif;
+  cursor: pointer;
+}
+.mk4-assignment-page .mk-correction-attachment small {font: 400 11px/1.5 "Jost", sans-serif; color: #62675E;}
+.mk4-assignment-page .mk-correction-attachment summary {cursor: pointer; color: #813766;}
+.mk4-assignment-page .mk-correction-attachment .mk4-button {white-space: normal; height: auto; text-align: left;}
+.mk4-assignment-page .mk-correction-preview :is(img,video,audio) {display: block; max-width: 100%; max-height: 320px; margin-top: 10px; border-radius: 8px;}
+
 /* RESPONSIVE */
 
 @media (max-width: 767px) {
