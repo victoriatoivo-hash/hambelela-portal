@@ -8,6 +8,42 @@ function createMarketingDismissal({isDirty,confirmDiscard,performClose}) {
   try{await performClose();return true;}finally{closing=false;}
  };
 }
+// The top-level visual viewport shrinks for the keyboard; an iframe's does not.
+function installMarketingMobileTyping(win, doc) {
+ const mobile=()=>win.matchMedia('(max-width: 767px)').matches;
+ const viewport=win.visualViewport;
+ const normalScale=()=>!viewport||Math.abs(viewport.scale-1)<0.05;
+ const resizeDrawer=drawer=>{
+  if(!drawer)return;
+  if(!mobile()||!normalScale()||!drawer.open){
+   ['top','bottom','height','max-height'].forEach(key=>drawer.style.removeProperty(key));return;
+  }
+  const height=viewport?.height||win.innerHeight;
+  drawer.style.top=(viewport?.offsetTop||0)+'px';
+  drawer.style.bottom='auto';
+  drawer.style.height=height+'px';
+  drawer.style.maxHeight=height+'px';
+ };
+ const resizeDrawers=()=>doc.querySelectorAll('.mk-assignment-drawer[open]').forEach(resizeDrawer);
+ const reveal=()=>{
+  if(!mobile()||!normalScale())return;
+  const field=doc.activeElement;
+  if(!field?.matches('textarea,input:not([type=checkbox]):not([type=radio]):not([type=hidden]),select,[contenteditable="true"]')||!field.closest('.mk4-assignment-page'))return;
+  const rect=field.getBoundingClientRect(),top=(viewport?.offsetTop||0)+16,bottom=(viewport?.offsetTop||0)+(viewport?.height||win.innerHeight)-16;
+  if(rect.top<top||rect.bottom>bottom)field.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
+ };
+ let frame=0,timer=0;
+ const scheduleReveal=()=>{win.cancelAnimationFrame(frame);frame=win.requestAnimationFrame(reveal);};
+ doc.addEventListener('focusin',()=>{
+  scheduleReveal();win.clearTimeout(timer);timer=win.setTimeout(scheduleReveal,350);
+ });
+ const resized=()=>{resizeDrawers();scheduleReveal();};
+ viewport?.addEventListener('resize',resized);
+ // Follow Safari's viewport pan, but do not fight manual scrolling or pinch zoom.
+ viewport?.addEventListener('scroll',resizeDrawers);
+ win.addEventListener('resize',resized);
+ return {resizeDrawer};
+}
 (()=>{
  'use strict';
  function countdown(due,completed,status,now=Date.now(),submitted,remaining){
@@ -60,7 +96,7 @@ function createMarketingDismissal({isDirty,confirmDiscard,performClose}) {
   const link=event.target.closest('a[data-assignment-drawer]');if(!link)return;
   event.preventDefault();
   if(!drawer){drawer=document.createElement('dialog');drawer.className='mk-assignment-drawer mk4-ui';drawer.setAttribute('aria-label','Marketing assignment');drawer.innerHTML='<iframe title="Assignment details"></iframe>';document.body.append(drawer);window.MarketingDialogs?.watch(drawer);drawer.addEventListener('close',()=>{drawer.querySelector('iframe').src='about:blank';if(drawer.dataset.updated==='1')location.reload();});}
-  const url=new URL(link.href,location.href);url.searchParams.set('embed','1');drawer.dataset.updated='0';drawer.querySelector('iframe').src=url.href;drawer.showModal();
+  const url=new URL(link.href,location.href);url.searchParams.set('embed','1');drawer.dataset.updated='0';drawer.querySelector('iframe').src=url.href;drawer.showModal();window.MarketingMobileTyping?.resizeDrawer(drawer);
  });
  window.addEventListener('message',event=>{if(event.origin!==location.origin||!drawer||event.source!==drawer.querySelector('iframe').contentWindow)return;if(event.data?.type==='marketing-work-saved'){drawer.dataset.updated='1';drawer.dataset.remoteDirty='0';}if(event.data?.type==='marketing-dirty')drawer.dataset.remoteDirty=event.data.dirty?'1':'0';if(event.data?.type==='marketing-close-request')window.MarketingDialogs?.close(drawer);});
  if(document.body.dataset.marketingSaved==='1'&&parent!==window)parent.postMessage({type:'marketing-work-saved'},location.origin);
@@ -273,3 +309,5 @@ function createMarketingDismissal({isDirty,confirmDiscard,performClose}) {
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', initialiseFolderLabels, {once:true});
   else initialiseFolderLabels();
 }());
+
+window.MarketingMobileTyping=installMarketingMobileTyping(window,document);

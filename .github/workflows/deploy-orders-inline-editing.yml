@@ -54,6 +54,7 @@ jobs:
           php tests/notification-session-lock.php
           node tests/marketing-workflow-clock.mjs
           node tests/marketing-modal-dismissal.mjs
+          node tests/marketing-mobile-typing.mjs
           node --check assets/js/marketing-workspace.js
           node --check assets/js/marketing.js
           node --check assets/js/portal.js

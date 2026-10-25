@@ -1,0 +1,35 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const source=fs.readFileSync(new URL('../assets/js/marketing-workspace.js',import.meta.url),'utf8');
+const start=source.indexOf('function installMarketingMobileTyping'),end=source.indexOf('(()=>{',start);
+const context={};vm.createContext(context);vm.runInContext(source.slice(start,end),context);
+const events=()=>({handlers:{},addEventListener(type,fn){this.handlers[type]=fn;}});
+let mobile=true,scrolled=0,rect={top:650,bottom:750},frames=[],timers=[];
+const viewport=Object.assign(events(),{height:750,offsetTop:0,scale:1});
+const win=Object.assign(events(),{visualViewport:viewport,innerHeight:750,
+ matchMedia:()=>({matches:mobile}),requestAnimationFrame:fn=>(frames.push(fn),frames.length),cancelAnimationFrame:()=>{},
+ setTimeout:fn=>(timers.push(fn),timers.length),clearTimeout:()=>{}});
+const drawer={open:true,style:{removeProperty(key){delete this[key.replace('-h','H')];}}};
+const field={matches:()=>true,closest:()=>true,getBoundingClientRect:()=>rect,scrollIntoView(options){assert.equal(options.block,'center');scrolled++;}};
+const doc=Object.assign(events(),{activeElement:field,querySelectorAll:()=>drawer.open?[drawer]:[]});
+const api=context.installMarketingMobileTyping(win,doc);
+const flush=()=>{const pending=frames;frames=[];pending.forEach(fn=>fn());};
+api.resizeDrawer(drawer);assert.equal(drawer.style.height,'750px');
+viewport.height=330;viewport.offsetTop=20;viewport.handlers.resize();flush();
+assert.equal(drawer.style.height,'330px');assert.equal(drawer.style.top,'20px');assert.equal(scrolled,1,'offscreen field revealed after keyboard resize');
+rect={top:50,bottom:150};doc.handlers.focusin();flush();assert.equal(scrolled,1,'visible field is not needlessly moved');
+rect={top:500,bottom:600};timers.forEach(fn=>fn());flush();assert.equal(scrolled,2,'keyboard animation has a delayed focus check');
+viewport.offsetTop=35;viewport.handlers.scroll();assert.equal(drawer.style.top,'35px');assert.equal(scrolled,2,'manual viewport scroll does not pull user back to field');
+viewport.scale=1.5;viewport.handlers.resize();flush();assert.equal(scrolled,2,'pinch zoom is not counteracted');assert.equal(drawer.style.height,undefined);
+viewport.scale=1;viewport.height=750;rect={top:100,bottom:200};viewport.handlers.resize();flush();assert.equal(drawer.style.height,'750px','keyboard dismissal restores available height');
+mobile=false;win.handlers.resize();flush();assert.equal(drawer.style.height,undefined,'desktop dimensions left to CSS');
+mobile=true;doc.activeElement={matches:()=>false};win.handlers.resize();flush();assert.equal(scrolled,2,'non-editable elements are not scrolled');
+drawer.open=false;api.resizeDrawer(drawer);assert.equal(drawer.style.height,undefined,'closed drawer bounds cleared');
+const css=fs.readFileSync(new URL('../assets/css/marketing-execution.css',import.meta.url),'utf8');
+assert.match(css,/#ess-main\.mk4-assignment-page :is\(input,select,textarea,\[contenteditable="true"\]\)\s*\{[^}]*font-size: 16px;/);
+assert.match(css,/\.mk-embedded \.mk4-ui\.mk4-assignment-page\s*\{[^}]*display: block;[^}]*height: auto;[^}]*max-height: none;/);
+assert.match(css,/\.mk4-ui\.mk4-assignment-page \.mk4-detail-body\s*\{\s*overflow: visible;/);
+const page=fs.readFileSync(new URL('../apps/marketing/execution.php',import.meta.url),'utf8');
+assert(!/user-scalable\s*=\s*no|maximum-scale\s*=\s*1/.test(page),'accessibility pinch zoom remains available');
+console.log('PASS mobile keyboard sizing, focused-field visibility, keyboard dismissal, desktop isolation, pinch zoom, scroll behaviour and mobile CSS guards');

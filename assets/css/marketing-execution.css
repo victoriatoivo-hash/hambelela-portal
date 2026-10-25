@@ -406,7 +406,50 @@
 /* RESPONSIVE */
 
 @media (max-width: 767px) {
+  /* One mobile scroll surface: the header must not consume the keyboard viewport. */
+  .mk4-ui.mk4-assignment-page,
+  .mk-embedded .mk4-ui.mk4-assignment-page {
+    display: block;
+    height: auto;
+    max-height: none;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .mk4-ui.mk4-assignment-page .mk4-detail-header,
+  .mk4-ui.mk4-assignment-page .mk4-footer {
+    position: static;
+  }
+
+  .mk4-ui.mk4-assignment-page .mk4-detail-header {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .mk4-ui.mk4-assignment-page .mk4-header-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  /* iOS focus zoom is avoided without disabling the user's pinch zoom. */
+  #ess-main.mk4-assignment-page :is(input,select,textarea,[contenteditable="true"]) {
+    font-family: "Jost", sans-serif;
+    font-size: 16px;
+    line-height: 1.5;
+    max-width: 100%;
+    scroll-margin-block: 16px;
+  }
+
+  body:has(.mk4-assignment-page) .portal-date-popup .portal-time-entry input {
+    font-size: 16px;
+    height: 40px;
+  }
+
+  .mk4-ui.mk4-assignment-page .mk4-footer {
+    padding-bottom: calc(12px + env(safe-area-inset-bottom));
+  }
+
   .mk4-ui.mk4-assignment-page .mk4-detail-body {
+    overflow: visible;
     padding: 12px;
     gap: 10px;
   }
