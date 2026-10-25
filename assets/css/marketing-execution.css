@@ -403,6 +403,24 @@
     mkDetailSectionEnter .22s ease-out both;
 }
 
+/* The body-level calendar belongs to the assignment, not the fixed action bar. */
+body:has(.mk4-assignment-page) > .portal-date-popup {
+  font: 400 12px/1.4 "Jost", sans-serif;
+  border-color: #E4E6DC;
+  box-shadow: 0 12px 32px rgba(38,49,31,.14);
+  max-height: calc(100dvh - 20px);
+  overflow-y: auto;
+}
+body:has(.mk4-assignment-page) .portal-date-popup :is(.portal-date-clear,.portal-date-cancel,.portal-date-apply,.portal-date-now) {
+  height: 40px;
+  font: 500 11.5px/1 "Jost", sans-serif;
+  border-radius: 8px;
+}
+body:has(.mk4-assignment-page) .portal-date-popup .portal-date-weekday {color: #62675E;}
+body:has(.mk4-assignment-page) .portal-date-popup .portal-date-day.is-outside-month {color: #91968C;}
+body:has(.mk4-assignment-page) .portal-date-popup .portal-date-day:not(.is-selected):is(:hover,:focus-visible) {background: #F9F2F7; color: #813766;}
+body:has(.mk4-assignment-page) .portal-date-popup .portal-time-entry input:focus {outline: 2px solid #E5CCDC; border-color: #9B477E;}
+
 /* RESPONSIVE */
 
 @media (max-width: 767px) {

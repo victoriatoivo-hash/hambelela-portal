@@ -69,7 +69,7 @@ $pdo->beginTransaction();$beforeFail=marketing_execution_item($change);$beforeFa
 $evidence=array_map(fn($row)=>json_decode($row['payload'],true),$pdo->query('SELECT payload FROM test_epi')->fetchAll());ok(count($evidence)>10&&count(array_filter($evidence,fn($e)=>$e['module']==='Portal Activity'&&!empty($e['metadata']['excluded_from_scoring'])))===count($evidence),'existing performance evidence interface records Marketing work with no new automatic deductions');
 // Save snapshots from the actual PHP templates for local desktop/mobile visual verification.
 mkdir($root.'/verification/rendered',0770,true);file_put_contents($root.'/verification/rendered/table.html',$table);
-foreach(['marketing-workspace.css','marketing.css','marketing-extras.css','marketing-execution.css'] as $css){@mkdir($fixture.'/assets/css',0770,true);copy($root.'/assets/css/'.$css,$fixture.'/assets/css/'.$css);}
+foreach(['portal-date-picker.css','marketing-workspace.css','marketing.css','marketing-extras.css','marketing-execution.css'] as $css){@mkdir($fixture.'/assets/css',0770,true);copy($root.'/assets/css/'.$css,$fixture.'/assets/css/'.$css);}
 @mkdir($fixture.'/assets/js',0770,true);copy($root.'/assets/js/marketing-workspace.js',$fixture.'/assets/js/marketing-workspace.js');copy($root.'/assets/js/marketing.js',$fixture.'/assets/js/marketing.js');copy($root.'/assets/js/portal-date-picker.js',$fixture.'/assets/js/portal-date-picker.js');
 function renderAssignment($id,$isOwner,$name){global $root,$owner,$actor;$owner=$isOwner;$actor=$isOwner?99:2;$_SERVER['REQUEST_METHOD']='GET';$_GET=['id'=>$id,'embed'=>'1'];$_POST=[];$template=file_get_contents($root.'/apps/marketing/execution.php');$template=str_replace('declare(strict_types=1);','',$template);$template=preg_replace('/require_once dirname\(__DIR__,2\).*?marketing_require_access\(\);/','',$template);ob_start();eval('?>'.$template);$html=ob_get_clean();file_put_contents($root.'/verification/rendered/'.$name.'.html',$html);return $html;}
 // Real assignment template: sibling cards, long rich text, escaping, and role-specific controls.
@@ -77,6 +77,7 @@ $detailId=assignment();$rich='<h2>Campaign instructions</h2><p>Keep <strong>bold
 $pdo->prepare('UPDATE marketing_work_items SET brief=?,hashtags=? WHERE id=?')->execute([$rich,'#HambelelaOrganic #NaturalSkincare #ProductBenefits',$detailId]);
 foreach([true,false] as $detailOwner){
  $html=renderAssignment($detailId,$detailOwner,$detailOwner?'owner-rich-brief':'employee-rich-brief');
+ ok(strpos($html,'/assets/css/portal-date-picker.css?v=')!==false&&strpos($html,'/assets/css/portal-date-picker.css?v=')<strpos($html,'/assets/css/marketing-extras.css?v='),'embedded assignment loads the versioned calendar layout before the Marketing Jost/purple theme');
  $doc=new DOMDocument();@$doc->loadHTML($html);$xp=new DOMXPath($doc);
  $cards=$xp->query('//*[contains(concat(" ",normalize-space(@class)," ")," mk4-detail-body ")]/section');
  ok($cards->length>=3&&$cards->item(0)->getAttribute('aria-label')==='Campaign Details'&&$cards->item(1)->getAttribute('id')==='instructions'&&$cards->item(2)->getAttribute('aria-label')==='Hashtags','campaign facts, original brief and hashtags are ordered sibling cards for '.($detailOwner?'Owner':'employee'));
