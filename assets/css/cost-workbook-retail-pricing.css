@@ -1089,7 +1089,12 @@ body:has([data-rp-root][data-mode=pricing]) .retail-pricing__toast{position:fixe
 [data-pack-cell] input[type=checkbox]{accent-color:#59694A;width:14px;height:14px}
 [data-source-cell]{cursor:pointer;text-decoration:underline;text-decoration-color:#E4E6DC;text-underline-offset:4px}
 [data-rp-root] td.rp4-calculated{white-space:normal;line-height:1.4}
-#costWorkbook[data-page="product-pricing"] select.pp-packaging-select{display:block;width:100%;min-width:0;height:34px;padding:0 6px;appearance:auto;border:1px solid #E4E6DC;border-radius:8px;background:#FFFFFF;color:#1C2118;font:400 11px/1.3 "Jost",sans-serif;text-overflow:ellipsis;cursor:pointer}
+#costWorkbook[data-page="product-pricing"] select.pp-packaging-select:not(.portal-custom-select-native){display:block;width:100%;min-width:0;height:34px;padding:0 6px;appearance:auto;border:1px solid #E4E6DC;border-radius:8px;background:#FFFFFF;color:#1C2118;font:400 11px/1.3 "Jost",sans-serif;text-overflow:ellipsis;cursor:pointer}
+#costWorkbook[data-page="product-pricing"] [data-pack-cell] .portal-custom-select{width:100%;min-width:0;max-width:100%}
+#costWorkbook[data-page="product-pricing"] [data-pack-cell] .portal-custom-select-trigger{width:100%;min-width:0;text-align:left;border-radius:8px;color:#344126}
+.portal-select-popup[data-portal-select-variant="cost-packaging"]{width:min(400px,calc(100vw - 24px))!important;min-width:0!important;max-width:calc(100vw - 24px)}
+.portal-select-popup[data-portal-select-variant="cost-packaging"] .portal-select-option{white-space:normal;overflow-wrap:anywhere;line-height:1.45;text-align:left;padding:10px}
+@media(max-width:600px){.portal-select-popup[data-portal-select-variant="cost-packaging"] [data-cost-select-search]{font-size:16px;min-height:44px}.portal-select-popup[data-portal-select-variant="cost-packaging"] .portal-select-option{min-height:44px}}
 .pp-manual-fields{display:grid;gap:8px;border-top:1px solid #E4E6DC;padding-top:10px;margin-top:10px;font-family:"Jost",sans-serif}
 .pp-manual-fields label{display:grid;gap:4px}.pp-manual-fields input{height:38px;border:1px solid #E4E6DC;border-radius:8px;padding:6px;font:400 12px "Jost",sans-serif}
 .rp-cost-link-button{display:block;max-width:100%;white-space:normal;text-align:left;margin-top:6px;padding:5px 8px;border:1px solid #E4E6DC;border-radius:8px;background:white;color:#344126;font:500 11px/1.4 "Jost",sans-serif;cursor:pointer}
