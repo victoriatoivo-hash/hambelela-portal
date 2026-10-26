@@ -7,7 +7,7 @@ NEW_FILES = ['apps/hr-portal/includes/leave-cancellation.php','apps/hr-portal/in
 FILES = ['apps/hr-portal/leave.php','apps/hr-portal/my-leave.php'] + NEW_FILES
 DEPENDENCIES = ['apps/hr-portal/includes/leave-balance-service.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
-DEPENDENCY_BASELINES = {}
+DEPENDENCY_BASELINES = {'apps/hr-portal/leave.php': 'b8e609a1'}
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):
