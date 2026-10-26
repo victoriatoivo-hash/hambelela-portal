@@ -35,6 +35,9 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  click('[data-cost-more]');fill('[data-si-filters] [name="status"]','complete');click('[data-cost-apply]');await flush();await flush();assert.equal(calls.findLast(x=>x.action==='list').url.searchParams.get('status'),'complete');
  click('[data-cost-clear]');await new Promise(r=>setTimeout(r,10));await flush();assert.equal(one('[data-si-filters] [name="status"]').value,'');
  click('[data-si-open-manual]');assert.equal(one('#siDrawerTitle').textContent,'Add Supplier Cost');
+ assert.equal(one('[data-k="product_category"]').value,'Other','new row must not default to first alphabetic category');
+ assert([...one('[data-k="product_category"]').options].some(o=>o.value==='Clays'),'clay category available in purchase form');
+ assert([...one('[name="category"]').options].some(o=>o.value==='Clays'),'clay category available in filters and inline choices');
  // Actual purchase amount is independent of freight weight and the normalized cost rate.
  fill('[data-k="quantity"]','1');fill('[data-k="pack_size"]','0.450');fill('[data-k="purchase_unit"]','L');fill('[data-k="line_subtotal"]','641');fill('[data-k="shipping_weight_kg"]','0.450');
  assert.match(one('[data-si-cost-preview]').textContent,/Purchased 0\.450 L \(450 ml\)/);

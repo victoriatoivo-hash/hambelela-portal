@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/cost-workbook-categories.php';
 
 // Source corrections only. Existing invoice files, line IDs and landed snapshots remain intact.
 function si_sheet_state(PDO $pdo,int $pid,int $sid,bool $lock=false):array {
@@ -59,7 +60,7 @@ function si_sheet_save(PDO $pdo,array $b):array {
             lpc_snapshot($pdo,$pid,$sid,(int)$s['supplier_id']?:null,$l?(int)$l['id']:null,null,$c['costing_basis'],$c['base_unit'],(float)$c['base_quantity'],(float)$c['supplier_cost_used'],(float)$value*(float)$c['base_quantity'],'NAD',$c['cost_date'],$status);
         } elseif(in_array($field,['product_name','short_code','product_category'],true)){
             if($value==='')throw new DomainException('Enter a value.');
-            if($field==='product_category'&&!in_array($value,si_categories(),true))throw new DomainException('Select a valid category.');
+            if($field==='product_category'&&!in_array($value,cw_supplier_category_choices($pdo),true))throw new DomainException('Select a valid category.');
             if($field==='short_code'){
                 if($p['woo_sku']!=='')throw new DomainException('The verified WooCommerce SKU is protected. Use invoice review for product matching.');
                 if(strlen($value)>50)throw new DomainException('Use a reference of 50 characters or fewer.');

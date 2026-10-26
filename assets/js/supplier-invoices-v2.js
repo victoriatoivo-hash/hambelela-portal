@@ -95,6 +95,10 @@ function preview(){
 }
 function addLine(value={}){
  const node=one('[data-si-line-template]').content.firstElementChild.cloneNode(true);
+ // Never drop an existing label when opening a purchase after catalogue changes.
+ const category=one('[data-k="product_category"]',node),savedCategory=value.product_category||'Other';
+ if(!Array.from(category.options).some(o=>o.value===savedCategory))category.add(new Option(savedCategory,savedCategory));
+ category.value=savedCategory;
  if(form.dataset.missingOnly==='true'){const label=document.createElement('label');label.className='si-checkbox-label';const check=document.createElement('input');check.type='checkbox';check.checked=true;check.dataset.siInclude='';label.append(check,document.createTextNode(' Include this missing item'));node.prepend(label);}
  all('[data-k]',node).forEach(el=>{if(value[el.dataset.k]!==undefined&&value[el.dataset.k]!==null){if(el.type==='checkbox')el.checked=!!value[el.dataset.k];else el.value=value[el.dataset.k];}});
  one('[data-si-remove-line]',node).hidden=!!value.id&&!value.allow_remove;one('[data-si-remove-line]',node).textContent=value.id?'Remove Unreferenced Draft Line':'Remove New Line';

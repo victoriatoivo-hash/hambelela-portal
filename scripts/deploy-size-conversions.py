@@ -2,9 +2,9 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '7e1d0b8a3f6bc6f29091566bcb081d5e4b61bea8'
-NEW_FILES = []
-FILES = ['assets/js/supplier-invoices-v2.js','shared/cost-workbook-supplier-invoices.php']
+BASELINE = 'dd33a9ef'
+NEW_FILES = ['shared/cost-workbook-categories.php']
+FILES = ['shared/cost-workbook-categories.php','assets/js/supplier-invoices-v2.js','shared/cost-workbook-supplier-invoices.php','shared/cost-workbook-supplier-sheet.php','apps/cost-manager/supplier-invoices-api.php']
 DEPENDENCIES = ['shared/cost-workbook.php','assets/css/cost-workbook-supplier-invoices.css']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
 DEPENDENCY_BASELINES = {'assets/css/cost-workbook-supplier-invoices.css':'5606141c7e8550452922eac347141a84dfa39cb0'}

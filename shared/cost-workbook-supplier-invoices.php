@@ -1,9 +1,10 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/cost-workbook-categories.php';
 
 function cw_supplier_types(): array { return ['Raw Materials','Packaging','Equipment & Accessories','Freight & Logistics','Services','Mixed','Uncategorised']; }
 function cw_invoice_types(): array { return ['Raw Materials','Packaging','Equipment & Accessories','Freight & Logistics','Services','Mixed']; }
-function cw_product_categories(): array { return ['Plant Butters','Carrier Oils','Essential Oils','Hydrosols','Dried Herbs','Powders','Active Ingredients','Preservatives','Emulsifiers','Surfactants','Proteins','Solvents','Waxes','Packaging','Equipment','Accessories','Other']; }
+function cw_product_categories(): array { static $choices=null; if($choices===null)$choices=cw_supplier_category_choices(function_exists('db')?db():null);return $choices; }
 function cw_si_options(array $values,string $first=''): string { $html=$first!==''?'<option value="">'.htmlspecialchars($first,ENT_QUOTES,'UTF-8').'</option>':''; foreach($values as $v)$html.='<option value="'.htmlspecialchars($v,ENT_QUOTES,'UTF-8').'">'.htmlspecialchars($v,ENT_QUOTES,'UTF-8').'</option>'; return $html; }
 
 function cw_render_supplier_invoices(array $period): void { ?>

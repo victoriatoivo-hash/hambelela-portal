@@ -4,6 +4,7 @@ define('BASE_PATH',dirname(__DIR__));
 function current_user(): array { return ['id'=>91,'name'=>'Costing test owner']; }
 require BASE_PATH.'/shared/cost-workbook.php';
 require BASE_PATH.'/shared/cost-workbook-invoice-recovery.php';
+require BASE_PATH.'/shared/cost-workbook-categories.php';
 function expect($condition,string $message): void { if (!$condition) throw new RuntimeException($message); }
 $split=cw_shipping_allocation(3000,[10=>100,20=>50]);
 expect($split===[10=>2000.0,20=>1000.0],'100kg/50kg freight allocation');
@@ -21,6 +22,20 @@ $pdo=new PDO(getenv('CW_TEST_DSN'),getenv('CW_TEST_USER')?:'root',getenv('CW_TES
 // CI-only disposable database. Never run this fixture against the portal database.
 expect($pdo->query('SELECT DATABASE()')->fetchColumn()==='cw_supplier_test','Refuse non-test database');
 cw_install_schema($pdo);
+$pdo->beginTransaction();
+$pdo->exec("INSERT INTO cw_sync_batches(status,is_successful_snapshot,completed_at) VALUES('completed',1,NOW())");
+$categoryBatch=(int)$pdo->lastInsertId();
+$categoryInsert=$pdo->prepare("INSERT INTO cw_product_snapshots(product_id,variation_id,product_name,product_type,category,sync_batch_id) VALUES(?,0,?,'simple',?,?)");
+$categoryInsert->execute([99001,'Category fixture','Natural Clays, Essential Oils',$categoryBatch]);
+$categoryInsert->execute([99002,'Category fixture 2','Natural Clays, Botanical Extracts',$categoryBatch]);
+$pdo->exec("INSERT INTO cw_sync_batches(status,is_successful_snapshot,completed_at) VALUES('failed',0,NOW())");
+$categoryInsert->execute([99003,'Incomplete catalogue','Failed-only category',(int)$pdo->lastInsertId()]);
+$categories=cw_supplier_category_choices($pdo);
+expect(in_array('Natural Clays',$categories,true)&&in_array('Botanical Extracts',$categories,true),'Website category names merged');
+expect(in_array('Clays',$categories,true)&&in_array('Plant Butters',$categories,true),'Workbook categories retained');
+expect(count(array_keys($categories,'Natural Clays',true))===1,'Repeated website category deduplicated');
+expect(!in_array('Failed-only category',$categories,true),'Failed catalogue ignored');
+$pdo->rollBack();
 $pdo->exec("INSERT INTO cw_suppliers(name,normalized_name,supplier_type) VALUES('Test Supplier','testsupplier','Raw Materials')");
 $supplier=(int)$pdo->lastInsertId();
 $pdo->prepare("INSERT INTO cw_supplier_invoices(supplier_id,supplier_name,invoice_number,invoice_date,original_filename,stored_file,file_type,currency,vat_treatment,approval_status) VALUES(?,'Test Supplier','TEST-1','2026-10-06','','','','NAD','exclusive','draft')")->execute([$supplier]);
@@ -115,6 +130,7 @@ expect($originalSnapshot===$pdo->query("SELECT * FROM cw_landed_product_costs WH
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_transport_product_allocations')->fetchColumn()===$allocationCount,'Freight allocations unchanged');
 expect((int)$pdo->query("SELECT id FROM cw_supplier_invoice_lines WHERE id=$lineId")->fetchColumn()===$lineId,'Stable invoice line ID');
 $save('invoice_date','2026-10-05');expect(si_sheet_row(si_sheet_state($pdo,$product,$source))['invoice_date']==='2026-10-05','Effective date correction');
+$save('product_category','Clays');expect(si_sheet_row(si_sheet_state($pdo,$product,$source))['product_category']==='Clays','Clay category saves through inline editor');
 $save('product_category','Other');$save('short_code','SHEET001');$save('product_name','Corrected test product');
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_products')->fetchColumn()===1,'No duplicate master product');
 $version=si_sheet_state($pdo,$product,$source)['version'];$save('invoice_number','CORRECTED');
