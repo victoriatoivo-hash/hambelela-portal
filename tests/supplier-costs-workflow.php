@@ -29,6 +29,18 @@ $line=['product_description'=>'Test Castor Oil','quantity'=>100,'pack_size'=>1,'
 $pdo->beginTransaction();cw_supplier_save_lines($pdo,$invoice,[$line]);$pdo->commit();
 $id=(int)$pdo->query('SELECT id FROM cw_supplier_invoice_lines')->fetchColumn();
 $line['id']=$id;unset($line['confirm_new_product']);
+// Fractional purchased amounts persist independently of shipment weight.
+foreach ([[1,0.450,'L',0.450,'L'],[1,450,'ml',0.450,'L'],[1,450,'g',0.450,'kg'],[5,0.450,'L',2.250,'L']] as $case) {
+    $pdo->beginTransaction();
+    $fraction=array_merge($line,['quantity'=>$case[0],'pack_size'=>$case[1],'purchase_unit'=>$case[2],'line_subtotal'=>641,'shipping_weight_kg'=>2]);
+    cw_supplier_save_lines($pdo,$invoice,[$fraction]);
+    $stored=$pdo->query('SELECT * FROM cw_supplier_invoice_lines WHERE id='.$id)->fetch();
+    expect(abs((float)$stored['base_quantity']-$case[3])<0.000001,'Fractional amount retained on reload');
+    expect($stored['base_unit']===$case[4],'Correct normalized unit');
+    expect(abs((float)$stored['base_unit_cost']-641/$case[3])<0.00001,'Source rate uses purchased amount, not freight weight');
+    expect((float)$stored['shipping_weight_kg']===2.0,'Shipping weight stays separate');
+    $pdo->rollBack();
+}
 $pdo->beginTransaction();cw_supplier_save_lines($pdo,$invoice,[$line]);$pdo->commit();
 expect((int)$pdo->query('SELECT COUNT(*) FROM cw_supplier_invoice_lines')->fetchColumn()===1,'Save must preserve stable line');
 expect((int)$pdo->query('SELECT id FROM cw_supplier_invoice_lines')->fetchColumn()===$id,'Line ID changed');

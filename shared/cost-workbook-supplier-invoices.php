@@ -99,12 +99,12 @@ function cw_render_supplier_invoices(array $period): void { ?>
   <div class="si-identity-choice si-wide" data-si-identity hidden><strong>Possible Existing Product</strong><div data-si-identity-options></div></div>
   <label>Product Name<input data-k="product_description" maxlength="255" required></label><label>Supplier SKU / Reference<input data-k="supplier_sku" maxlength="100"></label>
   <label>Product Category<select data-portal-custom-select data-portal-select-variant="cost-olive" data-k="product_category"><?= cw_si_options(cw_product_categories()) ?></select></label>
-  <label>Purchased Quantity<input data-k="quantity" type="number" min="0.000001" step="0.000001" required></label>
-  <label>Pack Size<input data-k="pack_size" type="number" min="0.000001" step="0.000001" value="1" required></label>
+  <label>Purchased Quantity / Number of Packs<input data-k="quantity" type="number" min="0.000001" step="0.000001" required><small>Number purchased. For one 450 ml bottle, enter 1.</small></label>
+  <label>Pack Size / Amount per Pack<input data-k="pack_size" type="number" min="0.000001" step="0.000001" value="1" required><small>For 450 ml, enter 450 with unit ml, or 0.450 with unit L.</small></label>
   <label>Purchase Unit<select data-portal-custom-select data-portal-select-variant="cost-olive" data-k="purchase_unit"><option value="">Confirm unit</option><option>kg</option><option>g</option><option>L</option><option>ml</option><option>unit</option></select></label>
-  <label>Supplier Cost Excluding Recoverable VAT<input data-k="line_subtotal" type="number" min="0" step="0.01" required></label>
+  <label>Total Supplier Cost Excluding Recoverable VAT<input data-k="line_subtotal" type="number" min="0" step="0.01" required><small>Total for this product line, not the price per litre or kg.</small></label>
   <label>Recoverable VAT<input data-k="vat_amount" type="number" min="0" step="0.01" value="0"></label>
-  <label>Confirmed Shipping Weight kg<input data-k="shipping_weight_kg" type="number" min="0.000001" step="0.000001" placeholder="Do not substitute litres"></label>
+  <label>Confirmed Shipping Weight kg<input data-k="shipping_weight_kg" type="number" min="0.000001" step="0.000001" placeholder="Do not substitute litres"><small>Freight allocation only. Does not change purchased quantity or volume.</small></label>
   <label>Notes<input data-k="line_notes" maxlength="500"></label>
   <div class="si-line-preview si-wide" data-si-cost-preview></div><button type="button" class="si-btn" data-si-remove-line>Remove New Line</button>
  </article></template>

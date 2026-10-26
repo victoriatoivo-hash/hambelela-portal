@@ -35,6 +35,18 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  click('[data-cost-more]');fill('[data-si-filters] [name="status"]','complete');click('[data-cost-apply]');await flush();await flush();assert.equal(calls.findLast(x=>x.action==='list').url.searchParams.get('status'),'complete');
  click('[data-cost-clear]');await new Promise(r=>setTimeout(r,10));await flush();assert.equal(one('[data-si-filters] [name="status"]').value,'');
  click('[data-si-open-manual]');assert.equal(one('#siDrawerTitle').textContent,'Add Supplier Cost');
+ // Actual purchase amount is independent of freight weight and the normalized cost rate.
+ fill('[data-k="quantity"]','1');fill('[data-k="pack_size"]','0.450');fill('[data-k="purchase_unit"]','L');fill('[data-k="line_subtotal"]','641');fill('[data-k="shipping_weight_kg"]','0.450');
+ assert.match(one('[data-si-cost-preview]').textContent,/Purchased 0\.450 L \(450 ml\)/);
+ assert.match(one('[data-si-cost-preview]').textContent,/Source total: N\$641\.00/);
+ assert.match(one('[data-si-cost-preview]').textContent,/Source cost: N\$1,424\.44 \/ L/);
+ assert.match(one('[data-si-summary-preview]').textContent,/Purchased 0\.450 L \(450 ml\)/);
+ fill('[data-k="shipping_weight_kg"]','2');assert.match(one('[data-si-cost-preview]').textContent,/Purchased 0\.450 L/,'freight weight cannot replace volume');
+ fill('[data-k="pack_size"]','450');fill('[data-k="purchase_unit"]','ml');assert.match(one('[data-si-cost-preview]').textContent,/Purchased 0\.450 L \(450 ml\)/);
+ fill('[data-k="purchase_unit"]','g');assert.match(one('[data-si-cost-preview]').textContent,/Purchased 0\.450 kg \(450 g\)/);
+ fill('[data-k="quantity"]','5');assert.match(one('[data-si-cost-preview]').textContent,/Purchased 2\.25 kg/);
+ fill('[data-k="line_subtotal"]','');assert.match(one('[data-si-cost-preview]').textContent,/Source total: — · Source cost: —/,'missing source amount is not zero');
+ fill('[data-k="pack_size"]','');assert.match(one('[data-si-cost-preview]').textContent,/Confirm purchased quantity/);
  fill('[name="supplier_name"]','Test Supplier');fill('[data-k="product_description"]','Test product');fill('[data-k="quantity"]','100');fill('[data-k="pack_size"]','1');fill('[data-k="purchase_unit"]','kg');fill('[data-k="line_subtotal"]','10000');fill('[data-k="shipping_weight_kg"]','100');
  assert.equal(d.querySelectorAll('.si-product-match').length,0,'no repeated matching cards');
  assert.equal(one('[name="date_received"]').value,'','receipt never inferred');
