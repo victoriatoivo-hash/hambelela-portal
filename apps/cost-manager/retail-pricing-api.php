@@ -34,8 +34,14 @@ function rp_sources(PDO $pdo):array{
     return compact('products','sizes','setups','website','batch','lastSync');
 }
 function rp_setup_applies(array $setup,array $product):bool{
-    if(($setup['scope_type']??'')==='default')return true;if(($setup['scope_type']??'')==='category')return strcasecmp(trim((string)$setup['scope_label']),trim((string)$product['product_category']))===0;
-    $ref=(string)($setup['scope_reference']??'');return($ref!==''&&($ref===(string)$product['id']||$ref===(string)($product['woo_product_id']??'')))||strcasecmp(trim((string)$setup['scope_label']),trim((string)$product['product_name']))===0;
+    if(($setup['scope_type']??'')==='default')return true;
+    if(($setup['scope_type']??'')==='category'){
+        $label=trim(html_entity_decode((string)($setup['scope_label']??''),ENT_QUOTES|ENT_HTML5,'UTF-8'));
+        $categories=explode(',',html_entity_decode((string)($product['product_category']??''),ENT_QUOTES|ENT_HTML5,'UTF-8'));
+        foreach($categories as $category)if($label!==''&&strcasecmp($label,trim($category))===0)return true;
+        return false;
+    }
+    $ref=(string)($setup['scope_reference']??'');$name=trim((string)($product['product_name']??''));return((int)$ref>0&&($ref===(string)($product['id']??0)||$ref===(string)($product['woo_product_id']??'')))||($name!==''&&strcasecmp(trim((string)($setup['scope_label']??'')),$name)===0);
 }
 function rp_match_size(array $site,array $sizes,array $product):?array{
     if(in_array((string)$product['costing_basis'],['count','ready_made'],true))return['id'=>0,'label'=>'1 unit','measurement_type'=>'count','base_value'=>1,'base_unit'=>(string)$product['base_unit']];

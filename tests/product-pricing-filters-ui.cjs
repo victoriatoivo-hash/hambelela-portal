@@ -9,10 +9,11 @@ w.MutationObserver=class extends NativeObserver{constructor(callback){super(call
 Object.defineProperty(w.HTMLSelectElement.prototype,'selectedOptions',{get(){return [...this.options].filter(o=>o.selected)}});
 w.crypto.randomUUID=()=>crypto.randomUUID();w.HTMLElement.prototype.scrollIntoView=()=>{};w.addEventListener('error',e=>errors.push(e.error||e.message));
 const categories=['Carrier Oils','Accessories, Carrier Oils','Clays &amp; Charcoals'];
+let ruleFixtures=[];
 const rows=Array.from({length:700},(_,i)=>({client_key:'catalog-'+i,product_id:0,manual_name:'Fixture '+String(i).padStart(3,'0'),manual_code:'FIX'+i,manual_category:categories[i%3],product_name:'Fixture '+String(i).padStart(3,'0'),short_code:'FIX'+i,category:categories[i%3],size_conversion_id:1,size_label:'50g',basis:'weight',selling_price_inc_vat:10,vat_treatment:'standard',vat_rate:15,website_key:(1000+i)+':0',completion_status:'Incomplete',packaging_mode:'setup',issues:[]}));
 rows.reverse(); // Deliberately unsorted server input must still render alphabetically.
 w.fetch=async(url,opt={})=>{const action=new URL(url,w.location.href).searchParams.get('action'),body=opt.body?JSON.parse(opt.body):null;calls.push({action,body});let value;
- if(action==='bootstrap')value={rows:structuredClone(rows),sheet_entries:[...entries.values()],products:[],sizes:[{id:1,label:'50g',measurement_type:'weight'}],setups:[],materials:Array.from({length:20},(_,i)=>({id:i+1,item_name:'Material '+i,cost_ex_vat:2,supplier_name:'Fixture',supplier_sku:'P'+i})),settings:{retail_vat_rate:15},summary:{rows:700,coverage:{}}};
+ if(action==='bootstrap')value={rows:structuredClone(rows),sheet_entries:[...entries.values()],products:[],sizes:[{id:1,label:'50g',measurement_type:'weight'},{id:3,label:'50ml',measurement_type:'volume'}],setups:ruleFixtures,materials:Array.from({length:20},(_,i)=>({id:i+1,item_name:'Material '+i,cost_ex_vat:2,supplier_name:'Fixture',supplier_sku:'P'+i})),settings:{retail_vat_rate:15},summary:{rows:700,coverage:{}}};
  else if(action==='preview')value={ok:true,row:{...body,packaging_cost_ex_vat:body.packaging_mode==='material'?2:null}};
  else if(action==='autosave'){if(fail)value={ok:false,message:'Simulated offline'};else{const prior=entries.get(body.row_key),row={...rows.find(r=>r.manual_code===body.body.manual_code),...body.body,category:body.body.manual_category};value={ok:true,row_key:body.row_key,revision:(prior?.revision||0)+1,body:body.body,row,state:'draft'};entries.set(body.row_key,value)}}
  else throw Error('Unexpected API '+action);
@@ -54,7 +55,15 @@ async function selectCategory(label){categoryTrigger().click();await flush();con
  trigger.click();await flush();search=one('[data-cost-select-search]',popup);fill(search,'P7');fill(one('[data-field]',tr),'45');await flush();assert.equal(search.value,'P7');assert.equal(one('[data-pack-cell]',tr).querySelectorAll('.portal-custom-select').length,1);
  d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await wait(750);await flush();
  one('[data-rp-refresh]').click();await flush();tr=visible()[0];assert.equal(one('[data-packaging]',tr).value,'material-8','Packaging restored from saved sheet data');assert.match(one('[data-pack-cell] .portal-custom-select-trigger',tr).textContent,/Material 7/);
+ // Server-resolved defaults must be visible even when the saved body retains automatic ID 0.
+ const beforeRules=calls.filter(c=>c.action==='autosave').length;
+ ruleFixtures=[{id:31,size_conversion_id:3,scope_type:'category',scope_label:'Carrier Oils',scope_reference:'Carrier Oils',setup_name:'50ml Amber default',cost_ex_vat:5.89,complete:true}];
+ for(const [i,category] of [[3,'Carrier Oils, Cold-Pressed Oils'],[4,'Essential Oils']]){const row=rows.find(r=>r.manual_code==='FIX'+i);Object.assign(row,{manual_category:category,category,manual_basis:'volume',size_conversion_id:3,size_label:'50ml',packaging_setup_id:i===3?31:0,packaging_cost_ex_vat:i===3?5.89:null});row.sheet_body={...row,packaging_setup_id:0};}
+ fill(one('[name="q"]'),'Fixture 003');await wait(300);one('[data-rp-refresh]').click();await flush();tr=visible()[0];assert.equal(one('[data-packaging]',tr).value,'setup-31');assert.match(one('[data-pack-cell] .portal-custom-select-trigger',tr).textContent,/50ml Amber default/);assert.match(one('[data-pack-summary]',tr).textContent,/5.89/);
+ fill(one('[name="q"]'),'Fixture 004');await wait(300);await flush();tr=visible()[0];assert.equal(one('[data-packaging]',tr).value,'setup');assert.ok(![...one('[data-packaging]',tr).options].some(o=>o.value==='setup-31'),'Category-specific options are not cached across unrelated manual products');
+ fill(one('[name="q"]'),'Fixture 000');await wait(300);await flush();assert.equal(one('[data-packaging]',visible()[0]).value,'material-8','Existing selection stays unchanged');assert.equal(calls.filter(c=>c.action==='autosave').length,beforeRules,'Loading automatic defaults does not rewrite saved pricing');
  assert.ok(calls.every(c=>['bootstrap','preview','autosave'].includes(c.action)),'No website price writes');assert.deepEqual(errors,[]);testObservers.forEach(o=>o.disconnect());w.close();
+ console.log('Automatic packaging: resolved dropdown label, multi-category match, unrelated category isolation, preserved saved choice, no load-time writes PASS');
  console.log('Packaging search: name/supplier/SKU, filtered keyboard navigation, cancel, row-only autosave, stable open search and reload PASS');
  console.log('700-row pricing catalogue: bounded DOM, searchable category dropdown, multi-category matching, reset, all pages, preserved edits/offline retries PASS');
 })().catch(e=>{console.error(e);process.exit(1)});
