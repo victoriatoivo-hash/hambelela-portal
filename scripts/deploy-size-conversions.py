@@ -7,7 +7,7 @@ NEW_FILES = []
 FILES = ['assets/js/portal.js','assets/css/cost-workbook-retail-pricing.css']
 DEPENDENCIES = ['shared/cost-workbook-retail-pricing.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
-DEPENDENCY_BASELINES = {}
+DEPENDENCY_BASELINES = {'assets/js/portal.js':'2c758a0cb67a8c3bd2e4621ee9cbacaed5960f1b'}
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):
