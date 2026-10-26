@@ -76,6 +76,8 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $total=$complete?$known:null;$priceEx=$selling===null||!in_array($treatment,['standard','zero','exempt'],true)?null:$selling/(1+$vat/100);
     $profit=$priceEx!==null&&$known>0?$priceEx-$known:($complete&&$known===0.0&&$priceEx!==null?$priceEx:null);
     $margin=$profit!==null&&$priceEx>0?$profit/$priceEx*100:null;$markup=$profit!==null&&$known>0?$profit/$known*100:null;
+    $removed=empty($p['id'])&&!empty($sources['unlinked'][$parent]);
+    if($removed){$profit=$margin=$markup=null;$issues[]='Supplier Cost Missing — link removed';}
     if($profit!==null&&$profit<0)$issues[]='Loss-Making';elseif($margin!==null&&$margin<(float)($settings['retail_low_margin_threshold']??20))$issues[]='Low Margin';
     $stock=$site&&!empty($site['manage_stock'])&&is_numeric($site['stock_quantity'])?(float)$site['stock_quantity']:null;
     $webPrice=$site&&is_numeric($site['active_price_inc_vat'])?(float)$site['active_price_inc_vat']:null;
@@ -84,7 +86,7 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $websiteStatus=!$site?'Not Linked':($stock===null?'Stock Unknown':($outdated?'Sync Outdated':($difference?'Price Difference':'Linked')));
     $pricingStatus=$contents===null?($size?'Costing Required':'Not Started'):($pack===null?'Packaging Required':($packMode==='manual'&&!$confirmed?'Packaging Estimate':($selling===null||$selling<=0||$priceEx===null?'Not Started':($profit<0?'Loss-Making':($margin<(float)($settings['retail_low_margin_threshold']??20)?'Low Margin':'Pricing Complete')))));
     $token=hash('sha256',json_encode([$p,$size,$setup,$material,$site,$sources['batch'],$packMode,$packMode==='manual'?$pack:null,$packMode==='setup'?true:$confirmed,$settings]));
-    $extra=['known_cost_ex_vat'=>$known,'provisional'=>!$complete,'cost_status'=>$contents===null?'Cost Not Matched':'Matched','completion_status'=>$complete&&$priceEx!==null&&$selling>0?'Complete':'Incomplete','website_link_status'=>$site?'Linked':'Not Linked'];
+    $extra=['supplier_link_removed'=>$removed,'known_cost_ex_vat'=>$known,'provisional'=>!$complete,'cost_status'=>$contents===null?'Cost Not Matched':'Matched','completion_status'=>$complete&&$priceEx!==null&&$selling>0?'Complete':'Incomplete','website_link_status'=>$site?'Linked':'Not Linked'];
     foreach(['manual_name','manual_code','manual_category','manual_basis'] as $field)$extra[$field]=$b[$field]??'';
     if(!empty($b['manual_name'])){$extra['product_name']=$b['manual_name'];$extra['short_code']=$b['manual_code']??'';$extra['category']=$b['manual_category']??'';}
     // Keep older detailed status values for historical consumers; expose the sheet's clear grouping separately.

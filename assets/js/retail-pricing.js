@@ -70,6 +70,7 @@ function calculateDraft(d){
  const known=r.known_cost_ex_vat??r.total_cost_ex_vat;r.profit_per_unit=r.selling_price_ex_vat==null||known==null||(known<=0&&r.total_cost_ex_vat==null)?null:r.selling_price_ex_vat-known;
  r.markup_percent=r.profit_per_unit!=null&&known>0?r.profit_per_unit/known*100:null;
  r.margin_percent=r.profit_per_unit!=null&&r.selling_price_ex_vat>0?r.profit_per_unit/r.selling_price_ex_vat*100:null;
+ if(r.supplier_link_removed&&!num(b.product_id))r.profit_per_unit=r.markup_percent=r.margin_percent=null;
  r.projected_profit=['standard','zero','exempt'].includes(b.vat_treatment)&&r.website_stock_quantity!=null&&r.website_price_inc_vat!=null&&r.total_cost_ex_vat!=null?r.website_stock_quantity*(r.website_price_inc_vat/(1+vat/100)-r.total_cost_ex_vat):null;
  r.website_price_differs=r.website_price_inc_vat!=null&&r.selling_price_inc_vat!=null&&Math.abs(r.website_price_inc_vat-r.selling_price_inc_vat)>.005;
  r.issues=(r.issues||[]).filter(v=>!['Confirm VAT Treatment','Selling Price Required','Low Margin','Loss-Making'].includes(v));if(!(r.selling_price_inc_vat>0))r.issues.push('Selling Price Required');if(r.profit_per_unit<0)r.issues.push('Loss-Making');else if(r.margin_percent!=null&&r.margin_percent<num(data.settings.retail_low_margin_threshold??20))r.issues.push('Low Margin');
