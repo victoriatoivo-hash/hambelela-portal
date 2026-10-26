@@ -20,7 +20,7 @@ function marketing_now(){return '2026-10-26 16:00:00';}
 function marketing_work_evidence(...$args){}
 function ops_rows($sql,$params=[]){$q=db()->prepare($sql);$q->execute($params);return $q->fetchAll();}
 function marketing_execution_item($id,$lock=false){$rows=ops_rows('SELECT * FROM marketing_work_items WHERE id=?'.($lock?' FOR UPDATE':''),[$id]);$row=$rows[0]??null;if(!$row||(!marketing_is_owner()&&(int)$row['assigned_employee_id']!==marketing_employee_id()))throw new RuntimeException('Forbidden');return $row;}
-function load_functions($file,$names){$source=file_get_contents($file);foreach($names as $name){$start=strpos($source,'function '.$name.'(');if($start===false)throw new RuntimeException('Missing '.$name);$end=strpos($source,"\nfunction ",$start+1);$code=substr($source,$start,$end===false?null:$end-$start);eval(str_replace('__DIR__',var_export(BASE_PATH.'/shared',true),$code));}}
+function load_functions($file,$names){$source=file_get_contents($file);foreach($names as $name){$start=strpos($source,'function '.$name.'(');if($start===false)throw new RuntimeException('Missing '.$name);$end=strpos($source,"\nfunction ",$start+1);$code=substr($source,$start,$end===false?strlen($source)-$start:$end-$start);eval(str_replace('__DIR__',var_export(BASE_PATH.'/shared',true),$code));}}
 function ok($condition,$message){if(!$condition)throw new RuntimeException($message);echo "PASS $message\n";}
 function rejected($fn,$message){try{$fn();}catch(Throwable $e){ok(true,$message);return;}throw new RuntimeException('Unexpected success: '.$message);}
 function notice_id($note){return(int)ops_rows('SELECT id FROM notifications WHERE deduplication_key=?',['marketing-note:'.$note])[0]['id'];}
@@ -42,7 +42,7 @@ try{
  $note=marketing_note_send(10,'[Assistance request] Please check this draft',str_repeat('a',32));$id=notice_id($note);
  ok(marketing_note_send(10,'[Assistance request] Please check this draft',str_repeat('a',32))===0,'Repeated submit creates no duplicate note');
  ok(count(ops_rows('SELECT * FROM notifications'))===1,'Repeated submit creates no duplicate notification');
- ok(array_column(ops_rows('SELECT employee_id FROM notification_recipients'),'employee_id')===[99],'Assistance goes only to active Owner');
+ ok(array_map('intval',array_column(ops_rows('SELECT employee_id FROM notification_recipients'),'employee_id'))===[99],'Assistance goes only to active Owner');
  $actor=99;$popups=notifications_marketing_popups();ok(count($popups)===1&&$popups[0]['note_body']==='[Assistance request] Please check this draft'&&$popups[0]['note_actor_name']==='Synthetic Employee','Owner receives actual assistance body and sender');
  ok(notifications_claim_task_delivery($id)&&!notifications_claim_task_delivery($id),'Delivery claim prevents concurrent-tab duplicate popup');
  ok(notifications_marketing_seen($id)&&notifications_marketing_seen($id),'Got It/dismiss persists and retries idempotently');
