@@ -44,6 +44,7 @@ function rps_save(PDO $pdo,array $input,array $settings):array {
         if((int)($input['revision']??0)!==(int)($existing['revision']??0))throw new DomainException('This row changed in another tab. Your edits are retained; reload the latest saved row before retrying.');
         if($existing&&!$existing['active'])throw new DomainException('This draft was removed in another tab.');
         $prior=$existing?json_decode($existing['payload_json'],true):[];
+        if(!empty($body['id'])){$q=$pdo->prepare('SELECT active FROM cw_retail_prices WHERE id=?');$q->execute([(int)$body['id']]);if(!$q->fetchColumn())throw new DomainException('This pricing link was corrected elsewhere. Reload the sheet; your unsaved edits are retained.');}
         if(!empty($body['website_key'])&&empty($input['archive'])){
             $q=$pdo->prepare("SELECT row_key FROM cw_retail_sheet_drafts WHERE owner_id=? AND active=1 AND row_key<>? AND JSON_UNQUOTE(JSON_EXTRACT(payload_json,'$.website_key'))=? LIMIT 1");
             $q->execute([$owner,$key,$body['website_key']]);if($q->fetchColumn())throw new DomainException('This website variation already has a workbook row. Open that row instead; your edits have been retained.');
@@ -53,6 +54,8 @@ function rps_save(PDO $pdo,array $input,array $settings):array {
         if(!empty($prior['id'])&&((int)($body['id']??0)!==(int)$prior['id']||(int)($body['product_id']??0)!==(int)$prior['product_id']||(string)($body['size_conversion_id']??'')!==(string)$prior['size_conversion_id']))throw new DomainException('Saved product and size identity cannot be reassigned. Add another size instead.');
         if(!empty($input['archive'])&&!empty($body['id']))throw new DomainException('A saved pricing record cannot be removed as a draft.');
         $sources=rpm_sources($pdo);
+        $parent=(int)explode(':',(string)($body['website_key']??''))[0];$source=rpm_find($sources['products'],'id',$body['product_id']??0);
+        if($source&&!empty($sources['unlinked'][$parent])&&(int)($source['woo_product_id']??0)!==$parent)throw new DomainException('The supplier link was removed. Reload and confirm the correct link before saving.');
         $currentWebsite=false;foreach($sources['website'] as $site)if($site['product_id'].':'.$site['variation_id']===($body['website_key']??''))$currentWebsite=true;
         if($currentWebsite&&empty($input['archive']))foreach($sources['products'] as $linked){if(!empty($linked['woo_product_id']) && (int)$linked['woo_product_id']===(int)explode(':',$body['website_key'])[0] && empty($linked['woo_variation_id']) && (int)($body['product_id']??0)!==(int)$linked['id'])throw new DomainException('This website product now has a shared supplier-cost link. Reload the sheet before saving; your edits are retained.');}
         $row=rps_row($body,$sources,$settings);$state='draft';$note='Draft saved. Complete product, size, costs and selling price to include it in pricing reports. VAT is automatic at 15%.';

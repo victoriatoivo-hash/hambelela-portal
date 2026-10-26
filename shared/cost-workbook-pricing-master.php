@@ -14,7 +14,15 @@ function rpm_sources(PDO $pdo):array {
     $materials=[];foreach($pdo->query('SELECT i.*,t.name packaging_type FROM cw_packaging_items i JOIN cw_packaging_types t ON t.id=i.packaging_type_id WHERE i.active=1 ORDER BY i.item_name')->fetchAll() as $item){$cost=cw_packaging_cost($pdo,(int)$item['id'],$today);$materials[]=array_merge($item,['cost_id'=>$cost['id']??null,'cost_ex_vat'=>$cost['landed_ex']??null,'cost_inc_vat'=>$cost['landed_inc']??null,'effective_date'=>$cost['effective_date']??null]);}
     $setups=cw_packaging_current_setups($pdo,$today);$batch=rp_latest_snapshot_id($pdo);$website=[];$lastSync=null;
     if($batch){$q=$pdo->prepare("SELECT * FROM cw_product_snapshots WHERE sync_batch_id=? AND (variation_id>0 OR product_type<>'variable') ORDER BY product_name,variation_id");$q->execute([$batch]);$website=$q->fetchAll();$q=$pdo->prepare('SELECT completed_at FROM cw_sync_batches WHERE id=?');$q->execute([$batch]);$lastSync=$q->fetchColumn();}
-    return compact('products','sizes','setups','materials','website','batch','lastSync');
+    // Explicit removals outrank SKU suggestions. Keep confirmed working values available
+    // to every owner without rewriting the historical financial versions.
+    $unlinked=[];$retained=[];
+    foreach($pdo->query("SELECT after_json FROM cw_cost_audit_events WHERE entity_type='cost_product' AND action_key='website_cost_unlinked' ORDER BY id")->fetchAll() as $event){
+        $a=json_decode($event['after_json'],true)?:[];$parent=(int)($a['website_product_id']??0);
+        if($parent){$unlinked[$parent]=true;foreach(($a['retained_bodies']??[]) as $key=>$body)$retained[$key]=$body;}
+    }
+    foreach($website as &$site){$key=$site['product_id'].':'.$site['variation_id'];if(isset($retained[$key]))$site['retained_body']=$retained[$key];}unset($site);
+    return compact('products','sizes','setups','materials','website','batch','lastSync','unlinked');
 }
 function rpm_find(array $rows,string $key,$value):?array{foreach($rows as $row)if((string)($row[$key]??'')===(string)$value)return $row;return null;}
 function rpm_sizes(array $sources,array $product):array {
@@ -34,6 +42,8 @@ function rpm_site_size(array $site,array $sizes):?int {
 function rpm_preview(array $sources,array $settings,array $b):array {
     $b=rpm_apply_vat($b);
     $p=rpm_find($sources['products'],'id',$b['product_id']??0);
+    $parent=(int)explode(':',(string)($b['website_key']??''))[0];
+    if($p&&!empty($sources['unlinked'][$parent])&&(int)($p['woo_product_id']??0)!==$parent)throw new DomainException('This supplier link was removed. Select and confirm the correct supplier link before using its cost.');
     if(!$p){
         if(!empty($b['product_id']))throw new DomainException('This supplier product is no longer available. Choose a current cost source.');
         $p=['id'=>0,'product_name'=>trim((string)($b['manual_name']??'')),'short_code'=>trim((string)($b['manual_code']??'')),'product_category'=>trim((string)($b['manual_category']??'')),'costing_basis'=>$b['manual_basis']??'weight','base_unit'=>'','landed_cost_id'=>null,'landed_status'=>'unmatched','landed_cost_per_base'=>null,'supplier_name'=>'','cost_date'=>null,'supplier_cost_per_base'=>null,'transport_cost_per_base'=>null];
@@ -94,7 +104,7 @@ function rpm_rows(PDO $pdo,array $s,array $settings):array {
     foreach($s['products']as $p){$proposals=[];foreach($s['website']as $site){if(function_exists('rpd_match')&&(($candidate=rpd_match($site,$s))!==null)&&(int)$candidate['id']===(int)$p['id']){$size=rpm_site_size($site,$s['sizes']);if($size!==null&&!isset($covered[$p['id'].':'.$size]))$proposals[$size]=['size_conversion_id'=>$size,'website_key'=>isset($proposals[$size])?'':$site['product_id'].':'.$site['variation_id']];}}
         $has=false;foreach($covered as $key=>$v)if(strpos($key,$p['id'].':')===0)$has=true;
         if(!$has&&!$proposals)$proposals[]=['size_conversion_id'=>null,'website_key'=>''];
-        foreach($proposals as $b){$b['product_id']=$p['id'];if(!empty($b['website_key']))foreach($s['website'] as $web)if($web['product_id'].':'.$web['variation_id']===$b['website_key']){$b=array_merge($b,cwp_vat($web,$settings));$b['website_confirmed']=true;break;}$row=rpm_preview($s,$settings,$b);$row['id']=0;$row['version']=0;$row['saved']=false;$row['effective_date']=rpm_today();$row['cost_changed']=false;$rows[]=$row;}
+        foreach($proposals as $b){$b['product_id']=$p['id'];if(!empty($b['website_key']))foreach($s['website'] as $web)if($web['product_id'].':'.$web['variation_id']===$b['website_key']){$b=array_merge($web['retained_body']??[],$b,cwp_vat($web,$settings));$b['website_confirmed']=true;break;}$row=rpm_preview($s,$settings,$b);$row['id']=0;$row['version']=0;$row['saved']=false;$row['effective_date']=rpm_today();$row['cost_changed']=false;if(isset($web['retained_body'])&&!empty($b['website_key']))$row['sheet_body']=$b;$rows[]=$row;}
     }
     $counts=[];foreach($rows as $r)if($r['website_key'])$counts[$r['website_key']]=($counts[$r['website_key']]??0)+1;
     foreach($rows as &$r){if($r['website_key']&&$counts[$r['website_key']]>1){$r['website_status']='Conflicting Website Match';$r['stock_cost']=$r['retail_value']=$r['projected_profit']=null;}}unset($r);return $rows;
@@ -126,8 +136,12 @@ function rpm_save(PDO $pdo,array $b,array $settings):array {
         if($r['selling_price_inc_vat']===null||$r['selling_price_inc_vat']<=0)throw new DomainException('Enter a valid selling price.');
         if(!in_array($r['vat_treatment'],['standard','zero','exempt'],true))throw new DomainException('Confirm the applicable VAT treatment.');
         $wp=0;$wv=0;if($r['website_key']){if(empty($b['website_confirmed']))throw new DomainException('Confirm the exact website variation and size.');[$wp,$wv]=array_map('intval',explode(':',$r['website_key']));$q=$pdo->prepare('SELECT id FROM cw_retail_prices WHERE woo_product_id=? AND COALESCE(woo_variation_id,0)=? AND active=1 AND id<>?');$q->execute([$wp,$wv,$id]);if($q->fetchColumn())throw new DomainException('This website variation is already assigned to another pricing record.');}
-        $u=rp_user();$version=$current?(int)$current['current_version']+1:1;$setupId=(int)$r['packaging_setup_id'];
-        if($current){$pdo->prepare('UPDATE cw_retail_prices SET packaging_setup_id=?,woo_product_id=?,woo_variation_id=?,current_version=?,effective_date=?,updated_by=?,updated_by_name=? WHERE id=?')->execute([$setupId,$wp?:null,$wv?:null,$version,$date,$u['id'],$u['name'],$id]);}
+        $u=rp_user();$setupId=(int)$r['packaging_setup_id'];
+        // Re-use an audited removed identity instead of violating its original unique
+        // product/size/setup key. Append a new version; never rewrite prior versions.
+        if(!$current){$q=$pdo->prepare("SELECT r.* FROM cw_retail_prices r WHERE r.product_id=? AND r.size_conversion_id=? AND r.packaging_setup_id=? AND r.active=0 AND EXISTS(SELECT 1 FROM cw_retail_price_audit a WHERE a.retail_price_id=r.id AND a.action_key='supplier_link_removed') FOR UPDATE");$q->execute([$pid,$sizeId,$setupId]);$archived=$q->fetch();if($archived){$current=$archived;$id=(int)$archived['id'];}}
+        $version=$current?(int)$current['current_version']+1:1;
+        if($current){$pdo->prepare('UPDATE cw_retail_prices SET active=1,packaging_setup_id=?,woo_product_id=?,woo_variation_id=?,current_version=?,effective_date=?,updated_by=?,updated_by_name=? WHERE id=?')->execute([$setupId,$wp?:null,$wv?:null,$version,$date,$u['id'],$u['name'],$id]);}
         else{$pdo->prepare('INSERT INTO cw_retail_prices(product_id,size_conversion_id,packaging_setup_id,woo_product_id,woo_variation_id,current_version,effective_date,created_by,created_by_name,updated_by,updated_by_name) VALUES(?,?,?,?,?,?,?,?,?,?,?)')->execute([$pid,$sizeId,$setupId,$wp?:null,$wv?:null,$version,$date,$u['id'],$u['name'],$u['id'],$u['name']]);$id=(int)$pdo->lastInsertId();}
         $p=rpm_find($s['products'],'id',$pid);$setup=rpm_find($s['setups'],'id',$setupId);$source=['product'=>$p,'size'=>rpm_find($s['sizes'],'id',$sizeId),'packaging'=>$setup,'packaging_material_id'=>$r['packaging_material_id'],'packaging_material'=>rpm_find($s['materials']??[],'id',$r['packaging_material_id']),'packaging_mode'=>$r['packaging_mode'],'packaging_manual_cost'=>$r['packaging_manual_cost'],'packaging_confirmed'=>$r['packaging_confirmed'],'pricing_status'=>$r['pricing_status'],'website_key'=>$r['website_key'],'website_sync_at'=>$r['website_sync_at'],'vat_treatment'=>$r['vat_treatment']];
         $pdo->prepare('INSERT INTO cw_retail_price_versions(retail_price_id,version_no,landed_cost_id,landed_cost_per_base,conversion_base_value,packaging_cost_ex_vat,packaging_cost_inc_vat,total_cost_ex_vat,total_cost_inc_vat,vat_rate,selling_price_inc_vat,selling_price_ex_vat,profit_per_unit,markup_percent,margin_percent,website_price_inc_vat,website_stock_quantity,effective_date,source_json,created_by,created_by_name) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$id,$version,$r['landed_cost_id'],$r['landed_cost_per_base'],$r['conversion_base_value'],$r['packaging_cost_ex_vat'],$r['packaging_cost_inc_vat'],$r['total_cost_ex_vat'],$r['product_cost_per_unit']*(1+$r['vat_rate']/100)+$r['packaging_cost_inc_vat'],$r['vat_rate'],$r['selling_price_inc_vat'],$r['selling_price_ex_vat'],$r['profit_per_unit'],$r['markup_percent']??0,$r['margin_percent']??0,$r['website_price_inc_vat'],$r['website_stock_quantity'],$date,json_encode($source),$u['id'],$u['name']]);

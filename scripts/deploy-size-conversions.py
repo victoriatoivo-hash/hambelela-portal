@@ -2,12 +2,12 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '06fffab1'
+BASELINE = '4019b884'
 NEW_FILES = []
-FILES = ['shared/cost-workbook-categories.php','assets/js/supplier-invoices-v2.js','shared/cost-workbook-supplier-invoices.php','shared/cost-workbook-supplier-sheet.php','apps/cost-manager/supplier-invoices-api.php']
-DEPENDENCIES = ['shared/cost-workbook.php','assets/css/cost-workbook-supplier-invoices.css']
+FILES = ['shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-discovery.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-cost-linking.php','apps/cost-manager/retail-pricing-api.php','assets/js/retail-pricing.js','assets/css/cost-workbook-retail-pricing.css']
+DEPENDENCIES = ['shared/cost-workbook.php','shared/cost-workbook-retail-pricing.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
-DEPENDENCY_BASELINES = {'assets/css/cost-workbook-supplier-invoices.css':'5606141c7e8550452922eac347141a84dfa39cb0'}
+DEPENDENCY_BASELINES = {}
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):

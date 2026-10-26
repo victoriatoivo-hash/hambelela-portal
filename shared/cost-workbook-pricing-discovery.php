@@ -5,6 +5,7 @@ declare(strict_types=1);
 function rpd_match(array $site,array $sources):?array {
     $explicit=[];foreach($sources['products'] as $p)if(!empty($p['woo_product_id'])&&(int)$p['woo_product_id']===(int)$site['product_id']&&(empty($p['woo_variation_id'])||(int)$p['woo_variation_id']===(int)$site['variation_id']))$explicit[]=$p;
     if($explicit)return count($explicit)===1?$explicit[0]:null;
+    if(!empty($sources['unlinked'][(int)$site['product_id']]))return null;
     $matches=[];$sku=trim((string)($site['sku']??''));
     foreach($sources['products'] as $p){
         $exactVariation=!empty($p['woo_variation_id'])&&(int)$p['woo_variation_id']===(int)$site['variation_id']&&(int)($p['woo_product_id']??0)===(int)$site['product_id'];
@@ -26,7 +27,7 @@ function rpd_website_rows(array $rows,array $sources,array $settings):array {
         $b=['website_origin'=>true,'product_id'=>$p['id']??0,'size_conversion_id'=>$sid,'website_key'=>$key,'website_confirmed'=>true,'selling_price_inc_vat'=>$site['active_price_inc_vat']??'',
             'manual_name'=>$p?'':$site['product_name'],'manual_code'=>$p?'':($site['sku']??''),'manual_category'=>$p?'':($site['category']??''),'manual_basis'=>$size['measurement_type']??'count',
             'effective_date'=>rpm_today(),'vat_treatment'=>''];
-        $b=array_merge($b,cwp_vat($site,$settings));$r=rpm_preview($sources,$settings,$b);$r['client_key']='website-'.$site['product_id'].'-'.$site['variation_id'];$r['sheet_key']=$r['client_key'];
+        $b=array_merge($b,$site['retained_body']??[],['product_id'=>$p['id']??0,'website_key'=>$key,'website_origin'=>true],cwp_vat($site,$settings));$r=rpm_preview($sources,$settings,$b);$r['client_key']='website-'.$site['product_id'].'-'.$site['variation_id'];$r['sheet_key']=$r['client_key'];
         $r['id']=0;$r['version']=0;$r['saved']=false;$r['sheet_body']=$b;$r['effective_date']=rpm_today();
         if(!$size&&$sid!==0)$r['size_label']=trim((string)($site['variation_name']??''))?:'Select Size';
         $rows[]=$r;$covered[$key]=true;

@@ -48,4 +48,25 @@ $pdo->exec("UPDATE cw_retail_sheet_drafts SET active=0 WHERE owner_id=94 AND row
 $other=ins($pdo,'cw_cost_products',['product_name'=>'Conflicting supplier fixture','normalized_name'=>'othermatching','short_code'=>'MATCH02','costing_basis'=>'weight','base_unit'=>'kg','woo_product_id'=>$parent]);blocked(fn()=>rpl_preview($pdo,$input,$settings),'Conflicting parent association accepted');$pdo->prepare('UPDATE cw_cost_products SET active=0 WHERE id=?')->execute([$other]);
 $nonempty=$placeholder;$nonempty['row_key']='matching-entered-internal';$nonempty['mutation_id']=bin2hex(random_bytes(16));$nonempty['body']['selling_price_inc_vat']=99;rps_save($pdo,$nonempty,$settings);blocked(fn()=>rpl_preview($pdo,$input,$settings),'Entered standalone draft silently discarded');
 check($siteBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'No WooCommerce prices or stock writes');
+
+// Undo is previewed, race guarded, audited, and never deletes historical prices.
+$versionsBeforeUndo=$pdo->query('SELECT * FROM cw_retail_price_versions ORDER BY id')->fetchAll();
+$undo=rpl_unlink_preview($pdo,$input,$settings);near($undo['rows'][0]['working_price'],160,'Removal preview retains confirmed working price');
+blocked(fn()=>rpl_unlink($pdo,$input+['confirmed'=>true,'token'=>'stale','reason'=>'Wrong grade'],$settings),'Stale removal accepted');
+blocked(fn()=>rpl_unlink($pdo,$input+['confirmed'=>true,'token'=>$undo['token'],'reason'=>''],$settings),'Removal without reason accepted');
+rpl_unlink($pdo,$input+['confirmed'=>true,'token'=>$undo['token'],'reason'=>'Wrong product/grade fixture'],$settings);
+blocked(fn()=>rpl_unlink($pdo,$input+['confirmed'=>true,'token'=>$undo['token'],'reason'=>'Retry'],$settings),'Repeated removal accepted');
+check($versionsBeforeUndo===$pdo->query('SELECT * FROM cw_retail_price_versions ORDER BY id')->fetchAll(),'Historical versions unchanged by removal');
+check($sourcesBefore===$pdo->query('SELECT * FROM cw_cost_product_sources ORDER BY id')->fetchAll(),'Invoice and cost sources unchanged by removal');
+$catalog=rpm_sources($pdo);$rows=rpd_merge(rpd_website_rows(rpm_rows($pdo,$catalog,$settings),$catalog,$settings),rps_list($pdo,$catalog,$settings));
+$unlinked=array_values(array_filter($rows,fn($r)=>($r['website_key']??'')===$parent.':250'));check(count($unlinked)===1,'One website row after removal');near($unlinked[0]['selling_price_inc_vat'],160,'Saved price retained after refresh without an active owner draft');check(empty($unlinked[0]['product_id'])&&$unlinked[0]['product_cost_per_unit']===null&&$unlinked[0]['profit_per_unit']===null,'Wrong costs and margins cleared');
+$skuSite=$catalog['website'][0];$skuSite['sku']='MATCH01';check(rpd_match($skuSite,$catalog)===null,'SKU cannot resurrect explicitly removed link');
+$staleSaved=$save;$staleSaved['row_key']='stale-unlink-newkey';$staleSaved['revision']=0;$staleSaved['mutation_id']=bin2hex(random_bytes(16));$staleSaved['body']=$priced['body'];blocked(fn()=>rps_save($pdo,$staleSaved,$settings),'Stale saved row resurrected archived pricing');
+$staleSaved['body']['id']=0;blocked(fn()=>rps_save($pdo,$staleSaved,$settings),'Stale unsaved tab restored removed supplier');
+$pdo->exec("UPDATE cw_retail_sheet_drafts SET active=0 WHERE row_key='matching-entered-internal'");
+$relink=rpl_preview($pdo,$input,$settings);near($relink['rows'][0]['working_price'],160,'Relinking preview retains internal price');rpl_save($pdo,$input+['token'=>$relink['token'],'confirmed'=>true],$settings);
+$catalog=rpm_sources($pdo);$rows=rpd_website_rows(rpm_rows($pdo,$catalog,$settings),$catalog,$settings);$relinked=array_values(array_filter($rows,fn($r)=>($r['website_key']??'')===$parent.':250'));near($relinked[0]['selling_price_inc_vat'],160,'Working price retained after re-link');near($relinked[0]['product_cost_per_unit'],50,'Costs recalculated after new explicit confirmation');
+check($siteBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'Undo and relink never write website prices or stock');
+$body=$relinked[0]['sheet_body'];$body['source_token']=$relinked[0]['source_token'];$body['effective_date']=rpm_today();$resaved=rps_save($pdo,['row_key'=>'relinked-confirmed-price','revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>$body],$settings);check($resaved['state']==='priced','Reconfirmed identity can save despite historical unique key');check((int)$resaved['body']['id']===(int)$priced['body']['id'],'Original financial identity reused with a new version');
+$pdo->prepare('UPDATE cw_product_snapshots SET product_name=? WHERE product_id=?')->execute(['Beeswax Fragrance',$parent]);$warning=rpl_preview($pdo,$input,$settings);check(strpos($warning['warning'],'mismatch')!==false,'Fragrance grade mismatch warned');
 echo "Supplier matching: preview, sizes, costs, drafts, history, duplicate/stale protection, website-origin autosave and no website writes PASS\n";
