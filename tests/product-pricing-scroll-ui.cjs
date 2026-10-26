@@ -4,8 +4,9 @@ const css=fs.readFileSync('assets/css/portal-sticky-scrollbar.css','utf8')+'\n'+
 const dom=new JSDOM('<style>'+css+'</style><main id="costWorkbook" data-page="product-pricing">'+html+'</main>',{runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window,d=w.document,source=d.querySelector('.retail-pricing__table-wrap');
 assert.ok(source.hasAttribute('data-portal-horizontal-scroll-source'),'Pricing registers with existing portal scrollbar');
-let top=320,bottom=3600,width=1000,viewport=800,scrollWidth=2960;
+let top=320,bottom=3600,width=1000,viewport=800,viewportWidth=1200,scrollWidth=2960;
 Object.defineProperty(w,'innerHeight',{get:()=>viewport});
+Object.defineProperty(w,'innerWidth',{get:()=>viewportWidth});
 Object.defineProperties(source,{clientWidth:{get:()=>width},scrollWidth:{get:()=>scrollWidth}});
 source.getBoundingClientRect=()=>({left:120,right:120+width,top,bottom,width,height:bottom-top});
 d.querySelector('main').getBoundingClientRect=()=>({left:100});
@@ -13,9 +14,9 @@ const portal=fs.readFileSync('assets/js/portal.js','utf8');
 // Accept CRLF checkouts too, but exercise the production controller unchanged.
 const normalized=portal.replace(/\r\n/g,'\n');
 const scrollbarCode=text=>text.replace(/\r\n/g,'\n').slice(text.replace(/\r\n/g,'\n').indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar'));
-const liveApproved=execFileSync('git',['show','2c758a0cb67a8c3bd2e4621ee9cbacaed5960f1b:assets/js/portal.js'],{encoding:'utf8'});
-assert.equal(scrollbarCode(normalized),scrollbarCode(liveApproved),'Shared scrollbar matches verified live Git revision; unrelated notifications remain untouched');
-w.eval(scrollbarCode(liveApproved));
+const liveApproved=execFileSync('git',['show','2c703857:assets/js/portal.js'],{encoding:'utf8'});
+assert.equal(normalized.slice(0,normalized.indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')),liveApproved.replace(/\r\n/g,'\n').slice(0,liveApproved.replace(/\r\n/g,'\n').indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')),'Unrelated notification code remains untouched');
+w.eval(scrollbarCode(normalized));
 const mirror=d.querySelector('[data-portal-horizontal-scroll-mirror]');
 Object.defineProperties(mirror,{clientWidth:{get:()=>width+20},scrollWidth:{get:()=>parseFloat(mirror.firstElementChild.style.width)||0}});
 const frame=()=>new Promise(r=>w.requestAnimationFrame(()=>w.requestAnimationFrame(r)));
@@ -25,6 +26,13 @@ const frame=()=>new Promise(r=>w.requestAnimationFrame(()=>w.requestAnimationFra
  mirror.scrollLeft=1940;mirror.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(source.scrollLeft,1960,'Bottom rail reaches final column');
  top=-1000;bottom=2200;w.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(mirror.hidden,false,'Remains at bottom midway down long product list');
  width=360;viewport=600;w.dispatchEvent(new w.Event('resize'));await frame();assert.equal(mirror.hidden,false);assert.equal(mirror.firstElementChild.style.width,'2960px');assert.ok(Math.abs(mirror.scrollLeft/(2960-380)-source.scrollLeft/(2960-360))<.001,'Narrow screen maintains scroll position');
+ viewportWidth=390;w.dispatchEvent(new w.Event('resize'));await frame();assert.equal(mirror.hidden,true,'Phone uses native table scrolling like Supplier Invoices');
+ source.scrollLeft=900;source.dispatchEvent(new w.Event('scroll'));await frame();
+ source.scrollLeft=120;source.dispatchEvent(new w.Event('scroll'));await frame();
+ mirror.scrollLeft=1800;mirror.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(source.scrollLeft,120,'Delayed mirror momentum cannot pull a left swipe back to the right');
+ w.dispatchEvent(new w.Event('scroll'));w.dispatchEvent(new w.Event('resize'));await frame();assert.equal(source.scrollLeft,120,'Viewport updates preserve the phone scroll position');
+ source.scrollLeft=0;source.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(source.scrollLeft,0,'Product names remain reachable');
+ viewportWidth=1200;w.dispatchEvent(new w.Event('resize'));await frame();assert.equal(mirror.hidden,false,'Desktop bottom rail returns after orientation/viewport change');
  d.body.classList.add('retail-pricing-panel-open');await frame();assert.equal(w.getComputedStyle(mirror).display,'none','Never covers drawer footer');d.body.classList.remove('retail-pricing-panel-open');await frame();assert.notEqual(w.getComputedStyle(mirror).display,'none');
  bottom=-10;top=-100;w.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(mirror.hidden,true,'Hidden when table leaves viewport');
  top=300;bottom=400;w.dispatchEvent(new w.Event('scroll'));await frame();assert.equal(mirror.hidden,false,'Short filtered table keeps bottom control');

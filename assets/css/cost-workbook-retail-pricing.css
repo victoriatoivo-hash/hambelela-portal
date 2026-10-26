@@ -280,6 +280,19 @@ body:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollba
 body:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb { background: #87947A; border-color: #F8F7F2; }
 body:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb:hover { background: #59694A; }
 body.retail-pricing-panel-open:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar { display: none; }
+@media (max-width:760px) {
+  /* One native touch scroller, matching Supplier Invoices; no mirror feedback. */
+  body:has([data-rp-root][data-mode="pricing"]) .portal-sticky-horizontal-scrollbar { display:none; }
+  #costWorkbook[data-page="product-pricing"] .retail-pricing__table-wrap {
+    scrollbar-width:thin!important;
+    -ms-overflow-style:auto;
+    overscroll-behavior-x:contain;
+  }
+  #costWorkbook[data-page="product-pricing"] .retail-pricing__table-wrap::-webkit-scrollbar {
+    display:block!important;
+    height:8px!important;
+  }
+}
 #costWorkbook[data-page="product-pricing"] { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
 
 /* MASTER TABLE */

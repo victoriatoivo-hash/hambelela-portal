@@ -1224,6 +1224,10 @@ document.addEventListener('click', (event) => {
   };
 
   const hasOverflow = (source) => source.scrollWidth > source.clientWidth + 1;
+  // Pricing uses native touch scrolling on phones, like Supplier Invoices.
+  // A second momentum scroller can echo delayed scroll events back to the table.
+  const usesNativeMobileScroll = (source) => source?.matches('.retail-pricing__table-wrap')
+    && window.innerWidth <= 760;
   const maximumScroll = (element) => Math.max(0, element.scrollWidth - element.clientWidth);
   const scrollRatio = (element) => {
     const maximum = maximumScroll(element);
@@ -1249,6 +1253,7 @@ document.addEventListener('click', (event) => {
   const chooseSource = () => {
     const eligible = sources.filter((source) => (
       isRendered(source)
+      && !usesNativeMobileScroll(source)
       && hasOverflow(source)
       && (visibleSources.has(source) || intersectsViewport(source))
     ));
@@ -1326,6 +1331,7 @@ document.addEventListener('click', (event) => {
     source.addEventListener('pointerdown', () => activate(source), { passive: true });
     source.addEventListener('focusin', () => activate(source));
     source.addEventListener('scroll', () => {
+      if (usesNativeMobileScroll(source)) { requestUpdate(); return; }
       activeSource = source;
       if (!syncing) {
         syncing = true;
@@ -1355,7 +1361,7 @@ document.addEventListener('click', (event) => {
   };
 
   mirror.addEventListener('scroll', () => {
-    if (!activeSource || syncing) return;
+    if (!activeSource || syncing || usesNativeMobileScroll(activeSource)) return;
     syncing = true;
     syncSourceFromMirror(activeSource);
     requestAnimationFrame(() => { syncing = false; });
