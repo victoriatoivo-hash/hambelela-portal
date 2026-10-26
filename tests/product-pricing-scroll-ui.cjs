@@ -14,7 +14,8 @@ const portal=fs.readFileSync('assets/js/portal.js','utf8');
 // Accept CRLF checkouts too, but exercise the production controller unchanged.
 const normalized=portal.replace(/\r\n/g,'\n');
 const scrollbarCode=text=>text.replace(/\r\n/g,'\n').slice(text.replace(/\r\n/g,'\n').indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar'));
-const liveApproved=execFileSync('git',['show','2c758a0cb67a8c3bd2e4621ee9cbacaed5960f1b:assets/js/portal.js'],{encoding:'utf8'});
+// Marketing conversation popups are separately covered by their database and DOM suites.
+const liveApproved=execFileSync('git',['show','bf24e681:assets/js/portal.js'],{encoding:'utf8'});
 assert.equal(normalized.slice(0,normalized.indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')),liveApproved.replace(/\r\n/g,'\n').slice(0,liveApproved.replace(/\r\n/g,'\n').indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')),'Unrelated notification code remains untouched');
 w.eval(scrollbarCode(normalized));
 const mirror=d.querySelector('[data-portal-horizontal-scroll-mirror]');
