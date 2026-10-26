@@ -22,6 +22,32 @@ function hrEnsureLeaveCancellationSchema(PDO $db): void {
     }
 }
 
+// Permanent record removal is separate from cancellation and keeps its audit evidence.
+function hrDeleteCancelledLeave(PDO $db, array $user, int $id): void {
+    if (!hrCanCancelApprovedLeave($user)) throw new DomainException('Only the portal Owner may delete cancelled leave.');
+    if ($id < 1 || hrLeaveRecoveryLocked($db)) throw new DomainException('Leave deletion is unavailable.');
+    $db->beginTransaction();
+    try {
+        $q = $db->prepare('SELECT * FROM leave_requests WHERE id=? FOR UPDATE');
+        $q->execute([$id]); $request = $q->fetch(PDO::FETCH_ASSOC);
+        if (!$request || $request['status'] !== 'cancelled') throw new DomainException('Only an existing cancelled request can be permanently deleted.');
+        $runs = $db->prepare('SELECT id FROM payroll_runs WHERE period_year*100+period_month BETWEEN ? AND ? FOR UPDATE');
+        $runs->execute([(int)date('Ym',strtotime($request['start_date'])),(int)date('Ym',strtotime($request['end_date']))]);
+        if ($runs->fetchColumn()) throw new DomainException('Payroll exists for this period. Review payroll before deleting; nothing was changed.');
+        $db->prepare("INSERT INTO audit_log(user_id,action,description,ip_address) VALUES (?,'cancelled_leave_deleted',?,?)")
+            ->execute([(int)$user['id'],json_encode(['reason'=>'Owner confirmed permanent removal of cancelled leave.','request'=>$request,'portal_actor_id'=>(int)$user['portal_user_id']],JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR),(string)($_SERVER['REMOTE_ADDR']??'')]);
+        $delete = $db->prepare("DELETE FROM leave_requests WHERE id=? AND status='cancelled'");
+        $delete->execute([$id]);
+        if ($delete->rowCount() !== 1) throw new DomainException('The request changed. Refresh and review it again.');
+        // Cancelled records already have no effect on balances. Keep all prior audits,
+        // notification history and files; never touch replacement requests or payroll.
+        $db->commit();
+    } catch (Throwable $e) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $e;
+    }
+}
+
 function hrCancelApprovedLeave(PDO $db, array $user, int $id, string $reason): array {
     if (!hrCanCancelApprovedLeave($user)) throw new DomainException('Only the signed-in portal Owner can cancel approved leave.');
     $reason = trim($reason);

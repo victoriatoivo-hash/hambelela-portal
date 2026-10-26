@@ -23,6 +23,21 @@ hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : nul
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
+    if ($action === 'delete_cancelled_leave') {
+        if (!$canCancelLeave || !hash_equals($leaveCsrfToken,(string)($_POST['csrf_token']??'')) || ($_POST['confirmed']??'') !== 'yes') {
+            http_response_code(403); exit('Deletion requires the signed-in Owner and explicit confirmation.');
+        }
+        try {
+            hrDeleteCancelledLeave($db,$user,(int)($_POST['delete_id']??0));
+            header('Location: leave.php?msg=cancelled_leave_deleted'); exit;
+        } catch (DomainException $e) {
+            header('Location: leave.php?msg=cancelled_delete_blocked&error='.rawurlencode($e->getMessage())); exit;
+        } catch (Throwable $e) {
+            error_log('Cancelled leave deletion: '.$e->getMessage());
+            header('Location: leave.php?msg=leave_delete_failed'); exit;
+        }
+    }
+
     if ($action === 'cancel_approved_leave') {
         if (!hash_equals($leaveCsrfToken, (string)($_POST['csrf_token'] ?? ''))) jsonResponse(['success'=>false,'message'=>'Session expired. Refresh before cancelling.'],403);
         if (!$canCancelLeave) jsonResponse(['success'=>false,'message'=>'Only the portal Owner may cancel approved leave.'],403);
@@ -384,6 +399,8 @@ $msg = $_GET['msg'] ?? '';
   <div class="content">
     <?php if ($msg === 'approved'): ?><div class="toast"><i class="fa-solid fa-check"></i> Leave request approved.</div>
     <?php elseif ($msg === 'leave_deleted'): ?><div class="toast no-print"><i class="fa-solid fa-trash"></i> Non-approved leave request deleted.</div>
+    <?php elseif ($msg === 'cancelled_leave_deleted'): ?><div class="toast no-print">Cancelled leave record permanently deleted. Audit history retained.</div>
+    <?php elseif ($msg === 'cancelled_delete_blocked'): ?><div class="toast no-print error"><?=htmlspecialchars((string)($_GET['error']??'Deletion unavailable.'),ENT_QUOTES,'UTF-8')?></div>
     <?php elseif ($msg === 'approved_delete_blocked'): ?><div class="toast no-print error"><i class="fa-solid fa-lock"></i> Approved leave is protected and cannot be deleted. Use an audited reversal workflow.</div>
     <?php elseif ($msg === 'recovery_locked'): ?><div class="toast no-print error"><i class="fa-solid fa-lock"></i> This leave-balance action is temporarily unavailable while the HR records are being verified.</div>
     <?php elseif ($msg === 'already_reviewed'): ?><div class="toast no-print error"><i class="fa-solid fa-circle-info"></i> This leave request has already been reviewed. No balance was changed.</div>
@@ -581,6 +598,14 @@ $msg = $_GET['msg'] ?? '';
           <td style="white-space:nowrap">
             <?php if($r['status']==='approved' && $canCancelLeave && $cancelLeaveReady): ?>
             <button type="button" class="btn btn-secondary btn-sm" data-cancel-approved-leave="<?=(int)$r['id']?>" data-summary="<?=htmlspecialchars($r['emp_name'].' · '.$r['leave_type'].' · '.$r['start_date'].' to '.$r['end_date'].' · '.$r['days'].' day(s)',ENT_QUOTES,'UTF-8')?>">Cancel Approved Leave</button>
+            <?php elseif($r['status']==='cancelled' && $canCancelLeave): ?>
+            <form method="POST" style="display:inline" onsubmit="return confirm('Permanently delete this cancelled leave record? This cannot be undone. The audit history will remain.');">
+              <input type="hidden" name="action" value="delete_cancelled_leave">
+              <input type="hidden" name="delete_id" value="<?=(int)$r['id']?>">
+              <input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken,ENT_QUOTES,'UTF-8')?>">
+              <input type="hidden" name="confirmed" value="yes">
+              <button type="submit" class="btn btn-danger btn-sm">Delete Cancelled Record</button>
+            </form>
             <?php elseif($r['status']==='cancelled'): ?><span>Cancellation recorded · history protected</span>
             <?php elseif($r['status']!=='approved'): ?>
             <form method="POST" style="display:inline" onsubmit="return confirm('Delete this <?=strtolower($r['status'])?> leave request? This cannot be undone.')">

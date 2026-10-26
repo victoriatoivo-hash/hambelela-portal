@@ -37,7 +37,22 @@ denied(function()use($db,$owner){hrCancelApprovedLeave($db,$owner,4,'pending');}
 check((int)$db->query('SELECT COUNT(*) FROM notifications')->fetchColumn()===3,'One employee notification per cancellation');
 check((int)$db->query('SELECT COUNT(*) FROM audit_log')->fetchColumn()===3,'One audit per cancellation');
 $q->execute([8,'Unpaid Leave','2026-12-01','2026-12-01','approved','2026-10-01 09:00:00','keep.pdf']);
+denied(function()use($db,$owner){hrDeleteCancelledLeave($db,array_merge($owner,['portal_role_key'=>'front']),1);},'non-owner deletion');
+denied(function()use($db,$owner){hrDeleteCancelledLeave($db,$owner,4);},'pending deletion');
+denied(function()use($db,$owner){hrDeleteCancelledLeave($db,$owner,8);},'approved deletion');
+$db->exec("INSERT INTO payroll_runs VALUES(1,2026,10,'draft')");
+denied(function()use($db,$owner){hrDeleteCancelledLeave($db,$owner,1);},'payroll deletion guard');
+$db->exec('DELETE FROM payroll_runs');
+foreach([1,2] as $id) hrDeleteCancelledLeave($db,$owner,$id);
+check((int)$db->query('SELECT COUNT(*) FROM leave_requests WHERE id IN (1,2)')->fetchColumn()===0,'Selected cancelled records removed');
+check((int)$db->query("SELECT COUNT(*) FROM leave_requests WHERE status='pending'")->fetchColumn()===4,'Deletion preserves all replacements');
+check((float)$db->query("SELECT used_days FROM leave_balances WHERE leave_type='Annual Leave'")->fetchColumn()===10.0,'Deletion preserves annual balance');
+check((int)$db->query("SELECT COUNT(*) FROM audit_log WHERE action='leave_cancelled'")->fetchColumn()===3,'Cancellation audits retained');
+check((int)$db->query("SELECT COUNT(*) FROM audit_log WHERE action='cancelled_leave_deleted'")->fetchColumn()===2,'Deletion snapshots recorded');
+denied(function()use($db,$owner){hrDeleteCancelledLeave($db,$owner,1);},'repeat deletion');
 $db->exec('DROP TEMPORARY TABLE audit_log');
+try{hrDeleteCancelledLeave($db,$owner,3);throw new RuntimeException('Expected delete audit failure');}catch(PDOException $e){}
+check($db->query('SELECT status FROM leave_requests WHERE id=3')->fetchColumn()==='cancelled','Deletion rolls back if audit fails');
 try{hrCancelApprovedLeave($db,$owner,8,'Audit failure test');throw new RuntimeException('Expected database failure');}catch(PDOException $e){}
 check($db->query('SELECT status FROM leave_requests WHERE id=8')->fetchColumn()==='approved','Failure rolls back approval');
 check((int)$db->query('SELECT COUNT(*) FROM notifications')->fetchColumn()===3,'Failure cannot notify');
