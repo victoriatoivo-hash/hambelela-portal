@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '09627c1f'
+BASELINE = 'c71f661e'
 NEW_FILES = []
-FILES = ['apps/hr-portal/leave.php','apps/hr-portal/includes/leave-cancellation.php']
-DEPENDENCIES = ['apps/hr-portal/includes/leave-balance-service.php']
+FILES = ['shared/cost-workbook-cost-linking.php']
+DEPENDENCIES = ['shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-pricing-discovery.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
 DEPENDENCY_BASELINES = {}
 def git(*args): return subprocess.check_output(['git', *args])

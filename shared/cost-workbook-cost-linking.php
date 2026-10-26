@@ -6,6 +6,18 @@ function rpl_parent(array $body): int {return (int)explode(':',(string)($body['w
 function rpl_placeholder(array $body): bool {
     return empty($body['id']) && empty($body['website_key']) && empty($body['manual_name']) && empty($body['packaging_confirmed']) && ($body['size_conversion_id']??'')==='' && ($body['selling_price_inc_vat']??'')==='' && empty($body['packaging_material_id']) && empty($body['packaging_setup_id']) && ($body['packaging_manual_cost']??'')==='';
 }
+/** Keep standalone sizes intact; only overlapping or unresolved sizes need reconciliation. */
+function rpl_check_internal_size($sizeId,array $sites,array $sources,array $product): void {
+    $sizes=rpm_sizes($sources,$product);$internal=rpm_find($sizes,'id',(int)$sizeId);
+    if(!$internal)throw new DomainException('An internal pricing row needs its size confirmed before linking. Its saved values have not been changed.');
+    foreach($sites as $site){
+        $websiteSize=rpm_site_size($site,$sizes);
+        if($websiteSize===null)throw new DomainException('A website variation has an unresolved size. Confirm its size before linking so an internal row cannot be duplicated.');
+        $matched=rpm_find($sizes,'id',$websiteSize);
+        if($matched && abs((float)$matched['base_value']-(float)$internal['base_value'])<0.000000001)
+            throw new DomainException('An internal pricing row already exists for website size '.$internal['label'].'. Use Link Website Variation on that existing row first. Its price and packaging will be preserved; no duplicate will be created.');
+    }
+}
 function rpl_preview(PDO $pdo,array $input,array $settings): array {
     $pid=(int)($input['product_id']??0);$parent=(int)($input['website_product_id']??0);$s=rpm_sources($pdo);$p=rpm_find($s['products'],'id',$pid);
     if(!$p||!$p['landed_cost_id'])throw new DomainException('Choose a supplier product with an approved cost source.');
@@ -18,15 +30,18 @@ function rpl_preview(PDO $pdo,array $input,array $settings): array {
         if((int)$price['woo_product_id']===$parent && (int)$price['product_id']!==$pid)throw new DomainException('A website size already has saved pricing for another cost product. Its history is protected; reconcile that link first.');
         if((int)$price['product_id']===$pid || (int)$price['woo_product_id']===$parent)$relevantPrices[]=$price;
         if((int)$price['product_id']===$pid && !empty($price['woo_product_id']) && (int)$price['woo_product_id']!==$parent)throw new DomainException('This supplier product already has saved sizes linked to another website product. Review those links first.');
-        if((int)$price['product_id']===$pid && empty($price['woo_product_id']))throw new DomainException('This supplier product has an existing saved internal size. Use Link Website Variation on that existing row first, then preview the whole-product link. No duplicate will be created.');
+        if((int)$price['product_id']===$pid && empty($price['woo_product_id']))rpl_check_internal_size($price['size_conversion_id']??null,$sites,$s,$p);
     }
-    $drafts=[];
+    $drafts=[];$preservedDrafts=[];
     foreach($pdo->query('SELECT * FROM cw_retail_sheet_drafts WHERE active=1 ORDER BY id')->fetchAll() as $draft){
         $b=json_decode($draft['payload_json'],true)?:[];
         if((int)($b['product_id']??0)===$pid && !empty($b['website_key']) && rpl_parent($b)!==$parent)throw new DomainException('An existing supplier row is linked to another website product. Its values and history must be reviewed first.');
         if(rpl_parent($b)!==$parent && !((int)($b['product_id']??0)===$pid && empty($b['website_key'])))continue;
         if(rpl_parent($b)===$parent && !empty($b['product_id']) && (int)$b['product_id']!==$pid)throw new DomainException('A website row is already linked to another supplier product. Review it before applying a shared match.');
-        if(empty($b['website_key'])&&!rpl_placeholder($b))throw new DomainException('This product has an internal pricing row with entered values. Link that existing row to its website size first; its values will not be discarded.');
+        if(empty($b['website_key'])&&!rpl_placeholder($b)){
+            rpl_check_internal_size($b['size_conversion_id']??null,$sites,$s,$p);
+            $preservedDrafts[]=$draft;continue; // Never archive or rewrite an entered standalone row.
+        }
         $drafts[]=$draft;
     }
     $rows=[];$savedRows=rpm_rows($pdo,$s,$settings);unset($s['unlinked'][$parent]); // Explicit preview only; save still requires its token and confirmation.
@@ -40,7 +55,7 @@ function rpl_preview(PDO $pdo,array $input,array $settings): array {
         $row=rps_row($body,$s,$settings);
         $rows[]=['website_key'=>$key,'name'=>$site['product_name'],'variation'=>$site['variation_name'],'size'=>$row['size_label']??'Size Required','contents_cost'=>$row['product_cost_per_unit']??null,'working_price'=>$body['selling_price_inc_vat']??null,'packaging_missing'=>($row['packaging_cost_ex_vat']??null)===null,'issues'=>$row['issues']??[]];
     }
-    $token=hash('sha256',json_encode([$p,$sites,$s['sizes'],$s['setups'],$s['materials'],$relevantPrices,$drafts,$savedRows,$settings]));
+    $token=hash('sha256',json_encode([$p,$sites,$s['sizes'],$s['setups'],$s['materials'],$relevantPrices,$drafts,$preservedDrafts,$savedRows,$settings]));
     $websiteText=$sites[0]['product_name'].' '.($sites[0]['category']??'');$supplierText=$p['product_name'].' '.($p['product_category']??'');
     $warning=(bool)preg_match('/fragrance|parfum|perfume/i',$websiteText)!==(bool)preg_match('/fragrance|parfum|perfume/i',$supplierText)?'Possible product-type mismatch: fragrance and essential oil are not interchangeable. Check the product and grade carefully.':'';
     return ['ok'=>true,'product_id'=>$pid,'website_product_id'=>$parent,'supplier_product'=>$p['product_name'],'short_code'=>$p['short_code'],'supplier'=>$p['supplier_name'],'website_product'=>$sites[0]['product_name'],'cost_per_base'=>$p['landed_cost_per_base'],'base_unit'=>$p['base_unit'],'rows'=>$rows,'token'=>$token,'drafts'=>$drafts,'warning'=>$warning];

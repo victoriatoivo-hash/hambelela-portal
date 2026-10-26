@@ -82,4 +82,37 @@ ins($pdo,'cw_retail_sheet_drafts',['owner_id'=>95,'row_key'=>'other-owner-volume
 $vu=['product_id'=>$vpid,'website_product_id'=>777002];$vp=rpl_unlink_preview($pdo,$vu,$settings);rpl_unlink($pdo,$vu+['token'=>$vp['token'],'confirmed'=>true,'reason'=>'Volume fixture correction'],$settings);
 $s=rpm_sources($pdo);$entries=rps_list($pdo,$s,$settings);$vrow=array_values(array_filter($entries,fn($e)=>$e['row_key']==='volume-undo-draft'))[0]['row'];check(strpos($vrow['size_label'],'50')!==false,'Volume size not lost on removal');near($vrow['packaging_cost_ex_vat'],5.89,'Packaging kept when volume source removed');check($vrow['profit_per_unit']===null,'No profit computed from packaging alone');
 $otherBody=json_decode($pdo->query("SELECT payload_json FROM cw_retail_sheet_drafts WHERE owner_id=95 AND row_key='other-owner-volume'")->fetchColumn(),true);near($otherBody['selling_price_inc_vat'],125,'Other owner working price retained');check(empty($otherBody['product_id'])&&$otherBody['manual_basis']==='volume','Other owner wrong source detached');
-echo "Supplier matching: preview, sizes, costs, drafts, history, duplicate/stale protection, website-origin autosave and no website writes PASS\n";
+// Regression: an internal 500ml price must coexist with website-only 50ml/100ml sizes.
+$fpid=ins($pdo,'cw_cost_products',['product_name'=>'Lemongrass fragrance fixture','normalized_name'=>'fragranceseparatesizes','short_code'=>'LFTEST','costing_basis'=>'volume','base_unit'=>'L']);
+$fsrc=ins($pdo,'cw_cost_product_sources',['product_id'=>$fpid,'source_type'=>'manual','cost_date'=>'2026-10-01','total_purchased_quantity'=>1,'total_supplier_cost'=>461.8]);
+ins($pdo,'cw_landed_product_costs',['product_id'=>$fpid,'product_source_id'=>$fsrc,'costing_basis'=>'volume','base_unit'=>'L','base_quantity'=>1,'supplier_cost_used'=>461.8,'supplier_cost_per_base'=>461.8,'landed_cost_per_base'=>461.8,'cost_date'=>'2026-10-01','status_key'=>'complete','calculation_hash'=>hash('sha256','distinct internal size fixture')]);
+$fids=[];foreach([50,100,500] as $ml){$q=$pdo->prepare("SELECT id FROM cw_size_conversions WHERE active=1 AND measurement_type='volume' AND base_value=? LIMIT 1");$q->execute([$ml/1000]);$fids[$ml]=(int)$q->fetchColumn();check($fids[$ml]>0,'Volume fixture available');}
+foreach([50=>110,100=>210] as $ml=>$price){
+    ins($pdo,'cw_product_snapshots',['product_id'=>777003,'variation_id'=>$ml,'product_name'=>'Lemongrass Fragrance fixture','variation_name'=>$ml.'ml','product_type'=>'variation','sync_batch_id'=>$batch,'active_price_inc_vat'=>$price]);
+    rps_save($pdo,['row_key'=>'fragrance-web-'.$ml,'revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>['website_origin'=>true,'manual_name'=>'Lemongrass Fragrance fixture','manual_basis'=>'volume','product_id'=>0,'size_conversion_id'=>$fids[$ml],'website_key'=>'777003:'.$ml,'website_confirmed'=>true,'selling_price_inc_vat'=>$price,'packaging_mode'=>'manual','packaging_manual_cost'=>$ml===50?5.89:4.76,'packaging_confirmed'=>true,'effective_date'=>rpm_today()]],$settings);
+}
+$fb=['product_id'=>$fpid,'size_conversion_id'=>$fids[500],'website_key'=>'','selling_price_inc_vat'=>650,'packaging_mode'=>'manual','packaging_manual_cost'=>8.19,'packaging_confirmed'=>true,'effective_date'=>rpm_today()];
+$fb['source_token']=rpm_preview(rpm_sources($pdo),$settings,$fb)['source_token'];
+$fr=rps_save($pdo,['row_key'=>'fragrance-internal-500','revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>$fb],$settings);check($fr['state']==='priced','Internal 500ml is a saved financial row');
+$fi=['product_id'=>$fpid,'website_product_id'=>777003];$fp=rpl_preview($pdo,$fi,$settings);check(count($fp['rows'])===2,'Only website sizes previewed');near($fp['rows'][0]['contents_cost'],23.09,'50ml scaled contents');near($fp['rows'][1]['contents_cost'],46.18,'100ml scaled contents');
+$priceBefore=$pdo->query('SELECT * FROM cw_retail_prices WHERE id='.(int)$fr['body']['id'])->fetch();
+$draftBefore=$pdo->query("SELECT * FROM cw_retail_sheet_drafts WHERE row_key='fragrance-internal-500'")->fetch();
+$allVersionsBefore=$pdo->query('SELECT * FROM cw_retail_price_versions ORDER BY id')->fetchAll();$allSitesBefore=$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll();
+// An overlapping draft still blocks, and changes to preserved drafts invalidate previews.
+$overlap=ins($pdo,'cw_retail_sheet_drafts',['owner_id'=>95,'row_key'=>'fragrance-overlap','payload_json'=>json_encode(array_merge($fb,['size_conversion_id'=>$fids[50]])),'history_json'=>'[]']);
+blocked(fn()=>rpl_preview($pdo,$fi,$settings),'Overlapping internal size accepted');$pdo->exec('UPDATE cw_retail_sheet_drafts SET active=0 WHERE id='.$overlap);
+$pdo->exec("UPDATE cw_retail_sheet_drafts SET revision=revision+1 WHERE row_key='fragrance-internal-500'");
+blocked(fn()=>rpl_save($pdo,$fi+['token'=>$fp['token'],'confirmed'=>true],$settings),'Preserved internal draft change did not invalidate preview');
+$draftBefore=$pdo->query("SELECT * FROM cw_retail_sheet_drafts WHERE row_key='fragrance-internal-500'")->fetch();$fp=rpl_preview($pdo,$fi,$settings);
+rpl_save($pdo,$fi+['token'=>$fp['token'],'confirmed'=>true],$settings);
+check($priceBefore===$pdo->query('SELECT * FROM cw_retail_prices WHERE id='.(int)$fr['body']['id'])->fetch(),'Internal saved price unchanged byte-for-byte');
+check($draftBefore===$pdo->query("SELECT * FROM cw_retail_sheet_drafts WHERE row_key='fragrance-internal-500'")->fetch(),'Internal draft unchanged byte-for-byte');
+check($allVersionsBefore===$pdo->query('SELECT * FROM cw_retail_price_versions ORDER BY id')->fetchAll(),'All financial versions unchanged by matching');
+check($allSitesBefore===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'All website data unchanged');
+$fc=rpm_sources($pdo);$frows=rpd_merge(rpd_website_rows(rpm_rows($pdo,$fc,$settings),$fc,$settings),rps_list($pdo,$fc,$settings));$frows=array_values(array_filter($frows,fn($r)=>(int)($r['product_id']??0)===$fpid));check(count($frows)===3,'Exactly three distinct sizes after reload');
+$internal=array_values(array_filter($frows,fn($r)=>empty($r['website_key'])));check(count($internal)===1,'500ml remains standalone');near($internal[0]['selling_price_inc_vat'],650,'500ml working price retained');near($internal[0]['packaging_cost_ex_vat'],8.19,'500ml packaging retained');near($internal[0]['product_cost_per_unit'],230.9,'500ml contents retained');
+foreach([50=>110,100=>210] as $ml=>$price){$r=array_values(array_filter($frows,fn($r)=>($r['website_key']??'')==='777003:'.$ml));check(count($r)===1,'One row per website size');near($r[0]['selling_price_inc_vat'],$price,'Website row working price retained');near($r[0]['total_cost_ex_vat'],461.8*$ml/1000+($ml===50?5.89:4.76),'Website total includes existing packaging exactly once');}
+// A real overlapping saved size also blocks, independently of sheet drafts.
+$pdo->exec('UPDATE cw_retail_prices SET size_conversion_id='.$fids[50].' WHERE id='.(int)$fr['body']['id']);blocked(fn()=>rpl_preview($pdo,$fi,$settings),'Overlapping saved internal size accepted');
+$pdo->exec('UPDATE cw_retail_prices SET size_conversion_id='.$fids[500].' WHERE id='.(int)$fr['body']['id']);
+echo "Supplier matching: separate internal sizes retained, overlapping sizes blocked, preview races, sizes, costs, drafts, history, duplicate protection and no website writes PASS\n";
