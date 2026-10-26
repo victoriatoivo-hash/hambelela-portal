@@ -82,6 +82,13 @@ const fill=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('input',{bubb
  input=await begin('product_name');input.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Tab',shiftKey:true,bubbles:true,cancelable:true}));await settle();assert.equal(one('.si-sheet-input').getAttribute('aria-label'),'invoice number');await key('Escape');
  input=await begin('quantity');input.value='125';input.blur();await new Promise(r=>setTimeout(r,10));await settle();assert.equal(Number(row.purchase_quantity),125);
  input=await begin('product_category');input.value='Other';input.dispatchEvent(new w.Event('change',{bubbles:true}));await settle();assert.equal(row.product_category,'Other');
+  n=calls.filter(c=>c.action==='inline').length;
+  input=await begin('purchase_unit');input.value='L';input.dispatchEvent(new w.Event('change',{bubbles:true}));await settle();
+  assert.equal(calls.filter(c=>c.action==='inline').length,n,'Cross-basis unit change waits for explicit confirmation');assert.match(one('.si-sheet-feedback').textContent,/does not convert kg to litres/);
+  await key('Escape');assert.equal(row.purchase_unit,'kg','Cancel preserves original purchase unit');
+  input=await begin('purchase_unit');input.value='L';input.dispatchEvent(new w.Event('change',{bubbles:true}));await settle();
+  Array.from(d.querySelectorAll('.si-sheet-feedback button')).find(b=>b.textContent==='Confirm unit correction').click();await settle();assert.equal(row.purchase_unit,'L');assert.equal(calls.filter(c=>c.action==='inline').at(-1).body.unit_correction_confirmed,true);
+  input=await begin('purchase_unit');input.value='ml';input.dispatchEvent(new w.Event('change',{bubbles:true}));await settle();assert.equal(row.purchase_unit,'ml','Same-basis change retains normal inline save');assert.equal(calls.filter(c=>c.action==='inline').at(-1).body.unit_correction_confirmed,false);
  input=await begin('supplier_name');assert(one('.si-sheet-options'));input.value='Test Supplier';await key('Enter');
  failInline=true;input=await begin('product_name');input.value='Retained draft';await key('Enter');assert.equal(one('.si-sheet-input').value,'Retained draft');assert.match(one('.si-sheet-feedback').textContent,/updated elsewhere/);assert(one('td.is-error'));failInline=false;
  const retry=Array.from(d.querySelectorAll('.si-sheet-feedback button')).find(b=>b.textContent==='Retry');retry.click();await settle();assert.equal(row.product_name,'Retained draft');

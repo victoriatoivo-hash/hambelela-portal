@@ -137,6 +137,21 @@ expect((int)$pdo->query('SELECT COUNT(*) FROM cw_cost_products')->fetchColumn()=
 $version=si_sheet_state($pdo,$product,$source)['version'];$save('invoice_number','CORRECTED');
 try{$save('product_name','Stale name',$version);throw new RuntimeException('Cross-field stale edit accepted');}catch(DomainException $expected){}
 foreach([['quantity','0'],['line_subtotal','-1'],['purchase_unit','L'],['product_category','Invalid'],['invoice_date','2026-02-31']] as $invalid){try{$save($invalid[0],$invalid[1]);throw new RuntimeException('Invalid edit accepted');}catch(DomainException $expected){}}
+// A verified unit-entry correction is distinct from a density conversion.
+$correctUnit=function($unit,$extra=[])use($pdo,$product,$source){return si_sheet_save($pdo,array_merge(['product_id'=>$product,'source_id'=>$source,'field'=>'purchase_unit','value'=>$unit,'version'=>si_sheet_state($pdo,$product,$source)['version'],'request_id'=>bin2hex(random_bytes(16)),'unit_correction_confirmed'=>true],$extra));};
+$unitBefore=si_sheet_state($pdo,$product,$source);$unitHistory=$pdo->query('SELECT * FROM cw_landed_product_costs ORDER BY id')->fetchAll();$unitFreight=$pdo->query('SELECT * FROM cw_transport_product_allocations ORDER BY id')->fetchAll();
+$unitRequest=bin2hex(random_bytes(16));$corrected=$correctUnit('L',['request_id'=>$unitRequest]);$unitAfter=si_sheet_state($pdo,$product,$source);
+expect($unitAfter['p']['costing_basis']==='volume'&&$unitAfter['p']['base_unit']==='L'&&$unitAfter['l']['purchase_unit']==='L','Confirmed kg entry error changes canonical and purchase units together');
+foreach(['quantity','pack_size','line_subtotal','line_total','shipping_weight_kg'] as $key)expect((float)$unitBefore['l'][$key]===(float)$unitAfter['l'][$key],'Unit correction preserves '.$key);
+expect((float)$unitAfter['c']['supplier_cost_per_base']===100.0&&(float)$unitAfter['c']['transport_cost_used']===(float)$unitBefore['c']['transport_cost_used'],'Correct litre rates and unchanged freight total');
+foreach($unitHistory as $snapshot)expect($snapshot===$pdo->query('SELECT * FROM cw_landed_product_costs WHERE id='.(int)$snapshot['id'])->fetch(),'Original kg history immutable');
+expect($unitFreight===$pdo->query('SELECT * FROM cw_transport_product_allocations ORDER BY id')->fetchAll(),'Unit correction does not reallocate freight');
+$unitCount=(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn();$correctUnit('L',['request_id'=>$unitRequest,'version'=>$unitBefore['version']]);expect($unitCount===(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn(),'Confirmed correction retry idempotent');
+try{$correctUnit('kg',['version'=>$unitBefore['version']]);throw new RuntimeException('Stale unit correction accepted');}catch(DomainException $expected){}
+$pdo->prepare("INSERT INTO cw_cost_product_sources(product_id,source_type,total_purchased_quantity,total_supplier_cost,currency,cost_date) VALUES(?,'manual',1,10,'NAD','2026-10-06')")->execute([$product]);$otherUnitSource=(int)$pdo->lastInsertId();
+try{$correctUnit('kg');throw new RuntimeException('Other source silently reinterpreted');}catch(DomainException $expected){expect(strpos($expected->getMessage(),'other active purchases')!==false,'Multiple-source correction requires review');}
+$pdo->prepare('DELETE FROM cw_cost_product_sources WHERE id=?')->execute([$otherUnitSource]);$correctUnit('kg');
+echo "Confirmed purchase unit correction: stable quantity/totals/weight, litre basis, history, retries, stale edits and multiple-source guard passed.\n";
 // Product-local transport: do not revise or redistribute the invoice's freight.
 $existing=$pdo->query("SELECT * FROM cw_supplier_invoice_lines WHERE id=$lineId")->fetch();
 $second=$line;unset($second['id']);$second['product_description']='Independent freight neighbour';$second['confirm_new_product']=true;
@@ -151,6 +166,10 @@ expect(count($result['rows'])===1,'Only edited product returned');
 expect((float)$result['rows'][0]['transport_cost_per_base']===34.0,'34 NAD per kg is not split');
 expect((float)$result['rows'][0]['landed_cost_per_base']===134.0,'Manual freight replaces rather than adds existing allocation');
 expect((float)$result['rows'][0]['transport_cost_used']===4250.0,'125kg purchase uses 34 per kg');
+// A cross-basis correction must preserve a manual freight total, even when base magnitude changes.
+$correctUnit('ml');$manualUnit=si_sheet_state($pdo,$product,$source);
+expect(abs((float)$manualUnit['c']['transport_cost_used']-4250)<0.000001&&abs((float)$manualUnit['s']['manual_transport_per_base']-34000)<0.000001,'Unit correction preserves manual freight total, not an incompatible old per-base rate');
+$correctUnit('kg');
 expect($neighbourBefore===si_sheet_state($pdo,(int)$neighbour['product_id'],(int)$neighbour['id']),'Neighbour source, audit and snapshot unchanged');
 $count=(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn();
 $save('transport_cost_per_base','34',$priorVersion,'individual-transport-0001');

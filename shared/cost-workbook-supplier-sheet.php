@@ -76,7 +76,20 @@ function si_sheet_save(PDO $pdo,array $b):array {
                 [$qty,$unit,$error]=si_base($pdo,$next['quantity'],$next['pack_size'],$next['purchase_unit']);
                 if($error)throw new DomainException($error);
                 $next['base_quantity']=$qty;$next['base_unit']=$unit;
-                [, $canonical]=lpc_basis($next);if($canonical!==$p['base_unit'])throw new DomainException('This changes the product costing unit. Review the purchase and product match instead.');
+                [$basis, $canonical]=lpc_basis($next);
+                if($canonical!==$p['base_unit']){
+                    if($field!=='purchase_unit'||!in_array($canonical,['kg','L'],true)||!in_array($p['base_unit'],['kg','L'],true))throw new DomainException('This changes the product costing unit. Review the purchase and product match instead.');
+                    if(($b['unit_correction_confirmed']??false)!==true)throw new DomainException('Confirm that the original purchase unit was entered incorrectly. This is a unit correction, not a kg-to-litre conversion.');
+                    // Never reinterpret other purchases belonging to this product.
+                    $other=$pdo->prepare('SELECT id FROM cw_cost_product_sources WHERE product_id=? AND id<>? AND active=1 LIMIT 1 FOR UPDATE');$other->execute([$pid,$sid]);
+                    if($other->fetchColumn())throw new DomainException('This product has other active purchases. Review their units before changing the shared costing basis; no records were changed.');
+                    $other=$pdo->prepare('SELECT id FROM cw_supplier_invoice_lines WHERE cost_product_id=? AND id<>? AND active=1 LIMIT 1 FOR UPDATE');$other->execute([$pid,$l['id']]);
+                    if($other->fetchColumn())throw new DomainException('Another invoice line uses this product. Review its unit before changing the shared costing basis; no records were changed.');
+                    // Keep the confirmed freight TOTAL and actual shipping weight, not a guessed density.
+                    if(isset($s['manual_transport_per_base']))$pdo->prepare('UPDATE cw_cost_product_sources SET manual_transport_per_base=? WHERE id=?')->execute([(float)$s['manual_transport_per_base']*(float)$c['base_quantity']/(float)$qty,$sid]);
+                    $pdo->prepare('UPDATE cw_cost_products SET costing_basis=?,base_unit=?,updated_by=?,updated_by_name=? WHERE id=?')->execute([$basis,$canonical,$u['id'],$u['name'],$pid]);
+                    cw_supplier_cost_audit($pdo,'cost_product',$pid,'purchase_unit_corrected',$p,['costing_basis'=>$basis,'base_unit'=>$canonical,'source_id'=>$sid,'reason'=>'Owner confirmed original purchase unit entry error; not a density conversion','quantity'=>$next['quantity'],'pack_size'=>$next['pack_size'],'purchase_unit'=>$value,'supplier_total'=>$next['line_subtotal'],'shipping_weight_kg'=>$next['shipping_weight_kg']??null]);
+                }
                 if($field==='line_subtotal'&&(float)$l['line_subtotal']>0)$next['vat_amount']=round((float)$value*(float)($l['vat_amount']??0)/(float)$l['line_subtotal'],2);
                 $next['line_total']=(float)$next['line_subtotal']+(float)($next['vat_amount']??0);
                 $pdo->prepare('UPDATE cw_supplier_invoice_lines SET quantity=?,purchase_unit=?,base_quantity=?,base_unit=?,line_subtotal=?,vat_amount=?,line_total=?,base_unit_cost=? WHERE id=? AND supplier_invoice_id=?')->execute([$next['quantity'],$next['purchase_unit'],$qty,$unit,$next['line_subtotal'],$next['vat_amount'],$next['line_total'],(float)$next['line_subtotal']/(float)$qty,$l['id'],$i['id']]);

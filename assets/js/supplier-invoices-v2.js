@@ -196,6 +196,7 @@ function freezeColumns(){
 }
 function sheetNotice(editor,message){
  editor.panel.querySelectorAll('button').forEach(b=>b.hidden=false);editor.cell.classList.add('is-error');editor.message.textContent=message;editor.panel.hidden=false;
+ if(editor.confirmUnit)editor.confirmUnit.hidden=true;
 }
 function finishCell(editor){
  editor.cleanup?.();
@@ -208,10 +209,16 @@ async function commitCell(editor){
  if(value===String(editor.initial??'')||(['quantity','line_subtotal'].includes(editor.key)&&value!==''&&Number(value)===Number(editor.initial))){finishCell(editor);return true;}
  if(!editor.input.checkValidity()){sheetNotice(editor,editor.input.validationMessage||'Enter a valid value.');editor.input.focus({preventScroll:true});return false;}
  if(editor.lastValue!==value){editor.requestId=crypto.randomUUID();editor.lastValue=value;}
+ const unitBasis=unit=>['kg','g'].includes(unit)?'kg':['L','ml'].includes(unit)?'L':unit;
+ const correctBasis=editor.key==='purchase_unit'&&unitBasis(value)!==unitBasis(editor.initial);
+ if(correctBasis&&editor.confirmedUnit!==value){
+  sheetNotice(editor,'Correct '+editor.row.product_name+' from '+editor.initial+' to '+value+'? Only confirm if the original purchase unit was entered incorrectly. Quantity, invoice total and shipping weight stay unchanged. This does not convert kg to litres. Existing pricing sizes may need review.');
+  editor.confirmUnit.hidden=false;return false;
+ }
  editor.cell.classList.add('is-saving');editor.cell.classList.remove('is-error');editor.panel.hidden=true;editor.input.disabled=true;
  editor.promise=(async()=>{
   try{
-   const data=await request('inline',{product_id:editor.row.product_id,source_id:editor.row.product_source_id,field:editor.key,value,version:editor.row.version,request_id:editor.requestId});
+   const data=await request('inline',{product_id:editor.row.product_id,source_id:editor.row.product_source_id,field:editor.key,value,version:editor.row.version,request_id:editor.requestId,unit_correction_confirmed:correctBasis&&editor.confirmedUnit===value});
    finishCell(editor);patchRows(data.rows);editor.cell.classList.add('is-saved');setTimeout(()=>editor.cell.classList.remove('is-saved'),2000);return true;
   }catch(e){editor.input.disabled=false;editor.cell.classList.remove('is-saving');sheetNotice(editor,e.message);return false;}
   finally{editor.promise=null;}
@@ -245,13 +252,16 @@ async function inline(button){
  [retry,cancel,reload].forEach(b=>{b.type='button';b.className='si-btn';panel.appendChild(b);});
  cell.append(input,panel);button.style.visibility='hidden';cell.classList.add('is-editing');
  const editor={row,key,cell,button,input,initial,panel,message,promise:null};activeCell=editor;
+ const confirmUnit=document.createElement('button');confirmUnit.type='button';confirmUnit.className='si-btn';confirmUnit.textContent='Confirm unit correction';confirmUnit.hidden=true;editor.confirmUnit=confirmUnit;
+ if(key==='purchase_unit')panel.appendChild(confirmUnit);
+ confirmUnit.onclick=()=>{editor.confirmedUnit=input.value.trim();confirmUnit.hidden=true;commitCell(editor);};
  const place=()=>{const r=cell.getBoundingClientRect();panel.style.left=Math.max(8,Math.min(r.left,window.innerWidth-310))+'px';panel.style.top=Math.min(r.bottom+4,window.innerHeight-140)+'px';};
  // The feedback/options float outside the table so neither the row nor columns resize.
  document.body.appendChild(panel);panel.dataset.supplierSheet='';place();
  window.addEventListener('resize',place);document.addEventListener('scroll',place,true);
  editor.cleanup=()=>{window.removeEventListener('resize',place);document.removeEventListener('scroll',place,true);};
  retry.onclick=()=>commitCell(editor);cancel.onclick=()=>{finishCell(editor);button.focus({preventScroll:true});};
- reload.onclick=async()=>{const draft=input.value;try{const data=await request('inline-source',undefined,'product_id='+row.product_id+'&source_id='+row.product_source_id);editor.row=data.row;editor.initial=key==='quantity'?data.row.purchase_quantity:key==='line_subtotal'?data.row.source_cost:data.row[key];message.textContent='Latest: '+editor.initial+'. Your draft: '+draft+'. Review it, then Retry or Cancel.';}catch(e){message.textContent=e.message;}};
+ reload.onclick=async()=>{const draft=input.value;try{const data=await request('inline-source',undefined,'product_id='+row.product_id+'&source_id='+row.product_source_id);editor.row=data.row;editor.confirmedUnit=null;editor.initial=key==='quantity'?data.row.purchase_quantity:key==='line_subtotal'?data.row.source_cost:data.row[key];message.textContent='Latest: '+editor.initial+'. Your draft: '+draft+'. Review it, then Retry or Cancel.';}catch(e){message.textContent=e.message;}};
  if(key==='supplier_name'){
   const list=document.createElement('div');list.className='si-sheet-options';panel.prepend(list);panel.hidden=false;retry.hidden=true;reload.hidden=true;
   const choices=()=>{list.replaceChildren();options.filter(o=>o.text.toLowerCase().includes(input.value.toLowerCase())).forEach(o=>{const choice=document.createElement('button');choice.type='button';choice.textContent=o.text;choice.onmousedown=e=>e.preventDefault();choice.onclick=()=>{input.value=o.value;commitCell(editor);};list.appendChild(choice);});};input.addEventListener('input',choices);choices();
