@@ -142,7 +142,7 @@ $correctUnit=function($unit,$extra=[])use($pdo,$product,$source){return si_sheet
 // The earlier fixture deliberately has two purchases. Verify the guard, then
 // exclude that disposable older purchase while testing a single-source correction.
 try{$correctUnit('L');throw new RuntimeException('Existing second purchase ignored');}catch(DomainException $expected){expect(strpos($expected->getMessage(),'other active purchases')!==false,'Existing multi-purchase guard');}
-$pdo->prepare('UPDATE cw_cost_product_sources SET active=0 WHERE supplier_invoice_id=?')->execute([$older]);
+$pdo->prepare('UPDATE cw_cost_product_sources SET active=0 WHERE supplier_invoice_line_id IN (SELECT id FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=?)')->execute([$older]);
 $pdo->prepare('UPDATE cw_supplier_invoice_lines SET active=0 WHERE supplier_invoice_id=?')->execute([$older]);
 $unitBefore=si_sheet_state($pdo,$product,$source);$unitHistory=$pdo->query('SELECT * FROM cw_landed_product_costs ORDER BY id')->fetchAll();$unitFreight=$pdo->query('SELECT * FROM cw_transport_product_allocations ORDER BY id')->fetchAll();
 $unitRequest=bin2hex(random_bytes(16));$corrected=$correctUnit('L',['request_id'=>$unitRequest]);$unitAfter=si_sheet_state($pdo,$product,$source);
@@ -176,7 +176,7 @@ expect($neighbourBefore===si_sheet_state($pdo,(int)$neighbour['product_id'],(int
 $correctUnit('ml');$manualUnit=si_sheet_state($pdo,$product,$source);
 expect(abs((float)$manualUnit['c']['transport_cost_used']-4250)<0.000001&&abs((float)$manualUnit['s']['manual_transport_per_base']-34000)<0.000001,'Unit correction preserves manual freight total, not an incompatible old per-base rate');
 $correctUnit('kg');
-$pdo->prepare('UPDATE cw_cost_product_sources SET active=1 WHERE supplier_invoice_id=?')->execute([$older]);
+$pdo->prepare('UPDATE cw_cost_product_sources SET active=1 WHERE supplier_invoice_line_id IN (SELECT id FROM cw_supplier_invoice_lines WHERE supplier_invoice_id=?)')->execute([$older]);
 $pdo->prepare('UPDATE cw_supplier_invoice_lines SET active=1 WHERE supplier_invoice_id=?')->execute([$older]);
 $count=(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn();
 $save('transport_cost_per_base','34',$priorVersion,'individual-transport-0001');
