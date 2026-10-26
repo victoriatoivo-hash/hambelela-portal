@@ -57,7 +57,7 @@ function rpl_unlink_preview(PDO $pdo,array $input,array $settings):array {
         $q=$pdo->prepare('SELECT * FROM cw_retail_price_versions WHERE retail_price_id=? AND version_no=?');$q->execute([$price['id'],$price['current_version']]);$v=$q->fetch();
         if(!$v)throw new DomainException('A pricing version is missing. No link will be removed.');
         $source=json_decode($v['source_json'],true)?:[];$key=$parent.':'.($price['woo_variation_id']??0);
-        $bodies[$key]=rps_body(array_merge($source,$price,['id'=>0,'version'=>0,'product_id'=>0,'website_origin'=>true,'website_key'=>$key,'selling_price_inc_vat'=>$v['selling_price_inc_vat'],'source_token'=>'']));
+        $bodies[$key]=rps_body(array_merge($source,$price,['id'=>0,'version'=>0,'product_id'=>0,'manual_basis'=>$p['costing_basis'],'website_origin'=>true,'website_key'=>$key,'selling_price_inc_vat'=>$v['selling_price_inc_vat'],'source_token'=>'']));
     }
     $drafts=[];foreach($pdo->query('SELECT * FROM cw_retail_sheet_drafts WHERE active=1 ORDER BY id')->fetchAll() as $draft){$b=json_decode($draft['payload_json'],true)?:[];if(rpl_parent($b)===$parent){if(!empty($b['product_id'])&&(int)$b['product_id']!==$pid)throw new DomainException('A draft uses another supplier identity. Resolve the conflicting draft first.');$drafts[]=$draft;}}
     $rows=[];foreach($sites as $site){$key=$parent.':'.$site['variation_id'];$body=$bodies[$key]??($site['retained_body']??[]);foreach($drafts as $draft){$b=json_decode($draft['payload_json'],true)?:[];if(($b['website_key']??'')===$key&&(int)$draft['owner_id']===rp_user()['id'])$body=$b;}$rows[]=['website_key'=>$key,'variation'=>$site['variation_name'],'working_price'=>$body['selling_price_inc_vat']??$site['active_price_inc_vat']];}
@@ -69,6 +69,7 @@ function rpl_unlink(PDO $pdo,array $input,array $settings):array {
     $reason=trim((string)($input['reason']??''));if($reason===''||strlen($reason)>1000)throw new DomainException('Enter a short reason for correcting this supplier link.');
     $pdo->beginTransaction();try{
         $pdo->query("SELECT setting_value FROM cw_settings WHERE setting_key='retail_low_margin_threshold' FOR UPDATE")->fetch();
+        $q=$pdo->prepare('SELECT id FROM cw_cost_products WHERE id=? FOR UPDATE');$q->execute([(int)($input['product_id']??0)]);
         $plan=rpl_unlink_preview($pdo,$input,$settings);
         if(!hash_equals($plan['token'],(string)($input['token']??'')))throw new DomainException('The link or pricing changed. Preview the removal again.');
         $actor=rp_user();$pid=$plan['product_id'];$parent=$plan['website_product_id'];
@@ -78,7 +79,7 @@ function rpl_unlink(PDO $pdo,array $input,array $settings):array {
             $pdo->prepare('INSERT INTO cw_retail_price_audit(retail_price_id,action_key,before_json,after_json,actor_id,actor_name) VALUES(?,?,?,?,?,?)')->execute([$price['id'],'supplier_link_removed',json_encode($price),json_encode(['reason'=>$reason,'website_product_id'=>$parent,'history_preserved'=>true]),$actor['id'],$actor['name']]);
         }
         foreach($plan['drafts'] as $draft){
-            $before=json_decode($draft['payload_json'],true)?:[];$body=array_merge($before,['product_id'=>0,'id'=>0,'version'=>0,'website_origin'=>true,'source_token'=>'']);
+            $before=json_decode($draft['payload_json'],true)?:[];$body=array_merge($before,['product_id'=>0,'id'=>0,'version'=>0,'manual_basis'=>$plan['product']['costing_basis'],'website_origin'=>true,'source_token'=>'']);
             $event=['action'=>'supplier_cost_unlinked','at'=>gmdate('c'),'actor_id'=>$actor['id'],'reason'=>$reason,'before'=>$before,'body'=>$body];
             $pdo->prepare("UPDATE cw_retail_sheet_drafts SET payload_json=?,pricing_id=NULL,state_key='draft',note_text='Supplier Cost Missing — select the correct supplier link.',revision=revision+1,mutation_id='',mutation_hash='',response_json=NULL,history_json=JSON_ARRAY_APPEND(COALESCE(history_json,'[]'),'$',JSON_EXTRACT(?,'$')) WHERE id=?")->execute([json_encode($body),json_encode($event),$draft['id']]);
         }

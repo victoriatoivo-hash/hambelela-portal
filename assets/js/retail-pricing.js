@@ -232,7 +232,7 @@ function openCostLink(row={}){
   }catch(e){error.textContent=e.message}finally{busy=false;previewButton.disabled=false;previewButton.textContent='Preview Match Across Sizes';results.removeAttribute('aria-busy')}
  };
  form.onsubmit=async e=>{
-  e.preventDefault();if(busy||!plan)return;if(!form.elements.confirmed.checked){error.textContent='Confirm that both names refer to the same product and grade.';return}if(pendingCount()){error.textContent='Finish saving pending row edits before confirming.';return}
+  e.preventDefault();if(busy||!plan)return;if(!form.elements.confirmed.checked){error.textContent=removing?'Confirm removal of this supplier link after reviewing the sizes.':'Confirm that both names refer to the same product and grade.';return}if(pendingCount()){error.textContent='Finish saving pending row edits before confirming.';return}
   if(removing&&!form.elements.unlink_reason.value.trim()){error.textContent='Enter a reason for correcting this supplier link.';form.elements.unlink_reason.focus();return}
   busy=true;apply.disabled=true;
   try{const wasRemoval=removing,parent=plan.unlinkInput?.website_product_id;const result=await request(removing?'cost-unlink-save':'cost-link-save',{method:'POST',body:{...(removing?plan.unlinkInput:selectedInput()),token:plan.token,confirmed:true,...(removing?{reason:form.elements.unlink_reason.value.trim()}:{})}});busy=false;close();drafts.forEach(d=>clearTimeout(d.timer));drafts.clear();localRows.clear();await loadPricing();toast(result.message);if(wasRemoval)openCostLink({website_key:parent+':0',product_id:0})}catch(e){error.textContent=e.message;invalidate();error.textContent=e.message}finally{busy=false;apply.disabled=!plan}
