@@ -208,7 +208,9 @@
 .ess-task-page#ess-main :is(.task-create-panel,.task-detail-panel:not(.task-edit-drawer),.task-tools-panel).open,.ess-task-popover:not(.task-edit-drawer):is(.task-create-panel,.task-detail-panel:not(.task-edit-drawer),.task-tools-panel).open{transform:translateX(0)!important;visibility:visible}
 .ess-task-page#ess-main .task-panel-backdrop,.ess-task-page#ess-main .task-tools-backdrop{position:fixed;inset:0;z-index:1090!important;background:rgba(38,49,31,.20);backdrop-filter:blur(2px)}
 .ess-task-page#ess-main :is(.create-task-header,.task-details-header,.packing-tools-panel-header),.ess-task-popover:not(.task-edit-drawer) :is(.create-task-header,.task-details-header,.packing-tools-panel-header){flex:none;min-height:84px;padding:20px 22px 16px;border:0;border-bottom:1px solid var(--border);border-radius:0;background:#fff;color:var(--text-primary);box-shadow:none}
-.ess-task-page#ess-main .create-task-header{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center}
+/* Full-screen iPhone/PWA panels extend behind the status bar. Reserve its inset
+   in the fixed header, leaving the form scroller and footer in their own rows. */
+.ess-task-page#ess-main .create-task-header{display:grid;grid-template-columns:36px minmax(0,1fr) auto;gap:10px;align-items:center;padding-top:calc(20px + env(safe-area-inset-top,0px))}
 .ess-task-page#ess-main :is(.create-task-title,.packing-tools-title),.ess-task-popover:not(.task-edit-drawer) :is(.create-task-title,.task-details-title){font-size:21px;font-weight:500;letter-spacing:-.025em;color:var(--text-primary);margin:3px 0}
 .ess-task-page#ess-main :is(.create-task-close,.task-details-close,.packing-tools-close),.ess-task-popover:not(.task-edit-drawer) :is(.create-task-close,.task-details-close,.packing-tools-close){width:36px;height:36px;padding:0;display:grid;place-items:center;background:var(--task-50);color:var(--task-800);border:0;border-radius:9px;position:static}
 .ess-task-page#ess-main .create-task-body{flex:1;min-height:0;overflow:hidden;padding:0;display:flex}

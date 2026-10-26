@@ -9,7 +9,7 @@ on:
       scope:
         type: choice
         default: marketing
-        options: [marketing, orders-mobile, task-leave]
+        options: [marketing, orders-mobile, task-leave, task-mobile]
       approved_sha:
         type: string
         required: true
@@ -74,6 +74,9 @@ jobs:
           node --check assets/js/packing-list.js
           node --check assets/js/portal-responsive.js
           node tests/mobile-interface-behavior.mjs
+      - name: Verify Task create header safe area
+        if: inputs.scope == 'task-mobile'
+        run: node tests/task-create-safe-area.mjs
       - name: Verify Task completion and HR availability
         if: inputs.scope == 'task-leave' && inputs.mode != 'export'
         env:
@@ -95,7 +98,7 @@ jobs:
         run: |
           if [ "$RELEASE_SCOPE" = "orders-mobile" ]; then
             python3 scripts/orders-mobile-release.py "$RELEASE_MODE" "$RELEASE_SHA"
-          elif [ "$RELEASE_SCOPE" = "task-leave" ]; then
+          elif [ "$RELEASE_SCOPE" = "task-leave" ] || [ "$RELEASE_SCOPE" = "task-mobile" ]; then
             python3 scripts/task-leave-release.py "$RELEASE_MODE" "$RELEASE_SHA"
           else
             python3 scripts/marketing-workflow-release.py "$RELEASE_MODE" "$RELEASE_SHA"
