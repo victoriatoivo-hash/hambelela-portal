@@ -2,8 +2,8 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'dd33a9ef'
-NEW_FILES = ['shared/cost-workbook-categories.php']
+BASELINE = '06fffab1'
+NEW_FILES = []
 FILES = ['shared/cost-workbook-categories.php','assets/js/supplier-invoices-v2.js','shared/cost-workbook-supplier-invoices.php','shared/cost-workbook-supplier-sheet.php','apps/cost-manager/supplier-invoices-api.php']
 DEPENDENCIES = ['shared/cost-workbook.php','assets/css/cost-workbook-supplier-invoices.css']
 # Preserve current live revisions matched to Git; only FILES are uploaded.

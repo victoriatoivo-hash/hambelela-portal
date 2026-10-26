@@ -12,7 +12,7 @@ function cw_supplier_category_choices(?PDO $pdo=null): array
             $query->execute([$batch]);
             // Matches the existing website category filter's snapshot format.
             foreach ($query->fetchAll(PDO::FETCH_COLUMN) as $stored) {
-                foreach (preg_split('/\s*,\s*/',(string)$stored) as $category) $values[]=trim($category);
+                foreach (preg_split('/\s*,\s*/',(string)$stored) as $category) $values[]=trim(html_entity_decode($category,ENT_QUOTES|ENT_HTML5,'UTF-8'));
             }
         }
         foreach (['SELECT DISTINCT product_category FROM cw_cost_products', 'SELECT DISTINCT product_category FROM cw_supplier_invoice_lines'] as $sql) {

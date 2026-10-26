@@ -27,13 +27,14 @@ $pdo->exec("INSERT INTO cw_sync_batches(sync_uuid,status,is_successful_snapshot,
 $categoryBatch=(int)$pdo->lastInsertId();
 $categoryInsert=$pdo->prepare("INSERT INTO cw_product_snapshots(product_id,variation_id,product_name,product_type,category,sync_batch_id) VALUES(?,0,?,'simple',?,?)");
 $categoryInsert->execute([99001,'Category fixture','Natural Clays, Essential Oils',$categoryBatch]);
-$categoryInsert->execute([99002,'Category fixture 2','Natural Clays, Botanical Extracts',$categoryBatch]);
+$categoryInsert->execute([99002,'Category fixture 2','Natural Clays, Botanical Extracts, Clays &amp; Charcoals',$categoryBatch]);
 $pdo->exec("INSERT INTO cw_sync_batches(sync_uuid,status,is_successful_snapshot,completed_at) VALUES(UUID(),'failed',0,NOW())");
 $categoryInsert->execute([99003,'Incomplete catalogue','Failed-only category',(int)$pdo->lastInsertId()]);
 $categories=cw_supplier_category_choices($pdo);
 expect(in_array('Natural Clays',$categories,true)&&in_array('Botanical Extracts',$categories,true),'Website category names merged');
 expect(in_array('Clays',$categories,true)&&in_array('Plant Butters',$categories,true),'Workbook categories retained');
 expect(count(array_keys($categories,'Natural Clays',true))===1,'Repeated website category deduplicated');
+expect(in_array('Clays & Charcoals',$categories,true)&&!in_array('Clays &amp; Charcoals',$categories,true),'Website HTML entities display as readable category names');
 expect(!in_array('Failed-only category',$categories,true),'Failed catalogue ignored');
 $pdo->rollBack();
 $pdo->exec("INSERT INTO cw_suppliers(name,normalized_name,supplier_type) VALUES('Test Supplier','testsupplier','Raw Materials')");
