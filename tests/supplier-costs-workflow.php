@@ -139,6 +139,11 @@ try{$save('product_name','Stale name',$version);throw new RuntimeException('Cros
 foreach([['quantity','0'],['line_subtotal','-1'],['purchase_unit','L'],['product_category','Invalid'],['invoice_date','2026-02-31']] as $invalid){try{$save($invalid[0],$invalid[1]);throw new RuntimeException('Invalid edit accepted');}catch(DomainException $expected){}}
 // A verified unit-entry correction is distinct from a density conversion.
 $correctUnit=function($unit,$extra=[])use($pdo,$product,$source){return si_sheet_save($pdo,array_merge(['product_id'=>$product,'source_id'=>$source,'field'=>'purchase_unit','value'=>$unit,'version'=>si_sheet_state($pdo,$product,$source)['version'],'request_id'=>bin2hex(random_bytes(16)),'unit_correction_confirmed'=>true],$extra));};
+// The earlier fixture deliberately has two purchases. Verify the guard, then
+// exclude that disposable older purchase while testing a single-source correction.
+try{$correctUnit('L');throw new RuntimeException('Existing second purchase ignored');}catch(DomainException $expected){expect(strpos($expected->getMessage(),'other active purchases')!==false,'Existing multi-purchase guard');}
+$pdo->prepare('UPDATE cw_cost_product_sources SET active=0 WHERE supplier_invoice_id=?')->execute([$older]);
+$pdo->prepare('UPDATE cw_supplier_invoice_lines SET active=0 WHERE supplier_invoice_id=?')->execute([$older]);
 $unitBefore=si_sheet_state($pdo,$product,$source);$unitHistory=$pdo->query('SELECT * FROM cw_landed_product_costs ORDER BY id')->fetchAll();$unitFreight=$pdo->query('SELECT * FROM cw_transport_product_allocations ORDER BY id')->fetchAll();
 $unitRequest=bin2hex(random_bytes(16));$corrected=$correctUnit('L',['request_id'=>$unitRequest]);$unitAfter=si_sheet_state($pdo,$product,$source);
 expect($unitAfter['p']['costing_basis']==='volume'&&$unitAfter['p']['base_unit']==='L'&&$unitAfter['l']['purchase_unit']==='L','Confirmed kg entry error changes canonical and purchase units together');
@@ -166,11 +171,13 @@ expect(count($result['rows'])===1,'Only edited product returned');
 expect((float)$result['rows'][0]['transport_cost_per_base']===34.0,'34 NAD per kg is not split');
 expect((float)$result['rows'][0]['landed_cost_per_base']===134.0,'Manual freight replaces rather than adds existing allocation');
 expect((float)$result['rows'][0]['transport_cost_used']===4250.0,'125kg purchase uses 34 per kg');
+expect($neighbourBefore===si_sheet_state($pdo,(int)$neighbour['product_id'],(int)$neighbour['id']),'Neighbour source, audit and snapshot unchanged');
 // A cross-basis correction must preserve a manual freight total, even when base magnitude changes.
 $correctUnit('ml');$manualUnit=si_sheet_state($pdo,$product,$source);
 expect(abs((float)$manualUnit['c']['transport_cost_used']-4250)<0.000001&&abs((float)$manualUnit['s']['manual_transport_per_base']-34000)<0.000001,'Unit correction preserves manual freight total, not an incompatible old per-base rate');
 $correctUnit('kg');
-expect($neighbourBefore===si_sheet_state($pdo,(int)$neighbour['product_id'],(int)$neighbour['id']),'Neighbour source, audit and snapshot unchanged');
+$pdo->prepare('UPDATE cw_cost_product_sources SET active=1 WHERE supplier_invoice_id=?')->execute([$older]);
+$pdo->prepare('UPDATE cw_supplier_invoice_lines SET active=1 WHERE supplier_invoice_id=?')->execute([$older]);
 $count=(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn();
 $save('transport_cost_per_base','34',$priorVersion,'individual-transport-0001');
 expect($count===(int)$pdo->query('SELECT COUNT(*) FROM cw_landed_product_costs')->fetchColumn(),'Transport retry idempotent');
