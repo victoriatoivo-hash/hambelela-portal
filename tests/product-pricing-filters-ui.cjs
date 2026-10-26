@@ -2,6 +2,11 @@ const fs=require('fs'),assert=require('assert/strict'),{execFileSync}=require('c
 const html=execFileSync(process.env.PHP_BIN||'php',['-r',"function cw_csrf_token(){return 'test';} require 'shared/cost-workbook-retail-pricing.php';cw_render_product_pricing([]);"],{encoding:'utf8'});
 const dom=new JSDOM('<main id="costWorkbook" data-page="product-pricing" data-year="2026" data-month="10">'+html+'</main>',{url:'https://portal.example/product-pricing.php',runScripts:'outside-only',pretendToBeVisual:true});
 const w=dom.window,d=w.document,errors=[],calls=[],entries=new Map();let fail=false;
+const testObservers=[],NativeObserver=w.MutationObserver;
+w.MutationObserver=class extends NativeObserver{constructor(callback){super(callback);testObservers.push(this)}};
+// jsdom 24 leaves selectedOptions cached after selectedIndex changes (unlike browsers).
+// Keep this native collection live so the real portal control's label sync is testable.
+Object.defineProperty(w.HTMLSelectElement.prototype,'selectedOptions',{get(){return [...this.options].filter(o=>o.selected)}});
 w.crypto.randomUUID=()=>crypto.randomUUID();w.HTMLElement.prototype.scrollIntoView=()=>{};w.addEventListener('error',e=>errors.push(e.error||e.message));
 const categories=['Carrier Oils','Accessories, Carrier Oils','Clays &amp; Charcoals'];
 const rows=Array.from({length:700},(_,i)=>({client_key:'catalog-'+i,product_id:0,manual_name:'Fixture '+String(i).padStart(3,'0'),manual_code:'FIX'+i,manual_category:categories[i%3],product_name:'Fixture '+String(i).padStart(3,'0'),short_code:'FIX'+i,category:categories[i%3],size_conversion_id:1,size_label:'50g',basis:'weight',selling_price_inc_vat:10,vat_treatment:'standard',vat_rate:15,website_key:(1000+i)+':0',completion_status:'Incomplete',packaging_mode:'setup',issues:[]}));
@@ -49,6 +54,7 @@ async function selectCategory(label){categoryTrigger().click();await flush();con
  trigger.click();await flush();search=one('[data-cost-select-search]',popup);fill(search,'P7');fill(one('[data-field]',tr),'45');await flush();assert.equal(search.value,'P7');assert.equal(one('[data-pack-cell]',tr).querySelectorAll('.portal-custom-select').length,1);
  d.dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));await wait(750);await flush();
  one('[data-rp-refresh]').click();await flush();tr=visible()[0];assert.equal(one('[data-packaging]',tr).value,'material-8','Packaging restored from saved sheet data');assert.match(one('[data-pack-cell] .portal-custom-select-trigger',tr).textContent,/Material 7/);
- assert.ok(calls.every(c=>['bootstrap','preview','autosave'].includes(c.action)),'No website price writes');assert.deepEqual(errors,[]);observer.disconnect();w.close();
+ assert.ok(calls.every(c=>['bootstrap','preview','autosave'].includes(c.action)),'No website price writes');assert.deepEqual(errors,[]);testObservers.forEach(o=>o.disconnect());w.close();
+ console.log('Packaging search: name/supplier/SKU, filtered keyboard navigation, cancel, row-only autosave, stable open search and reload PASS');
  console.log('700-row pricing catalogue: bounded DOM, searchable category dropdown, multi-category matching, reset, all pages, preserved edits/offline retries PASS');
 })().catch(e=>{console.error(e);process.exit(1)});
