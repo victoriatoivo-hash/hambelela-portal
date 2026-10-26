@@ -454,8 +454,11 @@ function notifications_claim_task_delivery(int $notificationId): bool
     $typeStmt = db()->prepare('SELECT related_type FROM notifications WHERE id=? LIMIT 1');
     $typeStmt->execute([$notificationId]);
     $relatedType = (string)$typeStmt->fetchColumn();
-    if (in_array($relatedType,['marketing_assignment','marketing_review'],true)) {
-        $stmt=db()->prepare("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id JOIN marketing_work_items w ON w.id=n.related_id SET nr.delivered_at=NOW() WHERE n.id=? AND nr.employee_id=? AND ((n.related_type='marketing_assignment' AND w.assigned_employee_id=nr.employee_id) OR (n.related_type='marketing_review' AND w.status='ready_for_review' AND EXISTS(SELECT 1 FROM ops_employees me JOIN ops_roles mr ON mr.id=me.role_id WHERE me.id=nr.employee_id AND me.status='active' AND mr.role_key='owner_admin'))) AND w.cancelled_at IS NULL AND w.status NOT IN ('published','cancelled') AND nr.popup_seen_at IS NULL AND (nr.delivered_at IS NULL OR nr.delivered_at<DATE_SUB(NOW(),INTERVAL 2 MINUTE)) AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())");
+    if (in_array($relatedType,['marketing_assignment','marketing_review','marketing_note'],true)) {
+        $scope=notifications_marketing_popup_scope();
+        $stmt=db()->prepare("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id JOIN marketing_work_items w ON w.id=n.related_id
+            LEFT JOIN marketing_notes mn ON mn.item_id=w.id AND n.related_type='marketing_note' AND n.deduplication_key=CONCAT('marketing-note:',mn.id)
+            SET nr.delivered_at=NOW() WHERE n.id=? AND nr.employee_id=? AND $scope AND nr.popup_seen_at IS NULL AND (nr.delivered_at IS NULL OR nr.delivered_at<DATE_SUB(NOW(),INTERVAL 2 MINUTE)) AND nr.read_at IS NULL AND nr.cleared_at IS NULL AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())");
         $stmt->execute([$notificationId,$employeeId]);return $stmt->rowCount()>0;
     }
     if ($relatedType !== 'checklist_task') {
@@ -1057,17 +1060,34 @@ function notifications_clear(array $ids = []): void
     foreach ($ids as $id) { try { require_once __DIR__ . '/epi/bootstrap.php'; \Hambelela\EPI\NotificationActivityBridge::record(db(), 'notification_dismissed', $id, $employeeId); } catch (Throwable $ignored) {} }
 }
 
+// The same authenticated scope is used for discovery, delivery claims and dismissal.
+// A note is resolved by its existing deduplication key, never by an unrelated note ID.
+function notifications_marketing_popup_scope(): string
+{
+    $owner="EXISTS(SELECT 1 FROM ops_employees me JOIN ops_roles mr ON mr.id=me.role_id WHERE me.id=nr.employee_id AND me.status='active' AND mr.role_key='owner_admin')";
+    return "(w.cancelled_at IS NULL AND w.status<>'cancelled' AND (
+        (n.related_type='marketing_assignment' AND w.status<>'published' AND w.assigned_employee_id=nr.employee_id)
+        OR (n.related_type='marketing_review' AND w.status='ready_for_review' AND $owner)
+        OR (n.related_type='marketing_note' AND mn.id IS NOT NULL AND (
+            (mn.is_owner=0 AND mn.actor_id=w.assigned_employee_id AND $owner)
+            OR (mn.is_owner=1 AND w.assigned_employee_id=nr.employee_id
+                AND EXISTS(SELECT 1 FROM ops_employees me WHERE me.id=nr.employee_id AND me.status='active'))
+        ))
+    ))";
+}
+
 function notifications_marketing_popups(): array
 {
     $employeeId=notifications_current_employee_id();
     if(!$employeeId||!notifications_schema_ready())return [];
     // Same recipient records as the bell; assignment is rechecked on each poll.
-    return ops_rows("SELECT n.id,n.title,n.message,n.created_at,n.related_id,n.related_type,n.action_link,n.sound_key,w.due_at,w.priority,w.review_submitted_at,COALESCE(NULLIF(w.caption,''),(SELECT GROUP_CONCAT(CONCAT(c.channel_key,': ',IF(c.prepared=1,'prepared','pending')) ORDER BY c.channel_key SEPARATOR ' · ') FROM marketing_channel_execution c WHERE c.item_id=w.id AND c.is_required=1)) AS prepared_summary,(SELECT full_name FROM ops_employees WHERE id=w.assigned_employee_id) AS assigned_name,
+    $scope=notifications_marketing_popup_scope();
+    return ops_rows("SELECT n.id,n.title,n.message,n.created_at,n.related_id,n.related_type,n.action_link,n.sound_key,mn.body AS note_body,mn.actor_name AS note_actor_name,mn.is_owner AS note_is_owner,w.due_at,w.priority,w.review_submitted_at,COALESCE(NULLIF(w.caption,''),(SELECT GROUP_CONCAT(CONCAT(c.channel_key,': ',IF(c.prepared=1,'prepared','pending')) ORDER BY c.channel_key SEPARATOR ' · ') FROM marketing_channel_execution c WHERE c.item_id=w.id AND c.is_required=1)) AS prepared_summary,(SELECT full_name FROM ops_employees WHERE id=w.assigned_employee_id) AS assigned_name,
         (SELECT GROUP_CONCAT(c.channel_key ORDER BY c.channel_key SEPARATOR ' · ') FROM marketing_channel_execution c WHERE c.item_id=w.id AND c.is_required=1) AS channels
         FROM notifications n JOIN notification_recipients nr ON nr.notification_id=n.id
         JOIN marketing_work_items w ON w.id=n.related_id
-        WHERE ((n.related_type='marketing_assignment' AND w.assigned_employee_id=nr.employee_id) OR (n.related_type='marketing_review' AND w.status='ready_for_review' AND EXISTS(SELECT 1 FROM ops_employees me JOIN ops_roles mr ON mr.id=me.role_id WHERE me.id=nr.employee_id AND me.status='active' AND mr.role_key='owner_admin'))) AND nr.employee_id=?
-        AND w.cancelled_at IS NULL AND w.status NOT IN ('published','cancelled')
+        LEFT JOIN marketing_notes mn ON mn.item_id=w.id AND n.related_type='marketing_note' AND n.deduplication_key=CONCAT('marketing-note:',mn.id)
+        WHERE $scope AND nr.employee_id=?
         AND nr.popup_seen_at IS NULL AND nr.read_at IS NULL AND nr.cleared_at IS NULL
         AND (nr.next_reminder_at IS NULL OR nr.next_reminder_at<=NOW())
         ORDER BY n.id LIMIT 100",[$employeeId]);
@@ -1085,13 +1105,17 @@ function notifications_marketing_seen(int $id): bool
 {
     $employeeId=notifications_current_employee_id();
     if(!$employeeId||$id<=0||!notifications_schema_ready())return false;
+    $scope=notifications_marketing_popup_scope();
     $q=db()->prepare("UPDATE notification_recipients nr JOIN notifications n ON n.id=nr.notification_id
         JOIN marketing_work_items w ON w.id=n.related_id
+        LEFT JOIN marketing_notes mn ON mn.item_id=w.id AND n.related_type='marketing_note' AND n.deduplication_key=CONCAT('marketing-note:',mn.id)
         SET nr.popup_seen_at=COALESCE(nr.popup_seen_at,NOW()),nr.next_reminder_at=NULL
-        WHERE n.id=? AND nr.employee_id=? AND ((n.related_type='marketing_assignment' AND w.assigned_employee_id=nr.employee_id) OR (n.related_type='marketing_review' AND w.status='ready_for_review' AND EXISTS(SELECT 1 FROM ops_employees me JOIN ops_roles mr ON mr.id=me.role_id WHERE me.id=nr.employee_id AND me.status='active' AND mr.role_key='owner_admin')))");
+        WHERE n.id=? AND nr.employee_id=? AND $scope");
     $q->execute([$id,$employeeId]);
     $check=db()->prepare("SELECT 1 FROM notification_recipients nr JOIN notifications n ON n.id=nr.notification_id
-        WHERE n.id=? AND n.related_type IN ('marketing_assignment','marketing_review') AND nr.employee_id=? AND nr.popup_seen_at IS NOT NULL");
+        JOIN marketing_work_items w ON w.id=n.related_id
+        LEFT JOIN marketing_notes mn ON mn.item_id=w.id AND n.related_type='marketing_note' AND n.deduplication_key=CONCAT('marketing-note:',mn.id)
+        WHERE n.id=? AND nr.employee_id=? AND nr.popup_seen_at IS NOT NULL AND $scope");
     $check->execute([$id,$employeeId]);
     return (bool)$check->fetchColumn();
 }

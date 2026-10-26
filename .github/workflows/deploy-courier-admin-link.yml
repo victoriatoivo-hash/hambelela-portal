@@ -44,6 +44,9 @@ jobs:
           CW_TEST_USER: root
         run: |
           # Shared costing changes are based on the verified live version and tested as deployed.
+          php -l shared/notifications.php
+          php tests/marketing-assistance-popups.php
+          node --check assets/js/portal.js
           php -l apps/hr-portal/documents.php
           php -l apps/hr-portal/includes/employment-letter.php
           php tests/employment-letters-workflow.php
@@ -87,6 +90,7 @@ jobs:
       - name: Drawer interaction tests (disposable DOM, no live records)
         run: |
           npm install --prefix "$RUNNER_TEMP/supplier-ui" --no-audit --no-fund jsdom@24.1.3
+          NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/marketing-assistance-popups-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/hr-leave-cancellation-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/supplier-costs-ui.cjs
           NODE_PATH="$RUNNER_TEMP/supplier-ui/node_modules" node tests/packaging-costs-ui.cjs
