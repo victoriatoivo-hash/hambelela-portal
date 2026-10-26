@@ -4,8 +4,15 @@ requireAdmin();
 require_once __DIR__ . '/includes/email.php';
 require_once __DIR__ . '/includes/leave-reserve.php';
 require_once __DIR__ . '/includes/leave-balance-service.php';
+require_once __DIR__ . '/includes/leave-cancellation.php';
 $user = currentUser();
 $db   = db();
+$canCancelLeave = hrCanCancelApprovedLeave($user);
+$cancelLeaveReady = false;
+if ($canCancelLeave) {
+    try { hrEnsureLeaveCancellationSchema($db); $cancelLeaveReady = true; }
+    catch (Throwable $e) { error_log('Leave cancellation schema: '.$e->getMessage()); }
+}
 ensureLeaveShutdownSchema($db);
 $leaveCsrfToken = $_SESSION['leave_csrf_token'] ?? bin2hex(random_bytes(32));
 $_SESSION['leave_csrf_token'] = $leaveCsrfToken;
@@ -14,6 +21,18 @@ hrReconcileProbationAnnualLeave($db, isset($user['id']) ? (int)$user['id'] : nul
 // ── Actions ──────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
+
+    if ($action === 'cancel_approved_leave') {
+        if (!hash_equals($leaveCsrfToken, (string)($_POST['csrf_token'] ?? ''))) jsonResponse(['success'=>false,'message'=>'Session expired. Refresh before cancelling.'],403);
+        if (!$canCancelLeave) jsonResponse(['success'=>false,'message'=>'Only the portal Owner may cancel approved leave.'],403);
+        if (($_POST['confirmed'] ?? '') !== 'on') jsonResponse(['success'=>false,'message'=>'Confirm the selected approval before cancelling.'],422);
+        if (!$cancelLeaveReady) jsonResponse(['success'=>false,'message'=>'Cancellation is unavailable until its schema has been verified.'],503);
+        try {
+            $result = hrCancelApprovedLeave($db,$user,(int)($_POST['request_id']??0),(string)($_POST['cancellation_reason']??''));
+            jsonResponse(['success'=>true,'request'=>$result]);
+        } catch (DomainException $e) { jsonResponse(['success'=>false,'message'=>$e->getMessage()],409); }
+        catch (Throwable $e) { error_log('Leave cancellation: '.$e->getMessage()); jsonResponse(['success'=>false,'message'=>'Cancellation failed. No partial changes were saved.'],500); }
+    }
 
     if (in_array($action, ['approve', 'reject', 'delete_leave', 'back_capture', 'adjust_balance'], true) && hrLeaveRecoveryLocked($db)) {
         $wantsJson = strpos((string)($_SERVER['HTTP_ACCEPT'] ?? ''), 'application/json') !== false;
@@ -46,12 +65,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     header('Location: leave.php?msg=leave_not_found');
                     exit;
                 }
-                if ($lr['status'] === 'approved') {
+                if (in_array($lr['status'], ['approved','cancelled'], true)) {
                     $db->rollBack();
                     header('Location: leave.php?msg=approved_delete_blocked');
                     exit;
                 }
-                $db->prepare("DELETE FROM leave_requests WHERE id=? AND status<>'approved'")->execute([$did]);
+                $db->prepare("DELETE FROM leave_requests WHERE id=? AND status NOT IN ('approved','cancelled')")->execute([$did]);
                 $db->prepare("INSERT INTO audit_log (user_id,action,description,ip_address) VALUES (?,'leave_deleted',?,?)")
                    ->execute([(int)$user['id'], 'Non-approved leave request #' . $did . ' deleted.', (string)($_SERVER['REMOTE_ADDR'] ?? '')]);
                 $db->commit();
@@ -542,7 +561,7 @@ $msg = $_GET['msg'] ?? '';
         <thead><tr><th>Employee</th><th>Leave Type</th><th>Dates</th><th>Days</th><th>Status</th><th>Back-Capture</th><th style="width:120px">Actions</th></tr></thead>
         <tbody>
         <?php foreach ($all as $r):
-          $sc = $r['status']==='approved' ? 'badge-green' : ($r['status']==='rejected' ? 'badge-red' : 'badge-amber');
+          $sc = $r['status']==='cancelled' ? 'badge-gray' : ($r['status']==='approved' ? 'badge-green' : ($r['status']==='rejected' ? 'badge-red' : 'badge-amber'));
         ?>
         <tr>
           <td><?=htmlspecialchars($r['emp_name'])?></td>
@@ -552,6 +571,7 @@ $msg = $_GET['msg'] ?? '';
           <td>
             <div class="leave-status-cell">
               <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
+              <?php if($r['status']==='cancelled'): ?><small>Cancelled <?=htmlspecialchars((string)$r['cancelled_at'])?> · <?=htmlspecialchars((string)$r['cancellation_reason'])?></small><?php endif ?>
               <?php if($r['status']==='rejected'): ?>
               <button type="button" class="leave-reason-trigger" data-leave-reason-trigger
                 data-reason="<?=htmlspecialchars(trim((string)($r['reject_reason'] ?? '')) !== '' ? $r['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?>"
@@ -566,7 +586,10 @@ $msg = $_GET['msg'] ?? '';
           </td>
           <td><?=$r['back_capture'] ? '<span class="badge badge-gray">Back-Captured</span>' : '—'?></td>
           <td style="white-space:nowrap">
-            <?php if($r['status']!=='approved'): ?>
+            <?php if($r['status']==='approved' && $canCancelLeave && $cancelLeaveReady): ?>
+            <button type="button" class="btn btn-secondary btn-sm" data-cancel-approved-leave="<?=(int)$r['id']?>" data-summary="<?=htmlspecialchars($r['emp_name'].' · '.$r['leave_type'].' · '.$r['start_date'].' to '.$r['end_date'].' · '.$r['days'].' day(s)',ENT_QUOTES,'UTF-8')?>">Cancel Approved Leave</button>
+            <?php elseif($r['status']==='cancelled'): ?><span>Cancellation recorded · history protected</span>
+            <?php elseif($r['status']!=='approved'): ?>
             <form method="POST" style="display:inline" onsubmit="return confirm('Delete this <?=strtolower($r['status'])?> leave request? This cannot be undone.')">
               <input type="hidden" name="action" value="delete_leave">
               <input type="hidden" name="delete_id" value="<?=$r['id']?>">
@@ -587,6 +610,21 @@ $msg = $_GET['msg'] ?? '';
 </div>
 
 <!-- REJECT MODAL -->
+<?php if($canCancelLeave && $cancelLeaveReady): ?>
+<div class="overlay leave-rejection-overlay" id="cancelApprovedLeaveModal" role="dialog" aria-modal="true" aria-labelledby="cancel-approved-title" hidden>
+ <div class="modal leave-rejection-modal">
+  <div class="modal-header"><div class="modal-title" id="cancel-approved-title">Cancel Approved Leave</div><button type="button" class="modal-close" data-close-leave-cancellation aria-label="Close cancellation">×</button></div>
+  <form id="cancelApprovedLeaveForm" method="post">
+   <input type="hidden" name="action" value="cancel_approved_leave"><input type="hidden" name="csrf_token" value="<?=htmlspecialchars($leaveCsrfToken,ENT_QUOTES,'UTF-8')?>"><input type="hidden" name="request_id">
+   <div class="modal-body"><p data-cancellation-summary></p><p>This cancels only the selected approval. Original approval and attachments stay in history. Replacement requests are not approved or changed. Existing payroll blocks cancellation.</p>
+    <label for="leaveCancellationReason">Cancellation reason</label><textarea id="leaveCancellationReason" name="cancellation_reason" class="form-control" required maxlength="1000" rows="4"></textarea>
+    <label><input type="checkbox" name="confirmed" required> I confirm this is the approved leave entry to cancel.</label><p data-cancellation-error role="alert" hidden></p>
+   </div><div class="modal-footer"><button type="button" class="btn btn-secondary" data-close-leave-cancellation>Keep Leave</button><button type="submit" class="btn btn-primary">Confirm Cancellation</button></div>
+  </form>
+ </div>
+</div>
+<script src="includes/leave-cancellation.js?v=1"></script>
+<?php endif ?>
 <div class="overlay leave-rejection-overlay" id="rejectModal" role="dialog" aria-modal="true" aria-labelledby="reject-leave-title" hidden>
   <div class="modal leave-rejection-modal">
     <div class="modal-header">

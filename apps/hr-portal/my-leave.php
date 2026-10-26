@@ -247,7 +247,7 @@ $currentPage = 'my-leave.php';
         <thead><tr><th>Leave Type</th><th>From</th><th>To</th><th>Days</th><th>Status</th><th>Certificate</th></tr></thead>
         <tbody>
         <?php foreach ($history as $r):
-          $sc = $r['status']==='approved'?'badge-green':($r['status']==='rejected'?'badge-red':'badge-amber');
+          $sc = $r['status']==='cancelled'?'badge-gray':($r['status']==='approved'?'badge-green':($r['status']==='rejected'?'badge-red':'badge-amber'));
         ?>
         <tr id="leave-request-<?=$r['id']?>">
           <td><?=htmlspecialchars($r['leave_type'])?></td>
@@ -257,6 +257,7 @@ $currentPage = 'my-leave.php';
           <td>
             <div class="leave-status-cell">
               <span class="badge <?=$sc?>"><?=ucfirst($r['status'])?></span>
+              <?php if($r['status']==='cancelled'): ?><small>Cancelled <?=htmlspecialchars((string)$r['cancelled_at'])?> · <?=htmlspecialchars((string)$r['cancellation_reason'])?></small><?php endif ?>
             <?php if($r['status']==='rejected'): ?>
               <button type="button" class="leave-reason-trigger" data-leave-reason-trigger
                 data-reason="<?=htmlspecialchars(trim((string)($r['reject_reason'] ?? '')) !== '' ? $r['reject_reason'] : 'No rejection reason was recorded for this request.', ENT_QUOTES, 'UTF-8')?>"
