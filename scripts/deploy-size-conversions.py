@@ -2,12 +2,12 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'c71f661e'
+BASELINE = 'c80a9ab0'
 NEW_FILES = []
-FILES = ['shared/cost-workbook-cost-linking.php']
-DEPENDENCIES = ['shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-pricing-discovery.php']
+FILES = ['shared/notifications.php','assets/js/portal.js']
+DEPENDENCIES = ['shared/marketing-workspace.php','api/notifications.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
-DEPENDENCY_BASELINES = {}
+DEPENDENCY_BASELINES = {'shared/notifications.php':'51d91be2','shared/marketing-workspace.php':'8c64ea1a','api/notifications.php':'8c64ea1a'}
 def git(*args): return subprocess.check_output(['git', *args])
 def digest(data): return None if data is None else hashlib.sha256(data).hexdigest()
 def read(ftp, path):
