@@ -23,12 +23,12 @@ $pdo=new PDO(getenv('CW_TEST_DSN'),getenv('CW_TEST_USER')?:'root',getenv('CW_TES
 expect($pdo->query('SELECT DATABASE()')->fetchColumn()==='cw_supplier_test','Refuse non-test database');
 cw_install_schema($pdo);
 $pdo->beginTransaction();
-$pdo->exec("INSERT INTO cw_sync_batches(status,is_successful_snapshot,completed_at) VALUES('completed',1,NOW())");
+$pdo->exec("INSERT INTO cw_sync_batches(sync_uuid,status,is_successful_snapshot,completed_at) VALUES(UUID(),'completed',1,NOW())");
 $categoryBatch=(int)$pdo->lastInsertId();
 $categoryInsert=$pdo->prepare("INSERT INTO cw_product_snapshots(product_id,variation_id,product_name,product_type,category,sync_batch_id) VALUES(?,0,?,'simple',?,?)");
 $categoryInsert->execute([99001,'Category fixture','Natural Clays, Essential Oils',$categoryBatch]);
 $categoryInsert->execute([99002,'Category fixture 2','Natural Clays, Botanical Extracts',$categoryBatch]);
-$pdo->exec("INSERT INTO cw_sync_batches(status,is_successful_snapshot,completed_at) VALUES('failed',0,NOW())");
+$pdo->exec("INSERT INTO cw_sync_batches(sync_uuid,status,is_successful_snapshot,completed_at) VALUES(UUID(),'failed',0,NOW())");
 $categoryInsert->execute([99003,'Incomplete catalogue','Failed-only category',(int)$pdo->lastInsertId()]);
 $categories=cw_supplier_category_choices($pdo);
 expect(in_array('Natural Clays',$categories,true)&&in_array('Botanical Extracts',$categories,true),'Website category names merged');
