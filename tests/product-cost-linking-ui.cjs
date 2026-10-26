@@ -14,7 +14,11 @@ else if(action==='cost-link-preview')value={ok:true,token:'preview-token',suppli
 else if(action==='cost-link-save'){if(fail)value={ok:false,message:'The cost source changed. Preview again.'};else{linked=true;product.woo_product_id=100;value={ok:true,message:'Linked without website changes'};}}
 else throw new Error('Unexpected write or action: '+action);
 return{ok:value.ok!==false,json:async()=>value};};
-const portal=fs.readFileSync('assets/js/portal.js','utf8');w.eval(portal.slice(0,portal.indexOf("window.addEventListener('DOMContentLoaded'")));
+// This exact Git version matches the live shared script. It is a read-only
+// dependency: the release must not replace its newer notification behaviour.
+const portal=execFileSync('git',['show','2c758a0cb67a8c3bd2e4621ee9cbacaed5960f1b:assets/js/portal.js'],{encoding:'utf8'});
+const selectCode=s=>s.slice(s.indexOf('function initialisePortalDatePickers'),s.indexOf("window.addEventListener('DOMContentLoaded'")).replace(/\r\n/g,'\n');
+assert.equal(selectCode(portal),selectCode(fs.readFileSync('assets/js/portal.js','utf8')),'Shared dropdown implementation is identical to verified live revision');w.eval(portal.slice(0,portal.indexOf("window.addEventListener('DOMContentLoaded'")));
 w.eval(fs.readFileSync('assets/js/cost-workbook-controls.js','utf8'));
 w.eval(fs.readFileSync('assets/js/retail-pricing.js','utf8'));
 const one=s=>{const e=d.querySelector(s);assert.ok(e,'Missing '+s);return e;},click=s=>one(s).click(),flush=async()=>{for(let i=0;i<6;i++)await new Promise(r=>setImmediate(r));},change=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('change',{bubbles:true}));},submit=()=>one('.rp-cost-link-dialog').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));
@@ -25,7 +29,7 @@ await flush();assert.equal(d.querySelectorAll('.rp-cost-link-dialog .portal-cust
 async function searchDropdown(name,query){one('[name="'+name+'"]').nextElementSibling.querySelector('button').click();await flush();const search=one('.portal-select-popup [data-cost-select-search]');search.value=query;search.dispatchEvent(new w.Event('input',{bubbles:true}));await flush();return [...d.querySelectorAll('.portal-select-popup [role="option"]')].filter(o=>!o.hidden&&!o.disabled);}
 let matches=await searchDropdown('website_product_id','bw-250');assert.equal(matches.length,1,'Search finds first variation SKU, not only the last');assert.match(matches[0].textContent,/Beeswax White/);matches[0].click();await flush();assert.equal(one('[name="website_product_id"]').value,'100');
 matches=await searchDropdown('product_id','fixture supplier');assert.equal(matches.length,1,'Supplier name searchable inside dropdown');assert.match(matches[0].textContent,/BOI001/);matches[0].click();await flush();assert.equal(one('[name="product_id"]').value,'1');
-matches=await searchDropdown('product_id','no matching item');assert.equal(matches.length,0);one('.portal-select-popup [data-cost-select-search]').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert.ok(d.querySelector('.rp-cost-link-overlay'),'Escape closes dropdown, not parent form');assert.equal(one('.portal-select-popup').getAttribute('aria-hidden'),'true');
+matches=await searchDropdown('product_id','no matching item');assert.equal(matches.length,0);assert.equal(one('[data-link-no-results]').hidden,false,'Empty search explains there are no matches');one('.portal-select-popup [data-cost-select-search]').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Escape',bubbles:true,cancelable:true}));assert.ok(d.querySelector('.rp-cost-link-overlay'),'Escape closes dropdown, not parent form');assert.equal(one('.portal-select-popup').getAttribute('aria-hidden'),'true');
 assert.ok(one('.rp-cost-link-confirm input').nextElementSibling.matches('span'),'Checkbox text has a separate aligned text container');
 change('[name="product_id"]','1');assert.equal(calls.filter(c=>c.action==='cost-link-save').length,0);click('[data-link-preview]');await flush();assert.equal(d.querySelectorAll('[data-link-results] tbody tr').length,2);assert.match(one('[data-link-results]').textContent,/50.00.*155.00.*100.00.*293.00/);
 submit();await flush();assert.match(one('[data-link-error]').textContent,/same product and grade/);assert.equal(calls.filter(c=>c.action==='cost-link-save').length,0);
