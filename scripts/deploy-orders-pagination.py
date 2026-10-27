@@ -1,5 +1,5 @@
 """Isolated pagination delta: current-file guard, targeted backup and rollback."""
-import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
+import difflib, ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 BASELINE='86832ed8'
 BASELINES={'apps/operations/orders-board-data.php':'f73e440f','assets/js/orders-board.js':BASELINE,'assets/css/orders-list-selection.css':BASELINE}
@@ -24,6 +24,10 @@ try:
         report['hashes'][p]={'live':digest(before[p]),'baseline':digest(baseline),'approved':digest(desired[p]),'matches':matches}
         if not matches:
             report['state']='blocked-live-baseline-mismatch'
+            if mode == 'preflight' and p == 'apps/operations/orders-board-data.php':
+                # Only the named UI endpoint, in the existing private deployment log.
+                # No configuration, credentials, database rows or duplicate source artifact.
+                print(''.join(difflib.unified_diff(norm(baseline).decode().splitlines(True), norm(before[p]).decode().splitlines(True), fromfile='git-orders-data', tofile='live-orders-data')))
             raise RuntimeError('No upload: newer live file '+p)
     report['state']='preflight-pass'
     if mode=='deploy':
