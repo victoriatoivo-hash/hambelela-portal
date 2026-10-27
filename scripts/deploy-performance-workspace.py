@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'e01d903e'
-FILES = ['assets/css/performance-workspace.css', 'assets/js/performance-workspace.js', 'apps/operations/performance-workspace.php', 'apps/operations/reports.php']
+BASELINE = '5e7bdcdd'
+FILES = ['assets/css/performance-workspace.css', 'assets/js/performance-workspace.js', 'apps/operations/performance-workspace.php', 'apps/operations/reports.php', 'apps/operations/reports-data.php']
 NEW_FILES = []
-DEPENDENCIES = ['apps/operations/reports-data.php','apps/operations/kpi-reporting.php']
+DEPENDENCIES = ['apps/operations/kpi-reporting.php']
 REPORT = 'performance-workspace-deployment-report.json'
 BACKUP = 'performance-workspace-deployment-backup.zip'
 def git(*args): return subprocess.check_output(['git',*args])

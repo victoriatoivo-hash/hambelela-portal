@@ -21,30 +21,25 @@ try {
     }
 } catch (Throwable $error) { error_log('Performance workspace: upcoming leave unavailable'); }
 ?>
-<section class="pw-hero" aria-label="Performance workspace">
-    <div><p class="pw-eyebrow">People &amp; business health</p><h2>Support your team.<br><span>See the bigger picture.</span></h2><p>Employee workspaces, operational progress and the month’s business health in one place.</p></div>
-    <div class="pw-hero-note"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i><strong>One team. Clear priorities.</strong><span>Real evidence. Better conversations.</span></div>
-</section>
-<div class="pw-toolbar"><label for="pw-month">Reporting month <select id="pw-month" data-current-month="<?= $pwToday->format('Y-m') ?>"><?php for($pwOffset=0;$pwOffset<24;$pwOffset++): $pwMonth=$pwToday->modify('first day of this month')->modify('-'.$pwOffset.' months'); ?><option value="<?= $pwMonth->format('Y-m') ?>"><?= $pwMonth->format('F Y') ?></option><?php endfor; ?></select></label><span data-pw-period>Monthly business overview · Namibia time</span><button class="pw-button" type="button" data-pw-refresh><i data-lucide="refresh-cw" aria-hidden="true"></i>Refresh overview</button></div>
+<div class="pw-toolbar" data-current-month="<?= $pwToday->format('Y-m') ?>"><span data-pw-updated role="status">Loading overview…</span><button class="pw-button" type="button" data-pw-refresh aria-label="Refresh dashboard"><i data-lucide="refresh-cw" aria-hidden="true"></i>Refresh</button></div>
 <div data-pw-error class="pw-error" role="alert" hidden></div>
 <div class="pw-layout">
     <div class="pw-main">
-        <section class="pw-panel" aria-labelledby="pw-apps-title">
-            <header class="pw-section-head"><div><h2 id="pw-apps-title"><i data-lucide="layout-grid" aria-hidden="true"></i>Performance Apps</h2><p>Open an employee’s role-specific performance and supporting evidence.</p></div><a href="reports.php?tab=employees" data-pw-employees>View all employees <span aria-hidden="true">→</span></a></header>
+        <section class="pw-panel pw-app-panel" aria-label="Employee and performance apps">
             <div class="pw-app-grid">
             <?php foreach ($pwPeople as $person): $pwIcon = stripos($person['role_key'],'packer')!==false ? 'package-check' : (stripos($person['role_key'],'marketing')!==false ? 'megaphone' : 'clipboard-check'); ?>
-                <a class="pw-app" href="kpi-employee.php?id=<?= (int)$person['id'] ?>&amp;month=<?= $pwToday->format('Y-m') ?>" data-pw-employee="<?= (int)$person['id'] ?>"><span class="pw-app-icon"><i data-lucide="<?= $pwIcon ?>" aria-hidden="true"></i></span><span><strong><?= $pwEscape($person['full_name']) ?></strong><small><?= $pwEscape($person['role_name']) ?></small><em>Open performance <span aria-hidden="true">→</span></em></span></a>
+                <a class="pw-app" href="kpi-employee.php?id=<?= (int)$person['id'] ?>&amp;month=<?= $pwToday->format('Y-m') ?>" data-pw-employee="<?= (int)$person['id'] ?>"><span class="pw-app-icon"><i data-lucide="<?= $pwIcon ?>" aria-hidden="true"></i></span><span><strong><?= $pwEscape($person['full_name']) ?></strong><small><?= $pwIcon === 'package-check' ? 'Packer' : ($pwIcon === 'megaphone' ? 'Marketing &amp; Sales' : 'Front Desk / Admin') ?></small></span><span class="pw-app-arrow" aria-hidden="true">→</span></a>
             <?php endforeach; ?>
-                <a class="pw-app" href="reports.php?tab=business-health" data-pw-health><span class="pw-app-icon"><i data-lucide="activity" aria-hidden="true"></i></span><span><strong>Business Health</strong><small>Operational results and underlying evidence</small><em>Explore the month <span aria-hidden="true">→</span></em></span></a>
-                <a class="pw-app" href="reports.php?tab=settings"><span class="pw-app-icon"><i data-lucide="sliders-horizontal" aria-hidden="true"></i></span><span><strong>Performance Settings</strong><small>Schedules, measurement windows and existing controls</small><em>Manage settings <span aria-hidden="true">→</span></em></span></a>
+                <a class="pw-app" href="reports.php?tab=business-health" data-pw-health><span class="pw-app-icon"><i data-lucide="activity" aria-hidden="true"></i></span><span><strong>Business Health</strong><small>Reports &amp; monthly results</small></span><span class="pw-app-arrow" aria-hidden="true">→</span></a>
+                <a class="pw-app" href="reports.php?tab=settings"><span class="pw-app-icon"><i data-lucide="sliders-horizontal" aria-hidden="true"></i></span><span><strong>Performance Settings</strong><small>Targets &amp; scoring</small></span><span class="pw-app-arrow" aria-hidden="true">→</span></a>
             </div>
         </section>
         <section class="pw-panel" aria-labelledby="pw-health-title" data-pw-health-section aria-busy="true">
             <header class="pw-section-head"><div><h2 id="pw-health-title"><i data-lucide="chart-column" aria-hidden="true"></i>Monthly Business Health</h2><p data-pw-health-period>Loading this month’s operational evidence…</p></div><a href="reports.php?tab=business-health" data-pw-health>View full report →</a></header>
-            <div class="pw-score-panel"><div class="pw-score" data-pw-score>—</div><div><h3>Overall operational score</h3><p data-pw-score-note>Loading measured business results…</p><small>Business indicator only. Not an average employee score, ranking or payroll deduction.</small></div></div>
-            <div class="pw-metrics" data-pw-metrics></div>
-            <details class="pw-evidence"><summary>How this score is supported</summary><p>The existing Business Health calculation is unchanged. Unmeasured sections are excluded, not counted as zero or perfect. Some indicators use the current operational snapshot; open the full report for definitions.</p><div data-pw-components></div></details>
+            <div class="pw-health-grid"><div class="pw-score-panel"><div class="pw-score" data-pw-score>—</div><span>Overall score / 100</span></div><div class="pw-metrics" data-pw-metrics></div></div>
+            <details class="pw-evidence"><summary>Score details</summary><p data-pw-score-note>Loading measured business results…</p><p>Business indicator only, not an employee ranking or payroll deduction. Unmeasured sections are excluded. Current operational snapshots and period-based evidence retain their existing definitions.</p><div data-pw-components></div></details>
         </section>
+        <section class="pw-panel pw-workload-panel" aria-labelledby="pw-workload-title"><header class="pw-section-head"><div><h2 id="pw-workload-title">Workload at a glance</h2><p>Task Management · released this month</p></div><a href="checklists.php">Open tasks →</a></header><div data-pw-workload aria-live="polite">Loading task workload…</div></section>
     </div>
     <aside class="pw-side" aria-label="Operational priorities">
         <section class="pw-panel"><header class="pw-section-head"><div><h2><i data-lucide="package" aria-hidden="true"></i>Packing progress</h2><p data-pw-packing-period>Orders in the selected month</p></div></header><div data-pw-packing>Loading packing progress…</div><a class="pw-text-link" href="orders-board.php">Open Orders List →</a></section>
@@ -57,5 +52,4 @@ try {
         <section class="pw-panel"><header class="pw-section-head"><div><h2><i data-lucide="list-checks" aria-hidden="true"></i>Needs attention</h2><p>Current open work and operational exceptions</p></div></header><div data-pw-attention>Loading attention list…</div></section>
     </aside>
 </div>
-<footer class="pw-footnote"><i data-lucide="sprout" aria-hidden="true"></i>Support the people. Improve the process. Grow together.</footer>
 <script src="<?= BASE_URL ?>/assets/js/performance-workspace.js?v=<?= (int)@filemtime(BASE_PATH.'/assets/js/performance-workspace.js') ?>"></script>

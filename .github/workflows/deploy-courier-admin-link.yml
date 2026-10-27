@@ -35,6 +35,7 @@ jobs:
       - name: Validate Performance workspace release
         run: |
           php -l apps/operations/reports.php
+          php -l apps/operations/reports-data.php
           php -l apps/operations/performance-workspace.php
           node --check assets/js/performance-workspace.js
           npm install --prefix "$RUNNER_TEMP/performance-ui" --no-audit --no-fund jsdom@24.1.3

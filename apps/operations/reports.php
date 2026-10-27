@@ -15,7 +15,7 @@ if ($tab === 'performance-reports') {
     exit;
 }
 if (!in_array($tab, array_merge(['dashboard','business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'dashboard';
-$currentKpiTitle = $tab === 'dashboard' ? 'Employee Performance' : ($tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health')));
+$currentKpiTitle = $tab === 'dashboard' ? 'Employee Dashboard' : ($tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health')));
 $pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
 $activeApp = 'kpi';
 $extraStylesheets = $tab === 'business-health' ? [[
@@ -263,19 +263,19 @@ include BASE_PATH . '/shared/sidebar.php';
 <main id="<?= $tab === 'business-health' ? 'kpi-management' : ($tab === 'performance-reports' ? 'kpi-reports' : ($tab === 'business-activity' ? 'kpi-business-timeline-page' : 'kpi-management')) ?>" class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
     <section class="module-header">
         <div>
-            <p class="eyebrow">Performance</p>
+            <?php if ($tab !== 'dashboard'): ?><p class="eyebrow">Performance</p><?php endif; ?>
             <h1><?= htmlspecialchars($currentKpiTitle,ENT_QUOTES,'UTF-8') ?></h1>
-            <p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'Evidence-based employee performance, accountability and operational insight.') ?></p>
+            <?php if ($tab !== 'dashboard'): ?><p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'Evidence-based employee performance, accountability and operational insight.') ?></p><?php endif; ?>
         </div>
     </section>
 
-    <nav class="kpi-health-tabs" aria-label="Employee Performance sections">
+    <?php if ($tab !== 'dashboard'): ?><nav class="kpi-health-tabs" aria-label="Employee Performance sections">
         <a href="reports.php" class="<?= $tab === 'dashboard' ? 'active' : '' ?>">Overview</a>
         <a href="reports.php?tab=business-health" class="<?= $tab === 'business-health' ? 'active' : '' ?>">Business Health</a>
         <a href="reports.php?tab=employees" class="<?= $tab === 'employees' ? 'active' : '' ?>">Employees</a>
         <?php foreach($visiblePerformanceTabs as $tabKey=>$tabLabel): ?><a href="reports.php?tab=<?= $tabKey ?>" class="<?= $tab===$tabKey?'active':'' ?>"><?= htmlspecialchars($tabLabel,ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?>
         <a href="reports.php?tab=settings" class="<?= $tab === 'settings' ? 'active' : '' ?>">Performance Settings</a>
-    </nav>
+    </nav><?php endif; ?>
 
     <?php if (!$ready): ?>
         <?php ops_setup_notice(); ?>
