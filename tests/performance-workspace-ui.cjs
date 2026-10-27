@@ -35,6 +35,9 @@ const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_co
   q('[data-pw-refresh]').click();reply(5,{...fixture(),attention:[]});await settle();
   assert.match(q('[data-pw-attention]').textContent,/No open items reported/);
   assert.equal(q('[data-pw-error]').hidden,true);
+  q('#pw-month').value=q('#pw-month').max;q('#pw-month').dispatchEvent(new w.Event('change'));
+  assert.equal(requests[6].url,'reports-data.php?period=this_month','current month must stop today, not include future working days');
+  reply(6,fixture());await settle();
   assert.ok(requests.every(r=>!r.options.method),'read only requests');
   const page=fs.readFileSync('apps/operations/reports.php','utf8');
   assert.match(page,/require_role\('owner_admin'\)/);assert.match(page,/\?\? 'dashboard'/);

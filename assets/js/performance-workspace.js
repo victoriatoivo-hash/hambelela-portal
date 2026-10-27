@@ -13,6 +13,8 @@
   const requested = new URLSearchParams(location.search).get('month');
   if (/^\d{4}-(0[1-9]|1[0-2])$/.test(requested || '') && requested <= month.max) month.value = requested;
   function periodParams() {
+    // Current month ends today in the server's Namibia timezone, never in the future.
+    if (month.value === month.max) return new URLSearchParams({period:'this_month'});
     const [year,m] = month.value.split('-').map(Number);
     return new URLSearchParams({period:'custom',date_from:`${month.value}-01`,date_to:`${month.value}-${new Date(Date.UTC(year,m,0)).getUTCDate()}`});
   }
