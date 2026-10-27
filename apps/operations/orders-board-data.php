@@ -205,9 +205,10 @@ $orders = ops_rows(
         o.id, o.order_number, {$wooOrderIdSelect}, o.customer_name, o.customer_contact, o.payment_method, {$amountSelect}, o.payment_status AS financial_payment_status, {$portalPaidSelect} AS payment_status,
         COALESCE(NULLIF(o.fulfilment_mode, ''), o.order_type) AS order_type, o.fulfilment_mode, o.status, o.workload_score, {$displayDateTimeExpr} AS displayed_order_datetime,
         {$displayDateTimeExpr} AS created_at, o.created_at AS source_created_at, {$assignedAtSelect}, {$startedAtSelect}, o.packed_at, o.completed_at, o.notes,
-        o.assigned_packer_id, e.full_name AS packer_name, o.updated_at, {$manualOrderSelect}
+        o.assigned_packer_id, e.full_name AS packer_name, o.created_by, creator.full_name AS creator_name, o.updated_at, {$manualOrderSelect}
      FROM ops_orders o
      LEFT JOIN ops_employees e ON e.id = o.assigned_packer_id
+     LEFT JOIN ops_employees creator ON creator.id = o.created_by
      {$manualOrderJoin}
      {$where}
      ORDER BY {$listOrderBy}

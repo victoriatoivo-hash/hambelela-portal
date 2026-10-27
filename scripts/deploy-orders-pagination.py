@@ -1,8 +1,10 @@
 """Isolated pagination delta: current-file guard, targeted backup and rollback."""
-import difflib, ftplib, hashlib, io, json, os, subprocess, sys, zipfile
+import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 BASELINE='86832ed8'
 BASELINES={'apps/operations/orders-board-data.php':'f73e440f','assets/js/orders-board.js':BASELINE,'assets/css/orders-list-selection.css':BASELINE}
+# Exact live endpoint verified in the existing preflight: same Git source plus creator attribution.
+LIVE_HASHES={'apps/operations/orders-board-data.php':'83e4b743d84a074f497c00c710887a4f6d9c9d10a43d461df3a85b9062f96608'}
 FILES=['apps/operations/orders-board-data.php','assets/js/orders-board.js','assets/css/orders-list-selection.css']
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
@@ -20,14 +22,10 @@ try:
     desired={p:git('show',sha+':'+p) for p in FILES}
     for p in FILES:
         baseline=git('show',BASELINES[p]+':'+p)
-        matches=norm(before[p]) in (norm(baseline),norm(desired[p]))
+        matches=(digest(before[p])==LIVE_HASHES[p] if p in LIVE_HASHES else norm(before[p])==norm(baseline)) or norm(before[p])==norm(desired[p])
         report['hashes'][p]={'live':digest(before[p]),'baseline':digest(baseline),'approved':digest(desired[p]),'matches':matches}
         if not matches:
             report['state']='blocked-live-baseline-mismatch'
-            if mode == 'preflight' and p == 'apps/operations/orders-board-data.php':
-                # Only the named UI endpoint, in the existing private deployment log.
-                # No configuration, credentials, database rows or duplicate source artifact.
-                print(''.join(difflib.unified_diff(norm(baseline).decode().splitlines(True), norm(before[p]).decode().splitlines(True), fromfile='git-orders-data', tofile='live-orders-data')))
             raise RuntimeError('No upload: newer live file '+p)
     report['state']='preflight-pass'
     if mode=='deploy':
