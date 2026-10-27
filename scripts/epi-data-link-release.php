@@ -5,15 +5,20 @@ if (PHP_SAPI !== 'cli') { http_response_code(404); exit; }
 umask(0077);
 $mode=$argv[1]??'inspect';$root=realpath($argv[2]??'');
 $package=__DIR__;$backup=$package.'/backup';
-if(!in_array($mode,['inspect','backup','apply'],true)||!$root||!is_file($root.'/shared/database.php')||strpos($package,$root.'/')===0)throw new RuntimeException('Private release directory and portal root required');
+if(!in_array($mode,['inspect','backup','apply'],true)||!$root||!is_file($root.'/shared/database.php')||$package===$root||strpos($package,$root.'/')===0)throw new RuntimeException('Private release directory and portal root required');
 $manifest=json_decode(file_get_contents($package.'/manifest.json'),true,512,JSON_THROW_ON_ERROR);
 function epiLinkHash(string $file):?string {return is_file($file)?hash('sha256',str_replace("\r\n","\n",file_get_contents($file))):null;}
+function epiLinkPath(string $path):void {if(!preg_match('~^(apps/operations|assets/(js|css)|shared/epi)/[A-Za-z0-9_/-]+\.(php|js|css)$~D',$path)||strpos($path,'..')!==false)throw new RuntimeException('Unsafe manifest path');}
 $report=['mode'=>$mode,'files'=>[],'conflicts'=>[],'schema_changes'=>false,'score_changes'=>false];
 foreach($manifest['files'] as $path=>$entry){
-    if(strpos($path,'..')!==false||$path[0]==='/')throw new RuntimeException('Unsafe path');
+    epiLinkPath($path);
     if(epiLinkHash($package.'/runtime/'.$path)!==$entry['after'])throw new RuntimeException('Package mismatch: '.$path);
     $live=epiLinkHash($root.'/'.$path);$report['files'][$path]=$live;
     if($live!==$entry['after']&&!in_array($live,$entry['before'],true))$report['conflicts'][]=$path;
+}
+foreach($manifest['dependencies']??[] as $path=>$hash){
+    epiLinkPath($path);
+    if(epiLinkHash($root.'/'.$path)!==$hash)$report['conflicts'][]='Dependency: '.$path;
 }
 require $root.'/shared/database.php';$db=db();
 $report['history_count']=(int)$db->query('SELECT COUNT(*) FROM epi_employee_evidence')->fetchColumn();
