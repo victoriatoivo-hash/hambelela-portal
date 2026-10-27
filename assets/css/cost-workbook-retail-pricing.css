@@ -996,7 +996,7 @@ tr.is-saved td {
 #costWorkbook[data-page="product-pricing"] .retail-pricing__filters>.rp4-button{height:34px;min-height:34px}
 #costWorkbook[data-page="product-pricing"] .rp4-sheet-note{display:flex;justify-content:space-between;gap:12px;color:#62675E}
 #costWorkbook[data-page="product-pricing"] .rp4-coverage{margin:0;color:#62675E;font-size:10px}
-#costWorkbook[data-page="product-pricing"] [data-row] td:first-child{max-width:245px}
+#costWorkbook[data-page="product-pricing"] [data-row] .rp-sheet__product-cell{max-width:245px}
 #costWorkbook[data-page="product-pricing"] [data-row] .portal-custom-select{min-width:115px;max-width:225px}
 #costWorkbook[data-page="product-pricing"] [data-row] .portal-custom-select-trigger{height:34px;min-height:34px;font:400 11.5px/1.3 "Jost",sans-serif;border:1px solid #E4E6DC;background:white}
 #costWorkbook[data-page="product-pricing"] [data-row] td>small{display:block;font-size:9.5px;color:#62675E}
@@ -1009,9 +1009,11 @@ tr.is-saved td {
 #costWorkbook[data-page="product-pricing"] [data-save-state]{position:absolute;left:16px;top:0;font-size:8px;line-height:10px;color:#59694A;pointer-events:none}
 #costWorkbook[data-page="product-pricing"] .wholesale-pricing__header-actions [data-rp-add]{display:none}
 #costWorkbook[data-page="product-pricing"] .rp-sheet__toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #E4E6DC;font:600 12px/1.3 "Jost",sans-serif}
-#costWorkbook[data-page="product-pricing"] .rp-sheet__identity{display:flex;align-items:center;gap:9px}
-#costWorkbook[data-page="product-pricing"] [data-product-identity]{flex:1;min-width:0}
-#costWorkbook[data-page="product-pricing"] :is([data-pack-select],[data-pack-select-page]){width:17px;height:17px;min-height:17px;flex:0 0 17px;accent-color:#59694A;cursor:pointer;margin:0 9px 0 0;vertical-align:middle}
+#costWorkbook[data-page="product-pricing"] .rp-sheet__selection-cell{box-sizing:border-box;width:34px;min-width:34px;max-width:34px;padding:6px 8px;text-align:center}
+#costWorkbook[data-page="product-pricing"] [data-product-identity]{display:block;min-width:0;width:100%}
+#costWorkbook[data-page="product-pricing"] :is([data-pack-select],[data-pack-select-page]){appearance:auto;display:block;box-sizing:border-box;width:17px;min-width:17px;max-width:17px;height:17px;min-height:17px;max-height:17px;padding:0;margin:0 auto;accent-color:#59694A;cursor:pointer;border:0;border-radius:0;background:transparent;box-shadow:none;outline:none;vertical-align:middle}
+#costWorkbook[data-page="product-pricing"] :is([data-pack-select],[data-pack-select-page]):focus{box-shadow:none;outline:none}
+#costWorkbook[data-page="product-pricing"] :is([data-pack-select],[data-pack-select-page]):focus-visible{outline:2px solid #59694A;outline-offset:2px;box-shadow:none}
 #costWorkbook[data-page="product-pricing"] .rp-sheet__bulk-packaging{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 12px;background:#F2F4EC;border-bottom:1px solid #E4E6DC;color:#344126;font:500 12px/1.4 "Jost",sans-serif}
 #costWorkbook[data-page="product-pricing"] .rp-sheet__bulk-packaging[hidden]{display:none}
 #costWorkbook[data-page="product-pricing"] .is-packaging-selected td{background:#F2F4EC}
