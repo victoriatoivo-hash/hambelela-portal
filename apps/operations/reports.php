@@ -8,20 +8,21 @@ require_role('owner_admin');
 
 $phaseThreeTabs = ['attendance'=>'Attendance','orders'=>'Orders','packing-performance'=>'Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybills','task-management'=>'Task Management','hr-leave'=>'HR and Leave','website-updates'=>'Website Updates','errors-quality'=>'Errors and Quality','performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
 $visiblePerformanceTabs = ['business-activity'=>'Business Activity Timeline'];
-$tab = (string) ($_GET['tab'] ?? 'business-health');
+$tab = (string) ($_GET['tab'] ?? 'dashboard');
 // Retire the standalone presentation report; preserve source data and audit history.
 if ($tab === 'performance-reports') {
     header('Location: reports.php?tab=employees');
     exit;
 }
-if (!in_array($tab, array_merge(['business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'business-health';
-$currentKpiTitle = $tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health'));
+if (!in_array($tab, array_merge(['dashboard','business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'dashboard';
+$currentKpiTitle = $tab === 'dashboard' ? 'Employee Performance' : ($tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health')));
 $pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
 $activeApp = 'kpi';
 $extraStylesheets = $tab === 'business-health' ? [[
     'path' => 'assets/css/performance-dashboard.css',
     'version' => is_file(BASE_PATH . '/assets/css/performance-dashboard.css') ? (string) filemtime(BASE_PATH . '/assets/css/performance-dashboard.css') : '1',
 ]] : [];
+if ($tab === 'dashboard') $extraStylesheets[] = ['path'=>'assets/css/performance-workspace.css','version'=>(string) @filemtime(BASE_PATH.'/assets/css/performance-workspace.css')];
 $ready = ops_database_ready();
 $message = '';
 $messageType = 'success';
@@ -269,6 +270,7 @@ include BASE_PATH . '/shared/sidebar.php';
     </section>
 
     <nav class="kpi-health-tabs" aria-label="Employee Performance sections">
+        <a href="reports.php" class="<?= $tab === 'dashboard' ? 'active' : '' ?>">Overview</a>
         <a href="reports.php?tab=business-health" class="<?= $tab === 'business-health' ? 'active' : '' ?>">Business Health</a>
         <a href="reports.php?tab=employees" class="<?= $tab === 'employees' ? 'active' : '' ?>">Employees</a>
         <?php foreach($visiblePerformanceTabs as $tabKey=>$tabLabel): ?><a href="reports.php?tab=<?= $tabKey ?>" class="<?= $tab===$tabKey?'active':'' ?>"><?= htmlspecialchars($tabLabel,ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?>
@@ -277,6 +279,8 @@ include BASE_PATH . '/shared/sidebar.php';
 
     <?php if (!$ready): ?>
         <?php ops_setup_notice(); ?>
+    <?php elseif ($tab === 'dashboard'): ?>
+        <?php include __DIR__.'/performance-workspace.php'; ?>
     <?php elseif ($tab === 'business-health'): ?>
         <section class="kpi-period-panel" aria-label="Reporting period">
             <label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label>
