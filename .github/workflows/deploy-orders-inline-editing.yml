@@ -1,10 +1,10 @@
-name: Deploy Orders pagination visibility delta
+name: Deploy Orders continuous list delta
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Preflight or deploy the isolated Orders pagination change
+        description: Preflight or deploy the isolated Orders continuous list change
         required: true
         type: choice
         options:

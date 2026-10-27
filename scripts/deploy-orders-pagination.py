@@ -1,9 +1,9 @@
 """Isolated pagination delta: current-file guard, targeted backup and rollback."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-BASELINE='35f8fe38'
-BASELINES={'assets/js/orders-board.js':'d22c27b5','assets/css/orders-list-selection.css':BASELINE}
-FILES=['assets/js/orders-board.js','assets/css/orders-list-selection.css']
+BASELINE='86832ed8'
+BASELINES={'apps/operations/orders-board-data.php':'f73e440f','assets/js/orders-board.js':BASELINE,'assets/css/orders-list-selection.css':BASELINE}
+FILES=['apps/operations/orders-board-data.php','assets/js/orders-board.js','assets/css/orders-list-selection.css']
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n')

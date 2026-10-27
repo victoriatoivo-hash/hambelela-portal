@@ -41,6 +41,19 @@ check(count(searchRows('Vic',['person'=>'__me__'])),650,'Current employee filter
 check(searchRows('Unknown'),[],'No matches');
 $paged=$db->prepare('SELECT id FROM ops_orders ORDER BY id LIMIT 100 OFFSET 600');$paged->execute();
 check(count($paged->fetchAll()),52,'Final server page bounded');
+// Execute the endpoint's actual limit expression against the fixture dataset.
+$endpoint = file_get_contents(__DIR__.'/../apps/operations/orders-board-data.php');
+preg_match('/    (\$listLimit = \$continuousList[^\n]+;)/', $endpoint, $limitMatch);
+check(isset($limitMatch[1]), true, 'Continuous endpoint limit expression found');
+$pageSize=100; $pageNumber=1; $continuousList=true;
+eval($limitMatch[1]);
+$all=$db->query("SELECT id FROM ops_orders WHERE created_at >= '2026-10-01' AND created_at < '2026-11-01' ORDER BY id {$listLimit}")->fetchAll(PDO::FETCH_COLUMN);
+check(count($all),650,'Continuous month includes all orders beyond first 100 and legacy 500');
+check((int)$all[0],1,'First month order retained');
+check((int)$all[649],650,'Last month order retained');
+check(count($db->query("SELECT id FROM ops_orders ORDER BY id {$listLimit}")->fetchAll()),652,'All dates does not silently truncate');
+$continuousList=false; eval($limitMatch[1]);
+check(count($db->query("SELECT id FROM ops_orders ORDER BY id {$listLimit}")->fetchAll()),100,'Legacy paging clients retained');
 $order=['total_amount'=>'450.00','financial_payment_status'=>'paid','status'=>'new_order'];
 $payment=['amount_cents'=>45000,'source'=>'pos','source_version'=>'v1'];
 check(ops_list_money($order,[$payment]),['total_cents'=>45000,'paid_cents'=>45000,'outstanding_cents'=>0,'payment_verified'=>true],'Includes delivery once');

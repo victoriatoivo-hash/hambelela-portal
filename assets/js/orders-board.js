@@ -293,32 +293,18 @@
     const dateLabel = value => new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Windhoek'}).format(new Date(`${value}T12:00:00+02:00`));
     const dates = ordersCache.map(order=>String(orderDisplayDateTime(order)).slice(0,10)).filter(value=>/^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
     const scope = range ? `${dateLabel(range.from)} – ${dateLabel(range.to)}` : 'All dates';
-    const shown = dates.length ? `Dates on this page: ${dateLabel(dates[0])} – ${dateLabel(dates[dates.length-1])}` : '';
-    const dateDescending = boardState.sortColumn==='date' && boardState.sortDirection!=='asc';
-    const pageNumbers = p.pages<=9 ? Array.from({length:p.pages},(_,i)=>i+1) : [...new Set([1,p.page-1,p.page,p.page+1,p.pages].filter(n=>n>=1&&n<=p.pages))].sort((a,b)=>a-b);
-    const numbers = pageNumbers.map((n,i)=>`${i&&n>pageNumbers[i-1]+1?'<span aria-hidden="true">…</span>':''}<button type="button" data-list-page="${n}" aria-label="Page ${n}" ${n===p.page?'aria-current="page" disabled':''}>${n}</button>`).join('');
+    const shown = dates.length ? `Order dates: ${dateLabel(dates[0])} – ${dateLabel(dates[dates.length-1])}` : '';
     for (const position of ['top','bottom']) {
       const id = position==='top'?'orders-list-pagination':'orders-list-pagination-bottom';
       let controls = document.getElementById(id);
-      if (!controls) { controls=document.createElement('nav');controls.id=id;controls.className='orders-list-pagination'; }
-      controls.setAttribute('aria-label',`Orders pages · ${position}`);
+      if (!controls) { controls=document.createElement('section');controls.id=id;controls.className='orders-list-pagination'; }
+      controls.setAttribute('aria-label',`Orders list summary · ${position}`);
       if(position==='top') document.querySelector('.orders-filter-card').after(controls);
       else (document.getElementById('orders-board-cards') || document.querySelector('.orders-date-groups')).after(controls);
-      controls.innerHTML = `<div class="orders-list-page-summary"><strong>${esc(scope)}</strong><span role="status">${p.total ? `${(p.page-1)*p.page_size+1}–${Math.min(p.total,p.page*p.page_size)} of ${p.total} orders · Page ${p.page} of ${p.pages}` : 'No matching orders'}</span><small>${esc(shown)}</small></div>
-        <div class="orders-list-page-actions"><button type="button" data-list-page="1" ${p.page<=1?'disabled':''}>${dateDescending?'Latest orders':'First page'}</button><button type="button" data-list-page="previous" ${p.page<=1?'disabled':''}>Previous</button>${numbers}<button type="button" data-list-page="next" ${p.page>=p.pages?'disabled':''}>Next</button><button type="button" data-list-page="${p.pages}" ${p.page>=p.pages?'disabled':''}>${dateDescending?'Earliest orders':'Last page'}</button></div>
-        ${p.pages>1?`<p class="orders-list-page-help">All ${p.total} matching orders are available across ${p.pages} pages. ${dateDescending?'Earlier dates are on the following pages.':'Use the page numbers to see the remaining orders.'} Your filters stay applied.</p>`:''}
-        ${position==='top'?`<div class="orders-list-selection-actions"><button type="button" data-list-select-page ${!p.total?'disabled':''}>Select this page</button><button type="button" data-list-select-matching ${!p.total?'disabled':''}>Select all ${p.total} filtered results</button></div>`:''}
+      controls.innerHTML = `<div class="orders-list-page-summary"><strong>${esc(scope)}</strong><span role="status">${ordersCache.length ? `${ordersCache.length} orders · One continuous list` : 'No matching orders'}</span><small>${esc(shown)}</small></div>
+        ${position==='top'?`<div class="orders-list-selection-actions"><button type="button" data-list-select-matching ${!ordersCache.length?'disabled':''}>Select all ${ordersCache.length} filtered results</button></div>`:''}
         ${p.hidden_matches ? `<p class="orders-list-filter-notice">${p.hidden_matches} matching order${p.hidden_matches===1?' is':'s are'} hidden by the date or other filters. Adjust filters to include them.</p>` : ''}`;
     }
-  }
-
-  async function navigateOrdersPage(value) {
-    if (listRequestQueued) return;
-    const next = value==='next'?listPage+1:value==='previous'?listPage-1:Number(value);
-    if(!Number.isInteger(next)||next<1||next>listPagination.pages||next===listPage)return;
-    listPage=next;
-    await requestOrdersList(false);
-    if(listPagination.page===next)document.getElementById('orders-list-pagination')?.scrollIntoView({block:'start',behavior:'auto'});
   }
 
   const selectionCurrency = (cents) => `N$${(cents/100).toLocaleString('en-NA',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
@@ -375,13 +361,11 @@
 
   document.addEventListener('click', async (event) => {
     if (event.target.closest('[data-search-clear]')) { scheduleOrdersSearch(''); return; }
-    const target = event.target.closest('[data-list-page], [data-list-select-page], [data-list-select-matching], [data-selection-toggle]');
+    const target = event.target.closest('[data-list-select-page], [data-list-select-matching], [data-selection-toggle]');
     if (!target) return;
     if (target.hasAttribute('data-selection-toggle')) {
       selectionExpanded = !selectionExpanded;
       updateBulkActionBar();
-    } else if (target.hasAttribute('data-list-page')) {
-      await navigateOrdersPage(target.dataset.listPage);
     } else if (target.hasAttribute('data-list-select-page')) {
       ordersCache.forEach((order) => selectedOrders.add(String(order.id)));
       updateSelectionBar();
@@ -616,6 +600,7 @@
       params.set('date_to', range.to);
     }
     params.set('paged', '1');
+    params.set('continuous', '1');
     params.set('q', boardState.search.trim());
     listFilterKeys.forEach((key) => params.set(key, boardState[key] || ''));
     params.set('page', String(listPage));

@@ -48,6 +48,7 @@ $since = preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', (string) ($_GET['
     : '';
 $incremental = $since !== '';
 $paged = ($_GET['paged'] ?? '') === '1';
+$continuousList = $paged && ($_GET['continuous'] ?? '') === '1';
 if ($paged) { $incremental = false; $since = ''; }
 $databaseClock = ops_row("SELECT DATE_FORMAT(CURRENT_TIMESTAMP, '%Y-%m-%d %H:%i:%s') AS cursor_time");
 $responseCursor = (string) ($databaseClock['cursor_time'] ?? '');
@@ -133,7 +134,7 @@ $portalPaidSelect = ops_column_exists('ops_orders', 'portal_paid_confirmed')
     : "CASE WHEN o.payment_status = 'paid' THEN 'paid' ELSE 'unpaid' END";
 $pagination = null;
 $listOrderBy = "{$displayDateTimeExpr} DESC, o.id DESC";
-$listLimit = '500';
+$listLimit = 'LIMIT 500';
 if ($paged) {
     $nameFields = ['o.customer_name'];
     foreach (['customer_first_name','customer_last_name','billing_first_name','billing_last_name'] as $column) {
@@ -181,7 +182,7 @@ if ($paged) {
         COALESCE(SUM(TIME({$displayDateTimeExpr}) >= '".OPS_BUSINESS_START."' AND TIME({$displayDateTimeExpr}) < '".OPS_BUSINESS_END."' AND {$displayDateTimeExpr}<DATE_SUB(NOW(),INTERVAL 4 HOUR) AND o.status NOT IN ('completed','packed','verified','cancelled','canceled','refunded','failed')),0) AS overdue_orders
         {$from} {$where}", $params);
     $count = (int)($listMetrics['total_orders'] ?? 0);
-    $pageSize = 100;
+    $pageSize = $continuousList ? max(1, $count) : 100;
     $pageNumber = min(max(1, (int)($_GET['page'] ?? 1)), max(1, (int)ceil($count / $pageSize)));
     $hiddenMatches = 0;
     if ($searchWhere !== '') {
@@ -195,7 +196,8 @@ if ($paged) {
     $sorts = ['date'=>$displayDateTimeExpr,'task'=>'o.order_number','mobile'=>'o.customer_contact','mode'=>"COALESCE(NULLIF(o.fulfilment_mode,''),o.order_type)",'amount'=>'o.total_amount','payment'=>'o.payment_method','paid'=>$portalPaidSelect,'status'=>'o.status','packer'=>'e.full_name','text'=>'o.notes'];
     $direction = ($_GET['sortDirection'] ?? '') === 'asc' ? 'ASC' : 'DESC';
     $listOrderBy = ($sorts[$_GET['sortColumn'] ?? 'date'] ?? $displayDateTimeExpr)." {$direction}, o.id {$direction}";
-    $listLimit = $pageSize.' OFFSET '.(($pageNumber - 1) * $pageSize);
+    // The interactive list shows the entire filtered range; legacy clients may still page.
+    $listLimit = $continuousList ? '' : 'LIMIT '.$pageSize.' OFFSET '.(($pageNumber - 1) * $pageSize);
     $pagination = ['page'=>$pageNumber,'page_size'=>$pageSize,'total'=>$count,'pages'=>max(1,(int)ceil($count/$pageSize)),'hidden_matches'=>$hiddenMatches];
 }
 $orders = ops_rows(
@@ -209,7 +211,7 @@ $orders = ops_rows(
      {$manualOrderJoin}
      {$where}
      ORDER BY {$listOrderBy}
-     LIMIT {$listLimit}",
+     {$listLimit}",
     $params
 );
 
