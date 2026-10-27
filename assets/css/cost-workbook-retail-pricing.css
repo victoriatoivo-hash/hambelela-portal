@@ -1009,6 +1009,15 @@ tr.is-saved td {
 #costWorkbook[data-page="product-pricing"] [data-save-state]{position:absolute;left:16px;top:0;font-size:8px;line-height:10px;color:#59694A;pointer-events:none}
 #costWorkbook[data-page="product-pricing"] .wholesale-pricing__header-actions [data-rp-add]{display:none}
 #costWorkbook[data-page="product-pricing"] .rp-sheet__toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 12px;border-bottom:1px solid #E4E6DC;font:600 12px/1.3 "Jost",sans-serif}
+#costWorkbook[data-page="product-pricing"] .rp-sheet__identity{display:flex;align-items:center;gap:9px}
+#costWorkbook[data-page="product-pricing"] [data-product-identity]{flex:1;min-width:0}
+#costWorkbook[data-page="product-pricing"] :is([data-pack-select],[data-pack-select-page]){width:17px;height:17px;min-height:17px;flex:0 0 17px;accent-color:#59694A;cursor:pointer;margin:0 9px 0 0;vertical-align:middle}
+#costWorkbook[data-page="product-pricing"] .rp-sheet__bulk-packaging{display:flex;align-items:center;flex-wrap:wrap;gap:10px;padding:10px 12px;background:#F2F4EC;border-bottom:1px solid #E4E6DC;color:#344126;font:500 12px/1.4 "Jost",sans-serif}
+#costWorkbook[data-page="product-pricing"] .rp-sheet__bulk-packaging[hidden]{display:none}
+#costWorkbook[data-page="product-pricing"] .is-packaging-selected td{background:#F2F4EC}
+.rp-bulk-pack-label{display:grid;gap:8px;font:500 12px/1.4 "Jost",sans-serif}
+[data-bulk-pack-dialog] .rp-cost-link-table{max-height:35dvh;overflow:auto}
+@media(max-width:767px){[data-bulk-pack-dialog] input{font-size:16px}}
 #costWorkbook[data-page="product-pricing"] .rp-sheet__add{height:36px;padding:0 13px;background:#344126;color:white;border:1px solid #344126;border-radius:8px;font:500 11.5px "Jost",sans-serif;cursor:pointer}
 #costWorkbook[data-page="product-pricing"] .rp-sheet__add-row{display:block;width:100%;height:40px;padding:0 12px;text-align:left;background:white;border:0;border-top:1px solid #E4E6DC;color:#59694A;font:500 11px "Jost",sans-serif;cursor:pointer}
 #costWorkbook[data-page="product-pricing"] .rp-sheet__row--new td{background:#F8FAF5}
