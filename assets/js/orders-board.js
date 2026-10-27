@@ -332,6 +332,7 @@
       if (!money?.payment_verified) unknown++;
       else { paid += money.paid_cents; outstanding += money.outstanding_cents; }
     });
+    bar.querySelectorAll('[data-mobile-selection-total]').forEach((node) => { node.textContent = `${selectedOrders.size} order${selectedOrders.size === 1 ? '' : 's'} selected · ${missing ? 'Verifying…' : selectionCurrency(total)}`; });
     bar.querySelector('[data-selection-total]').textContent = `Total Order Value: ${missing ? 'Verifying…' : selectionCurrency(total)}`;
     bar.querySelector('[data-selection-paid]').textContent = `Amount Paid: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(paid)}`;
     bar.querySelector('[data-selection-outstanding]').textContent = `Outstanding: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(outstanding)}`;
@@ -1210,7 +1211,33 @@
     });
   }
 
+  const mobileOrdersViewport = window.matchMedia('(max-width: 767px)');
+  let mobileOrdersPointerDown = false;
+  let mobileOrdersScrollUntil = 0;
+  function mobileOrdersScrolling() {
+    return mobileOrdersViewport.matches && (mobileOrdersPointerDown || Date.now() < mobileOrdersScrollUntil);
+  }
+  // Observe gestures and momentum without cancelling native vertical page scrolling.
+  page.addEventListener('pointerdown', () => {
+    if (mobileOrdersViewport.matches) mobileOrdersPointerDown = true;
+  }, { passive: true });
+  const endMobileOrdersGesture = () => {
+    if (mobileOrdersPointerDown) mobileOrdersScrollUntil = Date.now() + 250;
+    mobileOrdersPointerDown = false;
+  };
+  window.addEventListener('pointerup', endMobileOrdersGesture, { passive: true });
+  window.addEventListener('pointercancel', endMobileOrdersGesture, { passive: true });
+  window.addEventListener('blur', endMobileOrdersGesture);
+  window.addEventListener('scroll', () => {
+    if (mobileOrdersViewport.matches) mobileOrdersScrollUntil = Date.now() + 250;
+  }, { capture: true, passive: true });
+
   function getOrdersScrollContainer(element) {
+    if (mobileOrdersViewport.matches) {
+      return element?.closest?.('.orders-table-surface')
+        || element?.closest?.('[data-group-card]')?.querySelector('.orders-table-surface')
+        || null;
+    }
     return element?.closest?.('[data-orders-board-scroll]') || document.querySelector('.orders-grid-scroll[data-orders-board-scroll]');
   }
 
@@ -1219,7 +1246,7 @@
     const row = source?.closest?.('.monday-order-row')
       || (orderId ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"]`) : null);
     const group = row?.closest?.('[data-group-card]') || source?.closest?.('[data-group-card]');
-    const table = getOrdersScrollContainer(source) || group?.querySelector('[data-orders-board-scroll], .orders-table-scroll');
+    const table = getOrdersScrollContainer(source) || group?.querySelector(mobileOrdersViewport.matches ? '.orders-table-surface' : '[data-orders-board-scroll], .orders-table-scroll');
 
     return {
       groupKey: group?.dataset.groupCard || '',
@@ -1233,6 +1260,16 @@
 
   function restoreOrdersTablePosition(position) {
     if (!position) return;
+    if (mobileOrdersViewport.matches) {
+      // Surviving surfaces already have the latest position. Restore only replaced groups,
+      // synchronously, without writing vertical positions or queuing a stale animation frame.
+      if (position.table?.isConnected || mobileOrdersScrolling()) return;
+      const group = [...body.querySelectorAll('[data-group-card]')]
+        .find((node) => node.dataset.groupCard === position.groupKey);
+      const table = group?.querySelector('.orders-table-surface');
+      if (table && table.scrollLeft !== position.tableLeft) table.scrollLeft = position.tableLeft;
+      return;
+    }
     const apply = () => {
       const table = position.table?.isConnected
         ? position.table
@@ -1266,7 +1303,8 @@
   }
 
   function ordersInteractionInProgress() {
-    return activeOrderMutationCount > 0
+    return mobileOrdersScrolling()
+      || activeOrderMutationCount > 0
       || Boolean(body.querySelector('.is-editing'))
       || Boolean(personPopup?.classList.contains('is-open'))
       || Boolean(labelMenu && !labelMenu.hidden)
@@ -1487,7 +1525,6 @@
       updateWorkMetrics(visibleOrders());
     }
     if (field === 'status') playCompleteConfettiForChanges(changes, value);
-    if (window.matchMedia('(max-width: 767px)').matches) renderMobileCards(visibleOrders());
   }
 
   async function undoLastChange() {
@@ -2035,7 +2072,7 @@
     ordersToolsPanel.setAttribute('aria-hidden', 'false');
     document.body.classList.add('orders-tools-open');
     restoreOrdersBoardPositions(ordersToolsBoardPositions);
-    window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    if (!mobileOrdersViewport.matches) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
     const ordersToolsCloseButton = ordersToolsPanel.querySelector('[data-orders-tools-close]');
     ordersToolsCloseButton?.focus({ preventScroll: true });
     window.setTimeout(() => ordersToolsCloseButton?.focus({ preventScroll: true }), 0);
@@ -2051,7 +2088,7 @@
     ordersToolsPanel.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('orders-tools-open');
     restoreOrdersBoardPositions(ordersToolsBoardPositions);
-    if (ordersToolsWindowPosition) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    if (!mobileOrdersViewport.matches && ordersToolsWindowPosition) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
     ordersToolsReturnFocus?.focus?.({ preventScroll: true });
     ordersToolsCloseTimer = window.setTimeout(() => {
       if (!ordersToolsPanel.classList.contains('is-open') && ordersToolsBackdrop) ordersToolsBackdrop.hidden = true;
@@ -2063,9 +2100,9 @@
     const orderIds = Array.isArray(ids) ? ids : [ids];
     const map = { 'restore-trash':'restore_trashed_orders', 'restore-archive':'restore_archived_orders', 'delete-forever':'delete_orders_forever', 'archive-selected':'archive_orders', 'trash-selected':'trash_orders' };
     if (action === 'export-selected') { exportSelectedOrders(); return; }
-    if (action === 'delete-forever' && !window.confirm('Delete this order forever?\n\nThis permanently removes the portal record and cannot be undone. The WooCommerce source order will not be deleted.')) return;
-    if (action === 'archive-selected' && !window.confirm(`Archive ${orderIds.length} selected order(s)?`)) return;
-    if (action === 'trash-selected' && !window.confirm(`Move ${orderIds.length} selected order(s) to Trash?`)) return;
+    if (action === 'delete-forever' && !await window.PortalNotice.confirm('Delete this order forever?\n\nThis permanently removes the portal record and cannot be undone. The WooCommerce source order will not be deleted.')) return;
+    if (action === 'archive-selected' && !await window.PortalNotice.confirm(`Archive ${orderIds.length} selected order(s)?`)) return;
+    if (action === 'trash-selected' && !await window.PortalNotice.confirm(`Move ${orderIds.length} selected order(s) to Trash?`)) return;
     await post(map[action], { order_ids: orderIds.join(',') });
     orderIds.forEach((id) => selectedOrders.delete(String(id)));
     await refresh(null, { preservePosition: true });
@@ -2155,23 +2192,26 @@
     modal.id = 'order-payment-editor';
     modal.className = 'payment-editor orders-payment-modal';
     modal.dataset.orderId = String(order.id);
-    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title" data-payment-order-reference>${esc(formatOrderInvoiceReference(order.order_number || order.id))}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header><label class="payment-editor__type">Payment type<select data-payment-type ${editable?'':'disabled'}><option value="single">Single Payment</option><option value="split" ${payments.length>1?'selected':''}>Split Payment</option></select></label><div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable&&payments.length>1?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save Payment</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
+    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title" data-payment-order-reference>${esc(formatOrderInvoiceReference(order.order_number || order.id))}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header><label class="payment-editor__type">Payment type<select data-payment-type data-portal-custom-select data-portal-custom-select-native ${editable?'':'disabled'}><option value="single">Single Payment</option><option value="split" ${payments.length>1?'selected':''}>Split Payment</option></select></label><div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable&&payments.length>1?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save Payment</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
     document.body.appendChild(modal);
+    window.PortalCustomSelect?.initialise(modal);
     const rows = modal.querySelector('[data-payment-editor-rows]');
+    let saving = false;
     const updateTotals = () => {
       const collected = payments.reduce((sum,payment)=>sum+Number(payment.amount_cents||0),0);
       modal.querySelector('[data-payment-collected]').textContent = money(collected/100);
       modal.querySelector('[data-payment-due]').textContent = money((Math.round(Number(order.total_amount||0)*100)-collected)/100);
     };
     const renderRows = () => {
-      rows.innerHTML = payments.map((payment,index)=>`<div class="payment-editor__row"><select data-payment-method-index="${index}" data-portal-custom-select data-portal-select-variant="payment-method" aria-label="Payment method ${index + 1}" ${editable?'':'disabled'}>${PAYMENT_METHODS.map(([code,label])=>`<option value="${code}" data-payment-option="${esc(normaliseOrderColourKey(code))}" ${code===payment.method?'selected':''}>${esc(label)}</option>`).join('')}</select><label>N$<input type="number" min="0" step="0.01" value="${(Number(payment.amount_cents||0)/100).toFixed(2)}" data-payment-amount-index="${index}" ${editable?'':'disabled'}></label>${editable&&payments.length>1?`<button type="button" data-payment-remove="${index}" aria-label="Remove payment">×</button>`:''}</div>`).join('');
+      rows.innerHTML = payments.map((payment,index)=>`<div class="payment-editor__row"><div class="payment-editor__method"><span class="payment-editor__field-title">Payment method</span><select data-payment-method-index="${index}" data-portal-custom-select data-portal-custom-select-native data-portal-select-variant="payment-method" aria-label="Payment method ${index + 1}" ${editable?'':'disabled'}>${PAYMENT_METHODS.map(([code,label])=>`<option value="${code}" data-payment-option="${esc(normaliseOrderColourKey(code))}" ${code===payment.method?'selected':''}>${esc(label)}</option>`).join('')}</select></div><div class="payment-editor__kind"><span class="payment-editor__field-title">Payment type</span><output data-payment-kind="${index}">${esc(PAYMENT_METHODS.find(([code])=>code===payment.method)?.[1] || payment.method)}</output></div><div class="payment-editor__amount"><span class="payment-editor__field-title">Amount</span><label>N$<input aria-label="Amount for payment ${index+1}" type="number" inputmode="decimal" min="0" step="0.01" value="${(Number(payment.amount_cents||0)/100).toFixed(2)}" data-payment-amount-index="${index}" ${editable?'':'disabled'}></label></div><button type="button" data-payment-remove="${index}" aria-label="Remove payment ${index+1}" ${editable&&payments.length>1?'':'disabled'}>×</button></div>`).join('');
       window.PortalCustomSelect?.initialise(rows);
       updateTotals();
     };
     renderRows();
     modal.addEventListener('input',(event)=>{const index=Number(event.target.dataset.paymentAmountIndex);if(Number.isInteger(index)&&payments[index]){payments[index].amount_cents=Math.round(Number(event.target.value||0)*100);updateTotals();}});
-    modal.addEventListener('change',(event)=>{if(event.target.matches('[data-payment-type]')){if(event.target.value==='single'){payments.splice(1);modal.querySelector('[data-payment-add]').hidden=true;}else{if(payments.length<2)payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'eft',amount_cents:0});modal.querySelector('[data-payment-add]').hidden=false;}renderRows();return;}const index=Number(event.target.dataset.paymentMethodIndex);if(Number.isInteger(index)&&payments[index]){payments[index].method=event.target.value;updateTotals();}});
+    modal.addEventListener('change',(event)=>{if(event.target.matches('[data-payment-type]')){if(event.target.value==='single'){payments.splice(1);modal.querySelector('[data-payment-add]').hidden=true;}else{if(payments.length<2)payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'eft',amount_cents:0});modal.querySelector('[data-payment-add]').hidden=false;}renderRows();return;}const index=Number(event.target.dataset.paymentMethodIndex);if(Number.isInteger(index)&&payments[index]){payments[index].method=event.target.value;modal.querySelector(`[data-payment-kind="${index}"]`).textContent=PAYMENT_METHODS.find(([code])=>code===event.target.value)?.[1]||event.target.value;updateTotals();}});
     modal.addEventListener('click',async(event)=>{
+      if (saving) return;
       if(event.target.closest('[data-payment-editor-close]')) return closePaymentEditor();
       if(event.target.closest('[data-payment-add]')){payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'cash',amount_cents:0});renderRows();return;}
       const remove=event.target.closest('[data-payment-remove]');if(remove){payments.splice(Number(remove.dataset.paymentRemove),1);if(payments.length===1){modal.querySelector('[data-payment-type]').value='single';modal.querySelector('[data-payment-add]').hidden=true;}renderRows();return;}
@@ -2179,10 +2219,10 @@
       const errorNode=modal.querySelector('[data-payment-error]');errorNode.textContent='';
       if(new Set(payments.map(p=>p.method)).size!==payments.length){errorNode.textContent='A payment method cannot appear twice.';return;}
       if(modal.querySelector('[data-payment-type]').value==='split'&&payments.length<2){errorNode.textContent='A split payment requires at least two methods.';return;}
-      if(payments.some(p=>Number(p.amount_cents)<=0)){errorNode.textContent='Every payment amount must be greater than zero.';return;}
+      if(payments.some(p=>!Number.isFinite(Number(p.amount_cents))||Number(p.amount_cents)<=0)){errorNode.textContent='Every payment amount must be a valid number greater than zero.';return;}
       if(payments.reduce((sum,p)=>sum+Number(p.amount_cents||0),0)>Math.round(Number(order.total_amount||0)*100)){errorNode.textContent='Collected payment cannot exceed the order total.';return;}
-      save.disabled=true;save.textContent='Saving…';
-      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_source_of_truth=data.source;order.payment_method=data.payment_method;order.financial_payment_status=data.financial_payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row)row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);closePaymentEditor();if(syncState)syncState.textContent=data.sync_warning?`Payment saved locally. ${data.sync_warning}`:'Payment saved.';}catch(error){errorNode.textContent=error.message;save.disabled=false;save.textContent='Save Payment';}
+      saving=true;save.disabled=true;save.textContent='Saving…';
+      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_source_of_truth=data.source;order.payment_method=data.payment_method;order.financial_payment_status=data.financial_payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row)row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);closePaymentEditor();if(syncState)syncState.textContent=data.sync_warning?`Payment saved locally. ${data.sync_warning}`:'Payment saved.';}catch(error){saving=false;errorNode.textContent=error.message;save.disabled=false;save.textContent='Save Payment';}
     });
   }
 
@@ -2245,43 +2285,6 @@
     bar.dataset.filterCount = String(count);
     const clear = document.querySelector('[data-clear-board-filters]');
     if (clear) clear.hidden = count === 0;
-  }
-
-  function ensureMobileList() {
-    let list = document.getElementById('orders-board-cards');
-    if (!list) {
-      list = document.createElement('div');
-      list.id = 'orders-board-cards';
-      list.className = 'board-card-list';
-      const desktopList = document.querySelector('.orders-date-groups');
-      if (desktopList) desktopList.after(list);
-      else page.appendChild(list);
-    }
-    return list;
-  }
-
-  function renderMobileCards(orders) {
-    const list = ensureMobileList();
-    list.innerHTML = orders.map((order) => `
-      <article class="board-mobile-card" data-mobile-order-id="${esc(order.id)}">
-        <label class="orders-mobile-select"><input type="checkbox" data-row-select="${esc(order.id)}" ${selectedOrders.has(String(order.id)) ? 'checked' : ''}> Select order ${esc(formatOrderInvoiceReference(order.order_number))}</label>
-        <header class="board-mobile-card__top">
-          <strong class="editable-cell" data-editable-order-field="task_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0" aria-label="Edit task"><span class="orders-inline-cell-trigger task-name">${esc(buildOrderTaskName(order) || 'Customer not recorded')}</span></strong>
-          ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
-        </header>
-        <div class="board-mobile-card__grid">
-          <div><span class="orders-mobile-label">Date</span><span class="orders-mobile-value">${esc(prettyDate(orderDisplayDateTime(order)))}</span></div>
-          <div><span class="orders-mobile-label">Mobile number</span><span class="orders-mobile-value editable-cell" data-editable-order-field="mobile_number" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0" aria-label="Edit mobile number"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || 'Not recorded')}</span></span></div>
-          <div><span class="orders-mobile-label">Mode</span>${renderLabelCell(order, 'order_type', order.order_type || 'collection', modeLabels, 'mode-label')}</div>
-          <div><span class="orders-mobile-label">Amount</span><span class="orders-mobile-value">${esc(money(order.total_amount))}</span></div>
-          <div><span class="orders-mobile-label">Payment</span>${renderPaymentBadge(order)}</div>
-          <div><span class="orders-mobile-label">Paid</span><span class="orders-mobile-value">${order.payment_status === 'paid' ? 'Paid ✓' : 'Unpaid'}</span></div>
-          <div><span class="orders-mobile-label">Shipping</span><span class="orders-mobile-value">${esc(order.dispatch_courier ? `${order.dispatch_courier}${order.dispatch_box_count ? ` · ${order.dispatch_box_count} box${Number(order.dispatch_box_count) === 1 ? '' : 'es'}` : ''}` : findText(modeLabels, order.order_type || 'collection'))}</span></div>
-        </div>
-        <div class="board-mobile-card__packer"><span class="orders-mobile-label">Packed By</span>${renderPackerCell(order)}</div>
-        <div class="board-mobile-card__actions"><button type="button" data-order-panel-open data-order-id="${esc(order.id)}">View Order</button><button type="button" class="orders-task-menu-trigger" data-order-row-menu data-order-id="${esc(order.id)}" aria-label="More order actions" aria-haspopup="menu" aria-expanded="false"><span></span><span></span><span></span></button></div>
-      </article>
-    `).join('');
   }
 
   function renderCustomCell(column) {
@@ -2441,6 +2444,28 @@
     exportOrders(rows, `hambelela-selected-orders-${new Date().toISOString().slice(0, 10)}.csv`);
   }
 
+  let mobileBulkDismissed = false;
+  let mobileBulkExpanded = false;
+  let mobileBulkSelectionKey = '';
+  document.addEventListener('click', (event) => {
+    if (!mobileOrdersViewport.matches || !mobileBulkExpanded) return;
+    const bar = document.getElementById('orders-bulk-action-bar');
+    if (!bar || bar.contains(event.target)) return;
+    // Consume just this outside click so dismissing cannot also toggle an order.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    mobileBulkExpanded = false;
+    updateBulkActionBar();
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !mobileOrdersViewport.matches || !selectedOrders.size || mobileBulkDismissed) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (mobileBulkExpanded) mobileBulkExpanded = false;
+    else mobileBulkDismissed = true;
+    updateBulkActionBar();
+  }, true);
+
   function ensureBulkActionBar() {
     let bar = document.getElementById('orders-bulk-action-bar');
     if (!bar) {
@@ -2454,12 +2479,14 @@
       (page || document.body).appendChild(bar);
     }
     bar.innerHTML = `
+      <div class="orders-mobile-bulk-heading"><span data-mobile-selection-total></span><button type="button" data-order-bulk-action="mobile-actions" aria-expanded="${mobileBulkExpanded}">Actions</button></div>
+      <button type="button" class="orders-bulk-collapsed-trigger" data-order-bulk-action="mobile-reopen" aria-label="Reopen selected orders toolbar"><span data-mobile-selection-total></span></button>
       <div class="orders-selection-finances">
         <div class="orders-selection-total" data-selection-total aria-live="polite">Total: —</div>
         <button type="button" class="orders-selection-clear orders-selection-toggle" data-selection-toggle aria-expanded="${selectionExpanded}">Payment breakdown</button>
         <div class="orders-selection-meta" data-selection-breakdown ${selectionExpanded ? '' : 'data-collapsed'}><span data-selection-paid></span><span data-selection-outstanding></span><span data-selection-warning role="status"></span></div>
       </div>
-      <button type="button" class="orders-selection-clear" data-order-bulk-action="close">Clear Selection</button>
+      <button type="button" class="orders-selection-clear" data-order-bulk-action="clear-selection">Clear Selection</button>
       <div class="orders-packing-bulk-selection orders-selection-count"><span class="orders-packing-bulk-count" data-bulk-count>0</span><strong class="orders-packing-bulk-label" data-bulk-label>items selected</strong></div>
       <div class="orders-packing-bulk-divider" aria-hidden="true"></div>
       <div class="orders-packing-bulk-actions">
@@ -2468,7 +2495,7 @@
         <button type="button" class="orders-packing-bulk-action" data-bulk-action="archive" data-order-bulk-action="archive" data-needs-manage><i data-lucide="archive"></i><span>Archive</span></button>
         <button type="button" class="orders-packing-bulk-action orders-packing-bulk-action--danger" data-bulk-action="delete" data-order-bulk-action="delete" data-needs-delete><i data-lucide="trash-2"></i><span>Delete</span></button>
       </div>
-      <button type="button" class="orders-packing-bulk-close" data-order-bulk-action="close" aria-label="Close selected bar"><i data-lucide="x"></i></button>
+      <button type="button" class="orders-packing-bulk-close" data-order-bulk-action="close" aria-label="Close selected bar"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     `;
     return bar;
   }
@@ -2476,6 +2503,15 @@
   function updateBulkActionBar() {
     const bar = ensureBulkActionBar();
     const count = selectedOrders.size;
+    const selectionKey = [...selectedOrders].sort().join(',');
+    if (selectionKey !== mobileBulkSelectionKey) {
+      mobileBulkSelectionKey = selectionKey;
+      mobileBulkDismissed = false;
+      mobileBulkExpanded = false;
+    }
+    bar.classList.toggle('is-mobile-dismissed', mobileBulkDismissed);
+    bar.classList.toggle('is-mobile-expanded', mobileBulkExpanded);
+    bar.querySelector('[data-order-bulk-action="mobile-actions"]').setAttribute('aria-expanded', String(mobileBulkExpanded));
     bar.hidden = count === 0;
     bar.classList.toggle('is-visible', count > 0);
     bar.querySelector('[data-bulk-count]').textContent = String(count);
@@ -2499,7 +2535,14 @@
   }
 
   async function runOrderBulkAction(action) {
-    if (action === 'close') {
+    if (mobileOrdersViewport.matches && ['close','mobile-actions','mobile-reopen'].includes(action)) {
+      if (action === 'close') { mobileBulkDismissed = true; mobileBulkExpanded = false; }
+      if (action === 'mobile-actions') mobileBulkExpanded = !mobileBulkExpanded;
+      if (action === 'mobile-reopen') { mobileBulkDismissed = false; mobileBulkExpanded = false; }
+      updateBulkActionBar();
+      return;
+    }
+    if (action === 'close' || action === 'clear-selection') {
       clearOrderSelection();
       return;
     }
@@ -2508,8 +2551,8 @@
       exportSelectedOrders();
       return;
     }
-    if (action === 'archive' && !window.confirm(`Archive ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'}?`)) return;
-    if (action === 'delete' && !window.confirm(`Move ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'} to Trash?\n\nThe ${selectedOrders.size === 1 ? 'item' : 'items'} will be removed from the active Order page and can be restored later.`)) return;
+    if (action === 'archive' && !await window.PortalNotice.confirm(`Archive ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'}?`)) return;
+    if (action === 'delete' && !await window.PortalNotice.confirm(`Move ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'} to Trash?\n\nThe ${selectedOrders.size === 1 ? 'item' : 'items'} will be removed from the active Order page and can be restored later.`)) return;
     const actionMap = { duplicate: 'bulk_duplicate', archive: 'bulk_archive', delete: 'bulk_delete' };
     if (!actionMap[action]) return;
     if (action === 'delete' && bulkTrashInProgress) return;
@@ -2852,26 +2895,11 @@
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
+  let paidFeedback = null;
   function showPaidFeedback(message, isError = false, saving = false) {
-    let notice = document.getElementById('orders-paid-feedback');
-    if (!notice) {
-      notice = document.createElement('div');
-      notice.id = 'orders-paid-feedback';
-      notice.className = 'orders-paid-feedback';
-      const text = document.createElement('span');
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.textContent = '×';
-      dismiss.setAttribute('aria-label', 'Dismiss Paid confirmation message');
-      dismiss.addEventListener('click', () => { notice.hidden = true; });
-      notice.append(text, dismiss);
-      document.body.appendChild(notice);
-    }
-    notice.firstElementChild.textContent = message;
-    notice.setAttribute('role', isError ? 'alert' : 'status');
-    notice.classList.toggle('is-error', isError);
-    notice.lastElementChild.hidden = saving;
-    notice.hidden = false;
+    paidFeedback?.close();
+    paidFeedback = window.showPortalToast({title:saving?'Saving Paid confirmation':'Paid confirmation',message,type:isError?'error':'success',module:'orders',duration:0});
+    paidFeedback.toast.querySelector('.portal-toast-close').hidden=saving;
   }
 
   async function togglePaidCell(paidCell) {
@@ -3030,6 +3058,12 @@
       requestOrdersList();
       return;
     }
+    if (hasRenderedOnce && mobileOrdersScrolling()) {
+      [...ordersCache, ...orders].forEach((order) => livePendingGroupKeys.add(groupKey(order)));
+      ordersCache = orders;
+      liveRenderPending = true;
+      return;
+    }
     const savedBoardPositions = hasRenderedOnce ? captureOrdersBoardPositions() : [];
     const savedWindowPosition = { x: window.scrollX, y: window.scrollY };
     ordersCache = orders;
@@ -3045,7 +3079,6 @@
       body.innerHTML = hasClientFilters()
         ? '<div class="board-empty-state orders-filter-empty"><strong>No matching orders.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
         : '<div class="board-empty-state orders-data-empty"><strong>No orders found.</strong><p>There are currently no orders in this view.</p></div>';
-      renderMobileCards([]);
       updateSelectionBar();
       previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
       hasRenderedOnce = true;
@@ -3060,14 +3093,13 @@
     renderCustomHeaders();
     body.innerHTML = groupKeys.map((key, index) => renderGroup(key, groups[key], index)).join('');
     bindOrdersColumnResizers();
-    renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();
     updateSelectionBar();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     animateBoardRows();
     restoreOrdersBoardPositions(savedBoardPositions);
-    if (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y) {
+    if (!mobileOrdersViewport.matches && (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y)) {
       window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
     }
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
@@ -3127,12 +3159,11 @@
     updateFilterBadge();
     renderMoreFilterChips();
     bindOrdersColumnResizers();
-    renderMobileCards(visible);
     applyHiddenColumns();
     updateSelectionBar();
     if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
     restoreOrdersBoardPositions(savedBoardPositions);
-    if (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y) {
+    if (!mobileOrdersViewport.matches && (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y)) {
       window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
     }
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
@@ -4302,7 +4333,7 @@
         `}
       </section>`;
     const cards = [
-      ['Order summary', [['Order', formatOrderInvoiceReference(currentOrder.order_number)], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
+      ['Order summary', [['Order', formatOrderInvoiceReference(currentOrder.order_number)], ['Created by', currentOrder.creator_name || 'Not recorded'], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
       ['Customer', [['Name', currentOrder.customer_name || ''], ['Mobile number', currentOrder.customer_contact || '']]],
       ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned'], ...(currentOrder.dispatch_courier ? [['Courier type', currentOrder.dispatch_courier], ['EasyBox / parcel details', currentOrder.dispatch_package_detail || 'Not recorded'], ['Recorded service date', currentOrder.dispatch_service_date || ''], ['Waybill upload', currentOrder.dispatch_waybill_linked ? 'Linked' : 'Awaiting upload']] : [])]],
       ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
@@ -5078,7 +5109,7 @@
   });
 
   document.addEventListener('pointerdown', (event) => {
-    if (event.target.closest('.portal-column-resizer')) {
+    if (mobileOrdersViewport.matches || event.target.closest('.portal-column-resizer')) {
       pendingOrdersInteractionPosition = null;
       return;
     }
@@ -5145,7 +5176,7 @@
         const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="task_name"]`);
         if (cell) beginEditableCell(cell);
       } else if (action === 'archive' || action === 'trash') {
-        if (!window.confirm(action === 'archive' ? 'Archive this order?' : 'Move this order to Trash?')) return;
+        if (!await window.PortalNotice.confirm(action === 'archive' ? 'Archive this order?' : 'Move this order to Trash?')) return;
         await post(action === 'archive' ? 'archive_orders' : 'trash_orders', { order_ids: orderId });
         await refresh(null, { preservePosition: true });
       }
@@ -5686,7 +5717,7 @@
       const deleteFile = event.target.closest('[data-order-file-delete]');
       if (deleteFile && currentOrder) {
         event.preventDefault();
-        if (!window.confirm(`Delete ${deleteFile.dataset.fileName || 'this file'}? The file will be removed from this order.`)) return;
+        if (!await window.PortalNotice.confirm(`Delete ${deleteFile.dataset.fileName || 'this file'}? The file will be removed from this order.`)) return;
         deleteFile.disabled = true;
         try {
           await post('delete_order_file', { order_id: currentOrder.id, file_id: deleteFile.dataset.orderFileDelete });

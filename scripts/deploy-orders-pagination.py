@@ -2,6 +2,7 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 BASELINE='35f8fe38'
+BASELINES={'assets/js/orders-board.js':'d22c27b5','assets/css/orders-list-selection.css':BASELINE}
 FILES=['assets/js/orders-board.js','assets/css/orders-list-selection.css']
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
@@ -18,7 +19,7 @@ try:
     before={p:read(p) for p in FILES}
     desired={p:git('show',sha+':'+p) for p in FILES}
     for p in FILES:
-        baseline=git('show',BASELINE+':'+p)
+        baseline=git('show',BASELINES[p]+':'+p)
         matches=norm(before[p]) in (norm(baseline),norm(desired[p]))
         report['hashes'][p]={'live':digest(before[p]),'baseline':digest(baseline),'approved':digest(desired[p]),'matches':matches}
         if not matches:

@@ -4,7 +4,7 @@ import vm from 'node:vm';
 const source=readFileSync('assets/js/orders-board.js','utf8');
 const moneyCode=source.slice(source.indexOf('  const selectionCurrency ='),source.indexOf("  document.addEventListener('click', async (event) => {"));
 const fields=new Map();
-const bar={querySelector(key){if(!fields.has(key))fields.set(key,{textContent:''});return fields.get(key);}};
+const bar={querySelectorAll(){return [];},querySelector(key){if(!fields.has(key))fields.set(key,{textContent:''});return fields.get(key);}};
 const money=(total,paid)=>({total_cents:total,paid_cents:paid,outstanding_cents:total-paid,payment_verified:true});
 let records=[{id:1,selection_money:money(45000,45000)},{id:2,selection_money:money(32500,20000)},{id:3,selection_money:money(50000,30000)}];
 const context={selectedOrders:new Set(['1','2','3','1']),selectedOrderRecords:new Map(records.map(r=>[String(r.id),r])),selectionReadSequence:0,selectionReadError:'',page:{classList:{toggle(){}}},document:{getElementById(){return bar;}},config:{dataUrl:'/orders'},fetch:async()=>({ok:true,json:async()=>({ok:true,orders:records})})};
