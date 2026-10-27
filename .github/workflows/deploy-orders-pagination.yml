@@ -1,0 +1,51 @@
+name: Deploy Orders pagination visibility delta
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        required: true
+        type: choice
+        options: [preflight, deploy]
+      approved_sha:
+        required: true
+        type: string
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Test pagination and existing selection
+        run: |
+          node --check assets/js/orders-board.js
+          npm install --prefix "$RUNNER_TEMP/pagination" --no-audit --no-fund jsdom@24.1.3
+          NODE_PATH="$RUNNER_TEMP/pagination/node_modules" node tests/orders-pagination-ui.cjs
+          node tests/orders-selection-ui-behavior.mjs
+          node tests/orders-board-loading-ux-static.mjs
+          node tests/orders-live-refresh-cadence-static.mjs
+      - name: Verify baseline and deploy isolated files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          MODE: ${{ inputs.mode }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: python3 scripts/deploy-orders-pagination.py "$MODE" "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: orders-pagination-${{ github.run_id }}
+          path: |
+            orders-pagination-report.json
+            orders-pagination-backup.zip
+          retention-days: 3

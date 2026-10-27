@@ -1,7 +1,10 @@
 /* Live Orders: search, pagination and selection only. */
 .ess-orders-page .orders-live-search{min-height:40px;border:1px solid #E4E6DC;border-radius:9px;background:#fff;color:#1C2118;font:400 12px/1.4 'Jost',sans-serif;box-sizing:border-box}
 .ess-orders-page .orders-live-search:focus{outline:0;border-color:#59694A;box-shadow:0 0 0 3px rgba(89,105,74,.1)}
-.orders-list-pagination{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:12px 0;font:400 12px/1.4 'Jost',sans-serif;color:#62675E}
+.orders-list-pagination{display:flex;flex-wrap:wrap;align-items:center;gap:10px 18px;padding:14px;margin:12px 0;border:1px solid #E4E6DC;border-radius:10px;background:#fff;font:400 12px/1.4 'Jost',sans-serif;color:#62675E;scroll-margin-top:16px;min-width:0}
+.orders-list-page-summary{display:flex;flex-wrap:wrap;align-items:baseline;gap:5px 14px;flex:1 1 100%}.orders-list-page-summary strong{font-size:12px;color:#344126}.orders-list-page-summary small{flex-basis:100%;font-size:11px}
+.orders-list-page-help{flex-basis:100%;margin:0;color:#59694A;font-size:11px}.orders-list-pagination [aria-current="page"]{background:#59694A;color:white;opacity:1}.orders-list-pagination button:focus-visible{outline:2px solid #59694A;outline-offset:2px}
+#orders-list-pagination-bottom{margin-bottom:calc(30px + env(safe-area-inset-bottom))}
 .orders-list-page-actions,.orders-list-selection-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 .orders-list-pagination button,.orders-selection-clear{min-height:36px;padding:0 12px;border:1px solid #D3DAC6;border-radius:8px;background:#fff;color:#59694A;font:500 11px/1 'Jost',sans-serif;cursor:pointer}
 .orders-list-pagination button:hover,.orders-selection-clear:hover{background:#F2F4EC}
@@ -29,6 +32,7 @@ body.ess-dashboard #orders-bulk-action-bar.orders-selection-bar{bottom:calc(74px
 .orders-selection-bar .orders-packing-bulk-actions{flex-wrap:wrap;flex:1 1 100%;justify-content:space-between}
 .orders-selection-bar .orders-packing-bulk-action{min-width:0}
 .orders-list-pagination{gap:10px}.orders-list-selection-actions{width:100%}
+#orders-list-pagination-bottom{margin-bottom:calc(90px + env(safe-area-inset-bottom))}
 .ess-orders-page.has-orders-selection{padding-bottom:340px}
 }
 @media(prefers-reduced-motion:reduce){.orders-selection-bar,.orders-selection-bar *,.orders-live-search{transition:none!important;animation:none!important}}
