@@ -3,6 +3,7 @@
   const root = document.querySelector('[data-kpi-tab="dashboard"]');
   if (!root) return;
   const q = s => root.querySelector(s), month = q('#pw-month');
+  const currentMonth = month.dataset.currentMonth;
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const numeric = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
   const number = v => numeric(v) ? Number(v).toLocaleString('en-GB') : 'Not measured';
@@ -11,10 +12,10 @@
   const attentionLinks = {waybill:'courier.php',packing:'consignments.php',task:'checklists.php',error:'errors.php'};
   let generation = 0, controller;
   const requested = new URLSearchParams(location.search).get('month');
-  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(requested || '') && requested <= month.max) month.value = requested;
+  if ([...month.options].some(option => option.value === requested)) month.value = requested;
   function periodParams() {
     // Current month ends today in the server's Namibia timezone, never in the future.
-    if (month.value === month.max) return new URLSearchParams({period:'this_month'});
+    if (month.value === currentMonth) return new URLSearchParams({period:'this_month'});
     const [year,m] = month.value.split('-').map(Number);
     return new URLSearchParams({period:'custom',date_from:`${month.value}-01`,date_to:`${month.value}-${new Date(Date.UTC(year,m,0)).getUTCDate()}`});
   }
@@ -41,7 +42,7 @@
     q('[data-pw-attention]').innerHTML=(data.attention||[]).map(item=>`<a class="pw-attention-item" href="${attentionLinks[item.type]||'reports.php?tab=business-health'}"><strong>${esc(item.description)}</strong><span>${esc(item.severity==='critical'?'Urgent · ':'')}${esc(item.overdue ? `Outstanding ${item.overdue}` : 'Review required')} <b aria-hidden="true">→</b></span></a>`).join('') || '<p class="pw-empty">No open items reported by the tracked operational sources.</p>';
   }
   async function load() {
-    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month.value) || month.value>month.max) { q('[data-pw-error]').textContent='Choose this month or an earlier reporting month.';q('[data-pw-error]').hidden=false;return; }
+    if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month.value) || month.value>currentMonth) { q('[data-pw-error]').textContent='Choose this month or an earlier reporting month.';q('[data-pw-error]').hidden=false;return; }
     const current=++generation;controller?.abort();controller=new AbortController();
     const params=periodParams(); updateLinks(params);
     const label=new Intl.DateTimeFormat('en-GB',{month:'long',year:'numeric',timeZone:'Africa/Windhoek'}).format(new Date(`${month.value}-01T12:00:00+02:00`));

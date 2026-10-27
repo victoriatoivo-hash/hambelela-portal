@@ -25,7 +25,7 @@ try {
     <div><p class="pw-eyebrow">People &amp; business health</p><h2>Support your team.<br><span>See the bigger picture.</span></h2><p>Employee workspaces, operational progress and the month’s business health in one place.</p></div>
     <div class="pw-hero-note"><i data-lucide="chart-no-axes-combined" aria-hidden="true"></i><strong>One team. Clear priorities.</strong><span>Real evidence. Better conversations.</span></div>
 </section>
-<div class="pw-toolbar"><label for="pw-month">Reporting month <input type="month" id="pw-month" value="<?= $pwToday->format('Y-m') ?>" max="<?= $pwToday->format('Y-m') ?>"></label><span data-pw-period>Monthly business overview · Namibia time</span><button class="pw-button" type="button" data-pw-refresh><i data-lucide="refresh-cw" aria-hidden="true"></i>Refresh overview</button></div>
+<div class="pw-toolbar"><label for="pw-month">Reporting month <select id="pw-month" data-current-month="<?= $pwToday->format('Y-m') ?>"><?php for($pwOffset=0;$pwOffset<24;$pwOffset++): $pwMonth=$pwToday->modify('first day of this month')->modify('-'.$pwOffset.' months'); ?><option value="<?= $pwMonth->format('Y-m') ?>"><?= $pwMonth->format('F Y') ?></option><?php endfor; ?></select></label><span data-pw-period>Monthly business overview · Namibia time</span><button class="pw-button" type="button" data-pw-refresh><i data-lucide="refresh-cw" aria-hidden="true"></i>Refresh overview</button></div>
 <div data-pw-error class="pw-error" role="alert" hidden></div>
 <div class="pw-layout">
     <div class="pw-main">
