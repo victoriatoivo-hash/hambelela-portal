@@ -37,6 +37,8 @@ jobs:
           php -l apps/operations/reports.php
           php -l apps/operations/reports-data.php
           php -l apps/operations/performance-workspace.php
+          php -l apps/operations/performance-activity.php
+          php tests/performance-activity.php
           node --check assets/js/performance-workspace.js
           npm install --prefix "$RUNNER_TEMP/performance-ui" --no-audit --no-fund jsdom@24.1.3
           NODE_PATH="$RUNNER_TEMP/performance-ui/node_modules" node tests/performance-workspace-ui.cjs

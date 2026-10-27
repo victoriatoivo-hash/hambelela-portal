@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/kpi-reporting.php';
 require_once __DIR__ . '/kpi-event-reporting.php';
+require_once __DIR__ . '/performance-activity.php';
 require_role('owner_admin');
 header('Content-Type: application/json; charset=utf-8');
 
@@ -72,7 +73,7 @@ try {
     if ($previousFrom < $dataStart) $previousFrom = $dataStart;
     $previousFromSql = $previousFrom->format('Y-m-d 00:00:00'); $previousToSql = $previousTo->format('Y-m-d H:i:s');
 
-    $cacheKey = hash('sha256', implode('|', [$periodKey, $fromSql, $toSql]));
+    $cacheKey = hash('sha256', implode('|', ['activity-v1', $periodKey, $fromSql, $toSql]));
     $cacheFile = BASE_PATH . '/logs/kpi_business_health_' . $cacheKey . '.json';
     if (empty($_GET['refresh']) && is_file($cacheFile) && filemtime($cacheFile) >= time() - 60) {
         header('X-KPI-Cache: HIT');
@@ -223,6 +224,12 @@ try {
     $workload=kpi_scalar_row("SELECT COUNT(*) total, COALESCE(SUM(status IN ('completed','complete','approved')),0) completed, COALESCE(SUM(status NOT IN ('completed','complete','approved') AND deadline < ?),0) overdue FROM ops_checklist_tasks WHERE employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND COALESCE(released_at,date_assigned) BETWEEN ? AND ? AND deleted_at IS NULL AND status NOT IN ('cancelled','canceled')", [(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s'),$rateFromSql,$toSql]);
     $payload['task_workload']=['total'=>(int)$workload['total'],'completed'=>(int)$workload['completed'],'overdue'=>(int)$workload['overdue'],'open'=>(int)$workload['total']-(int)$workload['completed']-(int)$workload['overdue']];
     $payload['business_errors']=$businessErrors;
+    try {
+        $payload['business_activity'] = pw_business_activity(new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')));
+    } catch (Throwable $activityError) {
+        $payload['business_activity'] = ['available' => false];
+        error_log('Dashboard business activity: '.$activityError->getMessage());
+    }
     @file_put_contents($cacheFile,json_encode($payload,JSON_UNESCAPED_SLASHES),LOCK_EX);
     header('X-KPI-Cache: MISS'); kpi_json($payload);
 } catch (Throwable $error) {

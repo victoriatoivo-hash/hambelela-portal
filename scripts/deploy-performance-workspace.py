@@ -2,9 +2,9 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'acb9e010'
-FILES = ['assets/css/performance-workspace.css', 'assets/js/performance-workspace.js', 'apps/operations/performance-workspace.php', 'apps/operations/reports.php', 'apps/operations/reports-data.php']
-NEW_FILES = []
+BASELINE = '4ccbaf47'
+FILES = ['apps/operations/performance-activity.php', 'assets/css/performance-workspace.css', 'assets/js/performance-workspace.js', 'apps/operations/performance-workspace.php', 'apps/operations/reports.php', 'apps/operations/reports-data.php']
+NEW_FILES = ['apps/operations/performance-activity.php']
 DEPENDENCIES = ['apps/operations/kpi-reporting.php']
 REPORT = 'performance-workspace-deployment-report.json'
 BACKUP = 'performance-workspace-deployment-backup.zip'

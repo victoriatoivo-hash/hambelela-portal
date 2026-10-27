@@ -23,6 +23,7 @@
     q('[data-pw-metrics]').replaceChildren();q('[data-pw-components]').replaceChildren();
     q('[data-pw-packing]').textContent=message;q('[data-pw-attention]').textContent=message;
     q('[data-pw-workload]').textContent=message;q('[data-pw-updated]').textContent=message;
+    q('[data-pw-activity]').textContent=message;
   }
   function render(data, params) {
     const counts=data.orders_overview?.counts || {}, components=data.operational_score_components || [];
@@ -36,6 +37,7 @@
     q('[data-pw-packing]').innerHTML=numeric(progress) ? `<div class="pw-progress-title"><strong>${esc(percent(progress))}</strong><span>Packing stage reached</span></div><progress max="100" value="${Math.max(0,Math.min(100,Number(progress)))}" aria-label="Orders reaching the packing stage"></progress><div class="pw-progress-counts"><span><b>${esc(number(counts.new))}</b> New</span><span><b>${esc(number(counts.in_progress))}</b> In progress</span><span><b>${esc(number(counts.completed))}</b> Completed</span></div><p class="pw-help">In-progress + completed orders / eligible orders. Final completion is shown separately.</p>` : '<p class="pw-empty">Not measured — no eligible order evidence in this period.</p>';
     q('[data-pw-attention]').innerHTML=(data.attention||[]).map(item=>`<a class="pw-attention-item" href="${attentionLinks[item.type]||'reports.php?tab=business-health'}"><strong>${esc(item.description)}</strong><span>${esc(item.severity==='critical'?'Urgent · ':'')}${esc(item.overdue ? `Outstanding ${item.overdue}` : 'Review required')} <b aria-hidden="true">→</b></span></a>`).join('') || '<p class="pw-empty">No open items reported by the tracked operational sources.</p>';
     renderWorkload(data.task_workload);
+    renderActivity(data.business_activity);
     const stamp=new Date(data.last_refreshed_at);
     q('[data-pw-updated]').textContent=Number.isNaN(stamp.getTime())?'Updated just now':`Updated ${new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Windhoek'}).format(stamp)} · Namibia`;
   }
@@ -45,6 +47,30 @@
     const total=Number(work.total),done=Number(work.completed),open=Number(work.open),overdue=Number(work.overdue);
     if(!total){target.innerHTML='<p class="pw-empty">No released Task Management tasks this month.</p>';return;}
     target.innerHTML=`<div class="pw-workload"><div class="pw-donut" role="img" aria-label="${esc(`${done} completed, ${open} open and not overdue, ${overdue} overdue tasks`)}" style="--pw-done:${100*done/total}%;--pw-open:${100*(done+open)/total}%"><span><b>${esc(number(total))}</b>Tasks</span></div><ul class="pw-legend"><li><i aria-hidden="true"></i>Completed <b>${esc(number(done))}</b></li><li><i aria-hidden="true"></i>Open · on time <b>${esc(number(open))}</b></li><li><i aria-hidden="true"></i>Overdue <b>${esc(number(overdue))}</b></li></ul><div class="pw-workload-note"><strong>${esc(number(open+overdue))}</strong>tasks remaining<a href="checklists.php">Open task list →</a></div></div>`;
+  }
+  function renderActivity(activity) {
+    const target=q('[data-pw-activity]'), current=activity?.current, previous=activity?.previous;
+    if(activity?.available!==true || !current || !previous || !Array.isArray(current.days) || current.days.length!==7 || !current.days.every(d=>/^\d{4}-\d{2}-\d{2}$/.test(d.date)&&numeric(d.orders)&&Number(d.orders)>=0)) {
+      target.innerHTML='<p class="pw-empty">Business activity unavailable. Open Orders to check the source records.</p>';return;
+    }
+    const money=value=>numeric(value)?`N$ ${Number(value).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not available';
+    const comparison=(now,before)=>{
+      if(!numeric(now)||!numeric(before))return 'Comparison unavailable';
+      const difference=Number(now)-Number(before);
+      if(Number(before)===0)return Number(now)===0?'No activity in either period':'New activity · previous period was zero';
+      return `${difference>0?'+':''}${(100*difference/Number(before)).toFixed(1)}% vs previous 7 days`;
+    };
+    const chart=(key,title,currency)=>{
+      const valid=current.days.every(d=>numeric(d[key])&&Number(d[key])>=0)&&numeric(current[key]);
+      if(!valid)return `<article class="pw-activity-card"><h3>${esc(title)}</h3><p class="pw-empty">Confirmation-date evidence unavailable.</p></article>`;
+      const format=currency?money:number,max=Math.max(1,...current.days.map(d=>Number(d[key])));
+      return `<article class="pw-activity-card ${currency?'pw-activity-paid':''}"><h3>${esc(title)}</h3><strong class="pw-activity-total">${esc(format(current[key]))}</strong><p class="pw-activity-comparison">${esc(comparison(current[key],previous[key]))}</p><div class="pw-bars" role="list" aria-label="${esc(title)} by day">${current.days.map(d=>{
+        const label=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',timeZone:'Africa/Windhoek'}).format(new Date(`${d.date}T12:00:00+02:00`));
+        return `<div class="pw-bar-day" role="listitem" tabindex="0" aria-label="${esc(`${label}: ${format(d[key])}`)}"><span class="pw-bar-track" aria-hidden="true"><i style="height:${100*Number(d[key])/max}%"></i></span><span class="pw-bar-label">${esc(label)}</span><span class="pw-bar-value" aria-hidden="true">${esc(format(d[key]))}</span></div>`;
+      }).join('')}</div></article>`;
+    };
+    const pending=activity.awaiting;
+    target.innerHTML=`<div class="pw-activity-grid">${chart('orders','Orders received',false)}${chart('paid_value','Confirmed paid order value',true)}</div><div class="pw-activity-pending"><div><span>Awaiting fulfilment · all current open orders</span><strong>${esc(numeric(pending?.count)?`${number(pending.count)} orders`:'Not available')}</strong></div><div><span>Order value · not unpaid balance</span><strong>${esc(money(pending?.value))}</strong></div><a href="orders-board.php">Review orders →</a></div><p class="pw-help">Today is partial; comparison ends at the same time seven days ago. Paid value uses each currently paid order’s latest portal confirmation date, including automatic confirmations. It is not bank receipts or a cash-flow report; undated confirmations are excluded.</p>`;
   }
   async function load() {
     const current=++generation;controller?.abort();controller=new AbortController();

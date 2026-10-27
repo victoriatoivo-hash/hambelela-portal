@@ -39,7 +39,9 @@ try {
             <div class="pw-health-grid"><div class="pw-score-panel"><div class="pw-score" data-pw-score>—</div><span>Overall score / 100</span></div><div class="pw-metrics" data-pw-metrics></div></div>
             <details class="pw-evidence"><summary>Score details</summary><p data-pw-score-note>Loading measured business results…</p><p>Business indicator only, not an employee ranking or payroll deduction. Unmeasured sections are excluded. Current operational snapshots and period-based evidence retain their existing definitions.</p><div data-pw-components></div></details>
         </section>
-        <section class="pw-panel pw-workload-panel" aria-labelledby="pw-workload-title"><header class="pw-section-head"><div><h2 id="pw-workload-title">Workload at a glance</h2><p>Task Management · released this month</p></div><a href="checklists.php">Open tasks →</a></header><div data-pw-workload aria-live="polite">Loading task workload…</div></section>
+        <section class="pw-panel pw-workload-panel" aria-labelledby="pw-workload-title"><header class="pw-section-head"><div><h2 id="pw-workload-title">Workload at a glance</h2><p>Task Management · released this month</p></div><a href="checklists.php">Open tasks →</a></header><div data-pw-workload aria-live="polite">Loading task workload…</div>
+            <section class="pw-activity" aria-labelledby="pw-activity-title"><header class="pw-section-head"><div><h2 id="pw-activity-title">Business activity · Last 7 days</h2><p>Including today so far · Namibia time</p></div><a href="orders-board.php">Open orders →</a></header><div data-pw-activity aria-live="polite">Loading business activity…</div></section>
+        </section>
     </div>
     <aside class="pw-side" aria-label="Operational priorities">
         <section class="pw-panel"><header class="pw-section-head"><div><h2><i data-lucide="package" aria-hidden="true"></i>Packing progress</h2><p data-pw-packing-period>Orders in the selected month</p></div></header><div data-pw-packing>Loading packing progress…</div><a class="pw-text-link" href="orders-board.php">Open Orders List →</a></section>

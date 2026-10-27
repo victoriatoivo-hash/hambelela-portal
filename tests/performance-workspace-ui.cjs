@@ -14,8 +14,14 @@ const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_co
   assert.match(html,/Hope Kahuika/);assert.match(html,/No employee score/);
   w.eval(fs.readFileSync('assets/js/performance-workspace.js','utf8'));
   assert.equal(requests[0].url,'reports-data.php?period=this_month','dashboard ignores historical URL month');
-  reply(0,fixture());await settle();
+  const activity={available:true,current:{orders:7,paid_value:105,days:Array.from({length:7},(_,i)=>({date:`2026-10-${21+i}`,orders:1,paid_value:i===6?105:0}))},previous:{orders:5,paid_value:0},awaiting:{count:2,value:350}};
+  reply(0,{...fixture(),business_activity:activity});await settle();
   const q=s=>w.document.querySelector(s);
+  assert.equal(w.document.querySelectorAll('.pw-bar-day').length,14);
+  assert.match(q('[data-pw-activity]').textContent,/\+40.0% vs previous 7 days/);
+  assert.match(q('[data-pw-activity]').textContent,/New activity · previous period was zero/);
+  assert.match(q('[data-pw-activity]').textContent,/N\$ 350.00/);
+  assert.match(q('[data-pw-activity]').textContent,/not bank receipts/);
   assert.equal(q('[data-pw-score]').textContent,'72.0');
   assert.equal(q('progress').value,80);
   assert.match(q('[data-pw-components]').textContent,/Not calculated/);
@@ -37,6 +43,7 @@ const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_co
   q('[data-pw-refresh]').click();reply(4,{ok:false,message:'Unavailable'},false);await settle();
   assert.equal(q('[data-pw-error]').hidden,false);assert.equal(q('[data-pw-score]').textContent,'—');
   assert.equal(q('progress'),null,'failure must not retain stale progress');
+  assert.equal(q('.pw-bar-day'),null,'failure clears stale charts');
   q('[data-pw-refresh]').click();reply(5,{...fixture(),attention:[]});await settle();
   assert.match(q('[data-pw-attention]').textContent,/No open items reported/);
   assert.equal(q('[data-pw-error]').hidden,true);
@@ -48,6 +55,10 @@ const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_co
   assert.match(q('[data-pw-workload]').textContent,/unavailable/);
   q('[data-pw-refresh]').click();reply(8,{...fixture(),task_workload:{total:10,completed:8,open:4,overdue:1}});await settle();
   assert.equal(q('.pw-donut'),null,'inconsistent buckets must not draw misleading chart');
+  assert.match(q('[data-pw-activity]').textContent,/unavailable/);
+  q('[data-pw-refresh]').click();reply(9,{...fixture(),business_activity:{...activity,current:{...activity.current,paid_value:null,days:activity.current.days.map(d=>({...d,paid_value:null}))}}});await settle();
+  assert.equal(w.document.querySelectorAll('.pw-bar-day').length,7,'missing payment evidence must not draw a zero chart');
+  assert.match(q('[data-pw-activity]').textContent,/Confirmation-date evidence unavailable/);
   assert.ok(requests.every(r=>!r.options.method),'read only requests');
   const page=fs.readFileSync('apps/operations/reports.php','utf8');
   assert.match(page,/require_role\('owner_admin'\)/);assert.match(page,/\?\? 'dashboard'/);
