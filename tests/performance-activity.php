@@ -24,7 +24,8 @@ check($queries[1][1] === ['2026-10-20 22:00:00','2026-10-27 12:30:00'], 'UTC con
 check($queries[2][1] === ['2026-10-14 00:00:00','2026-10-20 14:30:00'], 'Previous matched elapsed range');
 check(count($result['current']['days']) === 7 && $result['current']['days'][0]['orders'] === 0, 'Zero-fill absent days');
 check($result['current']['orders'] === 2 && $result['current']['paid_value'] === 105.5, 'Correct aggregates');
-check($result['awaiting'] === ['count'=>3,'value'=>432.1], 'All-open order value separate from receipts');
+check($result['awaiting'] === ['count'=>3,'value'=>432.1], 'Open order value separate from receipts');
+check($queries[4][1] === ['2026-10-01 00:00:00','2026-10-27 14:30:00'], 'Fulfilment uses current month, not historical imports');
 $queries=[];$payments=false;
 $result=pw_business_activity(new DateTimeImmutable('2026-11-01T00:01:00+02:00'), $reader);
 check(count($queries)===3 && $result['current']['paid_value']===null, 'Unavailable is not zero');

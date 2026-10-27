@@ -33,6 +33,6 @@ function pw_business_activity(DateTimeImmutable $now, ?callable $read = null): a
         }
         $windows[] = ['days' => array_values($days), 'orders' => array_sum(array_column($days, 'orders')), 'paid_value' => $hasPayments ? round(array_sum(array_column($days, 'paid_value')), 2) : null];
     }
-    $pending = $read("SELECT COUNT(*) total, COALESCE(SUM(total_amount),0) value FROM ops_orders WHERE LOWER(status) IN ('new','new_order','new-order','new order','pending','assigned','in_progress','processing','packing') AND created_at <= ?", [$now->format('Y-m-d H:i:s')]);
+    $pending = $read("SELECT COUNT(*) total, COALESCE(SUM(total_amount),0) value FROM ops_orders WHERE LOWER(status) IN ('new','new_order','new-order','new order','pending','assigned','in_progress','processing','packing') AND created_at BETWEEN ? AND ?", [$now->modify('first day of this month')->format('Y-m-d 00:00:00'), $now->format('Y-m-d H:i:s')]);
     return ['available' => true, 'from' => $start->format('Y-m-d'), 'to' => $now->format(DATE_ATOM), 'current' => $windows[0], 'previous' => $windows[1], 'awaiting' => ['count' => (int) ($pending[0]['total'] ?? 0), 'value' => (float) ($pending[0]['value'] ?? 0)]];
 }

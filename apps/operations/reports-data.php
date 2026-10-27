@@ -73,7 +73,7 @@ try {
     if ($previousFrom < $dataStart) $previousFrom = $dataStart;
     $previousFromSql = $previousFrom->format('Y-m-d 00:00:00'); $previousToSql = $previousTo->format('Y-m-d H:i:s');
 
-    $cacheKey = hash('sha256', implode('|', ['activity-v1', $periodKey, $fromSql, $toSql]));
+    $cacheKey = hash('sha256', implode('|', ['activity-v2', $periodKey, $fromSql, $toSql]));
     $cacheFile = BASE_PATH . '/logs/kpi_business_health_' . $cacheKey . '.json';
     if (empty($_GET['refresh']) && is_file($cacheFile) && filemtime($cacheFile) >= time() - 60) {
         header('X-KPI-Cache: HIT');
