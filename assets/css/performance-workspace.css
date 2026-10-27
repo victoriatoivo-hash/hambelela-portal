@@ -51,7 +51,7 @@
 .pw-empty{padding:8px 0;font-size:11px;color:var(--pw-muted)}.pw-error{padding:12px;border:1px solid #e8beb8;border-radius:10px;color:#8d332d;background:#fff7f6;margin-bottom:16px}.pw-error[hidden]{display:none}
 [data-kpi-tab="dashboard"] :is(a,button,input,summary):focus-visible{outline:2px solid var(--pw-purple);outline-offset:3px}
 
-.pw-side>.pw-panel:last-child{flex:1}[data-pw-attention]{max-height:360px;overflow:auto;scrollbar-width:thin}
+[data-pw-attention]{max-height:360px;overflow:auto;scrollbar-width:thin}
 .pw-activity{margin-top:22px;padding-top:18px;border-top:1px solid var(--pw-line)}
 .pw-activity-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
 .pw-activity-card{padding:14px;border:1px solid var(--pw-line);border-radius:10px;background:linear-gradient(145deg,#f5f7f0,#fff);min-width:0}
