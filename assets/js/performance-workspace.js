@@ -11,6 +11,31 @@
   const sectionLinks = {orders:'orders',packing:'packing-performance',waybills:'waybills',tasks:'task-management',bookkeeping:'bookkeeping',website:'website-updates',attendance:'attendance',system_issues:'errors-quality',communications:'business-activity',quality:'errors-quality'};
   const attentionLinks = {waybill:'courier.php',packing:'consignments.php',task:'checklists.php',error:'errors.php'};
   let generation = 0, controller;
+  const employeeRoles=new Map(Array.from(root.querySelectorAll('[data-pw-employee]'),a=>[a,a.querySelector('small').textContent]));
+  async function loadEmployees(current,signal) {
+    const show=(a,text)=>{a.querySelector('small').textContent=`${employeeRoles.get(a)} · ${text}`;};
+    try {
+      const response=await fetch(`reports-performance-reports-data.php?action=dashboard_summary&month=${encodeURIComponent(currentMonth)}`,{headers:{Accept:'application/json'},cache:'no-store',signal});
+      const data=await response.json();
+      if(!response.ok||data.ok!==true||!Array.isArray(data.employees))throw new Error('Employee results unavailable');
+      if(current!==generation)return;
+      for(const [a] of employeeRoles){
+        const result=data.employees.find(e=>Number(e.employee_id)===Number(a.dataset.pwEmployee));
+        let label='Not calculated';
+        if(result){
+          if(result.status==='official'&&numeric(result.official_score_hundredths))label=`${(Number(result.official_score_hundredths)/100).toFixed(1)} / 100`;
+          else if(['provisional','validation'].includes(result.status))label='Provisional';
+          else if(result.status==='insufficient_data')label='Not measured';
+          if(result.data_may_be_stale)label+=' · Update pending';
+          a.title=`${label}. ${numeric(result.personal_risk_count)?`${result.personal_risk_count} tracked open obligations. `:''}${result.risk_scope||''}`;
+        }
+        show(a,label);
+      }
+    }catch(error){
+      if(error.name==='AbortError'||current!==generation)return;
+      for(const [a] of employeeRoles){show(a,'Result unavailable');a.removeAttribute('title');}
+    }
+  }
   function periodParams() {
     return new URLSearchParams({period:'this_month'});
   }
@@ -74,6 +99,7 @@
   }
   async function load() {
     const current=++generation;controller?.abort();controller=new AbortController();
+    loadEmployees(current,controller.signal);
     const params=periodParams(); updateLinks(params);
     const label=new Intl.DateTimeFormat('en-GB',{month:'long',year:'numeric',timeZone:'Africa/Windhoek'}).format(new Date(`${currentMonth}-01T12:00:00+02:00`));
     q('[data-pw-health-period]').textContent=`This month · ${label}`;
@@ -90,4 +116,7 @@
     } finally { if(current===generation)q('[data-pw-health-section]').removeAttribute('aria-busy'); }
   }
   q('[data-pw-refresh]').addEventListener('click',load);load();
+  // Read published results only; scoring remains in the scheduled worker.
+  const refreshTimer=setInterval(()=>{if(document.visibilityState==='visible'&&!q('[data-pw-health-section]').hasAttribute('aria-busy'))load();},60000);
+  window.addEventListener('pagehide',()=>{clearInterval(refreshTimer);controller?.abort();},{once:true});
 })();

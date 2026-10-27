@@ -14,6 +14,24 @@ try {
     $selected=array_values(array_filter($employees,static function(array $e)use($employeeId,$role):bool{
         return (!$employeeId||(int)$e['id']===$employeeId)&&($role==='all'||$e['role_key']===$role);
     }));
+    if((string)($_GET['action']??'')==='dashboard_summary'){
+        // Same stored result as profile/export; no dashboard score formula or GET recalculation.
+        require_once BASE_PATH.'/shared/epi/V2PerformanceQuery.php';
+        require_once BASE_PATH.'/shared/epi/OwnershipPeriodEngine.php';
+        $service=new \Hambelela\EPI\EmployeePerformanceService(db());
+        $risk=new \Hambelela\EPI\V2PerformanceQuery(db());$summaries=[];
+        foreach($selected as $person){
+            $result=$service->read((int)$person['id'],$month.'-01');
+            $summaries[]=['employee_id'=>(int)$person['id'],'status'=>$result['status'],
+                'official_score_hundredths'=>$result['official_score_hundredths']??null,
+                'result_id'=>$result['result_id']??null,'scorecard_version'=>$result['scorecard_version']??null,
+                'last_calculated_at'=>$result['last_calculated_at']??null,
+                'data_may_be_stale'=>!empty($result['data_may_be_stale']),
+                'personal_risk_count'=>count($risk->personalRisk((int)$person['id'])),
+                'risk_scope'=>'Tracked attributable obligations only; incomplete source coverage is not zero risk'];
+        }
+        kpi_send_json(['ok'=>true,'period_start'=>$month.'-01','employees'=>$summaries,'financial_use_allowed'=>false]);
+    }
     $result=(new \Hambelela\EPI\EmployeePerformanceService(db()))->workforce($month.'-01',$selected);
     if(in_array((string)($_GET['action']??''),['export_bundle','export_csv'],true)){
         header('Content-Type: text/csv; charset=utf-8');

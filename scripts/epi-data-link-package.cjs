@@ -1,0 +1,17 @@
+// Builds a source-only private upload package. No production records/credentials.
+const fs=require('node:fs'),path=require('node:path'),cp=require('node:child_process'),crypto=require('node:crypto');
+process.chdir(path.resolve(__dirname,'..'));
+const output=path.resolve('.run-artifacts/epi-data-link-20261027');
+if(fs.existsSync(output))throw new Error('Refusing to overwrite package');
+const files=['shared/epi/PerformanceHistory.php','shared/epi/EmployeePerformanceService.php','apps/operations/kpi-employee-data.php','assets/js/employee-performance-workforce.js','assets/js/employee-performance.js','apps/operations/performance-workforce-response.php','apps/operations/performance-workspace.php','apps/operations/reports-data.php','assets/js/performance-workspace.js'];
+const normalized=b=>b.toString('utf8').replace(/\r\n/g,'\n'),hash=b=>crypto.createHash('sha256').update(normalized(b)).digest('hex');
+const manifest={files:{},schema_changes:false};
+for(const name of files){
+ const before=['HEAD','9b9ef2b8'].map(ref=>{try{return hash(cp.execFileSync('git',['show',`${ref}:${name}`],{stdio:['ignore','pipe','ignore']}));}catch{return null;}});
+ const data=normalized(fs.readFileSync(name));manifest.files[name]={before:[...new Set(before)],after:hash(data)};
+ const dest=path.join(output,'runtime',name);fs.mkdirSync(path.dirname(dest),{recursive:true});fs.writeFileSync(dest,data);
+}
+fs.writeFileSync(path.join(output,'manifest.json'),JSON.stringify(manifest,null,2));
+fs.copyFileSync('scripts/epi-data-link-release.php',path.join(output,'release.php'));
+cp.execFileSync('tar',['-a','-cf',output+'.zip','-C',output,'.']);
+console.log(JSON.stringify({archive:output+'.zip',sha256:crypto.createHash('sha256').update(fs.readFileSync(output+'.zip')).digest('hex'),files:files.length}));

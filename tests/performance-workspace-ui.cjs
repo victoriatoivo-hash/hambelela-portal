@@ -4,8 +4,8 @@ const {execFileSync}=require('node:child_process');
 const {JSDOM}=require('jsdom');
 const html=execFileSync(process.env.PHP_BIN||'php',['tests/performance-workspace-fixture.php'],{encoding:'utf8'});
 const dom=new JSDOM(html,{url:'https://portal.example/apps/operations/reports.php?month=2026-09',runScripts:'outside-only'}), w=dom.window;
-let requests=[];
-w.fetch=(url,options)=>new Promise(resolve=>requests.push({url,options,resolve}));
+let requests=[],employeeRequests=[];
+w.fetch=(url,options)=>new Promise(resolve=>(url.includes('dashboard_summary')?employeeRequests:requests).push({url,options,resolve}));
 const reply=(index,data,ok=true)=>requests[index].resolve({ok,headers:{get:()=> 'application/json'},json:async()=>data});
 const settle=()=>new Promise(resolve=>setTimeout(resolve,0));
 const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_components:[{key:'orders',label:'Orders',score:score,reason:'Measured orders'},{key:'tasks',label:'Tasks',score:null,reason:'Insufficient data'}],orders_overview:{counts:{received:10,new:2,in_progress:3,completed:5,outstanding:5},packing_completion_percent:80,final_completion_percent:50},task_workload:{total:10,completed:5,open:3,overdue:2},attention:[{type:'task',description:'Review <unsafe> task',overdue:'2 h',href:'javascript:alert(1)'}]});
@@ -17,6 +17,17 @@ const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_co
   const activity={available:true,current:{orders:7,paid_value:105,days:Array.from({length:7},(_,i)=>({date:`2026-10-${21+i}`,orders:1,paid_value:i===6?105:0}))},previous:{orders:5,paid_value:0},awaiting:{count:2,value:350}};
   reply(0,{...fixture(),business_activity:activity});await settle();
   const q=s=>w.document.querySelector(s);
+  employeeRequests[0].resolve({ok:true,json:async()=>({ok:true,employees:[
+    {employee_id:1,status:'official',official_score_hundredths:0,personal_risk_count:2},
+    {employee_id:2,status:'pending_calculation',official_score_hundredths:null},
+    {employee_id:3,status:'provisional',official_score_hundredths:null},
+    {employee_id:4,status:'official',official_score_hundredths:8500,data_may_be_stale:true}
+  ]})});await settle();
+  assert.match(q('[data-pw-employee="1"] small').textContent,/0.0 \/ 100/,'calculated zero retained');
+  assert.match(q('[data-pw-employee="2"] small').textContent,/Not calculated/,'unpublished not zero');
+  assert.match(q('[data-pw-employee="3"] small').textContent,/Provisional/);
+  assert.match(q('[data-pw-employee="4"] small').textContent,/85.0 \/ 100 · Update pending/);
+  assert.match(q('[data-pw-employee="1"]').title,/2 tracked open obligations/);
   assert.equal(w.document.querySelectorAll('.pw-bar-day').length,14);
   assert.match(q('[data-pw-activity]').textContent,/\+40.0% vs previous 7 days/);
   assert.match(q('[data-pw-activity]').textContent,/New activity · previous period was zero/);
