@@ -1,0 +1,88 @@
+{
+  "files": {
+    "assets/js/employee-performance.js": {
+      "before": [
+        "b6854d3c7b06532288bd11b987e8e19903483c4c726286bc63af0c0822281e8a"
+      ],
+      "after": "0bfc840d2218b6b2ae4845f2b86626823725b3930e1d9c0808b5376882de0e5e"
+    },
+    "shared/epi/BusinessHealthPerformance.php": {
+      "before": [
+        "7328b1d7205ed368fa1f5bd1151023994736e35d4c4ff34e7b2eead073a7d110"
+      ],
+      "after": "94e5b4aaae50c4d10245bf04ff485389d2225cc7c3b85f1ff477617b5ad2dc33"
+    },
+    "shared/epi/CompletedWorkCapture.php": {
+      "before": [
+        "ffd602187bab279a20be31acb25c9103fa575fafc3c4be26d20c934046b2a9f8"
+      ],
+      "after": "cae9ff43d330219b4f058b229788105620ee727f731c2c49f90eb0caaf604513"
+    },
+    "shared/epi/EmployeePerformanceService.php": {
+      "before": [
+        "cec355e9faae2fa90aab32cc1eca9e2434376c089a42651db7bb135e632d9988"
+      ],
+      "after": "a4d8dfd79f3f10a0b9dffc44b552e43db6591df091e9caf84ea98ab16138d70e"
+    },
+    "shared/epi/OperationalPerformanceProjector.php": {
+      "before": [
+        "b4d5387e75d36535798b0b461859fe4109cd1988d44e283e1eddacceb4142bdc"
+      ],
+      "after": "c8a3f3157a602dc392fcb9ae8d1b71cc7d78adc7b64e2b8d8d7e61b63e6df9d8"
+    },
+    "shared/epi/OrdersStageBridge.php": {
+      "before": [
+        "545fe8d0033770ceace81dd4d76e21f27796b9391c0f68216d4954d3d8ba4b66"
+      ],
+      "after": "2a5d4cc75d8d71d63881f393ad2462977811d44bbd12934d5eb1a8449786cd72"
+    },
+    "shared/epi/PerformanceIncidentReview.php": {
+      "before": [
+        "6e8891fc0c962e065bcd87d2c3db5be384bc0c8db60d471fa960b4cdbf7d60c4"
+      ],
+      "after": "e2f2b1cf4f6680d68c066dddc761f80c88a739db53910223b4c333a49494f7e5"
+    },
+    "shared/epi/ProvisionalScorecardAssignments.php": {
+      "before": [
+        "173df7c1c551f8b07fea5a0687adf75ab568ca83eb911982801279a8a534d3b6"
+      ],
+      "after": "3980e5bf092c924bfbcd4bffb0a1564d7e60a09d64df124aeb09e00bc0057084"
+    },
+    "shared/epi/RateScoreCalculator.php": {
+      "before": [
+        "da369f005658a7875cd9acb174da049afdd01be395efb2c5be1b463087f1cb86"
+      ],
+      "after": "df4d3cbbd5fe14412db1d10a1997fd3a527dd62f1798b80235da1884271994ad"
+    },
+    "shared/epi/TaskCorrectionDeadlineBridge.php": {
+      "before": [
+        null
+      ],
+      "after": "6aeb8d34f8cecd6f97329732613e54fda3e452bae280d5cbaad9c218a44787c4"
+    },
+    "shared/epi/V2OperationalBridge.php": {
+      "before": [
+        "c3e61b594777aa31373dffd958f7b7a137a1d066a42a284fcc7358b42b83be5b"
+      ],
+      "after": "9807dcd2eb9b66d0bc0ca06bf846dc06ec2fd9f469cfaca20464a2646123ae2f"
+    },
+    "shared/epi/V2PerformanceQuery.php": {
+      "before": [
+        "388b20911f3e1ff6086a53951535e028a4f29fd910352dd99cde864ef09ce99f"
+      ],
+      "after": "042b2b1c5fb0fdd9bb18f147af078af30c928a7c72c76d72f03cae300d14805b"
+    }
+  },
+  "dependencies": {
+    "shared/epi/DeadlineEngine.php": "5b94fb8babc42c1a37cdab848e167ef065599903052bba25b1ceb66ec4c94fcd",
+    "shared/epi/OwnershipPeriodEngine.php": "c8ebfa3aed07229b2239d0debbdf1e1b55b4e760221d42cc968224b01a0ed922",
+    "shared/epi/PerformanceCapturePolicy.php": "4c6dcb8ecb76e427911565449eedeaabdd0370b4eab8d3bbd137415c6546ddbf",
+    "shared/epi/PerformanceRefreshQueue.php": "df0bfa424d5095130b02d1932cda74f5ca9da4ec2e96bc436fdd2e664244292d",
+    "shared/epi/V2Store.php": "f31b8590bbe519e4a5b89a700c0986b0118ebd583aa352aedcb37b6ff35d2d41",
+    "shared/epi/V2QualityBridge.php": "e5ae4a12ad10e6184c02b6b81a2afc992bdcebae8fb5820f2574f1e703a6bbea",
+    "shared/epi/TaskProcessEvidence.php": "2f4a1e699724e1fdff39a5f2b84c8cdb2482353af40651068ac7b11dd1ac376d",
+    "shared/epi/ProvisionalTimingPolicy.php": "a458a6a1ab60b6a93512dd3795f37dd2971cd07d98f597b5f2c1d91377b16c6b",
+    "shared/epi/FrontDeskRoster.php": "a640af919ba2719be15507c3e1e3c21d2a2d719f75bff0cd43761bfccac61ff5",
+    "shared/epi/PerformanceHistory.php": "810101dabcc1d2bd4b2567101790503e26ead5d2947bc872f8ff6cf2d5a6b7e1"
+  }
+}

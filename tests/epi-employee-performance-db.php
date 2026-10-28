@@ -129,7 +129,7 @@ $worker=PerformanceRefreshQueue::drain($db,static function()use($large,$coverage
     return ['opportunities'=>$large,'coverage'=>$coverage];
 });
 check('SVC38 worker calculates without owner action',1,$worker['processed']);
-check('SVC39 completed refresh clears stale marker',false,$service->read(102,'2026-10-01')['data_may_be_stale']);
+check('SVC39 completed refresh clears its pending-generation marker',false,$service->read(102,'2026-10-01')['refresh_pending']);
 PerformanceRefreshQueue::request($db,102,'2026-10-01','new event');
 $worker=PerformanceRefreshQueue::drain($db,static function()use($db,$large,$coverage):array{
     PerformanceRefreshQueue::request($db,102,'2026-10-01','event arrived during calculation');

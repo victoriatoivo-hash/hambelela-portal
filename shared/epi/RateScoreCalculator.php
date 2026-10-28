@@ -56,6 +56,7 @@ final class RateScoreCalculator
                     }
                     $row['eligible_volume'] = $denominator;
                     $row['numerator'] = $numerator;
+                    $row['source_coverage_reason']=$sample['source_coverage_reason']??null;
                     $applicable = ($sample['applicable'] ?? true) !== false;
                     $row['reason'] = !$applicable ? 'not_applicable_requires_scorecard_revision' :
                         (($sample['source_complete'] ?? false) !== true ? 'incomplete_source' :

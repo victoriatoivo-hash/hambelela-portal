@@ -30,13 +30,13 @@ final class V2PerformanceQuery
     if($row['deadline_uuid'])$row['current_deadline']=V2Store::one($this->pdo,'SELECT * FROM epi_v2_operational_deadlines WHERE deadline_uuid=?',[$row['deadline_uuid']]);
     return $row;
  }
- public function watchdogHealth():array {
+ public function watchdogHealth($at=null):array {
     $last=V2Store::one($this->pdo,'SELECT * FROM epi_v2_watchdog_runs ORDER BY id DESC LIMIT 1');
     $success=V2Store::one($this->pdo,"SELECT finished_at FROM epi_v2_watchdog_runs WHERE status='success' ORDER BY id DESC LIMIT 1");
     $flag=V2Store::one($this->pdo,"SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='epi_v2_watchdog_enabled'");
     $enabled=($flag['setting_value']??'0')==='1';
-    $gap=max(3,(int)(V2Store::policy($this->pdo)['watchdog_max_gap_minutes']??3));
-    $stale=!$success||Support::timestamp($success['finished_at'])<Support::timestamp()->modify('-'.$gap.' minutes');
+    $gap=max(3,(int)(V2Store::policy($this->pdo)['watchdog_max_gap_minutes']??10));
+    $stale=!$success||Support::timestamp($success['finished_at'])<Support::timestamp($at)->modify('-'.$gap.' minutes');
     return ['enabled'=>$enabled,'status'=>!$enabled?'disabled':(($last['status']??'never_run')==='failed'?'failed':($stale?'stale':($last['status']??'unknown'))),'last_run'=>$last,'last_success'=>$success['finished_at']??null,'unhealthy'=>$enabled&&($stale||($last['status']??'')==='failed')];
  }
 }

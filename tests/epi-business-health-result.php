@@ -18,7 +18,7 @@ check($r['summary_score']===82.34,'Provisional result must match stored hundredt
 check($r['performance_result_id']===31,'Published revision preserved');
 check($r['scorecard_version']==='synthetic-v1','Rule version preserved');
 check(strpos($r['summary_label'],'Provisional')!==false,'Provisional label required');
-check(strpos($r['summary_note'],'Update pending')!==false,'Stale result explained');
+check(strpos($r['summary_note'],'Data may be stale')!==false,'Stale result explained');
 check($r['metrics'][0]['value']===2,'Use personal risk');
 check($r['metrics'][1]['value']==='75.0% · provisional','Incomplete month cannot show an unqualified category percentage');
 check($r['metrics'][2]['value']==='Not measured','Missing category not zero');

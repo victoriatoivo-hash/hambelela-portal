@@ -37,19 +37,26 @@ final class PerformanceIncidentReview
         $assignment=V2Store::one($db,'SELECT s.policy_json FROM epi_v2_scorecard_assignments a JOIN epi_v2_scorecard_documents s
             ON s.version=a.scorecard_version WHERE a.employee_id=? AND a.period_start=?',[$employee,$period]);
         $policy=$assignment?(json_decode($assignment['policy_json'],true)?:[]):[];
-        $q=$db->prepare('SELECT opportunity_key,object_reference,completed_at,source_snapshot_json FROM epi_v2_completed_work_units
+        $q=$db->prepare('SELECT opportunity_key,object_reference,completed_at,ownership_json,source_snapshot_json FROM epi_v2_completed_work_units
             WHERE employee_id=? AND completed_at>=? AND completed_at<? ORDER BY completed_at,opportunity_key');
         $q->execute([$employee,$from,$to]);$units=$q->fetchAll(PDO::FETCH_ASSOC);$q->closeCursor();$work=[];
         foreach($units as $unit){
             $snapshot=json_decode($unit['source_snapshot_json'],true)?:[];
-            if(($snapshot['score_eligible_at_capture']??false)!==true)continue;
+            $mode=(int)($snapshot['capture_mode']??(($snapshot['score_eligible_at_capture']??false)===true?1:0));
+            // Owner-authorised provisional capture is reviewable, but remains
+            // provisional. Never promote a historical/shadow work unit here.
+            if(!in_array($mode,[1,2],true)||!empty($snapshot['management_review_required']))continue;
+            $owner=json_decode((string)($unit['ownership_json']??'null'),true);
+            if(!is_array($owner)||(int)($owner['employee_id']??0)!==$employee)continue;
+            if(!OperationalPerformanceProjector::withinFunctionScope($db,$policy,$owner))continue;
             $targets=[];
             foreach(OperationalPerformanceProjector::unitTargets($unit['opportunity_key'],$policy['role']??'') as [$category,$metric]){
                 if(!isset($policy['categories'][$category]['metrics'][$metric]))continue;
                 $targets[]=['category'=>$category,'metric'=>$metric,'label'=>($policy['categories'][$category]['label']??$category).
                     ' — '.($policy['categories'][$category]['metrics'][$metric]['label']??$metric)];
             }
-            if($targets)$work[]=['key'=>$unit['opportunity_key'],'reference'=>$unit['object_reference'],'completed_at'=>$unit['completed_at'],'targets'=>$targets];
+            if($targets)$work[]=['key'=>$unit['opportunity_key'],'reference'=>$unit['object_reference'],'completed_at'=>$unit['completed_at'],
+                'capture_status'=>$mode===2?'provisional':'approved','targets'=>$targets];
         }
         return ['incidents'=>$reviews,'work'=>$work];
     }

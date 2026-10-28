@@ -121,7 +121,7 @@ final class EmployeePerformanceService
         $result['management_summary']=($result['eligible_work_count']===null?'Eligible workload not measured':count($work).' work records included in published V2 result').'; '.
             ($result['confirmed_incident_count']===null?'confirmed incident total not measured':count($roots).' distinct failures included in published V2 result').'. '.
             ($missing>0?number_format($missing/100,2).'% of required score weight is not fully measured. ':'All required score components are measured. ').
-            (!empty($result['data_may_be_stale'])?'New evidence is awaiting recalculation. ':'').
+            (!empty($result['data_may_be_stale'])?'Automatic processing is behind or has pending evidence; the last published result is retained. ':'').
             'Current open work is shown separately from historical performance. Historical evidence is available below where recorded; absence of a V2 result does not mean no work occurred.';
         return $result;
     }
@@ -167,9 +167,10 @@ final class EmployeePerformanceService
     {
         $volume=(int)($metric['eligible_volume']??0);
         $reason=(string)($metric['reason']??'');
-        if($reason==='incomplete_source')return $volume>0
+        if($reason==='incomplete_source')return ($volume>0
             ? 'Observed work is provisional: required source coverage is not verified for the whole month.'
-            : 'No eligible observation is published; required source coverage is not verified for the whole month.';
+            : 'No eligible observation is published; required source coverage is not verified for the whole month.')
+            .(!empty($metric['source_coverage_reason'])?' '.$metric['source_coverage_reason']:'');
         if($reason==='missing_evidence')return 'No published evidence is available; absence of a record is not proof of no work.';
         if($reason==='low_sample')return 'Observed workload is below the configured minimum of '.(int)($metric['minimum_volume']??5).' observations.';
         if($reason==='no_workload')return 'No attributable eligible work was recorded in a verified source for this month.';
@@ -198,6 +199,15 @@ final class EmployeePerformanceService
         $pending=V2Store::one($this->db,'SELECT requested_generation,processed_generation,last_error
             FROM epi_v2_performance_refresh_queue WHERE employee_id=? AND period_start=?',[$employee,$period]);
         $result['data_may_be_stale']=$pending && ((int)$pending['requested_generation']>(int)$pending['processed_generation'] || $pending['last_error']!==null);
+        $result['refresh_pending']=(bool)$result['data_may_be_stale'];
+        if(!$row['locked_at']&&$period===Support::timestamp()->format('Y-m-01')){
+            require_once __DIR__.'/V2PerformanceQuery.php';
+            $health=(new V2PerformanceQuery($this->db))->watchdogHealth();
+            $result['processing_health']=['status'=>$health['status'],'enabled'=>$health['enabled'],
+                'last_success_at'=>$health['last_success'],'last_run_at'=>$health['last_run']['started_at']??null,
+                'last_run_errors'=>(int)($health['last_run']['errors']??0)];
+            $result['data_may_be_stale']=$result['refresh_pending']||!$health['enabled']||$health['unhealthy'];
+        }
         foreach($result['categories']??[] as $category=>$definition){
             foreach($definition['metrics']??[] as $metric=>$value){
                 $result['categories'][$category]['metrics'][$metric]['measurement_explanation']=self::measurementExplanation($value);
@@ -241,6 +251,7 @@ final class EmployeePerformanceService
             $result['policy_status']=$policy['status']??'draft';
             $result['measurement_begins_at']=$policy['provisional_capture']['from']??$boundary;
             $result['default_weights_provisional']=($policy['status']??'')==='provisional';
+            $result['function_scope']=$policy['scope']??null;
             $hash=hash('sha256',self::canonical([$assignment,$projection]));
             $head=V2Store::one($this->db,'SELECT * FROM epi_v2_employee_result_heads
                 WHERE employee_id=? AND period_start=? FOR UPDATE',[$employee,$period]);
@@ -268,6 +279,7 @@ final class EmployeePerformanceService
         foreach($policy['categories'] as $category=>$definition) foreach($definition['metrics'] as $metric=>$settings) {
             $samples[$category][$metric]=['eligible_volume'=>0,'numerator'=>0,
                 'source_complete'=>($coverage[$category][$metric]['complete']??false)===true,
+                'source_coverage_reason'=>$coverage[$category][$metric]['reason']??null,
                 'applicable'=>($coverage[$category][$metric]['applicable']??true)!==false];
         }
         // Stable ordering makes identical inputs idempotent regardless of query ordering.

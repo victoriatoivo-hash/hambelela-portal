@@ -63,7 +63,7 @@ final class OperationalPerformanceProjector
             $source=$config['source_coverage']??[];
             $coverage[$category][$metric]=['complete'=>($source['verified']??false)===true &&
                 !empty($source['verified_by']) && ($source['from']??'9999')<=$start && ($source['to']??'')>=$end,
-                'reason'=>'Required source coverage has not been verified for the whole period.'];
+                'reason'=>self::sourceRequirement($category,$metric,$policy['role']??'')];
         }
         $q=$this->db->prepare('SELECT d.*,i.responsible_employee_at_breach,i.root_incident_id,
             i.metadata_json AS incident_metadata,i.eligibility_state,i.exclusion_reason AS incident_exclusion,
@@ -125,7 +125,39 @@ final class OperationalPerformanceProjector
         $opportunities=array_merge($opportunities,$this->completedUnits($employee,$start,$end,$policy,$coverage));
         require_once __DIR__.'/AttendanceEvidenceProjector.php';
         $opportunities=array_merge($opportunities,AttendanceEvidenceProjector::employee($this->db,$employee,$start,$end,$coverage));
+        if(($policy['scope']['kind']??'')==='front_desk_coverage')foreach($opportunities as &$o){
+            if(!self::withinFunctionScope($this->db,$policy,$o['ownership']??null)){$o['eligible']=false;$o['exclusion_reason']='outside_front_desk_function_scope';}
+        }unset($o);
         return ['opportunities'=>$opportunities,'coverage'=>$coverage];
+    }
+
+    private static function sourceRequirement(string $category,string $metric,string $role):string
+    {
+        $requirements=[
+            'packing_list|priority'=>'An approved priority-sequence target and prospective priority history are required; packing speed alone is not priority compliance.',
+            'packing_list|compliance'=>'The assigned stock-check/confirmation requirements and quantity/process outcome must be captured prospectively.',
+            'courier|compliance'=>'Document/customer-notification completeness needs supporting evidence; a Sent click alone is not proof of every required dispatch step.',
+            'courier|upload'=>'A per-order upload obligation and linked document availability are required; anonymous upload counts are not a workload denominator.',
+            'inventory|accuracy'=>'Verified stock/variation change evidence is required; the website-confirmation tick alone does not prove quantity accuracy.',
+            'bookkeeping|controls'=>'Opening/closing/deposit control times must be explicitly configured and supported by native control records.',
+            'orders|stale_prevention'=>'A distinct, allocated Front-controlled stale-order obligation is required; packer New-stage breaches are not Front Desk failures.',
+        ];
+        if($category==='courier'&&$metric==='timeliness'&&$role==='packer')return 'Packer-controlled cutoff/readiness evidence must be linked to its order; Front Desk sending cannot substitute for it.';
+        return $requirements[$category.'|'.$metric]??'The native obligation/completion source is connected, but full-period coverage has not been independently verified.';
+    }
+
+    public static function withinFunctionScope(PDO $db,array $policy,$owner):bool
+    {
+        if(($policy['scope']['kind']??'')!=='front_desk_coverage')return true;
+        if(!is_array($owner))return false;
+        $owner=$owner['operational_interval']??$owner;
+        if(($owner['duty_key']??'')==='front_desk'||($owner['source']??'')==='accepted_counter_order_assignment')return true;
+        $source=(string)($owner['source']??'');
+        if(strpos($source,'handover:')===0){
+            $handover=V2Store::one($db,"SELECT duty_key FROM epi_v2_handovers WHERE handover_uuid=? AND status='accepted'",[substr($source,9)]);
+            return ($handover['duty_key']??'')==='front_desk';
+        }
+        return false;
     }
 
     private function completedUnits(int $employee,string $start,string $end,array $policy,array &$coverage):array

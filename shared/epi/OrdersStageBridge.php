@@ -22,7 +22,7 @@ final class OrdersStageBridge
     }
     public static function capture(PDO $db,string $action,array $order,array $meta): void {
         $at=Support::timestamp($meta['occurred_at'])->format('Y-m-d H:i:s');$id=(int)$order['id'];$ref='ORDER-'.$id;
-        $actor=(int)($meta['employee_id']??0);$engine=new DeadlineEngine($db);
+        $actor=(int)($meta['actor_employee_id']??$meta['employee_id']??0);$engine=new DeadlineEngine($db);
         $state=V2Store::one($db,'SELECT * FROM epi_v2_orders_tracking WHERE order_id=? FOR UPDATE',[$id]);
         if(!$state) {
             // Never start fresh clocks on old records merely because someone edits them.
@@ -65,6 +65,10 @@ final class OrdersStageBridge
                 'responsible_team'=>$team,'stage_policy'=>['version'=>$version['version'],'approved_by'=>$version['approved_by'],'rules'=>$policy]]);
         };
         if($mode==='walk_in') {
+            // The automatic Packed By default is not personal acceptance. An
+            // explicit self-selection (or owner-directed correction) may transfer
+            // counter responsibility prospectively, never erase an earlier breach.
+            if(($meta['field']??'')==='assigned_packer_id')self::assignCounter($db,$ref,(int)($order['assigned_packer_id']??0),$actor,$at);
             $schedule('Orders','complete_order','order_completion_sla_breached',$state['created_at'],OrdersSlaPolicy::workingDue($state['created_at'],(int)$policy['walk_in_minutes'],$policy),'front_desk');
         } else {
             if(!$state['packing_started_at']&&($mode!=='courier'||$paid)) {
@@ -99,6 +103,19 @@ final class OrdersStageBridge
     }
     private static function finish(DeadlineEngine $engine,string $module,string $ref,string $key,int $actor,string $at): void {
         if($actor>0)$engine->fulfilObject($module,$ref,$key,$actor,$at);
+    }
+    private static function assignCounter(PDO $db,string $ref,int $employee,int $actor,string $at):void {
+        if($employee<1||$actor<1)return;
+        $person=V2Store::one($db,"SELECT r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? AND e.status='active'",[$employee]);
+        if(!$person||!in_array($person['role_key'],['front_desk_admin','marketing_sales'],true))return;
+        $owner=(int)(V2Store::activation($db)['approved_by']??0);
+        if($actor!==$employee&&$actor!==$owner)return; // naming another employee is not their acceptance
+        $engine=new OwnershipPeriodEngine($db);$old=$engine->ownerAt('Orders',$ref,$at);
+        if($old&&(int)$old['employee_id']===$employee)return;
+        $engine->assign(['module'=>'Orders','object_reference'=>$ref,'employee_id'=>$employee,'assigned_by'=>$actor,
+            'accepted_by'=>$actor,'authority'=>$actor===$owner?'owner_directed':'employee_acceptance',
+            'effective_from'=>$at,'accepted_at'=>$at,'source'=>'accepted_counter_order_assignment',
+            'ownership_reason'=>'counter_service','role_key'=>$person['role_key'],'transfer_reason'=>'Explicit Packed By counter responsibility selection']);
     }
     private static function assignPacker(PDO $db,string $ref,int $employee,int $actor,string $at): void {
         if($employee<=0||$actor<=0)return;

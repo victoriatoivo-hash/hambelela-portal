@@ -55,7 +55,8 @@ final class BusinessHealthPerformance
         $person['performance_result_id']=$result['result_id']??null;
         $person['scorecard_version']=$result['scorecard_version']??null;
         $person['summary_note']=($month?$month.' · Full monthly result, not a date-range score. ':'Choose a single month for the published employee result. ')
-            .(!empty($result['data_may_be_stale'])?'Update pending. ':'')
+            .(!empty($result['data_may_be_stale'])?'Data may be stale; check automatic processing on the employee profile. ':'')
+            .(!empty($result['function_scope']['description'])?$result['function_scope']['description'].'. ':'')
             .'Provisional results are not for pay or disciplinary decisions.';
         // Do not present the team queue, a completer's elapsed time, or a reporter's
         // incidents as this employee's responsibility. Category evidence is in profile.

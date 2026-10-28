@@ -45,6 +45,7 @@ final class CompletedWorkCapture
             }
             return;
         }
+        $meta['employee_id']=$meta['actor_employee_id']??$meta['employee_id']??null;
 
         $module=null;$ref=null;$start=null;$done=false;$keyType=$type;
         if($type==='order'){
@@ -67,6 +68,10 @@ final class CompletedWorkCapture
             }
         }elseif($type==='checklist_task'){
             $module='Tasks';$ref='TASK-'.$record['id'];$start=$record['released_at']??$record['date_assigned']??null;
+            if((int)($record['active_correction_id']??0)>0){
+                $cycle=V2Store::one($db,"SELECT starts_at FROM epi_v2_operational_deadlines WHERE module='Tasks' AND object_reference=? AND source_event='task_correction_requested' AND JSON_UNQUOTE(JSON_EXTRACT(policy_snapshot_json,'$.source_evidence.correction_id'))=? ORDER BY id DESC LIMIT 1",[$ref,(string)$record['active_correction_id']]);
+                if($cycle)$start=$cycle['starts_at'];
+            }
             $done=in_array($action,['task_completed','task_correction_completed'],true);
         }elseif($type==='ops_whatsapp_conversation'){
             $module='Orders';$ref='CONVERSATION-'.$record['id'];$start=$record['created_at']??null;

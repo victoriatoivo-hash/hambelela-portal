@@ -38,4 +38,8 @@ const observed=await render({...base,status:'provisional',result_id:44,categorie
 assert.match(observed,/KPIs with observed work/);assert.match(observed,/15 successful \/ 20/);
 assert.match(observed,/required source coverage is not verified for the whole month/);
 assert.doesNotMatch(observed,/Overall performance<\/span><strong>0/);
+const unhealthy=await render({...base,data_may_be_stale:true,processing_health:{status:'stale',last_success_at:'2026-10-28 08:00:00'},
+  function_scope:{description:'Verified Front Desk coverage only — not overall Marketing performance'}});
+assert.match(unhealthy,/Data may be stale/);assert.match(unhealthy,/Last successful background run: 2026-10-28 08:00:00/);
+assert.match(unhealthy,/not overall Marketing performance/);
 console.log('PASS: unavailable counts, preserved historical result, genuine calculated zero, missing source, safe escaping and profile render');
