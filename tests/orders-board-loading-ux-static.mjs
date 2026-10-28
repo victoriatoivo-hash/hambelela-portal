@@ -16,7 +16,8 @@ assert.match(js, /function renderInitialLoadError\(error\)/, 'Initial failure mu
 assert.match(js, /Orders could not refresh\. Existing data remains displayed\./, 'Background failures must preserve and describe existing data.');
 assert.match(js, /if \(!hasInitialOrdersLoadCompleted\) showInitialLoadingState\(\)/, 'Only initial loading may replace board content.');
 assert.doesNotMatch(js, /if \(!hasRenderedOnce\) showSkeletonRows\(\)/, 'Normal refresh must not reset the board to skeleton rows.');
-assert.match(js, /page\.classList\.add\('is-background-updating'\)/, 'Background activity must be non-blocking and scoped to the page.');
+assert.doesNotMatch(js, /page\.classList\.add\('is-background-updating'\)/, 'Quiet background activity must not animate or dim the page.');
+assert.match(js, /patchOrdersDateGroup\(existing, replacement\)/, 'Live changes must preserve unchanged rows and controls.');
 assert.match(js, /function scheduleOrdersSearch\(value, source = null\)/, 'Search must use the shared cache-render scheduler.');
 assert.match(js, /window\.setTimeout\(\(\) => \{[\s\S]*?requestOrdersList\(\);[\s\S]*?250\)/, 'Search must debounce full board renders while the user is typing.');
 assert.match(js, /const directFilter[\s\S]*renderOrders\(ordersCache\)/, 'Status, mode, and payment filters must render from the cache.');
