@@ -970,7 +970,7 @@
   });
 
 
-  if (owner) {
+  if ($('[data-rate-dialog]')) {
     const rateDialog = $('[data-rate-dialog]');
     const rateForm = $('[data-rate-form]');
 
