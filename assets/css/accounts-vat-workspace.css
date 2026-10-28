@@ -1052,6 +1052,7 @@ body:has(.vatx-page) .portal-date-popup :is(button,input,select) {font-family:"J
 }
 
 @media (max-width: 767px) {
+  .vatx-page .vatx-header .accounts-hero-copy {flex:0 1 auto}
   .vatx-page .vatx-header {
     flex-direction: column;
     align-items: stretch;

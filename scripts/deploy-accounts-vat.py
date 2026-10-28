@@ -2,7 +2,10 @@
 import difflib, ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 FILES=['assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js','assets/js/input-vat.js','assets/js/output-vat.js','apps/accounts/input-vat.php','apps/accounts/output-vat.php']
-BASELINES={p:'033d24d881b5b11600e06c90f0801c594914f2c6' for p in FILES if p not in ('assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js')}
+# Existing Git release 5f11b2f3 contains the styled confirmations on live.
+# Its Input VAT SHA256 bf04e4aa... matches preflight 40741431500 exactly.
+# Retain strict full-source comparison; never transform or accept unknown live bytes.
+BASELINES={p:'5f11b2f3831b46448bb20e5dcac9a6f442a76ba7' for p in FILES if p not in ('assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js')}
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
