@@ -15,6 +15,10 @@ final class PerformanceRefreshRuntime
     }
     public static function invalidate(PDO $db,string $reason):void
     {
+        // A notification is not a changed responsibility, outcome or deadline.
+        // Deadline expiry is still processed by the scheduled watchdog below.
+        // Do not leave every employee marked stale after each reminder sweep.
+        if($reason==='checklist_task:task_reminder_generated')return;
         if(!self::enabled($db))return;
         // Include prior owners/locked months: corrected attribution must refresh both sides.
         $rows=$db->query('SELECT employee_id,period_start FROM epi_v2_scorecard_assignments')->fetchAll(PDO::FETCH_ASSOC);

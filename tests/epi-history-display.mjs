@@ -26,4 +26,8 @@ assert.match(zero,/0\.0%/);assert.match(zero,/Current official result/);
 const missing=await render({...base,categories:{orders:{label:'Orders',weight_hundredths:10000,status:'insufficient_data',official_score_hundredths:null,measured_contribution_hundredths:null,
   metrics:{sla:{label:'Progression',numerator:0,eligible_volume:0,rate_hundredths:null,reason:'incomplete_source',status:'insufficient_data'}}}}});
 assert.doesNotMatch(missing,/0 successful \/ 0/);assert.match(missing,/incomplete source/);
+const provisional=await render({...base,status:'provisional',default_weights_provisional:true,measurement_begins_at:'2026-10-27 18:42:04'});
+assert.match(provisional,/Provisional V2 measurement begins: 2026-10-27 18:42:04/);
+assert.match(provisional,/Official V2 scoring is not activated/);
+assert.doesNotMatch(provisional,/V2 measurement is not yet configured/);
 console.log('PASS: unavailable counts, preserved historical result, genuine calculated zero, missing source, safe escaping and profile render');

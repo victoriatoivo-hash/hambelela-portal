@@ -96,3 +96,9 @@ $beforeAssignments=(int)scalar('SELECT COUNT(*) FROM epi_v2_scorecard_assignment
 Hambelela\EPI\ProvisionalScorecardAssignments::ensureCurrent($db);
 check('PROVISIONAL33 scheduled renewal is idempotent',$beforeAssignments,(int)scalar('SELECT COUNT(*) FROM epi_v2_scorecard_assignments'));
 check('PROVISIONAL34 policies remain provisional',2,(int)scalar("SELECT COUNT(*) FROM epi_v2_scorecard_documents WHERE version LIKE '%-provisional-%' AND policy_json LIKE '%\"status\":\"provisional\"%'"));
+$queueBefore=$db->query('SELECT * FROM epi_v2_performance_refresh_queue ORDER BY employee_id,period_start')->fetchAll();
+PerformanceRefreshRuntime::invalidate($db,'checklist_task:task_reminder_generated');
+check('PROVISIONAL37 reminder alone does not stale scores',$queueBefore,$db->query('SELECT * FROM epi_v2_performance_refresh_queue ORDER BY employee_id,period_start')->fetchAll());
+$generationBefore=(int)scalar('SELECT SUM(requested_generation) FROM epi_v2_performance_refresh_queue');
+PerformanceRefreshRuntime::invalidate($db,'checklist_task:task_completed');
+check('PROVISIONAL38 actual completion still requests refresh',true,(int)scalar('SELECT SUM(requested_generation) FROM epi_v2_performance_refresh_queue')>$generationBefore);
