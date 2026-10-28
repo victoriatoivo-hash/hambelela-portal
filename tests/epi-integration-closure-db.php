@@ -129,4 +129,7 @@ try{
     check('CLOSE44 earlier responsibility is not rewritten',101,(int)$frontOwners->ownerAt('Orders','ORDER-9810','2026-10-01 09:59:59')['employee_id']);
     check('CLOSE45 counter transfer does not change walk-in deadline','2026-10-01 13:00:00',scalar("SELECT due_at FROM epi_v2_operational_deadlines WHERE module='Orders' AND object_reference='ORDER-9810'"));
     check('CLOSE46 counter transfer cannot alter order identity','ORDER-9810',scalar('SELECT object_reference FROM epi_v2_orders_tracking WHERE order_id=9810'));
+    $currentCourier=array_replace($counter,['fulfilment_mode'=>'courier','order_type'=>'courier']);
+    check('CLOSE47 preserve newer live current-mode payment guard',false,attempt(function()use($db,$currentCourier){Hambelela\EPI\OrdersStageBridge::assertStatusAllowed($db,$currentCourier,'in_progress');}));
+    check('CLOSE48 original historical classification remains immutable','walk_in',scalar('SELECT classification FROM epi_v2_orders_tracking WHERE order_id=9810'));
 }finally{$db->rollBack();}
