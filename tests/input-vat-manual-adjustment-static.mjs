@@ -5,7 +5,9 @@ const read = path => fs.readFileSync(new URL('../' + path, import.meta.url), 'ut
 const api = read('apps/accounts/input-vat-api.php');
 const js = read('assets/js/input-vat.js');
 const page = read('apps/accounts/input-vat.php');
-const livePage = read('apps/accounts/input-vat-live.php');
+const liveEntry = read('apps/accounts/input-vat-live.php');
+assert.match(liveEntry, /require __DIR__\.'\/input-vat\.php'/);
+const livePage = liveEntry + page;
 
 for (const template of [page, livePage]) {
   assert.match(template, /name="manual_override" type="checkbox" value="1"/);
