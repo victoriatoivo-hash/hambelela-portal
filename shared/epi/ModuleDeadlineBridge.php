@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Hambelela\EPI;
 use PDO;
 require_once __DIR__.'/PerformanceRefreshRuntime.php';
+require_once __DIR__.'/ProvisionalTimingPolicy.php';
 
 /** Native Packing List, website and courier stages. Durations require explicit policy. */
 final class ModuleDeadlineBridge
@@ -10,8 +11,9 @@ final class ModuleDeadlineBridge
     public static function capture(PDO $db,string $type,string $action,array $r,array $meta):void
     {
         if(!PerformanceRefreshRuntime::enabled($db))return;
-        $activation=V2Store::activation($db);$policy=V2Store::policy($db);
+        $activation=V2Store::activation($db);
         $at=Support::timestamp($meta['occurred_at']??null)->format('Y-m-d H:i:s');
+        $policy=ProvisionalTimingPolicy::policy($db,$at);
         $actor=(int)($meta['employee_id']??0);$engine=new DeadlineEngine($db);
         if($type==='packing_task'){
             $start=(string)($r['created_at']??$r['date_loaded']??'');
@@ -28,18 +30,22 @@ final class ModuleDeadlineBridge
                     'effective_from'=>$at,'accepted_at'=>$at,'source'=>'packing_list_assignment']);
             foreach(['start_packing'=>'packing_list_start_minutes','complete_packing'=>'packing_list_completion_minutes'] as $obligation=>$setting){
                 $minutes=(int)($policy[$setting]??0);
-                if($created && $minutes>0)$engine->schedule(['module'=>'Packing List','object_reference'=>$ref,
+                if($created && $minutes>0 && (empty($policy['_timing_version'])||$start>=$policy['_timing_version']['effective_from']))$engine->schedule(['module'=>'Packing List','object_reference'=>$ref,
                     'obligation_key'=>$obligation,'breach_event_key'=>$obligation.'_sla_breached','starts_at'=>$start,
                     'due_at'=>(new BusinessTimeEngine($db))->addWorkingMinutes($start,$minutes),
-                    'cycle_id'=>'initial','source_event'=>$action,'responsible_team'=>'packers']);
+                    'cycle_id'=>'initial','source_event'=>$action,'responsible_team'=>'packers']+ProvisionalTimingPolicy::deadlineOptions($policy,$setting));
             }
             $websiteMinutes=(int)($policy['website_update_minutes']??0);
-            if($created && $websiteMinutes>0){
+            $newTiming=!empty($policy['_timing_version']);
+            $informationAvailable=trim((string)($r['item_name']??''))!=='' && trim((string)($r['quantity_planned']??''))!=='';
+            $websiteReady=$newTiming?($informationAvailable&&$start>=$policy['_timing_version']['effective_from']&&($created||in_array($meta['field']??'',['item_name','quantity_planned'],true))):$created;
+            if($websiteReady && $websiteMinutes>0 && !V2Store::one($db,"SELECT id FROM epi_v2_operational_deadlines WHERE module='Inventory' AND object_reference=? AND obligation_key='update_website_stock'",[$ref])){
                 $db->prepare("INSERT IGNORE INTO epi_v2_object_duties VALUES('Inventory',?,'front_desk')")->execute([$ref]);
                 $engine->schedule(['module'=>'Inventory','object_reference'=>$ref,'obligation_key'=>'update_website_stock',
-                    'breach_event_key'=>'website_stock_update_breached','starts_at'=>$start,
-                    'due_at'=>(new BusinessTimeEngine($db))->addWorkingMinutes($start,$websiteMinutes),
-                    'cycle_id'=>'initial','source_event'=>$action,'responsible_team'=>'front_desk']);
+                    'breach_event_key'=>'website_stock_update_breached','starts_at'=>$newTiming?$at:$start,
+                    'due_at'=>(new BusinessTimeEngine($db))->addWorkingMinutes($newTiming?$at:$start,$websiteMinutes),
+                    'source_evidence'=>['stock_information_available_at'=>$newTiming?$at:$start,'item_name'=>$r['item_name']??null,'quantity_planned'=>$r['quantity_planned']??null],
+                    'cycle_id'=>'initial','source_event'=>$action,'responsible_team'=>'front_desk']+ProvisionalTimingPolicy::deadlineOptions($policy,'website_update_minutes'));
             }
             $status=$r['packing_status']??'';
             if($actor>0 && in_array($status,['packing','in_progress','done','website','packed_label_needed','done_needs_label','label_created'],true))

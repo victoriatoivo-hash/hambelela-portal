@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Hambelela\EPI;
 use PDO;
+require_once __DIR__.'/ProvisionalTimingPolicy.php';
 
 /** Captures saved conversation obligations, including future unattended follow-ups. */
 final class CommunicationDeadlineBridge
@@ -36,14 +37,15 @@ final class CommunicationDeadlineBridge
             'starts_at'=>$at,'due_at'=>$due,'cycle_id'=>'followup:'.$due,'source_event'=>$action,
             'responsible_team'=>'front_desk']);
         // A response target must be explicitly configured, never guessed from message volume.
-        $minutes=(int)(V2Store::policy($db)['communication_response_minutes']??0);
+        $policy=ProvisionalTimingPolicy::policy($db,$at);
+        $minutes=(int)($policy['communication_response_minutes']??0);
         $waiting=V2Store::one($db,"SELECT id FROM epi_v2_operational_deadlines WHERE module='Orders' AND object_reference=?
             AND obligation_key='customer_response' AND state IN('open','breached','needs_attribution') LIMIT 1",[$ref]);
         if(!$waiting && $newInbound && $minutes>0 && !empty($record['last_customer_message_at']) && $record['last_customer_message_at']===$at)
             $engine->schedule(['module'=>'Orders','object_reference'=>$ref,'obligation_key'=>'customer_response',
                 'breach_event_key'=>'customer_response_sla_breached','starts_at'=>$at,
                 'due_at'=>(new BusinessTimeEngine($db))->addWorkingMinutes($at,$minutes),
-                'cycle_id'=>'response:'.$at,'source_event'=>$action,'responsible_team'=>'front_desk']);
+                'cycle_id'=>'response:'.$at,'source_event'=>$action,'responsible_team'=>'front_desk']+ProvisionalTimingPolicy::deadlineOptions($policy,'communication_response_minutes'));
         if($actor>0 && ($meta['direction']??'')==='outbound') {
             $engine->fulfilObject('Orders',$ref,'customer_response',$actor,$at);
         }

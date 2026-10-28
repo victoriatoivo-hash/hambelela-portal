@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Hambelela\EPI;
 use PDO;
 use RuntimeException;
+require_once __DIR__.'/ProvisionalTimingPolicy.php';
 
 /** Outbox belongs to the caller transaction; failed capture remains replayable. */
 final class V2OperationalBridge
@@ -20,9 +21,15 @@ final class V2OperationalBridge
     $table=['order'=>'ops_orders','checklist_task'=>'ops_checklist_tasks','error_log'=>'ops_error_logs','ops_whatsapp_conversation'=>'ops_whatsapp_conversations',
         'packing_task'=>'ops_packing_tasks','courier_waybill'=>'hambelela_waybills','cash_entry'=>'ops_cash_book_entries','front_plan'=>'epi_v2_front_plans'][$type];
     $record=V2Store::one($db,"SELECT * FROM $table WHERE id=?",[$id]);if(!$record)return;
-    if($type==='order' && (int)(V2Store::policy($db)['cash_entry_minutes']??0)>0 && in_array($action,['order_created','payment_changed','payment_status_updated','payment_status_auto_walk_in'],true)){
+    $meta['occurred_at']=Support::timestamp($meta['occurred_at']??null)->format('Y-m-d H:i:s');
+    if($type==='order' && (int)(ProvisionalTimingPolicy::policy($db,$meta['occurred_at'])['cash_entry_minutes']??0)>0 && in_array($action,['order_created','payment_changed','payment_status_updated','payment_status_auto_walk_in'],true)){
         $cash=V2Store::one($db,"SELECT COALESCE(SUM(amount_cents),0) amount FROM order_payment_allocations WHERE order_id=? AND payment_method='cash'",[$id]);
         $meta['cash_receipt_cents']=(int)$cash['amount'];
+        if($action==='payment_status_updated'&&($meta['field']??'')==='portal_paid_confirmation'
+            &&($meta['old_value']??'')==='unpaid'&&($meta['new_value']??'')==='paid'
+            &&in_array($meta['source']??'',['manual_orders_board','manual_orders_board_bulk'],true)&&(int)$cash['amount']>0){
+            $meta['cash_received_at']=$meta['occurred_at'];$meta['cash_receipt_source']='staff_confirmed_paid_cash_allocation';
+        }
     }
     $meta['occurred_at']=Support::timestamp($meta['occurred_at']??null)->format('Y-m-d H:i:s');
     $meta['employee_id']=$meta['employee_id']??(function_exists('ops_current_employee_id')?ops_current_employee_id():null);

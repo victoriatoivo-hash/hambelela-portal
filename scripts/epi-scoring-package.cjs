@@ -4,7 +4,9 @@ process.chdir(path.resolve(__dirname,'..'));
 const out=path.resolve(process.argv[2]||'.run-artifacts/epi-scoring-activation-r1');
 if(!out.startsWith(path.resolve('.run-artifacts')+path.sep)||fs.existsSync(out))throw new Error('New private artifact directory required');
 const baseline='5296c666';
-const files=['shared/epi/PerformanceCapturePolicy.php','shared/epi/DeadlineEngine.php','shared/epi/CompletedWorkCapture.php',
+const files=['shared/epi/ProvisionalTimingPolicy.php','shared/epi/ResponsibilityClock.php','apps/operations/performance-timing-settings.php',
+'shared/epi/CashDeadlineBridge.php','shared/epi/CommunicationDeadlineBridge.php','shared/epi/V2OperationalBridge.php','apps/operations/reports.php',
+'shared/epi/PerformanceCapturePolicy.php','shared/epi/DeadlineEngine.php','shared/epi/CompletedWorkCapture.php',
 'shared/epi/V2QualityBridge.php','shared/epi/OperationalPerformanceProjector.php','shared/epi/EmployeePerformanceService.php',
 'shared/epi/RateScoreCalculator.php','shared/epi/AttendanceEvidenceProjector.php','shared/epi/ProvisionalScorecardAssignments.php',
 'shared/epi/V2Watchdog.php','shared/epi/FrontDeskRoster.php','shared/epi/PerformanceRefreshRuntime.php','apps/operations/kpi-presence-review.php',
@@ -21,18 +23,18 @@ const reviewedLive={
  'apps/operations/operations.php':'709868816a9b3ba6f7db87452ee120f903974bcbfb9b714918c95dec0907b21f'
 };
 for(const name of files){let before=null;try{before=hash(cp.execFileSync('git',['show',`${baseline}:${name}`],{stdio:['ignore','pipe','ignore']}));}catch{}
- const data=normal(fs.readFileSync(name));manifest.files[name]={before:[previous?.files?.[name]?.after||reviewedLive[name]||before],after:hash(data)};
+ const data=normal(fs.readFileSync(name));manifest.files[name]={before:[previous?.files?.[name]?.after||previous?.dependencies?.[name]||reviewedLive[name]||before],after:hash(data)};
  const dst=path.join(out,'runtime',name);fs.mkdirSync(path.dirname(dst),{recursive:true});fs.writeFileSync(dst,data);
 }
 for(const name of ['apps/operations/operations.php','apps/operations/bookkeeping.php','apps/operations/whatsapp-service.php',
-'shared/epi/OrdersStageBridge.php','shared/epi/OrdersSlaPolicy.php','shared/epi/OwnershipPeriodEngine.php','shared/epi/V2OperationalBridge.php',
+'shared/epi/OrdersStageBridge.php','shared/epi/OrdersSlaPolicy.php','shared/epi/OwnershipPeriodEngine.php',
 'shared/epi/FrontDeskCoverage.php','shared/epi/HrAbsenceEvidence.php','shared/epi/PerformanceRefreshQueue.php',
-'shared/epi/CommunicationDeadlineBridge.php','shared/epi/IncidentCorrelation.php',
+'shared/epi/IncidentCorrelation.php',
 'shared/epi/EligibilityPolicy.php','shared/epi/ScorecardCatalog.php','shared/epi/PerformanceHistory.php','shared/epi/V2PerformanceQuery.php',
-'apps/operations/kpi-employee-data.php','apps/operations/reports.php','assets/css/performance-workspace.css'])
+'apps/operations/kpi-employee-data.php','assets/css/performance-workspace.css'])
  manifest.dependencies[name]=reviewedLive[name]||hash(cp.execFileSync('git',['show',`${baseline}:${name}`]));
 manifest.dependencies['shared/task-leave.php']='206adad29c8b6d714515c7bedb16e6657aa1e069d555113aadaeba6c090da495';
 fs.writeFileSync(path.join(out,'manifest.json'),JSON.stringify(manifest,null,2));
-for(const [source,target] of [['scripts/epi-data-link-release.php','release.php'],['scripts/epi-scoring-activation.php','activation.php']])
+for(const [source,target] of [['scripts/epi-data-link-release.php','release.php'],['scripts/epi-scoring-activation.php','activation.php'],['scripts/epi-timing-activation.php','timing-activation.php']])
  fs.writeFileSync(path.join(out,target),normal(fs.readFileSync(source)));
 console.log(JSON.stringify({directory:out,files:files.length,dependencies:Object.keys(manifest.dependencies).length}));

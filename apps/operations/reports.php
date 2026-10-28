@@ -15,6 +15,10 @@ if ($tab === 'performance-reports') {
     exit;
 }
 if (!in_array($tab, array_merge(['dashboard','business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'dashboard';
+if ($tab === 'settings') {
+    require_once dirname(__DIR__,2).'/shared/epi/bootstrap.php';
+    require_once dirname(__DIR__,2).'/shared/epi/ProvisionalTimingPolicy.php';
+}
 $currentKpiTitle = $tab === 'dashboard' ? 'Employee Dashboard' : ($tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health')));
 $pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
 $activeApp = 'kpi';
@@ -121,7 +125,15 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (!hash_equals($csrf, (string) ($_POST['csrf_token'] ?? ''))) throw new RuntimeException('Your session token is invalid.');
         $action = ops_post_string('kpi_action', 40);
-        if ($action === 'save_settings') {
+        if ($action === 'save_provisional_timings') {
+            $minutes=[];
+            foreach (\Hambelela\EPI\ProvisionalTimingPolicy::FIELDS as $key=>$label) $minutes[$key]=$_POST[$key]??null;
+            \Hambelela\EPI\ProvisionalTimingPolicy::approve(db(),$minutes,(int)ops_current_employee_id(),ops_post_string('timing_reason',500));
+            $message='New provisional timing version saved. Existing deadlines and historical results are unchanged.';
+        } elseif ($action === 'adjust_packing_deadline') {
+            (new \Hambelela\EPI\DeadlineEngine(db()))->adjustPackingDeadline(ops_post_string('deadline_uuid',36),ops_post_string('adjusted_due',30),(int)ops_current_employee_id(),ops_post_string('adjustment_reason',500));
+            $message='Packing deadline adjustment recorded with its reason and original deadline retained in the audit.';
+        } elseif ($action === 'save_settings') {
             $validatedSettings = [];
             foreach ($settingFields as $key => $definition) {
                 $value = substr(trim((string) ($_POST[$key] ?? $definition[2])), 0, 255);
@@ -347,6 +359,8 @@ include BASE_PATH . '/shared/sidebar.php';
         <script src="<?= BASE_URL ?>/assets/js/reports-section.js?v=<?= (int)@filemtime(BASE_PATH.'/assets/js/reports-section.js') ?>"></script>
     <?php else: ?>
         <?php if ($message !== ''): ?><div class="ops-alert <?= $messageType === 'error' ? 'error' : 'success' ?>" role="status"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
+
+        <?php require __DIR__.'/performance-timing-settings.php'; ?>
 
         <section class="panel">
             <div class="section-row"><div><p class="eyebrow">Calculation controls</p><h2>Global performance settings</h2><p>Role-specific weights are stored for owner review only. Composite scores, bonus bands and rankings remain disabled until every required data-integrity test passes.</p></div></div>
