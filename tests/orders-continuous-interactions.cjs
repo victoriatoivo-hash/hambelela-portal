@@ -21,7 +21,7 @@ const ctx = {
   activeOrderMutationCount:0, personPopup:null, labelMenu:null, panel:null,
   livePendingGroupKeys:new Set(), groupKey:o=>o.created_at.slice(0,10), ordersCache:[],
   syncPaymentFilterOptions(){}, visibleOrders:()=>ctx.ordersCache,
-  groupedOrders:orders=>Object.groupBy(orders,o=>o.created_at.slice(0,10)),
+  groupedOrders:orders=>orders.reduce((groups,o)=>{(groups[o.created_at.slice(0,10)] ||= []).push(o);return groups;},{}),
   updateWorkMetrics(){}, updateFilterBadge(){}, renderMoreFilterChips(){}, bindOrdersColumnResizers(){},
   applyHiddenColumns(){}, updateSelectionBar(){}, pendingOrdersInteractionPosition:null
 };
