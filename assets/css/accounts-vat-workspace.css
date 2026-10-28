@@ -77,6 +77,7 @@ main.vatx-page
 .vatx-page .input-vat-month-tab small.complete,.vatx-page .input-vat-month-tab small.completed {color:#477356}
 .vatx-page .vatx-workspace {display:grid;gap:16px;align-items:start;margin:16px 0}
 .vatx-page .vatx-workspace--input {grid-template-columns:minmax(0,1fr) 260px}
+.vatx-page .vatx-workspace--input:has(>aside[hidden]) {grid-template-columns:minmax(0,1fr)}
 .vatx-page .vatx-workspace--output {grid-template-columns:minmax(0,1fr) 290px}
 .vatx-page .vatx-ledger {min-width:0}
 .vatx-page .vatx-panel {padding:16px;background:white;border:1px solid var(--vatx-border);border-radius:12px;box-shadow:var(--vatx-shadow);min-width:0}
@@ -1129,6 +1130,29 @@ body:has(.vatx-page) .portal-date-popup :is(button,input,select) {font-family:"J
     right: auto;
   }
 }
+
+/* Shared picker integration is scoped by the active VAT workspace, including
+   body-hosted overlays. No other Accounts or portal module is restyled. */
+.vatx-page {--portal-orange-red:var(--vatx-accent);--portal-burgundy:var(--vatx-accent);--portal-text:var(--vatx-text);--portal-text-light:var(--vatx-muted);--portal-border:var(--vatx-border)}
+.vatx-page .portal-date-picker>.portal-date-field {height:36px;min-height:36px;max-height:36px;border-color:var(--vatx-border);font:400 11.5px/1 "Jost",sans-serif;background:white;color:var(--vatx-text)}
+.vatx-page .portal-date-picker:is(:focus-within,.is-open)>.portal-date-field {border-color:var(--vatx-accent);box-shadow:0 0 0 2px color-mix(in srgb,var(--vatx-accent) 10%,transparent)}
+body:has(.vatx-page) .portal-date-popup :is(.portal-date-nav,.portal-date-now,.portal-date-cancel,.portal-date-clear,.portal-date-icon) {color:var(--accent)}
+body:has(.vatx-page) .portal-date-popup :is(.portal-date-day:hover,.portal-date-day:focus-visible,.portal-date-day.is-selected,.portal-date-nav:hover) {background:var(--accent-soft);color:var(--accent);box-shadow:none}
+body:has(.vatx-page) .portal-date-popup :is(.portal-date-day.is-selected,.portal-date-day.is-today,.portal-date-cancel,.portal-date-now) {border-color:var(--accent)}
+body:has(.vatx-page) .portal-date-popup .portal-date-apply {background:var(--accent);border-color:var(--accent);color:white}
+body:has(.vatx-page) .portal-date-popup .portal-date-weekday {color:#62675E}
+body:has(.vatx-page) .portal-date-popup .portal-date-day.is-outside-month {color:#91968C}
+body:has(.vatx-page) .portal-date-popup :is(.portal-time-section,.portal-date-actions) {border-color:#E4E6DC;background:white}
+body:has(.vatx-page) .portal-select-popup .portal-select-option:is(.is-active,[aria-selected="true"]) {background:var(--accent-soft);color:var(--accent)}
+body:has(.vatx-page) .portal-select-popup .portal-select-option:focus-visible {box-shadow:inset 0 0 0 1px var(--accent)}
+.vatx-page .vatx-dialog.vatx-dialog form {display:flex;flex-direction:column}
+.vatx-page .vatx-dialog.vatx-dialog .vatx-drawer-body {flex:1;min-height:0;overflow:auto}
+.vatx-page .vatx-adjust-drawer .vatx-drawer-body {display:flex;flex-direction:column;gap:12px}
+.vatx-page .vatx-dialog--drawer[open] {animation:vatxDrawerEnter .26s ease-out}
+.vatx-page .vatx-dialog--drawer.is-closing {animation:vatxDrawerExit .18s ease-in both}
+@keyframes vatxDrawerEnter {from {transform:translateX(30px);opacity:0}to {transform:none;opacity:1}}
+@keyframes vatxDrawerExit {to {transform:translateX(30px);opacity:0}}
+@media(max-width:600px){.vatx-page .portal-date-picker>.portal-date-field{font-size:16px;height:40px;min-height:40px;max-height:40px}}
 
 @media (prefers-reduced-motion: reduce) {
   .vatx-page *,

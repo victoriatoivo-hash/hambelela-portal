@@ -15,9 +15,9 @@ function outputPayload(month='2026-10',status='reconciled'){return {ok:true,data
  assert(!/\b(?:Arial|Roboto|Inter|Figtree)\b/.test(css));
  const browser=await chromium.launch({headless:true,...(process.env.CI?{}:{channel:'msedge'})});
  for(const type of ['input','output']){
-  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let calls=[];
+  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let calls=[],saveMode='normal';
   await page.route('**/*',async route=>{const url=new URL(route.request().url());if(url.pathname==='/')return route.fulfill({contentType:'text/html',body:'<html></html>'});if(!url.pathname.endsWith(`${type}-vat-api.php`))return route.abort();
-   if(route.request().method()==='POST'){calls.push(route.request().postData());return route.fulfill({json:type==='input'?{...inputPayload(),row:purchase}:outputPayload(url.searchParams.get('month')||'2026-10')});}
+   if(route.request().method()==='POST'){calls.push(route.request().postData());if(saveMode==='fail'){saveMode='normal';return route.fulfill({status:400,json:{ok:false,error:'Fixture save rejected'}});}if(saveMode==='duplicate'){saveMode='normal';return route.fulfill({status:400,json:{ok:false,error:'Possible duplicate fixture',code:'possible_duplicate',matches:[purchase]}});}return route.fulfill({json:type==='input'?{...inputPayload(),row:purchase}:outputPayload(url.searchParams.get('month')||'2026-10')});}
    if(url.searchParams.get('action')==='audit')return route.fulfill({json:{ok:true,history:[{action_key:'created',actor_name:'Fixture Owner',created_at:'2026-10-05 10:00:00'}]}});
    const month=url.searchParams.get('month')||'2026-10';if(month==='2026-09')await new Promise(r=>setTimeout(r,100));return route.fulfill({json:type==='input'?inputPayload(month):outputPayload(month)});
   });
@@ -54,6 +54,12 @@ function outputPayload(month='2026-10',status='reconciled'){return {ok:true,data
    }
    assert.equal(calls.length,0,'Preview and cancelled confirmation must not mutate financial records');assert.deepEqual(errors,[]);
    console.log(`${type} ${width}px structure, typography, period picker, drawers and safe confirmations PASS`);
+  }
+  if(type==='input'){
+   await page.locator('[data-add-purchase]').first().click();await page.locator('[name="purchase_date"]').fill('2026-10-05');await page.locator('[name="supplier"]').fill('Fixture supplier');await page.locator('[name="description"]').fill('Fixture purchase');await page.locator('[name="inclusive"]').fill('115');
+   saveMode='fail';await page.locator('[data-save]').click();await page.waitForFunction(()=>document.querySelector('[data-form-message]').textContent.includes('Fixture save rejected'));assert.equal(await page.locator('[name="supplier"]').inputValue(),'Fixture supplier');assert(await page.locator('[data-dialog]').isVisible());
+   saveMode='duplicate';await page.locator('[data-save]').click();await page.locator('[data-duplicate-dialog]').waitFor({state:'visible'});await page.screenshot({path:path.join(directory,'input-duplicate-320.png')});await page.locator('[data-save-duplicate]').click();await page.locator('[data-dialog]').waitFor({state:'hidden'});assert.equal(calls.length,3);assert.match(calls[2],/duplicate_confirmed/);
+   console.log('Input fixture server error preserves form; duplicate warning and explicit Save Anyway; server-confirmed save PASS');
   }
   await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('.vatx-kpi').first().evaluate(e=>getComputedStyle(e).animationName),'none');await page.close();
  }
