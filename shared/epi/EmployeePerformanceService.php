@@ -126,7 +126,7 @@ final class EmployeePerformanceService
     {
         return ['Employee ID','Employee','Month','Result status','Official score %','Scorecard version','Category','Category weight %','KPI','Numerator','Eligible volume','Rate %','KPI status','Confidence','Reason','Calculated at','Stale',
             'Numerator meaning','Configured target %','Category movement points','KPI rate movement points',
-            'Provisional score %','Measurement begins','Policy status'];
+            'Provisional score %','Measurement begins','Policy status','Measurement explanation'];
     }
 
     public static function exportRows(array $result):array
@@ -143,19 +143,34 @@ final class EmployeePerformanceService
             isset($category['movement_hundredths'])?$category['movement_hundredths']/100:'',
             isset($r['movement_hundredths'])?$r['movement_hundredths']/100:'',
             isset($result['provisional_score_hundredths'])?$result['provisional_score_hundredths']/100:'',
-            $result['measurement_begins_at']??'',$result['policy_status']??''];
+            $result['measurement_begins_at']??'',$result['policy_status']??'',self::measurementExplanation($r)];
         // Keep unconfigured / empty employees visible in a workforce export too.
         if(!$rows)$rows[]=[
             $result['employee_id'],$result['employee_name']??'',$result['period_start'],$result['status'],
             isset($result['official_score_hundredths'])?$result['official_score_hundredths']/100:'',
             $result['scorecard_version']??'','','','','','','',$result['status'],'not_measured',
-            'No published KPI result',$result['last_calculated_at']??'',!empty($result['data_may_be_stale'])?'Yes':'No','','','','','','',''];
+            'No published KPI result',$result['last_calculated_at']??'',!empty($result['data_may_be_stale'])?'Yes':'No','','','','','','','','No published KPI observation is available for this employee and month.'];
         return $rows;
     }
 
     private static function unmeasuredCounts(array $metric):bool {
         return (int)($metric['eligible_volume']??0)===0 && in_array($metric['reason']??'',
             ['missing_evidence','incomplete_source','not_applicable_requires_scorecard_revision'],true);
+    }
+
+    public static function measurementExplanation(array $metric):string
+    {
+        $volume=(int)($metric['eligible_volume']??0);
+        $reason=(string)($metric['reason']??'');
+        if($reason==='incomplete_source')return $volume>0
+            ? 'Observed work is provisional: required source coverage is not verified for the whole month.'
+            : 'No eligible observation is published; required source coverage is not verified for the whole month.';
+        if($reason==='missing_evidence')return 'No published evidence is available; absence of a record is not proof of no work.';
+        if($reason==='low_sample')return 'Observed workload is below the configured minimum of '.(int)($metric['minimum_volume']??5).' observations.';
+        if($reason==='no_workload')return 'No attributable eligible work was recorded in a verified source for this month.';
+        if($reason==='not_applicable_requires_scorecard_revision')return 'This measure needs an explicit scorecard revision before it can be excluded or scored.';
+        if(($metric['status']??'')==='calculated')return 'Calculated from verified, attributable eligible work.';
+        return 'Not measured: eligibility or source coverage requires review.';
     }
 
     public function read(int $employee,string $period): array
@@ -178,6 +193,11 @@ final class EmployeePerformanceService
         $pending=V2Store::one($this->db,'SELECT requested_generation,processed_generation,last_error
             FROM epi_v2_performance_refresh_queue WHERE employee_id=? AND period_start=?',[$employee,$period]);
         $result['data_may_be_stale']=$pending && ((int)$pending['requested_generation']>(int)$pending['processed_generation'] || $pending['last_error']!==null);
+        foreach($result['categories']??[] as $category=>$definition){
+            foreach($definition['metrics']??[] as $metric=>$value){
+                $result['categories'][$category]['metrics'][$metric]['measurement_explanation']=self::measurementExplanation($value);
+            }
+        }
         return $result;
     }
 

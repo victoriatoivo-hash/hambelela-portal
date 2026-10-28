@@ -30,4 +30,10 @@ const provisional=await render({...base,status:'provisional',default_weights_pro
 assert.match(provisional,/Provisional V2 measurement begins: 2026-10-27 18:42:04/);
 assert.match(provisional,/Official V2 scoring is not activated/);
 assert.doesNotMatch(provisional,/V2 measurement is not yet configured/);
+const observed=await render({...base,status:'provisional',result_id:44,categories:{orders:{label:'Orders',weight_hundredths:2500,status:'insufficient_data',
+  official_score_hundredths:null,metrics:{completion:{label:'Completion',numerator:15,eligible_volume:20,rate_hundredths:7500,
+    reason:'incomplete_source',status:'provisional',measurement_explanation:'Observed work is provisional: required source coverage is not verified for the whole month.'}}}}});
+assert.match(observed,/KPIs with observed work/);assert.match(observed,/15 successful \/ 20/);
+assert.match(observed,/required source coverage is not verified for the whole month/);
+assert.doesNotMatch(observed,/Overall performance<\/span><strong>0/);
 console.log('PASS: unavailable counts, preserved historical result, genuine calculated zero, missing source, safe escaping and profile render');

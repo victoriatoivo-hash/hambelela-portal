@@ -61,11 +61,19 @@ final class BusinessHealthPerformance
         // incidents as this employee's responsibility. Category evidence is in profile.
         $person['metrics']=[['label'=>'My current risk · tracked obligations','value'=>$risk,
             'tooltip'=>'Personally attributable open obligations only. Incomplete tracking is not proof of zero risk.']];
+        $observed=[];
         foreach($result['categories']??[] as $category){
             $score=$category['official_score_hundredths']??$category['provisional_score_hundredths']??null;
             $person['metrics'][]=['label'=>$category['label'],'value'=>$score===null?'Not measured':number_format($score/100,1).'%',
                 'tooltip'=>'Same published category result as the employee profile; missing required weight is not redistributed.'];
+            foreach($category['metrics']??[] as $metric){
+                if((int)($metric['eligible_volume']??0)<=0)continue;
+                $observed[]=['label'=>$category['label'].' · '.$metric['label'],
+                    'value'=>(int)$metric['numerator'].' / '.(int)$metric['eligible_volume']];
+            }
         }
+        if($observed)$person['metrics'][]=['label'=>'Observed work · provisional, not a score',
+            'rows'=>$observed,'tooltip'=>'Each KPI has its own eligible denominator. Published observations do not prove complete monthly source coverage.'];
         return $person;
     }
 }

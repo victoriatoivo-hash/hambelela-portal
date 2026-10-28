@@ -5,6 +5,8 @@ on:
     paths:
       - 'shared/epi/**'
       - 'tests/epi-*.php'
+      - 'tests/epi-*.mjs'
+      - 'assets/js/employee-performance.js'
       - '.github/workflows/epi-scoring-regression.yml'
   workflow_dispatch:
 permissions:
@@ -32,7 +34,8 @@ jobs:
         with:
           php-version: ${{ matrix.php }}
           extensions: pdo_mysql
-      - run: php -l shared/epi/CompletedWorkCapture.php && php -l tests/epi-provisional-timings-db.php
+      - run: php -l shared/epi/CompletedWorkCapture.php && php -l shared/epi/EmployeePerformanceService.php && php -l shared/epi/BusinessHealthPerformance.php && php -l tests/epi-provisional-timings-db.php && php -l tests/epi-business-health-result.php
+      - run: php tests/epi-business-health-result.php && node tests/epi-history-display.mjs
       - run: php tests/epi-v2-p0-forensic-db.php > epi-scoring-regression.json
       - uses: actions/upload-artifact@v4
         if: always()
