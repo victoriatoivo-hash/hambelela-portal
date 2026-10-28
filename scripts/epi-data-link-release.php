@@ -8,7 +8,7 @@ $package=__DIR__;$backup=$package.'/backup';
 if(!in_array($mode,['inspect','backup','apply'],true)||!$root||!is_file($root.'/shared/database.php')||$package===$root||strpos($package,$root.'/')===0)throw new RuntimeException('Private release directory and portal root required');
 $manifest=json_decode(file_get_contents($package.'/manifest.json'),true,512,JSON_THROW_ON_ERROR);
 function epiLinkHash(string $file):?string {return is_file($file)?hash('sha256',str_replace("\r\n","\n",file_get_contents($file))):null;}
-function epiLinkPath(string $path):void {if(!preg_match('~^(apps/operations|assets/(js|css)|shared/epi)/[A-Za-z0-9_/-]+\.(php|js|css)$~D',$path)||strpos($path,'..')!==false)throw new RuntimeException('Unsafe manifest path');}
+function epiLinkPath(string $path):void {if($path==='shared/task-leave.php')return;if(!preg_match('~^(apps/operations|assets/(js|css)|shared/epi)/[A-Za-z0-9_/-]+\.(php|js|css)$~D',$path)||strpos($path,'..')!==false)throw new RuntimeException('Unsafe manifest path');}
 $report=['mode'=>$mode,'files'=>[],'conflicts'=>[],'schema_changes'=>false,'score_changes'=>false];
 foreach($manifest['files'] as $path=>$entry){
     epiLinkPath($path);

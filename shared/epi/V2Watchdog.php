@@ -17,6 +17,8 @@ final class V2Watchdog
     try{
         $db->exec('SET SESSION innodb_lock_wait_timeout=2');
         $db->exec("INSERT INTO epi_v2_watchdog_runs(started_at,status) VALUES(NOW(),'running')");$run=(int)$db->lastInsertId();
+        require_once __DIR__.'/ProvisionalScorecardAssignments.php';
+        ProvisionalScorecardAssignments::ensureCurrent($db);
         if($hr===null && (FrontDeskRoster::enabled($db)||(new FrontDeskCoverage($db,null))->enabled()))$hr=HrConnection::connect();
         $roster=FrontDeskRoster::materialise($db,$hr,$now);
         $reminders=FrontCoverageNotifications::run($db,$hr,$now);

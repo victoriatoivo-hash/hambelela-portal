@@ -42,14 +42,15 @@ final class AttendanceEvidenceProjector
             foreach(['presence','punctuality'] as $metric){
                 if(!isset($coverage['attendance'][$metric]) || ($metric==='punctuality'&&!$present))continue;
                 $success=$metric==='presence'?$present:$review['classification']==='confirmed_present';
-                $approved=($source['score_eligible_at_capture']??false)===true;
+                require_once __DIR__.'/PerformanceCapturePolicy.php';
+                $captureMode=(int)($source['capture_mode']??(($source['score_eligible_at_capture']??false)===true?1:0));
                 $out[]=['employee_id'=>$employee,'category'=>'attendance','metric'=>$metric,
                     'opportunity_key'=>'attendance:'.$employee.':'.$date.':'.$metric,
                     'root_incident_id'=>$success?null:'attendance:'.$employee.':'.$date,
                     'module'=>'Attendance','source_reference'=>'Attendance '.$date,'starts_at'=>$start,'due_at'=>$due,
                     'deadline_at'=>$metric==='punctuality'?$start:$due,'observed_at'=>$review['reviewed_at'],
                     'fulfilled_at'=>null,'fulfilled_by'=>null,'eligible'=>true,'responsibility_confirmed'=>true,
-                    'outcome'=>$success?'success':'failure','metadata'=>['excluded_from_scoring'=>!$approved,'mode'=>$approved?'approved_prospective':'shadow'],
+                    'outcome'=>$success?'success':'failure','metadata'=>PerformanceCapturePolicy::metadata($captureMode),
                     'ownership'=>['employee_id'=>$employee,'effective_from'=>$start,'effective_to'=>null,
                         'assigned_by'=>(int)$s['approved_by'],'source'=>'approved_attendance_schedule','accepted_at'=>$s['created_at']],
                     'expected'=>$metric==='presence'?'Attend the approved scheduled shift':'Arrive by the approved scheduled start',

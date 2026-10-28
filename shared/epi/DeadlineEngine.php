@@ -54,10 +54,10 @@ final class DeadlineEngine
         if(($resultFlag['setting_value']??'0')==='1' && $time<=$d['breach_eligible_at']){
             require_once __DIR__.'/PerformanceCapturePolicy.php';
             $owner=$this->ownership->ownerAt($d['module'],$d['object_reference'],$time);
-            $approved=$owner && PerformanceCapturePolicy::approved($this->pdo,(int)$owner['employee_id'],$d['starts_at']);
+            $captureMode=$owner?PerformanceCapturePolicy::captureMode($this->pdo,(int)$owner['employee_id'],$d['starts_at']):0;
             $this->pdo->prepare('INSERT IGNORE INTO epi_v2_deadline_completion_eligibility
                 (deadline_uuid,employee_id,ownership_json,eligible_at_capture,captured_at) VALUES(?,?,?,?,?)')->execute([
-                $uuid,$owner['employee_id']??null,Support::json($owner),(int)$approved,$time]);
+                $uuid,$owner['employee_id']??null,Support::json($owner),$captureMode,$time]);
         }
         return true;
     });
@@ -65,6 +65,31 @@ final class DeadlineEngine
  public function fulfilObject(string $module,string $ref,string $obligation,int $employee,$at=null):int {
     $time=Support::timestamp($at)->format('Y-m-d H:i:s');$s=$this->pdo->prepare("SELECT deadline_uuid FROM epi_v2_operational_deadlines WHERE module=? AND object_reference=? AND obligation_key=? AND starts_at<=? AND state IN('open','breached','needs_attribution') ORDER BY starts_at");
     $s->execute([$module,$ref,$obligation,$time]);$n=0;foreach($s->fetchAll(PDO::FETCH_COLUMN)as$id)if($this->fulfil($id,$employee,$time))$n++;return $n;
+ }
+ /** Correct recorded completion facts without rewriting responsibility at the original deadline. */
+ public function correctTaskCompletion(string $ref,int $employee,string $actual,int $editor,string $reason,int $audit):void {
+    if($employee===0) {
+        $time=Support::timestamp($actual)->format('Y-m-d H:i:s');
+        V2Store::transaction($this->pdo,function()use($ref,$time,$editor,$reason,$audit){
+            $s=$this->pdo->prepare("SELECT * FROM epi_v2_operational_deadlines WHERE module='Tasks' AND object_reference=? AND state IN ('open','breached','needs_attribution') FOR UPDATE");$s->execute([$ref]);
+            foreach($s->fetchAll(PDO::FETCH_ASSOC) as $d) {
+                V2Store::audit($this->pdo,'deadline|'.$d['deadline_uuid'],$editor,$reason,$d,['actual_performer'=>'authenticated_owner','fulfilled_at'=>$time,'management_audit_id'=>$audit]);
+                $this->pdo->prepare("UPDATE epi_v2_operational_deadlines SET fulfilled_at=?,fulfilled_by=NULL,state='fulfilled' WHERE id=?")->execute([$time,$d['id']]);
+                $this->pdo->prepare("UPDATE epi_v2_performance_incidents SET current_risk_state='resolved',resolved_at=? WHERE deadline_uuid=? AND current_risk_state='open'")->execute([$time,$d['deadline_uuid']]);
+            }
+        });return;
+    }
+    V2Store::employee($this->pdo,$employee);$time=Support::timestamp($actual)->format('Y-m-d H:i:s');
+    V2Store::transaction($this->pdo,function()use($ref,$employee,$time,$editor,$reason,$audit){
+        $s=$this->pdo->prepare("SELECT * FROM epi_v2_operational_deadlines WHERE module='Tasks' AND object_reference=? AND obligation_key='complete_task' AND starts_at<=? AND state NOT IN('cancelled','excused') FOR UPDATE");$s->execute([$ref,$time]);
+        foreach($s->fetchAll(PDO::FETCH_ASSOC)as$d){
+            $late=self::minutes($d['due_at'],$time,json_decode($d['policy_snapshot_json'],true)?:[]);
+            V2Store::audit($this->pdo,'deadline|'.$d['deadline_uuid'],$editor,$reason,$d,['fulfilled_at'=>$time,'fulfilled_by'=>$employee,'management_audit_id'=>$audit,'review_required'=>true]);
+            $d['fulfilled_at']=$time;$d['fulfilled_by']=$employee;$this->evaluateLocked($d,Support::timestamp()->format('Y-m-d H:i:s'));
+            $this->pdo->prepare("UPDATE epi_v2_operational_deadlines SET fulfilled_at=?,fulfilled_by=?,late_business_minutes=?,state='fulfilled' WHERE id=?")->execute([$time,$employee,$late,$d['id']]);
+            $this->pdo->prepare("UPDATE epi_v2_performance_incidents SET current_risk_state='resolved',resolved_at=?,eligibility_state='needs_review',exclusion_reason='management_completion_correction',metadata_json=JSON_SET(COALESCE(metadata_json,'{}'),'$.management_correction_audit',?,'$.corrected_actual_completion',?) WHERE deadline_uuid=?")->execute([$time,$audit,$time,$d['deadline_uuid']]);
+        }
+    });
  }
  public function cancelObject(string $module,string $ref,int $actor,$at):void {
     $time=Support::timestamp($at)->format('Y-m-d H:i:s');
@@ -100,6 +125,20 @@ final class DeadlineEngine
  }
  private function evaluateLocked(array $d,string $detected):string {
     if($d['breach_incident_uuid']||$detected<=$d['breach_eligible_at']||($d['fulfilled_at']&&$d['fulfilled_at']<=$d['breach_eligible_at']))return 'duplicates';
+    if($d['module']==='Tasks') {
+        require_once dirname(__DIR__).'/task-leave.php';
+        $task=V2Store::one($this->pdo,'SELECT * FROM ops_checklist_tasks WHERE id=?',[(int)str_replace('TASK-','',$d['object_reference'])]);
+        if($task) {
+            if(\task_leave_blocked($task)||((\task_completion_actor($task)['kind']??'')==='owner'&&$task['status']==='complete')) return 'duplicates';
+            $availability=\task_leave_data($task);
+            if(!empty($availability['adjusted_deadline'])&&$d['obligation_key']==='complete_task'&&$task['deadline']>$d['due_at']) {
+                $grace=max(0,strtotime($d['breach_eligible_at'])-strtotime($d['due_at']));
+                $d['due_at']=$task['deadline'];$d['breach_eligible_at']=Support::timestamp($task['deadline'])->modify('+'.$grace.' seconds')->format('Y-m-d H:i:s');
+                $this->pdo->prepare('UPDATE epi_v2_operational_deadlines SET due_at=?,breach_eligible_at=? WHERE id=? AND breach_incident_uuid IS NULL')->execute([$d['due_at'],$d['breach_eligible_at'],$d['id']]);
+                if($detected<=$d['breach_eligible_at']) return 'duplicates';
+            }
+        }
+    }
     $exception=null;
     if($d['exception_id'])$exception=V2Store::one($this->pdo,"SELECT * FROM epi_v2_exceptions WHERE id=? AND module=? AND object_reference=? AND approved_at<=? AND effective_from<=? AND effective_to>? AND kind='obligation_excusal'",[$d['exception_id'],$d['module'],$d['object_reference'],$d['due_at'],$d['due_at'],$d['due_at']]);
     if($exception){$this->pdo->prepare("UPDATE epi_v2_operational_deadlines SET state='excused' WHERE id=?")->execute([$d['id']]);V2Store::audit($this->pdo,'deadline|'.$d['deadline_uuid'],(int)$exception['approved_by'],'approved exception',$d,$exception);return 'excused';}
@@ -107,11 +146,17 @@ final class DeadlineEngine
     $employee=$owner?(int)$owner['employee_id']:null;$snap=json_decode($d['policy_snapshot_json'],true)?:[];
     $opportunity=$owner?self::minutes(max($d['starts_at'],$owner['effective_from'],$owner['accepted_at']),$d['due_at'],$snap):0;
     $fair=$owner&&$opportunity>=(int)($snap['policy']['minimum_opportunity_minutes']??30);
-    if(($snap['policy']['activation_scope']??'')==='approved_existing_rules'&&!isset($snap['policy']['minimum_opportunity_minutes']))$fair=false; // Unapproved fairness policy is review-only, not an invented threshold.
+    if(($snap['policy']['activation_scope']??'')==='approved_existing_rules'&&!isset($snap['policy']['minimum_opportunity_minutes'])){
+        // Without an approved partial-handover allowance require the entire available
+        // working interval. Do not invent a grace threshold or charge a late recipient.
+        require_once __DIR__.'/PerformanceCapturePolicy.php';
+        $fair=$owner && PerformanceCapturePolicy::captureMode($this->pdo,(int)$owner['employee_id'],$d['starts_at'])===2
+            && $opportunity>0 && $opportunity>=self::minutes($d['starts_at'],$d['due_at'],$snap);
+    }
     $eligibility=$d['historical_backfill']?'historical_recovered':($fair?'pending_rule':'needs_review');
     $reason=$d['historical_backfill']?'pre_activation':(!$employee?'insufficient_attribution':(!$fair?'insufficient_opportunity':null));
     $hrEvidence=null;
-    if($employee && FrontDeskRoster::enabled($this->pdo)){
+    if($employee && ($d['module']==='Tasks'||FrontDeskRoster::enabled($this->pdo))){
         $hrEvidence=HrAbsenceEvidence::inspect($this->pdo,$this->hr??HrConnection::connect(),$employee,$d['due_at']);
         if($hrEvidence['state']!=='no_approved_absence'){
             $employee=null;$eligibility='needs_review';
@@ -123,10 +168,10 @@ final class DeadlineEngine
     $uuid=Support::uuidFromHash('deadline-breach|'.$d['deadline_uuid']);
     $meta['hr_evidence']=$hrEvidence;
     require_once __DIR__.'/PerformanceCapturePolicy.php';
-    if($eligibility==='pending_rule' && $reason===null && PerformanceCapturePolicy::approved($this->pdo,(int)$employee,$d['starts_at'])
-        && PerformanceCapturePolicy::approved($this->pdo,(int)$employee,$d['due_at'])) {
-        $meta['excluded_from_scoring']=false;
-        $meta['mode']='approved_prospective';
+    $startMode=$employee?PerformanceCapturePolicy::captureMode($this->pdo,(int)$employee,$d['starts_at']):0;
+    $dueMode=$employee?PerformanceCapturePolicy::captureMode($this->pdo,(int)$employee,$d['due_at']):0;
+    if($eligibility==='pending_rule' && $reason===null && $startMode>0 && $dueMode>0) {
+        $meta=array_replace($meta,PerformanceCapturePolicy::metadata($startMode===1&&$dueMode===1?1:2));
     }
     $this->pdo->prepare('INSERT INTO epi_v2_performance_incidents(incident_uuid,root_incident_id,deadline_uuid,event_key,module,object_reference,responsible_employee_at_breach,occurred_at,due_at,current_risk_state,historical_state,eligibility_state,exclusion_reason,metadata_json,resolved_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$uuid,'deadline:'.$d['deadline_uuid'],$d['deadline_uuid'],$d['breach_event_key'],$d['module'],$d['object_reference'],$employee,$d['due_at'],$d['due_at'],$d['fulfilled_at']?'resolved':'open','breach',$eligibility,$reason,Support::json($meta),$d['fulfilled_at']]);
     $this->pdo->prepare('UPDATE epi_v2_operational_deadlines SET breach_at=due_at,breach_incident_uuid=?,state=? WHERE id=?')->execute([$uuid,$d['fulfilled_at']?'fulfilled':($employee?'breached':'needs_attribution'),$d['id']]);

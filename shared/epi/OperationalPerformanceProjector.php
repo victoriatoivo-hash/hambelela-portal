@@ -93,8 +93,7 @@ final class OperationalPerformanceProjector
             if($responsible!==$employee)continue;
             $snapshot=json_decode((string)$d['policy_snapshot_json'],true)?:[];
             if(!$breached || $corrected) {
-                $approved=(int)($d['eligible_at_capture']??0)===1;
-                $meta=['excluded_from_scoring'=>!$approved,'mode'=>$approved?'approved_prospective':'shadow'];
+                $meta=PerformanceCapturePolicy::metadata((int)($d['eligible_at_capture']??0));
             }
             $reason=($d['exclusion_reason']??null)?:($d['incident_exclusion']?:null);
             if((int)$d['historical_backfill'])$reason='historical_backfill';
@@ -156,14 +155,15 @@ final class OperationalPerformanceProjector
             foreach($targets as $target){
                 [$category,$metric]=$target;
                 if(!isset($policy['categories'][$category]['metrics'][$metric]))continue;
-                $approved=($snapshot['score_eligible_at_capture']??false)===true;
+                $captureMode=(int)($snapshot['capture_mode']??(($snapshot['score_eligible_at_capture']??false)===true?1:0));
+                $approved=in_array($captureMode,[1,2],true);
                 $row=['employee_id'=>$employee,'category'=>$category,'metric'=>$metric,
                     'opportunity_key'=>$unit['opportunity_key'],'root_incident_id'=>null,'module'=>$unit['module'],
                     'source_reference'=>$unit['object_reference'],'starts_at'=>$unit['starts_at'],'due_at'=>$unit['completed_at'],
                     'deadline_applies'=>false,'observed_at'=>$unit['completed_at'],
                     'fulfilled_at'=>$unit['completed_at'],'fulfilled_by'=>$unit['fulfiller_id']===null?null:(int)$unit['fulfiller_id'],
                     'ownership'=>json_decode((string)$unit['ownership_json'],true),'responsibility_confirmed'=>true,
-                    'eligible'=>true,'outcome'=>'success','metadata'=>['excluded_from_scoring'=>!$approved,'mode'=>$approved?'approved_prospective':'shadow'],
+                    'eligible'=>true,'outcome'=>'success','metadata'=>PerformanceCapturePolicy::metadata($captureMode),
                     'expected'=>'Complete this work accurately on the first attempt',
                     'actual'=>'Completed work; no confirmed correlated failure recorded',
                     'supporting_evidence'=>[]];
@@ -232,11 +232,20 @@ final class OperationalPerformanceProjector
                     $row['module']='Error Log';$row['metadata']=$quality;
                     // Later review cannot promote an unapproved captured work unit.
                     if(!$approved){$row['metadata']['excluded_from_scoring']=true;$row['metadata']['mode']='shadow';}
+                    elseif($captureMode===2 || ($quality['mode']??'')==='provisional_prospective')$row['metadata']['mode']='provisional_prospective';
                     $row['ownership']=['employee_id'=>$employee,'reviewer_id'=>$quality['reviewer_id']??null,
                         'reviewed_at'=>$quality['reviewed_at']??null,'operational_interval'=>$row['ownership']];
                     $row['actual']='Confirmed attributable error: '.($quality['source_record']['error_title']??$link['source_key']);
                     $row['supporting_evidence'][]=['source'=>$link['source_key'],'reviewer'=>$quality['reviewer_id']??null,
                         'reporter'=>$quality['reporter_employee_id']??null,'reviewed_at'=>$quality['reviewed_at']??null];
+                }
+                // Preserve the newer live management-correction review gate. Neither
+                // a stale completion snapshot nor a later quality link clears it.
+                if(!empty($snapshot['management_review_required'])){
+                    $row['eligible']=false;
+                    $row['exclusion_reason']='management_completion_correction';
+                    $row['metadata']['excluded_from_scoring']=true;
+                    $row['actual']='Completion facts were corrected; scoring attribution requires review';
                 }
                 $out[]=$row;
             }

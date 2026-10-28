@@ -125,7 +125,8 @@ final class EmployeePerformanceService
     public static function exportHeaders():array
     {
         return ['Employee ID','Employee','Month','Result status','Official score %','Scorecard version','Category','Category weight %','KPI','Numerator','Eligible volume','Rate %','KPI status','Confidence','Reason','Calculated at','Stale',
-            'Numerator meaning','Configured target %','Category movement points','KPI rate movement points'];
+            'Numerator meaning','Configured target %','Category movement points','KPI rate movement points',
+            'Provisional score %','Measurement begins','Policy status'];
     }
 
     public static function exportRows(array $result):array
@@ -140,13 +141,15 @@ final class EmployeePerformanceService
             !empty($result['data_may_be_stale'])?'Yes':'No',($r['direction']??'success')==='error'?'Errors':'Successful outcomes',
             isset($r['target_hundredths'])?$r['target_hundredths']/100:'',
             isset($category['movement_hundredths'])?$category['movement_hundredths']/100:'',
-            isset($r['movement_hundredths'])?$r['movement_hundredths']/100:''];
+            isset($r['movement_hundredths'])?$r['movement_hundredths']/100:'',
+            isset($result['provisional_score_hundredths'])?$result['provisional_score_hundredths']/100:'',
+            $result['measurement_begins_at']??'',$result['policy_status']??''];
         // Keep unconfigured / empty employees visible in a workforce export too.
         if(!$rows)$rows[]=[
             $result['employee_id'],$result['employee_name']??'',$result['period_start'],$result['status'],
             isset($result['official_score_hundredths'])?$result['official_score_hundredths']/100:'',
             $result['scorecard_version']??'','','','','','','',$result['status'],'not_measured',
-            'No published KPI result',$result['last_calculated_at']??'',!empty($result['data_may_be_stale'])?'Yes':'No','','','',''];
+            'No published KPI result',$result['last_calculated_at']??'',!empty($result['data_may_be_stale'])?'Yes':'No','','','','','','',''];
         return $rows;
     }
 
@@ -205,10 +208,14 @@ final class EmployeePerformanceService
                 && !empty($assignment['validation_approved_by']) && $boundary!==null
                 && $period.' 00:00:00'>=$boundary && !empty($assignment['official_from'])
                 && $period>=$assignment['official_from'];
+            foreach($projection['evidence'] as $observation)if(($observation['metadata']['mode']??'')==='provisional_prospective')$approved=false;
             $result['status']=$result['official_score_hundredths']===null?'provisional':($approved?'official':'validation');
             if(!$approved) $result['official_score_hundredths']=null;
             // Financial use requires a separate business validation process; never implied by calculation.
             $result['financial_use_allowed']=false;
+            $result['policy_status']=$policy['status']??'draft';
+            $result['measurement_begins_at']=$policy['provisional_capture']['from']??$boundary;
+            $result['default_weights_provisional']=($policy['status']??'')==='provisional';
             $hash=hash('sha256',self::canonical([$assignment,$projection]));
             $head=V2Store::one($this->db,'SELECT * FROM epi_v2_employee_result_heads
                 WHERE employee_id=? AND period_start=? FOR UPDATE',[$employee,$period]);

@@ -30,6 +30,22 @@ final class CompletedWorkCapture
     public static function capture(PDO $db,string $type,string $action,array $record,array $meta):void
     {
         if(!PerformanceRefreshRuntime::enabled($db))return;
+        if($type==='checklist_task' && $action==='task_management_corrected') {
+            if(empty($meta['completion_changed'])||empty($meta['actual_completed_at']))return;
+            $key='checklist_task:'.$record['id'].':'.(int)($record['correction_round_count']??0);
+            $unit=V2Store::one($db,'SELECT * FROM epi_v2_completed_work_units WHERE opportunity_key=?',[$key]);
+            $actualMeta=array_replace($meta,['occurred_at'=>$meta['actual_completed_at']]);
+            if(!$unit){$start=$record['released_at']??$record['date_assigned']??null;if($start)self::store($db,'checklist_task','Tasks','TASK-'.$record['id'],$start,$record,$actualMeta,$action);}
+            else {
+                $source=json_decode($unit['source_snapshot_json'],true)?:[];
+                $source['management_corrections'][]=['audit_id'=>$meta['audit_id'],'editor_id'=>$meta['editor_id'],'recorded_at'=>$meta['recorded_at'],'actual_completed_at'=>$meta['actual_completed_at'],'completed_by'=>$meta['employee_id'],'reason'=>$meta['reason']];
+                $source['management_review_required']=true;
+                V2Store::audit($db,'completed-work|'.$key,(int)$meta['editor_id'],(string)$meta['reason'],$unit,['completed_at'=>$meta['actual_completed_at'],'fulfiller_id'=>$meta['employee_id'],'audit_id'=>$meta['audit_id']]);
+                $db->prepare('UPDATE epi_v2_completed_work_units SET completed_at=?,fulfiller_id=?,source_snapshot_json=? WHERE opportunity_key=?')->execute([$meta['actual_completed_at'],$meta['employee_id'],Support::json($source),$key]);
+            }
+            return;
+        }
+
         $module=null;$ref=null;$start=null;$done=false;$keyType=$type;
         if($type==='order'){
             $staged=OrdersStageBridge::enabled($db);
@@ -88,6 +104,7 @@ final class CompletedWorkCapture
             employee_id,fulfiller_id,starts_at,completed_at,ownership_json,source_snapshot_json) VALUES(?,?,?,?,?,?,?,?,?)')
             ->execute([$key,$module,$ref,$owner['employee_id']??null,$meta['employee_id']??null,$start,$at,
                 Support::json($owner),Support::json(['record'=>$record,'action'=>$action,'metadata'=>$meta,'process'=>$process,'packing_process'=>$packingProcess,
-                    'score_eligible_at_capture'=>$owner && PerformanceCapturePolicy::approved($db,(int)$owner['employee_id'],$start)])]);
+                    'score_eligible_at_capture'=>$owner && PerformanceCapturePolicy::approved($db,(int)$owner['employee_id'],$start),
+                    'capture_mode'=>$owner?PerformanceCapturePolicy::captureMode($db,(int)$owner['employee_id'],$start):0])]);
     }
 }

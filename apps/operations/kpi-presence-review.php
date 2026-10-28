@@ -39,7 +39,8 @@ try {
             kpi_send_json(['ok'=>false,'message'=>'Provide physical-attendance evidence for a date that has occurred.'],422);
         require_once BASE_PATH.'/shared/epi/PerformanceCapturePolicy.php';
         $snapshot=json_encode(['attendance_evidence_reference'=>$reference,
-            'score_eligible_at_capture'=>\Hambelela\EPI\PerformanceCapturePolicy::approved(db(),$employeeId,$date.' 00:00:00')],JSON_UNESCAPED_SLASHES);
+            'score_eligible_at_capture'=>\Hambelela\EPI\PerformanceCapturePolicy::approved(db(),$employeeId,$date.' 00:00:00'),
+            'capture_mode'=>\Hambelela\EPI\PerformanceCapturePolicy::captureMode(db(),$employeeId,$date.' 00:00:00')],JSON_UNESCAPED_SLASHES);
     }
     db()->prepare('INSERT INTO kpi_portal_presence_reviews (employee_id,evidence_date,classification,owner_note,score_effect,source_snapshot_json,reviewed_by,reviewed_at) VALUES (?,?,?,?,?,?,?,NOW())')
         ->execute([$employeeId,$date,$classification,$note,$allowed[$classification],$snapshot,$actor]);

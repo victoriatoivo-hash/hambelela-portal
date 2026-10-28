@@ -11,6 +11,9 @@ require_once dirname(__DIR__) . '/shared/epi/bootstrap.php';
 use Hambelela\EPI\{Support,OwnershipPeriodEngine,DeadlineEngine,V2OperationalBridge,V2PerformanceQuery,
     QualityActivityBridge,EligibilityPolicy,PerformanceScore,BusinessTimeEngine,SourceCompletenessEngine,V2Store};
 
+// Explicit synthetic HR boundary for the live task-leave prerequisite.
+function ops_hr_db(): ?PDO { global $db; return $db ?? null; }
+
 function connectAudit(?string $database = null): PDO {
     if ($database !== null && !preg_match('/^epi_p0_audit_[a-f0-9]{12}$/', $database)) throw new RuntimeException('Unsafe audit database');
     $pdo = new PDO('mysql:host=127.0.0.1;port=33317;charset=utf8mb4' . ($database ? ';dbname='.$database : ''), 'root', '', [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
@@ -62,6 +65,10 @@ CREATE TABLE epi_performance_score_events(id INT PRIMARY KEY,employee_id INT DEF
 CREATE TABLE epi_employee_evidence(id INT PRIMARY KEY,evidence_uuid VARCHAR(100),employee_id INT,module VARCHAR(50),metadata_json LONGTEXT);
 CREATE TABLE ops_employees(id INT PRIMARY KEY,full_name VARCHAR(100));
 INSERT INTO ops_employees VALUES(101,'Synthetic A'),(102,'Synthetic B'),(103,'Synthetic C'),(999,'Synthetic Owner');
+CREATE TABLE employee_user_links(id INT PRIMARY KEY,portal_user_id INT,hr_employee_id INT,linked_at DATETIME,active INT);
+INSERT INTO employee_user_links VALUES(1,101,101,'2026-01-01 00:00:00',1),(2,102,102,'2026-01-01 00:00:00',1),(3,103,103,'2026-01-01 00:00:00',1);
+CREATE TABLE employees(id INT PRIMARY KEY);INSERT INTO employees VALUES(101),(102),(103);
+CREATE TABLE leave_requests(id INT PRIMARY KEY,employee_id INT,status VARCHAR(20),start_date DATE,end_date DATE,approved_at DATETIME,approved_by INT);
 CREATE TABLE epi_scoring_monthly_scores(id INT PRIMARY KEY,employee_id INT,score_year INT,score_month INT,locked INT,final_hundredths INT);
 INSERT INTO epi_scoring_monthly_scores VALUES(1,101,2026,9,1,9000);
 INSERT INTO epi_performance_score_events(id,confirmation_status,automatic_status,confidence_level,reversed) VALUES(1,'confirmed','needs_review','insufficient',0);
@@ -218,6 +225,7 @@ require __DIR__.'/epi-cash-accuracy-db.php';
 require __DIR__.'/epi-profile-incident-review-db.php';
 require __DIR__.'/epi-bookkeeping-controls-db.php';
 require __DIR__.'/epi-history-continuity-db.php';
+require __DIR__.'/epi-provisional-activation-db.php';
 $summary=['database'=>$database,'server'=>scalar('SELECT VERSION()'),'timezone'=>'Africa/Windhoek','production_changes'=>false,'pass'=>count(array_filter($results,fn($r)=>$r['status']==='PASS')),'fail'=>count(array_filter($results,fn($r)=>$r['status']==='FAIL')),'tests'=>$results];
 echo json_encode($summary,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL;
 exit($summary['fail']?1:0);

@@ -17,11 +17,11 @@ final class RateScoreCalculator
         $categories = $policy['categories'] ?? [];
         self::weights($categories);
         $output = []; $overall = 0.0; $complete = true; $measuredWeight = 0.0;
-        $missing = [];
+        $missing = []; $provisionalComplete=true;
         foreach ($categories as $categoryKey => $category) {
             $metrics = $category['metrics'] ?? [];
             self::weights($metrics);
-            $metricRows = []; $categoryScore = 0.0; $categoryComplete = true;
+            $metricRows = []; $categoryScore = 0.0; $categoryComplete = true; $categoryObserved=true;
             foreach ($metrics as $key => $metric) {
                 $minimum = $metric['minimum_volume'] ?? null;
                 if (!is_int($minimum) || $minimum < 1) {
@@ -81,6 +81,7 @@ final class RateScoreCalculator
                 } else {
                     $measuredWeight += $category['weight_hundredths'] * $metric['weight_hundredths'] / 10000;
                 }
+                if($row['score_hundredths']===null || $row['eligible_volume']<$minimum)$categoryObserved=false;
                 $metricRows[$key] = $row;
             }
             $output[$categoryKey] = ['metrics'=>$metricRows,
@@ -89,8 +90,11 @@ final class RateScoreCalculator
                 'status'=>$categoryComplete ? 'calculated' : 'insufficient_data',
                 'measured_contribution_hundredths'=>$categoryComplete ?
                     (int)round($categoryScore * $category['weight_hundredths'] / 10000) : null,
-                'official_score_hundredths'=>$categoryComplete ? (int)round($categoryScore) : null];
+                'official_score_hundredths'=>$categoryComplete ? (int)round($categoryScore) : null,
+                'provisional_score_hundredths'=>$categoryObserved?(int)round($categoryScore):null,
+                'provisional_contribution_hundredths'=>$categoryObserved?(int)round($categoryScore*$category['weight_hundredths']/10000):null];
             if (!$categoryComplete) $complete = false;
+            if (!$categoryObserved) $provisionalComplete=false;
             $overall += $categoryScore * $category['weight_hundredths'] / 10000;
         }
         return ['calculation_version'=>'epi-v2-rate-1', 'scorecard_version'=>$policy['version'],
@@ -98,7 +102,9 @@ final class RateScoreCalculator
             'missing_required_weight_hundredths'=>10000-(int)round($measuredWeight),
             'missing_evidence'=>$missing, 'renormalised'=>false,
             'categories'=>$output, 'status'=>$complete ? 'calculated' : 'insufficient_data',
-            'official_score_hundredths'=>$complete ? (int)round($overall) : null];
+            'official_score_hundredths'=>$complete ? (int)round($overall) : null,
+            // Never fill missing components with zero or redistribute their weights.
+            'provisional_score_hundredths'=>$provisionalComplete?(int)round($overall):null];
     }
 
     private static function weights(array $rows): void
