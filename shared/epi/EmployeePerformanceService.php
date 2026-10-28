@@ -87,11 +87,22 @@ final class EmployeePerformanceService
         $result['eligible_work_count']=$complete||count($work)>0?count($work):null;
         $result['confirmed_incident_count']=$complete||count($roots)>0?count($roots):null;
         $result['workload_scope']='Published V2 evidence only; preserved historical records are separate';
+        $recordedRoots=array_fill_keys(array_column($result['historical_incidents'],'root_incident_id'),true);
+        foreach($result['evidence']??[] as $e){
+            $root=(string)($e['root_incident_id']??'');
+            if($e['outcome']!=='failure'||strpos($root,'native-process:')!==0||isset($recordedRoots[$root]))continue;
+            $recordedRoots[$root]=true;
+            $result['historical_incidents'][]=['root_incident_id'=>$root,'object_reference'=>$e['source_reference'],
+                'event_key'=>'verified_process_failure','module'=>$e['module'],'responsible_employee_at_breach'=>$employee,
+                'occurred_at'=>$e['observed_at']??$e['due_at'],'due_at'=>null,'metadata_json'=>'{}','exclusion_reason'=>null,
+                'eligibility_state'=>'included_provisional','historical_state'=>'confirmed_process_outcome',
+                'current_risk_state'=>'See current operational record','expected_result'=>$e['expected'],'actual_result'=>$e['actual']];
+        }
         foreach($result['historical_incidents'] as $index=>$incident){
             $snapshot=json_decode($incident['metadata_json']??'{}',true)?:[];
-            $result['historical_incidents'][$index]['expected_result']=isset($snapshot['obligation_key'])?
-                $snapshot['obligation_key'].' by '.($incident['due_at']??'deadline not recorded'):'Expected action not recorded';
-            $result['historical_incidents'][$index]['actual_result']=$snapshot['actual_state']??($incident['historical_state']??'Not recorded');
+            $result['historical_incidents'][$index]['expected_result']=$incident['expected_result']??(isset($snapshot['obligation_key'])?
+                $snapshot['obligation_key'].' by '.($incident['due_at']??'deadline not recorded'):'Expected action not recorded');
+            $result['historical_incidents'][$index]['actual_result']=$incident['actual_result']??$snapshot['actual_state']??($incident['historical_state']??'Not recorded');
             $included=[];
             foreach($result['evidence']??[] as $evidence){
                 $sources=array_column($evidence['supporting_evidence']??[],'source');

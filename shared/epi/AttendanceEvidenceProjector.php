@@ -31,6 +31,11 @@ final class AttendanceEvidenceProjector
             if($due>$now)continue;
             if(($s['created_at']??'9999')>$start){self::missing($coverage,'Attendance schedule was not established prospectively.');continue;}
             if(V2Store::absence($db,$employee,$start))continue;
+            if(FrontDeskRoster::enabled($db)){
+                $availability=HrAbsenceEvidence::inspect($db,HrConnection::connect(),$employee,$start);
+                if($availability['state']==='approved_absence')continue;
+                if($availability['state']!=='no_approved_absence'){self::missing($coverage,'Approved HR leave/coverage evidence could not be verified; no absence deduction is inferred.');continue;}
+            }
             $review=$reviews[$date]??null;$source=$review?(json_decode($review['source_snapshot_json'],true)?:[]):[];
             $activation=V2Store::activation($db);
             if(!$review || (int)$review['reviewed_by']!==(int)$activation['approved_by'] || empty($source['attendance_evidence_reference'])

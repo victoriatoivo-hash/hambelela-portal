@@ -51,5 +51,12 @@ await render(base,async({timers,doc,node,fetches})=>{
   doc.visibilityState='hidden';timers[0].fn();assert.equal(fetches(),2,'hidden tab does not poll');
   doc.visibilityState='visible';node('[data-kpi-timeline]').open=true;timers[0].fn();assert.equal(fetches(),2,'review dialog is not interrupted');
   node('[data-kpi-timeline]').open=false;doc.activeElement={matches:()=>true};timers[0].fn();assert.equal(fetches(),2,'active edits are not interrupted');
+  doc.activeElement=null;node('[data-ep-capture][data-dirty="1"]').dataset.dirty='1';timers[0].fn();assert.equal(fetches(),2,'an unsaved evidence form is not discarded after focus leaves it');
 });
+const capture=await render({...base,physical_evidence:{today:'2026-10-28',schedules:[],attendance_reviews:[],website_updates:[]},
+  categories:{attendance:{label:'Attendance',weight_hundredths:500,status:'insufficient_data',official_score_hundredths:null,metrics:{}},
+  inventory:{label:'Website',weight_hundredths:500,status:'insufficient_data',official_score_hundredths:null,metrics:{}}}});
+assert.match(capture,/Approve prospective working schedule/);assert.match(capture,/Login time is not physical attendance/);
+assert.match(capture,/Confirm physical-attendance evidence/);assert.match(capture,/Verify website stock accuracy/);
+assert.match(capture,/No unaudited, prospectively tracked website update/);
 console.log('PASS: unavailable counts, preserved historical result, genuine calculated zero, missing source, safe escaping and profile render');

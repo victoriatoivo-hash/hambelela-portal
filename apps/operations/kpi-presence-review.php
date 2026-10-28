@@ -45,6 +45,8 @@ try {
     db()->prepare('INSERT INTO kpi_portal_presence_reviews (employee_id,evidence_date,classification,owner_note,score_effect,source_snapshot_json,reviewed_by,reviewed_at) VALUES (?,?,?,?,?,?,?,NOW())')
         ->execute([$employeeId,$date,$classification,$note,$allowed[$classification],$snapshot,$actor]);
     $reviewId = (int) db()->lastInsertId();
+    require_once BASE_PATH.'/shared/epi/PerformanceRefreshRuntime.php';
+    \Hambelela\EPI\PerformanceRefreshRuntime::invalidate(db(),'reviewed physical attendance evidence');
     ops_activity_log('kpi_portal_presence_reviewed','kpi_portal_presence_review',$reviewId,[
         'employee_id'=>$employeeId,'employee_name'=>$employee['full_name'],'evidence_date'=>$date,
         'classification'=>$classification,'score_effect'=>$allowed[$classification],'owner_note'=>$note,

@@ -40,6 +40,8 @@ final class OperationalPerformanceProjector
     /** Canonical work/KPI allocation choices shared with the owner review form. */
     public static function unitTargets(string $key,string $role=''):array
     {
+        foreach(['packing_priority:'=>['packing_list','priority'],'packing_compliance:'=>['packing_list','compliance'],'dispatch_compliance:'=>['courier','compliance'],'website_accuracy:'=>['inventory','accuracy']] as $prefix=>$target)
+            if(strpos($key,$prefix)===0)return [$target];
         if(strpos($key,'ops_whatsapp_conversation:')===0)return [['communication','accuracy']];
         if(strpos($key,'cash_entry:')===0)return [['bookkeeping','accuracy']];
         $targets=[];
@@ -66,6 +68,12 @@ final class OperationalPerformanceProjector
                 !empty($source['verified_by']) && ($source['from']??'9999')<=$start && ($source['to']??'')>=$end,
                 'reason'=>self::sourceRequirement($category,$metric,$policy['role']??'')];
         }
+        require_once __DIR__.'/OperationalMeasurementPolicy.php';
+        $nativePolicy=OperationalMeasurementPolicy::current($this->db,min(Support::timestamp()->format('Y-m-d H:i:s'),$end));
+        if($nativePolicy)foreach([['packing_list','priority'],['packing_list','compliance'],['courier','compliance'],['inventory','accuracy']] as [$category,$metric]){
+            if(isset($coverage[$category][$metric]))$coverage[$category][$metric]['reason']='Native measurement capture is enabled prospectively from '.$nativePolicy['effective_from'].'. Verified stock audits require evidence; priority exceptions require review. Earlier full-month coverage is not inferred.';
+        }
+        if($nativePolicy&&($policy['role']??'')==='packer'&&isset($coverage['courier']['timeliness']))$coverage['courier']['timeliness']['reason']=$nativePolicy['courier_allocation'].' New obligations are measured automatically; no earlier month coverage is invented.';
         if(isset($coverage['bookkeeping']['controls'])){
             require_once __DIR__.'/BookkeepingControlBridge.php';
             $cashControls=BookkeepingControlBridge::provisional($this->db,min(Support::timestamp()->format('Y-m-d H:i:s'),$end));
@@ -81,6 +89,12 @@ final class OperationalPerformanceProjector
         $owners=new OwnershipPeriodEngine($this->db);$opportunities=[];
         foreach($deadlines as $d){
             $map=self::DEADLINES[$d['module'].'|'.$d['obligation_key']]??null;
+            if($d['module']==='Packing'&&$d['obligation_key']==='pack_order'&&($policy['role']??'')==='packer'){
+                require_once __DIR__.'/OperationalMeasurementPolicy.php';
+                $measurement=OperationalMeasurementPolicy::current($this->db,$d['starts_at']);
+                $order=V2Store::one($this->db,'SELECT classification,dispatch_at FROM epi_v2_orders_tracking WHERE object_reference=?',[$d['object_reference']]);
+                if($measurement&&($order['classification']??'')==='courier')$map=['courier','timeliness'];
+            }
             if(!$map || !isset($policy['categories'][$map[0]]['metrics'][$map[1]]))continue;
             $meta=json_decode((string)($d['incident_metadata']??''),true)?:[];
             $breached=!empty($d['root_incident_id']);
@@ -214,6 +228,19 @@ final class OperationalPerformanceProjector
                         $row['amount_review_pending']=true;
                     }
                 }
+                if(isset($snapshot['native_measurement'])){
+                    $native=$snapshot['native_measurement'];
+                    $row['expected']=$native['expected'];$row['actual']=$native['actual'];
+                    $row['process_evidence']=$native;
+                    $row['outcome']=$native['outcome'];
+                    $row['root_incident_id']=$row['outcome']==='failure'?'native-process:'.$unit['opportunity_key']:null;
+                    if(empty($native['measured'])){
+                        $row['eligible']=false;$row['exclusion_reason']='incomplete_explanation';$row['native_review_pending']=true;$row['root_incident_id']=null;
+                        if(in_array($native['responsibility_type']??'',['system','business','supplier','courier','customer'],true)){
+                            $row['exclusion_reason']='reviewed_non_employee_variance';$row['metadata']['excluded_from_scoring']=true;
+                        }
+                    }
+                }
                 if(strpos($unit['opportunity_key'],'packing_task:')===0){
                     require_once __DIR__.'/PackingProcessEvidence.php';
                     $packing=$snapshot['packing_process']??PackingProcessEvidence::evaluate($snapshot['record']??[]);
@@ -241,7 +268,7 @@ final class OperationalPerformanceProjector
                         $type=$quality['source_record']['attribution_type']??'';
                         if(in_array($type,['system','business','supplier','courier','customer','delivery_driver'],true)
                             && !empty($quality['reviewer_id']) && !empty($quality['reviewed_at'])){
-                            if(!empty($row['amount_review_pending'])||!empty($row['quantity_review_pending'])){
+                            if(!empty($row['amount_review_pending'])||!empty($row['quantity_review_pending'])||!empty($row['native_review_pending'])){
                                 // Reviewed external variance is neither an employee
                                 // failure nor a successful employee observation.
                                 $row['eligible']=false;$row['exclusion_reason']='reviewed_non_employee_variance';
@@ -258,7 +285,7 @@ final class OperationalPerformanceProjector
                     }
                     // A confirmed, explicitly correlated employee incident resolves
                     // the quantity-fault ambiguity; mere mismatch never deducts.
-                    if((!empty($row['quantity_review_pending']) || !empty($row['amount_review_pending'])) && empty($quality['excluded_from_scoring'])){
+                    if((!empty($row['quantity_review_pending']) || !empty($row['amount_review_pending']) || !empty($row['native_review_pending'])) && empty($quality['excluded_from_scoring'])){
                         $row['eligible']=true;unset($row['exclusion_reason']);
                     }
                     // A superseded/excused/system record cannot become a failure through a stale link.

@@ -21,6 +21,18 @@ try {
     $employee=ops_rows('SELECT e.id,e.full_name,e.hire_date,e.working_days,e.shift_start,e.shift_end,e.late_grace_minutes,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? AND e.status=\'active\' AND r.role_key<>\'owner_admin\' LIMIT 1',[$employeeId])[0]??null;
     if(!$employee){kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Employee not found.','error_code'=>'KPI_EMPLOYEE_NOT_FOUND'],404);}
     $requestedAction=(string)($_GET['action']??'');
+    if(in_array($requestedAction,['performance_attendance_schedule','performance_website_audit'],true)){
+        if(!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner review required.'],403);
+        if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')kpi_send_json(['ok'=>false,'message'=>'Method not allowed.'],405);
+        $token=(string)($_SESSION['kpi_presence_csrf_token']??'');
+        if($token===''||!hash_equals($token,(string)($_POST['csrf_token']??'')))kpi_send_json(['ok'=>false,'message'=>'Your session expired. Refresh and try again.'],403);
+        require_once BASE_PATH.'/shared/epi/PhysicalEvidenceCapture.php';
+        try{
+            if($requestedAction==='performance_attendance_schedule')\Hambelela\EPI\PhysicalEvidenceCapture::schedule(db(),$employeeId,$currentEmployeeId,(string)($_POST['effective_from']??''),(string)($_POST['reason']??''));
+            else \Hambelela\EPI\PhysicalEvidenceCapture::website(db(),$employeeId,$currentEmployeeId,$_POST);
+        }catch(RuntimeException $error){kpi_send_json(['ok'=>false,'message'=>$error->getMessage()],422);}
+        kpi_send_json(['ok'=>true,'message'=>'Verified evidence saved. Background recalculation is queued; locked history stays unchanged.']);
+    }
     if($requestedAction==='performance_incident_review'){
         if(!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner review required.'],403);
         if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')kpi_send_json(['ok'=>false,'message'=>'Method not allowed.'],405);
@@ -44,6 +56,8 @@ try {
         $result=(new \Hambelela\EPI\EmployeePerformanceService(db()))->profile($employeeId,$month.'-01',null,max(1,(int)($_GET['history_page']??1)),$historyMonth?:null);
         require_once BASE_PATH.'/shared/epi/PerformanceIncidentReview.php';
         $result['quality_review']=\Hambelela\EPI\PerformanceIncidentReview::read(db(),$employeeId,$month.'-01');
+        require_once BASE_PATH.'/shared/epi/PhysicalEvidenceCapture.php';
+        $result['physical_evidence']=\Hambelela\EPI\PhysicalEvidenceCapture::read(db(),$employeeId,$month.'-01');
         if(!$canReview)$result['quality_review']['work']=[];
         header('Cache-Control: private, no-store');
         header('X-Performance-Calculation: epi-v2-rate-1');

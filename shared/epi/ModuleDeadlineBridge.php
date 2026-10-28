@@ -69,13 +69,25 @@ final class ModuleDeadlineBridge
             // Reuse that authoritative deadline when no separate EPI duration exists.
             // Never move an expired upstream deadline onto the receiving employee.
             $due=self::courierDue($db,$r,$policy);
-            if($start && $start>=$activation['enforcement_start_at'] && $due && $action==='courier_waybill_uploaded'){
+            require_once __DIR__.'/OperationalMeasurementPolicy.php';
+            $native=OperationalMeasurementPolicy::current($db,$at);$scheduleActions=['courier_waybill_uploaded'];
+            if($native&&$start>=$native['effective_from']){
+                $scheduleActions[]='courier_waybill_orders_assigned';
+                $source=$meta['dispatch_source_at_capture']??[];
+                // A raw upload without required order/parcel information is not
+                // availability to Front Desk. Use the durable completed-source
+                // event; never transfer an already-expired upstream due date.
+                $start=$at;
+                $due=($source['complete']??false)?self::courierDue($db,array_replace($r,['uploaded_at'=>$start]),$policy):null;
+                if(V2Store::one($db,"SELECT id FROM epi_v2_operational_deadlines WHERE module='Courier' AND object_reference=? AND obligation_key='send_courier_documents'",[$ref]))$due=null;
+            }
+            if($start && $start>=$activation['enforcement_start_at'] && $due && in_array($action,$scheduleActions,true)){
                 $db->prepare("INSERT IGNORE INTO epi_v2_object_duties VALUES('Courier',?,'front_desk')")->execute([$ref]);
                 $engine->schedule(['module'=>'Courier','object_reference'=>$ref,'obligation_key'=>'send_courier_documents',
                     'breach_event_key'=>'courier_send_sla_breached','starts_at'=>$start,
                     'due_at'=>$due,
                     'source_evidence'=>['deadline_source'=>$minutes>0?'versioned_epi_policy':'hambelela_waybills.due_by',
-                        'uploaded_at'=>$start,'stored_due_by'=>$r['due_by']??null,'batch_id'=>$r['batch_id']??null],
+                        'uploaded_at'=>$start,'stored_due_by'=>$r['due_by']??null,'batch_id'=>$r['batch_id']??null,'availability_snapshot'=>$meta['dispatch_source_at_capture']??null],
                     'cycle_id'=>'initial','source_event'=>$action,'responsible_team'=>'front_desk']);
             }
             if($actor>0 && $action==='courier_waybill_sent')$engine->fulfilObject('Courier',$ref,'send_courier_documents',$actor,$at);

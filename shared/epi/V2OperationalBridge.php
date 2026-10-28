@@ -42,6 +42,14 @@ final class V2OperationalBridge
         $proof=$db->prepare('SELECT id FROM ops_checklist_attachments WHERE task_id=? AND removed_at IS NULL AND created_at<=? ORDER BY id');
         $proof->execute([$id,$meta['occurred_at']]);$meta['completion_proof_ids']=$proof->fetchAll(PDO::FETCH_COLUMN);$proof->closeCursor();
     }
+    require_once __DIR__.'/NativeProcessMeasurement.php';
+    try{$meta=NativeProcessMeasurement::metadata($db,$type,$record,$meta);}
+    catch(\Throwable $snapshotError){
+        // Preserve the operational outbox even when a secondary queue snapshot
+        // is unavailable. No missing snapshot is later treated as perfect work.
+        $meta['measurement_snapshot_unavailable']=true;
+        error_log('EPI native process snapshot unavailable; priority needs review: '.$snapshotError->getMessage());
+    }
     $payload=['metadata'=>$meta,'record'=>$record];
     $key=Support::dedupe([$type,$id,$action,$meta['event_uuid']??$meta['activity_id']??Support::json($payload)]);
     $db->prepare('INSERT IGNORE INTO epi_v2_outbox(event_key,entity_type,entity_id,action,payload_json) VALUES(?,?,?,?,?)')->execute([$key,$type,$id,$action,Support::json($payload)]);
@@ -73,6 +81,8 @@ final class V2OperationalBridge
             HandoverPerformanceBridge::capture($db,$e['action'],$p['record'],$p['metadata']);
         }
         CompletedWorkCapture::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
+        require_once __DIR__.'/NativeProcessMeasurement.php';
+        NativeProcessMeasurement::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
         $db->prepare("UPDATE epi_v2_outbox SET state='done',attempts=attempts+1,last_error=NULL WHERE id=?")->execute([$e['id']]);
     });}catch(\Throwable $error){$db->prepare("UPDATE epi_v2_outbox SET attempts=attempts+1,last_error=? WHERE event_key=?")->execute([$error->getMessage(),$key]);error_log('EPI V2 capture pending: '.$error->getMessage());}
  }

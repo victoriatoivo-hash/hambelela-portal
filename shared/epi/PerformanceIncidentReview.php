@@ -56,6 +56,7 @@ final class PerformanceIncidentReview
                     ' — '.($policy['categories'][$category]['metrics'][$metric]['label']??$metric)];
             }
             if($targets)$work[]=['key'=>$unit['opportunity_key'],'reference'=>$unit['object_reference'],'completed_at'=>$unit['completed_at'],
+                'native_root'=>(($snapshot['native_measurement']['outcome']??'')==='failure'&&!empty($snapshot['native_measurement']['measured']))?'native-process:'.$unit['opportunity_key']:null,
                 'capture_status'=>$mode===2?'provisional':'approved','targets'=>$targets];
         }
         return ['incidents'=>$reviews,'work'=>$work];

@@ -1,0 +1,89 @@
+{
+  "files": {
+    "shared/epi/OperationalMeasurementPolicy.php": {
+      "before": [
+        null
+      ],
+      "after": "7d1f0c41d4874f5a4ef4ee2e1d8d41fe4be3d52a12df50bd6f7a98afe589945a"
+    },
+    "shared/epi/NativeProcessMeasurement.php": {
+      "before": [
+        null
+      ],
+      "after": "e51b5e559d9aa77d2714a3e164917956fb20e84999c977eba036cbf9d4866ea7"
+    },
+    "shared/epi/PhysicalEvidenceCapture.php": {
+      "before": [
+        null
+      ],
+      "after": "f5174c11538d4a7e5b47d450ab4ad7a447235477405d1c237a727b02ee925c5b"
+    },
+    "shared/epi/ModuleDeadlineBridge.php": {
+      "before": [
+        "f55cfadc621a2c1e68a1d95cda03a9b7da119ba5b03d7ac7b7a239489c634666"
+      ],
+      "after": "e433e49e761df369e5f088fbf787e3a501ad68f9619257947c3bd506a37d1cbb"
+    },
+    "shared/epi/AttendanceEvidenceProjector.php": {
+      "before": [
+        "4787e62ec6709fdef3c33d52c9a801ccbff9bdc78a7329a05b203005650f7722"
+      ],
+      "after": "280ed7129188172b56f8521fbeb0a5759cc850d8dbc96143ae48256ffeef6fbc"
+    },
+    "shared/epi/EmployeePerformanceService.php": {
+      "before": [
+        "a4d8dfd79f3f10a0b9dffc44b552e43db6591df091e9caf84ea98ab16138d70e"
+      ],
+      "after": "93f29de3c0229234675ca257dffcc60fd52627816440534bf4625b55afb2bc99"
+    },
+    "shared/epi/OperationalPerformanceProjector.php": {
+      "before": [
+        "746aa66aff992768c7760289b9ded98a58fa43443e3aa614b5fab2e0f2de5634"
+      ],
+      "after": "edfbf4bf5028e42a39bc255182be5224df5e49d8aec9b51c163130d9fbe6b3be"
+    },
+    "shared/epi/PerformanceIncidentReview.php": {
+      "before": [
+        "e2f2b1cf4f6680d68c066dddc761f80c88a739db53910223b4c333a49494f7e5"
+      ],
+      "after": "07b62595ed291db405f8a388a1baa9bdbd11ba3bfc3329ad841b83bf2dc31e8d"
+    },
+    "shared/epi/V2OperationalBridge.php": {
+      "before": [
+        "9fdc148d20a8456025ebb31e36f5b2c2907ecc6f742323ba575e88668f5b42eb"
+      ],
+      "after": "69860003e7a20ed8b0c7f00eb325a5c1929b0ad2dd9be9cc4761db33b6fe3e25"
+    },
+    "apps/operations/kpi-employee-data.php": {
+      "before": [
+        "5c39d882a72a2f469bdad1e8d7fa80c6ca3e118320973c02ef3880e4420fc146"
+      ],
+      "after": "8ea602cb69db12be94910cecadb4e23f10b74814ae439a7382420b9d43e8bd1b"
+    },
+    "apps/operations/kpi-presence-review.php": {
+      "before": [
+        "f9f35f577a739d967083891ae5230bc3cbc1f90fc8fad92d2d644d494f5e4a3c"
+      ],
+      "after": "ad95170777e4dfa36d37aa9b3c106ca3a608e6657d4407d13e1db8d89ea36c37"
+    },
+    "assets/js/employee-performance.js": {
+      "before": [
+        "eed91ff4d0f53d6a40efc877096e0b8be52570e981fd0473ec5534cccbfc723f"
+      ],
+      "after": "c6e359fcce87d0c6f484238f238971690d5c6bba84827778aba4e8b55502ba53"
+    }
+  },
+  "dependencies": {
+    "shared/epi/DeadlineEngine.php": "5b94fb8babc42c1a37cdab848e167ef065599903052bba25b1ceb66ec4c94fcd",
+    "shared/epi/OwnershipPeriodEngine.php": "c8ebfa3aed07229b2239d0debbdf1e1b55b4e760221d42cc968224b01a0ed922",
+    "shared/epi/PerformanceRefreshRuntime.php": "4f9781f228accaae93f6fe085ed4295615b1c6763cb31e745ad168b596718208",
+    "shared/epi/PerformanceCapturePolicy.php": "4c6dcb8ecb76e427911565449eedeaabdd0370b4eab8d3bbd137415c6546ddbf",
+    "shared/epi/V2Store.php": "f31b8590bbe519e4a5b89a700c0986b0118ebd583aa352aedcb37b6ff35d2d41",
+    "shared/epi/CanonicalEventRegistry.php": "5444e0c900a57e47e25795d254f48939db86c24431540d45a57b5f2503841f52",
+    "shared/epi/ProvisionalScorecardAssignments.php": "3980e5bf092c924bfbcd4bffb0a1564d7e60a09d64df124aeb09e00bc0057084",
+    "shared/epi/RateScoreCalculator.php": "df4d3cbbd5fe14412db1d10a1997fd3a527dd62f1798b80235da1884271994ad",
+    "shared/epi/HrAbsenceEvidence.php": "339abad44f0da77ff52f3874be7e6496bd6e29d291706eff36ca1340363909c1",
+    "shared/epi/CourierPackerDeadlineBridge.php": "cb558dc9971d6876b6e9fbf07c2dd43b2875c658fe5a8e386ce4808bf957d568",
+    "shared/epi/IncidentCorrelation.php": "25c186a4cb1110d9af8da3d3dc9cf035fde0b1a5f3f0cff4f7f43f0c520dc3db"
+  }
+}

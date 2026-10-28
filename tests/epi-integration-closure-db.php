@@ -13,6 +13,12 @@ $db->exec('ALTER TABLE hambelela_waybills ADD COLUMN IF NOT EXISTS uploaded_by I
  ADD COLUMN IF NOT EXISTS archived_at DATETIME NULL;
  CREATE TABLE IF NOT EXISTS hambelela_waybill_orders(id INT AUTO_INCREMENT PRIMARY KEY,waybill_id INT,order_id INT,
  linked_by_employee_id INT,linked_at DATETIME,UNIQUE KEY(waybill_id,order_id)) ENGINE=InnoDB');
+$db->exec('ALTER TABLE ops_packing_tasks ADD COLUMN IF NOT EXISTS item_name VARCHAR(255), ADD COLUMN IF NOT EXISTS priority VARCHAR(30),
+ ADD COLUMN IF NOT EXISTS quantity_packed VARCHAR(255), ADD COLUMN IF NOT EXISTS packing_website_confirmed INT DEFAULT 0,
+ ADD COLUMN IF NOT EXISTS deleted_at DATETIME NULL;
+ ALTER TABLE hambelela_waybills ADD COLUMN IF NOT EXISTS courier_name VARCHAR(160), ADD COLUMN IF NOT EXISTS number_of_waybills INT;
+ ALTER TABLE ops_orders ADD COLUMN IF NOT EXISTS portal_paid_confirmed INT DEFAULT 0, ADD COLUMN IF NOT EXISTS assigned_packer_id INT NULL;
+ ALTER TABLE epi_attendance_schedules MODIFY id INT NOT NULL AUTO_INCREMENT');
 $db->beginTransaction();
 try{
     resetObjects();
@@ -139,4 +145,5 @@ try{
     check('CLOSE48 original historical classification remains immutable','walk_in',scalar('SELECT classification FROM epi_v2_orders_tracking WHERE order_id=9810'));
     require __DIR__.'/epi-courier-upload-db.php';
     require __DIR__.'/epi-provisional-cash-controls-db.php';
+    require __DIR__.'/epi-native-measurements-db.php';
 }finally{$db->rollBack();}
