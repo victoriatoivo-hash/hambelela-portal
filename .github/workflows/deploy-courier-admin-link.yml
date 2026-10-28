@@ -78,6 +78,7 @@ jobs:
           php -l shared/cost-workbook-sections.php
           php tests/product-pricing-workflow.php && php tests/product-pricing-sync.php
           php tests/product-cost-linking.php
+          php tests/product-link-count-regression.php
           node --check assets/js/retail-pricing.js
           node tests/product-pricing-order.cjs
           node tests/cost-workbook-retail-pricing-static.mjs

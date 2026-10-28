@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = '5c10749f'
+BASELINE = '86ab9913'
 NEW_FILES = []
-FILES = ['assets/js/retail-pricing.js','assets/css/cost-workbook-retail-pricing.css','shared/cost-workbook-retail-pricing.php']
-DEPENDENCIES = ['assets/js/portal.js','assets/js/cost-workbook-controls.js','assets/css/cost-workbook-controls.css','apps/cost-manager/retail-pricing-api.php','shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-pricing-discovery.php']
+FILES = ['assets/js/retail-pricing.js','shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php']
+DEPENDENCIES = ['assets/js/portal.js','assets/js/cost-workbook-controls.js','assets/css/cost-workbook-controls.css','apps/cost-manager/retail-pricing-api.php','shared/cost-workbook-cost-linking.php','shared/cost-workbook-pricing-discovery.php']
 # Preserve current live revisions matched to Git; only FILES are uploaded.
 DEPENDENCY_BASELINES = {}
 def git(*args): return subprocess.check_output(['git', *args])

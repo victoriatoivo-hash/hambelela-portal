@@ -25,7 +25,7 @@ function rps_row(array $body,array $sources,array $settings):array {
     $p=rpm_find($sources['products'],'id',(int)($body['product_id']??0));
     $row=['product_id'=>(int)($body['product_id']??0),'product_name'=>$p['product_name']??'','short_code'=>$p['short_code']??'','category'=>$p['product_category']??'','basis'=>$p['costing_basis']??'','status'=>'Draft','issues'=>[]];
     try{$row=array_merge($row,rpm_preview($sources,$settings,$body));}catch(DomainException $e){$row['issues']=[$e->getMessage()];$row['completion_status']='Needs Review';$row['provisional']=true;foreach(['total_cost_ex_vat','known_cost_ex_vat','product_cost_per_unit','packaging_cost_ex_vat','profit_per_unit','markup_percent','margin_percent','stock_cost','projected_profit'] as $field)$row[$field]=null;}
-    if(!empty($body['website_origin']))foreach($sources['website'] as $site)if($site['product_id'].':'.$site['variation_id']===($body['website_key']??'')){$row['product_name']=$site['product_name'];$row['short_code']=$site['sku']??'';$row['category']=$site['category']??'';break;}
+    if(!empty($body['website_origin']))foreach($sources['website'] as $site)if($site['product_id'].':'.$site['variation_id']===($body['website_key']??'')){$row['product_name']=$site['product_name'];$row['short_code']=trim((string)($site['sku']??''))!==''?$site['sku']:($row['short_code']??'');$row['category']=$site['category']??'';break;}
     return array_merge($row,['id'=>(int)($body['id']??0),'version'=>(int)($body['version']??0),'saved'=>!empty($body['id']),'effective_date'=>$body['effective_date']??rpm_today()]);
 }
 function rps_list(PDO $pdo,array $sources,array $settings):array {
