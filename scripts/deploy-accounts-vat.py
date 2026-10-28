@@ -1,16 +1,14 @@
 """VAT presentation-only guarded delta deployment with targeted backup and rollback."""
 import difflib, ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-FILES=['assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js','assets/js/input-vat.js','assets/js/output-vat.js','apps/accounts/input-vat.php','apps/accounts/output-vat.php']
+FILES=['assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js','assets/js/input-vat.js','assets/js/output-vat.js','apps/accounts/input-vat.php','apps/accounts/output-vat.php','apps/accounts/input-vat-live.php']
 # Existing Git release 5f11b2f3 contains the styled confirmations on live.
 # Its Input VAT SHA256 bf04e4aa... matches preflight 40741431500 exactly.
 # Retain strict full-source comparison; never transform or accept unknown live bytes.
 BASELINES={p:'5f11b2f3831b46448bb20e5dcac9a6f442a76ba7' for p in FILES if p not in ('assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js')}
-# Workflow 40743574789 was interrupted during upload, leaving a subset of its
-# exact tested assets live. CSS SHA256 ab9b6b24... was verified in 40744225598
-# and equals Git 3f2a9691 byte-for-byte. Recover only those known release bytes;
-# any unrelated/newer live edit still blocks the entire upload.
-PARTIAL_RELEASE='3f2a9691'
+# Workflow 40745265404 verified the complete six-file release byte-for-byte.
+# Add the existing rewritten live entry without accepting any unknown source.
+KNOWN_RELEASE='4d7a3d72b8c6d383c8497e113d086ebcd5049c98'
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
@@ -33,7 +31,7 @@ try:
  before={p:read(p) for p in FILES};desired={p:git('show',sha+':'+p) for p in FILES}
  for p in FILES:
   baseline=git('show',BASELINES[p]+':'+p) if p in BASELINES else None
-  partial=git('show',PARTIAL_RELEASE+':'+p)
+  partial=git('show',KNOWN_RELEASE+':'+p)
   matches=norm(before[p]) in (norm(baseline),norm(partial),norm(desired[p]))
   report['hashes'][p]={'live':digest(before[p]),'baseline':digest(baseline),'interrupted_release':digest(partial),'approved':digest(desired[p]),'matches':matches}
   if not matches:

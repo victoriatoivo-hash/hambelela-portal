@@ -3,9 +3,9 @@ const root=path.resolve(__dirname,'..'),read=p=>fs.readFileSync(path.join(root,p
 const css=read('assets/css/accounts-vat-workspace.css').replace(/^@import.*$/mg,''),shared=read('assets/js/accounts-vat-workspace.js');
 const directory=path.join(root,'verification/vat-workspace');fs.mkdirSync(directory,{recursive:true});
 async function stableShot(page,options){await page.evaluate(()=>Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{}))));return page.screenshot(options);}
-function markup(type,owner=true,canHistory=owner){
+function markup(type,owner=true,canHistory=owner,throughLiveEntry=false){
  let source=read(`apps/accounts/${type}-vat.php`).replace('declare(strict_types=1);','').replace(/^require_once .*;.*$/mg,'').replace(/^include .*;.*$/mg,'').replace(/<\?php include BASE_PATH\.'\/shared\/footer.php'; \?>/g,'');
- const stub=`<?php const BASE_PATH=${JSON.stringify(root.replaceAll('\\','/'))};const BASE_URL='';const APP_NAME='Portal';function accounts_require_input_vat_access(){}function accounts_input_vat_schema_ready(){}function accounts_can($x){return ${canHistory?'true':'false'};}function accounts_is_owner(){return ${owner?'true':'false'};}function accounts_can_access_workspace(){return true;}function accounts_standard_vat_rate(){return 15;}function accounts_csrf_token(){return 'fixture';}function accounts_historical_capture_start_date(){return '2024-01-01';}function output_vat_require_owner(){}function output_vat_schema_ready(){}function output_vat_month($x){return $x;}function output_vat_csrf_token(){return 'fixture';}$_GET['month']='2026-10';?>`;
+ const stub=`<?php const BASE_PATH=${JSON.stringify(root.replaceAll('\\','/'))};const BASE_URL='';const APP_NAME='Portal';function accounts_require_input_vat_access(){}function accounts_input_vat_schema_ready(){}function accounts_can($x){return ${canHistory?'true':'false'};}function accounts_is_owner(){return ${owner?'true':'false'};}function accounts_can_access_workspace(){return true;}function accounts_standard_vat_rate(){return 15;}function accounts_csrf_token(){return 'fixture';}function accounts_historical_capture_start_date(){return '2024-01-01';}function output_vat_require_owner(){}function output_vat_schema_ready(){}function output_vat_month($x){return $x;}function output_vat_csrf_token(){return 'fixture';}$_GET['month']='2026-10';$inputVatOwnerHistoryOnly=${throughLiveEntry?'true':'false'};?>`;
  return execFileSync(process.env.PHP_BINARY||'php',[],{input:stub+source,encoding:'utf8'}).replace(/<script[\s\S]*?<\/script>/g,'');
 }
 const purchase={id:1,purchase_date:'2026-10-05',supplier:'Fixture supplier',description:'Fixture purchase',invoice_reference:'FIXTURE-1',inclusive:115,vat:15,exclusive:100,vat_treatment:'standard',calculation_source:'inclusive',automatic_exclusive:100,entered_by:'Fixture Owner',captured_at:'2026-10-05 10:00:00',review_status:'captured',attachments:[{id:1,name:'fixture.pdf',view_url:'/fixture.pdf',download_url:'/fixture.pdf',can_delete:true}],can_edit:true,can_delete:true,can_view_audit:true};
@@ -76,6 +76,8 @@ function outputPayload(month='2026-10',status='reconciled'){return {ok:true,data
   }
   await page.emulateMedia({reducedMotion:'reduce'});assert.equal(await page.locator('.vatx-kpi').first().evaluate(e=>getComputedStyle(e).animationName),'none');await page.close();
  }
+ const liveEntry=read('apps/accounts/input-vat-live.php');assert.match(liveEntry,/require __DIR__\.'\/input-vat.php'/);assert.match(liveEntry,/no-store, no-cache/);
+ const routedFront=markup('input',false,true,true);assert.match(routedFront,/data-owner="0"/);assert(!routedFront.includes('data-vat-view="history"'));
  const front=markup('input',false);assert(!front.includes('data-rate-dialog'));assert(!front.includes('data-history-toolbar'));
  await browser.close();console.log('Financial source unchanged; Owner-only secondary controls and reduced motion PASS');
 })().catch(e=>{console.error(e);process.exit(1)});

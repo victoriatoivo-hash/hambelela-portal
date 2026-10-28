@@ -35,6 +35,7 @@ jobs:
           test "$(git rev-parse HEAD)" = "${{ inputs.approved_sha }}"
           git diff --exit-code 033d24d881b5b11600e06c90f0801c594914f2c6 HEAD -- shared/accounts-input-vat.php shared/accounts-input-vat-calculator.php shared/accounts-output-vat.php apps/accounts/input-vat-api.php apps/accounts/output-vat-api.php apps/accounts/input-vat-file.php
           php -l apps/accounts/input-vat.php
+          php -l apps/accounts/input-vat-live.php
           php -l apps/accounts/output-vat.php
           node --check assets/js/input-vat.js
           node --check assets/js/output-vat.js
@@ -47,7 +48,7 @@ jobs:
           "$RUNNER_TEMP/accounts-ui/node_modules/.bin/playwright" install --with-deps chromium
           NODE_PATH="$RUNNER_TEMP/accounts-ui/node_modules" node tests/accounts-vat-workspace-ui.cjs
           python3 -m py_compile scripts/deploy-accounts-vat.py
-      - name: Guard live baseline and publish only the six VAT presentation files
+      - name: Guard live baseline and publish only the seven VAT presentation files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
