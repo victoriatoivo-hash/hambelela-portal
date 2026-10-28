@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-use Hambelela\EPI\{V2Store,DeadlineEngine,ProvisionalTimingPolicy,ResponsibilityClock,ModuleDeadlineBridge,CashDeadlineBridge,CommunicationDeadlineBridge};
+use Hambelela\EPI\{V2Store,DeadlineEngine,ProvisionalTimingPolicy,ResponsibilityClock,ModuleDeadlineBridge,CashDeadlineBridge,CommunicationDeadlineBridge,CompletedWorkCapture};
 require_once dirname(__DIR__).'/shared/epi/ProvisionalTimingPolicy.php';
 require_once dirname(__DIR__).'/shared/epi/ResponsibilityClock.php';
 $db->beginTransaction();
@@ -92,6 +92,12 @@ try {
     check('TIME38 UTC creation cannot suppress new Namibia release',3,(int)scalar("SELECT COUNT(*) FROM epi_v2_operational_deadlines WHERE object_reference='PACK-9904'"));
     check('TIME39 packing starts at actual release event','2030-10-28 01:30:00',scalar("SELECT starts_at FROM epi_v2_operational_deadlines WHERE object_reference='PACK-9904' AND obligation_key='start_packing'"));
     check('TIME40 overnight release starts working clock at opening','2030-10-28 11:00:00',scalar("SELECT due_at FROM epi_v2_operational_deadlines WHERE object_reference='PACK-9904' AND obligation_key='start_packing'"));
+    $utcPacking['date_loaded']='2030-10-28 00:00:00';
+    $utcPacking['packing_status']='done';
+    CompletedWorkCapture::capture($db,'packing_task','packing_item_completed',$utcPacking,
+        ['employee_id'=>101,'occurred_at'=>'2030-10-28 12:00:00','field'=>'packing_status']);
+    check('TIME41 completed unit uses the same release as its deadline','2030-10-28 01:30:00',
+        scalar("SELECT starts_at FROM epi_v2_completed_work_units WHERE opportunity_key='packing_task:9904:0'"));
 } finally {$db->rollBack();}
 $db->exec('SET TRANSACTION READ ONLY');$db->beginTransaction();
 check('TIME37 settings reads perform no writes',true,attempt(fn()=>ProvisionalTimingPolicy::current($db)));

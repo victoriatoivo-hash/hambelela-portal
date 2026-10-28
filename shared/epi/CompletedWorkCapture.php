@@ -73,6 +73,15 @@ final class CompletedWorkCapture
             $done=($record['status']??'')==='resolved' && $action==='save_whatsapp_conversation';
         }elseif($type==='packing_task'){
             $module='Packing List';$ref='PACK-'.$record['id'];$start=$record['date_loaded']??null;
+            // For a prospective Packing List release, the deadline was created
+            // from the durable Namibia event time. date_loaded/created_at may
+            // represent a calendar date or a database UTC timestamp, so using
+            // either here can put the completed unit outside its own SLA cohort.
+            $release=V2Store::one($db,"SELECT starts_at FROM epi_v2_operational_deadlines
+                WHERE module='Packing List' AND object_reference=? AND obligation_key='start_packing'
+                AND source_event='packing_item_created' AND historical_backfill=0
+                ORDER BY id DESC LIMIT 1",[$ref]);
+            if($release)$start=$release['starts_at'];
             $done=in_array($record['packing_status']??'',['done','website','packed_label_needed','done_needs_label','label_created'],true)
                 && (($meta['field']??'')==='packing_status'||in_array($action,['packing_item_completed','packing_status_updated'],true));
         }elseif($type==='courier_waybill'){
