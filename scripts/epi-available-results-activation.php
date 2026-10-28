@@ -8,8 +8,8 @@ if(!$root||!is_file($root.'/shared/database.php')||strpos(__DIR__,$root)===0)thr
 $backup=json_decode(file_get_contents(__DIR__.'/backup/verified.json'),true,512,JSON_THROW_ON_ERROR);
 $published=json_decode(file_get_contents(__DIR__.'/deployment-result.json'),true,512,JSON_THROW_ON_ERROR);
 if(($published['state']??'')!=='published'||time()-filemtime(__DIR__.'/backup/verified.json')>3600||!hash_equals($backup['database_sha256'],hash_file('sha256',__DIR__.'/backup/database.sql')))throw new RuntimeException('Fresh verified backup and publication required.');
-require $root.'/shared/database.php';require $root.'/shared/epi/bootstrap.php';
-require $root.'/shared/epi/PerformanceRefreshRuntime.php';require $root.'/shared/epi/EmployeePerformanceService.php';
+require_once $root.'/shared/database.php';require_once $root.'/shared/epi/bootstrap.php';
+require_once $root.'/shared/epi/PerformanceRefreshRuntime.php';require_once $root.'/shared/epi/EmployeePerformanceService.php';
 use Hambelela\EPI\{V2Store,PerformanceRefreshRuntime,EmployeePerformanceService,RateScoreCalculator};
 $db=db();$db->exec("SET time_zone='+02:00'");$period=date('Y-m-01');
 $protected=static function()use($db,$period){$q=$db->prepare('SELECT h.employee_id,h.period_start,h.current_result_id,h.locked_at,h.locked_by,r.result_json FROM epi_v2_employee_result_heads h LEFT JOIN epi_v2_employee_results r ON r.id=h.current_result_id WHERE h.period_start<? OR h.locked_at IS NOT NULL ORDER BY h.employee_id,h.period_start');$q->execute([$period]);return hash('sha256',json_encode($q->fetchAll(PDO::FETCH_ASSOC)));};
