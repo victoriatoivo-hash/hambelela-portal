@@ -89,6 +89,8 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $extra=['supplier_link_removed'=>$removed,'known_cost_ex_vat'=>$known,'provisional'=>!$complete,'cost_status'=>$contents===null?'Cost Not Matched':'Matched','completion_status'=>$complete&&$priceEx!==null&&$selling>0?'Complete':'Incomplete','website_link_status'=>$site?'Linked':'Not Linked'];
     foreach(['manual_name','manual_code','manual_category','manual_basis'] as $field)$extra[$field]=$b[$field]??'';
     if(!empty($b['manual_name'])){$extra['product_name']=$b['manual_name'];$extra['short_code']=$b['manual_code']??'';$extra['category']=$b['manual_category']??'';}
+    // Cost refreshes must use the same confirmed website display identity as saved sheet rows.
+    if($site&&!empty($b['website_origin'])){$extra['product_name']=$site['product_name'];$extra['short_code']=trim((string)($site['sku']??''))!==''?$site['sku']:($p['short_code']??'');$extra['category']=$site['category']??$p['product_category'];}
     // Keep older detailed status values for historical consumers; expose the sheet's clear grouping separately.
     if($pack===null)$issues[]='Missing Packaging Cost';
     if(!$complete&&$profit!==null)$issues[]='Provisional / Incomplete Cost';
