@@ -62,6 +62,7 @@ function outputPayload(month='2026-10',status='reconciled'){return {ok:true,data
    saveMode='duplicate';await page.locator('[data-save]').click();await page.locator('[data-duplicate-dialog]').waitFor({state:'visible'});await stableShot(page,{path:path.join(directory,'input-duplicate-320.png')});await page.locator('[data-save-duplicate]').click();await page.locator('[data-dialog]').waitFor({state:'hidden'});assert.equal(calls.length,3);assert.match(calls[2],/duplicate_confirmed/);
    console.log('Input fixture server error preserves form; duplicate warning and explicit Save Anyway; server-confirmed save PASS');
    await page.addStyleTag({content:read('assets/css/portal.css')+read('assets/css/portal-date-picker.css')+css});
+   assert.equal(await page.locator('[data-search]').evaluate(e=>getComputedStyle(e).paddingLeft),'32px','Search text must clear the fine-line search icon');
    await page.addScriptTag({content:read('assets/js/portal-date-picker.js')});
    const controls=read('assets/js/portal.js').split("window.addEventListener('DOMContentLoaded'")[0];await page.addScriptTag({content:controls+';window.PortalDatePicker.initialise(document);window.PortalCustomSelect.initialise(document);'});
    await page.locator('[data-add-purchase]').first().click();

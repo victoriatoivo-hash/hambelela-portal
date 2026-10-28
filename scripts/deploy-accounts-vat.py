@@ -6,9 +6,9 @@ FILES=['assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace
 # Its Input VAT SHA256 bf04e4aa... matches preflight 40741431500 exactly.
 # Retain strict full-source comparison; never transform or accept unknown live bytes.
 BASELINES={p:'5f11b2f3831b46448bb20e5dcac9a6f442a76ba7' for p in FILES if p not in ('assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js')}
-# Workflow 40745265404 verified the complete six-file release byte-for-byte.
-# Add the existing rewritten live entry without accepting any unknown source.
-KNOWN_RELEASE='4d7a3d72b8c6d383c8497e113d086ebcd5049c98'
+# Workflow 40747000259 verified the complete seven-file release byte-for-byte.
+# Finish scoped visual spacing without accepting any unknown live source.
+KNOWN_RELEASE='5aa02849c6c973a3ea162b7b75c8ef47fddcdc32'
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None

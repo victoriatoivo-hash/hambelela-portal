@@ -1146,6 +1146,11 @@ body:has(.vatx-page) .portal-date-popup :is(.portal-time-section,.portal-date-ac
 body:has(.vatx-page) .portal-select-popup .portal-select-option:is(.is-active,[aria-selected="true"]) {background:var(--accent-soft);color:var(--accent)}
 body:has(.vatx-page) .portal-select-popup .portal-select-option:focus-visible {box-shadow:inset 0 0 0 1px var(--accent)}
 .vatx-page .vatx-dialog.vatx-dialog form {display:flex;flex-direction:column}
+.vatx-page label .input-vat-search-field input {padding-left:32px}
+body:has(.vatx-page) .portal-sticky-horizontal-scrollbar {scrollbar-color:#59694A #F2F4EC}
+body:has(.vatx-page--output) .portal-sticky-horizontal-scrollbar {scrollbar-color:#28639B #EDF3F9}
+body:has(.vatx-page) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb {background:#59694A}
+body:has(.vatx-page--output) .portal-sticky-horizontal-scrollbar::-webkit-scrollbar-thumb {background:#28639B}
 .vatx-page .input-vat-history-primary {width:100%}
 .vatx-page .input-vat-rate-dialog,.vatx-page [data-delete-confirm-dialog] {width:min(480px,calc(100vw - 24px))}
 .vatx-page [data-duplicate-dialog] {width:min(540px,calc(100vw - 24px))}
