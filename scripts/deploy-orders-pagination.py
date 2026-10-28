@@ -1,7 +1,7 @@
 """Isolated pagination delta: current-file guard, targeted backup and rollback."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-BASELINE='1aaaf6164db156177b9e90b71e5af7a099801dac'
+BASELINE='709db712'
 BASELINES={'assets/js/orders-board.js':BASELINE,'assets/css/orders-list-selection.css':BASELINE}
 LIVE_HASHES={}
 FILES=['assets/js/orders-board.js','assets/css/orders-list-selection.css']

@@ -33,6 +33,7 @@ try {
  ctx.mobileBulkDismissed=true;ctx.updateBulkActionBar();assert.ok(bar.classList.contains('is-mobile-dismissed'));
  ctx.selectedOrders.clear();ctx.updateBulkActionBar();assert.equal(bar.hidden,true);
  assert.match(css,/width:560px;max-width:calc\(100vw - 32px\)/);
+ assert.match(css,/left:12px!important;right:12px!important;width:auto!important;max-width:none!important;transform:none!important/,'mobile position wins over the legacy toolbar rule');
  assert.match(css,/has-unverified-selection \.orders-selection-meta\[data-collapsed\]\{display:flex\}/);
  assert.match(css,/prefers-reduced-motion/);
  console.log('PASS: compact selection toolbar, verified totals, expandable details, visible errors, clear control, permission restrictions and mobile states');
