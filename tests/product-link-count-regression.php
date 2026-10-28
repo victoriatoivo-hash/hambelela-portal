@@ -10,12 +10,12 @@ $api=file_get_contents(BASE_PATH.'/apps/cost-manager/retail-pricing-api.php');$s
 function expect_link($value,string $message):void{if(!$value)throw new RuntimeException($message);}
 class LinkEmptyStatement extends PDOStatement {
  public function __construct(){}
- public function execute(?array $params=null):bool{return true;}
- public function fetchAll(int $mode=PDO::FETCH_DEFAULT,...$args):array{return [];}
+ public function execute($params=null):bool{return true;}
+ public function fetchAll($mode=null,...$args):array{return [];}
 }
 class LinkEmptyPDO extends PDO {
  public function __construct(){}
- public function prepare(string $query,array $options=[]):PDOStatement{return new LinkEmptyStatement();}
+ public function prepare($query,$options=null):PDOStatement{return new LinkEmptyStatement();}
 }
 $p=['id'=>162,'product_name'=>'African bath nets','short_code'=>'ABN001','product_category'=>'Accessories','costing_basis'=>'count','base_unit'=>'unit','landed_cost_id'=>162,'landed_status'=>'complete','landed_cost_per_base'=>29.4078,'supplier_cost_per_base'=>29.4078,'transport_cost_per_base'=>0,'supplier_name'=>'Fixture','cost_date'=>'2026-10-28','woo_product_id'=>35276,'woo_variation_id'=>0];
 $site=['product_id'=>35276,'variation_id'=>0,'product_type'=>'simple','product_name'=>'Mesh Body Scrubber','variation_name'=>'','attributes'=>'[]','sku'=>'','category'=>'Accessories','active_price_inc_vat'=>43,'stock_quantity'=>17,'manage_stock'=>1,'synced_at'=>'2026-10-28 10:00:00'];
