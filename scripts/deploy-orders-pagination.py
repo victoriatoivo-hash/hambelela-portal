@@ -1,11 +1,10 @@
 """Isolated pagination delta: current-file guard, targeted backup and rollback."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-BASELINE='86832ed8'
-BASELINES={'apps/operations/orders-board-data.php':'f73e440f','assets/js/orders-board.js':BASELINE,'assets/css/orders-list-selection.css':BASELINE}
-# Exact live endpoint verified in the existing preflight: same Git source plus creator attribution.
-LIVE_HASHES={'apps/operations/orders-board-data.php':'83e4b743d84a074f497c00c710887a4f6d9c9d10a43d461df3a85b9062f96608'}
-FILES=['apps/operations/orders-board-data.php','assets/js/orders-board.js','assets/css/orders-list-selection.css']
+BASELINE='6ad4ea46c9a874e113a962347d59aeff226ec0ec'
+BASELINES={'assets/js/orders-board.js':BASELINE}
+LIVE_HASHES={}
+FILES=['assets/js/orders-board.js']
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n')

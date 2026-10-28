@@ -1268,20 +1268,23 @@
       }
     };
     apply();
-    window.requestAnimationFrame(apply);
+    // Do not replay an old position after the user's next scroll or menu action.
   }
 
   function captureOrdersBoardPositions() {
+    if (!mobileOrdersViewport.matches) {
+      const table = getOrdersScrollContainer(body);
+      return table ? [{ table, tableLeft: table.scrollLeft, tableTop: table.scrollTop }] : [];
+    }
     return [...body.querySelectorAll('[data-group-card]')].map((group) => {
-      const table = getOrdersScrollContainer(group);
-      return { groupKey: group.dataset.groupCard || '', tableLeft: table?.scrollLeft || 0, tableTop: table?.scrollTop || 0 };
+      const table = group.querySelector('.orders-table-surface');
+      return { table, groupKey: group.dataset.groupCard || '', tableLeft: table?.scrollLeft || 0, tableTop: table?.scrollTop || 0 };
     });
   }
 
   function restoreOrdersBoardPositions(positions) {
     (positions || []).forEach((position) => restoreOrdersTablePosition({
       ...position,
-      table: null,
       windowX: window.scrollX,
       windowY: window.scrollY
     }));
@@ -1294,7 +1297,8 @@
       || Boolean(personPopup?.classList.contains('is-open'))
       || Boolean(labelMenu && !labelMenu.hidden)
       || Boolean(panel?.classList.contains('is-open'))
-      || Boolean(getOrdersScrollContainer(document.activeElement));
+      || Boolean(document.activeElement?.closest?.('.orders-table-surface, [data-orders-board-scroll]'))
+      || Boolean(document.querySelector('.portal-sticky-horizontal-scrollbar.is-scrollbar-active'));
   }
 
   function focusInlineEditorAtEnd(control) {
@@ -2988,7 +2992,8 @@
       </div>
     ` : '';
 
-    const rows = orders.map((order, rowIndex) => {
+    // Keep every date in the continuous list, but only mount rows for open dates.
+    const rows = (isOpen ? orders : []).map((order, rowIndex) => {
       const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
       return `
         <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="orders-grid-row monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
@@ -3021,7 +3026,7 @@
               <span class="orders-date-summary-block orders-date-summary-block--paid"><span class="orders-summary-label">Paid</span><strong class="orders-summary-value">${paid}/${orders.length}</strong></span>
               <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${packingStyleSummaryBar(statusCounts, statusColours, 'ob-status-bar', 'Status distribution')}</span>
         </button>
-        <div class="orders-date-content monday-group-orders" data-orders-date-content${hiddenAttrs}>
+        ${isOpen ? `<div class="orders-date-content monday-group-orders" data-orders-date-content>
             <div class="orders-table-surface">
               <div class="orders-table-grid">
             <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
@@ -3033,7 +3038,7 @@
             ${footerRow}
               </div>
             </div>
-        </div>
+        </div>` : ''}
       </section>
     `;
   }
@@ -3106,6 +3111,7 @@
     livePendingGroupKeys.clear();
 
     ordersCache = nextOrders;
+    if (!affected.size) return; // An unchanged poll must not rebuild controls or restore scroll.
     syncPaymentFilterOptions();
     const visible = visibleOrders();
     const groups = groupedOrders(visible);
@@ -5098,7 +5104,9 @@
       pendingOrdersInteractionPosition = null;
       return;
     }
-    const table = getOrdersScrollContainer(event.target);
+    // The desktop fallback is for restoration, not hit testing. In particular,
+    // dragging the bottom scrollbar must never capture/replay its starting offset.
+    const table = event.target.closest('.monday-order-row') ? getOrdersScrollContainer(event.target) : null;
     pendingOrdersInteractionPosition = table ? ordersTablePosition(event.target) : null;
   }, true);
 
@@ -5722,7 +5730,8 @@
         } else {
           expandedGroups.add(key);
         }
-        renderOrders(ordersCache);
+        livePendingGroupKeys.add(key);
+        patchLiveOrderGroups(ordersCache, ordersCache, [], new Set());
         return;
       }
 

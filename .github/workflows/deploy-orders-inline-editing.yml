@@ -58,6 +58,7 @@ jobs:
           node tests/orders-selection-ui-behavior.mjs
           npm install --prefix "$RUNNER_TEMP/pagination" --no-audit --no-fund jsdom@24.1.3
           NODE_PATH="$RUNNER_TEMP/pagination/node_modules" node tests/orders-pagination-ui.cjs
+          NODE_PATH="$RUNNER_TEMP/pagination/node_modules" node tests/orders-continuous-interactions.cjs
           node --check assets/js/orders-board.js
           php tests/orders-paid-confirmation-behavior.php
           node tests/orders-paid-ui-behavior.mjs
