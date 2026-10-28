@@ -23,7 +23,7 @@ $s=['products'=>[$p],'sizes'=>[],'setups'=>[],'materials'=>[],'website'=>[$site]
 $rows=rpd_website_rows(rpm_rows(new LinkEmptyPDO(),$s,$settings),$s,$settings);
 expect_link(count($rows)===1,'A linked simple count product must not produce a supplier placeholder plus a website row.');
 expect_link($rows[0]['website_key']==='35276:0'&&$rows[0]['size_conversion_id']===0,'Exact website identity and 1-unit conversion retained.');
-$body=['product_id'=>162,'size_conversion_id'=>'0','website_key'=>'35276:0','website_confirmed'=>true,'website_origin'=>true,'selling_price_inc_vat'=>'','packaging_mode'=>'none','packaging_confirmed'=>true];
+$body=['product_id'=>162,'size_conversion_id'=>'0','website_key'=>'35276:0','website_confirmed'=>true,'website_origin'=>true,'selling_price_inc_vat'=>'','selling_price_source'=>'manual','packaging_mode'=>'none','packaging_confirmed'=>true];
 $r=rps_row($body,$s,$settings);
 expect_link($r['product_name']==='Mesh Body Scrubber'&&$r['short_code']==='ABN001','Website name and supplier code retained when website SKU is blank.');
 $preview=rpm_preview($s,$settings,$body);expect_link($preview['product_name']===$r['product_name']&&$preview['short_code']===$r['short_code'],'Refreshing or editing a linked row cannot switch it back to the supplier display name.');

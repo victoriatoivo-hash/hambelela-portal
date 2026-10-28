@@ -17,8 +17,9 @@ function rps_install(PDO $pdo):void {
     if(!cw_column_exists($pdo,'cw_retail_sheet_drafts','history_json'))$pdo->exec('ALTER TABLE cw_retail_sheet_drafts ADD COLUMN history_json LONGTEXT NULL');
 }
 function rps_body(array $input):array {
-    $fields=['website_origin','manual_name','manual_code','manual_category','manual_basis','id','version','product_id','size_conversion_id','packaging_setup_id','packaging_material_id','packaging_mode','packaging_manual_cost','packaging_confirmed','website_key','selling_price_inc_vat','vat_treatment','vat_rate','effective_date','source_token','website_confirmed'];
+    $fields=['website_origin','manual_name','manual_code','manual_category','manual_basis','id','version','product_id','size_conversion_id','packaging_setup_id','packaging_material_id','packaging_mode','packaging_manual_cost','packaging_confirmed','website_key','selling_price_inc_vat','selling_price_source','vat_treatment','vat_rate','effective_date','source_token','website_confirmed'];
     $body=[];foreach($fields as $name)if(array_key_exists($name,$input)){if(!is_scalar($input[$name])&&$input[$name]!==null)throw new DomainException('Invalid cell value.');if(strlen((string)$input[$name])>500)throw new DomainException('Cell value is too long.');$body[$name]=$input[$name];}
+    if(isset($body['selling_price_source'])&&!in_array($body['selling_price_source'],['manual','website'],true))throw new DomainException('Invalid working-price source.');
     return rpm_apply_vat($body);
 }
 function rps_row(array $body,array $sources,array $settings):array {
@@ -58,6 +59,7 @@ function rps_save(PDO $pdo,array $input,array $settings):array {
         if($source&&!empty($sources['unlinked'][$parent])&&(int)($source['woo_product_id']??0)!==$parent)throw new DomainException('The supplier link was removed. Reload and confirm the correct link before saving.');
         $currentWebsite=false;foreach($sources['website'] as $site)if($site['product_id'].':'.$site['variation_id']===($body['website_key']??''))$currentWebsite=true;
         if($currentWebsite&&empty($input['archive']))foreach($sources['products'] as $linked){if(!empty($linked['woo_product_id']) && (int)$linked['woo_product_id']===(int)explode(':',$body['website_key'])[0] && empty($linked['woo_variation_id']) && (int)($body['product_id']??0)!==(int)$linked['id'])throw new DomainException('This website product now has a shared supplier-cost link. Reload the sheet before saving; your edits are retained.');}
+        $body=rpm_website_defaults($sources,$body);
         $row=rps_row($body,$sources,$settings);$state='draft';$note='Draft saved. Complete product, size, costs and selling price to include it in pricing reports. VAT is automatic at 15%.';
         $ready=(empty($body['manual_name'])||(!empty($body['website_origin'])&&!empty($body['website_key'])))&&!empty($body['product_id'])&&isset($body['size_conversion_id'])&&$body['size_conversion_id']!==''&&($row['total_cost_ex_vat']??null)!==null&&($row['selling_price_inc_vat']??0)>0&&in_array($body['vat_treatment']??'',['standard','zero','exempt'],true);
         if($ready&&empty($input['archive'])){

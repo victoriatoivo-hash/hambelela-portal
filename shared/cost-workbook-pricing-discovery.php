@@ -22,7 +22,7 @@ function rpd_website_rows(array $rows,array $sources,array $settings):array {
     $covered=[];foreach($rows as $r)if(!empty($r['website_key']))$covered[$r['website_key']]=true;
     foreach($sources['website'] as $site){
         $key=$site['product_id'].':'.$site['variation_id'];if(isset($covered[$key]))continue;
-        $p=rpd_match($site,$sources);$sid=rpm_site_size($site,$sources['sizes']);$size=rpm_find($sources['sizes'],'id',$sid??'');
+        $p=rpd_match($site,$sources);$sid=$p&&in_array($p['costing_basis'],['count','ready_made'],true)?0:rpm_site_size($site,$p?rpm_sizes($sources,$p):$sources['sizes']);$size=rpm_find($sources['sizes'],'id',$sid??'');
         if($sid===null&&(($p&&in_array($p['costing_basis'],['count','ready_made'],true))||(!$p&&($site['product_type']??'')==='simple')))$sid=0;
         $b=['website_origin'=>true,'product_id'=>$p['id']??0,'size_conversion_id'=>$sid,'website_key'=>$key,'website_confirmed'=>true,'selling_price_inc_vat'=>$site['active_price_inc_vat']??'',
             'manual_name'=>$p?'':$site['product_name'],'manual_code'=>$p?'':($site['sku']??''),'manual_category'=>$p?'':($site['category']??''),'manual_basis'=>$size['measurement_type']??'count',

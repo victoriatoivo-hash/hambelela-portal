@@ -34,13 +34,29 @@ function rpm_setup(array $sources,array $product,int $sizeId):?array {
     return $matches[0]??null;
 }
 function rpm_site_size(array $site,array $sizes):?int {
-    $text=strtolower((string)$site['variation_name'].' '.(string)$site['attributes']);$found=[];
+    $text=strtolower((string)$site['variation_name'].' '.(string)$site['attributes'].((string)($site['product_type']??'')==='simple'?' '.(string)($site['product_name']??''):''));$found=[];
     preg_match_all('/(?<![\d.])(\d+(?:\.\d+)?)\s*(kg|g|ml|l)(?![a-z])/i',$text,$tokens,PREG_SET_ORDER);
     foreach($tokens as $t){$unit=strtolower($t[2]);$basis=in_array($unit,['g','kg'],true)?'weight':'volume';$base=(float)$t[1]/(in_array($unit,['g','ml'],true)?1000:1);foreach($sizes as $s)if($s['measurement_type']===$basis&&abs((float)$s['base_value']-$base)<0.000001)$found[(int)$s['id']]=true;}
     return count($found)===1?(int)array_key_first($found):null;
 }
+/** Resolve a simple product's own price/unit; never substitute retail for supplier cost. */
+function rpm_website_defaults(array $sources,array $body):array {
+    if(empty($body['website_key'])||(empty($body['website_confirmed'])&&empty($body['website_origin'])))return $body;
+    $site=null;foreach($sources['website'] as $candidate)if($candidate['product_id'].':'.$candidate['variation_id']===$body['website_key']){$site=$candidate;break;}
+    if(!$site||($site['product_type']??'')!=='simple'||(int)$site['variation_id']!==0)return $body;
+    $product=rpm_find($sources['products'],'id',$body['product_id']??0);
+    if(($body['size_conversion_id']??'')===''){
+        $basis=$product['costing_basis']??($body['manual_basis']??'count');
+        if(in_array($basis,['count','ready_made'],true))$body['size_conversion_id']=0;
+        elseif($product){$size=rpm_site_size($site,rpm_sizes($sources,$product));if($size!==null)$body['size_conversion_id']=$size;}
+    }
+    $price=$body['selling_price_inc_vat']??'';$websitePrice=$site['active_price_inc_vat']??null;
+    if(($price===''||$price===null)&&empty($body['id'])&&($body['selling_price_source']??'')!=='manual'&&is_numeric($websitePrice)&&is_finite((float)$websitePrice)&&(float)$websitePrice>0){$body['selling_price_inc_vat']=$websitePrice;$body['selling_price_source']='website';}
+    return $body;
+}
 function rpm_preview(array $sources,array $settings,array $b):array {
     $b=rpm_apply_vat($b);
+    $entered=$b;$b=rpm_website_defaults($sources,$b);
     $p=rpm_find($sources['products'],'id',$b['product_id']??0);
     $parent=(int)explode(':',(string)($b['website_key']??''))[0];
     if($p&&!empty($sources['unlinked'][$parent])&&(int)($p['woo_product_id']??0)!==$parent)throw new DomainException('This supplier link was removed. Select and confirm the correct supplier link before using its cost.');
@@ -61,7 +77,7 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $packLabel=$packMode==='manual'?($confirmed?'Confirmed manual packaging':'Manual packaging estimate'):($packMode==='none'?'Packaging not applicable':($packMode==='material'?($material['item_name']??'Packaging material unavailable'):($setup['setup_name']??'Packaging required')));
     $site=null;foreach($sources['website']as $w)if($w['product_id'].':'.$w['variation_id']===($b['website_key']??'')){$site=$w;break;}
     if(!empty($b['website_key'])&&!$site)throw new DomainException('The selected variation is not in the latest successful website snapshot.');
-    if($site&&$size){$matched=rpm_site_size($site,$sources['sizes']);if($matched!==null&&$matched!==(int)$size['id'])throw new DomainException('This website variation has a different size. Select the exact matching variation.');}
+    if($site&&$size){$matched=rpm_site_size($site,rpm_sizes($sources,$p));if($matched!==null&&$matched!==(int)$size['id'])throw new DomainException('This website variation has a different size. Select the exact matching variation.');}
     $selling=$b['selling_price_inc_vat']??($site['active_price_inc_vat']??null);$selling=is_numeric($selling)&&(float)$selling>=0?(float)$selling:null;
     $vat=is_numeric($b['vat_rate']??null)?(float)$b['vat_rate']:(float)($settings['retail_vat_rate']??15);
     $treatment=(string)($b['vat_treatment']??'');if(in_array($treatment,['zero','exempt'],true))$vat=0;
@@ -86,7 +102,7 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $websiteStatus=!$site?'Not Linked':($stock===null?'Stock Unknown':($outdated?'Sync Outdated':($difference?'Price Difference':'Linked')));
     $pricingStatus=$contents===null?($size?'Costing Required':'Not Started'):($pack===null?'Packaging Required':($packMode==='manual'&&!$confirmed?'Packaging Estimate':($selling===null||$selling<=0||$priceEx===null?'Not Started':($profit<0?'Loss-Making':($margin<(float)($settings['retail_low_margin_threshold']??20)?'Low Margin':'Pricing Complete')))));
     $token=hash('sha256',json_encode([$p,$size,$setup,$material,$site,$sources['batch'],$packMode,$packMode==='manual'?$pack:null,$packMode==='setup'?true:$confirmed,$settings]));
-    $extra=['supplier_link_removed'=>$removed,'known_cost_ex_vat'=>$known,'provisional'=>!$complete,'cost_status'=>$contents===null?'Cost Not Matched':'Matched','completion_status'=>$complete&&$priceEx!==null&&$selling>0?'Complete':'Incomplete','website_link_status'=>$site?'Linked':'Not Linked'];
+    $extra=['supplier_link_removed'=>$removed,'known_cost_ex_vat'=>$known,'provisional'=>!$complete,'cost_status'=>$contents===null?'Cost Not Matched':'Matched','completion_status'=>$complete&&$priceEx!==null&&$selling>0?'Complete':'Incomplete','website_link_status'=>$site?'Linked':'Not Linked','website_price_defaulted'=>($entered['selling_price_inc_vat']??'')===''&&is_numeric($b['selling_price_inc_vat']??null)&&($b['selling_price_source']??'')==='website','website_size_defaulted'=>($entered['size_conversion_id']??'')===''&&isset($b['size_conversion_id'])&&$b['size_conversion_id']!==''];
     foreach(['manual_name','manual_code','manual_category','manual_basis'] as $field)$extra[$field]=$b[$field]??'';
     if(!empty($b['manual_name'])){$extra['product_name']=$b['manual_name'];$extra['short_code']=$b['manual_code']??'';$extra['category']=$b['manual_category']??'';}
     // Cost refreshes must use the same confirmed website display identity as saved sheet rows.
@@ -105,7 +121,7 @@ function rpm_rows(PDO $pdo,array $s,array $settings):array {
         try{$row=rpm_preview($s,$settings,$b);}catch(DomainException $e){$b['website_key']='';$b['packaging_setup_id']=0;$row=rpm_preview($s,$settings,$b);$row['issues'][]=$e->getMessage();}
         $row['id']=(int)$price['pricing_id'];$row['version']=(int)$price['current_version'];$row['saved']=true;$row['effective_date']=$price['effective_date'];$row['cost_changed']=$row['total_cost_ex_vat']!==null&&abs($row['total_cost_ex_vat']-(float)$price['saved_cost'])>0.00001;$rows[]=$row;$covered[$price['product_id'].':'.$price['size_conversion_id']]=true;
     }
-    foreach($s['products']as $p){$proposals=[];foreach($s['website']as $site){if(function_exists('rpd_match')&&(($candidate=rpd_match($site,$s))!==null)&&(int)$candidate['id']===(int)$p['id']){$size=rpm_site_size($site,$s['sizes']);if($size===null&&($site['product_type']??'')==='simple'&&in_array($p['costing_basis'],['count','ready_made'],true))$size=0;if($size!==null&&!isset($covered[$p['id'].':'.$size]))$proposals[$size]=['size_conversion_id'=>$size,'website_key'=>isset($proposals[$size])?'':$site['product_id'].':'.$site['variation_id']];}}
+    foreach($s['products']as $p){$proposals=[];foreach($s['website']as $site){if(function_exists('rpd_match')&&(($candidate=rpd_match($site,$s))!==null)&&(int)$candidate['id']===(int)$p['id']){$size=rpm_site_size($site,rpm_sizes($s,$p));if($size===null&&($site['product_type']??'')==='simple'&&in_array($p['costing_basis'],['count','ready_made'],true))$size=0;if($size!==null&&!isset($covered[$p['id'].':'.$size]))$proposals[$size]=['size_conversion_id'=>$size,'website_key'=>isset($proposals[$size])?'':$site['product_id'].':'.$site['variation_id']];}}
         $has=false;foreach($covered as $key=>$v)if(strpos($key,$p['id'].':')===0)$has=true;
         if(!$has&&!$proposals)$proposals[]=['size_conversion_id'=>null,'website_key'=>''];
         foreach($proposals as $b){$b['product_id']=$p['id'];if(!empty($b['website_key']))foreach($s['website'] as $web)if($web['product_id'].':'.$web['variation_id']===$b['website_key']){$b=array_merge($web['retained_body']??[],$b,cwp_vat($web,$settings));$b['website_confirmed']=true;break;}$row=rpm_preview($s,$settings,$b);$row['id']=0;$row['version']=0;$row['saved']=false;$row['effective_date']=rpm_today();$row['cost_changed']=false;if(isset($web['retained_body'])&&!empty($b['website_key']))$row['sheet_body']=$b;$rows[]=$row;}
