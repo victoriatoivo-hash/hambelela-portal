@@ -25,6 +25,8 @@ try {
             $summaries[]=['employee_id'=>(int)$person['id'],'status'=>$result['status'],
                 'official_score_hundredths'=>$result['official_score_hundredths']??null,
                 'provisional_score_hundredths'=>$result['provisional_score_hundredths']??null,
+                'available_points_hundredths'=>$result['available_points_hundredths']??null,
+                'available_weight_hundredths'=>$result['available_weight_hundredths']??null,
                 'result_id'=>$result['result_id']??null,'scorecard_version'=>$result['scorecard_version']??null,
                 'last_calculated_at'=>$result['last_calculated_at']??null,
                 'data_may_be_stale'=>!empty($result['data_may_be_stale']),

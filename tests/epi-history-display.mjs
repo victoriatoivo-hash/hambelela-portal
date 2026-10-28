@@ -60,3 +60,10 @@ assert.match(capture,/Approve prospective working schedule/);assert.match(captur
 assert.match(capture,/Confirm physical-attendance evidence/);assert.match(capture,/Verify website stock accuracy/);
 assert.match(capture,/No unaudited, prospectively tracked website update/);
 console.log('PASS: unavailable counts, preserved historical result, genuine calculated zero, missing source, safe escaping and profile render');
+const availableHtml=await render({...base,status:'provisional',available_points_hundredths:2000,available_weight_hundredths:2500,measured_weight_hundredths:0});
+assert.match(availableHtml,/20\.0 \/ 25\.0 pts · Provisional/);
+assert.match(availableHtml,/not a complete \/100 monthly score/);
+assert.match(availableHtml,/Available score weight/);
+assert.doesNotMatch(availableHtml,/80\.0%/,'partial weighted points must not be normalised');
+const noWorkHtml=await render({...base,availability_status:'no_eligible_work'});
+assert.match(noWorkHtml,/No eligible work/);

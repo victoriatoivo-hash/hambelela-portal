@@ -59,4 +59,34 @@ foreach (['weight','counts','version','minimum','direction','target'] as $invali
     try { RateScoreCalculator::calculate($p,$s); } catch (InvalidArgumentException $e) { $rejected=true; }
     check($rejected,'Reject '.$invalid);
 }
+// Partial results are points out of supported weight, not a fabricated /100.
+$partialPolicy=['version'=>'partial-synthetic','categories'=>[
+    'orders'=>['weight_hundredths'=>2500,'metrics'=>['sla'=>['weight_hundredths'=>10000,'minimum_volume'=>5,'direction'=>'success']]],
+    'other'=>['weight_hundredths'=>7500,'metrics'=>['work'=>['weight_hundredths'=>10000,'minimum_volume'=>5,'direction'=>'success']]]]];
+$partialSamples=['orders'=>['sla'=>['eligible_volume'=>10,'numerator'=>8,'source_complete'=>false]]];
+$partial=RateScoreCalculator::calculate($partialPolicy,$partialSamples);
+check($partial['available_points_hundredths']===2000,'80 percent of original 25 points is 20, not reweighted 80');
+check($partial['available_weight_hundredths']===2500,'Available maximum is original supported 25 points');
+check($partial['official_score_hundredths']===null&&$partial['provisional_score_hundredths']===null,'Partial points do not fabricate a complete percentage');
+check($partial['categories']['orders']['available_points_hundredths']===8000,'Supported category retains its real 80 of 100 points');
+$partialSamples['orders']['sla']['eligible_volume']=4;$partialSamples['orders']['sla']['numerator']=4;
+$low=RateScoreCalculator::calculate($partialPolicy,$partialSamples);
+check($low['available_points_hundredths']===null,'Below-minimum rates do not contribute score points');
+check($low['categories']['orders']['metrics']['sla']['rate_hundredths']===10000,'Low-sample observed rate is retained separately');
+$partialSamples['orders']['sla']=['eligible_volume'=>0,'numerator'=>0,'source_complete'=>true];
+$idle=RateScoreCalculator::calculate($partialPolicy,$partialSamples);
+check($idle['categories']['orders']['metrics']['sla']['sample_state']==='no_eligible_work','Verified no-workload is explicit');
+check($idle['no_workload_weight_hundredths']===2500,'No-workload weight disclosed but not redistributed');
+check($idle['available_points_hundredths']===null&&$idle['official_score_hundredths']===null,'No-workload earns neither zero nor perfect score');
+$partialSamples['orders']['sla']['source_complete']=false;
+check(RateScoreCalculator::calculate($partialPolicy,$partialSamples)['categories']['orders']['metrics']['sla']['sample_state']==='missing_evidence','Unverified emptiness is missing evidence, not zero work');
+$partialSamples['orders']['sla']=['eligible_volume'=>0,'numerator'=>0,'source_complete'=>true,'pending_observations'=>2];
+check(RateScoreCalculator::calculate($partialPolicy,$partialSamples)['categories']['orders']['metrics']['sla']['sample_state']==='not_due','Pending assigned work is not called no workload');
+require_once __DIR__.'/../shared/epi/PerformanceSourceCoverage.php';
+$window=Hambelela\EPI\PerformanceSourceCoverage::describe('2026-10-01 00:00:00','2026-11-01 00:00:00','2026-10-28 20:00:00','2026-10-27 18:42:04',true,0,false);
+check($window['state']==='partial_period'&&!$window['full_period_verified'],'Prospective capture never reconstructs October');
+$window=Hambelela\EPI\PerformanceSourceCoverage::describe('2026-11-01 00:00:00','2026-12-01 00:00:00','2026-11-10 20:00:00','2026-10-27 18:42:04',true,0,false);
+check($window['state']==='unverified_period'&&!$window['full_period_verified'],'Connected healthy feed does not auto-approve complete responsibility coverage');
+$window=Hambelela\EPI\PerformanceSourceCoverage::describe('2026-11-01 00:00:00','2026-12-01 00:00:00','2026-11-10 20:00:00','2026-10-27 18:42:04',true,2,true);
+check($window['state']==='capture_pending'&&!$window['full_period_verified'],'Pending operational capture blocks completeness');
 echo json_encode(['passed'=>$passed,'failed'=>0]).PHP_EOL;

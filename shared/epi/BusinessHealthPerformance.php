@@ -50,6 +50,10 @@ final class BusinessHealthPerformance
         $person['summary_label']=$official!==null?'Official V2 monthly result':'Provisional V2 monthly result';
         if(in_array($status,['not_configured','pending_calculation','select_month'],true))$person['summary_label']='V2 monthly result';
         $person['summary_empty']=$status==='select_month'?'Select one month':(in_array($status,['not_configured','pending_calculation'],true)?'Not Calculated':'Not measured');
+        if($person['summary_score']===null&&EmployeePerformanceService::availableDisplay($result)!==null){
+            $person['summary_empty']=EmployeePerformanceService::availableDisplay($result);
+            $person['summary_label']='Available weighted points — incomplete monthly result';
+        }
         $person['performance_month']=$month;
         $person['performance_status']=$status;
         $person['performance_result_id']=$result['result_id']??null;
@@ -65,7 +69,7 @@ final class BusinessHealthPerformance
         $observed=[];
         foreach($result['categories']??[] as $category){
             $score=$category['official_score_hundredths']??$category['provisional_score_hundredths']??null;
-            $display=$score===null?'Not measured':number_format($score/100,1).'%';
+            $display=$score===null?(EmployeePerformanceService::availableDisplay($category)??(($category['availability_status']??'')==='no_eligible_work'?'No eligible work':'Not measured')):number_format($score/100,1).'%';
             if($score!==null && $status!=='official')$display.=' · provisional';
             $person['metrics'][]=['label'=>$category['label'],'value'=>$display,
                 'tooltip'=>'Same published category result as the employee profile. A provisional category is not an official employee score; missing required weight is not redistributed.'];

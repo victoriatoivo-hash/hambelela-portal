@@ -142,7 +142,8 @@ final class EmployeePerformanceService
     {
         return ['Employee ID','Employee','Month','Result status','Official score %','Scorecard version','Category','Category weight %','KPI','Numerator','Eligible volume','Rate %','KPI status','Confidence','Reason','Calculated at','Stale',
             'Numerator meaning','Configured target %','Category movement points','KPI rate movement points',
-            'Provisional score %','Measurement begins','Policy status','Measurement explanation'];
+            'Provisional score %','Measurement begins','Policy status','Measurement explanation',
+            'Available weighted points','Available maximum points','Category available points','Category available maximum points','Sample state','Source window'];
     }
 
     public static function exportRows(array $result):array
@@ -159,13 +160,18 @@ final class EmployeePerformanceService
             isset($category['movement_hundredths'])?$category['movement_hundredths']/100:'',
             isset($r['movement_hundredths'])?$r['movement_hundredths']/100:'',
             isset($result['provisional_score_hundredths'])?$result['provisional_score_hundredths']/100:'',
-            $result['measurement_begins_at']??'',$result['policy_status']??'',self::measurementExplanation($r)];
+            $result['measurement_begins_at']??'',$result['policy_status']??'',self::measurementExplanation($r),
+            isset($result['available_points_hundredths'])?$result['available_points_hundredths']/100:'',
+            isset($result['available_weight_hundredths'])?$result['available_weight_hundredths']/100:'',
+            isset($category['available_points_hundredths'])?$category['available_points_hundredths']/100:'',
+            isset($category['available_weight_hundredths'])?$category['available_weight_hundredths']/100:'',
+            $r['sample_state']??'',isset($r['source_window'])?Support::json($r['source_window']):''];
         // Keep unconfigured / empty employees visible in a workforce export too.
         if(!$rows)$rows[]=[
             $result['employee_id'],$result['employee_name']??'',$result['period_start'],$result['status'],
             isset($result['official_score_hundredths'])?$result['official_score_hundredths']/100:'',
             $result['scorecard_version']??'','','','','','','',$result['status'],'not_measured',
-            'No published KPI result',$result['last_calculated_at']??'',!empty($result['data_may_be_stale'])?'Yes':'No','','','','','','','','No published KPI observation is available for this employee and month.'];
+            'No published KPI result',$result['last_calculated_at']??'',!empty($result['data_may_be_stale'])?'Yes':'No','','','','','','','','No published KPI observation is available for this employee and month.','','','','','',''];
         return $rows;
     }
 
@@ -176,6 +182,18 @@ final class EmployeePerformanceService
 
     public static function measurementExplanation(array $metric):string
     {
+        $text=self::measurementReason($metric);
+        if(!empty($metric['source_window'])){
+            $w=$metric['source_window'];
+            $text.=' Capture from '.($w['capture_from']??'unknown').' through '.($w['observed_through']??'unknown').'. '.($w['reason']??'');
+        }
+        if(($metric['pending_observations']??0)>0)$text.=' '.(int)$metric['pending_observations'].' obligations are not yet observed/due; they are not counted as success.';
+        if(($metric['withheld_observations']??0)>0)$text.=' '.(int)$metric['withheld_observations'].' observations require attribution/evidence review.';
+        return $text;
+    }
+
+    private static function measurementReason(array $metric):string
+    {
         $volume=(int)($metric['eligible_volume']??0);
         $reason=(string)($metric['reason']??'');
         if($reason==='incomplete_source')return ($volume>0
@@ -185,9 +203,16 @@ final class EmployeePerformanceService
         if($reason==='missing_evidence')return 'No published evidence is available; absence of a record is not proof of no work.';
         if($reason==='low_sample')return 'Observed workload is below the configured minimum of '.(int)($metric['minimum_volume']??5).' observations.';
         if($reason==='no_workload')return 'No attributable eligible work was recorded in a verified source for this month.';
+        if($reason==='awaiting_due')return 'Assigned obligations exist but no outcome is due/observed yet; no score is assigned.';
         if($reason==='not_applicable_requires_scorecard_revision')return 'This measure needs an explicit scorecard revision before it can be excluded or scored.';
         if(($metric['status']??'')==='calculated')return 'Calculated from verified, attributable eligible work.';
         return 'Not measured: eligibility or source coverage requires review.';
+    }
+
+    public static function availableDisplay(array $result):?string
+    {
+        if(!isset($result['available_points_hundredths'])||empty($result['available_weight_hundredths']))return null;
+        return number_format($result['available_points_hundredths']/100,1).' / '.number_format($result['available_weight_hundredths']/100,1).' pts · Provisional';
     }
 
     public function read(int $employee,string $period): array
@@ -263,7 +288,9 @@ final class EmployeePerformanceService
             $result['measurement_begins_at']=$policy['provisional_capture']['from']??$boundary;
             $result['default_weights_provisional']=($policy['status']??'')==='provisional';
             $result['function_scope']=$policy['scope']??null;
-            $hash=hash('sha256',self::canonical([$assignment,$projection]));
+            $hashProjection=$projection;
+            foreach($hashProjection['observations'] as &$metrics)foreach($metrics as &$sample)unset($sample['source_window']['observed_through']);unset($sample,$metrics);
+            $hash=hash('sha256',self::canonical([RateScoreCalculator::VERSION,$assignment,$hashProjection]));
             $head=V2Store::one($this->db,'SELECT * FROM epi_v2_employee_result_heads
                 WHERE employee_id=? AND period_start=? FOR UPDATE',[$employee,$period]);
             $latest=V2Store::one($this->db,'SELECT * FROM epi_v2_employee_results
@@ -291,6 +318,8 @@ final class EmployeePerformanceService
             $samples[$category][$metric]=['eligible_volume'=>0,'numerator'=>0,
                 'source_complete'=>($coverage[$category][$metric]['complete']??false)===true,
                 'source_coverage_reason'=>$coverage[$category][$metric]['reason']??null,
+                'source_window'=>$coverage[$category][$metric]['source_window']??null,
+                'withheld_observations'=>0,'pending_observations'=>0,
                 'applicable'=>($coverage[$category][$metric]['applicable']??true)!==false];
         }
         // Stable ordering makes identical inputs idempotent regardless of query ordering.
@@ -316,8 +345,9 @@ final class EmployeePerformanceService
             elseif(!self::responsibilityValid($employee,$row)) $reason='invalid_responsibility_snapshot';
             elseif($row['outcome']==='failure' && empty($row['root_incident_id'])) $reason='missing_root_incident';
             if($reason!==null){
+                if($reason==='awaiting_watchdog_or_fulfilment')$samples[$category][$metric]['pending_observations']++;
                 if($reason==='central_eligibility_exclusion' && ($row['metadata']['mode']??'')==='shadow')
-                    $samples[$category][$metric]['source_complete']=false;
+                    {$samples[$category][$metric]['source_complete']=false;$samples[$category][$metric]['withheld_observations']++;}
                 if(in_array($reason,['insufficient_attribution','missing_source_module','incomplete_explanation',
                     'invalid_responsibility_snapshot','missing_root_incident','correlation_attribution_changed',
                     'multiple_roots_need_workload_review'],true))

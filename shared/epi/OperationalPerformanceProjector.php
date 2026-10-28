@@ -145,6 +145,10 @@ final class OperationalPerformanceProjector
         $opportunities=array_merge($opportunities,$this->completedUnits($employee,$start,$end,$policy,$coverage));
         require_once __DIR__.'/AttendanceEvidenceProjector.php';
         $opportunities=array_merge($opportunities,AttendanceEvidenceProjector::employee($this->db,$employee,$start,$end,$coverage));
+        if(($policy['status']??'')==='provisional'){
+            require_once __DIR__.'/PerformanceSourceCoverage.php';
+            $coverage=PerformanceSourceCoverage::resolve($this->db,$policy,$period,$coverage);
+        }
         if(($policy['scope']['kind']??'')==='front_desk_coverage')foreach($opportunities as &$o){
             if(!self::withinFunctionScope($this->db,$policy,$o['ownership']??null)){$o['eligible']=false;$o['exclusion_reason']='outside_front_desk_function_scope';}
         }unset($o);

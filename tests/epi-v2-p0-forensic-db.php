@@ -228,6 +228,7 @@ require __DIR__.'/epi-history-continuity-db.php';
 require __DIR__.'/epi-provisional-activation-db.php';
 require __DIR__.'/epi-provisional-timings-db.php';
 require __DIR__.'/epi-integration-closure-db.php';
+require __DIR__.'/epi-available-results-db.php';
 $summary=['database'=>$database,'server'=>scalar('SELECT VERSION()'),'timezone'=>'Africa/Windhoek','production_changes'=>false,'pass'=>count(array_filter($results,fn($r)=>$r['status']==='PASS')),'fail'=>count(array_filter($results,fn($r)=>$r['status']==='FAIL')),'tests'=>$results];
 echo json_encode($summary,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL;
 exit($summary['fail']?1:0);

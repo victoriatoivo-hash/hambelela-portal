@@ -9,6 +9,7 @@ use InvalidArgumentException;
  */
 final class RateScoreCalculator
 {
+    public const VERSION='epi-v2-rate-2';
     public static function calculate(array $policy, array $observations): array
     {
         if (trim((string)($policy['version'] ?? '')) === '') {
@@ -18,10 +19,12 @@ final class RateScoreCalculator
         self::weights($categories);
         $output = []; $overall = 0.0; $complete = true; $measuredWeight = 0.0;
         $missing = []; $provisionalComplete=true;
+        $availablePoints=0.0;$availableWeight=0.0;$noWorkWeight=0.0;
         foreach ($categories as $categoryKey => $category) {
             $metrics = $category['metrics'] ?? [];
             self::weights($metrics);
             $metricRows = []; $categoryScore = 0.0; $categoryComplete = true; $categoryObserved=true;
+            $categoryPoints=0.0;$categoryWeight=0.0;$categoryNoWork=0.0;
             foreach ($metrics as $key => $metric) {
                 $minimum = $metric['minimum_volume'] ?? null;
                 if (!is_int($minimum) || $minimum < 1) {
@@ -57,10 +60,13 @@ final class RateScoreCalculator
                     $row['eligible_volume'] = $denominator;
                     $row['numerator'] = $numerator;
                     $row['source_coverage_reason']=$sample['source_coverage_reason']??null;
+                    $row['source_window']=$sample['source_window']??null;
+                    $row['withheld_observations']=(int)($sample['withheld_observations']??0);
+                    $row['pending_observations']=(int)($sample['pending_observations']??0);
                     $applicable = ($sample['applicable'] ?? true) !== false;
                     $row['reason'] = !$applicable ? 'not_applicable_requires_scorecard_revision' :
                         (($sample['source_complete'] ?? false) !== true ? 'incomplete_source' :
-                        ($denominator === 0 ? 'no_workload' : ($denominator < $minimum ? 'low_sample' : null)));
+                        ($denominator === 0 ? (($row['pending_observations']??0)>0?'awaiting_due':'no_workload') : ($denominator < $minimum ? 'low_sample' : null)));
                     if (!$applicable) $row['status'] = 'not_applicable';
                     if ($denominator > 0 && $applicable) {
                         $rate = $numerator / $denominator;
@@ -75,6 +81,16 @@ final class RateScoreCalculator
                         $categoryScore += $score * $metric['weight_hundredths'] / 10000;
                     }
                 }
+                // Available points retain their original configured weight. This
+                // is a fraction of supported points, NEVER a reweighted /100 score.
+                $available=$row['score_hundredths']!==null&&$row['eligible_volume']>=$minimum;
+                $row['available_weight_hundredths']=$available?$metric['weight_hundredths']:0;
+                $row['available_points_hundredths']=$available?(int)round($row['score_hundredths']*$metric['weight_hundredths']/10000):null;
+                $row['sample_state']=$row['eligible_volume']>0?($row['eligible_volume']<$minimum?'low_sample':'observed'):
+                    (($row['pending_observations']??0)>0?'not_due':(($row['withheld_observations']??0)>0?'needs_review':
+                    ($row['reason']==='no_workload'?'no_eligible_work':(($row['source_window']['state']??'')==='not_started'?'not_started':'missing_evidence'))));
+                if($row['sample_state']==='no_eligible_work')$categoryNoWork+=$metric['weight_hundredths'];
+                if($available){$categoryPoints+=$row['score_hundredths']*$metric['weight_hundredths']/10000;$categoryWeight+=$metric['weight_hundredths'];}
                 if ($row['status'] !== 'calculated') {
                     $categoryComplete = false;
                     $missing[] = ['category'=>$categoryKey, 'metric'=>$key, 'reason'=>$row['reason'],
@@ -93,19 +109,32 @@ final class RateScoreCalculator
                     (int)round($categoryScore * $category['weight_hundredths'] / 10000) : null,
                 'official_score_hundredths'=>$categoryComplete ? (int)round($categoryScore) : null,
                 'provisional_score_hundredths'=>$categoryObserved?(int)round($categoryScore):null,
-                'provisional_contribution_hundredths'=>$categoryObserved?(int)round($categoryScore*$category['weight_hundredths']/10000):null];
+                'provisional_contribution_hundredths'=>$categoryObserved?(int)round($categoryScore*$category['weight_hundredths']/10000):null,
+                'available_points_hundredths'=>$categoryWeight>0?(int)round($categoryPoints):null,
+                'available_weight_hundredths'=>(int)round($categoryWeight),
+                'available_contribution_hundredths'=>$categoryWeight>0?(int)round($categoryPoints*$category['weight_hundredths']/10000):null,
+                'available_contribution_weight_hundredths'=>(int)round($categoryWeight*$category['weight_hundredths']/10000),
+                'no_workload_weight_hundredths'=>(int)round($categoryNoWork),
+                'availability_status'=>$categoryWeight>0?'provisional_available':($categoryNoWork===10000.0?'no_eligible_work':'not_measured')];
+            $availablePoints+=$categoryPoints*$category['weight_hundredths']/10000;
+            $availableWeight+=$categoryWeight*$category['weight_hundredths']/10000;
+            $noWorkWeight+=$categoryNoWork*$category['weight_hundredths']/10000;
             if (!$categoryComplete) $complete = false;
             if (!$categoryObserved) $provisionalComplete=false;
             $overall += $categoryScore * $category['weight_hundredths'] / 10000;
         }
-        return ['calculation_version'=>'epi-v2-rate-1', 'scorecard_version'=>$policy['version'],
+        return ['calculation_version'=>self::VERSION, 'scorecard_version'=>$policy['version'],
             'measured_weight_hundredths'=>(int)round($measuredWeight),
             'missing_required_weight_hundredths'=>10000-(int)round($measuredWeight),
             'missing_evidence'=>$missing, 'renormalised'=>false,
             'categories'=>$output, 'status'=>$complete ? 'calculated' : 'insufficient_data',
             'official_score_hundredths'=>$complete ? (int)round($overall) : null,
             // Never fill missing components with zero or redistribute their weights.
-            'provisional_score_hundredths'=>$provisionalComplete?(int)round($overall):null];
+            'provisional_score_hundredths'=>$provisionalComplete?(int)round($overall):null,
+            'available_points_hundredths'=>$availableWeight>0?(int)round($availablePoints):null,
+            'available_weight_hundredths'=>(int)round($availableWeight),
+            'no_workload_weight_hundredths'=>(int)round($noWorkWeight),
+            'availability_status'=>$availableWeight>0?'provisional_available':($noWorkWeight===10000.0?'no_eligible_work':'not_measured')];
     }
 
     private static function weights(array $rows): void

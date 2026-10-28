@@ -24,7 +24,7 @@
         let label='Not calculated';
         if(result){
           if(result.status==='official'&&numeric(result.official_score_hundredths))label=`${(Number(result.official_score_hundredths)/100).toFixed(1)} / 100`;
-          else if(['provisional','validation'].includes(result.status))label=numeric(result.provisional_score_hundredths)?`${(Number(result.provisional_score_hundredths)/100).toFixed(1)} / 100 · Provisional`:'Provisional';
+          else if(['provisional','validation'].includes(result.status))label=numeric(result.provisional_score_hundredths)?`${(Number(result.provisional_score_hundredths)/100).toFixed(1)} / 100 · Provisional`:numeric(result.available_points_hundredths)&&Number(result.available_weight_hundredths)>0?`${(Number(result.available_points_hundredths)/100).toFixed(1)} / ${(Number(result.available_weight_hundredths)/100).toFixed(1)} pts · Provisional`:'Provisional';
           else if(result.status==='insufficient_data')label='Not measured';
           if(result.data_may_be_stale)label+=' · Update pending';
           a.title=`${label}. ${numeric(result.personal_risk_count)?`${result.personal_risk_count} tracked open obligations. `:''}${result.risk_scope||''}`;
