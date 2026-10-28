@@ -6,6 +6,7 @@ require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/kpi-reporting.php';
 require_once __DIR__ . '/kpi-event-reporting.php';
 require_once __DIR__ . '/performance-activity.php';
+require_once BASE_PATH . '/shared/epi/BusinessHealthPerformance.php';
 require_role('owner_admin');
 header('Content-Type: application/json; charset=utf-8');
 
@@ -77,8 +78,10 @@ try {
     $cacheFile = BASE_PATH . '/logs/kpi_business_health_' . $cacheKey . '.json';
     if (empty($_GET['refresh']) && is_file($cacheFile) && filemtime($cacheFile) >= time() - 60) {
         header('X-KPI-Cache: HIT');
-        readfile($cacheFile);
-        exit;
+        // Operational aggregates may be cached; employee results/risk must stay
+        // on the exact live revision used by profiles and CSV exports.
+        $cached=json_decode(file_get_contents($cacheFile),true,512,JSON_THROW_ON_ERROR);
+        kpi_json(\Hambelela\EPI\BusinessHealthPerformance::attach(db(),$cached));
     }
 
     $paidRevenue = kpi_paid_revenue_condition('ops_orders');
@@ -233,7 +236,7 @@ try {
         error_log('Dashboard business activity: '.$activityError->getMessage());
     }
     @file_put_contents($cacheFile,json_encode($payload,JSON_UNESCAPED_SLASHES),LOCK_EX);
-    header('X-KPI-Cache: MISS'); kpi_json($payload);
+    header('X-KPI-Cache: MISS'); kpi_json(\Hambelela\EPI\BusinessHealthPerformance::attach(db(),$payload));
 } catch (Throwable $error) {
     error_log(date(DATE_ATOM).' business health: '.$error->getMessage().PHP_EOL,3,BASE_PATH.'/logs/kpi_errors.log');
     kpi_json(['ok'=>false,'message'=>'Business Health is temporarily unavailable.'],500);

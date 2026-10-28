@@ -8,7 +8,8 @@ const files=['shared/epi/PerformanceCapturePolicy.php','shared/epi/DeadlineEngin
 'shared/epi/V2QualityBridge.php','shared/epi/OperationalPerformanceProjector.php','shared/epi/EmployeePerformanceService.php',
 'shared/epi/RateScoreCalculator.php','shared/epi/AttendanceEvidenceProjector.php','shared/epi/ProvisionalScorecardAssignments.php',
 'shared/epi/V2Watchdog.php','shared/epi/FrontDeskRoster.php','shared/epi/PerformanceRefreshRuntime.php','apps/operations/kpi-presence-review.php',
-'apps/operations/performance-workforce-response.php','assets/js/employee-performance.js','assets/js/performance-workspace.js','assets/js/employee-performance-workforce.js'];
+'apps/operations/performance-workforce-response.php','assets/js/employee-performance.js','assets/js/performance-workspace.js','assets/js/employee-performance-workforce.js',
+'shared/epi/BusinessHealthPerformance.php','apps/operations/reports-data.php','assets/js/reports-business-health.js'];
 const normal=b=>b.toString('utf8').replace(/\r\n/g,'\n');const hash=b=>crypto.createHash('sha256').update(normal(b)).digest('hex');
 const manifest={baseline,files:{},dependencies:{},schema_changes:false};
 const previous=process.argv[3]?JSON.parse(fs.readFileSync(path.resolve(process.argv[3]),'utf8')):null;
