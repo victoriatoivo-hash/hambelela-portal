@@ -1,0 +1,1139 @@
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap');
+
+main.vatx-page {
+  --vatx-blue: #28639B;
+  --vatx-blue-dark: #1E4F80;
+  --vatx-olive: #344126;
+  --vatx-sage: #59694A;
+  --vatx-cream: #F8F7F2;
+  --vatx-white: #FFFFFF;
+  --vatx-soft-olive: #F2F4EC;
+  --vatx-soft-blue: #EDF3F9;
+  --vatx-border: #E4E6DC;
+  --vatx-text: #1C2118;
+  --vatx-secondary: #62675E;
+  --vatx-muted: #91968C;
+  --vatx-shadow: 0 4px 18px rgba(38,49,31,.045);
+
+  --vatx-accent: var(--vatx-olive);
+  --vatx-accent-soft: var(--vatx-soft-olive);
+
+  min-width: 0;
+  background: var(--vatx-cream);
+  color: var(--vatx-text);
+  font: 400 12px/1.5 "Jost",sans-serif;
+  padding: 22px 24px 30px;
+  display: block;
+  animation: vatx-page-enter .26s ease both;
+}
+
+main.vatx-page--output {
+  --vatx-accent: var(--vatx-blue);
+  --vatx-accent-soft: var(--vatx-soft-blue);
+}
+
+main.vatx-page *,
+main.vatx-page *::before,
+main.vatx-page *::after {
+  box-sizing: border-box;
+}
+
+main.vatx-page
+:is(button,input,select,textarea) {
+  font-family: "Jost",sans-serif;
+}
+
+/* Existing endpoint hooks are retained below; this stylesheet replaces, rather
+   than layers over, the old Accounts VAT styles on these two pages only. */
+.vatx-page [hidden] {display:none!important}
+.vatx-page :is(h2,h3,h4,p) {margin-top:0}
+.vatx-page h2 {font:600 15px/1.35 "Jost",sans-serif;margin-bottom:12px}
+.vatx-page h3 {font:600 12.5px/1.4 "Jost",sans-serif;margin-bottom:8px}
+.vatx-page a {color:var(--vatx-accent)}
+.vatx-page .accounts-breadcrumb {display:flex;gap:9px;align-items:center;margin:0 0 14px;font-size:10.5px}
+.vatx-page .accounts-breadcrumb a {text-decoration:none}
+.vatx-page .accounts-hero-copy {min-width:0;flex:1 1 280px}
+.vatx-page .accounts-hero-copy>p:last-child {font-size:11.5px;color:var(--vatx-secondary);margin:5px 0 0}
+.vatx-page .vatx-header {flex-wrap:wrap;align-items:flex-start}
+.vatx-page .accounts-actions {max-width:100%;gap:8px}
+.vatx-page .accounts-actions [data-portal-header-status] {max-width:100%}
+.vatx-page :where(.portal-button,.input-vat-month-arrow,.vatx-period-trigger,.vatx-year-nav button,.pending-file button,.row-actions button,.row-actions a) {display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 13px;border:1px solid var(--vatx-border);border-radius:9px;background:white;color:var(--vatx-accent);font:500 11.5px/1.2 "Jost",sans-serif;text-decoration:none;cursor:pointer;transition:background .17s,transform .17s,box-shadow .17s}
+.vatx-page .portal-button--primary {background:var(--vatx-accent);color:white;border-color:var(--vatx-accent)}
+.vatx-page .portal-button:hover {box-shadow:0 3px 10px #1c211810;transform:translateY(-1px)}
+.vatx-page button:disabled {opacity:.48;cursor:not-allowed;transform:none}
+.vatx-page button:focus-visible,.vatx-page summary:focus-visible {outline:2px solid var(--vatx-accent);outline-offset:3px}
+.vatx-page svg {width:15px;height:15px;stroke-width:1.65;flex-shrink:0}
+.vatx-page .vatx-period {margin:0 0 14px;flex-wrap:wrap}
+.vatx-page .input-vat-month-arrow {width:32px;height:32px;min-height:32px;padding:0}
+.vatx-page .vatx-period-trigger {min-height:34px;gap:9px}
+.vatx-page .vatx-period-caption {font-size:10.5px;color:var(--vatx-secondary)}
+.vatx-page .vatx-year-nav {display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px}
+.vatx-page .vatx-year-nav label {display:flex;gap:10px;align-items:center;font-size:11px}
+.vatx-page .vatx-year-nav select {height:34px;border:1px solid var(--vatx-border);border-radius:8px;background:white;padding:0 10px;color:var(--vatx-accent)}
+.vatx-page .vatx-month-grid {padding:0 16px 14px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.vatx-page .input-vat-month-tab {display:grid;gap:4px;min-height:60px;padding:8px;border:1px solid var(--vatx-border);border-radius:9px;background:white;color:var(--vatx-text);font:500 11.5px "Jost",sans-serif;cursor:pointer}
+.vatx-page .input-vat-month-tab small {font-size:9px;color:var(--vatx-secondary);text-transform:capitalize}
+.vatx-page .input-vat-month-tab.is-active {background:var(--vatx-accent-soft);border-color:var(--vatx-accent)}
+.vatx-page .input-vat-month-tab small.complete,.vatx-page .input-vat-month-tab small.completed {color:#477356}
+.vatx-page .vatx-workspace {display:grid;gap:16px;align-items:start;margin:16px 0}
+.vatx-page .vatx-workspace--input {grid-template-columns:minmax(0,1fr) 260px}
+.vatx-page .vatx-workspace--output {grid-template-columns:minmax(0,1fr) 290px}
+.vatx-page .vatx-ledger {min-width:0}
+.vatx-page .vatx-panel {padding:16px;background:white;border:1px solid var(--vatx-border);border-radius:12px;box-shadow:var(--vatx-shadow);min-width:0}
+.vatx-page .vatx-period-name {display:block;color:var(--vatx-accent);font-weight:600;font-size:12.5px;margin:0 0 9px}
+.vatx-page .vatx-facts {display:grid;gap:0;margin:14px 0}
+.vatx-page .vatx-facts>div {padding:10px 0;border-bottom:1px solid var(--vatx-border);display:flex;justify-content:space-between;gap:12px}
+.vatx-page .vatx-facts dt {font-size:10.5px;color:var(--vatx-secondary)}
+.vatx-page .vatx-facts dd {margin:0;text-align:right;font-size:11px;font-weight:500;font-variant-numeric:tabular-nums}
+.vatx-page .vatx-help,.vatx-page .field-help {display:block;color:var(--vatx-secondary);font:400 10.5px/1.5 "Jost",sans-serif;margin:7px 0 0}
+.vatx-page .vatx-panel-actions {display:grid;gap:8px;margin-top:14px}
+.vatx-page .vatx-reconcile-line {display:flex;align-items:center;justify-content:space-between;gap:20px;padding:12px 0;border-bottom:1px solid var(--vatx-border)}
+.vatx-page .vatx-reconcile-line span {font-size:12px;font-weight:500}
+.vatx-page .vatx-reconcile-line small {display:block;color:var(--vatx-secondary);font-size:10.5px;margin-top:3px}
+.vatx-page .vatx-reconcile-line strong {font-size:16px;white-space:nowrap;font-weight:600;font-variant-numeric:tabular-nums}
+.vatx-page .vatx-value-action {background:none;padding:0;border:0;color:var(--vatx-accent);text-decoration:underline;text-underline-offset:3px;cursor:pointer;font:600 16px "Jost",sans-serif;white-space:nowrap}
+.vatx-page .vatx-reconcile-total {display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px}
+.vatx-page .vatx-reconcile-total small {display:block;font-size:10.5px;color:var(--vatx-secondary);margin-top:4px}
+.vatx-page .vatx-supporting {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin:16px 0}
+.vatx-page .vatx-supporting>article:not(.vatx-panel) {padding:16px;background:white;border:1px solid var(--vatx-border);border-radius:12px}
+.vatx-page .summary-line {display:flex;flex-wrap:wrap;justify-content:space-between;gap:7px;padding:9px 0;border-bottom:1px solid #E4E6DC80;font-size:11px}
+.vatx-page .summary-line:last-child {border-bottom:0}
+.vatx-page .analysis-line-label {text-transform:capitalize;overflow-wrap:anywhere}
+.vatx-page .analysis-line-total {margin-left:auto;font-size:10.5px;white-space:nowrap}
+.vatx-page .analysis-bar-track {display:block;flex-basis:100%;height:3px;border-radius:3px;background:var(--vatx-accent-soft)}
+.vatx-page .analysis-bar-fill {display:block;width:var(--iv-bar);height:3px;border-radius:3px;background:var(--vatx-accent);opacity:.6}
+.vatx-page .output-vat-help {font-size:10.5px;color:var(--vatx-secondary);margin-top:8px}
+.vatx-page .vatx-section-heading,.vatx-page .output-vat-table-heading {display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px}
+.vatx-page .vatx-panel>.vatx-section-heading {padding:0 0 5px}
+.vatx-page .vatx-section-heading h2,.vatx-page .output-vat-table-heading h2 {margin:0}
+.vatx-page .vatx-section-heading>span,.vatx-page [data-record-count] {font-size:10.5px;color:var(--vatx-secondary)}
+.vatx-page .accounts-table-card {min-width:0;background:white;border:1px solid var(--vatx-border);border-radius:12px;overflow:hidden}
+.vatx-page .accounts-scroll-hint {margin:0;padding:0 16px 10px;color:var(--vatx-muted);font-size:10px}
+.vatx-page .vatx-table {min-width:1030px;width:100%;border-collapse:collapse}
+.vatx-page--output .vatx-table {min-width:1650px}
+.vatx-page .vatx-table :is(th.money,td.money,tfoot td:nth-child(n+4)) {text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.vatx-page .vatx-table td {max-width:230px;overflow-wrap:anywhere}
+.vatx-page .vatx-table tfoot {font-weight:600;background:var(--vatx-accent-soft)}
+.vatx-page .vatx-table tfoot td {font-weight:600}
+.vatx-page .vatx-table th[data-sort] {cursor:pointer}
+.vatx-page .empty-row {padding:30px!important;text-align:center!important}
+.vatx-page .table-empty-state {display:grid;justify-items:center;gap:8px;white-space:normal}
+.vatx-page .table-empty-state p {margin:0;color:var(--vatx-secondary)}
+.vatx-page .status-pill {display:inline-flex;align-items:center;padding:4px 8px;background:var(--vatx-accent-soft);color:var(--vatx-accent);border-radius:20px;font:500 9.5px/1.3 "Jost",sans-serif;text-transform:capitalize;white-space:nowrap}
+.vatx-page .status-pill.needs_correction,.vatx-page .status-pill.review_required {background:#FAF4DF;color:#966313}
+.vatx-page .status-pill.complete,.vatx-page .status-pill.completed,.vatx-page .status-pill.reconciled {background:#E7F1EA;color:#477356}
+.vatx-page .input-vat-cell-meta,.vatx-page .input-vat-treatment-badge {display:block;margin-top:3px;color:var(--vatx-secondary);font-size:10px}
+.vatx-page .attachment-list {display:grid;gap:4px;font-size:10px}
+.vatx-page .attachment-list>span {display:flex;align-items:center;gap:5px}
+.vatx-page .attachment-list button {border:0;background:none;color:var(--vatx-secondary);padding:0;cursor:pointer}
+.vatx-page .vatx-row-menu summary {list-style:none;cursor:pointer;font-size:20px;line-height:24px;text-align:center;width:28px;height:28px;border:1px solid var(--vatx-border);border-radius:7px}
+.vatx-page .vatx-row-menu summary::-webkit-details-marker {display:none}
+.vatx-page .vatx-row-menu .row-actions {display:grid;gap:4px;padding:7px 0;min-width:100px}
+.vatx-page .row-actions :is(button,a) {justify-content:flex-start;min-height:30px;font-size:10.5px;padding:0 7px}
+.vatx-page .accounts-toolbar {display:flex;gap:10px;padding:11px;background:white;border:1px solid var(--vatx-border);border-radius:11px;margin:0 0 12px;align-items:end}
+.vatx-page .accounts-toolbar>label:first-of-type {flex:1;min-width:160px}
+.vatx-page label {font:500 10.5px/1.45 "Jost",sans-serif;min-width:0;color:var(--vatx-text)}
+.vatx-page label>span:first-child {display:block;margin-bottom:4px}
+.vatx-page label :is(input:not([type=checkbox]),select,textarea) {width:100%;min-width:0;height:36px;padding:0 10px;margin-top:5px;border:1px solid var(--vatx-border);border-radius:8px;background:white;color:var(--vatx-text);font:400 11.5px "Jost",sans-serif}
+.vatx-page label textarea {height:auto;min-height:72px;padding:9px 10px;resize:vertical}
+.vatx-page input[type=checkbox] {width:16px;height:16px;accent-color:var(--vatx-accent);flex-shrink:0}
+.vatx-page .accounts-toolbar label :is(input,select) {height:34px;margin-top:0}
+.vatx-page .input-vat-search-field {display:flex;align-items:center;gap:7px}
+.vatx-page .input-vat-search-field svg {margin-right:-31px;margin-left:10px;z-index:1}
+.vatx-page .input-vat-search-field input {padding-left:32px}
+.vatx-page .input-vat-history-toolbar {display:block}
+.vatx-page .input-vat-history-primary,.vatx-page .input-vat-history-advanced-grid {display:grid;grid-template-columns:minmax(190px,1.8fr) repeat(3,minmax(100px,1fr));gap:10px;align-items:end}
+.vatx-page .input-vat-history-advanced {padding-top:12px;margin-top:12px;border-top:1px solid var(--vatx-border)}
+.vatx-page .input-vat-history-advanced footer {display:flex;gap:8px;justify-content:flex-end;margin-top:12px}
+.vatx-page .input-vat-history-chips {display:flex;gap:5px;flex-wrap:wrap;margin-top:9px}
+.vatx-page .input-vat-history-chip {border:1px solid var(--vatx-border);background:var(--vatx-accent-soft);border-radius:20px;padding:5px 9px;color:var(--vatx-accent);font:400 10px "Jost",sans-serif;display:flex;align-items:center;gap:4px}
+.vatx-page .portal-theme-tabs {margin:0 0 14px}
+.vatx-page .output-vat-source-note,.vatx-page .input-vat-period-notice,.vatx-page .settings-warning,.vatx-page .output-vat-change,.vatx-page .input-vat-month-warning {padding:10px 12px;border:1px solid var(--vatx-border);border-radius:9px;background:var(--vatx-accent-soft);font-size:10.5px;display:flex;gap:9px;align-items:center;margin-bottom:12px}
+.vatx-page .output-vat-change,.vatx-page .settings-warning,.vatx-page .input-vat-month-warning {background:#FAF4DF;color:#966313}
+.vatx-page .vatx-dialog form {display:flex;flex-direction:column}
+.vatx-page .vatx-dialog header {display:flex;justify-content:space-between;gap:12px;padding:16px 18px;background:white;border-bottom:1px solid var(--vatx-border);flex-shrink:0}
+.vatx-page .vatx-dialog header h2 {font-size:18px;margin:0}
+.vatx-page .vatx-dialog header button {width:32px;height:32px;border:1px solid var(--vatx-border);border-radius:8px;background:white;color:var(--vatx-accent);cursor:pointer;padding:0;flex-shrink:0}
+.vatx-page .vatx-dialog footer {display:flex;justify-content:flex-end;gap:9px;padding:12px 18px;background:white;border-top:1px solid var(--vatx-border);flex-shrink:0}
+.vatx-page .vatx-drawer-body {flex:1}
+.vatx-page .vatx-form-card {margin:0}
+.vatx-page .span-2 {grid-column:1/-1}
+.vatx-page .vatx-form-card h3 {margin:0}
+.vatx-page .input-vat-manual-wrap {display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vatx-page .input-vat-override-toggle {display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px;border:1px solid var(--vatx-border);border-radius:9px;background:var(--vatx-accent-soft)}
+.vatx-page .input-vat-override-toggle small {flex-basis:100%;font-size:10.5px;color:var(--vatx-secondary)}
+.vatx-page .vat-preview,.vatx-page .vatx-adjust-preview {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;padding:13px;border:1px solid var(--vatx-border);border-radius:9px;background:var(--vatx-accent-soft)}
+.vatx-page .vat-preview :is(small,strong),.vatx-page .vatx-adjust-preview :is(span,strong) {display:block;font-size:10.5px}
+.vatx-page .vat-preview strong,.vatx-page .vatx-adjust-preview strong {font-size:16px;color:var(--vatx-accent);font-weight:600;margin-top:5px}
+.vatx-page .input-vat-file-upload__area {border:1px dashed #A2AF93;border-radius:10px;background:var(--vatx-accent-soft);padding:18px}
+.vatx-page .input-vat-file-upload__content {display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between}
+.vatx-page .input-vat-file-upload__text {display:grid;gap:4px;flex:1;min-width:180px;font-size:10.5px;color:var(--vatx-secondary)}
+.vatx-page .input-vat-file-upload__text>span[aria-hidden] {display:none}
+.vatx-page .input-vat-file-upload__text strong {font-size:12px;color:var(--vatx-accent)}
+.vatx-page .input-vat-file-upload__icon {width:28px;height:28px;fill:none;stroke:var(--vatx-accent)}
+.vatx-page .input-vat-file-upload input[type=file] {display:none}
+.vatx-page .is-dragover {outline:2px solid var(--vatx-accent);outline-offset:2px}
+.vatx-page .pending-file {display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;border-bottom:1px solid var(--vatx-border)}
+.vatx-page .pending-file small {display:block;color:var(--vatx-secondary);font-size:10px;margin-top:3px}
+.vatx-page .input-vat-rate-dialog-body,.vatx-page .vatx-dialog-body,.vatx-page [data-audit-history],.vatx-page [data-duplicate-matches] {padding:16px 18px;overflow:auto;min-height:0}
+.vatx-page .rate-change-grid {display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.vatx-page .input-vat-rate-card {background:var(--vatx-accent-soft);border:1px solid var(--vatx-border);border-radius:10px;padding:14px}
+.vatx-page .input-vat-rate-card>strong {display:block;font-size:24px;color:var(--vatx-accent);margin-top:8px}
+.vatx-page .rate-input-wrap {display:flex;align-items:center;gap:8px}
+.vatx-page .form-message {margin:0;padding:0 18px 10px;color:#A33E38;font-size:11px;flex-shrink:0}
+.vatx-page .form-message:empty {display:none}
+.vatx-page .vatx-period-dialog {width:min(380px,calc(100vw - 24px));}
+.vatx-page .vatx-period-dialog>.vatx-help {padding:0 16px 16px}
+.vatx-page .vatx-confirm-dialog {width:min(480px,calc(100vw - 24px))}
+.vatx-page .input-vat-row-highlight {animation:vatx-row-highlight .3s ease}
+.vatx-page.is-updating [data-active-period] {opacity:.7}
+.vatx-page [data-audit-history] article {padding-left:12px;border-left:2px solid var(--vatx-accent);margin:0 0 8px}
+.vatx-page [data-audit-history] time {font-size:10.5px;color:var(--vatx-secondary)}
+@keyframes vatx-page-enter {from {opacity:0;transform:translateY(5px)}to {opacity:1;transform:none}}
+@keyframes vatx-row-highlight {from {background:#E7F1EA}to {background:transparent}}
+@media(max-width:1150px){.vatx-page .vatx-workspace--input{grid-template-columns:minmax(0,1fr) 230px}.vatx-page .vatx-workspace--output{grid-template-columns:minmax(0,1fr) 250px}}
+@media(max-width:900px){.vatx-page .vatx-workspace{grid-template-columns:1fr}.vatx-page .vatx-supporting{grid-template-columns:1fr}.vatx-page .input-vat-history-primary,.vatx-page .input-vat-history-advanced-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:600px){main.vatx-page{padding:16px 12px 24px}.vatx-page .vatx-header__title{font-size:22px}.vatx-page .accounts-toolbar{flex-wrap:wrap}.vatx-page .accounts-toolbar>label{flex:1 1 100%}.vatx-page .input-vat-history-primary,.vatx-page .input-vat-history-advanced-grid{grid-template-columns:1fr}.vatx-page .vatx-reconcile-line{gap:8px}.vatx-page .vatx-reconcile-line strong,.vatx-page .vatx-value-action{font-size:14px}.vatx-page .vatx-reconcile-total{align-items:flex-start;flex-direction:column}.vatx-page .vatx-dialog--drawer{top:env(safe-area-inset-top,0px);bottom:env(safe-area-inset-bottom,0px);height:calc(100dvh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}.vatx-page .vatx-dialog header{padding:14px 12px}.vatx-page .vatx-dialog footer{padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));flex-wrap:wrap}.vatx-page .vatx-dialog footer button{flex:1}.vatx-page .vatx-form-grid,.vatx-page .input-vat-manual-wrap{grid-template-columns:1fr}.vatx-page label :is(input:not([type=checkbox]),select,textarea){font-size:16px;min-height:40px}.vatx-page .vatx-dialog .portal-select__trigger{font-size:16px}.vatx-page .vatx-field{font-size:10.5px}.vatx-page .vat-preview strong{font-size:14px}.vatx-page .vatx-period-caption{display:none}}
+@media print{.vatx-page .accounts-actions,.vatx-page .vatx-period,.vatx-page .accounts-toolbar,.vatx-page .vatx-panel-actions,.vatx-page dialog{display:none!important}.vatx-page .vatx-workspace{display:block}.vatx-page .vatx-table-wrap{overflow:visible}.vatx-page .vatx-table{min-width:0;font-size:8px}.vatx-page .vatx-table :is(th,td){font-size:8px;padding:3px}.vatx-page .vatx-review-panel{break-inside:avoid;margin-top:12px}}
+
+/* PAGE HEADING */
+.vatx-page .portal-custom-select {width:100%;margin-top:5px}
+.vatx-page .portal-custom-select-trigger,.vatx-page .portal-date-trigger {display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;height:36px;min-height:36px;padding:0 10px;border:1px solid var(--vatx-border);border-radius:8px;background:white;color:var(--vatx-text);font:400 11.5px "Jost",sans-serif;box-shadow:none}
+.vatx-page .portal-custom-select-chevron,.vatx-page .portal-date-trigger svg {color:var(--vatx-accent)}
+.vatx-page .portal-custom-select-value {min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:400}
+.vatx-page select.portal-custom-select-native {position:absolute;width:1px!important;height:1px!important;min-height:1px!important;margin:-1px!important;padding:0!important;clip:rect(0,0,0,0);overflow:hidden;white-space:nowrap;border:0!important}
+.vatx-page .portal-custom-select.is-open .portal-custom-select-trigger {border-color:var(--vatx-accent)}
+.vatx-page .portal-date-picker {min-width:0;width:100%;margin-top:5px}
+body:has(.vatx-page) :is(.portal-select-popup,.portal-date-popup) {font-family:"Jost",sans-serif;--accent:#344126;--accent-soft:#F2F4EC;--primary:#344126;border-color:#E4E6DC;box-shadow:0 15px 35px #26311f24;border-radius:12px;color:#1C2118}
+body:has(.vatx-page--output) :is(.portal-select-popup,.portal-date-popup) {--accent:#28639B;--accent-soft:#EDF3F9;--primary:#28639B}
+body:has(.vatx-page) .portal-select-option {font:400 11.5px "Jost",sans-serif}
+body:has(.vatx-page) .portal-select-option:is(.is-selected,:hover,:focus-visible) {background:var(--accent-soft);color:var(--accent)}
+body:has(.vatx-page) .portal-date-popup :is(button,input,select) {font-family:"Jost",sans-serif}
+@media(max-width:600px){.vatx-page .portal-custom-select-trigger,.vatx-page .portal-date-trigger{font-size:16px;min-height:40px}}
+
+.vatx-page .vatx-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 15px;
+}
+
+.vatx-page .vatx-header__eyebrow {
+  margin: 0 0 5px;
+  color: var(--vatx-sage);
+  font: 600 9.5px/1.3 "Jost",sans-serif;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.vatx-page .vatx-header__title {
+  margin: 0;
+  color: var(--vatx-text);
+  font: 600 24px/1.2 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-header__description {
+  margin: 6px 0 0;
+  color: var(--vatx-secondary);
+  font: 400 11.5px/1.45 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-header__actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* BUTTONS */
+
+.vatx-page .vatx-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+
+  min-height: 39px;
+  padding: 0 14px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 9px;
+
+  background: #FFFFFF;
+  color: var(--vatx-accent);
+
+  font: 500 11.5px/1 "Jost",sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+
+  transition:
+    background-color .17s ease,
+    border-color .17s ease,
+    transform .17s ease,
+    box-shadow .17s ease;
+}
+
+.vatx-page .vatx-button svg {
+  width: 15px;
+  height: 15px;
+  stroke-width: 1.7;
+}
+
+.vatx-page .vatx-button--primary {
+  background: var(--vatx-accent);
+  border-color: var(--vatx-accent);
+  color: #FFFFFF;
+  font-weight: 600;
+}
+
+.vatx-page .vatx-button--primary:hover {
+  filter: brightness(.92);
+  transform: translateY(-1px);
+}
+
+.vatx-page .vatx-button--secondary:hover {
+  background: var(--vatx-accent-soft);
+  border-color: #BEC9B5;
+}
+
+.vatx-page .vatx-button:focus-visible {
+  outline: 2px solid var(--vatx-accent);
+  outline-offset: 2px;
+}
+
+.vatx-page .vatx-button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* DELICATE KPI WIDGETS */
+
+.vatx-page .vatx-kpis {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 11px;
+  margin-bottom: 15px;
+}
+
+.vatx-page .vatx-kpi {
+  position: relative;
+  min-width: 0;
+  min-height: 98px;
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+
+  padding: 15px 13px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 12px;
+
+  background: #FFFFFF;
+  box-shadow: var(--vatx-shadow);
+  overflow: hidden;
+
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease;
+}
+
+.vatx-page .vatx-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 9px 24px rgba(38,49,31,.075);
+  border-color: #CCD4C5;
+}
+
+.vatx-page .vatx-kpi__icon {
+  display: grid;
+  place-items: center;
+  width: 31px;
+  height: 31px;
+  flex: 0 0 31px;
+
+  border-radius: 9px;
+  background: var(--vatx-accent-soft);
+  color: var(--vatx-accent);
+}
+
+.vatx-page .vatx-kpi__icon svg {
+  width: 16px;
+  height: 16px;
+  stroke-width: 1.65;
+}
+
+.vatx-page .vatx-kpi__content {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.vatx-page .vatx-kpi__label {
+  color: var(--vatx-secondary);
+  font: 500 9.5px/1.3 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-kpi__value {
+  color: var(--vatx-text);
+  font: 600 19px/1.2 "Jost",sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+.vatx-page .vatx-kpi__note {
+  color: var(--vatx-muted);
+  font: 400 9.5px/1.35 "Jost",sans-serif;
+}
+
+/* COMPACT PERIOD SELECTOR */
+
+.vatx-page .vatx-period {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 12px 0;
+}
+
+.vatx-page .vatx-period__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+
+  min-height: 36px;
+  padding: 0 12px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 9px;
+
+  background: #FFFFFF;
+  color: var(--vatx-text);
+
+  font: 500 11.5px/1 "Jost",sans-serif;
+  cursor: pointer;
+}
+
+.vatx-page .vatx-period__trigger svg {
+  width: 15px;
+  height: 15px;
+  color: var(--vatx-accent);
+}
+
+.vatx-page .vatx-period__arrow {
+  display: grid;
+  place-items: center;
+
+  width: 34px;
+  height: 34px;
+  padding: 0;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 8px;
+  background: #FFFFFF;
+  color: var(--vatx-accent);
+  cursor: pointer;
+}
+
+/* PERIOD POPOVER */
+
+.vatx-page .vatx-period-popover {
+  position: fixed;
+  z-index: 1550;
+
+  width: min(345px,calc(100vw - 24px));
+  padding: 13px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 12px;
+
+  background: #FFFFFF;
+  box-shadow: 0 15px 35px rgba(38,49,31,.14);
+}
+
+.vatx-page .vatx-period-popover[hidden] {
+  display: none !important;
+}
+
+.vatx-page .vatx-month-grid {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 7px;
+}
+
+.vatx-page .vatx-month {
+  min-height: 43px;
+  padding: 7px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--vatx-text);
+
+  font: 500 11px/1.3 "Jost",sans-serif;
+  cursor: pointer;
+}
+
+.vatx-page .vatx-month.is-selected {
+  background: var(--vatx-accent-soft);
+  border-color: var(--vatx-accent);
+  color: var(--vatx-accent);
+}
+
+/* SHARED SECTION CARDS */
+
+.vatx-page .vatx-card {
+  min-width: 0;
+  padding: 15px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 12px;
+
+  background: #FFFFFF;
+  box-shadow: var(--vatx-shadow);
+}
+
+.vatx-page .vatx-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 13px;
+}
+
+.vatx-page .vatx-card__title {
+  margin: 0;
+  color: var(--vatx-text);
+  font: 600 14px/1.3 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-card__subtitle {
+  margin: 4px 0 0;
+  color: var(--vatx-secondary);
+  font: 400 10.5px/1.4 "Jost",sans-serif;
+}
+
+/* DIFFERENT PRIMARY LAYOUTS */
+
+/* Input VAT: ledger leads */
+.vatx-page .vatx-input-workspace {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) 285px;
+  align-items: start;
+  gap: 13px;
+  margin-bottom: 14px;
+}
+
+/* Output VAT: reconciliation leads */
+.vatx-page .vatx-output-workspace {
+  display: grid;
+  grid-template-columns: minmax(0,1.5fr) minmax(260px,.7fr);
+  align-items: start;
+  gap: 13px;
+  margin-bottom: 14px;
+}
+
+/* TABS */
+
+.vatx-page .vatx-tabs {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+
+  min-height: 39px;
+  margin-bottom: 14px;
+
+  border-bottom: 1px solid var(--vatx-border);
+}
+
+.vatx-page .vatx-tab {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  min-height: 38px;
+  padding: 0 3px;
+
+  border: 0;
+  background: transparent;
+  color: var(--vatx-secondary);
+
+  font: 500 11px/1 "Jost",sans-serif;
+  cursor: pointer;
+}
+
+.vatx-page .vatx-tab svg {
+  width: 14px;
+  height: 14px;
+  stroke-width: 1.7;
+}
+
+.vatx-page .vatx-tab[aria-selected="true"] {
+  color: var(--vatx-accent);
+  font-weight: 600;
+}
+
+.vatx-page .vatx-tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+
+  height: 2px;
+  border-radius: 2px;
+  background: var(--vatx-accent);
+}
+
+/* FILTER BAR */
+
+.vatx-page .vatx-filterbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  min-width: 0;
+  padding: 10px;
+  margin-bottom: 12px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 10px;
+  background: #FFFFFF;
+}
+
+.vatx-page .vatx-filterbar__search {
+  flex: 2 1 240px;
+  min-width: 130px;
+}
+
+.vatx-page .vatx-filterbar__select {
+  flex: 1 1 130px;
+  min-width: 110px;
+}
+
+/* FIELDS */
+
+.vatx-page .vatx-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.vatx-page .vatx-field > label {
+  color: var(--vatx-text);
+  font: 500 10.5px/1.3 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-field :is(input,select,textarea),
+.vatx-page .vatx-filterbar :is(input,select) {
+  width: 100%;
+  min-width: 0;
+  min-height: 36px;
+
+  padding: 7px 10px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--vatx-text);
+
+  font: 400 11.5px/1.35 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-filterbar :is(input,select) {
+  height: 34px;
+  min-height: 34px;
+}
+
+.vatx-page .vatx-field textarea {
+  min-height: 76px;
+  resize: vertical;
+}
+
+.vatx-page :is(input,select,textarea):focus-visible {
+  outline: none;
+  border-color: var(--vatx-accent);
+  box-shadow: 0 0 0 3px rgba(40,99,155,.09);
+}
+
+.vatx-page--input
+:is(input,select,textarea):focus-visible {
+  box-shadow: 0 0 0 3px rgba(89,105,74,.10);
+}
+
+/* COMPACT TABLE */
+
+.vatx-page .vatx-table-wrap {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-behavior: auto;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 10px;
+}
+
+.vatx-page .vatx-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+}
+
+.vatx-page .vatx-table th {
+  height: 36px;
+  padding: 8px 10px;
+
+  background: var(--vatx-soft-olive);
+  border-bottom: 1px solid var(--vatx-border);
+
+  color: var(--vatx-sage);
+  font: 600 9.5px/1.3 "Jost",sans-serif;
+
+  text-align: left;
+  white-space: nowrap;
+  text-transform: uppercase;
+}
+
+.vatx-page--output .vatx-table th {
+  background: var(--vatx-soft-blue);
+  color: var(--vatx-blue-dark);
+}
+
+.vatx-page .vatx-table td {
+  height: 42px;
+  padding: 7px 10px;
+
+  border-bottom: 1px solid #ECEDE7;
+
+  color: var(--vatx-text);
+  font: 400 11.5px/1.4 "Jost",sans-serif;
+
+  vertical-align: middle;
+}
+
+.vatx-page .vatx-table tbody tr:hover td {
+  background: #F8FAF5;
+}
+
+.vatx-page .vatx-table .is-number {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+/* STATUS PILL */
+
+.vatx-page .vatx-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+
+  min-height: 22px;
+  padding: 0 8px;
+
+  border-radius: 999px;
+  background: var(--vatx-accent-soft);
+  color: var(--vatx-accent);
+
+  font: 500 9.5px/1 "Jost",sans-serif;
+  white-space: nowrap;
+}
+
+.vatx-page .vatx-status--success {
+  background: #E7F1EA;
+  color: #477356;
+}
+
+.vatx-page .vatx-status--warning {
+  background: #FAF4DF;
+  color: #966313;
+}
+
+.vatx-page .vatx-status--danger {
+  background: #F9E8EA;
+  color: #A33E38;
+}
+
+/* RECONCILIATION TOTAL */
+
+.vatx-page .vatx-reconcile-total {
+  padding: 14px;
+
+  border: 1px solid #C9D9EA;
+  border-radius: 10px;
+
+  background: #F4F8FC;
+}
+
+.vatx-page .vatx-reconcile-total__label {
+  color: var(--vatx-secondary);
+  font: 500 10.5px/1.3 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-reconcile-total__value {
+  display: block;
+  margin-top: 6px;
+
+  color: var(--vatx-blue-dark);
+  font: 600 23px/1.2 "Jost",sans-serif;
+
+  font-variant-numeric: tabular-nums;
+}
+
+/* DIALOGS AND DRAWERS */
+
+.vatx-page .vatx-dialog {
+  width: min(740px,100vw);
+  max-width: none;
+  max-height: 94dvh;
+
+  margin: auto;
+  padding: 0;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 13px;
+
+  background: var(--vatx-cream);
+  color: var(--vatx-text);
+
+  box-shadow: 0 25px 60px rgba(28,33,24,.18);
+  overflow: hidden;
+}
+
+.vatx-page .vatx-dialog::backdrop {
+  background: rgba(28,33,24,.39);
+  backdrop-filter: blur(2px);
+}
+
+.vatx-page .vatx-dialog form {
+  display: grid;
+  grid-template-rows: auto minmax(0,1fr) auto;
+
+  max-height: 94dvh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vatx-page .vatx-dialog__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+
+  padding: 16px 19px;
+
+  border-bottom: 1px solid var(--vatx-border);
+  background: #FFFFFF;
+}
+
+.vatx-page .vatx-dialog__title {
+  margin: 0;
+  color: var(--vatx-text);
+  font: 600 20px/1.25 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-dialog__close {
+  display: grid;
+  place-items: center;
+
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+
+  padding: 0;
+  border: 1px solid var(--vatx-border);
+  border-radius: 8px;
+
+  background: #FFFFFF;
+  color: var(--vatx-accent);
+  cursor: pointer;
+}
+
+.vatx-page .vatx-dialog__close svg {
+  width: 15px;
+  height: 15px;
+}
+
+.vatx-page .vatx-dialog__body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  padding: 16px 18px 22px;
+}
+
+.vatx-page .vatx-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 9px;
+
+  padding: 12px 18px;
+
+  border-top: 1px solid var(--vatx-border);
+  background: #FFFFFF;
+}
+
+/* DRAWER VARIANT */
+
+.vatx-page .vatx-dialog--drawer {
+  position: fixed;
+  inset: 0 0 0 auto;
+
+  width: min(760px,100vw);
+  height: 100dvh;
+  max-height: 100dvh;
+
+  margin: 0;
+  border-radius: 0;
+  border-right: 0;
+}
+
+.vatx-page .vatx-dialog--drawer form {
+  height: 100%;
+  max-height: 100%;
+}
+
+/* FORM SECTIONS */
+
+.vatx-page .vatx-form-section {
+  padding: 14px;
+
+  border: 1px solid var(--vatx-border);
+  border-radius: 11px;
+
+  background: #FFFFFF;
+}
+
+.vatx-page .vatx-form-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  margin: 0 0 12px;
+
+  color: var(--vatx-text);
+  font: 600 13.5px/1.3 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-form-section__title svg {
+  width: 16px;
+  height: 16px;
+  color: var(--vatx-accent);
+  stroke-width: 1.7;
+}
+
+.vatx-page .vatx-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 11px 12px;
+}
+
+.vatx-page .vatx-form-grid__full {
+  grid-column: 1 / -1;
+}
+
+/* FILE UPLOAD */
+
+.vatx-page .vatx-upload {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+
+  min-height: 145px;
+  padding: 17px;
+
+  border: 1px dashed #B9C3A5;
+  border-radius: 10px;
+
+  background: #F7F9F4;
+  text-align: center;
+}
+
+.vatx-page--output .vatx-upload {
+  background: #F4F8FC;
+  border-color: #BCD1E3;
+}
+
+.vatx-page .vatx-upload__icon {
+  display: grid;
+  place-items: center;
+
+  width: 35px;
+  height: 35px;
+
+  border-radius: 9px;
+  background: var(--vatx-accent-soft);
+  color: var(--vatx-accent);
+}
+
+.vatx-page .vatx-upload__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.vatx-page .vatx-upload__title {
+  font: 500 11.5px/1.4 "Jost",sans-serif;
+}
+
+.vatx-page .vatx-upload__help {
+  color: var(--vatx-muted);
+  font: 400 10px/1.4 "Jost",sans-serif;
+}
+
+/* ANIMATIONS */
+
+@keyframes vatxFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes vatxDialogEnter {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.vatx-page .vatx-kpi {
+  animation: vatxFadeUp .26s ease-out both;
+}
+
+.vatx-page .vatx-kpi:nth-child(2) {
+  animation-delay: 35ms;
+}
+
+.vatx-page .vatx-kpi:nth-child(3) {
+  animation-delay: 70ms;
+}
+
+.vatx-page .vatx-kpi:nth-child(4) {
+  animation-delay: 105ms;
+}
+
+.vatx-page .vatx-dialog[open]:not(.vatx-dialog--drawer) {
+  animation: vatxDialogEnter .21s ease-out;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1100px) {
+  .vatx-page .vatx-kpis {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .vatx-page .vatx-input-workspace,
+  .vatx-page .vatx-output-workspace {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .vatx-page .vatx-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .vatx-page .vatx-header__title {
+    font-size: 22px;
+  }
+
+  .vatx-page .vatx-kpis {
+    gap: 9px;
+  }
+
+  .vatx-page .vatx-kpi {
+    min-height: 88px;
+    padding: 11px;
+  }
+
+  .vatx-page .vatx-kpi__value {
+    font-size: 16px;
+  }
+
+  .vatx-page .vatx-filterbar {
+    flex-wrap: wrap;
+  }
+
+  .vatx-page .vatx-filterbar__search {
+    flex: 1 1 100%;
+  }
+
+  .vatx-page .vatx-dialog {
+    width: 100%;
+    max-height: calc(
+      100dvh
+      - env(safe-area-inset-top,0px)
+      - env(safe-area-inset-bottom,0px)
+    );
+  }
+
+  .vatx-page .vatx-dialog--drawer {
+    top: env(safe-area-inset-top,0px);
+    bottom: env(safe-area-inset-bottom,0px);
+    height: auto;
+  }
+
+  .vatx-page .vatx-dialog__body {
+    padding: 12px;
+  }
+
+  .vatx-page .vatx-dialog__footer {
+    padding:
+      12px 12px
+      calc(12px + env(safe-area-inset-bottom,0px));
+  }
+
+  .vatx-page .vatx-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .vatx-page .vatx-field
+  :is(input,select,textarea) {
+    min-height: 44px;
+    font-size: 16px;
+  }
+
+  .vatx-page .vatx-table-wrap {
+    scroll-snap-type: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .vatx-page .vatx-table :is(th,td) {
+    position: static;
+    left: auto;
+    right: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vatx-page *,
+  .vatx-page *::before,
+  .vatx-page *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
