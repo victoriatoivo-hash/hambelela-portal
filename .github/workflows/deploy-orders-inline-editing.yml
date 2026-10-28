@@ -65,6 +65,7 @@ jobs:
           node --check assets/js/orders-board.js
           php tests/orders-paid-confirmation-behavior.php
           php tests/orders-status-employee-behavior.php
+          php tests/orders-courier-paid-guard.php
           node tests/orders-paid-ui-behavior.mjs
           node tests/orders-paid-confirmation-static.mjs
           node tests/orders-split-payment-static.mjs

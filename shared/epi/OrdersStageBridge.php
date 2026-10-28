@@ -9,8 +9,11 @@ final class OrdersStageBridge
 {
     public static function assertStatusAllowed(PDO $db,array $order,string $status): void {
         if(!self::enabled($db))return;
-        $tracked=V2Store::one($db,'SELECT classification FROM epi_v2_orders_tracking WHERE order_id=?',[(int)($order['id']??0)]);
-        $mode=$tracked['classification']??OrdersSlaPolicy::classify($order)[0];
+        // Packing eligibility follows the current Orders List mode, not the
+        // immutable classification captured for historical performance timing.
+        $mode=function_exists('ops_resolve_order_fulfilment')
+            ? \ops_resolve_order_fulfilment($order)['mode']
+            : OrdersSlaPolicy::classify($order)[0];
         if($mode==='courier' && (int)($order['portal_paid_confirmed']??0)!==1
             && in_array($status,['in_progress','packed','verified','ready_for_courier','complete','completed'],true)) {
             throw new RuntimeException('Tick Paid before packing or progressing a courier order.');
