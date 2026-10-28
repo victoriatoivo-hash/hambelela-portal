@@ -24,7 +24,10 @@ final class CashDeadlineBridge
             if(!in_array($record['payment_status']??'',['paid','partial'],true))return;
             // Values were captured into the durable outbox with the order mutation.
             $cash=(int)($meta['cash_receipt_cents']??0);
-            if($cash<=0 || empty($record['created_at']) || $record['created_at']<$activation['enforcement_start_at'])return;
+            if($cash<=0)return;
+            // A verified new receipt is a new obligation even for an older order.
+            // Do not mistake the order's database TIMESTAMP for receipt time.
+            if(empty($policy['_timing_version'])&&(empty($record['created_at'])||$record['created_at']<$activation['enforcement_start_at']))return;
             $receiptAt=!empty($policy['_timing_version'])?Support::timestamp($meta['cash_received_at'])->format('Y-m-d H:i:s'):$at;
             if($receiptAt>$at||(!empty($policy['_timing_version'])&&$receiptAt<$policy['_timing_version']['effective_from']))return;
             $ref='ORDER-'.$record['id'];

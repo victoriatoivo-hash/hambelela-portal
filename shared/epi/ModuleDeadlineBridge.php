@@ -16,12 +16,15 @@ final class ModuleDeadlineBridge
         $policy=ProvisionalTimingPolicy::policy($db,$at);
         $actor=(int)($meta['employee_id']??0);$engine=new DeadlineEngine($db);
         if($type==='packing_task'){
+            $created=$action==='packing_item_created';
             $start=(string)($r['created_at']??$r['date_loaded']??'');
+            // Native created_at is a database TIMESTAMP and may be returned in UTC.
+            // A new release uses the durable event's explicit Namibia timestamp.
+            if($created&&!empty($policy['_timing_version']))$start=$at;
             if(!$start || $start<$activation['enforcement_start_at'])return;
             $ref='PACK-'.$r['id'];$ownerEngine=new OwnershipPeriodEngine($db);
             $employee=(int)($r['assigned_employee_id']??0);
             $owner=$ownerEngine->ownerAt('Packing List',$ref,$at);
-            $created=$action==='packing_item_created';
             $assignment=($meta['field']??'')==='assigned_employee_id'||$created;
             $directed=$actor===(int)$activation['approved_by'] && ($policy['task_assignment_policy']??'')==='owner_directed';
             if($assignment && $employee>0 && (!$owner || (int)$owner['employee_id']!==$employee) && ($actor===$employee || $directed))
@@ -38,7 +41,12 @@ final class ModuleDeadlineBridge
             $websiteMinutes=(int)($policy['website_update_minutes']??0);
             $newTiming=!empty($policy['_timing_version']);
             $informationAvailable=trim((string)($r['item_name']??''))!=='' && trim((string)($r['quantity_planned']??''))!=='';
-            $websiteReady=$newTiming?($informationAvailable&&$start>=$policy['_timing_version']['effective_from']&&($created||in_array($meta['field']??'',['item_name','quantity_planned'],true))):$created;
+            $releasedAt=$created?$at:null;
+            if($newTiming&&!$created&&$informationAvailable&&in_array($meta['field']??'',['item_name','quantity_planned'],true)){
+                $release=V2Store::one($db,"SELECT payload_json FROM epi_v2_outbox WHERE entity_type='packing_task' AND entity_id=? AND action='packing_item_created' ORDER BY id LIMIT 1",[(int)$r['id']]);
+                $releasedAt=json_decode($release['payload_json']??'{}',true)['metadata']['occurred_at']??null;
+            }
+            $websiteReady=$newTiming?($informationAvailable&&$releasedAt&&ProvisionalTimingPolicy::current($db,$releasedAt)&&($created||in_array($meta['field']??'',['item_name','quantity_planned'],true))):$created;
             if($websiteReady && $websiteMinutes>0 && !V2Store::one($db,"SELECT id FROM epi_v2_operational_deadlines WHERE module='Inventory' AND object_reference=? AND obligation_key='update_website_stock'",[$ref])){
                 $db->prepare("INSERT IGNORE INTO epi_v2_object_duties VALUES('Inventory',?,'front_desk')")->execute([$ref]);
                 $engine->schedule(['module'=>'Inventory','object_reference'=>$ref,'obligation_key'=>'update_website_stock',

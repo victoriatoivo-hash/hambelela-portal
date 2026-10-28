@@ -72,6 +72,7 @@ try {
     ModuleDeadlineBridge::capture($db,'packing_task','packing_item_created',$packing,['employee_id'=>999,'occurred_at'=>'2030-10-28 08:00:00']);
     check('TIME29 website clock waits for quantity information',0,(int)scalar("SELECT COUNT(*) FROM epi_v2_operational_deadlines WHERE module='Inventory' AND object_reference='PACK-9901'"));
     $packing['quantity_planned']='100ml(5)';
+    sql("INSERT INTO epi_v2_outbox(event_key,entity_type,entity_id,action,payload_json,state) VALUES('timing-stock-release','packing_task',9901,'packing_item_created',?,'applied')",[json_encode(['metadata'=>['occurred_at'=>'2030-10-28 08:00:00']])]);
     ModuleDeadlineBridge::capture($db,'packing_task','packing_quantity_planned_updated',$packing,['employee_id'=>999,'occurred_at'=>'2030-10-28 10:00:00','field'=>'quantity_planned']);
     check('TIME30 website starts at availability not creation','2030-10-28 10:00:00',scalar("SELECT starts_at FROM epi_v2_operational_deadlines WHERE module='Inventory' AND object_reference='PACK-9901'"));
     check('TIME31 website eight working hours','2030-10-29 09:00:00',scalar("SELECT due_at FROM epi_v2_operational_deadlines WHERE module='Inventory' AND object_reference='PACK-9901'"));
@@ -86,6 +87,11 @@ try {
     check('TIME34 first response thirty minutes','2030-10-28 10:30:00',scalar("SELECT due_at FROM epi_v2_operational_deadlines WHERE object_reference='CONVERSATION-9903' AND obligation_key='customer_response'"));
     check('TIME35 followup keeps actual promised timestamp','2030-10-29 14:15:00',scalar("SELECT due_at FROM epi_v2_operational_deadlines WHERE object_reference='CONVERSATION-9903' AND obligation_key='customer_followup'"));
     check('TIME36 followup has no substituted response budget',null,json_decode(scalar("SELECT policy_snapshot_json FROM epi_v2_operational_deadlines WHERE object_reference='CONVERSATION-9903' AND obligation_key='customer_followup'"),true)['responsibility_budget_minutes']??null);
+    $utcPacking=['id'=>9904,'created_at'=>'2030-10-27 23:30:00','assigned_employee_id'=>101,'packing_status'=>'not_started','item_name'=>'Synthetic UTC test','quantity_planned'=>'50ml(4)'];
+    ModuleDeadlineBridge::capture($db,'packing_task','packing_item_created',$utcPacking,['employee_id'=>999,'occurred_at'=>'2030-10-28 01:30:00']);
+    check('TIME38 UTC creation cannot suppress new Namibia release',3,(int)scalar("SELECT COUNT(*) FROM epi_v2_operational_deadlines WHERE object_reference='PACK-9904'"));
+    check('TIME39 packing starts at actual release event','2030-10-28 01:30:00',scalar("SELECT starts_at FROM epi_v2_operational_deadlines WHERE object_reference='PACK-9904' AND obligation_key='start_packing'"));
+    check('TIME40 overnight release starts working clock at opening','2030-10-28 11:00:00',scalar("SELECT due_at FROM epi_v2_operational_deadlines WHERE object_reference='PACK-9904' AND obligation_key='start_packing'"));
 } finally {$db->rollBack();}
 $db->exec('SET TRANSACTION READ ONLY');$db->beginTransaction();
 check('TIME37 settings reads perform no writes',true,attempt(fn()=>ProvisionalTimingPolicy::current($db)));
