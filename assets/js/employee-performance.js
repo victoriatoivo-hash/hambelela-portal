@@ -9,7 +9,7 @@
   const parts=new Intl.DateTimeFormat('en',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit'}).formatToParts(new Date());
   const monthDefault=`${parts.find(p=>p.type==='year').value}-${parts.find(p=>p.type==='month').value}`;
   const initial=new URLSearchParams(location.search).get('month')||monthDefault;
-  let data=null,controller=null,version=0,historyPage=1,historyMonth=null;
+  let data=null,controller=null,version=0,historyPage=1,historyMonth=null,loading=false;
   const panel=q('.kpi-period-panel'); panel.classList.add('ep-toolbar');
   panel.innerHTML=`<label>Reporting month<input type="month" data-ep-month value="${esc(initial)}"></label><label data-ep-employee-label hidden>Employee<select data-ep-employee aria-label="Employee"></select></label><button type="button" class="btn-secondary" data-ep-refresh>Refresh view</button><a class="btn-secondary" data-ep-export>Export CSV</a><span class="ep-muted">Monthly results · Africa/Windhoek</span>`;
   q('[data-kpi-online-state]').hidden=true;
@@ -82,12 +82,12 @@
     }catch(error){message.textContent=error.message;}finally{submit.disabled=false;}
   });
   async function load(){
-    const mine=++version;controller?.abort();controller=new AbortController();content.setAttribute('aria-busy','true');
+    const mine=++version;controller?.abort();controller=new AbortController();loading=true;content.setAttribute('aria-busy','true');
     try{const response=await fetch(`kpi-employee-data.php?action=performance&id=${root.dataset.employeeId}&month=${encodeURIComponent(q('[data-ep-month]').value)}&history_page=${historyPage}${historyMonth?'&history_month='+encodeURIComponent(historyMonth):''}`,{cache:'no-store',credentials:'same-origin',signal:controller.signal});
       const payload=await response.json();if(!response.ok||!payload.ok)throw new Error(payload.message||'Performance is temporarily unavailable.');
       if(mine!==version)return;render(payload);q('[data-kpi-error]').hidden=true;
     }catch(error){if(error.name==='AbortError')return;const alert=q('[data-kpi-error]');alert.textContent='Unable to load this performance period. Previously displayed data, if any, has not been refreshed. Please try again.';alert.hidden=false;
-    }finally{if(mine===version)content.removeAttribute('aria-busy');}
+    }finally{if(mine===version){loading=false;content.removeAttribute('aria-busy');}}
   }
   root.addEventListener('change',e=>{const form=e.target.closest('[data-ep-review-form]');if(form&&e.target.matches('select')&&e.target.name!=='root_incident_id')reviewChoices(form);if(e.target.matches('[data-ep-month]'))load();if(e.target.matches('[data-ep-employee]'))location.href=`kpi-employee.php?id=${Number(e.target.value)}&month=${encodeURIComponent(q('[data-ep-month]').value)}`;});
   root.addEventListener('click',e=>{
@@ -101,5 +101,13 @@
     q('[data-kpi-timeline-content]').innerHTML=`<h2>${esc(row.source_reference)}</h2><dl class="ep-detail">${details.map(([key,value])=>`<dt>${esc(key)}</dt><dd>${esc(value)}</dd>`).join('')}</dl>`;dialog.showModal();
   });
   root.addEventListener('change',e=>{if(e.target.matches('[data-ep-month]'))historyPage=1;if(e.target.matches('[data-ep-history-month]')&&e.target.value){historyPage=1;historyMonth=e.target.value;load();}},true);
+  // Publication is asynchronous. Keep the open profile current without owner
+  // Sync/Calculate, but never interrupt a review form, active input or hidden tab.
+  const refreshWhenIdle=()=>{
+    if(document.visibilityState==='hidden'||dialog.open||loading||document.activeElement?.matches?.('input,select,textarea'))return;
+    load();
+  };
+  setInterval(refreshWhenIdle,60000);
+  document.addEventListener('visibilitychange',refreshWhenIdle);
   load();
 })();

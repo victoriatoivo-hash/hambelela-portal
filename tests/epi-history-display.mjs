@@ -2,15 +2,18 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 const script=fs.readFileSync(new URL('../assets/js/employee-performance.js',import.meta.url),'utf8');
-async function render(performance){
+async function render(performance,test){
   const nodes=new Map();
   const node=key=>{if(!nodes.has(key))nodes.set(key,{innerHTML:'',textContent:'',value:'2026-10',dataset:{employeeId:'101',canReview:'1'},classList:{add(){}},remove(){},setAttribute(){},removeAttribute(){},addEventListener(){}});return nodes.get(key);};
   const root=node('root');root.querySelector=node;
   const payload={ok:true,employee:{full_name:'Synthetic <employee>',role_name:'Front Desk'},employees:[],performance};
-  vm.runInNewContext(script,{document:{querySelector:()=>root},Intl,Date,URLSearchParams,location:{search:'?month=2026-10'},AbortController,
-    fetch:async()=>({ok:true,json:async()=>payload})});
+  const timers=[],listeners={},doc={querySelector:()=>root,visibilityState:'visible',addEventListener:(name,fn)=>{listeners[name]=fn;}};
+  let fetches=0;
+  vm.runInNewContext(script,{document:doc,Intl,Date,URLSearchParams,location:{search:'?month=2026-10'},AbortController,
+    setInterval:(fn,ms)=>{timers.push({fn,ms});},fetch:async()=>{fetches++;return {ok:true,json:async()=>payload};}});
   await new Promise(resolve=>setImmediate(resolve));
   assert.equal(node('[data-kpi-error]').hidden,true,'render succeeds without hiding data behind an error');
+  if(test)await test({timers,listeners,doc,node,fetches:()=>fetches});
   return node('[data-kpi-employee-content]').innerHTML;
 }
 const base={status:'not_configured',period_start:'2026-10-01',employee_name:'Synthetic A',official_score_hundredths:null,
@@ -42,4 +45,11 @@ const unhealthy=await render({...base,data_may_be_stale:true,processing_health:{
   function_scope:{description:'Verified Front Desk coverage only — not overall Marketing performance'}});
 assert.match(unhealthy,/Data may be stale/);assert.match(unhealthy,/Last successful background run: 2026-10-28 08:00:00/);
 assert.match(unhealthy,/not overall Marketing performance/);
+await render(base,async({timers,doc,node,fetches})=>{
+  assert.equal(timers[0].ms,60000);timers[0].fn();await new Promise(resolve=>setImmediate(resolve));
+  assert.equal(fetches(),2,'open profile automatically reads the new published result');
+  doc.visibilityState='hidden';timers[0].fn();assert.equal(fetches(),2,'hidden tab does not poll');
+  doc.visibilityState='visible';node('[data-kpi-timeline]').open=true;timers[0].fn();assert.equal(fetches(),2,'review dialog is not interrupted');
+  node('[data-kpi-timeline]').open=false;doc.activeElement={matches:()=>true};timers[0].fn();assert.equal(fetches(),2,'active edits are not interrupted');
+});
 console.log('PASS: unavailable counts, preserved historical result, genuine calculated zero, missing source, safe escaping and profile render');
