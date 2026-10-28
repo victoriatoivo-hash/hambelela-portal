@@ -6,11 +6,23 @@
     },
     "shared/epi/OperationalPerformanceProjector.php": {
       "before": ["c8a3f3157a602dc392fcb9ae8d1b71cc7d78adc7b64e2b8d8d7e61b63e6df9d8"],
-      "after": "b1d72ec7b0129e8a4614b5beb813adae8299d52190f8a2fdfc3e9ba0aeeb64c7"
+      "after": "746aa66aff992768c7760289b9ded98a58fa43443e3aa614b5fab2e0f2de5634"
     },
     "shared/epi/V2OperationalBridge.php": {
       "before": ["9807dcd2eb9b66d0bc0ca06bf846dc06ec2fd9f469cfaca20464a2646123ae2f"],
       "after": "9fdc148d20a8456025ebb31e36f5b2c2907ecc6f742323ba575e88668f5b42eb"
+    },
+    "shared/epi/BookkeepingControlBridge.php": {
+      "before": ["7b3a20f89fcb857e221adb70fc5b363db0d25d36329bdcadbf341d937e8e220c"],
+      "after": "e29bf625f9264adbde509633ee45f9d35e9fb19c651e10556249149eed8dc7e1"
+    },
+    "apps/operations/reports.php": {
+      "before": ["018db19d8328e548060eef7f5c8b38fd9ce333baafa10acabecae915059c75bc"],
+      "after": "26baabaf6196778807e2d38512c4e2dc60447250487dada5a6adc2a5b419a72f"
+    },
+    "apps/operations/performance-timing-settings.php": {
+      "before": ["6fb3f6b1850aaef9d26d45acec5b32558bce8539d70c5f37ae3ba7bdf25fd5eb"],
+      "after": "6aadfff3ba5c9f1126f4290c880ca14e15c5228f1c1598d17abf98300b6c0ac1"
     }
   },
   "dependencies": {

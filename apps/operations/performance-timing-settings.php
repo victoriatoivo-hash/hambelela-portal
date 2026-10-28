@@ -6,6 +6,8 @@ $timing=\Hambelela\EPI\ProvisionalTimingPolicy::current(db());
 $timingValues=$timing['minutes']??array_combine(array_keys(\Hambelela\EPI\ProvisionalTimingPolicy::FIELDS),\Hambelela\EPI\ProvisionalTimingPolicy::APPROVED);
 $timingEscape=static fn($value)=>htmlspecialchars((string)$value,ENT_QUOTES,'UTF-8');
 $packingDeadlines=ops_rows("SELECT deadline_uuid,object_reference,obligation_key,due_at FROM epi_v2_operational_deadlines WHERE module='Packing List' AND state='open' AND breach_incident_uuid IS NULL AND due_at>NOW() AND JSON_EXTRACT(policy_snapshot_json,'$.responsibility_budget_minutes') IS NOT NULL ORDER BY due_at LIMIT 200");
+require_once __DIR__.'/../../shared/epi/BookkeepingControlBridge.php';
+$cashControls=\Hambelela\EPI\BookkeepingControlBridge::provisional(db());
 ?>
 <style>
 /* Keep the existing settings grid within the viewport; wide legacy tables scroll. */
@@ -33,6 +35,19 @@ $packingDeadlines=ops_rows("SELECT deadline_uuid,object_reference,obligation_key
     </form>
     <p>First response is separate from a promised follow-up, which keeps its actual promised date/time. Cash starts at an explicit paid-cash receipt confirmation; automatic ticks and method edits do not qualify. Website timing starts when product and stock quantity information is available.</p>
     <p>These versioned timings control new V2 obligations. Older global/module settings below do not override them or rewrite existing deadlines.</p>
+</section>
+<section class="panel epi-timing-panel" aria-labelledby="cash-control-heading">
+    <div class="section-row"><div><p class="eyebrow">Provisional · no financial or disciplinary use</p><h2 id="cash-control-heading">Daily cash controls</h2>
+    <p><?= $cashControls?'Active from '.$timingEscape($cashControls['effective_from']).' · '.$timingEscape($cashControls['version']):'Not activated — the proposed values below are not active.' ?></p>
+    <p>The configured opening allowance runs after opening; the pre-close offset runs before closing. The approved 30 / 15 minute settings give 08:30 / 16:45 weekdays and 09:30 / 12:45 Saturday. Sunday paused. Accepted responsibility at the deadline determines attribution; an unknown owner is not blamed.</p>
+    <p>A pre-close reconciliation is not a final cash freeze. Later cash receipts retain their own entry obligations. A variance requires separate responsibility review, not an automatic deduction.</p></div></div>
+    <form method="post" class="form-grid">
+        <input type="hidden" name="csrf_token" value="<?= $timingEscape($csrf) ?>"><input type="hidden" name="kpi_action" value="save_provisional_cash_controls">
+        <label class="field"><span>Opening allowance (minutes after opening)</span><input type="number" min="1" max="180" step="1" name="opening_after_open_minutes" value="<?= (int)($cashControls['controls']['opening_after_open_minutes']??30) ?>" required></label>
+        <label class="field"><span>Pre-close checkpoint (minutes before closing)</span><input type="number" min="1" max="180" step="1" name="closing_before_close_minutes" value="<?= (int)($cashControls['controls']['closing_before_close_minutes']??15) ?>" required></label>
+        <label class="field"><span>Reason for new version</span><input name="cash_control_reason" maxlength="500" required></label>
+        <button class="btn-primary" type="submit">Save provisional cash-control version</button>
+    </form>
 </section>
 <section class="panel epi-timing-panel" aria-labelledby="packing-adjustment-heading">
     <div class="section-row"><div><h2 id="packing-adjustment-heading">Large or unusual Packing List job</h2><p>Record an extended deadline and reason before the current deadline expires. Existing breaches cannot be removed by extending a deadline.</p></div></div>

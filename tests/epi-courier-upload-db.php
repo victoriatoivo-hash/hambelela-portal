@@ -43,3 +43,9 @@ check('UPLOAD16 genuine calculated observed zero is preserved',0,$r['categories'
 check('UPLOAD17 helper receives no inherited upload breach',0,(int)scalar("SELECT COUNT(*) FROM epi_v2_performance_incidents WHERE event_key='courier_upload_sla_breached' AND responsible_employee_at_breach=103"));
 check('UPLOAD18 still no official score from provisional evidence',null,$r['official_score_hundredths']);
 check('UPLOAD19 upload and Front sending have separate deadlines','Packing',scalar("SELECT module FROM epi_v2_operational_deadlines WHERE object_reference='ORDER-9911' AND obligation_key='upload_waybill'"));
+$catalog=\Hambelela\EPI\ScorecardCatalog::templates()[1];
+$split=\Hambelela\EPI\RateScoreCalculator::calculate($catalog,['courier'=>['upload'=>['numerator'=>4,'eligible_volume'=>5,'source_complete'=>false]]]);
+check('UPLOAD20 Courier overall weight remains 5%',500,$split['categories']['courier']['weight_hundredths']);
+check('UPLOAD21 upload internal weight remains 50%',5000,$split['categories']['courier']['metrics']['upload']['weight_hundredths']);
+check('UPLOAD22 unsupported readiness remains unmeasured',null,$split['categories']['courier']['metrics']['timeliness']['rate_hundredths']);
+check('UPLOAD23 missing half is not redistributed',null,$split['categories']['courier']['provisional_score_hundredths']);

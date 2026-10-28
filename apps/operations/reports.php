@@ -130,6 +130,13 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach (\Hambelela\EPI\ProvisionalTimingPolicy::FIELDS as $key=>$label) $minutes[$key]=$_POST[$key]??null;
             \Hambelela\EPI\ProvisionalTimingPolicy::approve(db(),$minutes,(int)ops_current_employee_id(),ops_post_string('timing_reason',500));
             $message='New provisional timing version saved. Existing deadlines and historical results are unchanged.';
+        } elseif ($action === 'save_provisional_cash_controls') {
+            require_once __DIR__.'/../../shared/epi/BookkeepingControlBridge.php';
+            \Hambelela\EPI\BookkeepingControlBridge::approveProvisional(db(),[
+                'opening_after_open_minutes'=>$_POST['opening_after_open_minutes']??null,
+                'closing_before_close_minutes'=>$_POST['closing_before_close_minutes']??null],
+                (int)ops_current_employee_id(),ops_post_string('cash_control_reason',500));
+            $message='Provisional daily cash-control version saved prospectively. Existing deadlines and historical results are unchanged.';
         } elseif ($action === 'adjust_packing_deadline') {
             (new \Hambelela\EPI\DeadlineEngine(db()))->adjustPackingDeadline(ops_post_string('deadline_uuid',36),ops_post_string('adjusted_due',30),(int)ops_current_employee_id(),ops_post_string('adjustment_reason',500));
             $message='Packing deadline adjustment recorded with its reason and original deadline retained in the audit.';

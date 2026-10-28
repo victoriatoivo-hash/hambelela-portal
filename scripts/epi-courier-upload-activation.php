@@ -11,7 +11,8 @@ if(($release['state']??'')!=='published'||time()-filemtime(__DIR__.'/backup/veri
     throw new RuntimeException('Fresh verified backup and published release required.');
 require $root.'/shared/database.php';require $root.'/shared/epi/bootstrap.php';
 require_once $root.'/shared/epi/PerformanceRefreshRuntime.php';require_once $root.'/shared/epi/CourierPackerDeadlineBridge.php';
-use Hambelela\EPI\{V2Store,CourierPackerDeadlineBridge,PerformanceRefreshRuntime};
+require_once $root.'/shared/epi/BookkeepingControlBridge.php';
+use Hambelela\EPI\{V2Store,CourierPackerDeadlineBridge,PerformanceRefreshRuntime,BookkeepingControlBridge};
 $db=db();$db->exec("SET time_zone='+02:00'");$owner=(int)(V2Store::activation($db)['approved_by']??0);
 if($owner<1)throw new RuntimeException('Existing approving owner required.');
 foreach(['epi_v2_capture_enabled','epi_v2_results_enabled','epi_v2_provisional_capture_enabled','epi_v2_watchdog_enabled','epi_v2_orders_sla_enabled'] as $flag)
@@ -25,11 +26,15 @@ try{
     $r=['configuration'=>CourierPackerDeadlineBridge::enable($db,$owner,
         'Owner requested completion of prospective courier upload tracking. Use approved weekday 13:30 dispatch; only start after packing readiness; preserve the existing Courier score split and leave unsupported readiness unmeasured.'),
         'scorecard_weights_changed'=>false,'official_scoring'=>false,'financial_use_allowed'=>false,'history_before'=>$before];
+    $r['daily_cash_controls']=BookkeepingControlBridge::approveProvisional($db,
+        ['opening_after_open_minutes'=>30,'closing_before_close_minutes'=>15],$owner,
+        'Owner explicitly approved prospective provisional daily opening within 30 minutes and pre-close reconciliation 15 minutes before closing; no pay, bonus or disciplinary use.');
+    $r['cash_schedule']=BookkeepingControlBridge::reconcile($db);
     $r['refresh']=PerformanceRefreshRuntime::run($db);
     $r['history_after']=(int)$db->query('SELECT COUNT(*) FROM epi_employee_evidence')->fetchColumn();
     if($r['history_after']!==$before)throw new RuntimeException('Historical evidence count changed; investigate.');
     $r['scorecard_versions_preserved']=hash_equals($scorecards,hash('sha256',json_encode($db->query('SELECT version,policy_hash FROM epi_v2_scorecard_documents ORDER BY version')->fetchAll(PDO::FETCH_ASSOC))));
     if(!$r['scorecard_versions_preserved'])throw new RuntimeException('A scorecard version changed unexpectedly; investigate.');
-    $r['state']=$r['refresh']['failed']?'refresh_retry_required':'provisional_courier_upload_active';
+    $r['state']=$r['refresh']['failed']?'refresh_retry_required':'provisional_courier_upload_and_daily_cash_active';
     file_put_contents(__DIR__.'/courier-upload-activation-result.json',json_encode($r,JSON_PRETTY_PRINT));echo json_encode($r),PHP_EOL;
 }finally{$db->prepare('SELECT RELEASE_LOCK(?)')->execute([$lock]);}

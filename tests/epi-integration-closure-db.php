@@ -138,4 +138,5 @@ try{
     check('CLOSE47 preserve newer live current-mode payment guard',false,attempt(function()use($db,$currentCourier){Hambelela\EPI\OrdersStageBridge::assertStatusAllowed($db,$currentCourier,'in_progress');}));
     check('CLOSE48 original historical classification remains immutable','walk_in',scalar('SELECT classification FROM epi_v2_orders_tracking WHERE order_id=9810'));
     require __DIR__.'/epi-courier-upload-db.php';
+    require __DIR__.'/epi-provisional-cash-controls-db.php';
 }finally{$db->rollBack();}

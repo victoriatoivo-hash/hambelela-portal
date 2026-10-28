@@ -14,7 +14,7 @@ $json=json_encode($controlPolicy);
 sql('INSERT INTO epi_v2_scorecard_documents(version,role_key,policy_json,policy_hash) VALUES(?,?,?,?)',
     [$controlPolicy['version'],'front_desk',$json,hash('sha256',$json)]);
 sql('UPDATE epi_v2_scorecard_assignments SET scorecard_version=? WHERE employee_id=104',[$controlPolicy['version']]);
-$db->exec("ALTER TABLE ops_cash_book_entries ADD entry_date DATE NULL, ADD cash_out DECIMAL(12,2) DEFAULT 0,
+$db->exec("ALTER TABLE ops_cash_book_entries ADD transaction_date DATETIME NULL, ADD updated_at DATETIME NULL, ADD cash_out DECIMAL(12,2) DEFAULT 0,
     ADD transaction_type VARCHAR(40) NULL, ADD source VARCHAR(40) NULL;
     CREATE TABLE hambelela_cashbook_recon(id INT PRIMARY KEY,recon_date DATE,system_balance DECIMAL(12,2),
     counted_total DECIMAL(12,2),variance DECIMAL(12,2),logged_by INT,created_at DATETIME)");
@@ -24,7 +24,7 @@ check('CONTROL02 unattended business day schedules both controls',2,$controls['s
 (new DeadlineEngine($db))->processDue('2026-10-01 08:31:00');
 check('CONTROL03 no click creates one opening breach',1,(int)scalar("SELECT COUNT(*) FROM epi_v2_performance_incidents WHERE event_key='cash_opening_sla_breached'"));
 check('CONTROL04 accepted Front duty owns opening omission',104,(int)scalar("SELECT responsible_employee_at_breach FROM epi_v2_performance_incidents WHERE event_key='cash_opening_sla_breached'"));
-sql("INSERT INTO ops_cash_book_entries(id,related_order_id,cash_in,status,recorded_by,created_at,entry_date,transaction_type,source)
+sql("INSERT INTO ops_cash_book_entries(id,related_order_id,cash_in,status,recorded_by,created_at,transaction_date,transaction_type,source)
     VALUES(7210,NULL,200,'active',103,'2026-10-01 08:40:00','2026-10-01','opening_balance','opening_balance')");
 sql("INSERT INTO hambelela_cashbook_recon VALUES(7211,'2026-10-01',200,190,-10,103,'2026-10-01 16:30:00')");
 $controls=BookkeepingControlBridge::reconcile($db,'2026-10-01 16:46:00');

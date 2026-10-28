@@ -66,6 +66,11 @@ final class OperationalPerformanceProjector
                 !empty($source['verified_by']) && ($source['from']??'9999')<=$start && ($source['to']??'')>=$end,
                 'reason'=>self::sourceRequirement($category,$metric,$policy['role']??'')];
         }
+        if(isset($coverage['bookkeeping']['controls'])){
+            require_once __DIR__.'/BookkeepingControlBridge.php';
+            $cashControls=BookkeepingControlBridge::provisional($this->db,min(Support::timestamp()->format('Y-m-d H:i:s'),$end));
+            if($cashControls&&$cashControls['effective_from']<$end)$coverage['bookkeeping']['controls']['reason']='Daily opening/pre-close controls are connected prospectively from '.$cashControls['effective_from'].'; this does not establish earlier full-period coverage or automatically deduct variances.';
+        }
         $q=$this->db->prepare('SELECT d.*,i.responsible_employee_at_breach,i.root_incident_id,
             i.metadata_json AS incident_metadata,i.eligibility_state,i.exclusion_reason AS incident_exclusion,
             c.employee_id AS completion_owner,c.ownership_json AS completion_ownership,c.eligible_at_capture
