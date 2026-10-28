@@ -1146,6 +1146,13 @@ body:has(.vatx-page) .portal-date-popup :is(.portal-time-section,.portal-date-ac
 body:has(.vatx-page) .portal-select-popup .portal-select-option:is(.is-active,[aria-selected="true"]) {background:var(--accent-soft);color:var(--accent)}
 body:has(.vatx-page) .portal-select-popup .portal-select-option:focus-visible {box-shadow:inset 0 0 0 1px var(--accent)}
 .vatx-page .vatx-dialog.vatx-dialog form {display:flex;flex-direction:column}
+.vatx-page .input-vat-history-primary {width:100%}
+.vatx-page .input-vat-rate-dialog,.vatx-page [data-delete-confirm-dialog] {width:min(480px,calc(100vw - 24px))}
+.vatx-page [data-duplicate-dialog] {width:min(540px,calc(100vw - 24px))}
+.vatx-page [data-audit-dialog] {width:min(640px,calc(100vw - 24px))}
+.vatx-page [data-duplicate-dialog] form>p {margin:0;padding:14px 18px}
+.vatx-page .vatx-field input[type=checkbox] {width:16px;min-width:16px;max-width:16px;height:16px;min-height:16px;max-height:16px;margin:0;padding:0;flex:0 0 16px}
+.vatx-page label.input-vat-override-toggle {display:flex;flex-direction:row;align-items:center;text-align:left}
 .vatx-page .vatx-dialog.vatx-dialog .vatx-drawer-body {flex:1;min-height:0;overflow:auto}
 .vatx-page .vatx-adjust-drawer .vatx-drawer-body {display:flex;flex-direction:column;gap:12px}
 .vatx-page .vatx-dialog--drawer[open] {animation:vatxDrawerEnter .26s ease-out}
