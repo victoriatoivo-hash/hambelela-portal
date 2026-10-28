@@ -60,8 +60,10 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/pagination/node_modules" node tests/orders-pagination-ui.cjs
           NODE_PATH="$RUNNER_TEMP/pagination/node_modules" node tests/orders-continuous-interactions.cjs
           NODE_PATH="$RUNNER_TEMP/pagination/node_modules" node tests/orders-floating-selection.cjs
+          NODE_PATH="$RUNNER_TEMP/pagination/node_modules" node tests/orders-label-save-behavior.cjs
           node --check assets/js/orders-board.js
           php tests/orders-paid-confirmation-behavior.php
+          php tests/orders-status-employee-behavior.php
           node tests/orders-paid-ui-behavior.mjs
           node tests/orders-paid-confirmation-static.mjs
           node tests/orders-split-payment-static.mjs

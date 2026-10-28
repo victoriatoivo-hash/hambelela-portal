@@ -253,6 +253,7 @@
   let panelReturnPosition = null;
   let panelReturnTrigger = null;
   let activeOrderMutationCount = 0;
+  let orderMutationRevision = 0;
   const ordersInlineEditSessions = new Map();
   const ordersInlineConfirmedUntil = new Map();
   const ordersInlineFieldDefinitions = {
@@ -1351,7 +1352,7 @@
         if (orderIds.length !== 1) throw new Error('Move courier orders individually to record boxes and courier.');
         const order=ordersCache.find(item=>String(item.id)===String(orderIds[0]));
         const details=await courierDispatchDetails(order);
-        if (!details) return;
+        if (!details) return [];
         const now=new Date(),serviceDate=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
         requestMetadata={...requestMetadata,dispatch_courier:details.courier,dispatch_package:details.packageDetail,dispatch_boxes:1,dispatch_date:serviceDate};
       }
@@ -1360,6 +1361,7 @@
     const sourceRow = ids[0] ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(ids[0])}"]`) : null;
     const position = ordersTablePosition(sourceRow, ids[0] || '');
     activeOrderMutationCount += 1;
+    orderMutationRevision += 1;
     const changes = ids.map((id) => {
       const order = ordersCache.find((item) => String(item.id) === id);
       return { id, field, value: orderFieldValue(order, field) };
@@ -1425,6 +1427,7 @@
       rows.forEach((row) => row.classList.remove('is-saving'));
       restoreOrdersTablePosition(position);
       activeOrderMutationCount = Math.max(0, activeOrderMutationCount - 1);
+      orderMutationRevision += 1;
     }
 
     const savedChanges = changes.filter((change) => savedIds.includes(change.id));
@@ -1482,6 +1485,7 @@
   async function updateRichLabelValue(orderId, field, value, requestMetadata = {}) {
     const orderIds = requestMetadata.correction_reason ? [String(orderId)] : currentSelectedIdsFor(orderId);
     const changes = await updateOrdersField(orderIds, field, value, requestMetadata);
+    if (!changes.length) return false; // Cancelled courier prompt: do not paint an unsaved status.
     closeLabelMenu();
     const groupingField = { status: 'status', order_type: 'mode', assigned_packer_id: 'packer' }[field];
     if (groupingField && boardState.groupBy === groupingField) {
@@ -1489,7 +1493,7 @@
     } else {
       const options = field === 'order_type' ? modeLabels : field === 'payment_method' ? paymentLabels : statusLabels;
       const cellClass = field === 'order_type' ? 'col-mode' : field === 'payment_method' ? 'col-payment' : 'col-status';
-      orderIds.forEach((id) => {
+      changes.map((change) => change.id).forEach((id) => {
         const order = ordersCache.find((item) => String(item.id) === String(id));
         const row = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(id)}"]`);
         if (!order || !row) return;
@@ -1515,6 +1519,7 @@
       updateWorkMetrics(visibleOrders());
     }
     if (field === 'status') playCompleteConfettiForChanges(changes, value);
+    return true;
   }
 
   async function undoLastChange() {
@@ -3230,7 +3235,8 @@
   }
 
   function renderRichLabelPicker(field) {
-    const options = richLabelOptions(field);
+    // Assigned is an internal alias of New Order, not a second selectable status.
+    const options = richLabelOptions(field).filter((item) => field !== 'status' || item[0] !== 'assigned');
     return `
       <div class="mode-label-grid seven-per-row${field === 'payment_method' ? ' portal-payment-options' : ''}">
         ${options.map((item) => `
@@ -3240,6 +3246,7 @@
       <div class="mode-label-actions">
         ${field === 'payment_method' ? '' : '<button type="button" class="mode-edit-labels-button" data-rich-edit-labels><span class="orders-label-utility-icon"><i data-lucide="pencil"></i></span><span>Edit Labels</span></button>'}
       </div>
+      <p data-label-save-feedback role="status" aria-live="polite" hidden></p>
     `;
   }
 
@@ -3271,13 +3278,32 @@
   }
 
   function bindRichLabelPicker() {
+    const orderId = labelMenu.dataset.richLabelOrder || '';
+    const field = labelMenu.dataset.richLabelField || 'order_type';
+    let saving = false;
     labelMenu.querySelectorAll('[data-rich-label-value]').forEach((button) => {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const orderId = labelMenu.dataset.richLabelOrder || '';
-        const field = labelMenu.dataset.richLabelField || 'order_type';
-        await updateRichLabelValue(orderId, field, button.dataset.richLabelValue);
+        if (saving) return;
+        saving = true;
+        const buttons = [...labelMenu.querySelectorAll('button')];
+        const feedback = labelMenu.querySelector('[data-label-save-feedback]');
+        buttons.forEach((item) => { item.disabled = true; });
+        if (feedback) { feedback.hidden = false; feedback.textContent = 'Saving…'; }
+        try {
+          const saved = await updateRichLabelValue(orderId, field, button.dataset.richLabelValue);
+          if (saved && syncState) syncState.textContent = `${richLabelFieldTitle(field)} saved.`;
+          if (!saved && feedback) feedback.hidden = true;
+        } catch (error) {
+          const message = String(error?.message || 'Could not save. Please try again.');
+          if (feedback) { feedback.hidden = false; feedback.textContent = message; }
+          showError(error);
+          window.showPortalToast?.({title:`${richLabelFieldTitle(field)} not saved`,message,type:'error',module:'orders',duration:0});
+        } finally {
+          saving = false;
+          buttons.forEach((item) => { item.disabled = false; });
+        }
       });
     });
 
@@ -4735,6 +4761,7 @@
   async function refresh(trigger = null, options = {}) {
     if (refreshInFlight) return refreshInFlight;
     const paidRevisionAtRequest = paidMutationRevision;
+    const orderRevisionAtRequest = orderMutationRevision;
     const requestSequence = ++refreshSequence;
     const background = options.background === true;
     const run = async () => {
@@ -4768,6 +4795,9 @@
       // A read started before/during a Paid save can contain the old confirmation.
       // Do not advance the cursor: the next refresh must retrieve those changes.
       if (paidUpdatesInProgress.size || paidRevisionAtRequest !== paidMutationRevision) return data;
+      // Do not merge a read begun before/during a status, person or inline save.
+      // Leave the cursor unchanged so the next poll reads the committed values.
+      if (activeOrderMutationCount || orderRevisionAtRequest !== orderMutationRevision) return data;
       if (requestSequence < appliedRefreshSequence) return data;
       if (requestedListKey !== ordersListQueryKey() || requestedPage !== listPage) return data;
       appliedRefreshSequence = requestSequence;
@@ -5174,7 +5204,6 @@
         await post(action === 'archive' ? 'archive_orders' : 'trash_orders', { order_ids: orderId });
         await refresh(null, { preservePosition: true });
       }
-      return data;
       return;
     }
 
