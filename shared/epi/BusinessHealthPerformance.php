@@ -64,8 +64,10 @@ final class BusinessHealthPerformance
         $observed=[];
         foreach($result['categories']??[] as $category){
             $score=$category['official_score_hundredths']??$category['provisional_score_hundredths']??null;
-            $person['metrics'][]=['label'=>$category['label'],'value'=>$score===null?'Not measured':number_format($score/100,1).'%',
-                'tooltip'=>'Same published category result as the employee profile; missing required weight is not redistributed.'];
+            $display=$score===null?'Not measured':number_format($score/100,1).'%';
+            if($score!==null && $status!=='official')$display.=' · provisional';
+            $person['metrics'][]=['label'=>$category['label'],'value'=>$display,
+                'tooltip'=>'Same published category result as the employee profile. A provisional category is not an official employee score; missing required weight is not redistributed.'];
             foreach($category['metrics']??[] as $metric){
                 if((int)($metric['eligible_volume']??0)<=0)continue;
                 $observed[]=['label'=>$category['label'].' · '.$metric['label'],
