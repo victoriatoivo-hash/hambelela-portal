@@ -26,6 +26,15 @@ def read(path):
     result=io.BytesIO();ftp.retrbinary('RETR '+path,result.write);return result.getvalue()
 def put(path,data): ftp.storbinary('STOR '+path,io.BytesIO(data))
 try:
+    if mode=='preflight':
+        # Read only relevant source guards; no configuration or business records.
+        for p in ['apps/operations/orders-board-action.php','apps/operations/operations.php','apps/operations/courier-order-requirements.php','shared/epi/OrdersStageBridge.php','assets/js/orders-board.js']:
+            lines=norm(read(p)).decode().splitlines()
+            for i,line in enumerate(lines):
+                if ('paid' in line.lower() and any(word in line.lower() for word in ['throw ', 'packer', 'progress', 'tick paid'])):
+                    print(json.dumps({'guard_file':p,'line':i+1,'context':lines[max(0,i-7):i+4]}))
+        report['state']='payment-guards-inspected'
+        sys.exit(0)
     before={p:read(p) for p in FILES}
     desired={p:git('show',sha+':'+p) for p in FILES}
     for p in FILES:
