@@ -64,6 +64,8 @@ final class V2OperationalBridge
         require_once __DIR__.'/CompletedWorkCapture.php';
         require_once __DIR__.'/ModuleDeadlineBridge.php';
         ModuleDeadlineBridge::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
+        require_once __DIR__.'/CourierPackerDeadlineBridge.php';
+        CourierPackerDeadlineBridge::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
         require_once __DIR__.'/CashDeadlineBridge.php';
         CashDeadlineBridge::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
         if($e['entity_type']==='front_plan'){

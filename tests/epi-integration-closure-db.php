@@ -8,6 +8,11 @@ $db->exec('ALTER TABLE ops_checklist_tasks ADD COLUMN IF NOT EXISTS active_corre
  ADD COLUMN IF NOT EXISTS correction_round_count INT DEFAULT 0,
  ADD COLUMN IF NOT EXISTS correction_due_at DATETIME NULL,
  ADD COLUMN IF NOT EXISTS released_at DATETIME NULL');
+$db->exec('ALTER TABLE hambelela_waybills ADD COLUMN IF NOT EXISTS uploaded_by INT NULL,
+ ADD COLUMN IF NOT EXISTS file_path VARCHAR(255) NULL,ADD COLUMN IF NOT EXISTS deleted_at DATETIME NULL,
+ ADD COLUMN IF NOT EXISTS archived_at DATETIME NULL;
+ CREATE TABLE IF NOT EXISTS hambelela_waybill_orders(id INT AUTO_INCREMENT PRIMARY KEY,waybill_id INT,order_id INT,
+ linked_by_employee_id INT,linked_at DATETIME,UNIQUE KEY(waybill_id,order_id)) ENGINE=InnoDB');
 $db->beginTransaction();
 try{
     resetObjects();
@@ -132,4 +137,5 @@ try{
     $currentCourier=array_replace($counter,['fulfilment_mode'=>'courier','order_type'=>'courier']);
     check('CLOSE47 preserve newer live current-mode payment guard',false,attempt(function()use($db,$currentCourier){Hambelela\EPI\OrdersStageBridge::assertStatusAllowed($db,$currentCourier,'in_progress');}));
     check('CLOSE48 original historical classification remains immutable','walk_in',scalar('SELECT classification FROM epi_v2_orders_tracking WHERE order_id=9810'));
+    require __DIR__.'/epi-courier-upload-db.php';
 }finally{$db->rollBack();}

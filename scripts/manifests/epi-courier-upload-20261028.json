@@ -1,0 +1,28 @@
+{
+  "files": {
+    "shared/epi/CourierPackerDeadlineBridge.php": {
+      "before": [null],
+      "after": "cb558dc9971d6876b6e9fbf07c2dd43b2875c658fe5a8e386ce4808bf957d568"
+    },
+    "shared/epi/OperationalPerformanceProjector.php": {
+      "before": ["c8a3f3157a602dc392fcb9ae8d1b71cc7d78adc7b64e2b8d8d7e61b63e6df9d8"],
+      "after": "b1d72ec7b0129e8a4614b5beb813adae8299d52190f8a2fdfc3e9ba0aeeb64c7"
+    },
+    "shared/epi/V2OperationalBridge.php": {
+      "before": ["9807dcd2eb9b66d0bc0ca06bf846dc06ec2fd9f469cfaca20464a2646123ae2f"],
+      "after": "9fdc148d20a8456025ebb31e36f5b2c2907ecc6f742323ba575e88668f5b42eb"
+    }
+  },
+  "dependencies": {
+    "shared/epi/OrdersStageBridge.php": "712154dfeeb5cdf942ef4e913668e9129cba8a440cf2cf04b38612030f20d8db",
+    "shared/epi/OrdersSlaPolicy.php": "408dd71f9863b45950d88ec86c31d0b4b283562c1616573cb0017732d5364ff7",
+    "shared/epi/DeadlineEngine.php": "5b94fb8babc42c1a37cdab848e167ef065599903052bba25b1ceb66ec4c94fcd",
+    "shared/epi/OwnershipPeriodEngine.php": "c8ebfa3aed07229b2239d0debbdf1e1b55b4e760221d42cc968224b01a0ed922",
+    "shared/epi/PerformanceRefreshRuntime.php": "4f9781f228accaae93f6fe085ed4295615b1c6763cb31e745ad168b596718208",
+    "shared/epi/PerformanceCapturePolicy.php": "4c6dcb8ecb76e427911565449eedeaabdd0370b4eab8d3bbd137415c6546ddbf",
+    "shared/epi/V2Store.php": "f31b8590bbe519e4a5b89a700c0986b0118ebd583aa352aedcb37b6ff35d2d41",
+    "shared/epi/CanonicalEventRegistry.php": "5444e0c900a57e47e25795d254f48939db86c24431540d45a57b5f2503841f52",
+    "shared/epi/ProvisionalScorecardAssignments.php": "3980e5bf092c924bfbcd4bffb0a1564d7e60a09d64df124aeb09e00bc0057084",
+    "shared/epi/RateScoreCalculator.php": "df4d3cbbd5fe14412db1d10a1997fd3a527dd62f1798b80235da1884271994ad"
+  }
+}
