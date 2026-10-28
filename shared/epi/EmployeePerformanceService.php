@@ -38,7 +38,7 @@ final class EmployeePerformanceService
     }
 
     /** Same read contract for the existing profile, workforce overview and exports. */
-    public function profile(int $employee,string $period,$now=null,int $historyPage=1):array
+    public function profile(int $employee,string $period,$now=null,int $historyPage=1,?string $historyMonth=null):array
     {
         self::period($employee,$period);
         require_once __DIR__.'/V2PerformanceQuery.php';
@@ -48,7 +48,12 @@ final class EmployeePerformanceService
         if(!$person)throw new InvalidArgumentException('Employee not found.');
         $result['employee_name']=$person['full_name'];
         require_once __DIR__.'/PerformanceHistory.php';
-        $result['previous_history']=(new PerformanceHistory($this->db))->read($employee,$period,$historyPage);
+        if($historyMonth!==null){
+            $historyDate=\DateTimeImmutable::createFromFormat('!Y-m-d',$historyMonth.'-01');
+            if(!preg_match('/^\d{4}-(0[1-9]|1[0-2])$/',$historyMonth)||!$historyDate||$historyDate->format('Y-m')!==$historyMonth)
+                throw new InvalidArgumentException('Invalid historical month.');
+        }
+        $result['previous_history']=(new PerformanceHistory($this->db))->read($employee,($historyMonth??substr($period,0,7)).'-01',$historyPage,$historyMonth===null);
         $assignment=V2Store::one($this->db,'SELECT official_from FROM epi_v2_scorecard_assignments WHERE employee_id=? AND period_start=?',[$employee,$period]);
         $result['v2_official_from']=$assignment['official_from']??null;
         $previousPeriod=Support::timestamp($period)->modify('-1 month')->format('Y-m-01');

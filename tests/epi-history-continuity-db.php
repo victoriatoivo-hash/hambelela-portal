@@ -12,6 +12,8 @@ for($i=1;$i<=102;$i++)sql("INSERT INTO epi_employee_evidence(id,evidence_uuid,em
  VALUES(?,?,101,'Orders','{}','2026-09-15','2026-09-15 10:00:00','historical_action',?,'needs_review')",[9000+$i,'continuity-'.$i,'ORDER-'.$i]);
 sql("INSERT INTO epi_employee_evidence(id,evidence_uuid,employee_id,module,metadata_json,business_date,occurred_at,action)
  VALUES(9200,'other-person-history',102,'Orders','{}','2026-09-15','2026-09-15 10:00:00','not_for_a')");
+sql("INSERT INTO epi_performance_score_events(id,employee_id,evidence_uuid,confirmation_status,reversed,applied_at)
+ VALUES(9400,101,'continuity-1','confirmed',0,'2026-09-16 10:00:00')");
 $before=scalar('SELECT COUNT(*) FROM epi_employee_evidence');
 $snapshot=scalar('SELECT final_hundredths FROM epi_scoring_monthly_scores WHERE id=1');
 $db->exec('START TRANSACTION READ ONLY');
@@ -26,6 +28,9 @@ check('HIST06 legacy result kept with original methodology','preserved-legacy',$
 check('HIST07 legacy saved score not recomputed',9000,(int)$h['saved_results'][0]['recorded_score_hundredths']);
 check('HIST08 responsibility not inferred',true,strpos($h['records'][0]['responsibility'],'must be verified')!==false);
 check('HIST09 no score event is not a zero deduction',true,strpos($h['records'][0]['score_effect'],'not inferred')!==false);
+check('HIST09A month ledger retains all source references',102,$h['month_coverage']['2026-09']['source_references_recorded']);
+check('HIST09B only genuinely linked legacy events counted',1,$h['month_coverage']['2026-09']['legacy_score_linked_records']);
+check('HIST09C applied legacy link is separate from evidence count',1,$h['month_coverage']['2026-09']['legacy_applied_records']);
 $profile=(new \Hambelela\EPI\EmployeePerformanceService($db))->profile(101,'2026-09-01');
 check('HIST10 absent V2 work count is null',null,$profile['eligible_work_count']);
 check('HIST11 absent V2 failures is null',null,$profile['confirmed_incident_count']);
@@ -33,4 +38,10 @@ check('HIST12 historical evidence does not create V2 score',null,$profile['offic
 check('HIST13 historical evidence visible on existing profile',102,$profile['previous_history']['total']);
 check('HIST14 history adapter leaves evidence intact',$before,scalar('SELECT COUNT(*) FROM epi_employee_evidence'));
 check('HIST15 locked legacy result unchanged',$snapshot,scalar('SELECT final_hundredths FROM epi_scoring_monthly_scores WHERE id=1'));
+$october=(new \Hambelela\EPI\EmployeePerformanceService($db))->profile(101,'2026-10-01');
+check('HIST16 historical month auto-selects preserved evidence','2026-09',$october['previous_history']['selected_month']);
+check('HIST17 current reporting period stays current','2026-10-01',$october['period_start']);
+$selected=(new \Hambelela\EPI\EmployeePerformanceService($db))->profile(101,'2026-10-01',null,1,'2026-09');
+check('HIST18 independent history selector keeps current score period','2026-10-01',$selected['period_start']);
+check('HIST19 selected month exposes original evidence',102,$selected['previous_history']['total']);
 $db->exec('ROLLBACK');

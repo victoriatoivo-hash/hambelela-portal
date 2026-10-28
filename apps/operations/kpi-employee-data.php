@@ -39,7 +39,9 @@ try {
         require_once BASE_PATH.'/shared/epi/EmployeePerformanceService.php';
         $month=(string)($_GET['month']??date('Y-m'));
         if(!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$month))kpi_send_json(['ok'=>false,'message'=>'Choose a valid reporting month.'],422);
-        $result=(new \Hambelela\EPI\EmployeePerformanceService(db()))->profile($employeeId,$month.'-01',null,max(1,(int)($_GET['history_page']??1)));
+        $historyMonth=(string)($_GET['history_month']??'');
+        if($historyMonth!==''&&!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$historyMonth))kpi_send_json(['ok'=>false,'message'=>'Choose a valid historical month.'],422);
+        $result=(new \Hambelela\EPI\EmployeePerformanceService(db()))->profile($employeeId,$month.'-01',null,max(1,(int)($_GET['history_page']??1)),$historyMonth?:null);
         require_once BASE_PATH.'/shared/epi/PerformanceIncidentReview.php';
         $result['quality_review']=\Hambelela\EPI\PerformanceIncidentReview::read(db(),$employeeId,$month.'-01');
         if(!$canReview)$result['quality_review']['work']=[];

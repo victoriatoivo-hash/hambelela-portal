@@ -15,11 +15,13 @@ async function render(performance){
 }
 const base={status:'not_configured',period_start:'2026-10-01',employee_name:'Synthetic A',official_score_hundredths:null,
   eligible_work_count:null,confirmed_incident_count:null,management_summary:'Not measured',previous_history:{status:'available',
-    all_time_total:102,total:1,page:1,page_size:100,months:{'2026-09':102},sources:[],saved_results:[{period:'2026-09',recorded_score_hundredths:9000,methodology:'Legacy',status:'Historical result'}],
+    all_time_total:102,total:1,page:1,page_size:100,selected_month:'2026-09',months:{'2026-09':102},month_coverage:{'2026-09':{records:102,source_references_recorded:102,legacy_score_linked_records:1,legacy_applied_records:1}},ownership_periods_begin:'2026-10-07 08:27:10',sources:[],saved_results:[{period:'2026-09',recorded_score_hundredths:9000,methodology:'Legacy',status:'Historical result'}],
     records:[{date:'2026-10-01',reference:'<script>unsafe</script>',incident:'Evidence',category:'Orders',responsibility:'Not proven',score_effect:'No linked score event'}]}};
 const html=await render(base);
 assert.match(html,/Not Calculated/);assert.match(html,/Previous History/);assert.match(html,/102 historical evidence records/);
 assert.match(html,/90\.0%/);assert.match(html,/Not measured eligible work/);assert.doesNotMatch(html,/<script>unsafe/);
+assert.match(html,/Historical evidence coverage/);assert.match(html,/Time-bounded V2 ownership records/);
+assert.match(html,/Selecting a historical month does not change the current reporting month/);
 assert.match(html,/&lt;script&gt;unsafe/);assert.doesNotMatch(html,/0 distinct eligible work/);
 const zero=await render({...base,status:'official',official_score_hundredths:0,eligible_work_count:10,confirmed_incident_count:10});
 assert.match(zero,/0\.0%/);assert.match(zero,/Current official result/);

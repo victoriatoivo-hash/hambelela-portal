@@ -18,23 +18,44 @@ final class PerformanceHistory
         }
         return $this->columns[$table];
     }
-    public function read(int $employee,string $period,int $page=1):array {
+    public function read(int $employee,string $period,int $page=1,bool $autoSelect=false):array {
         $end=Support::timestamp($period)->modify('+1 month')->format('Y-m-d');
         $out=['status'=>'history_source_unavailable','records'=>[],'saved_results'=>[], 'sources'=>[],
+            'month_coverage'=>[],'selected_month'=>substr($period,0,7),'ownership_periods_begin'=>null,
             'months'=>[],'total'=>null,'all_time_total'=>null,'page'=>max(1,$page),'page_size'=>100,
             'methodology'=>'Historical EPI Evidence / Legacy Performance — preserved, not re-scored as V2'];
         $cols=$this->columns('epi_employee_evidence');
         if(!array_diff(['id','employee_id','business_date','occurred_at','evidence_uuid','module','action'],$cols)){
-            $q=$this->db->prepare('SELECT business_date,COUNT(*) total FROM epi_employee_evidence WHERE employee_id=? GROUP BY business_date ORDER BY business_date DESC');
+            $reference=in_array('reference_number',$cols,true)?"SUM(CASE WHEN reference_number IS NOT NULL AND TRIM(reference_number)<>'' THEN 1 ELSE 0 END) reference_count":"0 reference_count";
+            $q=$this->db->prepare('SELECT business_date,COUNT(*) total,'.$reference.' FROM epi_employee_evidence WHERE employee_id=? GROUP BY business_date ORDER BY business_date DESC');
             $q->execute([$employee]);$months=[];$total=0;
             $undated=0;
             foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row){
                 $total+=(int)$row['total'];
                 if(empty($row['business_date'])){$undated+=(int)$row['total'];continue;}
                 $month=substr($row['business_date'],0,7);$months[$month]=($months[$month]??0)+(int)$row['total'];
+                if(!isset($out['month_coverage'][$month]))$out['month_coverage'][$month]=['records'=>0,'source_references_recorded'=>0,'legacy_score_linked_records'=>0,'legacy_applied_records'=>0];
+                $out['month_coverage'][$month]['records']+=(int)$row['total'];
+                $out['month_coverage'][$month]['source_references_recorded']+=(int)$row['reference_count'];
             }
             $out['undated_records']=$undated;
-            $q->closeCursor();$out['months']=$months;$out['all_time_total']=$total;$out['total']=$months[substr($period,0,7)]??0;
+            $q->closeCursor();$out['months']=$months;$out['all_time_total']=$total;
+            if($autoSelect&&empty($months[substr($period,0,7)])&&$months){
+                $byVolume=$months;arsort($byVolume,SORT_NUMERIC);$period=array_key_first($byVolume).'-01';
+                $end=Support::timestamp($period)->modify('+1 month')->format('Y-m-d');
+            }
+            $out['selected_month']=substr($period,0,7);
+            $out['total']=$months[$out['selected_month']]??0;
+            $eventCols=$this->columns('epi_performance_score_events');
+            if(!array_diff(['id','employee_id','evidence_uuid','applied_at','reversed'],$eventCols)){
+                $q=$this->db->prepare('SELECT LEFT(e.business_date,7) month_key,COUNT(DISTINCT e.id) linked_count,COUNT(DISTINCT CASE WHEN s.applied_at IS NOT NULL AND COALESCE(s.reversed,0)=0 THEN e.id END) applied_count FROM epi_employee_evidence e JOIN epi_performance_score_events s ON s.employee_id=e.employee_id AND s.evidence_uuid=e.evidence_uuid WHERE e.employee_id=? AND e.business_date IS NOT NULL GROUP BY LEFT(e.business_date,7)');
+                $q->execute([$employee]);
+                foreach($q->fetchAll(PDO::FETCH_ASSOC) as $row){$month=$row['month_key'];if(isset($out['month_coverage'][$month])){$out['month_coverage'][$month]['legacy_score_linked_records']=(int)$row['linked_count'];$out['month_coverage'][$month]['legacy_applied_records']=(int)$row['applied_count'];}}
+                $q->closeCursor();
+            }
+            if(!array_diff(['employee_id','effective_from'],$this->columns('epi_v2_ownership_periods'))){
+                $q=$this->db->prepare('SELECT MIN(effective_from) FROM epi_v2_ownership_periods WHERE employee_id=?');$q->execute([$employee]);$out['ownership_periods_begin']=$q->fetchColumn()?:null;$q->closeCursor();
+            }
             $out['page']=min(max(1,$page),max(1,(int)ceil($out['total']/100)));
             $offset=($out['page']-1)*100;
             $q=$this->db->prepare('SELECT * FROM epi_employee_evidence WHERE employee_id=? AND business_date>=? AND business_date<? ORDER BY occurred_at DESC,id DESC LIMIT 100 OFFSET '.$offset);
