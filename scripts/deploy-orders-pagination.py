@@ -1,10 +1,10 @@
 """Isolated pagination delta: current-file guard, targeted backup and rollback."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-BASELINE='29573438df6b1a202b3aafdc977983c602f621a2'
-BASELINES={'assets/js/orders-board.js':BASELINE}
+BASELINE='1aaaf6164db156177b9e90b71e5af7a099801dac'
+BASELINES={'assets/js/orders-board.js':BASELINE,'assets/css/orders-list-selection.css':BASELINE}
 LIVE_HASHES={}
-FILES=['assets/js/orders-board.js']
+FILES=['assets/js/orders-board.js','assets/css/orders-list-selection.css']
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n')

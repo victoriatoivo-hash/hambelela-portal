@@ -323,6 +323,7 @@
     bar.querySelector('[data-selection-paid]').textContent = `Amount Paid: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(paid)}`;
     bar.querySelector('[data-selection-outstanding]').textContent = `Outstanding: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(outstanding)}`;
     bar.querySelector('[data-selection-warning]').textContent = selectionReadError || (unknown ? `${unknown} selected order${unknown===1?' has':'s have'} incomplete or inconsistent payment records. Paid/outstanding totals are withheld.` : 'Verified payment records · includes delivery in the order total.');
+    bar.classList.toggle('has-unverified-selection', Boolean(unknown || selectionReadError));
     page.classList.toggle('has-orders-selection', selectedOrders.size > 0);
   }
 
@@ -2472,10 +2473,10 @@
       <button type="button" class="orders-bulk-collapsed-trigger" data-order-bulk-action="mobile-reopen" aria-label="Reopen selected orders toolbar"><span data-mobile-selection-total></span></button>
       <div class="orders-selection-finances">
         <div class="orders-selection-total" data-selection-total aria-live="polite">Total: —</div>
-        <button type="button" class="orders-selection-clear orders-selection-toggle" data-selection-toggle aria-expanded="${selectionExpanded}">Payment breakdown</button>
-        <div class="orders-selection-meta" data-selection-breakdown ${selectionExpanded ? '' : 'data-collapsed'}><span data-selection-paid></span><span data-selection-outstanding></span><span data-selection-warning role="status"></span></div>
+        <button type="button" class="orders-selection-clear orders-selection-toggle" data-selection-toggle aria-controls="orders-selection-payment-details" aria-expanded="${selectionExpanded}">Payment details <span aria-hidden="true">${selectionExpanded ? '⌃' : '⌄'}</span></button>
+        <div id="orders-selection-payment-details" class="orders-selection-meta" data-selection-breakdown ${selectionExpanded ? '' : 'data-collapsed'}><span data-selection-paid></span><span data-selection-outstanding></span><span data-selection-warning role="status"></span></div>
       </div>
-      <button type="button" class="orders-selection-clear" data-order-bulk-action="clear-selection">Clear Selection</button>
+      <button type="button" class="orders-selection-clear orders-selection-dismiss" data-order-bulk-action="clear-selection" aria-label="Clear selection" title="Clear selection"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
       <div class="orders-packing-bulk-selection orders-selection-count"><span class="orders-packing-bulk-count" data-bulk-count>0</span><strong class="orders-packing-bulk-label" data-bulk-label>items selected</strong></div>
       <div class="orders-packing-bulk-divider" aria-hidden="true"></div>
       <div class="orders-packing-bulk-actions">
