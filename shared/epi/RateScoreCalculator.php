@@ -9,7 +9,10 @@ use InvalidArgumentException;
  */
 final class RateScoreCalculator
 {
-    public const VERSION='epi-v2-rate-2';
+    // The original full-score formula is unchanged. Partial-result semantics
+    // have their own version so old result/history labels remain truthful.
+    public const VERSION='epi-v2-rate-1';
+    public const AVAILABILITY_VERSION='supported-weight-1';
     public static function calculate(array $policy, array $observations): array
     {
         if (trim((string)($policy['version'] ?? '')) === '') {
@@ -123,7 +126,7 @@ final class RateScoreCalculator
             if (!$categoryObserved) $provisionalComplete=false;
             $overall += $categoryScore * $category['weight_hundredths'] / 10000;
         }
-        return ['calculation_version'=>self::VERSION, 'scorecard_version'=>$policy['version'],
+        return ['calculation_version'=>self::VERSION,'availability_version'=>self::AVAILABILITY_VERSION, 'scorecard_version'=>$policy['version'],
             'measured_weight_hundredths'=>(int)round($measuredWeight),
             'missing_required_weight_hundredths'=>10000-(int)round($measuredWeight),
             'missing_evidence'=>$missing, 'renormalised'=>false,

@@ -1,8 +1,8 @@
 {
   "files": {
     "shared/epi/PerformanceSourceCoverage.php": {"before":[null],"after":"fdb51d6f9faabf76ae65cbd6224aec169c59de4b0653293b34748696efbc8b2f"},
-    "shared/epi/RateScoreCalculator.php": {"before":["df4d3cbbd5fe14412db1d10a1997fd3a527dd62f1798b80235da1884271994ad"],"after":"8ecf2e94b3afb0805cd4217627d453608656b697cee462cab82cd945c23634e3"},
-    "shared/epi/EmployeePerformanceService.php": {"before":["93f29de3c0229234675ca257dffcc60fd52627816440534bf4625b55afb2bc99"],"after":"e8c8a22aa7416ec8c44beacaba69ef8214f6bd78212143d9b31e4f7a1315101b"},
+    "shared/epi/RateScoreCalculator.php": {"before":["df4d3cbbd5fe14412db1d10a1997fd3a527dd62f1798b80235da1884271994ad"],"after":"d2dae912b4b7623f6d11ecc5b1f3af0b6e44f7c1aa44f81312c9601b10871c44"},
+    "shared/epi/EmployeePerformanceService.php": {"before":["93f29de3c0229234675ca257dffcc60fd52627816440534bf4625b55afb2bc99"],"after":"841116815cf1cdfabc4581828d9b1b0285ede625502546ff1e377d48ded89f5f"},
     "shared/epi/OperationalPerformanceProjector.php": {"before":["edfbf4bf5028e42a39bc255182be5224df5e49d8aec9b51c163130d9fbe6b3be"],"after":"a1496e6b869da77da7b1de99eb5833a263655d2152d52e0faee9e12d558fd7f7"},
     "shared/epi/BusinessHealthPerformance.php": {"before":["94e5b4aaae50c4d10245bf04ff485389d2225cc7c3b85f1ff477617b5ad2dc33"],"after":"205478ded98f466ec3872fa8e3f2a7510d89332fc4f987152b2ad843e79ca209"},
     "apps/operations/performance-workforce-response.php": {"before":["968f66ec07092f59ec6cac7dd828f4ce39a0b1f3cce0fea8dead760c6a8d38dc"],"after":"745fafc63e6f357ce2bd42563df7b475c1ebee5d52151dff09237f06e9b62454"},

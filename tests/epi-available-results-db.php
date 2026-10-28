@@ -35,6 +35,6 @@ try{
     $svc->recalculate(103,'2026-10-01',$items,$cover);
     check('AVAILABLE09 locked pointer unchanged',$revision,$svc->read(103,'2026-10-01')['result_id']);
     check('AVAILABLE10 locked JSON unchanged',$old,(string)scalar('SELECT result_json FROM epi_v2_employee_results WHERE id=?',[$revision]));
-    $db->exec('SAVEPOINT available_read_only');
-    check('AVAILABLE11 no-work coverage resolver is read only',true,attempt(function()use($db,$p,$cover){PerformanceSourceCoverage::resolve($db,$p,'2026-10-01',$cover);}));
+    $coverageReadDb=connectAudit($database);$coverageReadDb->exec('SET TRANSACTION READ ONLY');$coverageReadDb->beginTransaction();
+    check('AVAILABLE11 source resolver under DB-enforced read-only transaction',true,attempt(function()use($coverageReadDb,$p,$cover){PerformanceSourceCoverage::resolve($coverageReadDb,$p,'2026-10-01',$cover);}));$coverageReadDb->rollBack();
 }finally{$db->rollBack();}

@@ -290,7 +290,7 @@ final class EmployeePerformanceService
             $result['function_scope']=$policy['scope']??null;
             $hashProjection=$projection;
             foreach($hashProjection['observations'] as &$metrics)foreach($metrics as &$sample)unset($sample['source_window']['observed_through']);unset($sample,$metrics);
-            $hash=hash('sha256',self::canonical([RateScoreCalculator::VERSION,$assignment,$hashProjection]));
+            $hash=hash('sha256',self::canonical([RateScoreCalculator::VERSION,RateScoreCalculator::AVAILABILITY_VERSION,$assignment,$hashProjection]));
             $head=V2Store::one($this->db,'SELECT * FROM epi_v2_employee_result_heads
                 WHERE employee_id=? AND period_start=? FOR UPDATE',[$employee,$period]);
             $latest=V2Store::one($this->db,'SELECT * FROM epi_v2_employee_results
