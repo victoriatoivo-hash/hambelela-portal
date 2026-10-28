@@ -51,14 +51,38 @@ final class ModuleDeadlineBridge
         }elseif($type==='courier_waybill'){
             $start=(string)($r['uploaded_at']??'');$minutes=(int)($policy['courier_front_send_minutes']??0);
             $ref='WAYBILL-'.$r['id'];
-            if($start && $start>=$activation['enforcement_start_at'] && $minutes>0 && $action==='courier_waybill_uploaded'){
+            // The Courier page already stores the dispatch obligation's exact due_by.
+            // Reuse that authoritative deadline when no separate EPI duration exists.
+            // Never move an expired upstream deadline onto the receiving employee.
+            $due=self::courierDue($db,$r,$policy);
+            if($start && $start>=$activation['enforcement_start_at'] && $due && $action==='courier_waybill_uploaded'){
                 $db->prepare("INSERT IGNORE INTO epi_v2_object_duties VALUES('Courier',?,'front_desk')")->execute([$ref]);
                 $engine->schedule(['module'=>'Courier','object_reference'=>$ref,'obligation_key'=>'send_courier_documents',
                     'breach_event_key'=>'courier_send_sla_breached','starts_at'=>$start,
-                    'due_at'=>(new BusinessTimeEngine($db))->addWorkingMinutes($start,$minutes),
+                    'due_at'=>$due,
+                    'source_evidence'=>['deadline_source'=>$minutes>0?'versioned_epi_policy':'hambelela_waybills.due_by',
+                        'uploaded_at'=>$start,'stored_due_by'=>$r['due_by']??null,'batch_id'=>$r['batch_id']??null],
                     'cycle_id'=>'initial','source_event'=>$action,'responsible_team'=>'front_desk']);
             }
             if($actor>0 && $action==='courier_waybill_sent')$engine->fulfilObject('Courier',$ref,'send_courier_documents',$actor,$at);
         }
+    }
+
+    public static function courierDue(PDO $db,array $record,array $policy):?string
+    {
+        $minutes=(int)($policy['courier_front_send_minutes']??0);
+        return $minutes>0&&!empty($record['uploaded_at'])
+            ?(new BusinessTimeEngine($db))->addWorkingMinutes($record['uploaded_at'],$minutes)->format('Y-m-d H:i:s')
+            :self::nativeCourierDue($record);
+    }
+
+    public static function nativeCourierDue(array $record):?string
+    {
+        $start=(string)($record['uploaded_at']??'');$due=(string)($record['due_by']??'');
+        foreach([$start,$due] as $value){
+            if(!preg_match('/^20\d{2}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/D',$value))return null;
+            try{if(Support::timestamp($value)->format('Y-m-d H:i:s')!==$value)return null;}catch(\Throwable $e){return null;}
+        }
+        return $due>$start?$due:null;
     }
 }

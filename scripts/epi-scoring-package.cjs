@@ -9,7 +9,7 @@ const files=['shared/epi/PerformanceCapturePolicy.php','shared/epi/DeadlineEngin
 'shared/epi/RateScoreCalculator.php','shared/epi/AttendanceEvidenceProjector.php','shared/epi/ProvisionalScorecardAssignments.php',
 'shared/epi/V2Watchdog.php','shared/epi/FrontDeskRoster.php','shared/epi/PerformanceRefreshRuntime.php','apps/operations/kpi-presence-review.php',
 'apps/operations/performance-workforce-response.php','assets/js/employee-performance.js','assets/js/performance-workspace.js','assets/js/employee-performance-workforce.js',
-'shared/epi/BusinessHealthPerformance.php','apps/operations/reports-data.php','assets/js/reports-business-health.js'];
+'shared/epi/BusinessHealthPerformance.php','apps/operations/reports-data.php','assets/js/reports-business-health.js','shared/epi/ModuleDeadlineBridge.php'];
 const normal=b=>b.toString('utf8').replace(/\r\n/g,'\n');const hash=b=>crypto.createHash('sha256').update(normal(b)).digest('hex');
 const manifest={baseline,files:{},dependencies:{},schema_changes:false};
 const previous=process.argv[3]?JSON.parse(fs.readFileSync(path.resolve(process.argv[3]),'utf8')):null;
@@ -27,7 +27,7 @@ for(const name of files){let before=null;try{before=hash(cp.execFileSync('git',[
 for(const name of ['apps/operations/operations.php','apps/operations/bookkeeping.php','apps/operations/whatsapp-service.php',
 'shared/epi/OrdersStageBridge.php','shared/epi/OrdersSlaPolicy.php','shared/epi/OwnershipPeriodEngine.php','shared/epi/V2OperationalBridge.php',
 'shared/epi/FrontDeskCoverage.php','shared/epi/HrAbsenceEvidence.php','shared/epi/PerformanceRefreshQueue.php',
-'shared/epi/ModuleDeadlineBridge.php','shared/epi/CommunicationDeadlineBridge.php','shared/epi/IncidentCorrelation.php',
+'shared/epi/CommunicationDeadlineBridge.php','shared/epi/IncidentCorrelation.php',
 'shared/epi/EligibilityPolicy.php','shared/epi/ScorecardCatalog.php','shared/epi/PerformanceHistory.php','shared/epi/V2PerformanceQuery.php',
 'apps/operations/kpi-employee-data.php','apps/operations/reports.php','assets/css/performance-workspace.css'])
  manifest.dependencies[name]=reviewedLive[name]||hash(cp.execFileSync('git',['show',`${baseline}:${name}`]));

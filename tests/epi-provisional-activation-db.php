@@ -102,3 +102,32 @@ check('PROVISIONAL37 reminder alone does not stale scores',$queueBefore,$db->que
 $generationBefore=(int)scalar('SELECT SUM(requested_generation) FROM epi_v2_performance_refresh_queue');
 PerformanceRefreshRuntime::invalidate($db,'checklist_task:task_completed');
 check('PROVISIONAL38 actual completion still requests refresh',true,(int)scalar('SELECT SUM(requested_generation) FROM epi_v2_performance_refresh_queue')>$generationBefore);
+
+// Native courier due dates work without a new guessed EPI timing policy.
+$db->beginTransaction();
+try {
+    $waybill=['id'=>991,'uploaded_at'=>'2026-10-01 08:00:00','due_by'=>'2026-10-01 11:00:00','batch_id'=>'synthetic-native'];
+    $nativeDue=Hambelela\EPI\ModuleDeadlineBridge::courierDue($db,$waybill,[]);
+    check('PROVISIONAL48 existing explicit EPI duration retains priority','2026-10-01 08:30:00',Hambelela\EPI\ModuleDeadlineBridge::courierDue($db,$waybill,['courier_front_send_minutes'=>30]));
+    $nativeRef='WAYBILL-991';
+    (new Hambelela\EPI\OwnershipPeriodEngine($db))->assign(['module'=>'Courier','object_reference'=>$nativeRef,'employee_id'=>101,
+        'assigned_by'=>999,'accepted_by'=>101,'effective_from'=>'2026-10-01 08:00:00','accepted_at'=>'2026-10-01 08:00:00','source'=>'synthetic-native']);
+    $nativeInput=['module'=>'Courier','object_reference'=>$nativeRef,'obligation_key'=>'send_courier_documents',
+        'breach_event_key'=>'courier_send_sla_breached','starts_at'=>$waybill['uploaded_at'],'due_at'=>$nativeDue,
+        'source_evidence'=>['deadline_source'=>'hambelela_waybills.due_by'],'cycle_id'=>'initial'];
+    $engine->schedule($nativeInput);
+    $native=row("SELECT * FROM epi_v2_operational_deadlines WHERE module='Courier' AND object_reference=?",[$nativeRef]);
+    check('PROVISIONAL39 Courier reuses saved due date','2026-10-01 11:00:00',$native['due_at']);
+    $snap=json_decode($native['policy_snapshot_json'],true);
+    check('PROVISIONAL40 native deadline source auditable','hambelela_waybills.due_by',$snap['source_evidence']['deadline_source']);
+    $engine->schedule($nativeInput);
+    check('PROVISIONAL41 duplicate upload replay creates one obligation',1,(int)scalar('SELECT COUNT(*) FROM epi_v2_operational_deadlines WHERE object_reference=?',[$nativeRef]));
+    $engine->processDue('2026-10-01 11:01:00');
+    check('PROVISIONAL42 unattended native courier breach owner',101,(int)scalar('SELECT responsible_employee_at_breach FROM epi_v2_performance_incidents WHERE deadline_uuid=?',[$native['deadline_uuid']]));
+    Hambelela\EPI\ModuleDeadlineBridge::capture($db,'courier_waybill','courier_waybill_sent',$waybill,['employee_id'=>102,'occurred_at'=>'2026-10-01 11:10:00']);
+    check('PROVISIONAL43 courier helper is only fulfiller',102,(int)scalar('SELECT fulfilled_by FROM epi_v2_operational_deadlines WHERE deadline_uuid=?',[$native['deadline_uuid']]));
+    check('PROVISIONAL44 courier risk resolves, original owner retained','resolved',scalar('SELECT current_risk_state FROM epi_v2_performance_incidents WHERE deadline_uuid=?',[$native['deadline_uuid']]));
+    check('PROVISIONAL45 expired upstream deadline is not inherited',null,Hambelela\EPI\ModuleDeadlineBridge::nativeCourierDue(['uploaded_at'=>'2026-10-01 12:00:00','due_by'=>'2026-10-01 11:00:00']));
+    check('PROVISIONAL46 missing due date not guessed',null,Hambelela\EPI\ModuleDeadlineBridge::nativeCourierDue(['uploaded_at'=>'2026-10-01 08:00:00']));
+    check('PROVISIONAL47 invalid native calendar date rejected',null,Hambelela\EPI\ModuleDeadlineBridge::nativeCourierDue(['uploaded_at'=>'2026-10-01 08:00:00','due_by'=>'2026-10-32 11:00:00']));
+} finally {$db->rollBack();}
