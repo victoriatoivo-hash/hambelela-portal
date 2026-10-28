@@ -61,7 +61,9 @@ final class NativeProcessMeasurement
                      'actual'=>!$queue?'A durable priority queue snapshot is missing':($rank===null?'Priority is not classified':($peers?'Higher-priority assigned work existed; availability/preemption requires review':'No higher-priority open personally assigned work existed at the recorded start')),
                      'review_required'=>(bool)$peers,'higher_priority_work'=>$peers,'record'=>$r]);
             }
-            if($done){
+            // "Packed, label needed" is an honest intermediate stage, not a
+            // claim that all required completion checks have been finished.
+            if(in_array($status,['done','website','label_created'],true)){
                 $checks=['quantity_recorded'=>trim((string)($r['quantity_packed']??''))!=='',
                     'packer_website_confirmation'=>(int)($r['packing_website_confirmed']??0)===1,
                     'label_ready'=>!in_array($status,['packed_label_needed','done_needs_label'],true)];

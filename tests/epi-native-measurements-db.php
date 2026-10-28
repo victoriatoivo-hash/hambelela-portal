@@ -124,3 +124,8 @@ check('NATIVE50 expired upstream time not inherited','2035-10-01 14:30:00',scala
 sql("UPDATE hambelela_waybills SET status='sent',sent_at='2035-10-01 14:10:00' WHERE id=9940");
 V2OperationalBridge::record($db,'courier_waybill','courier_waybill_sent',9940,['employee_id'=>104,'occurred_at'=>'2035-10-01 14:10:00']);
 check('NATIVE51 Front completes own stage on time despite upstream delay',0,(int)scalar("SELECT COUNT(*) FROM epi_v2_performance_incidents WHERE object_reference='WAYBILL-9940'"));
+$makePack(9939);sql('UPDATE ops_packing_tasks SET packing_website_confirmed=0 WHERE id=9939');
+$status(9939,'packed_label_needed','2035-10-01 08:40:00');
+check('NATIVE52 honest label-pending stage is not a false completed-process failure',0,(int)scalar("SELECT COUNT(*) FROM epi_v2_completed_work_units WHERE opportunity_key='packing_compliance:9939:0'"));
+sql('UPDATE ops_packing_tasks SET packing_website_confirmed=1 WHERE id=9939');$status(9939,'label_created','2035-10-01 09:00:00');
+check('NATIVE53 final label/check completion is measured','success',json_decode(scalar("SELECT source_snapshot_json FROM epi_v2_completed_work_units WHERE opportunity_key='packing_compliance:9939:0'"),true)['native_measurement']['outcome']);
