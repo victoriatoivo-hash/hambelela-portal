@@ -28,6 +28,8 @@ if (!$ready) {
 ops_ensure_order_payment_schema();
 
 $user = current_user();
+// This endpoint is read-only; release the session before the potentially large list query.
+if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
 
 $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_GET['date'] ?? '')) ? (string) $_GET['date'] : '';
 $month = $date === '' && preg_match('/^\d{4}-\d{2}$/', (string) ($_GET['month'] ?? '')) ? (string) $_GET['month'] : '';

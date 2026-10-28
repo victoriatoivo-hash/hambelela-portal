@@ -302,9 +302,10 @@
       let controls = document.getElementById(id);
       if (!controls) { controls=document.createElement('section');controls.id=id;controls.className='orders-list-pagination'; }
       controls.setAttribute('aria-label',`Orders list summary · ${position}`);
-      (document.getElementById('orders-board-cards') || document.querySelector('.orders-date-groups')).after(controls);
-      controls.innerHTML = `<div class="orders-list-page-summary"><strong>${esc(scope)}</strong><span role="status">${ordersCache.length ? `${ordersCache.length} orders · One continuous list` : 'No matching orders'}</span><small>${esc(shown)}</small></div>
+      if (!controls.isConnected) (document.getElementById('orders-board-cards') || document.querySelector('.orders-date-groups')).after(controls);
+      const markup = `<div class="orders-list-page-summary"><strong>${esc(scope)}</strong><span role="status">${ordersCache.length ? `${ordersCache.length} orders · One continuous list` : 'No matching orders'}</span><small>${esc(shown)}</small></div>
         ${p.hidden_matches ? `<p class="orders-list-filter-notice">${p.hidden_matches} matching order${p.hidden_matches===1?' is':'s are'} hidden by the date or other filters. Adjust filters to include them.</p>` : ''}`;
+      if (controls.innerHTML !== markup) controls.innerHTML = markup;
     }
   }
 
@@ -1146,7 +1147,7 @@
 
   function setMetric(key, value) {
     const node = [...metricNodes].find((item) => item.dataset.workMetric === key);
-    if (node) node.textContent = value;
+    if (node && node.textContent !== String(value)) node.textContent = value;
   }
 
   function setUndo(changes) {
@@ -1299,7 +1300,8 @@
       || Boolean(personPopup?.classList.contains('is-open'))
       || Boolean(labelMenu && !labelMenu.hidden)
       || Boolean(panel?.classList.contains('is-open'))
-      || Boolean(document.activeElement?.closest?.('.orders-table-surface, [data-orders-board-scroll]'))
+      || Boolean(document.activeElement?.matches?.('textarea, select, [contenteditable="true"], input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"])')
+        && document.activeElement.closest('.orders-table-surface, [data-orders-board-scroll]'))
       || Boolean(document.querySelector('.portal-sticky-horizontal-scrollbar.is-scrollbar-active'));
   }
 
@@ -1860,7 +1862,8 @@
     body.querySelectorAll('.monday-grid').forEach((row) => {
       Object.entries(map).forEach(([key, className]) => {
         row.querySelectorAll(`.${className}`).forEach((cell) => {
-          cell.style.display = boardState.hidden.has(key) ? 'none' : '';
+          const display = boardState.hidden.has(key) ? 'none' : '';
+          if (cell.style.display !== display) cell.style.display = display;
         });
       });
     });
@@ -2879,13 +2882,13 @@
       const current = body.querySelector(`[data-group-card="${selectorEsc(key)}"]`);
       if (!current) return;
       const template = document.createElement('template');
-      template.innerHTML = renderGroup(key, groups[key], Object.keys(groups).indexOf(key));
+      template.innerHTML = renderGroup(key, groups[key], Object.keys(groups).indexOf(key), false);
       const next = template.content.querySelector('[data-group-card]');
       const nextSummary = next?.querySelector('.monday-group-summary');
       const nextFooter = next?.querySelector('.ob-group-footer');
-      if (nextSummary) current.querySelector('.monday-group-summary')?.replaceWith(nextSummary);
+      if (nextSummary) patchOrdersPaint(current.querySelector('.monday-group-summary'), nextSummary);
       const currentFooter = current.querySelector('.ob-group-footer');
-      if (currentFooter && nextFooter) currentFooter.replaceWith(nextFooter);
+      if (currentFooter && nextFooter) patchOrdersPaint(currentFooter, nextFooter);
     });
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
@@ -2959,7 +2962,7 @@
     }
   }
 
-  function renderGroup(key, orders, index) {
+  function renderGroup(key, orders, index, includeRows = true) {
     const total = orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
     const paid = orders.filter((order) => order.payment_status === 'paid').length;
     const colour = groupColours[index % groupColours.length];
@@ -2999,7 +3002,7 @@
     ` : '';
 
     // Keep every date in the continuous list, but only mount rows for open dates.
-    const rows = (isOpen ? orders : []).map((order, rowIndex) => {
+    const rows = (isOpen && includeRows ? orders : []).map((order, rowIndex) => {
       const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
       return `
         <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="orders-grid-row monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
@@ -3088,6 +3091,7 @@
     }
     renderCustomHeaders();
     body.innerHTML = groupKeys.map((key, index) => renderGroup(key, groups[key], index)).join('');
+    rememberOrdersPaint(body);
     bindOrdersColumnResizers();
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();
@@ -3138,7 +3142,12 @@
       const replacement = template.content.firstElementChild;
       if (!replacement) return;
       if (existing) {
-        existing.replaceWith(replacement);
+        if (existing.classList.contains('is-open') !== replacement.classList.contains('is-open')) {
+          rememberOrdersPaint(replacement);
+          existing.replaceWith(replacement);
+        } else {
+          patchOrdersDateGroup(existing, replacement);
+        }
         return;
       }
 
@@ -3148,6 +3157,7 @@
       const laterGroup = laterKey
         ? body.querySelector(`[data-orders-date-group][data-date-key="${selectorEsc(laterKey)}"]`)
         : null;
+      rememberOrdersPaint(replacement);
       if (laterGroup) laterGroup.before(replacement);
       else body.appendChild(replacement);
     });
@@ -3164,6 +3174,47 @@
       window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
     }
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
+  }
+
+  function rememberOrdersPaint(root) {
+    // Compare generated markup, not icon-enhanced DOM. Identical polls do no DOM writes.
+    const signatures = rememberOrdersPaint.signatures ||= new WeakMap();
+    root.querySelectorAll('.orders-grid-cell, .monday-group-summary, .ob-group-footer').forEach((node) => signatures.set(node, node.outerHTML));
+  }
+
+  function patchOrdersPaint(current, next) {
+    if (!current || !next) return;
+    const signatures = rememberOrdersPaint.signatures ||= new WeakMap();
+    const signature = next.outerHTML;
+    if ((signatures.get(current) || current.outerHTML) === signature) return;
+    signatures.set(next, signature);
+    current.replaceWith(next);
+  }
+
+  function patchOrdersDateGroup(current, next) {
+    patchOrdersPaint(current.querySelector('.monday-group-summary'), next.querySelector('.monday-group-summary'));
+    patchOrdersPaint(current.querySelector('.ob-group-footer'), next.querySelector('.ob-group-footer'));
+    const currentBody = current.querySelector('.orders-grid-body');
+    const nextBody = next.querySelector('.orders-grid-body');
+    if (!currentBody || !nextBody) return;
+    const rows = new Map([...currentBody.children].map((row) => [row.dataset.orderId, row]));
+    const nextIds = new Set([...nextBody.children].map((row) => row.dataset.orderId));
+    rows.forEach((row, id) => { if (!nextIds.has(id)) row.remove(); });
+    [...nextBody.children].forEach((incoming, index) => {
+      const row = rows.get(incoming.dataset.orderId);
+      if (!row) {
+        rememberOrdersPaint(incoming);
+        currentBody.insertBefore(incoming, currentBody.children[index] || null);
+        return;
+      }
+      // Only changed cells are replaced. Keep other rows, controls and focus in place.
+      const cells = [...row.children];
+      [...incoming.children].forEach((cell, i) => patchOrdersPaint(cells[i], cell));
+      ['is-group-first', 'is-group-last-visible', 'is-selected'].forEach((name) => {
+        if (row.classList.contains(name) !== incoming.classList.contains(name)) row.classList.toggle(name, incoming.classList.contains(name));
+      });
+      if (row !== currentBody.children[index]) currentBody.insertBefore(row, currentBody.children[index] || null);
+    });
   }
 
   function enhanceOrderTaskCells() {
@@ -4767,7 +4818,6 @@
     const run = async () => {
     setButtonBusy(trigger, true);
     if (!hasInitialOrdersLoadCompleted) showInitialLoadingState();
-    if (background && hasInitialOrdersLoadCompleted) page.classList.add('is-background-updating');
     try {
       if (appliedListQuery && appliedListQuery !== ordersListQueryKey()) listPage = 1;
       const params = boardDataParams();
@@ -4884,7 +4934,11 @@
           const removed = new Set(ordersCache.filter((order) => !nextIds.has(String(order.id))).map((order) => String(order.id)));
           const changed = snapshotOrders.filter((order) => JSON.stringify(currentById.get(String(order.id))) !== JSON.stringify(order));
           if (!ordersInteractionInProgress()) patchLiveOrderGroups(ordersCache, snapshotOrders, changed, removed);
-          else { ordersCache = snapshotOrders; liveRenderPending = true; }
+          else {
+            changed.forEach((order) => { const old = currentById.get(String(order.id)); if (old) livePendingGroupKeys.add(groupKey(old)); livePendingGroupKeys.add(groupKey(order)); });
+            removed.forEach((id) => { const old = currentById.get(id); if (old) livePendingGroupKeys.add(groupKey(old)); });
+            ordersCache = snapshotOrders; liveRenderPending = true;
+          }
           renderOrdersPagination();
           refreshSelectedOrderRecords();
         } else renderOrders(snapshotOrders);
@@ -4909,7 +4963,6 @@
       }
       throw error;
     } finally {
-      page.classList.remove('is-background-updating');
       setButtonBusy(trigger, false);
     }
     };
@@ -4991,7 +5044,10 @@
       setButtonBusy(trigger, true);
       try {
         if (refreshInFlight) await refreshInFlight.catch(() => {});
-        if (syncSource) {
+        if (syncSource && background) {
+          // The source import must not hold up cross-employee board updates.
+          if (!syncInFlight) void syncWebsite(true, null, false).catch(showError);
+        } else if (syncSource) {
           try {
             await syncWebsite(!manual, null, manual);
           } catch (error) {

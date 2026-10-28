@@ -1375,6 +1375,9 @@ try {
     }
 
     if ($action === 'sync') {
+        // Auth/CSRF checks above are complete. Do not lock this employee's
+        // status saves and board reads behind a slow WooCommerce request.
+        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();
         $date = preg_match('/^\d{4}-\d{2}-\d{2}$/', (string) ($_POST['date'] ?? '')) ? (string) $_POST['date'] : null;
         $force = (string) ($_POST['force'] ?? '') === '1';
         $result = ops_board_run_guarded_sync($date, $force);

@@ -1,10 +1,19 @@
 """Isolated pagination delta: current-file guard, targeted backup and rollback."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
-BASELINE='236a83ed'
-BASELINES={'assets/js/orders-board.js':BASELINE,'assets/css/orders-list-selection.css':BASELINE}
+BASELINE='04d6c0fe'
+FILES=['assets/js/orders-board.js','apps/operations/orders-board-action.php','apps/operations/orders-board-data.php']
+BASELINES={p:BASELINE for p in FILES}
 LIVE_HASHES={}
-FILES=['assets/js/orders-board.js','assets/css/orders-list-selection.css']
+# Narrow insertion-only reconciliation preserves newer live PHP functionality.
+SESSION_PATCHES={
+ 'apps/operations/orders-board-action.php':(
+  b"    if ($action === 'sync') {\n",
+  b"    if ($action === 'sync') {\n        // Auth/CSRF checks above are complete. Do not lock this employee's\n        // status saves and board reads behind a slow WooCommerce request.\n        if (session_status() === PHP_SESSION_ACTIVE) session_write_close();\n"),
+ 'apps/operations/orders-board-data.php':(
+  b"$user = current_user();\n",
+  b"$user = current_user();\n// This endpoint is read-only; release the session before the potentially large list query.\nif (session_status() === PHP_SESSION_ACTIVE) session_write_close();\n")
+}
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n')
@@ -22,6 +31,18 @@ try:
     for p in FILES:
         baseline=git('show',BASELINES[p]+':'+p)
         matches=(digest(before[p])==LIVE_HASHES[p] if p in LIVE_HASHES else norm(before[p])==norm(baseline)) or norm(before[p])==norm(desired[p])
+        if p in SESSION_PATCHES:
+            old,new=SESSION_PATCHES[p]
+            assert norm(baseline).count(old)==1 and norm(baseline).replace(old,new,1)==norm(desired[p]), 'PHP delta exceeds approved session-lock insertion'
+            live=norm(before[p])
+            if live.count(new)==1:
+                desired[p]=before[p];matches=True
+            elif live.count(old)==1 and b'session_write_close' not in live:
+                ending=b'\r\n' if b'\r\n' in before[p] else b'\n'
+                desired[p]=live.replace(old,new,1).replace(b'\n',ending);matches=True
+            else:
+                raise RuntimeError('No upload: ambiguous live session-lock anchor '+p)
+            subprocess.run(['php','-l'],input=desired[p],capture_output=True,check=True)
         report['hashes'][p]={'live':digest(before[p]),'baseline':digest(baseline),'approved':digest(desired[p]),'matches':matches}
         if not matches:
             report['state']='blocked-live-baseline-mismatch'

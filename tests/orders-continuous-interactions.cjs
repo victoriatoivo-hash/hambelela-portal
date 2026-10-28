@@ -15,7 +15,7 @@ const ctx = {
   esc:String, money:String, findText:(_,v)=>v, countValues:()=>({}), optionColourMap:()=>({}),
   packingStyleSummaryBar:()=>'', groupLabel:String, groupCountText:n=>`${n} orders`,
   renderUpdateIconCell:()=>'', buildOrderTaskName:o=>`Order ${o.id}`, orderDisplayDateTime:o=>o.created_at,
-  labelCellStyle:()=>'', renderLabelCell:(o,field)=>`<button data-label-field="${field}" data-order-id="${o.id}">Status</button>`,
+  labelCellStyle:()=>'', renderLabelCell:(o,field)=>`<button data-label-field="${field}" data-order-id="${o.id}">${o[field] || 'new_order'}</button>`,
   renderPaymentBadge:()=>'', renderPaidCell:()=>'', renderPackerCell:()=>'<button data-orders-person-trigger>Employee</button>',
   renderCustomCells:()=>'', columnHeader:()=>'', selectorEsc:String,
   activeOrderMutationCount:0, personPopup:null, labelMenu:null, panel:null,
@@ -38,6 +38,7 @@ try {
   ctx.ordersCache=orders;
   const groups=ctx.groupedOrders(orders), keys=Object.keys(groups).sort().reverse();
   body.innerHTML=keys.map((key,i)=>ctx.renderGroup(key,groups[key],i)).join('');
+  ctx.rememberOrdersPaint(body);
   assert.equal(body.querySelectorAll('[data-group-card]').length,28,'every date remains in the list');
   assert.equal(body.querySelectorAll('.monday-order-row').length,0,'collapsed dates do not mount hundreds of hidden editors');
   assert.equal([...body.querySelectorAll('[data-count]')].reduce((n,e)=>n+Number(e.dataset.count),0),792);
@@ -65,7 +66,34 @@ try {
   assert.equal(frameCalls,0,'no stale animation frame restores after a subsequent interaction');
   assert.equal(ctx.ordersInteractionInProgress(),false,'unfocused board no longer blocks all live updates');
   row.querySelector('[data-label-field="status"]').focus();
-  assert.equal(ctx.ordersInteractionInProgress(),true,'focused employee/status controls defer background changes');
+  assert.equal(ctx.ordersInteractionInProgress(),false,'a previously clicked button must not block live updates forever');
+  const edit=document.createElement('input'); row.appendChild(edit);edit.focus();
+  assert.equal(ctx.ordersInteractionInProgress(),true,'active typing still defers background changes');edit.remove();
+  const stableGroup=body.querySelector('[data-group-card="2026-10-28"]');
+  const stableSibling=row.nextElementSibling;
+  const stableTask=row.querySelector('.col-task');
+  const stablePayment=row.querySelector('.col-payment');
+  const oldStatus=row.querySelector('.col-status');
+  const changed={...orders.find(o=>String(o.id)===row.dataset.orderId),status:'in_progress'};
+  const nextOrders=orders.map(o=>o.id===changed.id?changed:o);
+  ctx.patchLiveOrderGroups(orders,nextOrders,[changed],new Set());
+  assert.equal(body.querySelector('[data-group-card="2026-10-28"]'),stableGroup,'remote status change keeps the date group');
+  assert.equal(body.querySelector('.monday-order-row'),row,'remote status change keeps its row');
+  assert.equal(row.nextElementSibling,stableSibling,'other rows never blink/rebuild');
+  assert.equal(row.querySelector('.col-task'),stableTask);
+  assert.equal(row.querySelector('.col-payment'),stablePayment);
+  assert.notEqual(row.querySelector('.col-status'),oldStatus);
+  assert.match(row.querySelector('.col-status').textContent,/in_progress/);
+  const stableStatus=row.querySelector('.col-status');
+  const metadataOnly={...changed,updated_at:'2026-10-28 12:00:00'};
+  ctx.patchLiveOrderGroups(nextOrders,nextOrders.map(o=>o.id===changed.id?metadataOnly:o),[metadataOnly],new Set());
+  assert.equal(row.querySelector('.col-status'),stableStatus,'source timestamp-only updates do not repaint cells');
+  const inserted={id:9999,created_at:'2026-10-28 12:00:00',total_amount:20,payment_status:'unpaid'};
+  ctx.patchLiveOrderGroups(nextOrders,[...nextOrders,inserted],[inserted],new Set());
+  assert.equal(body.querySelector('[data-order-id="9999"]').dataset.orderId,'9999','new remote orders appear');
+  assert.equal(body.querySelector('.monday-order-row'),row);
+  ctx.patchLiveOrderGroups([...nextOrders,inserted],orders,[],new Set(['9999']));
+  assert.equal(body.querySelector('[data-order-id="9999"]'),null,'remote removals still apply');
   ctx.expandedGroups.delete('2026-10-28'); ctx.livePendingGroupKeys.add('2026-10-28');
   ctx.patchLiveOrderGroups(orders,orders,[],new Set());
   assert.equal(body.querySelectorAll('.monday-order-row').length,0);
