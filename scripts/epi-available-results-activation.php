@@ -23,7 +23,8 @@ try{
         $q=$db->prepare('SELECT a.employee_id FROM epi_v2_scorecard_assignments a LEFT JOIN epi_v2_employee_result_heads h ON h.employee_id=a.employee_id AND h.period_start=a.period_start WHERE a.period_start=? AND h.locked_at IS NULL');$q->execute([$period]);$ids=$q->fetchAll(PDO::FETCH_COLUMN);$q->closeCursor();
         foreach($ids as $id){$p=$projector->employee((int)$id,$period);$r=$service->recalculate((int)$id,$period,$p['opportunities'],$p['coverage']);
             if($r['official_score_hundredths']!==null||$r['financial_use_allowed'])throw new RuntimeException('Unexpected official/financial activation.');
-            $out[$id]=['result_id'=>$r['result_id'],'available'=>EmployeePerformanceService::availableDisplay($r),'observed_kpis'=>count(array_filter(array_merge(...array_map(static function($c){return array_values($c['metrics']);},$r['categories'])),static function($m){return $m['eligible_volume']>0;})),'official'=>null];
+            $observed=0;foreach($r['categories'] as $category)foreach($category['metrics'] as $metric)if($metric['eligible_volume']>0)$observed++;
+            $out[$id]=['result_id'=>$r['result_id'],'available'=>EmployeePerformanceService::availableDisplay($r),'observed_kpis'=>$observed,'official'=>null];
         }
         if($legacy()!==$beforeLegacy||$protected()!==$beforeProtected)throw new RuntimeException('Historical or locked records changed; publication rolled back.');
         return ['state'=>'available_results_active','calculation'=>RateScoreCalculator::VERSION,'current_period'=>$period,'profiles'=>$out,'history'=>$beforeLegacy['count'],'history_hash_preserved'=>true,'locked_and_previous_heads_preserved'=>true,'schema_changes'=>false,'financial_use_allowed'=>false];
