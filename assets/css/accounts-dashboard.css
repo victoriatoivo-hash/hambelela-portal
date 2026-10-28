@@ -1,45 +1,67 @@
-/* Accounts landing page application cards. Input VAT supplies the design language. */
-.accounts-workspace.is-accountant-workspace{gap:20px}
-.accounts-workspace.is-accountant-workspace .accounts-hero h1{margin:0 0 5px;color:#721b1a;font:600 16px/1.25 Figtree,system-ui,sans-serif}
-.accounts-workspace.is-accountant-workspace .accounts-hero>div>p{font-family:Figtree,system-ui,sans-serif}
-.accounts-workspace .accounts-app-section>header h2{margin:2px 0 12px;color:#721b1a;font:700 16px/1.25 Figtree,system-ui,sans-serif}
-.accounts-workspace .accounts-app-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
-.accounts-workspace .accounting-app-card{--app-accent:#ab3619;--app-accent-soft:rgba(171,54,25,.08);position:relative;box-sizing:border-box;display:flex;min-width:0;min-height:184px;gap:15px;overflow:hidden;padding:20px;border:1px solid #e8ddd3;border-left:3px solid var(--app-accent);border-radius:14px;background:#fff;color:#2b1b16;box-shadow:0 7px 20px rgba(107,76,59,.055);text-decoration:none;transition:transform 160ms ease,border-color 160ms ease,background-color 180ms ease,box-shadow 180ms ease}
-.accounts-workspace .accounting-app-card::after{content:"";position:absolute;right:-38px;bottom:-52px;width:132px;height:132px;border:1px solid var(--app-accent);border-radius:50%;opacity:.07;pointer-events:none}
-.accounts-workspace .accounting-app-card__content{display:flex;min-width:0;flex:1;flex-direction:column;align-items:flex-start}
-.accounts-workspace .accounting-app-card__status{display:flex;width:100%;min-height:20px;align-items:center;gap:6px}
-.accounts-workspace .accounting-app-card h3{margin:7px 0 6px;color:#721b1a;font:600 16px/1.25 Figtree,system-ui,sans-serif}
-.accounts-workspace .accounting-app-card p{margin:0 0 14px;color:#6b4c3b;font:400 12px/1.45 Figtree,system-ui,sans-serif}
-.accounts-workspace .accounting-app-card strong{display:inline-flex;align-items:center;gap:5px;margin-top:auto;color:#ab3619;font:600 12px/1.2 Figtree,system-ui,sans-serif}
-.accounts-workspace .accounting-app-card strong span{display:inline-block;transition:transform 170ms ease}
-.accounts-workspace .accounting-app-card .accounts-app-icon{display:grid;width:54px;height:54px;flex:0 0 54px;place-items:center;border:1px solid color-mix(in srgb,var(--app-accent) 18%,transparent);border-radius:13px;background:var(--app-accent-soft);color:var(--app-accent);transition:transform 170ms ease,background-color 170ms ease,border-color 170ms ease}
-.accounts-workspace .accounting-app-card .accounts-app-icon svg{width:23px;height:23px;stroke:currentColor}
-.accounts-workspace .accounts-app-status{display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;background:#f2f7e7;color:#4e6811;font:600 10px/1 Figtree,system-ui,sans-serif;letter-spacing:.01em;text-transform:none}
-.accounts-workspace .accounts-app-status::before{content:"";width:5px;height:5px;border-radius:50%;background:#86aa05}
-.accounts-workspace .accounts-owner-label{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border-radius:999px;background:rgba(107,76,59,.09);color:#6b4c3b;font:600 9px/1 Figtree,system-ui,sans-serif;white-space:nowrap}
-.accounts-workspace .accounts-owner-label svg{width:10px;height:10px}
-.accounts-workspace .accounting-app-visual{display:flex;height:18px;margin-left:auto;align-items:flex-end;gap:3px;opacity:.62}
-.accounts-workspace .accounting-app-visual i{display:block;width:3px;height:8px;border-radius:3px;background:var(--app-accent);transition:height 170ms ease,transform 170ms ease}
-.accounts-workspace .accounting-app-visual i:nth-child(2){height:14px}.accounts-workspace .accounting-app-visual i:nth-child(3){height:11px}
-.accounts-workspace .accounting-app-card:hover{border-color:var(--app-accent);background:linear-gradient(135deg,#fff 45%,var(--app-accent-soft));box-shadow:0 12px 28px rgba(107,76,59,.12);transform:translateY(-2px)}
-.accounts-workspace .accounting-app-card:hover .accounts-app-icon{border-color:var(--app-accent);background:var(--app-accent-soft);transform:translateY(-1px) rotate(-2deg) scale(1.04)}
-.accounts-workspace .accounting-app-card:hover .accounting-app-visual i:nth-child(1){height:12px}.accounts-workspace .accounting-app-card:hover .accounting-app-visual i:nth-child(2){height:17px}.accounts-workspace .accounting-app-card:hover .accounting-app-visual i:nth-child(3){height:14px}
-.accounts-workspace .accounting-app-card:hover strong{color:var(--app-accent)}.accounts-workspace .accounting-app-card:hover strong span{transform:translateX(3px)}
-.accounts-workspace .accounting-app-card:active{transform:translateY(0) scale(.995)}
-.accounts-workspace .accounting-app-card:focus-visible{outline:3px solid color-mix(in srgb,var(--app-accent) 45%,transparent);outline-offset:3px}
-.accounts-workspace .accounting-app-card--input-vat{--app-accent:#a8ca19;--app-accent-soft:rgba(168,202,25,.10)}
-.accounts-workspace .accounting-app-card--output-vat{--app-accent:#ab3619;--app-accent-soft:rgba(171,54,25,.08)}
-.accounts-workspace .accounting-app-card--import-vat{--app-accent:#f07420;--app-accent-soft:rgba(240,116,32,.10)}
-.accounts-workspace .accounting-app-card--vat-reconciliation{--app-accent:#721b1a;--app-accent-soft:rgba(114,27,26,.07)}
-.accounts-workspace .accounting-app-card--sage{--app-accent:#6b4c3b;--app-accent-soft:rgba(107,76,59,.08)}
-.accounts-workspace .accounting-app-card--asset-register{--app-accent:#8c5e4b;--app-accent-soft:rgba(140,94,75,.09)}
-.accounts-workspace .accounting-app-card--input-vat .accounting-app-visual i:nth-child(1){height:14px}.accounts-workspace .accounting-app-card--output-vat .accounting-app-visual{transform:skewX(-12deg)}.accounts-workspace .accounting-app-card--import-vat .accounting-app-visual i{border-radius:50%}
-.accounts-workspace .accounting-app-card--vat-reconciliation .accounting-app-visual{align-items:center}.accounts-workspace .accounting-app-card--vat-reconciliation .accounting-app-visual i{width:10px;height:3px}
-.accounts-workspace .accounting-app-card--sage .accounting-app-visual i{width:12px;height:2px}.accounts-workspace .accounting-app-card--sage .accounting-app-visual{flex-direction:column;justify-content:center;gap:3px}
-.accounts-workspace .accounting-app-card--planned{--app-accent:#bdaea4;--app-accent-soft:#f8f4f0;min-height:184px;border-left-color:#d8cdc5;background:#fbf9f7;box-shadow:none;opacity:.72;cursor:not-allowed;pointer-events:none}
-.accounts-workspace .accounting-app-card--planned::after{display:none}.accounts-workspace .accounting-app-card--planned .accounts-app-icon{border-color:#e5ddd7;background:#f1ebe6;color:#8b7a70}.accounts-workspace .accounting-app-card--planned .accounts-app-status{background:#f1ece8;color:#786b63}.accounts-workspace .accounting-app-card--planned .accounts-app-status::before{background:#a4978f}.accounts-workspace .accounting-app-card--planned .accounting-app-visual{opacity:.3}
-.accounts-workspace .accounting-app-card--planned:hover{border-color:#d8cdc5;background:#fbf9f7;box-shadow:none;transform:none}.accounts-workspace .accounts-coming-soon-control{margin-top:auto;color:#786b63;font:600 12px/1.2 Figtree,system-ui,sans-serif}
-@media(max-width:900px){.accounts-workspace .accounts-app-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.accounts-workspace .accounting-app-card{padding:17px}}
-@media(max-width:680px){.accounts-workspace .accounts-app-grid{grid-template-columns:1fr;gap:14px}.accounts-workspace .accounting-app-card{min-height:170px;padding:18px}}
-@media(max-width:390px){.accounts-workspace .accounting-app-card{gap:12px;padding:16px}.accounts-workspace .accounting-app-card .accounts-app-icon{width:48px;height:48px;flex-basis:48px}.accounts-workspace .accounting-app-card__status{flex-wrap:wrap}.accounts-workspace .accounting-app-visual{margin-left:0}}
-@media(prefers-reduced-motion:reduce){.accounts-workspace .accounting-app-card,.accounts-workspace .accounting-app-card .accounts-app-icon,.accounts-workspace .accounting-app-card strong span,.accounts-workspace .accounting-app-visual i{transition:none}.accounts-workspace .accounting-app-card:hover,.accounts-workspace .accounting-app-card:active{transform:none}.accounts-workspace .accounting-app-card:hover .accounts-app-icon{transform:none}}
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&display=swap');
+
+/* Accounts landing only. Legacy accounts.css/hierarchy are not loaded here. */
+.accounts-landing {
+  --accounts-blue:#28639B; --accounts-olive:#344126; --accounts-sage:#59694A;
+  --accounts-cream:#F8F7F2; --accounts-border:#E4E6DC;
+  display:grid; align-content:start; gap:20px; min-width:0;
+  padding:24px; background:var(--accounts-cream); color:#1C2118;
+  font:400 11.5px/1.5 "Jost",sans-serif;
+}
+.accounts-landing *, .accounts-landing *::before, .accounts-landing *::after {box-sizing:border-box}
+.accounts-landing button,.accounts-landing input,.accounts-landing a {font-family:"Jost",sans-serif}
+.accounts-landing [hidden] {display:none!important}
+.accounts-landing .accounts-hero {display:flex;align-items:flex-start;gap:22px;flex-wrap:wrap;min-width:0}
+.accounts-landing .accounts-hero__copy {flex:1 1 270px;min-width:0}
+.accounts-landing .accounts-eyebrow {margin:0 0 2px;color:var(--accounts-sage);font:600 10.5px/1.4 "Jost",sans-serif;letter-spacing:.12em;text-transform:uppercase}
+.accounts-landing h1 {margin:0 0 3px;color:var(--accounts-olive);font:600 28px/1.2 "Jost",sans-serif;letter-spacing:-.02em}
+.accounts-landing .accounts-hero__copy>p:last-child {margin:0;color:#62675E;font-size:11.5px}
+.accounts-landing .accounts-search {display:flex;align-items:center;gap:9px;flex:0 1 330px;min-width:180px;height:38px;margin-top:8px;padding:0 11px;border:1px solid var(--accounts-border);border-radius:9px;background:white;color:var(--accounts-olive)}
+.accounts-landing .accounts-search svg {width:18px;height:18px;flex-shrink:0}
+.accounts-landing .accounts-search input {width:100%;min-width:0;height:36px;padding:0;border:0;border-radius:0;outline:0;background:transparent;color:#1C2118;font:400 11.5px/1.4 "Jost",sans-serif;box-shadow:none}
+.accounts-landing .accounts-search:focus-within {border-color:var(--accounts-blue);box-shadow:0 0 0 2px #28639B16}
+.accounts-landing .accounts-app-section {display:grid;gap:12px;min-width:0}
+.accounts-landing .accounts-section-header {display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}
+.accounts-landing .accounts-section-header h2 {margin:0;color:var(--accounts-olive);font:600 15px/1.3 "Jost",sans-serif;letter-spacing:.07em;text-transform:uppercase}
+.accounts-landing .accounts-view-switch {display:flex;gap:5px}
+.accounts-landing .accounts-view-switch button {display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:38px;padding:0 13px;border:1px solid var(--accounts-border);border-radius:8px;background:#fff;color:var(--accounts-olive);font:500 11.5px/1 "Jost",sans-serif;cursor:pointer;box-shadow:0 2px 7px #34412605;transition:background .18s ease,color .18s ease}
+.accounts-landing .accounts-view-switch svg {width:15px;height:15px}
+.accounts-landing .accounts-view-switch [aria-pressed="true"] {border-color:var(--accounts-sage);background:linear-gradient(120deg,#59694A,#344126);color:#fff}
+.accounts-landing .accounts-app-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.accounts-landing .accounts-app-card {--card-accent:var(--accounts-olive);--card-soft:#F2F4EC;position:relative;display:grid;grid-template-columns:44px minmax(0,1fr) 13px;align-content:start;gap:0 14px;min-width:0;padding:17px;overflow:hidden;border:1px solid var(--accounts-border);border-left:3px solid var(--card-accent);border-radius:12px;background:#fff;box-shadow:0 4px 18px rgba(38,49,31,.045);transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+.accounts-landing .accounts-app-card--blue {--card-accent:var(--accounts-blue);--card-soft:#EDF3F9}
+.accounts-landing .accounts-app-card::after {content:"";position:absolute;right:-52px;bottom:-85px;width:170px;height:170px;border:1px solid color-mix(in srgb,var(--card-accent) 6%,transparent);border-radius:50%;background:var(--card-soft);pointer-events:none}
+.accounts-landing .accounts-app-card>* {position:relative;z-index:1}
+.accounts-landing .accounts-app-card__icon {display:grid;place-items:center;width:44px;height:44px;border:1px solid color-mix(in srgb,var(--card-accent) 10%,white);border-radius:11px;background:var(--card-soft);color:var(--card-accent)}
+.accounts-landing .accounts-app-card__icon svg {width:25px;height:25px;stroke-width:1.7}
+.accounts-landing .accounts-app-card__copy {min-width:0}
+.accounts-landing .accounts-app-card__badges {display:flex;gap:5px;flex-wrap:wrap;margin-bottom:4px}
+.accounts-landing .accounts-app-status {display:inline-flex;align-items:center;gap:4px;padding:1px 6px;border-radius:20px;background:#F2F4EC;color:#59694A;font:500 9.5px/1.4 "Jost",sans-serif}
+.accounts-landing .accounts-app-status::before {content:"";width:4px;height:4px;border-radius:50%;background:#59694A}
+.accounts-landing .accounts-app-card__title {margin:0 0 3px;color:#1C2118;font:600 14px/1.3 "Jost",sans-serif}
+.accounts-landing .accounts-app-card__description {margin:0;color:#62675E;font:400 11.5px/1.5 "Jost",sans-serif}
+.accounts-landing .accounts-app-card__visual {display:flex;align-items:flex-end;gap:2px;height:15px;margin-top:5px;color:var(--card-accent)}
+.accounts-landing .accounts-app-card__visual i {width:3px;height:9px;border-radius:1px;background:currentColor}
+.accounts-landing .accounts-app-card__visual i:nth-child(2) {height:15px}
+.accounts-landing .accounts-app-card__visual i:nth-child(3) {height:12px}
+.accounts-landing .accounts-app-card__footer {grid-column:1/-1;display:flex;align-items:center;gap:16px;align-self:end;margin-top:17px;padding-top:12px;border-top:1px solid #F2F4EC}
+.accounts-landing .accounts-app-card__button {display:inline-flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0;min-height:38px;padding:0 14px;border:0;border-radius:8px;background:var(--card-accent);color:#fff;font:500 11.5px/1.3 "Jost",sans-serif;text-decoration:none;white-space:nowrap;box-shadow:0 3px 8px #3441260c}
+.accounts-landing .accounts-app-card__button span {display:inline-block;font-size:17px;transition:transform .18s ease}
+.accounts-landing .accounts-app-card__features {min-width:0;padding-left:16px;border-left:1px solid var(--accounts-border);flex:1}
+.accounts-landing .accounts-app-card__feature-label {font-size:10.5px;font-weight:500}
+.accounts-landing .accounts-app-card__features ul {display:flex;flex-wrap:wrap;gap:6px 14px;margin:4px 0 0;padding:0;list-style:none}
+.accounts-landing .accounts-app-card__features li {display:flex;align-items:center;gap:6px;font:400 10.5px/1.4 "Jost",sans-serif;color:#1C2118}
+.accounts-landing .accounts-app-card__features svg {width:15px;height:15px;flex-shrink:0;color:var(--card-accent)}
+.accounts-landing .accounts-app-card:hover {transform:translateY(-2px);border-color:color-mix(in srgb,var(--card-accent) 40%,white);box-shadow:0 9px 25px rgba(38,49,31,.09)}
+.accounts-landing .accounts-app-card:hover .accounts-app-card__button span {transform:translateX(3px)}
+.accounts-landing .accounts-app-card__button:focus-visible,.accounts-landing .accounts-view-switch button:focus-visible {outline:2px solid var(--accounts-blue);outline-offset:3px}
+.accounts-landing .accounts-app-grid.is-list {grid-template-columns:1fr}
+.accounts-landing .is-list .accounts-app-card {grid-template-columns:44px minmax(180px,1fr) minmax(280px,1.3fr);align-items:center}
+.accounts-landing .is-list .accounts-app-card__visual {display:none}
+.accounts-landing .is-list .accounts-app-card__footer {grid-column:auto;margin:0 0 0 16px;padding:0;border-top:0}
+.accounts-landing .accounts-empty {margin:0;padding:30px;border:1px dashed var(--accounts-border);border-radius:12px;text-align:center;color:#62675E}
+.accounts-landing .accounts-sr-only {position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+@media(min-width:768px) {.accounts-landing .accounts-app-card {grid-template-rows:1fr auto}}
+@media(max-width:1100px) {.accounts-landing .accounts-search {flex-basis:260px}.accounts-landing .accounts-app-card__footer {align-items:flex-start;flex-direction:column;gap:10px}.accounts-landing .accounts-app-card__features {padding-left:0;border-left:0}.accounts-landing .is-list .accounts-app-card__footer {flex-direction:row;align-items:center}.accounts-landing .is-list .accounts-app-card__features {padding-left:12px;border-left:1px solid var(--accounts-border)}}
+@media(max-width:767px) {.accounts-landing {padding:18px;gap:18px}.accounts-landing .accounts-app-grid {grid-template-columns:1fr;gap:10px}.accounts-landing .accounts-search {flex:1 1 100%;margin:0}.accounts-landing .accounts-app-card {padding:14px}.accounts-landing .accounts-section-header h2 {font-size:15px;letter-spacing:.03em}.accounts-landing .accounts-app-card__footer {flex-direction:row;flex-wrap:wrap;align-items:center}.accounts-landing .accounts-app-card__features {flex-basis:200px}.accounts-landing .is-list .accounts-app-card {grid-template-columns:44px minmax(0,1fr)}.accounts-landing .is-list .accounts-app-card__footer {grid-column:1/-1;margin:14px 0 0;padding-top:12px;border-top:1px solid #F2F4EC;flex-wrap:wrap}.accounts-landing .is-list .accounts-app-card__features {padding-left:0;border-left:0}.accounts-landing .accounts-hero>.portal-header-status {max-width:100%;min-width:0}}
+@media(prefers-reduced-motion:reduce) {.accounts-landing .accounts-app-card,.accounts-landing .accounts-app-card__button span,.accounts-landing .accounts-view-switch button {transition:none}.accounts-landing .accounts-app-card:hover,.accounts-landing .accounts-app-card:hover .accounts-app-card__button span {transform:none}}

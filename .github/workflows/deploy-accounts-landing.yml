@@ -1,0 +1,56 @@
+name: Deploy Accounts landing delta
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Verify or deploy Accounts landing only
+        required: true
+        type: choice
+        options: [preflight, deploy]
+      approved_sha:
+        description: Exact tested checkout SHA
+        required: true
+        type: string
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+jobs:
+  accounts-landing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Test isolated presentation and permission boundaries
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ inputs.approved_sha }}"
+          php -l apps/accounts/index.php
+          node --check assets/js/accounts-dashboard.js
+          npm install --prefix "$RUNNER_TEMP/accounts-ui" --no-audit --no-fund playwright@1.56.1
+          "$RUNNER_TEMP/accounts-ui/node_modules/.bin/playwright" install --with-deps chromium
+          NODE_PATH="$RUNNER_TEMP/accounts-ui/node_modules" node tests/accounts-landing-ui.cjs
+          python3 -m py_compile scripts/deploy-accounts-landing.py
+      - name: Guard live baseline and publish only the three landing files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-accounts-landing.py "${{ inputs.mode }}" "${{ inputs.approved_sha }}"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accounts-landing-${{ github.run_id }}
+          path: |
+            accounts-landing-report.json
+            accounts-landing-backup.zip
+          retention-days: 3
+          if-no-files-found: warn
