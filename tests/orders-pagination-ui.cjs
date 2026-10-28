@@ -11,28 +11,28 @@ vm.runInContext(source.slice(source.indexOf('  function boardDataParams()'),sour
 try {
   ctx.renderOrdersPagination();
   const q=s=>ctx.document.querySelector(s);
-  assert.equal(ctx.document.querySelectorAll('.orders-list-pagination').length,2);
-  assert.equal(q('.orders-filter-card').nextElementSibling.id,'orders-list-pagination');
+  assert.equal(ctx.document.querySelectorAll('.orders-list-pagination').length,1);
+  assert.equal(q('#orders-list-pagination'),null,'no summary box above the date groups');
+  assert.ok(q('.orders-filter-card').nextElementSibling.matches('.orders-date-groups'));
   assert.equal(q('#orders-board-cards').nextElementSibling.id,'orders-list-pagination-bottom');
-  assert.match(q('#orders-list-pagination').textContent,/787 orders · One continuous list/);
-  assert.match(q('#orders-list-pagination').textContent,/1 Oct 2026 – 27 Oct 2026/);
+  assert.match(q('#orders-list-pagination-bottom').textContent,/787 orders · One continuous list/);
+  assert.match(q('#orders-list-pagination-bottom').textContent,/1 Oct 2026 – 27 Oct 2026/);
   assert.equal(ctx.document.querySelectorAll('[data-list-page]').length,0,'no manual paging');
-  assert.doesNotMatch(q('#orders-list-pagination').textContent,/Previous|Next|Page [0-9]|Select this page/);
-  assert.match(q('[data-list-select-matching]').textContent,/787 filtered results/);
+  assert.doesNotMatch(q('#orders-list-pagination-bottom').textContent,/Previous|Next|Page [0-9]|Select this page/);
+  assert.equal(q('[data-list-select-matching]'),null,'removed box does not leave an orphaned bulk button');
   const params=ctx.boardDataParams();
   assert.equal(params.get('continuous'),'1');
   assert.equal(params.get('date_from'),'2026-10-01');
   assert.equal(params.get('date_to'),'2026-10-31');
   assert.equal(params.get('sortDirection'),'desc');
   ctx.ordersCache=[];ctx.listPagination={page:1,pages:1,total:0,hidden_matches:4};ctx.renderOrdersPagination();
-  assert.match(q('#orders-list-pagination').textContent,/No matching orders/);
-  assert.equal(q('[data-list-select-matching]').disabled,true);
+  assert.match(q('#orders-list-pagination-bottom').textContent,/No matching orders/);
   assert.match(q('.orders-list-filter-notice').textContent,/4 matching orders are hidden/);
   ctx.ordersCache=[{id:1,created_at:'2026-09-01 09:00:00'}];ctx.activeDateRange=()=>null;ctx.boardState.search='Victoria';ctx.renderOrdersPagination();
-  assert.match(q('#orders-list-pagination').textContent,/All dates/);
+  assert.match(q('#orders-list-pagination-bottom').textContent,/All dates/);
   assert.equal(ctx.boardDataParams().get('q'),'Victoria');
   assert.equal(ctx.boardDataParams().has('date_from'),false);
-  assert.equal(ctx.document.querySelectorAll('.orders-list-pagination').length,2,'refresh reuses summaries');
+  assert.equal(ctx.document.querySelectorAll('.orders-list-pagination').length,1,'refresh reuses the bottom summary without recreating the top box');
   assert.match(source,/requestedListKey !== ordersListQueryKey\(\)/,'stale filter responses ignored');
   console.log('PASS: all 787 orders, full date coverage, no page controls, filters/search, selection, empty state and refresh summaries');
 } finally {dom.window.close();}

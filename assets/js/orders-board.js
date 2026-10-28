@@ -288,21 +288,21 @@
   }
 
   function renderOrdersPagination() {
+    // The filter toolbar leads directly into the date groups; keep the summary at the end only.
+    document.getElementById('orders-list-pagination')?.remove();
     const p = listPagination;
     const range = activeDateRange();
     const dateLabel = value => new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Windhoek'}).format(new Date(`${value}T12:00:00+02:00`));
     const dates = ordersCache.map(order=>String(orderDisplayDateTime(order)).slice(0,10)).filter(value=>/^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
     const scope = range ? `${dateLabel(range.from)} – ${dateLabel(range.to)}` : 'All dates';
     const shown = dates.length ? `Order dates: ${dateLabel(dates[0])} – ${dateLabel(dates[dates.length-1])}` : '';
-    for (const position of ['top','bottom']) {
-      const id = position==='top'?'orders-list-pagination':'orders-list-pagination-bottom';
+    for (const position of ['bottom']) {
+      const id = 'orders-list-pagination-bottom';
       let controls = document.getElementById(id);
       if (!controls) { controls=document.createElement('section');controls.id=id;controls.className='orders-list-pagination'; }
       controls.setAttribute('aria-label',`Orders list summary · ${position}`);
-      if(position==='top') document.querySelector('.orders-filter-card').after(controls);
-      else (document.getElementById('orders-board-cards') || document.querySelector('.orders-date-groups')).after(controls);
+      (document.getElementById('orders-board-cards') || document.querySelector('.orders-date-groups')).after(controls);
       controls.innerHTML = `<div class="orders-list-page-summary"><strong>${esc(scope)}</strong><span role="status">${ordersCache.length ? `${ordersCache.length} orders · One continuous list` : 'No matching orders'}</span><small>${esc(shown)}</small></div>
-        ${position==='top'?`<div class="orders-list-selection-actions"><button type="button" data-list-select-matching ${!ordersCache.length?'disabled':''}>Select all ${ordersCache.length} filtered results</button></div>`:''}
         ${p.hidden_matches ? `<p class="orders-list-filter-notice">${p.hidden_matches} matching order${p.hidden_matches===1?' is':'s are'} hidden by the date or other filters. Adjust filters to include them.</p>` : ''}`;
     }
   }
