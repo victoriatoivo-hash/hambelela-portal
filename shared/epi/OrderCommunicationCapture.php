@@ -139,18 +139,11 @@ final class OrderCommunicationCapture
     }
     public static function requireCompletion(PDO $db,array $ids):void
     {
-        $from=self::enabled($db);if(!$from)return;
-        foreach($ids as $id){$o=V2Store::one($db,'SELECT id,created_at,status,fulfilment_mode,order_type FROM ops_orders WHERE id=?',[(int)$id]);
-            if(!$o||in_array($o['status'],['completed','cancelled'],true))continue;
-            // Database TIMESTAMP values may be returned in UTC. Use the durable
-            // Namibia release event, not a mixed-timezone created_at comparison.
-            $release=V2Store::one($db,"SELECT payload_json FROM epi_v2_outbox WHERE entity_type='order' AND entity_id=? AND action='order_created' ORDER BY id LIMIT 1",[$id]);
-            $released=json_decode($release['payload_json']??'{}',true)['metadata']['occurred_at']??null;
-            if(!$released||$released<$from)continue;
-            $tracking=V2Store::one($db,'SELECT classification FROM epi_v2_orders_tracking WHERE order_id=?',[$id]);
-            $mode=$tracking['classification']??(($o['fulfilment_mode']??'')?:$o['order_type']);if(!in_array($mode,['collection','courier','windhoek_delivery','delivery'],true))continue;
-            if(!V2Store::one($db,"SELECT m.id FROM ops_whatsapp_messages m JOIN ops_whatsapp_conversations c ON c.id=m.conversation_id WHERE c.order_id=? AND ((m.message_type='manual_contact' AND JSON_UNQUOTE(JSON_EXTRACT(m.raw_payload,'$.contact_type')) IN('response','followup_completed')) OR (m.message_type<>'manual_contact' AND m.direction='outbound' AND m.employee_id>0 AND c.first_customer_message_at IS NOT NULL AND m.message_at>=c.first_customer_message_at)) LIMIT 1",[$id]))throw new RuntimeException('Record the customer communication outcome in this order’s Communication tab before completing it. An open customer promise remains tracked separately.');
-        }
+        // Compatibility entry point for existing single/bulk status callers.
+        // Owner decision: communication notes are optional, never a prerequisite
+        // for operational completion. Do not create evidence or close promises.
+        // Authentication, attribution and courier checks remain in the caller.
+        return;
     }
     private static function date(string $value):string
     {$value=str_replace('T',' ',$value);if(strlen($value)===16)$value.=':00';$d=\DateTimeImmutable::createFromFormat('!Y-m-d H:i:s',$value,new \DateTimeZone('Africa/Windhoek'));if(!$d||$d->format('Y-m-d H:i:s')!==$value)throw new RuntimeException('Provide a valid contact/promise date and time');return $value;}

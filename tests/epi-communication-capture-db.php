@@ -56,11 +56,11 @@ try{
     check('CONTACT17 recorder cannot self-approve quality',false,attempt(fn()=>OrderCommunicationCapture::reviewQuality($db,$b['message_id'],101,'accurate','Proof','Self approval','2026-10-01 11:00:00')));
     sql("INSERT INTO ops_orders(id,order_number,fulfilment_mode,order_type,customer_name,created_at,status) VALUES(10902,'COMM10902','courier','courier','Synthetic new','2026-10-01 08:00:00','in_progress'),(10903,'COMM10903','walk_in','walk_in','Synthetic walk in','2026-10-01 08:00:00','new_order')");
     foreach([10901,10902,10903] as $oid)sql("INSERT INTO epi_v2_outbox(event_key,entity_type,entity_id,action,payload_json,state) VALUES(?,'order',?,'order_created',?,'done')",['synthetic-contact-required-'.$oid,$oid,json_encode(['metadata'=>['occurred_at'=>'2026-10-01 08:00:00']])]);
-    check('CONTACT18 new courier completion without communication rejected',false,attempt(fn()=>OrderCommunicationCapture::requireCompletion($db,[10902])));
+    check('CONTACT18 communication is not a courier completion prerequisite',true,attempt(fn()=>OrderCommunicationCapture::requireCompletion($db,[10902])));
     check('CONTACT19 recorded customer outcome allows collection completion',true,attempt(fn()=>OrderCommunicationCapture::requireCompletion($db,[10901])));
     check('CONTACT20 walk-in completion is unaffected',true,attempt(fn()=>OrderCommunicationCapture::requireCompletion($db,[10903])));
     check('CONTACT21 future contact rejected',false,attempt(fn()=>OrderCommunicationCapture::save($db,10901,101,array_replace($input,['event_uuid'=>$uuid(6),'contact_at'=>'2026-10-01T12:00']),false,'2026-10-01 11:00:00')));
-    check('CONTACT22 bulk completion cannot bypass one missing record',false,attempt(fn()=>OrderCommunicationCapture::requireCompletion($db,[10901,10902])));
+    check('CONTACT22 bulk completion does not require communication records',true,attempt(fn()=>OrderCommunicationCapture::requireCompletion($db,[10901,10902])));
     $originalReview=OrderCommunicationCapture::read($db,10901)['records'];
     check('CONTACT23 original contact remains separate from current quality review',1,count(array_filter($originalReview,fn($r)=>($r['quality_review']['decision']??'')==='accurate')));
     $scope=['scope'=>['kind'=>'front_desk_coverage']];
