@@ -12,7 +12,7 @@ assert.match(page,/Team Comparison/);assert.match(page,/← Employee Dashboard/)
 for(const id of ['reporting-controls','employee-schedules','working-calendar','tracking-history'])assert.ok(page.includes(`id="${id}"`));
 assert.match(css,/Jost/);assert.match(css,/#366b96/);assert.match(css,/#59694a/);assert.match(css,/prefers-reduced-motion/);
 assert.doesNotMatch(css,/Figtree|#721b1a|#f07420|#ab3619/i);
-assert.match(js,/version !== requestVersion/);assert.match(js,/AbortController/);assert.match(js,/Operational score · not an employee score/);
+assert.match(js,/version !== requestVersion/);assert.match(js,/AbortController/);assert.match(js,/Operational score · separate from employee scores/);
 const base=execFileSync('git',['show','0d4e0c10:apps/operations/reports.php'],{encoding:'utf8'}).replaceAll('\r\n','\n');
 const handlers=s=>s.slice(s.indexOf('$ready ='),s.indexOf("include BASE_PATH . '/shared/header.php'"));
 assert.equal(handlers(page),handlers(base),'settings values, validation, writes and permissions unchanged');

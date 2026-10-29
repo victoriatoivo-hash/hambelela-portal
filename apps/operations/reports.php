@@ -315,7 +315,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
         <section class="kpi-dashboard-operational-grid">
             <article class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Order fulfilment</p><h2>Operational completion</h2></div><small>Authoritative order records and status history</small></div><div data-kpi-orders-overview></div></article>
-            <article class="kpi-health-panel kpi-dashboard-risk"><div class="kpi-panel-heading"><div><p class="eyebrow">Risks and exceptions</p><h2>Needs attention</h2></div></div><div class="kpi-attention-list" data-kpi-attention></div></article>
+            <article class="kpi-health-panel kpi-dashboard-risk" id="business-attention"><div class="kpi-panel-heading"><h2>Needs attention</h2><small>Open exceptions</small></div><div class="kpi-attention-list" data-kpi-attention></div></article>
         </section>
         <details class="pr-disclosure"><summary>Business quality <span>Incidents and recorded impact</span></summary><section class="kpi-health-panel kpi-business-errors-panel"><div class="kpi-panel-heading"><h2>Business-attributed errors</h2><small>Business responsibility only — never charged to an employee</small></div><div data-kpi-business-errors></div></section></details>
         <section class="kpi-chart-grid">
