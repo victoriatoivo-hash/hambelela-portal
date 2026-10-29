@@ -34,11 +34,12 @@ jobs:
           php-version: '8.1'
       - name: Validate exact release files
         run: |
-          php -l shared/epi/OrderCommunicationCapture.php
-          php -l shared/front-coverage-prompt.php
-          php tests/orders-optional-communication.php
-          node tests/epi-capture-ui-static.mjs
-          node tests/epi-history-display.mjs
+          php -l apps/operations/reports.php
+          php -l apps/operations/kpi-employee.php
+          php -l apps/operations/performance-timing-settings.php
+          node --check assets/js/reports-business-health.js
+          node --check assets/js/reports-section.js
+          node tests/performance-report-workspace-static.mjs
       - name: Preflight or deploy approved delta with backup
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
@@ -46,12 +47,12 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           MODE: ${{ inputs.mode }}
           APPROVED_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/deploy-orders-simplification.py "$MODE" "$APPROVED_SHA"
+        run: python3 scripts/deploy-performance-report-workspace.py "$MODE" "$APPROVED_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: orders-simplification-${{ github.run_id }}
+          name: performance-report-workspace-${{ github.run_id }}
           path: |
-            orders-simplification-report.json
-            orders-simplification-backup.zip
+            performance-report-workspace-report.json
+            performance-report-workspace-backup.zip
           if-no-files-found: warn

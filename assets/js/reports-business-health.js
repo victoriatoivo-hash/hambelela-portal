@@ -18,7 +18,9 @@
   let packingChart;
   let latest;
   let packingMode = 'items';
-  let loading = false;
+  let requestVersion = 0;
+  let requestController;
+  let lastRenderKey = '';
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
   const employeeScore = (person) => person.summary_score !== null && person.summary_score !== undefined && person.summary_score !== '' && Number.isFinite(Number(person.summary_score)) ? Number(person.summary_score) : null;
@@ -39,7 +41,7 @@
     return data;
   }
   const display = (metric) => {
-    if (!metric || metric.value === null) return '<span class="kpi-unmeasured" title="Not enough measured records in this period">—</span>';
+    if (!metric || metric.value == null || metric.value === '' || !Number.isFinite(Number(metric.value))) return '<span class="kpi-unmeasured" title="Not enough measured records in this period">—</span>';
     if (metric.format === 'currency') return `N$${Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
     if (metric.format === 'percent') return `${Number(metric.value).toFixed(1)}%`;
     if (metric.format === 'minutes') return formatDuration(Number(metric.value));
@@ -101,7 +103,7 @@
   }
 
   function renderAttention(items) {
-    q('[data-kpi-attention]').innerHTML = items.length ? items.map((item) => `<a class="kpi-attention-row is-${escapeHtml(item.severity || 'normal')}" href="${escapeHtml(item.href)}"><span><strong>${escapeHtml(item.description)}</strong><small>${escapeHtml(item.severity || 'Normal')} · Due: ${escapeHtml(item.due_at || 'Not recorded')} · Overdue: ${escapeHtml(item.overdue || 'Not recorded')}</small></span><b>View Evidence</b></a>`).join('') : '<div class="kpi-empty-state">Nothing currently needs attention from 1 July 2026 onward.</div>';
+    q('[data-kpi-attention]').innerHTML = items.length ? items.map((item) => `<a class="kpi-attention-row is-${escapeHtml(item.severity || 'normal')}" href="${escapeHtml(item.href)}"><span><strong>${escapeHtml(item.description)}</strong><small>${escapeHtml(item.severity || 'Normal')} · Due: ${escapeHtml(item.due_at || 'Not recorded')} · Overdue: ${escapeHtml(item.overdue || 'Not recorded')}</small></span><b>View Evidence</b></a>`).join('') : '<div class="kpi-empty-state">No tracked attention items were returned. This is not a guarantee that every business risk is covered.</div>';
   }
 
   function renderTeam(team) {
@@ -114,7 +116,7 @@
   function renderBusinessErrors(summary={}) {
     const target=q('[data-kpi-business-errors]'); if(!target)return;
     const rows=summary.types||[];
-    target.innerHTML=`<div class="kpi-business-errors-summary"><article><span>Total business errors</span><b>${Number(summary.total||0)}</b></article><article><span>Resolved</span><b>${Number(summary.resolved||0)}</b></article><article><span>Still open</span><b>${Number(summary.open||0)}</b></article><article><span>Recorded financial impact</span><b>${money(summary.financial_impact||0)}</b></article></div><div class="kpi-business-error-types">${rows.map(row=>`<article><div><strong>${escapeHtml(row.error_type||'Uncategorised')}</strong><small>${Number(row.resolved||0)} resolved · ${Number(row.open||0)} open</small></div><b>${Number(row.count||0)}</b><span>${money(row.financial_impact||0)}</span></article>`).join('')||'<div class="kpi-empty-state">No business-attributed errors are recorded for this period.</div>'}</div><p class="kpi-business-errors-note">These incidents belong to Business Health. They are excluded from Cecilia, Claudia, Ndinehao and every other employee score.</p>`;
+    target.innerHTML=`<div class="kpi-business-errors-summary"><article><span>Total business errors</span><b>${Number(summary.total||0)}</b></article><article><span>Resolved</span><b>${Number(summary.resolved||0)}</b></article><article><span>Still open</span><b>${Number(summary.open||0)}</b></article><article><span>Recorded financial impact</span><b>${money(summary.financial_impact||0)}</b></article></div><div class="kpi-business-error-types">${rows.map(row=>`<article><div><strong>${escapeHtml(row.error_type||'Uncategorised')}</strong><small>${Number(row.resolved||0)} resolved · ${Number(row.open||0)} open</small></div><b>${Number(row.count||0)}</b><span>${money(row.financial_impact||0)}</span></article>`).join('')||'<div class="kpi-empty-state">No business-attributed errors are recorded for this period.</div>'}</div><p class="kpi-business-errors-note">These incidents belong to Business Health. They are excluded from individual employee scores.</p>`;
   }
 
   function renderLiveActivity(items) {
@@ -136,7 +138,8 @@
     const flowSection = (title, start, end, values, slowestReference = '', extra = '', note = '') => `<section class="kpi-flow-card"><header><h3>${escapeHtml(title)}</h3>${note ? `<small>${escapeHtml(note)}</small>` : ''}<div class="kpi-flow-track"><span>${escapeHtml(start)}</span><i></i><span>${escapeHtml(end)}</span></div></header><div class="kpi-flow-metrics">${Object.entries(values || {}).map(([key, value]) => timingMetric(key, value, slowestReference)).join('')}${extra}</div></section>`;
     const evidenceHref = `reports.php?tab=orders&period=${encodeURIComponent(period.value)}&date_from=${encodeURIComponent(from.value)}&date_to=${encodeURIComponent(to.value)}`;
     const componentSummary = operationalComponents.filter((component) => component.score !== null).map((component) => `${component.label}: ${component.score}%`).join(' · ');
-    q('[data-kpi-orders-overview]').innerHTML = `<div class="kpi-orders-overview-grid">${metrics.map(([label, value]) => `<article${label === 'Overall Operational Score' ? ` title="${escapeHtml(componentSummary || operationalScoreMessage || 'No measured categories')}"` : ''}><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? '—')}</strong><a href="${evidenceHref}" title="Evidence: ${Number(overview?.evidence_count || 0)} normalized order events">View Evidence</a></article>`).join('')}</div><div class="kpi-order-timing">${flowSection('Packer Flow','New','In Progress',timing.packer,timing.packer_slowest_order,'','Business hours only: Mon–Fri 08:00–17:00, Sat 09:00–13:00; Sundays and holidays excluded.')}${flowSection('Front Desk Flow','Ready / In Progress','Complete',timing.front_desk,timing.front_desk_slowest_order,timingMetric('in_progress_to_complete',timing.in_progress_to_complete),'Business hours only. Walk-ins are measured from New to Complete.')}</div>`;
+    const metricCard = ([label, value]) => `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? 'Not measured')}</strong><a href="${evidenceHref}">View evidence</a></article>`;
+    q('[data-kpi-orders-overview]').innerHTML = `<div class="pr-score"><small>Operational score · not an employee score</small><strong>${escapeHtml(metrics[0][1])}</strong><small>${escapeHtml(componentSummary || operationalScoreMessage || 'No measured categories')}</small></div><div class="kpi-orders-overview-grid">${metrics.slice(1,7).map(metricCard).join('')}</div><details class="pr-disclosure"><summary>Order mix &amp; completion detail</summary><div class="kpi-orders-overview-grid">${metrics.slice(7).map(metricCard).join('')}</div></details><details class="pr-disclosure"><summary>Stage timings <span>Measured business hours and waiting time</span></summary><div class="kpi-order-timing">${flowSection('Packing','New','In Progress',timing.packer,timing.packer_slowest_order,'','Business hours only: Mon–Fri 08:00–17:00, Sat 09:00–13:00; Sundays and holidays excluded.')}${flowSection('Front desk','Ready / In Progress','Complete',timing.front_desk,timing.front_desk_slowest_order,timingMetric('in_progress_to_complete',timing.in_progress_to_complete),'Business hours only. Walk-ins are measured from New to Complete.')}</div></details>`;
   }
 
   function renderRecognition(recognition) {
@@ -156,7 +159,7 @@
     const attention = data.attention || [];
     const team = data.team || [];
     const online = team.filter((person) => Number(person.online)).length;
-    q('[data-kpi-management-story]').innerHTML = `<article class="kpi-management-hero"><div><p class="eyebrow">Business overview</p><h2>Business performance at a glance</h2><p>${escapeHtml(improving ? `${improving} measured area${improving === 1 ? '' : 's'} improved against the prior period.` : 'No reliable period-over-period improvement is available yet.')} ${escapeHtml(attention.length ? `${attention.length} exception${attention.length === 1 ? '' : 's'} need management attention.` : 'No current exception needs management attention.')}</p></div><div class="kpi-management-hero__facts"><span><strong>${measured.length}</strong> measured areas</span><span><strong>${online}</strong> of ${team.length} online</span><span><strong>${attention.length}</strong> attention items</span></div></article>`;
+    q('[data-kpi-management-story]').innerHTML = `<div class="pr-summary-strip"><div><strong>Period overview</strong><p>${escapeHtml(improving ? `${improving} measured area${improving === 1 ? '' : 's'} improved against the prior period.` : 'No reliable comparison with the prior period yet.')}</p><p>Business results and employee scores are reported separately.</p></div><span><strong>${measured.length}</strong>measured areas</span><span><strong>${online} / ${team.length}</strong>employees online</span><span><strong>${attention.length}</strong>attention items</span></div>`;
   }
 
   function renderOperationalFlow(data) {
@@ -178,6 +181,10 @@
 
   function renderCharts(data) {
     if (!window.Chart) return;
+    Chart.defaults.font.family = 'Jost, sans-serif';
+    Chart.defaults.font.size = 11;
+    Chart.defaults.color = '#636e64';
+    Chart.defaults.animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 180 };
     if (orderVolumeChart) orderVolumeChart.destroy();
     if (paidSalesChart) paidSalesChart.destroy();
     const orderRows = data.trends.orders || [];
@@ -207,27 +214,31 @@
   }
 
   async function load(refresh = false) {
-    if (loading) return;
-    loading = true;
+    const version = ++requestVersion;
+    requestController?.abort();
+    requestController = new AbortController();
     q('[data-kpi-error]').hidden = true;
     const params = new URLSearchParams({ period: period.value });
     if (period.value === 'custom') { params.set('date_from', from.value); params.set('date_to', to.value); }
     if (includeHistorical.checked) params.set('include_historical', '1');
     if (refresh) params.set('refresh', String(Date.now()));
     try {
-      const response = await fetch(`reports-data.php?${params}`, { headers: { Accept: 'application/json' } });
+      const response = await fetch(`reports-data.php?${params}`, { headers: { Accept: 'application/json' }, signal: requestController.signal });
       const data = await readKpiJson(response);
+      if (version !== requestVersion) return;
       latest = data;
+      const renderKey = JSON.stringify(data);
+      if (renderKey === lastRenderKey) return;
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
       renderCards(data.cards); renderManagementStory(data); renderRecognition(data.recognition); renderOperationalFlow(data); renderOrdersOverview(data.orders_overview, data.operational_score, data.operational_score_message, data.operational_score_components || []); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderBusinessErrors(data.business_errors||{}); renderTeam(data.team); renderLiveActivity(data.live_activity || []); renderManagementComparison(data.team); renderCharts(data);
+      lastRenderKey = renderKey;
     } catch (error) {
+      if (error.name === 'AbortError' || version !== requestVersion) return;
       root.querySelectorAll('.is-loading').forEach((node) => node.classList.remove('is-loading'));
       q('[data-kpi-error]').textContent = error.message;
       q('[data-kpi-error]').hidden = false;
-    } finally {
-      loading = false;
     }
   }
 

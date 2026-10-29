@@ -19,10 +19,10 @@ if ($tab === 'settings') {
     require_once dirname(__DIR__,2).'/shared/epi/bootstrap.php';
     require_once dirname(__DIR__,2).'/shared/epi/ProvisionalTimingPolicy.php';
 }
-$currentKpiTitle = $tab === 'dashboard' ? 'Employee Dashboard' : ($tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health')));
+$currentKpiTitle = $tab === 'dashboard' ? 'Employee Dashboard' : ($tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Team Comparison' : ($phaseThreeTabs[$tab] ?? 'Business Health')));
 $pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
 $activeApp = 'kpi';
-$extraStylesheets = $tab === 'business-health' ? [[
+$extraStylesheets = $tab !== 'dashboard' ? [[
     'path' => 'assets/css/performance-dashboard.css',
     'version' => is_file(BASE_PATH . '/assets/css/performance-dashboard.css') ? (string) filemtime(BASE_PATH . '/assets/css/performance-dashboard.css') : '1',
 ]] : [];
@@ -279,19 +279,19 @@ if ($ready && $tab === 'settings') {
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
-<main id="<?= $tab === 'business-health' ? 'kpi-management' : ($tab === 'performance-reports' ? 'kpi-reports' : ($tab === 'business-activity' ? 'kpi-business-timeline-page' : 'kpi-management')) ?>" class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
+<main id="<?= $tab === 'business-health' ? 'kpi-management' : ($tab === 'performance-reports' ? 'kpi-reports' : ($tab === 'business-activity' ? 'kpi-business-timeline-page' : 'kpi-management')) ?>" class="workspace module kpi-health-page <?= $tab !== 'dashboard' ? 'performance-report-workspace' : '' ?>" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
+    <?php if ($tab !== 'dashboard'): ?><nav class="pr-breadcrumb" aria-label="Breadcrumb"><a href="reports.php">← Employee Dashboard</a><span aria-hidden="true">/</span><span><?= htmlspecialchars($currentKpiTitle,ENT_QUOTES,'UTF-8') ?></span></nav><?php endif; ?>
     <section class="module-header">
         <div>
-            <?php if ($tab !== 'dashboard'): ?><p class="eyebrow">Performance</p><?php endif; ?>
             <h1><?= htmlspecialchars($currentKpiTitle,ENT_QUOTES,'UTF-8') ?></h1>
             <?php if ($tab !== 'dashboard'): ?><p><?= $tab === 'settings' ? 'Control data windows, fairness thresholds, working calendars and employee schedules.' : ($tab === 'employees' ? 'Role-relative performance evidence, workload and attendance for each employee.' : 'Evidence-based employee performance, accountability and operational insight.') ?></p><?php endif; ?>
         </div>
     </section>
 
     <?php if ($tab !== 'dashboard'): ?><nav class="kpi-health-tabs" aria-label="Employee Performance sections">
-        <a href="reports.php" class="<?= $tab === 'dashboard' ? 'active' : '' ?>">Overview</a>
+        <a href="reports.php">Dashboard</a>
         <a href="reports.php?tab=business-health" class="<?= $tab === 'business-health' ? 'active' : '' ?>">Business Health</a>
-        <a href="reports.php?tab=employees" class="<?= $tab === 'employees' ? 'active' : '' ?>">Employees</a>
+        <a href="reports.php?tab=employees" class="<?= $tab === 'employees' ? 'active' : '' ?>">Team Comparison</a>
         <?php foreach($visiblePerformanceTabs as $tabKey=>$tabLabel): ?><a href="reports.php?tab=<?= $tabKey ?>" class="<?= $tab===$tabKey?'active':'' ?>"><?= htmlspecialchars($tabLabel,ENT_QUOTES,'UTF-8') ?></a><?php endforeach; ?>
         <a href="reports.php?tab=settings" class="<?= $tab === 'settings' ? 'active' : '' ?>">Performance Settings</a>
     </nav><?php endif; ?>
@@ -302,33 +302,34 @@ include BASE_PATH . '/shared/sidebar.php';
         <?php include __DIR__.'/performance-workspace.php'; ?>
     <?php elseif ($tab === 'business-health'): ?>
         <section class="kpi-period-panel" aria-label="Reporting period">
-            <label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label>
+            <label><span>Reporting period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month" selected>This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label>
             <label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label>
             <label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label>
-            <label class="kpi-historical-toggle"><input type="checkbox" data-kpi-include-historical><span>Include Pre-EPI Historical Records</span></label>
+            <label class="kpi-historical-toggle"><input type="checkbox" data-kpi-include-historical><span>Include earlier records</span></label>
             <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
         </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div>
         <div class="ops-alert error" data-kpi-error hidden role="alert"></div>
-        <header class="kpi-dashboard-section-head"><div><p>Business overview</p><h2>Business Health</h2></div><span>What is working, what is outstanding and what needs attention</span></header>
         <section class="kpi-management-story" data-kpi-management-story aria-live="polite"></section>
+        <header class="kpi-dashboard-section-head"><h2>Business measures</h2><span>Measured records only · missing evidence is not a zero</span></header>
         <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
         <section class="kpi-dashboard-operational-grid">
             <article class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Order fulfilment</p><h2>Operational completion</h2></div><small>Authoritative order records and status history</small></div><div data-kpi-orders-overview></div></article>
             <article class="kpi-health-panel kpi-dashboard-risk"><div class="kpi-panel-heading"><div><p class="eyebrow">Risks and exceptions</p><h2>Needs attention</h2></div></div><div class="kpi-attention-list" data-kpi-attention></div></article>
         </section>
-        <section class="kpi-health-panel kpi-business-errors-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Business quality</p><h2>Business-Attributed Errors</h2></div><small>Business responsibility only — never charged to an employee</small></div><div data-kpi-business-errors></div></section>
+        <details class="pr-disclosure"><summary>Business quality <span>Incidents and recorded impact</span></summary><section class="kpi-health-panel kpi-business-errors-panel"><div class="kpi-panel-heading"><h2>Business-attributed errors</h2><small>Business responsibility only — never charged to an employee</small></div><div data-kpi-business-errors></div></section></details>
         <section class="kpi-chart-grid">
             <article class="kpi-health-panel kpi-orders-sales-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Daily activity</p><h2>Orders and Paid Sales</h2></div><small>Order count and paid sales are shown separately</small></div><div class="kpi-orders-sales-summary" data-kpi-orders-sales-summary></div><div class="kpi-orders-sales-charts"><section><h3>Order Volume</h3><p>Number of orders created each day</p><div class="kpi-chart-frame"><canvas data-kpi-order-volume-chart></canvas></div></section><section><h3>Paid Sales Value</h3><p>Paid order value received each day</p><div class="kpi-chart-frame"><canvas data-kpi-paid-sales-chart></canvas></div></section></div></article>
             <article class="kpi-health-panel kpi-physical-output-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Measured packing output</p><h2>Physical Packing Output by Employee</h2></div><div class="kpi-chart-toggle"><button type="button" class="active" data-kpi-chart-mode="items">Items</button><button type="button" data-kpi-chart-mode="weight">Weight (kg)</button><button type="button" data-kpi-chart-mode="volume">Volume (L)</button><button type="button" data-kpi-chart-mode="packages">Packages</button><button type="button" data-kpi-chart-mode="units">Units</button></div></div><div class="kpi-chart-context" data-kpi-packing-context>Completed packing items by employee and completion date.</div><div class="kpi-physical-output-summary" data-kpi-physical-output-summary></div><div class="kpi-chart-frame"><canvas data-kpi-packing-chart></canvas></div></article>
         </section>
-        <header class="kpi-dashboard-section-head"><div><p>People</p><h2>Operations Team Overview</h2></div><span>Each employee is shown separately using the work that applies to their role</span></header>
+        <header class="kpi-dashboard-section-head"><h2>People &amp; evidence</h2><a href="reports.php?tab=employees">Compare employees →</a></header>
         <section class="kpi-team-stack" data-kpi-team aria-label="Employee performance summaries"></section>
-        <header class="kpi-dashboard-section-head"><div><p>Live operations</p><h2>Recent Work Across the Portal</h2></div><span>Latest attributable employee activity, grouped by portal area</span></header>
+        <header class="kpi-dashboard-section-head"><h2>Recent activity</h2><a href="reports.php?tab=business-activity">Full activity timeline →</a></header>
         <section class="kpi-health-panel kpi-live-activity" data-kpi-live-activity aria-live="polite"></section>
-        <header class="kpi-dashboard-section-head"><div><p>Operational detail</p><h2>Section Health and Employee Highlights</h2></div><span>Open any detailed section for its underlying evidence</span></header>
+        <details class="pr-disclosure"><summary>Process detail &amp; recognition <span>Underlying measures and qualifying evidence</span></summary>
         <section class="kpi-management-flow" data-kpi-management-flow aria-label="Operational flow"></section>
         <section class="kpi-recognition" data-kpi-recognition aria-label="Employee awards and recognition"></section>
+        </details>
         <div data-kpi-scores hidden></div><div data-kpi-management-comparison hidden></div>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
         <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
@@ -343,7 +344,6 @@ include BASE_PATH . '/shared/sidebar.php';
         <div class="performance-report-meta"><span data-performance-period-caption></span><span data-performance-refreshed></span><span data-performance-quality></span></div>
         <div class="ops-alert error" data-performance-error hidden role="alert"></div>
         <section data-performance-output aria-live="polite">Loading published employee results…</section>
-        <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/employee-performance.css?v=<?= (int)@filemtime(BASE_PATH.'/assets/css/employee-performance.css') ?>">
         <script src="<?= BASE_URL ?>/assets/js/employee-performance-workforce.js?v=<?= (int)@filemtime(BASE_PATH.'/assets/js/employee-performance-workforce.js') ?>"></script>
     <?php elseif ($tab === 'performance-reports'): ?>
         <section class="performance-report-controls" aria-label="Performance report filters">
@@ -361,44 +361,64 @@ include BASE_PATH . '/shared/sidebar.php';
         <script src="<?= BASE_URL ?>/assets/js/reports-performance.js?v=<?= htmlspecialchars(substr((string)@hash_file('sha256',BASE_PATH.'/assets/js/reports-performance.js'),0,12),ENT_QUOTES,'UTF-8') ?>"></script>
     <?php elseif (isset($phaseThreeTabs[$tab])): ?>
         <section class="kpi-period-panel" aria-label="Reporting period"><label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label><label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label><label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label><span class="kpi-period-caption" data-kpi-caption>Loading…</span><button class="btn-secondary" type="button" data-kpi-refresh>Refresh</button><?php if($tab==='performance-reports'): ?><button class="btn-secondary" type="button" onclick="window.print()">Print report</button><?php endif; ?></section>
-        <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div><section data-kpi-section-content><div class="kpi-health-grid"><?php foreach(range(1,6)as$i): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section><dialog class="kpi-timeline-dialog" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close timeline">×</button><div data-kpi-timeline-content></div></dialog>
         <?php if($tab==='business-activity'): ?><section id="kpi-business-timeline" class="kpi-period-panel" aria-label="Business activity filters"><label><span>Actor</span><select data-activity-actor><option value="">All actors</option><option value="employee">Employee</option><option value="owner">Owner</option><option value="system">System</option><option value="unknown">Unknown historical actor</option></select></label><label><span>Module</span><select data-activity-module><option value="">All modules</option><option value="orders">Orders</option><option value="packing_list">Packing</option><option value="tasks">Tasks</option><option value="courier_waybills">Courier</option><option value="error_log">Error Log</option><option value="bookkeeping">Bookkeeping</option><option value="portal_activity">Attendance</option></select></label><label><span>Assignment</span><select data-activity-assignment><option value="">All activity</option><option value="automatically_assigned">Automatically assigned</option><option value="manually_assigned">Manually assigned</option><option value="reassigned">Reassigned</option></select></label><label><span>Result</span><select data-activity-result><option value="">All results</option><option value="successful">Successful</option><option value="failed">Failed</option><option value="skipped">Skipped</option></select></label></section><?php endif; ?>
+        <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div><section data-kpi-section-content><div class="kpi-health-grid"><?php foreach(range(1,6)as$i): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section><dialog class="kpi-timeline-dialog" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close timeline">×</button><div data-kpi-timeline-content></div></dialog>
         <script src="<?= BASE_URL ?>/assets/js/reports-section.js?v=<?= (int)@filemtime(BASE_PATH.'/assets/js/reports-section.js') ?>"></script>
     <?php else: ?>
         <?php if ($message !== ''): ?><div class="ops-alert <?= $messageType === 'error' ? 'error' : 'success' ?>" role="status"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
         <?php require __DIR__.'/performance-timing-settings.php'; ?>
 
-        <section class="panel">
-            <div class="section-row"><div><p class="eyebrow">Calculation controls</p><h2>Global performance settings</h2><p>Role-specific weights are stored for owner review only. Composite scores, bonus bands and rankings remain disabled until every required data-integrity test passes.</p></div></div>
-            <form method="post" class="form-grid">
+        <details class="pr-disclosure" id="reporting-controls">
+            <summary>Advanced reporting controls <span>Data windows, legacy targets and reference weights</span></summary>
+            <section class="panel">
+            <p class="pr-note">These are legacy/reporting controls, not the active V2 scorecard. Role-specific weights are stored for owner review only. Composite scores, bonus bands and rankings remain disabled until every required data-integrity test passes.</p>
+            <form method="post" class="pr-settings-form">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="kpi_action" value="save_settings">
-                <?php foreach ($settingFields as $key => [$label, $type, $default]): ?>
+                <?php $fieldGroups = ['Data windows'=>[], 'Operating targets'=>[], 'Reference weights & rewards'=>[]];
+                foreach ($settingFields as $key=>$definition) {
+                    $group = $definition[1] === 'date' ? 'Data windows' : (preg_match('/weight|bonus|reward|score|band/', $key) ? 'Reference weights & rewards' : 'Operating targets');
+                    $fieldGroups[$group][$key]=$definition;
+                }
+                foreach ($fieldGroups as $group=>$fields): ?><fieldset><legend><?= htmlspecialchars($group, ENT_QUOTES, 'UTF-8') ?></legend><div class="form-grid">
+                <?php foreach ($fields as $key => [$label, $type, $default]): ?>
                     <label class="field"><span><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></span><input type="<?= $type ?>" name="<?= htmlspecialchars($key, ENT_QUOTES, 'UTF-8') ?>" value="<?= htmlspecialchars($settings[$key] ?? $default, ENT_QUOTES, 'UTF-8') ?>" <?= $type === 'number' ? 'min="0" step="any"' : '' ?> required></label>
                 <?php endforeach; ?>
+                </div></fieldset><?php endforeach; ?>
                 <div class="form-actions"><button class="btn-primary" type="submit">Save performance settings</button></div>
             </form>
-        </section>
+        </section></details>
 
-        <section class="panel">
+        <details class="pr-disclosure" id="employee-schedules"><summary>Employee schedules <span>Working hours, effective dates and change history</span></summary><section class="panel">
             <div class="section-row"><div><p class="eyebrow">Fair attendance</p><h2>Employee schedules</h2></div></div>
             <div class="table-scroll"><table class="data-table"><thead><tr><th>Employee</th><th>Role</th><th>Hire date</th><th>Working days</th><th>Mon–Fri shift</th><th>Saturday shift</th><th>Grace</th><th>Action</th></tr></thead><tbody>
             <?php foreach ($employees as $employee): $scheduleFormId = 'employee-schedule-' . (int) $employee['id']; $savedSchedule=$employeeSchedules[(int)$employee['id']]??[]; $weekdaySchedule=$savedSchedule[1]??null; $saturdaySchedule=$savedSchedule[6]??null; $latestVersion=$employeeScheduleVersions[(int)$employee['id']][0]??[]; ?><tr><td><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong><small><?= count($employeeScheduleVersions[(int)$employee['id']]??[]) ?> version(s)</small></td><td><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?></td><td><input form="<?= $scheduleFormId ?>" type="date" name="hire_date" value="<?= htmlspecialchars((string) ($employee['hire_date'] ?? ''), ENT_QUOTES, 'UTF-8') ?>"><input form="<?= $scheduleFormId ?>" type="date" name="effective_from" value="<?= date('Y-m-d') ?>" required aria-label="Effective from"><input form="<?= $scheduleFormId ?>" type="date" name="effective_to" aria-label="Effective to"></td><td><input form="<?= $scheduleFormId ?>" name="working_days" value="<?= htmlspecialchars((string) ($employee['working_days'] ?? '1,2,3,4,5'), ENT_QUOTES, 'UTF-8') ?>" placeholder="1,2,3,4,5"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="shift_start" value="<?= htmlspecialchars(substr((string) ($weekdaySchedule['shift_start']??$employee['shift_start'] ?? '08:00'), 0, 5), ENT_QUOTES, 'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="shift_end" value="<?= htmlspecialchars(substr((string) ($weekdaySchedule['shift_end']??$employee['shift_end'] ?? '17:00'), 0, 5), ENT_QUOTES, 'UTF-8') ?>"><input form="<?= $scheduleFormId ?>" type="time" name="lunch_start" value="<?= htmlspecialchars(substr((string)($latestVersion['lunch_start']??'12:00'),0,5),ENT_QUOTES,'UTF-8') ?>" aria-label="Lunch start"><input form="<?= $scheduleFormId ?>" type="time" name="lunch_end" value="<?= htmlspecialchars(substr((string)($latestVersion['lunch_end']??'13:00'),0,5),ENT_QUOTES,'UTF-8') ?>" aria-label="Lunch end"></td><td><input form="<?= $scheduleFormId ?>" type="time" name="saturday_shift_start" value="<?= htmlspecialchars(substr((string)($saturdaySchedule['shift_start']??'09:00'),0,5),ENT_QUOTES,'UTF-8') ?>"> <input form="<?= $scheduleFormId ?>" type="time" name="saturday_shift_end" value="<?= htmlspecialchars(substr((string)($saturdaySchedule['shift_end']??'13:30'),0,5),ENT_QUOTES,'UTF-8') ?>"></td><td><input form="<?= $scheduleFormId ?>" type="number" min="0" name="late_grace_minutes" value="<?= (int) ($employee['late_grace_minutes'] ?? 10) ?>"><input form="<?= $scheduleFormId ?>" name="schedule_timezone" value="<?= htmlspecialchars((string)($latestVersion['timezone']??'Africa/Windhoek'),ENT_QUOTES,'UTF-8') ?>" aria-label="Timezone"><input form="<?= $scheduleFormId ?>" name="change_reason" required placeholder="Reason for schedule version" aria-label="Change reason"></td><td><form id="<?= $scheduleFormId ?>" method="post"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="save_employee_schedule"><input type="hidden" name="employee_id" value="<?= (int) $employee['id'] ?>"><button class="btn-secondary" type="submit">Save new version</button></form></td></tr><?php endforeach; ?>
             </tbody></table></div>
-        </section>
+        </section></details>
 
-        <section class="panel">
+        <details class="pr-disclosure" id="working-calendar"><summary>Working calendar <span>Public holidays</span></summary><section class="panel">
             <div class="section-row"><div><p class="eyebrow">Working calendar</p><h2>Public holidays</h2></div></div>
             <form method="post" class="inline-fields"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="save_holiday"><label class="field"><span>Date</span><input type="date" name="holiday_date" required></label><label class="field"><span>Name</span><input name="holiday_name" maxlength="100" required></label><button class="btn-primary" type="submit">Add holiday</button></form>
             <div class="table-scroll"><table class="data-table"><thead><tr><th>Date</th><th>Holiday</th><th>Action</th></tr></thead><tbody><?php foreach ($holidays as $holiday): ?><tr><td><?= htmlspecialchars((string) $holiday['holiday_date'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $holiday['holiday_name'], ENT_QUOTES, 'UTF-8') ?></td><td><form method="post"><input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>"><input type="hidden" name="kpi_action" value="remove_holiday"><input type="hidden" name="holiday_date" value="<?= htmlspecialchars((string) $holiday['holiday_date'], ENT_QUOTES, 'UTF-8') ?>"><button class="btn-secondary" type="submit">Remove</button></form></td></tr><?php endforeach; ?></tbody></table></div>
-        </section>
+        </section></details>
 
-        <section class="panel">
+        <details class="pr-disclosure" id="tracking-history"><summary>Tracking history <span>Recent status changes and portal sessions</span></summary><section class="panel">
             <div class="section-row"><div><p class="eyebrow">Phase 1 verification</p><h2>Contained tracking evidence</h2></div></div>
             <div class="table-scroll"><table class="data-table"><thead><tr><th>When</th><th>Module</th><th>Record</th><th>Status change</th><th>Changed by</th></tr></thead><tbody><?php foreach ($recentEvents as $event): ?><tr><td><?= htmlspecialchars((string) $event['changed_at'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $event['module'], ENT_QUOTES, 'UTF-8') ?></td><td>#<?= (int) $event['record_id'] ?></td><td><?= htmlspecialchars((string) ($event['old_status'] ?? '-'), ENT_QUOTES, 'UTF-8') ?> &rarr; <?= htmlspecialchars((string) $event['new_status'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($event['full_name'] ?? 'Unknown'), ENT_QUOTES, 'UTF-8') ?></td></tr><?php endforeach; ?><?php if (!$recentEvents): ?><tr><td colspan="5">No status events recorded yet.</td></tr><?php endif; ?></tbody></table></div>
             <div class="table-scroll"><table class="data-table"><thead><tr><th>Employee</th><th>Login</th><th>Last activity</th><th>Logout</th></tr></thead><tbody><?php foreach ($recentSessions as $session): ?><tr><td><?= htmlspecialchars((string) ($session['full_name'] ?? 'Unknown'), ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $session['login_at'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) $session['last_seen_at'], ENT_QUOTES, 'UTF-8') ?></td><td><?= htmlspecialchars((string) ($session['logout_at'] ?? 'Open'), ENT_QUOTES, 'UTF-8') ?></td></tr><?php endforeach; ?><?php if (!$recentSessions): ?><tr><td colspan="4">No tracked login sessions yet.</td></tr><?php endif; ?></tbody></table></div>
-        </section>
+        </section></details>
     <?php endif; ?>
 </main>
+<?php if ($tab === 'settings'): ?>
+<script>
+document.querySelector('.pr-settings-nav')?.addEventListener('click', (event) => {
+    const link = event.target.closest('a[href^="#"]');
+    if (!link) return;
+    const section = document.getElementById(link.getAttribute('href').slice(1));
+    if (!section) return;
+    if (section.tagName === 'DETAILS') section.open = true;
+});
+</script>
+<?php endif; ?>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
