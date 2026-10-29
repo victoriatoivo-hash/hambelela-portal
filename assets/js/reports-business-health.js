@@ -10,6 +10,16 @@
   const custom = root.querySelectorAll('[data-kpi-custom]');
   const includeHistorical = q('[data-kpi-include-historical]');
   const labels = { orders: 'Orders received', fulfilment: 'Average business-hours order completion', order_start_response: 'Average business-hours New to In Progress', walk_in_completion: 'Average business-hours walk-in completion', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'Completed within six elapsed hours', pack_speed: 'Average elapsed packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
+  const compactLabels = { orders: 'Orders received', fulfilment: 'Order completion', order_start_response: 'Packing response', walk_in_completion: 'Walk-in completion', settlement: 'Payment settlement', final_closure: 'Final closure', dispatch: 'Completed within 6h', pack_speed: 'Packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence' };
+  const cardIcon = (key) => {
+    const paths = {
+      orders: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6M9 13h6M9 17h4"/>',
+      revenue: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 15h3"/>',
+      attendance: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 5a3 3 0 0 1 0 6M21 21v-3a6 6 0 0 0-3-5"/>',
+      fulfilment: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+    };
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6M12 2v3"/>'}</svg>`;
+  };
   const palette = getComputedStyle(root);
   const colour = (name) => palette.getPropertyValue(name).trim();
   const money = (value) => `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -87,9 +97,9 @@
   function renderCards(cards) {
     q('[data-kpi-cards]').innerHTML = Object.entries(cards).map(([key, metric]) => {
       const improving = metric.delta !== null && (metric.lower_is_better ? metric.delta < 0 : metric.delta > 0);
-      const delta = metric.delta === null ? 'No comparison available' : `${metric.delta > 0 ? '▲' : metric.delta < 0 ? '▼' : '•'} ${Math.abs(metric.delta)} vs prior period`;
-      const badge = metric.low_data ? `<em class="kpi-low-data">Low data · n=${metric.sample}</em>` : `<em>n=${metric.sample}</em>`;
-      return `<article class="kpi-health-card"><span>${escapeHtml(labels[key] || key)}</span><strong>${display(metric)}</strong><small class="${metric.delta === null || metric.delta === 0 ? '' : improving ? 'kpi-delta-good' : 'kpi-delta-bad'}">${escapeHtml(delta)}</small>${badge}</article>`;
+      const delta = metric.delta === null ? 'No comparison' : `${metric.delta > 0 ? '▲' : metric.delta < 0 ? '▼' : '•'} ${Math.abs(metric.delta)} vs prior`;
+      const badge = metric.low_data ? `<em class="kpi-low-data">Low data · n=${escapeHtml(metric.sample)}</em>` : `<em>n=${escapeHtml(metric.sample)}</em>`;
+      return `<article class="kpi-health-card kpi-measure-card" title="${escapeHtml(labels[key] || key)}"><i class="kpi-measure-icon">${cardIcon(key)}</i><div class="kpi-measure-copy"><span>${escapeHtml(compactLabels[key] || labels[key] || key)}</span><strong>${display(metric)}</strong><small class="${metric.delta === null || metric.delta === 0 ? '' : improving ? 'kpi-delta-good' : 'kpi-delta-bad'}">${escapeHtml(delta)}</small>${badge}</div></article>`;
     }).join('');
   }
 

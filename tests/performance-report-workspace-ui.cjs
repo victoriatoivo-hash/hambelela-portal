@@ -4,6 +4,10 @@ const metric=(value,format='number')=>({value,format,delta:null,sample:8,low_dat
 const health={ok:true,period:{from:'2026-10-01',to:'2026-10-29',adoption_date:'2026-07-14'},cards:{orders:metric(40),revenue:metric(4000,'currency'),fulfilment:metric(65,'minutes'),settlement:metric(null,'minutes'),attendance:metric(60,'percent'),pack_speed:metric(40,'minutes')},team:[],attention:[],live_activity:[],scores:[],scores_disabled:true,scores_message:'Insufficient verified evidence',operational_score:null,operational_score_message:'Not calculated — incomplete operational evidence',orders_overview:{counts:{received:40,new:3,in_progress:2,completed:35,outstanding:5,reopened:0},timing:{packer:{average:'40 min'},front_desk:{average:'20 min'}}},trends:{orders:[],packing:[]},recognition:{overall:[],strengths:[],risks:[]}};
 const activity={ok:true,period:{from:'2026-10-01',to:'2026-10-29'},cards:[{label:'Recorded activities',value:1}],rows:[{occurred_at:'2026-10-29T10:00:00+02:00',action:'order_completed',actor:'Fixture employee',actor_type:'employee',module:'orders',result:'successful',kpi_effect:'employee_evidence',record_id:1}],pagination:{page:1,pages:1}};
 const workforce={ok:true,employees:[],workforce:{period_start:'2026-10-01',reports:[]}};
+health.cards.revenue=metric(271022.84,'currency');
+health.cards.order_start_response=metric(82,'minutes');
+health.cards.walk_in_completion=metric(91,'minutes');
+health.cards.final_closure=metric(1017,'minutes');
 (async()=>{
  const browser=await chromium.launch({headless:true,channel:process.env.TEST_BROWSER_CHANNEL||'chrome'});
  const context=await browser.newContext();fs.mkdirSync('.run-artifacts/report-workspace',{recursive:true});
@@ -33,6 +37,12 @@ const workforce={ok:true,employees:[],workforce:{period_start:'2026-10-01',repor
    await page.locator('#reporting-controls>summary').click();
   }
   if(tab==='business-health'){
+   await page.locator('.kpi-measure-card').first().waitFor();
+   assert.equal(await page.locator('.kpi-measure-card').count(),9);
+   const compact=await page.locator('.kpi-measure-card').first().boundingBox();assert.ok(compact.height<=105,`compact widget height ${compact.height}`);
+   assert.equal(await page.locator('.kpi-measure-copy>strong').first().evaluate(e=>getComputedStyle(e).fontSize),'18px');
+   assert.equal(await page.locator('.kpi-measure-icon svg').count(),9);
+   assert.ok(await page.locator('.kpi-measure-copy').evaluateAll(nodes=>nodes.every(n=>n.scrollWidth<=n.clientWidth+1)),'widget text must fit');
    await page.locator('.pr-summary-strip').waitFor();assert.match(await page.locator('.pr-score').textContent(),/Not calculated/);
    await page.getByText('Order mix & completion detail',{exact:true}).click();assert.equal(await page.locator('.kpi-orders-overview-grid article').count(),15);
    assert.equal(await page.locator('[data-kpi-error]').isVisible(),false);
