@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/../shared/epi/IncidentCorrelation.php';
+require_once __DIR__.'/../shared/epi/OrderCommunicationCapture.php';
 use Hambelela\EPI\{IncidentCorrelation,V2OperationalBridge,PerformanceRefreshRuntime,EmployeePerformanceService};
 resetObjects();
 $policy=['version'=>'communication-acceptance-fixture','status'=>'approved','categories'=>['communication'=>[
@@ -18,6 +19,8 @@ foreach([72,73,74] as $id){
     sql("UPDATE ops_whatsapp_conversations SET status='resolved' WHERE id=?",[$id]);
     V2OperationalBridge::record($db,'ops_whatsapp_conversation','save_whatsapp_conversation',$id,
         ['employee_id'=>102,'occurred_at'=>'2026-10-01 09:00:00']);
+    check('QUAL00 resolved conversation '.$id.' is not automatically accurate',false,json_decode(scalar('SELECT source_snapshot_json FROM epi_v2_completed_work_units WHERE opportunity_key=?',['ops_whatsapp_conversation:'.$id.':0']),true)['native_measurement']['measured']);
+    \Hambelela\EPI\OrderCommunicationCapture::reviewUnit($db,'ops_whatsapp_conversation:'.$id.':0',999,'accurate','Synthetic verified conversation '.$id,'Owner inspected the original synthetic content','2026-10-01 09:05:00');
 }
 PerformanceRefreshRuntime::run($db);
 $service=new EmployeePerformanceService($db);

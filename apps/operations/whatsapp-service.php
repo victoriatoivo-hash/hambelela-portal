@@ -41,6 +41,8 @@ function wa_platforms(): array
         'whatsapp' => 'WhatsApp',
         'instagram' => 'Instagram',
         'facebook' => 'Facebook',
+        'call' => 'Call (manual record)',
+        'email' => 'Email (manual record)',
     ];
 }
 

@@ -23,7 +23,7 @@ final class CommunicationDeadlineBridge
         if($newInbound && $employee===0){
             $db->prepare("INSERT IGNORE INTO epi_v2_object_duties VALUES('Orders',?,'front_desk')")->execute([$ref]);
         }
-        if($employee>0 && (!$owner || (int)$owner['employee_id']!==$employee)) {
+        if(empty($meta['prevent_assignment']) && $employee>0 && (!$owner || (int)$owner['employee_id']!==$employee)) {
             $directed=$actor===(int)$activation['approved_by'] && (V2Store::policy($db)['task_assignment_policy']??'')==='owner_directed';
             if($actor===$employee || $directed)$owners->assign(['module'=>'Orders','object_reference'=>$ref,
                 'employee_id'=>$employee,'assigned_by'=>$actor,'accepted_by'=>$actor,

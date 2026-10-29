@@ -1,0 +1,17 @@
+[data-order-communication]{font:400 12px/1.5 Jost,sans-serif;color:#344126;min-width:0}
+[data-order-communication] .contact-card{padding:16px;border:1px solid #e4e6dc;border-radius:12px;background:#fff;margin:0 0 14px;box-shadow:0 3px 12px #34412605}
+[data-order-communication] h3{font:600 15px/1.4 Jost,sans-serif;margin:0 0 10px}
+[data-order-communication] p,[data-order-communication] small{color:#6c7266}
+[data-order-communication] .contact-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+[data-order-communication] label{display:grid;gap:5px;min-width:0;font-weight:400}
+[data-order-communication] .contact-wide{grid-column:1/-1}
+[data-order-communication] :is(input,select,textarea){width:100%;min-width:0;box-sizing:border-box;font:inherit;border:1px solid #e4e6dc;border-radius:8px;background:#fff;padding:8px;color:#344126}
+[data-order-communication] :is(input,select){min-height:40px}
+[data-order-communication] button{font:500 11.5px/1.4 Jost,sans-serif;min-height:40px;padding:0 12px;background:#59694a;border:1px solid #59694a;border-radius:10px;color:#fff;cursor:pointer}
+[data-order-communication] button:hover{background:#344126}[data-order-communication] button:disabled{opacity:.5;cursor:wait}
+[data-order-communication] .contact-record{padding:14px 0;border-bottom:1px solid #e4e6dc;overflow-wrap:break-word}
+[data-order-communication] header{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap}
+[data-order-communication] summary{cursor:pointer;color:#7754a5;min-height:36px;padding-top:10px}
+[data-order-communication] [hidden]{display:none!important}
+[data-order-communication] :is(button,input,select,textarea,summary):focus-visible{outline:2px solid #7754a5;outline-offset:3px}
+@media(max-width:600px){[data-order-communication] .contact-form{grid-template-columns:minmax(0,1fr)}}

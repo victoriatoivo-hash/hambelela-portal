@@ -59,14 +59,22 @@ final class EmployeePerformanceService
         $previousPeriod=Support::timestamp($period)->modify('-1 month')->format('Y-m-01');
         $previous=$this->read($employee,$previousPeriod);
         $result['previous_period']=['period_start'=>$previousPeriod,'status'=>$previous['status'],
-            'official_score_hundredths'=>$previous['official_score_hundredths']??null];
+            'official_score_hundredths'=>$previous['official_score_hundredths']??null,
+            'available_points_hundredths'=>$previous['available_points_hundredths']??null,
+            'available_weight_hundredths'=>$previous['available_weight_hundredths']??null,
+            'scorecard_version'=>$previous['scorecard_version']??null,
+            'comparable'=>isset($result['scorecard_version'],$previous['scorecard_version'])&&$result['scorecard_version']===$previous['scorecard_version']];
         $current=$result['official_score_hundredths']??null;$prior=$previous['official_score_hundredths']??null;
         $result['movement_hundredths']=$current!==null&&$prior!==null?$current-$prior:null;
         $result['trend']=[];
         for($i=5;$i>=0;$i--){
             $month=Support::timestamp($period)->modify('-'.$i.' months')->format('Y-m-01');
             $r=$month===$period?$result:$this->read($employee,$month);
-            $result['trend'][]=['period_start'=>$month,'status'=>$r['status'],'score_hundredths'=>$r['official_score_hundredths']??null];
+            $result['trend'][]=['period_start'=>$month,'status'=>$r['status'],'score_hundredths'=>$r['official_score_hundredths']??null,
+                'provisional_score_hundredths'=>$r['provisional_score_hundredths']??null,
+                'available_points_hundredths'=>$r['available_points_hundredths']??null,
+                'available_weight_hundredths'=>$r['available_weight_hundredths']??null,
+                'scorecard_version'=>$r['scorecard_version']??null];
         }
         $query=new V2PerformanceQuery($this->db);
         $result['personal_risk']=$query->personalRisk($employee,$now);

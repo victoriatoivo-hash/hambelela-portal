@@ -21,6 +21,17 @@ try {
     $employee=ops_rows('SELECT e.id,e.full_name,e.hire_date,e.working_days,e.shift_start,e.shift_end,e.late_grace_minutes,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? AND e.status=\'active\' AND r.role_key<>\'owner_admin\' LIMIT 1',[$employeeId])[0]??null;
     if(!$employee){kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Employee not found.','error_code'=>'KPI_EMPLOYEE_NOT_FOUND'],404);}
     $requestedAction=(string)($_GET['action']??'');
+    if($requestedAction==='performance_communication_quality'){
+        if(!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner review required.'],403);
+        if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')kpi_send_json(['ok'=>false,'message'=>'POST required.'],405);
+        $token=(string)($_SESSION['kpi_presence_csrf_token']??'');if($token===''||!hash_equals($token,(string)($_POST['csrf_token']??'')))kpi_send_json(['ok'=>false,'message'=>'Refresh your session before reviewing evidence.'],403);
+        $key=(string)($_POST['opportunity_key']??'');
+        if(!ops_rows('SELECT opportunity_key FROM epi_v2_completed_work_units WHERE opportunity_key=? AND employee_id=?',[$key,$employeeId]))kpi_send_json(['ok'=>false,'message'=>'This work does not belong to this employee.'],422);
+        require_once BASE_PATH.'/shared/epi/OrderCommunicationCapture.php';
+        try{\Hambelela\EPI\OrderCommunicationCapture::reviewUnit(db(),$key,$currentEmployeeId,(string)($_POST['decision']??''),(string)($_POST['evidence_reference']??''),(string)($_POST['reason']??''));}
+        catch(RuntimeException $error){kpi_send_json(['ok'=>false,'message'=>$error->getMessage()],422);}
+        kpi_send_json(['ok'=>true,'message'=>'Quality evidence reviewed; automatic recalculation queued.']);
+    }
     if(in_array($requestedAction,['performance_attendance_schedule','performance_website_audit'],true)){
         if(!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner review required.'],403);
         if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')kpi_send_json(['ok'=>false,'message'=>'Method not allowed.'],405);
@@ -47,6 +58,18 @@ try {
         }catch(RuntimeException $error){kpi_send_json(['ok'=>false,'message'=>$error->getMessage()],422);}
         kpi_send_json(['ok'=>true,'message'=>'Evidence link reviewed. Automatic recalculation is queued; any locked result stays unchanged.']);
     }
+    if($requestedAction==='performance_evidence'){
+        require_once BASE_PATH.'/shared/epi/EmployeePerformanceService.php';
+        require_once BASE_PATH.'/shared/epi/PerformanceEvidenceView.php';
+        $month=(string)($_GET['month']??'');
+        if(!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$month))kpi_send_json(['ok'=>false,'message'=>'Choose a valid reporting month.'],422);
+        $result=(new \Hambelela\EPI\EmployeePerformanceService(db()))->read($employeeId,$month.'-01');
+        if(isset($_GET['result_id'])&&(int)$_GET['result_id']!==(int)($result['result_id']??0))kpi_send_json(['ok'=>false,'message'=>'The published result changed. Refresh the profile before reviewing its evidence.'],409);
+        $page=\Hambelela\EPI\PerformanceEvidenceView::page($result,$_GET);
+        $names=array_column(ops_rows('SELECT id,full_name FROM ops_employees'),'full_name','id');
+        foreach($page['records'] as &$record){$record['responsible_name']=$names[(int)($record['employee_id']??0)]??'Identity requires review';$record['fulfilled_by_name']=$names[(int)($record['fulfilled_by']??0)]??'Not recorded';}unset($record);
+        header('Cache-Control: private, no-store');kpi_send_json(['ok'=>true,'evidence'=>$page]);
+    }
     if(in_array($requestedAction,['','performance','performance_export'],true)){
         require_once BASE_PATH.'/shared/epi/EmployeePerformanceService.php';
         $month=(string)($_GET['month']??date('Y-m'));
@@ -58,6 +81,11 @@ try {
         $result['quality_review']=\Hambelela\EPI\PerformanceIncidentReview::read(db(),$employeeId,$month.'-01');
         require_once BASE_PATH.'/shared/epi/PhysicalEvidenceCapture.php';
         $result['physical_evidence']=\Hambelela\EPI\PhysicalEvidenceCapture::read(db(),$employeeId,$month.'-01');
+        require_once BASE_PATH.'/shared/epi/EvidenceCaptureInbox.php';
+        $result['capture_inbox']=\Hambelela\EPI\EvidenceCaptureInbox::employee(db(),$employeeId,$month.'-01');
+        require_once BASE_PATH.'/shared/epi/OrderCommunicationCapture.php';
+        $result['communication_audits']=$canReview?\Hambelela\EPI\OrderCommunicationCapture::qualityCandidates(db(),$employeeId,$month.'-01'):[];
+        if(!$canReview)$result['capture_inbox']['cash_entries']=[];
         if(!$canReview)$result['quality_review']['work']=[];
         header('Cache-Control: private, no-store');
         header('X-Performance-Calculation: epi-v2-rate-1');
@@ -70,6 +98,12 @@ try {
                 foreach($row as &$cell)if(is_string($cell)&&preg_match('/^[=+@\-\t\r]/',$cell))$cell="'".$cell;unset($cell);
                 fputcsv($out,$row);
             }fclose($out);exit;
+        }
+        if(($_GET['compact']??'')==='1'){
+            require_once BASE_PATH.'/shared/epi/PerformanceEvidenceView.php';
+            $result['evidence_modules']=array_values(array_unique(array_column($result['evidence']??[],'module')));
+            $preview=\Hambelela\EPI\PerformanceEvidenceView::page($result,['page_size'=>5,'unique_work'=>true]);
+            $result['evidence']=$preview['records'];$result['evidence_total']=$preview['total'];$result['evidence_preview_only']=true;
         }
         $choices=$canReview?ops_rows("SELECT e.id,e.full_name,r.name role_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key<>'owner_admin' ORDER BY e.full_name"):[];
         kpi_send_json(['ok'=>true,'employee'=>$employee,'performance'=>$result,'employees'=>$choices]);

@@ -129,3 +129,16 @@ $status(9939,'packed_label_needed','2035-10-01 08:40:00');
 check('NATIVE52 honest label-pending stage is not a false completed-process failure',0,(int)scalar("SELECT COUNT(*) FROM epi_v2_completed_work_units WHERE opportunity_key='packing_compliance:9939:0'"));
 sql('UPDATE ops_packing_tasks SET packing_website_confirmed=1 WHERE id=9939');$status(9939,'label_created','2035-10-01 09:00:00');
 check('NATIVE53 final label/check completion is measured','success',json_decode(scalar("SELECT source_snapshot_json FROM epi_v2_completed_work_units WHERE opportunity_key='packing_compliance:9939:0'"),true)['native_measurement']['outcome']);
+// The live PDO session returns TIMESTAMP in UTC; durable events use Namibia.
+\Hambelela\EPI\ProvisionalTimingPolicy::approve($db,array_combine(array_keys(\Hambelela\EPI\ProvisionalTimingPolicy::FIELDS),\Hambelela\EPI\ProvisionalTimingPolicy::APPROVED),999,'Explicit synthetic prospective cash timing','2035-10-01 09:59:00');
+owner('ORDER-10990',104,'2035-10-01 10:00:00','Bookkeeping');
+(new DeadlineEngine($db))->schedule(['module'=>'Bookkeeping','object_reference'=>'ORDER-10990','obligation_key'=>'enter_cash_transaction',
+ 'breach_event_key'=>'cash_entry_missing','starts_at'=>'2035-10-01 10:00:00','due_at'=>'2035-10-01 10:30:00',
+ 'responsible_employee_id'=>104,'source_evidence'=>['expected_cash_cents'=>2000]]);
+sql("INSERT INTO ops_cash_book_entries(id,related_order_id,cash_in,status,recorded_by,created_at) VALUES(10991,10990,20,'active',103,'2035-10-01 08:10:00')");
+V2OperationalBridge::record($db,'cash_entry','created',10991,['employee_id'=>103,'occurred_at'=>'2035-10-01 10:10:00']);
+check('CASHUTC01 native received-cash fulfilment uses original Namibia event','2035-10-01 10:10:00',scalar("SELECT fulfilled_at FROM epi_v2_operational_deadlines WHERE object_reference='ORDER-10990' AND obligation_key='enter_cash_transaction'"));
+check('CASHUTC02 original database timestamp is not rewritten','2035-10-01 08:10:00',scalar('SELECT created_at FROM ops_cash_book_entries WHERE id=10991'));
+V2OperationalBridge::record($db,'cash_entry','historical_allocation',10991,['employee_id'=>999,'occurred_at'=>'2035-10-01 11:00:00','confirmed_order_id'=>10990,'confirmed_cash_cents'=>2000]);
+check('CASHUTC03 owner reconciliation never substitutes owner as original recorder',103,(int)scalar("SELECT fulfiller_id FROM epi_v2_completed_work_units WHERE opportunity_key='cash_entry:10991:order:10990'"));
+check('CASHUTC04 evidence keeps original local capture time, not review time','2035-10-01 10:10:00',scalar("SELECT completed_at FROM epi_v2_completed_work_units WHERE opportunity_key='cash_entry:10991:order:10990'"));

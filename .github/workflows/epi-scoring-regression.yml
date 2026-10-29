@@ -35,7 +35,7 @@ jobs:
           php-version: ${{ matrix.php }}
           extensions: pdo_mysql
       - run: php -l shared/epi/CompletedWorkCapture.php && php -l shared/epi/EmployeePerformanceService.php && php -l shared/epi/BusinessHealthPerformance.php && php -l tests/epi-provisional-timings-db.php && php -l tests/epi-business-health-result.php
-      - run: php tests/epi-business-health-result.php && node tests/epi-history-display.mjs
+      - run: php tests/epi-business-health-result.php && php tests/epi-evidence-view.php && node tests/epi-history-display.mjs && node tests/epi-capture-ui-static.mjs
       - run: php tests/epi-v2-p0-forensic-db.php > epi-scoring-regression.json
       - uses: actions/upload-artifact@v4
         if: always()

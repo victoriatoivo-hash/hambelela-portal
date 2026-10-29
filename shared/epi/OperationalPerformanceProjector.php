@@ -176,6 +176,14 @@ final class OperationalPerformanceProjector
         $owner=$owner['operational_interval']??$owner;
         if(($owner['duty_key']??'')==='front_desk'||($owner['source']??'')==='accepted_counter_order_assignment')return true;
         $source=(string)($owner['source']??'');
+        if($source==='saved_communication_assignment'&&strpos($owner['object_reference']??'','CONVERSATION-')===0){
+            $conversation=(int)substr($owner['object_reference'],13);
+            $q=$db->prepare("SELECT payload_json FROM epi_v2_outbox WHERE entity_type='ops_whatsapp_conversation' AND entity_id=? AND action='save_whatsapp_conversation' ORDER BY id");$q->execute([$conversation]);$rows=$q->fetchAll(PDO::FETCH_COLUMN);$q->closeCursor();
+            foreach($rows as $json){$p=json_decode($json,true)?:[];$r=$p['record']??[];$m=$p['metadata']??[];
+                if((int)($r['assigned_employee_id']??0)===(int)($owner['employee_id']??0)&&!empty($r['order_id'])&&($m['occurred_at']??'')===($owner['effective_from']??'')&&in_array((int)($m['employee_id']??0),[(int)$owner['employee_id'],(int)(V2Store::activation($db)['approved_by']??0)],true)
+                    &&V2Store::one($db,'SELECT id FROM ops_orders WHERE id=?',[(int)$r['order_id']]))return true;
+            }
+        }
         if(strpos($source,'handover:')===0){
             $handover=V2Store::one($db,"SELECT duty_key FROM epi_v2_handovers WHERE handover_uuid=? AND status='accepted'",[substr($source,9)]);
             return ($handover['duty_key']??'')==='front_desk';

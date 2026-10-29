@@ -44,6 +44,17 @@ final class CashDeadlineBridge
             $order=(int)($meta['confirmed_order_id']??$record['related_order_id']??0);
             if($order<1)return; // Candidate description matches must not clear an obligation.
             $actor=(int)($meta['employee_id']??0);
+            if(!empty($policy['_timing_version'])){
+                // Native created_at is TIMESTAMP and the live PDO session is UTC.
+                // Use the original durable Namibia event, not the later review or
+                // edit time, and do not rewrite an already captured work unit.
+                $origin=V2Store::one($db,"SELECT payload_json FROM epi_v2_outbox WHERE entity_type='cash_entry' AND entity_id=? AND action='created' ORDER BY id LIMIT 1",[(int)$record['id']]);
+                $original=json_decode($origin['payload_json']??'{}',true)?:[];
+                $recordedAt=$original['metadata']['occurred_at']??($action==='created'?$at:null);
+                if(!$recordedAt)return; // Missing original timing is not guessed.
+                $record['created_at']=Support::timestamp($recordedAt)->format('Y-m-d H:i:s');
+                if($action==='historical_allocation'&&!empty($original['record']['recorded_by']))$record['recorded_by']=$original['record']['recorded_by'];
+            }
             if($action==='historical_allocation'){
                 // Reviewer is not the fulfiller. Require the native entry's identity/time.
                 if((int)($meta['employee_id']??0)!==(int)$activation['approved_by'])return;

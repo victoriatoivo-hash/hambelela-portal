@@ -47,6 +47,7 @@ for($n=91;$n<96;$n++){
     V2OperationalBridge::record($db,'ops_whatsapp_conversation','save_whatsapp_conversation',$n,['employee_id'=>999,'occurred_at'=>'2026-10-01 08:00:00']);
     sql("UPDATE ops_whatsapp_conversations SET status='resolved' WHERE id=?",[$n]);
     V2OperationalBridge::record($db,'ops_whatsapp_conversation','save_whatsapp_conversation',$n,['employee_id'=>102,'occurred_at'=>'2026-10-01 09:00:00']);
+    \Hambelela\EPI\OrderCommunicationCapture::reviewUnit($db,'ops_whatsapp_conversation:'.$n.':0',999,'accurate','Synthetic inspected contact '.$n,'Explicit owner evidence review; not inferred from resolution','2026-10-01 09:05:00');
 }
 foreach([901=>91,902=>92,903=>91,904=>93] as $error=>$conversation){
     sql("INSERT INTO ops_error_logs(id,attribution_type,attributed_employee_id,responsible_employee_id,logged_by,affects_kpi_accuracy,accuracy_verified_by,attribution_verified_by,accuracy_verified_at,attribution_verified_at,occurred_at,status,updated_at,category,severity)

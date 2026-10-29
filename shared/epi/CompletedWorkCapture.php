@@ -114,11 +114,14 @@ final class CompletedWorkCapture
             $packingProcess=PackingProcessEvidence::evaluate($record);
         }
         $key=$opportunityKey??($keyType.':'.$record['id'].':'.(int)($record['correction_round_count']??0));
+        $communication=$keyType==='ops_whatsapp_conversation'?['measured'=>false,'outcome'=>'success',
+            'expected'=>'Accurate communication supported by reviewed evidence',
+            'actual'=>'Communication quality has not been verified; resolution alone is not proof of accurate advice']:null;
         $db->prepare('INSERT IGNORE INTO epi_v2_completed_work_units(opportunity_key,module,object_reference,
             employee_id,fulfiller_id,starts_at,completed_at,ownership_json,source_snapshot_json) VALUES(?,?,?,?,?,?,?,?,?)')
             ->execute([$key,$module,$ref,$owner['employee_id']??null,$meta['employee_id']??null,$start,$at,
-                Support::json($owner),Support::json(['record'=>$record,'action'=>$action,'metadata'=>$meta,'process'=>$process,'packing_process'=>$packingProcess,
+                Support::json($owner),Support::json(array_filter(['record'=>$record,'action'=>$action,'metadata'=>$meta,'process'=>$process,'packing_process'=>$packingProcess,'native_measurement'=>$communication,
                     'score_eligible_at_capture'=>$owner && PerformanceCapturePolicy::approved($db,(int)$owner['employee_id'],$start),
-                    'capture_mode'=>$owner?PerformanceCapturePolicy::captureMode($db,(int)$owner['employee_id'],$start):0])]);
+                    'capture_mode'=>$owner?PerformanceCapturePolicy::captureMode($db,(int)$owner['employee_id'],$start):0],static function($v){return $v!==null;}))]);
     }
 }
