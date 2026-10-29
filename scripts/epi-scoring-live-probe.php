@@ -7,6 +7,7 @@ $root=realpath($argv[1]??'');
 if(!$root || strpos(__DIR__,$root)===0)throw new RuntimeException('Private folder and portal root required');
 require $root.'/shared/database.php';require $root.'/shared/epi/bootstrap.php';
 require_once $root.'/shared/epi/CompletedWorkCapture.php';require_once $root.'/shared/epi/IncidentCorrelation.php';
+require_once $root.'/shared/epi/OrderCommunicationCapture.php';
 use Hambelela\EPI\{V2Store,Support,OwnershipPeriodEngine,DeadlineEngine,HrConnection,PerformanceRefreshRuntime,
  EmployeePerformanceService,CompletedWorkCapture,V2QualityBridge,IncidentCorrelation,OperationalPerformanceProjector,V2PerformanceQuery};
 $db=db();$db->exec("SET time_zone='+02:00'");$owner=(int)(V2Store::activation($db)['approved_by']??0);
@@ -48,6 +49,7 @@ try {
   $id=$base+$n;$ref='CONVERSATION-'.$id;
   if(V2Store::one($db,'SELECT id FROM ops_whatsapp_conversations WHERE id=?',[$id]))throw new RuntimeException('Synthetic reference collision');
   $assign($ref);CompletedWorkCapture::capture($db,'ops_whatsapp_conversation','save_whatsapp_conversation',['id'=>$id,'created_at'=>$start,'status'=>'resolved'],['employee_id'=>$B,'occurred_at'=>$done]);
+  Hambelela\EPI\OrderCommunicationCapture::reviewUnit($db,'ops_whatsapp_conversation:'.$id.':0',$owner,'accurate','Rollback-only synthetic contact proof','Synthetic quality evidence verified inside rollback probe',$done);
  }
  foreach([0=>0,1=>1,2=>0,3=>2] as $index=>$conversation){
   $id=$base+100+$index;
