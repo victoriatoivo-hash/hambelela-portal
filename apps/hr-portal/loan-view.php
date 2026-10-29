@@ -7,6 +7,24 @@ $loanId = (int)($_GET['loan_id'] ?? 0); $tab = (string)($_GET['tab'] ?? 'overvie
 $previewEmployee = $tab === 'agreement' && ($_GET['preview'] ?? '') === 'employee';
 $stmt = $db->prepare("SELECT l.*,CONCAT(e.first_name,' ',e.last_name) emp_name,e.first_name,e.last_name,e.emp_number,e.job_title,a.id agreement_id,a.version_no,a.status agreement_status,a.agreement_date,a.first_deduction_date,a.instalment_amount,a.number_of_instalments,a.final_instalment_amount,a.purpose,a.legal_notes,a.snapshot_json,a.document_hash,a.sent_at,a.employee_signed_at,a.owner_signed_at,a.fully_signed_at FROM loans l JOIN employees e ON e.id=l.employee_id LEFT JOIN loan_agreements a ON a.loan_id=l.id AND a.version_no=(SELECT MAX(x.version_no) FROM loan_agreements x WHERE x.loan_id=l.id) WHERE l.id=?");
 $stmt->execute([$loanId]); $loan = $stmt->fetch(); if (!$loan) { http_response_code(404); exit('Loan not found.'); }
+$paymentError = '';
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    loanAgreementRequireCsrf();
+    if (($_POST['action'] ?? '') !== 'record_separate_payment' || empty($_POST['confirm_paid_separately'])) {
+        http_response_code(400); exit('Confirm the separate loan payment before continuing.');
+    }
+    try {
+        loanAgreementRecordSeparatePayment($db, $loanId, (string)($_POST['paid_date'] ?? ''), (string)($_POST['payment_reference'] ?? ''), currentUser());
+        header('Location: loan-view.php?loan_id='.$loanId.'&msg=paid_separately'); exit;
+    } catch (DomainException $error) {
+        $paymentError = $error->getMessage();
+    } catch (Throwable $error) {
+        error_log('Separate loan payment correction failed: '.$error->getMessage());
+        $paymentError = 'The payment confirmation was not saved. Please try again.';
+    }
+}
+$separatePayment = loanAgreementSeparatePayment($db, $loanId);
+$separatePaymentData = $separatePayment ? (json_decode((string)$separatePayment['metadata_json'], true) ?: []) : [];
 $schedule = $signatures = $events = [];
 if ($loan['agreement_id']) {
     $q=$db->prepare("SELECT * FROM loan_repayment_schedule WHERE agreement_id=? ORDER BY instalment_no"); $q->execute([$loan['agreement_id']]); $schedule=$q->fetchAll();
@@ -18,6 +36,8 @@ $currentPage = 'loans.php';
 ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Loan · <?=htmlspecialchars($loan['emp_name'])?></title><link rel="stylesheet" href="includes/styles.css"><link rel="stylesheet" href="includes/loan-agreement-document.css"><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"></head><body>
 <?php include __DIR__ . '/includes/sidebar.php'; ?>
 <main class="main"><div class="topbar"><div><a href="loans.php" class="loan-back">← Loans &amp; Advances</a><div class="topbar-title"><?=htmlspecialchars($loan['emp_name'])?> · N$ <?=number_format((float)$loan['amount'],2)?></div></div></div><div class="content">
+<?php if ($paymentError !== ''): ?><div class="toast error" role="alert"><?=htmlspecialchars($paymentError, ENT_QUOTES, 'UTF-8')?></div><?php endif; ?>
+<?php if (($_GET['msg']??'')==='paid_separately'): ?><div class="toast" role="status">Separate payment recorded. This loan principal will not be paid again through payroll. Any matching payslip payout was corrected; repayment deductions are unchanged.</div><?php endif; ?>
 <?php if (($_GET['msg']??'')==='created'): ?><div class="toast"><i class="fa-solid fa-check"></i> Loan agreement draft created.</div><?php endif; ?>
 <?php if (($_GET['msg']??'')==='sent'): ?><div class="toast"><i class="fa-solid fa-paper-plane"></i> Agreement sent to the employee for signature.</div><?php endif; ?>
 <?php if (($_GET['msg']??'')==='reminded'): ?><div class="toast"><i class="fa-solid fa-bell"></i> Signature reminder sent.</div><?php endif; ?>
@@ -25,6 +45,25 @@ $currentPage = 'loans.php';
 <section class="card loan-summary"><div><small>Employee</small><b><?=htmlspecialchars($loan['emp_name'])?></b><span><?=htmlspecialchars($loan['emp_number'])?> · <?=htmlspecialchars($loan['job_title']??'Employee')?></span></div><div><small>Balance</small><b>N$ <?=number_format((float)$loan['balance'],2)?></b></div><div><small>Agreement</small><b><?=htmlspecialchars(loanAgreementStatusLabel((string)($loan['agreement_status']??'legacy_active')))?></b><span><?=$loan['agreement_id']?'LA-'.$loanId.'-V'.(int)$loan['version_no']:'Not created'?></span></div></section>
 <nav class="loan-detail-tabs"><a class="<?=$tab==='overview'?'active':''?>" href="?loan_id=<?=$loanId?>&amp;tab=overview">Overview</a><a class="<?=$tab==='schedule'?'active':''?>" href="?loan_id=<?=$loanId?>&amp;tab=schedule">Repayment Schedule</a><a class="<?=$tab==='agreement'?'active':''?>" href="?loan_id=<?=$loanId?>&amp;tab=agreement">Loan Agreement</a><a class="<?=$tab==='history'?'active':''?>" href="?loan_id=<?=$loanId?>&amp;tab=history">History</a></nav>
 <?php if ($tab==='overview'): ?><section class="card loan-pane"><h2>Loan overview</h2><dl><div><dt>Original amount</dt><dd>N$ <?=number_format((float)$loan['amount'],2)?></dd></div><div><dt>Monthly deduction</dt><dd>N$ <?=number_format((float)$loan['repayment_amount'],2)?></dd></div><div><dt>Loan date</dt><dd><?=date('d F Y',strtotime($loan['loan_date']))?></dd></div><div><dt>Status</dt><dd><?=htmlspecialchars(ucfirst($loan['status']))?></dd></div></dl></section><?php endif; ?>
+<?php if ($tab==='overview'): ?><section class="card loan-pane" style="margin-top:16px">
+<h2>Loan payment</h2>
+<?php if ($separatePayment): ?>
+<p><strong>Paid separately — do not pay again through payroll.</strong></p>
+<p>N$ <?=number_format((float)($separatePaymentData['amount'] ?? 0), 2)?> · <?=htmlspecialchars(loanAgreementFormatDate((string)($separatePaymentData['payment_date'] ?? '')), ENT_QUOTES, 'UTF-8')?></p>
+<p><?=htmlspecialchars((string)($separatePaymentData['reference'] ?? ''), ENT_QUOTES, 'UTF-8')?></p>
+<p>Payroll includes the agreed repayment deduction only for this loan. The loan balance and signed agreement are unchanged by this payment record.</p>
+<?php elseif ($loan['agreement_status']==='fully_signed' && $loan['status']==='active'): ?>
+<p>Already transferred the loan to the employee? Record it here so payroll does not add the principal again.</p>
+<form method="post" action="loan-view.php?loan_id=<?=$loanId?>">
+<input type="hidden" name="loan_agreement_csrf" value="<?=htmlspecialchars(loanAgreementCsrfToken(), ENT_QUOTES, 'UTF-8')?>">
+<input type="hidden" name="action" value="record_separate_payment">
+<div class="form-group"><label class="form-label" for="paid-date">Actual payment date</label><input class="form-input" id="paid-date" type="date" name="paid_date" value="<?=htmlspecialchars((string)($_POST['paid_date'] ?? $loan['loan_date']), ENT_QUOTES, 'UTF-8')?>" max="<?=date('Y-m-d')?>" required></div>
+<div class="form-group"><label class="form-label" for="payment-reference">Payment reference / confirmation note</label><input class="form-input" id="payment-reference" name="payment_reference" maxlength="500" value="<?=htmlspecialchars((string)($_POST['payment_reference'] ?? ''), ENT_QUOTES, 'UTF-8')?>" required></div>
+<p><label><input type="checkbox" name="confirm_paid_separately" value="1" required> I confirm the full N$ <?=number_format((float)$loan['amount'],2)?> was paid outside payroll. Remove any duplicate payout for this loan from the <?=date('F Y',strtotime($loan['loan_date']))?> payslip, including a generated/finalised payslip, and retain an audit record. Do not change deductions.</label></p>
+<button class="btn btn-primary" type="submit">Record separate payment &amp; correct payout</button>
+</form>
+<?php else: ?><p>Separate-payment correction is available for active, fully signed loans.</p><?php endif; ?>
+</section><?php endif; ?>
 <?php if ($tab==='schedule'): ?><section class="card loan-pane"><h2>Repayment schedule</h2><?php if (!$schedule): ?><p>No signed-agreement schedule is available yet.</p><?php else: ?><div class="hr-table-viewport"><table><thead><tr><th>Month</th><th>Expected</th><th>Actual</th><th>Balance</th><th>Status</th></tr></thead><tbody><?php $balance=(float)$loan['amount']; foreach($schedule as $row): $balance=max(0,$balance-(float)$row['paid_amount']); ?><tr><td><?=date('F Y',strtotime($row['due_date']))?></td><td>N$ <?=number_format((float)$row['amount'],2)?></td><td>N$ <?=number_format((float)$row['paid_amount'],2)?></td><td>N$ <?=number_format($balance,2)?></td><td><?=htmlspecialchars(ucwords(str_replace('_',' ',$row['status'])))?></td></tr><?php endforeach; ?></tbody></table></div><?php endif; ?></section><?php endif; ?>
 <?php if ($tab==='agreement'): ?>
 <section class="card loan-pane loan-agreement-page"><div class="loan-pane-head"><div><span class="loan-eyebrow">Employee loan agreement</span><h2><?=htmlspecialchars(loanAgreementStatusLabel((string)($loan['agreement_status']??'legacy_active')))?></h2></div><?php if(!$loan['agreement_id']||$loan['agreement_status']==='legacy_active'): ?><form method="post" action="loans.php"><input type="hidden" name="loan_agreement_csrf" value="<?=htmlspecialchars(loanAgreementCsrfToken())?>"><input type="hidden" name="action" value="create_agreement"><input type="hidden" name="loan_id" value="<?=$loanId?>"><button class="btn btn-primary"><i class="fa-solid fa-file-circle-plus"></i> Create Loan Agreement</button></form><?php endif; ?></div>

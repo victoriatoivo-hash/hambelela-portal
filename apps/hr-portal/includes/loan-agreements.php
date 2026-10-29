@@ -124,12 +124,14 @@ function loanAgreementPayrollAmounts(PDO $db, int $employeeId, int $month, int $
     $periodStart = sprintf('%04d-%02d-01', $year, $month);
     $periodEnd = date('Y-m-t', strtotime($periodStart));
 
-    // Only a digitally completed agreement can create a new payout. Legacy
-    // agreements must never be paid out again retroactively.
+    // A signed agreement is not proof that money is still owed to the employee.
+    // An owner-recorded separate payment must never be paid again via payroll.
+    // Legacy agreements must never be paid out again retroactively.
     $disbursement = $db->prepare("SELECT COALESCE(SUM(l.amount),0)
       FROM loans l
       WHERE l.employee_id=? AND l.status='active' AND l.loan_date BETWEEN ? AND ?
-        AND EXISTS (SELECT 1 FROM loan_agreements a WHERE a.loan_id=l.id AND a.status='fully_signed')");
+        AND EXISTS (SELECT 1 FROM loan_agreements a WHERE a.loan_id=l.id AND a.status='fully_signed')
+        AND NOT EXISTS (SELECT 1 FROM loan_agreement_events e WHERE e.loan_id=l.id AND e.event_type='loan_paid_separately')");
     $disbursement->execute([$employeeId, $periodStart, $periodEnd]);
 
     // Use the signed repayment schedule so no deduction is taken before the
@@ -153,6 +155,89 @@ function loanAgreementPayrollAmounts(PDO $db, int $employeeId, int $month, int $
         'disbursement' => round((float)$disbursement->fetchColumn(), 2),
         'deduction' => round((float)$scheduled->fetchColumn() + (float)$legacy->fetchColumn(), 2),
     ];
+}
+
+function loanAgreementSeparatePayment(PDO $db, int $loanId): ?array {
+    $stmt = $db->prepare("SELECT * FROM loan_agreement_events WHERE loan_id=? AND event_type='loan_paid_separately' ORDER BY id LIMIT 1");
+    $stmt->execute([$loanId]);
+    $event = $stmt->fetch(PDO::FETCH_ASSOC);
+    return $event ?: null;
+}
+
+/**
+ * Explicit owner correction, never called from a page read or signature action.
+ * The existing event ledger preserves both the payment attestation and original
+ * payslip amounts. No repayment, loan balance or signed document is changed.
+ */
+function loanAgreementRecordSeparatePayment(PDO $db, int $loanId, string $paidDate, string $reference, array $actor): void {
+    if ((string)($actor['role'] ?? '') !== 'admin' || (int)($actor['id'] ?? 0) < 1) {
+        throw new DomainException('Only an HR administrator can record a separate loan payment.');
+    }
+    $date = DateTimeImmutable::createFromFormat('!Y-m-d', $paidDate);
+    if (!$date || $date->format('Y-m-d') !== $paidDate || $paidDate > date('Y-m-d')) {
+        throw new DomainException('Enter the actual payment date, not a future date.');
+    }
+    $reference = trim($reference);
+    if ($reference === '' || strlen($reference) > 500) {
+        throw new DomainException('Enter a payment reference or confirmation note of up to 500 characters.');
+    }
+    if ($db->inTransaction()) throw new LogicException('Separate payment requires its own transaction.');
+    $db->beginTransaction();
+    try {
+        $stmt = $db->prepare('SELECT * FROM loans WHERE id=? FOR UPDATE');
+        $stmt->execute([$loanId]);
+        $loan = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$loan) throw new DomainException('Loan not found.');
+        if (loanAgreementSeparatePayment($db, $loanId)) {
+            $db->commit();
+            return; // Retrying a submitted confirmation cannot deduct twice.
+        }
+        $stmt = $db->prepare("SELECT id FROM loan_agreements WHERE loan_id=? AND status='fully_signed' ORDER BY version_no DESC LIMIT 1");
+        $stmt->execute([$loanId]);
+        $agreementId = (int)$stmt->fetchColumn();
+        if (!$agreementId || (string)$loan['status'] !== 'active' || (float)$loan['amount'] <= 0) {
+            throw new DomainException('This correction requires an active, fully signed loan.');
+        }
+        // Payroll historically inserted the principal in the LOAN month, not
+        // the payment month. Inspect that exact month, even for a later payment.
+        $month = (int)substr($loan['loan_date'], 5, 2);
+        $year = (int)substr($loan['loan_date'], 0, 4);
+        $stmt = $db->prepare('SELECT ps.*,r.status AS run_status FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? AND r.period_month=? AND r.period_year=? FOR UPDATE');
+        $stmt->execute([(int)$loan['employee_id'], $month, $year]);
+        $payslips = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        if (count($payslips) > 1) throw new DomainException('Multiple payslips exist for this employee and month. Review them before correcting the loan.');
+        $before = loanAgreementPayrollAmounts($db, (int)$loan['employee_id'], $month, $year);
+        foreach ($payslips as $payslip) {
+            $stored = round((float)$payslip['loan_disbursement'], 2);
+            if ($stored != 0.0 && abs($stored - $before['disbursement']) > 0.005) {
+                throw new DomainException('The payslip loan payout has been adjusted already. Review it before recording this correction.');
+            }
+        }
+        loanAgreementEvent($db, $agreementId, $loanId, 'loan_paid_separately', $actor, [
+            'payment_date' => $paidDate, 'amount' => round((float)$loan['amount'], 2),
+            'reference' => $reference, 'source' => 'owner_confirmation',
+        ]);
+        foreach ($payslips as $payslip) {
+            $stored = round((float)$payslip['loan_disbursement'], 2);
+            if ($stored == 0.0) continue;
+            $newPayout = round($stored - (float)$loan['amount'], 2);
+            if ($newPayout < 0) throw new DomainException('The stored payout cannot safely be reconciled to this loan.');
+            $newNet = round((float)$payslip['net_salary'] - (float)$loan['amount'], 2);
+            $update = $db->prepare('UPDATE payslips SET loan_disbursement=?,net_salary=? WHERE id=?');
+            $update->execute([$newPayout, $newNet, (int)$payslip['id']]);
+            loanAgreementEvent($db, $agreementId, $loanId, 'separate_payment_payslip_corrected', $actor, [
+                'payslip_id' => (int)$payslip['id'], 'run_id' => (int)$payslip['run_id'],
+                'run_status' => $payslip['run_status'], 'period' => sprintf('%04d-%02d', $year, $month),
+                'before' => ['loan_disbursement' => $stored, 'net_salary' => (float)$payslip['net_salary']],
+                'after' => ['loan_disbursement' => $newPayout, 'net_salary' => $newNet],
+                'loan_deduction_unchanged' => (float)$payslip['loan_deduction'],
+            ]);
+        }
+        $db->commit();
+    } catch (Throwable $error) {
+        if ($db->inTransaction()) $db->rollBack();
+        throw $error;
+    }
 }
 
 function loanAgreementSyncPayrollRun(PDO $db, int $runId): void {

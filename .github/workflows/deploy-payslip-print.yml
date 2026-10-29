@@ -1,17 +1,17 @@
-name: Deploy payslip print correction
+name: Deploy loan separate-payment correction
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Preflight only or deploy the approved payslip print correction
+        description: Compare live source or publish the tested two-file loan fix
         required: true
         type: choice
         options:
           - preflight
           - deploy
       approved_sha:
-        description: Exact main commit SHA to verify and deploy
+        description: Exact approved source commit
         required: true
         type: string
 
@@ -20,34 +20,52 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy-payslip-print:
+  loan-payment:
+    if: github.ref == 'refs/heads/codex/hr-loan-separate-payment'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+        ports: ['33317:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate payslip release
+      - name: Check pinned source and loan regression tests
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
         run: |
-          php -l apps/hr-portal/payroll.php
-          php -l apps/hr-portal/my-payslips.php
-          node --check apps/hr-portal/includes/payslip-print.js
-          python3 -m py_compile scripts/deploy-payslip-print.py
-      - name: Back up and publish only the approved payslip files
+          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
+          php -l apps/hr-portal/includes/loan-agreements.php
+          php -l apps/hr-portal/loan-view.php
+          php tests/hr-loan-separate-payment-db.php
+          node tests/hr-loan-agreements-static.mjs
+          node tests/hr-loan-full-agreement-static.mjs
+          node tests/hr-loan-agreement-revocation-static.mjs
+          node tests/hr-loan-portal-notifications-static.mjs
+          python3 -m py_compile scripts/deploy-loan-separate-payment.py
+      - name: Compare and back up live source; deploy only when requested
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           MODE: ${{ inputs.mode }}
           APPROVED_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/deploy-payslip-print.py "$MODE" "$APPROVED_SHA"
+        run: python3 scripts/deploy-loan-separate-payment.py "$MODE" "$APPROVED_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: payslip-print-${{ github.run_id }}
+          name: loan-payment-source-${{ github.run_id }}
+          retention-days: 7
           path: |
-            payslip-print-deployment-report.json
-            payslip-print-deployment-backup.zip
+            loan-payment-deployment-report.json
+            loan-payment-source-backup.zip
           if-no-files-found: warn
