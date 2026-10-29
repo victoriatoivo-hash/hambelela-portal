@@ -131,7 +131,10 @@ final class V2OperationalBridge
     $ref='TASK-'.$task['id'];$at=Support::timestamp($meta['occurred_at']);$time=$at->format('Y-m-d H:i:s');
     $employee=(int)($task['assigned_employee_id']??0);$engine=new DeadlineEngine($db);$owners=new OwnershipPeriodEngine($db);$policy=V2Store::policy($db);
     $actor=(int)($meta['actor_employee_id']??$meta['employee_id']??$employee);
-    if(in_array($action,['task_created','task_scheduled','task_assigned','task_reassigned'],true)){
+    if(in_array($action,['task_created','task_scheduled','task_released','floating_task_allocated','task_assigned','task_reassigned'],true)){
+        // Scheduling is not release: invisible future work must not start an SLA.
+        if(!empty($task['scheduled_at'])&&empty($task['released_at']))return;
+        if(!empty($task['released_at'])&&Support::timestamp($task['released_at'])>$at)return;
         // Explicit activation policy authorizes directed assignment, not fictional employee acknowledgement.
         $activation=V2Store::activation($db);
         if(($policy['activation_scope']??'')==='approved_existing_rules'){
