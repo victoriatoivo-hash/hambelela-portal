@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-29",
+  "scope": "Employee Performance individual-profile UI only",
+  "deployed_commit": "713e2bb4b525fd002060bdbc0108329b7aa80e89",
+  "files": ["apps/operations/kpi-employee.php", "assets/js/employee-performance.js", "assets/css/employee-performance.css"],
+  "deployment": "Existing guarded delta runner; inspect, targeted backup, apply and hash verification succeeded. Initial release published three files; refinement published CSS only. No schema changes.",
+  "server_release_paths": ["/home/hambele1/epi-profile-ui-20261029", "/home/hambele1/epi-profile-ui-20261029/r2"],
+  "local_checks": ["PHP syntax", "JavaScript syntax", "epi-history-display.mjs", "epi-capture-ui-static.mjs", "git diff --check"],
+  "live_checks": ["Final shell present on initial load", "Stylesheet in head", "Jost computed font", "Olive reporting-month picker", "Employee switching: Klaudia, Ndinelao, Secilia, Hope", "Role tabs", "Evidence drawer", "Desktop layout without document overflow"],
+  "limitations": ["Live phone-sized viewport could not be confirmed because the browser viewport override did not apply; responsive static checks passed.", "Backend scoring and evidence investigation remains owned by new fast (2); this release does not certify scoring completeness."],
+  "preserved": ["Permissions", "Scoring weights and calculations", "Employee and historical evidence records", "Existing API endpoints"],
+  "screenshot": "C:/Users/User/Documents/New project/employee-profile-live-20261029.png"
+}
