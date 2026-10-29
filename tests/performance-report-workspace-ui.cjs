@@ -40,6 +40,7 @@ health.cards.final_closure=metric(1017,'minutes');
    await page.locator('.kpi-measure-card').first().waitFor();
    assert.equal(await page.locator('.kpi-measure-card').count(),9);
    const compact=await page.locator('.kpi-measure-card').first().boundingBox();assert.ok(compact.height<=105,`compact widget height ${compact.height}`);
+   if(width<520)assert.ok(compact.width>width*.8,'mobile widgets must use a full-width compact row');
    assert.equal(await page.locator('.kpi-measure-copy>strong').first().evaluate(e=>getComputedStyle(e).fontSize),'18px');
    assert.equal(await page.locator('.kpi-measure-icon svg').count(),9);
    assert.ok(await page.locator('.kpi-measure-copy').evaluateAll(nodes=>nodes.every(n=>n.scrollWidth<=n.clientWidth+1)),'widget text must fit');
