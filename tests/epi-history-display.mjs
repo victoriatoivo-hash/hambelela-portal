@@ -67,3 +67,22 @@ assert.match(availableHtml,/Available score weight/);
 assert.doesNotMatch(availableHtml,/80\.0%/,'partial weighted points must not be normalised');
 const noWorkHtml=await render({...base,availability_status:'no_eligible_work'});
 assert.match(noWorkHtml,/No eligible work/);
+const profilePhp=fs.readFileSync(new URL('../apps/operations/kpi-employee.php',import.meta.url),'utf8');
+assert.ok(profilePhp.indexOf('$extraStylesheets[]')<profilePhp.indexOf("include BASE_PATH . '/shared/header.php'"),'profile CSS registered before the header renders');
+assert.doesNotMatch(profilePhp,/<link\b|employee-kpi-page|kpi-score-placeholder/,'no late stylesheet or legacy content shell');
+assert.match(profilePhp,/class="workspace module kpi-employee-page epi-profile-v5"/);
+assert.doesNotMatch(script,/root\.classList\.add|q\('\.kpi-period-panel'\)\.innerHTML/,'initial layout is not replaced by JavaScript');
+const chartHtml=await render({...base,trend:[
+  {period_start:'2026-06-01',score_hundredths:0,status:'official',scorecard_version:'v1'},
+  {period_start:'2026-07-01',score_hundredths:null,status:'not_configured'},
+  {period_start:'2026-08-01',score_hundredths:7000,status:'official',scorecard_version:'v1'},
+  {period_start:'2026-09-01',score_hundredths:7500,status:'official',scorecard_version:'v2'},
+  {period_start:'2026-10-01',score_hundredths:8000,status:'provisional',scorecard_version:'v2'}]});
+assert.equal((chartHtml.match(/<circle class="ep-chart-dot/g)||[]).length,4,'real zero plots, missing month does not');
+assert.equal((chartHtml.match(/<line class="ep-chart-line"/g)||[]).length,1,'no joins across missing months or different scorecards');
+await render(base,async({timers,node})=>{
+  const content=node('[data-kpi-employee-content]');content.innerHTML+='<!-- preserved user view -->';
+  timers[0].fn();await new Promise(resolve=>setImmediate(resolve));
+  assert.match(content.innerHTML,/preserved user view/,'unchanged polling does not replace the rendered view');
+});
+console.log('PASS: first-paint shell, honest trend gaps and non-disruptive unchanged refresh');
