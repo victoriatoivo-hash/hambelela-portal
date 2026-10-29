@@ -25,10 +25,10 @@ final class TaskReleaseCoverageRepair
             $s=$db->prepare("SELECT * FROM epi_v2_outbox WHERE entity_type='checklist_task' AND entity_id=? ORDER BY id");$s->execute([$id]);$events=$s->fetchAll(PDO::FETCH_ASSOC);$s->closeCursor();
             if(!$events)return $result;
             $first=json_decode($events[0]['payload_json'],true)?:[];$task=$first['record']??[];$meta=$first['metadata']??[];
-            $employee=(int)($task['assigned_employee_id']??0);$start=$task['released_at']??'';
+            $employee=(int)($task['assigned_employee_id']??0);$start=$task['released_at']??'';$observed=$meta['occurred_at']??'';
             if($employee<1||(int)($task['created_by']??0)!==$actor||(int)($task['performance_scored']??0)!==1
                 ||($task['status']??'')!=='new'||!$start||$start!==($task['date_assigned']??'')
-                ||($meta['occurred_at']??'')!==$start||substr($start,0,7)!==substr($at,0,7)
+                ||!$observed||$observed<$start||substr($start,0,7)!==substr($at,0,7)
                 ||$start<$activation['enforcement_start_at']||PerformanceCapturePolicy::captureMode($db,$employee,$start)!==2)return $result;
             $head=V2Store::one($db,'SELECT locked_at FROM epi_v2_employee_result_heads WHERE employee_id=? AND period_start=?',[$employee,$period]);
             if(!empty($head['locked_at']))return $result+['reason'=>'locked_period'];
@@ -47,15 +47,17 @@ final class TaskReleaseCoverageRepair
             $sm=json_decode($started['payload_json'],true)['metadata'];$began=$sm['occurred_at']??'';
             $minutes=(int)($policy['task_start_by_priority'][strtolower((string)($task['priority']??''))]??$policy['task_start_minutes']??0);
             $startDue=$minutes>0?(new BusinessTimeEngine($db))->addWorkingMinutes($start,$minutes)->format('Y-m-d H:i:s'):null;
-            if(!$startDue||!$began||!$done||$began<$start||$began>$startDue||$done<$began||$done>$at||$done>($task['deadline']??'')
+            if(!$startDue||!$began||!$done||$began<$observed||$began>$startDue||$done<$began||$done>$at||$done>($task['deadline']??'')
                 ||$unit['starts_at']!==$start||$unit['completed_at']!==$done
                 ||(int)($cm['actor_employee_id']??$cm['employee_id']??0)!==(int)$unit['fulfiller_id'])return $result;
-            $result=['task_id'=>$id,'employee_id'=>$employee,'state'=>$apply?'repaired':'verified_candidate','release_source_outbox_id'=>(int)$events[0]['id'],
+            $result=['task_id'=>$id,'employee_id'=>$employee,'state'=>$apply?'repaired':'verified_candidate','ownership_proven_from'=>$observed,'release_source_outbox_id'=>(int)$events[0]['id'],
                 'start_source_outbox_id'=>(int)$started['id'],'completion_source_outbox_id'=>(int)$completed['id']];
             if(!$apply)return $result;
             // Original outbox snapshots remain immutable; append an explicitly
             // identified recovery event instead of editing an operational record.
-            $recovery=['metadata'=>['occurred_at'=>$start,'actor_employee_id'=>$actor,'employee_id'=>$actor,
+            // Ownership begins only where the original snapshot proves it. A
+            // delayed reminder must never invent ownership in the preceding gap.
+            $recovery=['metadata'=>['occurred_at'=>$observed,'actor_employee_id'=>$actor,'employee_id'=>$actor,
                 'release_coverage_repair'=>$result],'record'=>$task];
             $key=Support::dedupe(['task_release_coverage_repair',$id,$events[0]['id']]);
             $db->prepare('INSERT IGNORE INTO epi_v2_outbox(event_key,entity_type,entity_id,action,payload_json) VALUES(?,?,?,?,?)')->execute([$key,'checklist_task',$id,'task_released',Support::json($recovery)]);

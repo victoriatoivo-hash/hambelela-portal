@@ -38,7 +38,7 @@ try {
     foreach([9915,9916,9917] as $id){
         sql("INSERT INTO ops_checklist_tasks(id,assigned_employee_id,created_by,date_assigned,released_at,deadline,status,performance_scored)
             VALUES(?,101,999,'2026-10-01 08:00:00','2026-10-01 08:00:00','2026-10-01 09:00:00','new',1)",[$id]);
-        V2OperationalBridge::record($db,'checklist_task','task_reminder_generated',$id,['employee_id'=>101,'occurred_at'=>'2026-10-01 08:00:00']);
+        V2OperationalBridge::record($db,'checklist_task','task_reminder_generated',$id,['employee_id'=>101,'occurred_at'=>$id===9915?'2026-10-01 08:00:09':'2026-10-01 08:00:00']);
         sql("UPDATE ops_checklist_tasks SET status='in_progress' WHERE id=?",[$id]);
         V2OperationalBridge::record($db,'checklist_task','task_status_changed',$id,['status'=>'in_progress','employee_id'=>101,'occurred_at'=>'2026-10-01 08:10:00']);
         sql("UPDATE ops_checklist_tasks SET status='complete' WHERE id=?",[$id]);
@@ -49,6 +49,7 @@ try {
     check('RELEASE14 recovery repairs missing release','repaired',TaskReleaseCoverageRepair::run($db,9915,999,true,'2026-10-01 12:00:00')['state']);
     check('RELEASE15 repaired denominator belongs to assignee not helper',101,(int)scalar("SELECT employee_id FROM epi_v2_completed_work_units WHERE opportunity_key='checklist_task:9915:0'"));
     check('RELEASE16 helper remains fulfiller',102,(int)scalar("SELECT fulfiller_id FROM epi_v2_completed_work_units WHERE opportunity_key='checklist_task:9915:0'"));
+    check('RELEASE16b ownership is not backdated before first source proof','2026-10-01 08:00:09',scalar("SELECT effective_from FROM epi_v2_ownership_periods WHERE object_reference='TASK-9915'"));
     check('RELEASE17 repeat repair is idempotent',true,TaskReleaseCoverageRepair::run($db,9915,999,true,'2026-10-01 12:00:00')['already_repaired']??false);
     check('RELEASE18 repair never invents retrospective breach','insufficient_evidence',TaskReleaseCoverageRepair::run($db,9916,999,true,'2026-10-01 12:00:00')['state']);
     sql("UPDATE epi_v2_employee_result_heads SET locked_at='2026-10-01 11:00:00' WHERE employee_id=101 AND period_start='2026-10-01'");
