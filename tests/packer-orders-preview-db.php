@@ -2,6 +2,7 @@
 declare(strict_types=1);
 // Loopback-only disposable data; never loads production config or business records.
 $pdo=new PDO('mysql:host=127.0.0.1;port=33317;charset=utf8mb4','root','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+$pdo->exec("SET time_zone='+02:00'");
 function db(){global$pdo;return $pdo;}
 function require_login(){}
 function current_role_key(){global$argv;return $argv[3]??'owner_admin';}

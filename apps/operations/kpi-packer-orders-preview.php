@@ -46,11 +46,14 @@ try {
     // The same older logs used by each order's History, independent of V2 adoption.
     foreach(['ops_activity_logs','ops_order_stage_events','kpi_activity_events']as$table){
         if(!ops_table_exists($table))continue;
-        $sql=$table==='ops_activity_logs'?"SELECT id,entity_id oid,action,metadata,employee_id actor,created_at at FROM ops_activity_logs WHERE entity_type='order' ORDER BY created_at,id":($table==='ops_order_stage_events'?"SELECT id,order_id oid,stage_key action,metadata,employee_id actor,occurred_at at FROM ops_order_stage_events ORDER BY occurred_at,id":"SELECT id,record_id oid,action_key action,metadata_json metadata,employee_id actor,occurred_at at,previous_status,new_status FROM kpi_activity_events WHERE record_type='order' ORDER BY occurred_at,id");
+        $sql=$table==='ops_activity_logs'?"SELECT id,entity_id oid,action,metadata,employee_id actor,created_at at,UNIX_TIMESTAMP(created_at) event_epoch FROM ops_activity_logs WHERE entity_type='order' ORDER BY created_at,id":($table==='ops_order_stage_events'?"SELECT id,order_id oid,stage_key action,metadata,employee_id actor,occurred_at at,UNIX_TIMESTAMP(occurred_at) event_epoch FROM ops_order_stage_events ORDER BY occurred_at,id":"SELECT id,record_id oid,action_key action,metadata_json metadata,employee_id actor,occurred_at at,previous_status,new_status FROM kpi_activity_events WHERE record_type='order' ORDER BY occurred_at,id");
         $q=db()->query($sql);while($s=$q->fetch(PDO::FETCH_ASSOC)){
             $oid=(int)$s['oid'];if(!isset($orders[$oid]))continue;$m=pop_json($s['metadata']);
             if($table==='kpi_activity_events'){$m['previous_status']=$s['previous_status'];$m['new_status']=$s['new_status'];}
-            $at=(string)$s['at'];if($table==='kpi_activity_events')$at=(new DateTimeImmutable($at,new DateTimeZone('UTC')))->setTimezone(new DateTimeZone('Africa/Windhoek'))->format('Y-m-d H:i:s');
+            // CURRENT_TIMESTAMP logs inherit the database session zone, not PHP's zone.
+            // Their epoch is unambiguous. KPI writers explicitly store UTC wall time.
+            $at=$table==='kpi_activity_events'?new DateTimeImmutable($s['at'],new DateTimeZone('UTC')):new DateTimeImmutable('@'.(int)$s['event_epoch']);
+            $at=$at->setTimezone(new DateTimeZone('Africa/Windhoek'))->format('Y-m-d H:i:s');
             foreach(PackerOrderHistory::event($s['action'],$m,$at,(int)$s['actor'],$table.':'.$s['id'])as$event)$events[$oid][]=$event;
             // Historical assignment identifies the subject, not the employee who clicked Save.
             if($table==='ops_activity_logs' && in_array($s['action'],['assigned','packed_by_changed','packed_by_cleared','assignment_cleared','walk_in_auto_assigned','packer_automatically_assigned','packer_attribution_corrected'],true)){
