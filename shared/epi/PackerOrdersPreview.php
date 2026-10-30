@@ -90,7 +90,10 @@ final class PackerOrdersPreview
         if ($reopened || count($transitions)>1) return array_replace($r,['reason'=>'Multiple packing cycles or conflicting transitions require review; not counted twice']);
         if (!$new) return $r;
         if ($mode==='courier' && $paymentReversed) return array_replace($r,['reason'=>'Paid flag was reversed; eligibility history requires review']);
-        if ($mode==='courier' && !$paid) return array_replace($r,['result'=>empty($order['paid'])&&!$packed?'Waiting for Paid':'Not Measured','reason'=>empty($order['paid'])&&!$packed?'Courier clock has not started':'Original Paid timestamp missing']);
+        if ($mode==='courier' && !$paid) {
+            $waiting=empty($order['paid'])&&!$packed&&self::status((string)$order['status'])==='new';
+            return array_replace($r,['result'=>$waiting?'Waiting for Paid':'Not Measured','reason'=>$waiting?'Courier clock has not started':'Original Paid timestamp missing']);
+        }
         $start=$mode==='courier'?max($new,$paid):$new;$r['eligible_at']=$start;$r['due_at']=$this->due($start);
         if ($packed && $packed['at']<$start) return array_replace($r,['reason'=>'Packing precedes eligibility; review source history']);
         if (!$packed && !$futurePacked && self::status((string)$order['status'])!=='new') return array_replace($r,['reason'=>'New → In Progress transition missing; Complete is not packing evidence']);

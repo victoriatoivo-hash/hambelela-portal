@@ -32,6 +32,7 @@ $over=$calc(['status'=>'new'],[$new]);eq('Overdue',$over['result'],'unpacked ove
 $pending=$calc(['status'=>'new'],[array_replace($new,['at'=>'2026-10-30 11:00:00'])]);eq('Pending',$pending['result'],'not yet due');eq(null,$pending['score_outcome'],'pending not failed');
 $closed=$e->evaluate(array_replace($base,['status'=>'new']),[['kind'=>'new','at'=>'2026-10-30 15:00:00']],$owner,[],'2026-10-30 20:00:00');eq('Pending',$closed['result'],'no extra overdue time after closing at exact allowance');
 eq('Waiting for Paid',$calc(['mode'=>'courier','status'=>'new'],[$new])['result'],'unpaid courier paused');
+eq('Not Measured',$calc(['mode'=>'courier','status'=>'completed'],[$new])['result'],'closed courier with missing history is not waiting for payment');
 eq('2026-10-30 11:00:00',$calc(['mode'=>'courier','paid'=>1],[$new,['kind'=>'paid','at'=>'2026-10-30 09:00:00'],$pack])['due_at'],'courier paid later');
 eq('2026-10-30 10:00:00',$calc(['mode'=>'courier','paid'=>1],[['kind'=>'paid','at'=>'2026-10-30 07:00:00'],$new,$pack])['due_at'],'paid before New');
 eq('Not Measured',$calc(['mode'=>'courier','paid'=>1])['result'],'missing paid evidence');

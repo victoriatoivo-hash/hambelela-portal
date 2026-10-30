@@ -65,7 +65,7 @@
     if(!state||state.month!==month){const [from,to]=range('reporting',month);state={month,from,to,period:'reporting',mode:'',payment:'',paid:''};payload=null;}
     host.innerHTML=form();
     host.addEventListener('submit',e=>{if(!e.target.matches('[data-pop-form]'))return;e.preventDefault();const f=new FormData(e.target);for(const key of ['from','to','period','mode','payment','paid'])state[key]=String(f.get(key)||'');load();});
-    host.addEventListener('change',e=>{if(e.target.name==='period'){state.period=e.target.value;if(state.period!=='custom'){[state.from,state.to]=range(state.period,month);host.querySelector('[name=from]').value=state.from;host.querySelector('[name=to]').value=state.to;}}if(['from','to'].includes(e.target.name))host.querySelector('[name=period]').value='custom';});
+    host.addEventListener('change',e=>{if(e.target.name==='period'){state.period=e.target.value;if(state.period!=='custom'){[state.from,state.to]=range(state.period,month);for(const name of ['from','to']){const input=host.querySelector(`[name=${name}]`);input.value=state[name];input.dispatchEvent(new Event('change'));}}}if(['from','to'].includes(e.target.name))host.querySelector('[name=period]').value='custom';});
     host.addEventListener('click',e=>{if(e.target.closest('[data-pop-retry]'))load();});load();
   }};
 })();

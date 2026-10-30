@@ -51,7 +51,7 @@ try{
     $pdo->exec("INSERT INTO ops_order_stage_events VALUES(3,1,'in_progress','{}',7,'2026-10-28 07:30:00')");
     $pdo->exec("SET time_zone='+02:00'");
     // Missing old transitions cannot inflate the current month's evidence/review counts.
-    $pdo->exec("INSERT INTO ops_orders VALUES(6,128,'collection','collection','081','completed',7,'cash',1,'2026-08-03 08:00:00',NULL)");
+    $pdo->exec("INSERT INTO ops_orders VALUES(6,128,'collection','collection','081','completed',7,'cash',1,'2026-08-03 08:00:00',NULL),(7,129,'courier','courier','081','completed',7,'cash',0,'2026-08-03 08:00:00',NULL)");
     $p=$call();
     if(empty($p['ok'])||$p['summary']['packed']!==2||$p['summary']['timing_measured']!==2||$p['summary']['responsibility_review']!==1)throw new RuntimeException('Legacy current results failed: '.json_encode($p));
     if($p['previous']['summary']['packed']!==1||$p['previous']['summary']['average']!=60)throw new RuntimeException('Historical previous period unavailable');
