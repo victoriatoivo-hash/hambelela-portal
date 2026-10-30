@@ -11,7 +11,7 @@ function check($name,$expected,$actual){global $results;$results[]=['test'=>$nam
 function rejected(callable $fn):bool{try{$fn();return false;}catch(RuntimeException $e){return true;}}
 // Reuse production interval table definitions rather than a permissive test double.
 $sql=file_get_contents(dirname(__DIR__).'/operations-epi-v2-p0-migration.sql');
-foreach(['scope_locks','duty_periods','ownership_periods','ownership_audits','exceptions','object_duties'] as $table){
+foreach(['activation','scope_locks','duty_periods','ownership_periods','ownership_audits','exceptions','object_duties'] as $table){
     if(!preg_match('/CREATE TABLE IF NOT EXISTS epi_v2_'.$table.'\b.*?;/s',$sql,$m))throw new RuntimeException('Missing fixture table '.$table);
     $db->exec($m[0]);
 }
