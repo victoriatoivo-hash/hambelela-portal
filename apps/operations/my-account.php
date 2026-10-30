@@ -6,10 +6,12 @@ require_once __DIR__ . '/operations.php';
 require_once BASE_PATH . '/shared/notifications.php';
 require_once BASE_PATH . '/shared/login-security.php';
 require_once BASE_PATH . '/shared/workplace-access.php';
+require_once BASE_PATH . '/shared/hr-access.php';
 
 require_login();
+if (current_role_key() !== 'owner_admin') { http_response_code(403); exit('Owner access required.'); }
 
-$pageTitle = 'My Account | ' . APP_NAME;
+$pageTitle = 'Account & Portal Settings | ' . APP_NAME;
 $activeApp = 'operations';
 $ready = ops_database_ready();
 $message = null;
@@ -133,7 +135,8 @@ function settings_force_delete_employee(int $employeeId): void
 
 if ($ready && $canManagePortal) {
     settings_employee_link_bootstrap();
-    ops_reconcile_core_staff();
+    // Account management must not rename, merge or reactivate employee identities.
+    db()->prepare("INSERT IGNORE INTO ops_roles (role_key, name, description) VALUES ('delivery_driver', 'Delivery Driver', 'Assigned deliveries and linked personal HR services')")->execute();
     db()->prepare("INSERT IGNORE INTO ops_roles (role_key, name, description) VALUES ('marketing_sales', 'Marketing & Sales Assistant', 'Marketing production, website content and limited sales cover')")->execute();
 }
 
@@ -220,48 +223,14 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $epiTestResult = $verifier->run((int) $employee['id'], (string) $employee['full_name']);
                 $message = 'Controlled EPI verification completed. All records are marked TEST DATA and excluded from scoring.';
             }
-        } elseif (in_array($action, ['reset_code', 'delete_employee', 'save_hr_link', 'save_employee', 'save_packing_eligibility', 'change_employee_role'], true)) {
+        } elseif (in_array($action, ['reset_code', 'delete_employee', 'save_hr_link', 'repair_hr_access', 'test_hr_access', 'save_employee', 'save_packing_eligibility'], true)) {
             if (!$canManagePortal) {
                 throw new RuntimeException('Only Owner/Admin can manage employee accounts.');
             }
 
             $activeSettingsSection = 'employees';
 
-            if ($action === 'change_employee_role') {
-                $employeeId = (int) ($_POST['employee_id'] ?? 0);
-                if ($employeeId <= 0) {
-                    throw new RuntimeException('Choose an employee account.');
-                }
-                $roleKey = strtolower(ops_post_string('role', 60));
-                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales'];
-                if (!in_array($roleKey, $allowedRoleKeys, true)) {
-                    throw new RuntimeException('Choose a valid role.');
-                }
-                $roleRows = ops_rows('SELECT id FROM ops_roles WHERE role_key = ? LIMIT 1', [$roleKey]);
-                $roleId = (int) ($roleRows[0]['id'] ?? 0);
-                if ($roleId <= 0) {
-                    throw new RuntimeException('The selected role is not configured.');
-                }
-                $targetRows = ops_rows(
-                    'SELECT e.id, r.role_key FROM ops_employees e JOIN ops_roles r ON r.id = e.role_id WHERE e.id = ? LIMIT 1',
-                    [$employeeId]
-                );
-                $targetEmployee = $targetRows[0] ?? null;
-                if (!$targetEmployee) {
-                    throw new RuntimeException('The selected employee account could not be found.');
-                }
-                if ((string) $targetEmployee['role_key'] === $roleKey) {
-                    $message = 'That employee already has this role.';
-                } else {
-                    db()->prepare('UPDATE ops_employees SET role_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$roleId, $employeeId]);
-                    record_security_event('employee_role_changed', $employeeId, [
-                        'performed_by' => (int) $employee['id'],
-                        'previous_role' => $targetEmployee['role_key'],
-                        'new_role' => $roleKey,
-                    ]);
-                    $message = 'Employee role updated.';
-                }
-            } elseif ($action === 'save_packing_eligibility') {
+            if ($action === 'save_packing_eligibility') {
                 if (!ops_ensure_packing_auto_assignable_column()) {
                     throw new RuntimeException('Packing assignment eligibility is not available yet.');
                 }
@@ -329,30 +298,36 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 settings_force_delete_employee($employeeId);
                 $message = $employeeName . ' permanently deleted. Historical records were kept, but employee links were cleared.';
-            } elseif ($action === 'save_hr_link') {
+            } elseif (in_array($action, ['save_hr_link', 'repair_hr_access', 'test_hr_access'], true)) {
                 $employeeId = (int) ($_POST['employee_id'] ?? 0);
                 $hrEmployeeId = (int) ($_POST['hr_employee_id'] ?? 0);
-                if ($employeeId <= 0 || $hrEmployeeId <= 0) {
-                    throw new RuntimeException('Choose both a portal user and an HR employee profile.');
+                $hrDb = ops_hr_db();
+                if ($employeeId <= 0) { throw new RuntimeException('Choose an employee account.'); }
+                $health = hr_access_health(db(), $hrDb, $employeeId);
+                if ($action === 'test_hr_access') {
+                    $message = $health['label'] . ': ' . $health['detail'];
+                    if ($health['profile']) {
+                        $message .= ' HR profile ' . $health['profile']['emp_number'] . ' (#' . (int) $health['profile']['id'] . ').';
+                    }
+                    if ($health['account']) {
+                        $message .= ' HR user #' . (int) $health['account']['id'] . ', role ' . $health['account']['role']
+                            . ', ' . ((int) $health['account']['active'] === 1 ? 'active' : 'inactive') . '.';
+                    }
+                    $messageType = $health['state'] === 'ready' ? 'success' : 'error';
+                } else {
+                    if (!$hrDb) { throw new RuntimeException('HR connection unavailable. No account changes made.'); }
+                    if ($action === 'repair_hr_access') {
+                        $hrEmployeeId = (int) ($health['profile']['id'] ?? 0);
+                    }
+                    if ($hrEmployeeId <= 0) { throw new RuntimeException('Choose a valid linked HR employee profile.'); }
+                    $result = hr_access_setup(db(), $hrDb, $employeeId, $hrEmployeeId,
+                        ops_current_employee_id(), $action === 'save_hr_link', ops_post_string('link_role', 120));
+                    try {
+                        record_security_event('hr_access_setup', $employeeId, ['performed_by'=>ops_current_employee_id(),
+                            'hr_employee_id'=>$hrEmployeeId, 'created'=>$result['created']]);
+                    } catch (Throwable $auditError) { error_log('HR setup audit log unavailable: ' . $auditError->getMessage()); }
+                    $message = 'HR access ready for ' . $result['profile']['full_name'] . '.';
                 }
-
-                $stmt = db()->prepare(
-                    "INSERT INTO employee_user_links (portal_user_id, hr_employee_id, role, linked_by, active)
-                     VALUES (?, ?, ?, ?, 1)
-                     ON DUPLICATE KEY UPDATE
-                        hr_employee_id = VALUES(hr_employee_id),
-                        role = VALUES(role),
-                        linked_by = VALUES(linked_by),
-                        active = 1,
-                        linked_at = CURRENT_TIMESTAMP"
-                );
-                $stmt->execute([
-                    $employeeId,
-                    $hrEmployeeId,
-                    ops_post_string('link_role', 120),
-                    ops_current_employee_id(),
-                ]);
-                $message = 'Portal user linked to HR employee profile.';
             } else {
                 $code = trim((string) ($_POST['login_code'] ?? ''));
                 $confirmCode = trim((string) ($_POST['confirm_login_code'] ?? ''));
@@ -364,7 +339,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if (!hash_equals($code, $confirmCode)) throw new RuntimeException('The access codes do not match.');
 
                 $roleKey = strtolower(ops_post_string('role', 60));
-                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales'];
+                $allowedRoleKeys = ['front_desk_admin', 'front_desk_admin_employee', 'accountant', 'packer', 'packer_production_staff', 'supervisor_manager', 'marketing_sales', 'delivery_driver'];
                 if (!in_array($roleKey, $allowedRoleKeys, true)) {
                     throw new RuntimeException('Choose a valid role.');
                 }
@@ -380,10 +355,10 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
 
                 $email = strtolower(ops_post_string('email', 190));
-                if ($email === '') {
+                if ($email === '' && $roleKey !== 'delivery_driver') {
                     throw new RuntimeException('Email is required.');
                 }
-                if (!filter_var($email, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Enter a valid email address.');
+                if ($email !== '' && !filter_var($email, FILTER_VALIDATE_EMAIL)) throw new RuntimeException('Enter a valid email address.');
                 $fullName = ops_post_string('full_name', 160);
                 if ($fullName === '') throw new RuntimeException('Full name is required.');
                 $status = ops_post_string('status', 20) ?: 'active';
@@ -403,8 +378,9 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         "INSERT INTO ops_employees (role_id, full_name, email, phone, password_hash, status, requires_code_reset)
                          VALUES (?, ?, ?, ?, ?, ?, 0)"
                     );
-                    $stmt->execute([$roleId, $fullName, $email, ops_post_string('phone', 60), password_hash($code, PASSWORD_DEFAULT), $status]);
+                    $stmt->execute([$roleId, $fullName, $email === '' ? null : $email, ops_post_string('phone', 60), password_hash($code, PASSWORD_DEFAULT), $status]);
                     $createdEmployeeId = (int) db()->lastInsertId();
+                    if($roleKey==='delivery_driver')db()->prepare('INSERT INTO delivery_driver_profiles(employee_id,active,verified_by_employee_id,verified_at) VALUES(?,1,?,UTC_TIMESTAMP())')->execute([$createdEmployeeId,(int)$employee['id']]);
                     $createdRoleKey = $roleKey;
                     if ($hasPackingColumns) {
                         $packingAssignable = in_array($roleKey, ['packer', 'supervisor_manager', 'front_desk_admin'], true) ? 1 : 0;
@@ -485,12 +461,12 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($isCreateEmployeeAjax) {
         $field = null;
         $lowerMessage = strtolower((string) $message);
-        if (str_contains($lowerMessage, 'confirm')) $field = 'confirm_login_code';
-        elseif (str_contains($lowerMessage, 'access code')) $field = 'login_code';
-        elseif (str_contains($lowerMessage, 'email')) $field = 'email';
-        elseif (str_contains($lowerMessage, 'full name')) $field = 'full_name';
-        elseif (str_contains($lowerMessage, 'role')) $field = 'role';
-        elseif (str_contains($lowerMessage, 'status')) $field = 'status';
+        if (strpos($lowerMessage, 'confirm') !== false) $field = 'confirm_login_code';
+        elseif (strpos($lowerMessage, 'access code') !== false) $field = 'login_code';
+        elseif (strpos($lowerMessage, 'email') !== false) $field = 'email';
+        elseif (strpos($lowerMessage, 'full name') !== false) $field = 'full_name';
+        elseif (strpos($lowerMessage, 'role') !== false) $field = 'role';
+        elseif (strpos($lowerMessage, 'status') !== false) $field = 'status';
         header('Content-Type: application/json; charset=utf-8');
         http_response_code($messageType === 'success' ? 201 : 422);
         echo json_encode(['success' => $messageType === 'success', 'message' => $message, 'field' => $field, 'employee_id' => $createdEmployeeId ?: null, 'role' => $createdRoleKey ?: null], JSON_UNESCAPED_SLASHES);
@@ -513,6 +489,7 @@ if ($ready && $canManagePortal) {
 }
 $employeeRoles = $ready && $canManagePortal ? ops_rows("SELECT id, role_key, name FROM ops_roles WHERE role_key <> 'owner_admin' ORDER BY FIELD(role_key, 'front_desk_admin', 'accountant', 'packer', 'supervisor_manager', 'marketing_sales'), name") : [];
 $extraStylesheets = array_merge($extraStylesheets ?? [], [['path' => 'assets/css/settings-access-code.css', 'version' => is_file(BASE_PATH . '/assets/css/settings-access-code.css') ? (string) filemtime(BASE_PATH . '/assets/css/settings-access-code.css') : (string) time()]]);
+$extraStylesheets[] = ['path'=>'assets/css/hr-access-health.css', 'version'=>(string) filemtime(BASE_PATH . '/assets/css/hr-access-health.css')];
 $hrEmployees = $ready && $canManagePortal ? ops_hr_employee_options() : [];
 $employeeLinks = [];
 if ($ready && $canManagePortal && ops_table_exists('employee_user_links')) {
@@ -550,11 +527,14 @@ $managedEmployees = $ready && $canManagePortal ? ops_rows(
     "SELECT e.*, r.name AS role_name, r.role_key, {$packingAssignableSelect}, {$packingAutoAssignableSelect}
      FROM ops_employees e
      JOIN ops_roles r ON r.id = e.role_id
-     WHERE e.status = 'active' AND r.role_key <> 'owner_admin'
+     WHERE e.status IN ('active','inactive')
      ORDER BY FIELD(r.role_key, 'front_desk_admin', 'packer', 'supervisor_manager'), e.full_name ASC
-     LIMIT 50"
+"
 ) : [];
-$managedEmployees = $canManagePortal ? ops_canonical_employee_rows($managedEmployees) : [];
+$hrAccessHealth = [];
+foreach ($managedEmployees as $managedEmployee) {
+    $hrAccessHealth[(int) $managedEmployee['id']] = hr_access_health(db(), ops_hr_db(), (int) $managedEmployee['id']);
+}
 $loginRows = $ready && $canManagePortal && ops_table_exists('ops_login_events') ? ops_rows(
     "SELECT le.employee_id, COALESCE(e.full_name, le.employee_name, 'Unknown') AS employee_name,
             COALESCE(r.name, le.role_key, '-') AS role_name,
@@ -601,23 +581,27 @@ if ($ready && $canManagePortal) {
     }
 }
 
+require_once BASE_PATH . '/shared/settings-shell.php';
 include BASE_PATH . '/shared/header.php';
-include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/ess-sidebar.php';
 $accountName = (string) ($employee['full_name'] ?? ($_SESSION['user_name'] ?? 'My account'));
 $accountRole = (string) ($employee['role_name'] ?? ($_SESSION['user_role'] ?? 'Portal user'));
 $accountEmail = (string) ($employee['email'] ?? ($_SESSION['user_email'] ?? ''));
 $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''));
 ?>
-<main class="workspace module settings-wrap">
+<main id="ess-main" class="workspace ess-dashboard-main module settings-wrap settings-detail">
     <section class="module-header">
         <div>
             <p class="page-eyebrow">Settings</p>
-            <h1>My Account</h1>
+            <h1>Account & Portal Settings</h1>
             <p class="page-subtitle">Manage your profile, security, notifications and portal preferences.</p>
         </div>
     </section>
     <?php if (!$ready) { ops_setup_notice(); } ?>
-    <?php ops_flash($message, $messageType); ?>
+    <?php if (($action ?? '') === 'test_hr_access' && $message): ?>
+        <section class="ops-alert" role="status"><strong>HR access check.</strong> <?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></section>
+    <?php else: ops_flash($message, $messageType); endif; ?>
+    <a class="settings-back" href="<?= BASE_URL ?>/settings.php"><i data-lucide="arrow-left"></i>All settings</a>
 
     <div class="settings-layout">
         <nav class="settings-nav" aria-label="Settings sections">
@@ -628,7 +612,6 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
             <span class="settings-nav-divider"></span>
             <?php if ($canManagePortal): ?>
                 <button class="settings-nav-item <?= $activeSettingsSection === 'employees' ? 'active' : '' ?>" type="button" data-section="employees"><i data-lucide="users-round"></i> Employees & Roles</button>
-                <a href="front-coverage-settings.php" class="settings-nav-item" aria-label="Front Desk Coverage settings"><i data-lucide="calendar-clock"></i> Front Desk Coverage</a>
             <?php endif; ?>
             <button class="settings-nav-item <?= $activeSettingsSection === 'portal' ? 'active' : '' ?>" type="button" data-section="portal"><i data-lucide="settings"></i> Portal Settings</button>
             <button class="settings-nav-item <?= $activeSettingsSection === 'help' ? 'active' : '' ?>" type="button" data-section="help"><i data-lucide="circle-help"></i> Help</button>
@@ -636,6 +619,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
 
         <section class="settings-content">
             <div id="section-profile" class="settings-section <?= $activeSettingsSection === 'profile' ? 'active' : '' ?>">
+<?php require BASE_PATH.'/shared/delivery/AppDownload.php'; ?>
                 <div class="settings-card">
                     <h2>My Profile</h2>
                     <p class="card-sub">Your name, role and contact details as they appear in the portal.</p>
@@ -786,6 +770,8 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                 <div class="settings-card">
                     <h2>Display Preferences</h2>
                     <p class="card-sub">Personalise how the portal looks for you.</p>
+                    <p class="settings-note">These display preferences do not yet support saving. The options below are a preview only.</p>
+                    <fieldset disabled class="settings-unavailable">
                     <div class="toggle-row">
                         <div><div class="toggle-label">Compact table rows</div><div class="toggle-sub">Show more rows on screen at once</div></div>
                         <label class="toggle-switch"><input type="checkbox" checked><span class="toggle-slider"></span></label>
@@ -799,6 +785,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                         <label class="toggle-switch"><input type="checkbox"><span class="toggle-slider"></span></label>
                     </div>
                     <div class="btn-row"><button class="btn-secondary" type="button">Save preferences</button></div>
+                    </fieldset>
                 </div>
             </div>
 
@@ -849,21 +836,21 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                     <div class="settings-card">
                         <h2>Employee accounts</h2>
                         <p class="card-sub">Manual assignment controls who appears in Packing selectors. Automatic distribution is a separate, narrower workload pool.</p>
-                        <div class="settings-table-wrap">
-                            <table class="settings-table">
+                        <div class="settings-table-wrap hb-employee-settings">
+                            <table class="es-employee-table">
                                 <thead>
                                     <tr>
                                         <th>Name</th>
                                         <th>Email</th>
                                         <th>Role</th>
-                                        <th>HR Link</th>
+                                        <th>HR Access</th>
                                         <th>Leave</th>
                                         <th>Status</th>
                                         <th>Packing assignment</th>
                                         <th>Automatic distribution</th>
                                         <th>Temporary Code</th>
                                         <th>Created</th>
-                                        <th>Delete</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody data-employee-account-rows>
@@ -872,48 +859,47 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                     $link = $employeeLinks[(int) $managedEmployee['id']] ?? null;
                                     $hr = $link && isset($hrEmployees[(int) $link['hr_employee_id']]) ? $hrEmployees[(int) $link['hr_employee_id']] : null;
                                     $leave = $hr ? ($hrLeaveByEmployee[(int) $link['hr_employee_id']] ?? null) : null;
+                                    $health = $hrAccessHealth[(int) $managedEmployee['id']];
                                     ?>
                                     <tr>
                                         <td><?= htmlspecialchars($managedEmployee['full_name'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td><?= htmlspecialchars((string) $managedEmployee['email'], ENT_QUOTES, 'UTF-8') ?></td>
+                                        <td><?= htmlspecialchars($managedEmployee['role_name'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
-                                            <form method="post" class="settings-inline-action">
-                                                <input type="hidden" name="action" value="change_employee_role">
-                                                <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
-                                                <select name="role" aria-label="Change role for <?= htmlspecialchars($managedEmployee['full_name'], ENT_QUOTES, 'UTF-8') ?>">
-                                                    <?php foreach ($employeeRoles as $role): ?>
-                                                        <option value="<?= htmlspecialchars($role['role_key'], ENT_QUOTES, 'UTF-8') ?>" <?= (string) $managedEmployee['role_key'] === (string) $role['role_key'] ? 'selected' : '' ?>><?= htmlspecialchars($role['name'], ENT_QUOTES, 'UTF-8') ?></option>
-                                                    <?php endforeach; ?>
-                                                </select>
-                                                <button class="btn-secondary" type="submit">Save role</button>
-                                            </form>
-                                        </td>
-                                        <td>
+                                            <div class="es-hr-access" data-hr-access-employee="<?= (int) $managedEmployee['id'] ?>" data-hr-access-state="<?= htmlspecialchars($health['state'], ENT_QUOTES, 'UTF-8') ?>">
+                                            <span class="es-status <?= $health['state'] === 'ready' ? 'is-linked' : ($health['state'] === 'conflict' ? 'is-conflict' : ($health['state'] === 'not_linked' ? 'is-muted' : 'is-warning')) ?>"><?= htmlspecialchars($health['label'], ENT_QUOTES, 'UTF-8') ?></span>
                                             <?php if ($hr): ?>
-                                                <span class="settings-pill is-linked">linked</span>
                                                 <small><a href="<?= htmlspecialchars(BASE_URL . '/apps/hr-portal/employees.php?view=' . (int) $link['hr_employee_id'], ENT_QUOTES, 'UTF-8') ?>"><?= htmlspecialchars($hr['full_name'], ENT_QUOTES, 'UTF-8') ?></a></small>
-                                            <?php else: ?>
-                                                <span class="settings-pill is-warning">missing HR link</span>
                                             <?php endif; ?>
+                                            <small class="settings-hr-health-detail"><?= htmlspecialchars($health['detail'], ENT_QUOTES, 'UTF-8') ?></small>
+                                            <form method="post">
+                                                <input type="hidden" name="csrf_token" value="<?= htmlspecialchars((string) $_SESSION['settings_csrf_token'], ENT_QUOTES, 'UTF-8') ?>">
+                                                <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
+                                                <button class="es-table-control" type="submit" name="action" value="test_hr_access">Test HR Access</button>
+                                                <?php if ($health['state'] === 'account_missing'): ?>
+                                                    <button class="es-table-control" type="submit" name="action" value="repair_hr_access">Set Up HR Access</button>
+                                                <?php endif; ?>
+                                            </form>
+                                            </div>
                                         </td>
                                         <td>
                                             <?php if ($leave): ?>
-                                                <span class="settings-pill <?= (string) ($leave['status'] ?? '') === 'pending' ? 'is-warning' : 'is-linked' ?>"><?= htmlspecialchars((string) $leave['status'], ENT_QUOTES, 'UTF-8') ?></span>
+                                                <span class="es-status <?= (string) ($leave['status'] ?? '') === 'pending' ? 'is-warning' : 'is-linked' ?>"><?= htmlspecialchars((string) $leave['status'], ENT_QUOTES, 'UTF-8') ?></span>
                                                 <small><?= htmlspecialchars((string) ($leave['leave_type'] ?? 'Leave'), ENT_QUOTES, 'UTF-8') ?>: <?= htmlspecialchars(date('d M', strtotime((string) $leave['start_date'])), ENT_QUOTES, 'UTF-8') ?>-<?= htmlspecialchars(date('d M', strtotime((string) $leave['end_date'])), ENT_QUOTES, 'UTF-8') ?></small>
                                             <?php elseif ($hr): ?>
-                                                <span class="settings-pill is-muted">none</span>
+                                                <span class="es-status is-muted">none</span>
                                             <?php else: ?>
-                                                <span class="settings-pill is-warning">unknown</span>
+                                                <span class="es-status is-warning">unknown</span>
                                             <?php endif; ?>
                                         </td>
-                                        <td><span class="settings-pill <?= (string) ($managedEmployee['status'] ?? '') === 'active' ? 'is-linked' : 'is-muted' ?>"><?= htmlspecialchars($managedEmployee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
+                                        <td><span class="es-status <?= (string) ($managedEmployee['status'] ?? '') === 'active' ? 'is-linked' : 'is-muted' ?>"><?= htmlspecialchars($managedEmployee['status'], ENT_QUOTES, 'UTF-8') ?></span></td>
                                         <td>
                                             <form method="post">
                                                 <input type="hidden" name="action" value="save_packing_eligibility">
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
                                                 <input type="hidden" name="eligibility_field" value="packing_assignable">
                                                 <input type="hidden" name="eligibility_value" value="<?= !empty($managedEmployee['packing_assignable']) ? '0' : '1' ?>">
-                                                <button class="btn-secondary" type="submit"><?= !empty($managedEmployee['packing_assignable']) ? 'Eligible' : 'Not eligible' ?></button>
+                                                <button class="es-table-control" type="submit"><?= !empty($managedEmployee['packing_assignable']) ? 'Eligible' : 'Not eligible' ?></button>
                                             </form>
                                         </td>
                                         <td>
@@ -922,12 +908,12 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                                 <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
                                                 <input type="hidden" name="eligibility_field" value="packing_auto_assignable">
                                                 <input type="hidden" name="eligibility_value" value="<?= !empty($managedEmployee['packing_auto_assignable']) ? '0' : '1' ?>">
-                                                <button class="btn-secondary" type="submit"><?= !empty($managedEmployee['packing_auto_assignable']) ? 'Included' : 'Excluded' ?></button>
+                                                <button class="es-table-control" type="submit"><?= !empty($managedEmployee['packing_auto_assignable']) ? 'Included' : 'Excluded' ?></button>
                                             </form>
                                         </td>
                                         <td>
                                             <button
-                                                class="btn-secondary"
+                                                class="es-table-control"
                                                 type="button"
                                                 data-create-temporary-code
                                                 data-employee-id="<?= (int) $managedEmployee['id'] ?>"
@@ -936,15 +922,17 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                                         </td>
                                         <td><?= htmlspecialchars((string) $managedEmployee['created_at'], ENT_QUOTES, 'UTF-8') ?></td>
                                         <td>
+                                            <div class="es-table-actions"><button type="button" class="es-table-action" data-edit-employee="<?= (int) $managedEmployee['id'] ?>" aria-label="Edit <?= htmlspecialchars($managedEmployee['full_name'], ENT_QUOTES, 'UTF-8') ?>"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m16 3 5 5-13 13H3v-5L16 3Z M14 5l5 5"/></svg> Edit</button>
                                             <?php if ((int) $managedEmployee['id'] !== (int) (current_user()['id'] ?? 0)): ?>
                                                 <form method="post" onsubmit="return confirm('Permanently delete this employee account? Old operational records will stay, but the employee link will be cleared.');">
                                                     <input type="hidden" name="action" value="delete_employee">
                                                     <input type="hidden" name="employee_id" value="<?= (int) $managedEmployee['id'] ?>">
-                                                    <button class="btn-danger" type="submit">Delete</button>
+                                                    <button class="es-table-action is-delete" type="submit">Delete</button>
                                                 </form>
                                             <?php else: ?>
-                                                <span class="settings-pill is-muted">current user</span>
+                                                <span class="es-status is-muted">current user</span>
                                             <?php endif; ?>
+                                            </div>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
@@ -1050,6 +1038,8 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                     <div class="settings-card">
                         <h2>Portal Settings</h2>
                         <p class="card-sub">System-wide settings. Visible to Owner/Admin only.</p>
+                        <p class="settings-note">Saving these general portal options is not implemented yet. Existing performance controls above remain available.</p>
+                        <fieldset disabled class="settings-unavailable">
                         <div class="form-row">
                             <div class="form-group"><label>Shop closing time</label><input type="time" value="17:00"></div>
                             <div class="form-group"><label>Waybill same-day cutoff</label><input type="time" value="16:30"></div>
@@ -1059,6 +1049,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
                             <div class="form-group"><label>Portal name</label><input type="text" value="Hambelela Organic Operations"></div>
                         </div>
                         <div class="btn-row"><button class="btn-secondary" type="button">Save portal settings</button></div>
+                        </fieldset>
                     </div>
                 <?php else: ?>
                     <div class="settings-card">
@@ -1191,6 +1182,9 @@ const employeeFieldMap = {
     confirm_login_code: [confirmAccessCodeInput, confirmAccessCodeError],
 };
 const clearEmployeeErrors = () => Object.values(employeeFieldMap).forEach(([input, error]) => setAccessFieldError(input, error));
+const syncDriverEmailRequirement=()=>{if(employeeFieldMap.email[0])employeeFieldMap.email[0].required=employeeFieldMap.role[0]?.value!=='delivery_driver';};
+employeeFieldMap.role[0]?.addEventListener('change',syncDriverEmailRequirement);
+syncDriverEmailRequirement();
 const validateNewEmployeeFields = () => {
     let valid = true;
     const show = (name, message) => {const field=employeeFieldMap[name];setAccessFieldError(field[0],field[1],message);valid=false;};
@@ -1199,8 +1193,8 @@ const validateNewEmployeeFields = () => {
     const role=String(employeeFieldMap.role[0]?.value||'').trim();
     const status=String(employeeFieldMap.status[0]?.value||'').trim();
     if(!fullName)show('full_name','Full name is required.');
-    if(!email)show('email','Email is required.');
-    else if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))show('email','Enter a valid email address.');
+    if(!email&&role!=='delivery_driver')show('email','Email is required.');
+    else if(email&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))show('email','Enter a valid email address.');
     if(!role)show('role','Choose a role.');
     if(!['active','inactive'].includes(status))show('status','Choose a valid status.');
     return valid;
@@ -1395,4 +1389,11 @@ if (initialSettingsSection) {
     });
 }
 </script>
-<?php include BASE_PATH . '/shared/footer.php'; ?>
+<?php if ($canManagePortal): ?>
+<link rel="stylesheet" href="<?=BASE_URL?>/assets/css/employee-account-editor.css?v=<?=filemtime(BASE_PATH.'/assets/css/employee-account-editor.css')?>">
+<dialog class="hb-employee-settings es-edit-drawer" id="employee-edit" aria-labelledby="employee-edit-title" data-csrf="<?=htmlspecialchars($_SESSION['settings_csrf_token'],ENT_QUOTES)?>">
+<header class="es-edit-header"><div><small class="es-edit-eyebrow">EMPLOYEE ACCOUNTS</small><h2 class="es-edit-title" id="employee-edit-title">Edit Employee</h2></div><button type="button" class="es-close" data-edit-close aria-label="Close employee editor"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg></button></header>
+<form id="employee-edit-form"><div class="es-edit-body" id="employee-edit-body"></div><footer class="es-edit-footer"><p id="employee-edit-message" role="status"></p><button type="button" class="es-button es-button-secondary" data-edit-close>Cancel</button><button type="submit" class="es-button es-button-primary">Save Changes</button></footer></form></dialog>
+<script defer src="<?=BASE_URL?>/assets/js/employee-account-editor.js?v=<?=filemtime(BASE_PATH.'/assets/js/employee-account-editor.js')?>"></script>
+<?php endif; ?>
+<?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?><script defer src="<?=BASE_URL?>/assets/js/ess-dashboard.js?v=<?=filemtime(BASE_PATH.'/assets/js/ess-dashboard.js')?>"></script><?php include BASE_PATH . '/shared/footer.php'; ?>
