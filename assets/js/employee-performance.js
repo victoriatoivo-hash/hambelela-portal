@@ -33,6 +33,7 @@
     return packerTabs.filter(([key])=>!['overview','history'].includes(key)).map(([key,title])=>{
       const entries=categories.filter(([category])=>panelKey(category)===key);
       const heading=key==='packing_list'?'<h2>Packing List</h2>':'';
+      if(key==='orders')return section(key,'<div data-packer-orders-preview></div><details class="ep-area"><summary>Previously published Orders measure (unchanged)</summary>'+entries.map(renderCategory).join('')+'</details>');
       return section(key,heading+(entries.length?entries.map(renderCategory).join(''):`<section class="ep-area"><h2>${esc(title)}</h2><p>No configured measure is available for this section in the selected reporting period. This is not a zero score.</p></section>`));
     }).join('');
   }
@@ -77,6 +78,7 @@
       ${section('evidence',`<section class="ep-area"><h2>${icon('file')}Published performance evidence</h2><form data-ep-evidence-filter class="ep-evidence-filters"><label>Search<input type="search" name="search"></label><label>Date<input type="date" name="date"></label><label>KPI area<select name="category"><option value="">All applicable categories</option>${categories.map(([k,c])=>`<option value="${esc(k)}">${esc(c.label)}</option>`).join('')}</select></label><label>Result<select name="status"><option value="">All outcomes</option><option value="success">Success</option><option value="failure">Failure</option></select></label><button class="btn-primary" type="submit">Apply filters</button></form><div data-ep-full-evidence><p>Select View all evidence to load the published records.</p></div></section>`)}
       ${section('logic',`<section class="ep-area">${logic}<h3>Category definitions and eligibility</h3>${categories.map(([,c])=>`<h3>${esc(c.label)}</h3>${measures(c)}`).join('')}</section>`)}`;
     if(activeTab==='evidence')loadEvidence();
+    if(isPacker)window.HambelelaPackerOrders?.mount(root,q('[data-ep-month]').value);
   }
   function selectTab(key){
     key=panelKey(key);

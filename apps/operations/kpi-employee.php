@@ -39,6 +39,7 @@ include BASE_PATH . '/shared/sidebar.php';
   <section class="ep-content" data-kpi-employee-content aria-busy="true"><div class="ep-loading" role="status">Loading verified performance…</div><div class="ep-summary" aria-hidden="true"><?php foreach (range(1, 5) as $unused): ?><article class="ep-card ep-skeleton"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
   <noscript><p class="ep-loading">Enable JavaScript to view performance and evidence. No employee data has been changed.</p></noscript>
   <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline aria-label="Evidence details"><header class="ep-drawer-header"><span>Evidence details</span><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button></header><div data-kpi-timeline-content></div><footer class="ep-drawer-footer"><button class="btn-primary" type="button" data-kpi-timeline-close>Close</button></footer></dialog>
+  <?php if($isPacker): ?><script src="<?= BASE_URL ?>/assets/js/packer-orders-preview.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/packer-orders-preview.js') ?>"></script><?php endif; ?>
   <script src="<?= BASE_URL ?>/assets/js/employee-performance.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/employee-performance.js') ?>"></script>
 </main>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
