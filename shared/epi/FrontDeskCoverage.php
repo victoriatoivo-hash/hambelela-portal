@@ -12,8 +12,9 @@ final class FrontDeskCoverage
     public function __construct(PDO $db, ?PDO $hr) { $this->db=$db; $this->hr=$hr; }
 
     public function enabled(): bool {
-        $r=V2Store::one($this->db,"SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='epi_v2_front_coverage_enabled'");
-        return $r && $r['setting_value']==='1';
+        // Replaced by OwnerFrontCoverage in Settings. Retain historical plans,
+        // but do not request employee acceptance or manual return confirmations.
+        return false;
     }
 
     public function status(int $actor, $now=null): array {

@@ -25,6 +25,10 @@ INSERT INTO ops_employees VALUES(1,'Owner',1,'active'),(2,'Front',2,'active'),(3
 INSERT INTO employees VALUES(102),(103);
 INSERT INTO employee_user_links VALUES(1,2,102,'2026-01-01 00:00:00',1),(2,3,103,'2026-01-01 00:00:00',1);");
 $engine=new OwnershipPeriodEngine($db);$day='2026-11-02';
+$legacy=new \Hambelela\EPI\FrontDeskCoverage($db,$db);
+check('old employee handover workflow retired',false,$legacy->enabled());
+check('old prompts disabled',['enabled'=>false],$legacy->status(2));
+check('no legacy reminder delivery',['sent'=>0,'failed'=>0],$legacy->reminders(function(){throw new RuntimeException('Unexpected employee prompt');},'2026-11-02 13:00:00'));
 $plan=['day'=>$day,'primary'=>2,'start'=>'08:00','end'=>'17:00','cover'=>3,'lunch_start'=>'13:00','lunch_end'=>'14:00','reason'=>'Synthetic test'];
 function fresh(array $plan):array{global $db;return array_replace($plan,['revision'=>OwnerFrontCoverage::revision(OwnerFrontCoverage::rows($db,$plan['day']))]);}
 function savePlan(array $plan,string $now='2026-11-01 10:00:00'):array{global $db;return OwnerFrontCoverage::save($db,$db,1,fresh($plan),$now);}
