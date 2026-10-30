@@ -42,13 +42,20 @@ try{
     if($call('packer',7)['summary']!==$p['summary'])throw new RuntimeException('Owner/employee formula differs');
     if($before!==ops_rows('SELECT * FROM ops_orders'))throw new RuntimeException('Preview mutated orders');
     $pdo->exec("CREATE TABLE ops_activity_logs(id INT,entity_id INT,entity_type VARCHAR(30),action VARCHAR(60),metadata TEXT,employee_id INT,created_at DATETIME);
-      CREATE TABLE ops_order_stage_events(id INT,order_id INT,stage_key VARCHAR(40),metadata TEXT,employee_id INT,occurred_at DATETIME);
+      CREATE TABLE ops_order_stage_events(id INT,order_id INT,stage_key VARCHAR(40),metadata TEXT,employee_id INT,occurred_at TIMESTAMP);
       CREATE TABLE kpi_activity_events(id INT,record_id INT,record_type VARCHAR(30),action_key VARCHAR(60),metadata_json TEXT,employee_id INT,occurred_at DATETIME,previous_status VARCHAR(30),new_status VARCHAR(30));
       INSERT INTO ops_orders VALUES(4,126,'delivery','delivery','081','completed',7,'cash',0,'2026-09-03 08:00:00',NULL),(5,127,'delivery','delivery','081','in_progress',7,'cash',0,'2026-10-03 09:00:00',NULL);
       INSERT INTO ops_order_stage_events VALUES(1,4,'in_progress','{}',7,'2026-09-03 09:00:00'),(2,5,'in_progress','{}',7,'2026-10-03 10:00:00');");
+    // Database TIMESTAMP mirror written in UTC must merge with the explicit UTC KPI event.
+    $pdo->exec("SET time_zone='+00:00'");
+    $pdo->exec("INSERT INTO ops_order_stage_events VALUES(3,1,'in_progress','{}',7,'2026-10-28 07:30:00')");
+    $pdo->exec("SET time_zone='+02:00'");
+    // Missing old transitions cannot inflate the current month's evidence/review counts.
+    $pdo->exec("INSERT INTO ops_orders VALUES(6,128,'collection','collection','081','completed',7,'cash',1,'2026-08-03 08:00:00',NULL)");
     $p=$call();
     if(empty($p['ok'])||$p['summary']['packed']!==2||$p['summary']['timing_measured']!==2||$p['summary']['responsibility_review']!==1)throw new RuntimeException('Legacy current results failed: '.json_encode($p));
     if($p['previous']['summary']['packed']!==1||$p['previous']['summary']['average']!=60)throw new RuntimeException('Historical previous period unavailable');
+    if(count($p['rows'])!==3||$p['summary']['not_measured']!==0||$p['summary']['average']!=75)throw new RuntimeException('Date scoping or database timezone mirror failed');
     if(count($p['comparison'])!==2||$call('packer',7)['comparison']!==[])throw new RuntimeException('Comparison permission failure');
     $before=ops_rows('SELECT * FROM ops_orders');$call();if($before!==ops_rows('SELECT * FROM ops_orders'))throw new RuntimeException('History reader mutated records');
     echo "PASS: legacy history, prior period, measured timing without responsibility, colleague privacy, UTC conversion and read-only behavior\n";

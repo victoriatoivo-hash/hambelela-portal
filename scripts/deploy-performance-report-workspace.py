@@ -1,7 +1,7 @@
 """Employee report UI delta using the portal's established FTP baseline/backup/rollback workflow."""
 import ftplib, hashlib, io, json, os, secrets, subprocess, sys, zipfile
 
-BASE = '247c8a7f8caa8eef9a1c73d83c0b3b89978263a7'
+BASE = '5b2e2f9d9e33863f17ebe6168d0f6228712e89f3'
 BASES = {}
 NEW_FILES = ()
 FILES = ('apps/operations/kpi-packer-orders-preview.php',)

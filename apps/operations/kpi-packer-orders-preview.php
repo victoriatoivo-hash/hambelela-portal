@@ -107,7 +107,8 @@ try {
         $previousRows[]=$engine->evaluate($order,$history,$owners[$oid]??[],$ex,min($previousTo,$now->format('Y-m-d H:i:s')));
         $inPacked=$r['packed_at']!==null&&$r['packed_at']>=$from&&$r['packed_at']<=$to;
         $inDue=$r['due_at']!==null&&$r['due_at']>=$from&&$r['due_at']<=$to;
-        $inOpen=$r['packed_at']===null&&$r['eligible_at']!==null&&$r['eligible_at']<=$asOf;
+        // Carry genuinely open work forward, not old completed records with missing history.
+        $inOpen=$r['packed_at']===null&&in_array($r['result'],['Pending','Overdue','Waiting for Paid'],true)&&$r['display_date']<=$asOf;
         $inMissing=$r['display_date']>=$from&&$r['display_date']<=$to;
         if(!$inPacked&&!$inDue&&!$inOpen&&!$inMissing)continue;
         if(!$r['responsible_id']&&$r['result']==='Overdue')$team++;
