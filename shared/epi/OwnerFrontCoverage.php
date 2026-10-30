@@ -12,7 +12,7 @@ final class OwnerFrontCoverage
 {
     public static function employees(PDO $db): array
     {
-        return $db->query("SELECT e.id,e.full_name,r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key IN ('front_desk_admin','marketing_sales') ORDER BY e.full_name")->fetchAll(PDO::FETCH_ASSOC);
+        return $db->query("SELECT e.id,e.full_name,r.name AS role_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' ORDER BY e.full_name,e.id")->fetchAll(PDO::FETCH_ASSOC);
     }
 
     public static function date(string $value): string
@@ -72,7 +72,7 @@ final class OwnerFrontCoverage
             if(!hash_equals(self::revision($before),(string)($input['revision']??'')))throw new RuntimeException('This day was changed elsewhere. Reload the schedule before saving. Your form has been kept.');
             $eligible=array_column(self::employees($db),'id');
             foreach($segments as $s){
-                if(!in_array($s[0],$eligible))throw new RuntimeException('Choose an active Front Desk or Marketing & Sales employee.');
+                if(!in_array($s[0],$eligible))throw new RuntimeException('Choose an active employee.');
                 $absence=HrAbsenceEvidence::inspect($db,$hr,$s[0],$s[1]);
                 if($absence['state']!=='no_approved_absence')throw new RuntimeException($absence['state']==='approved_absence'?'This employee has approved leave on the selected day. Choose another employee.':'HR availability could not be verified. Check the employee’s HR link and try again.');
                 if(V2Store::one($db,"SELECT id FROM epi_v2_exceptions WHERE employee_id=? AND kind='absence' AND effective_from<? AND effective_to>? AND approved_at<=? LIMIT 1",[$s[0],$s[2],$s[1],$now]))throw new RuntimeException('This employee has an approved absence during the selected hours.');

@@ -77,7 +77,7 @@ include BASE_PATH.'/shared/sidebar.php';
         <hr class="fc-divider"><h2>What follows this schedule?</h2>
         <p>Front Desk duties for walk-in orders, order follow-up, courier document handover and scheduled bookkeeping controls.</p>
         <p>Specific employee assignments stay with that employee. Packing assignments, account permissions and actual action history are not changed. Approved leave and existing evidence checks still apply.</p>
-        <p>Choose from active Front Desk and Marketing & Sales profiles. To adjust lunch cover, change the person or times and save again; choose “No lunch cover” to remove a future lunch switch within the selected hours.</p>
+        <p>Choose from all active employee profiles. Coverage does not change their account permissions. To adjust lunch cover, change the person or times and save again; choose “No lunch cover” to remove a future lunch switch within the selected hours.</p>
         <?php if($day<$today):?><div class="fc-info">Past schedules are read-only.</div><?php endif;?>
     </aside>
     </div>
