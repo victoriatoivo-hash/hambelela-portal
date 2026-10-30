@@ -1,5 +1,5 @@
 """Employee report UI delta using the portal's established FTP baseline/backup/rollback workflow."""
-import ftplib, hashlib, io, json, os, secrets, subprocess, sys, zipfile
+import difflib, ftplib, hashlib, io, json, os, secrets, subprocess, sys, zipfile
 
 BASE = '2bfe4ff3a2f3b25cd6eca3fffd390d06200068a4'
 NEW_FILES = ('shared/epi/OwnerFrontCoverage.php', 'apps/operations/front-coverage-settings.php')
@@ -41,6 +41,10 @@ def main():
         conflicts=[p for p in FILES if digest(before[p]) not in (digest(baseline[p]),digest(expected[p]))]
         if conflicts:
             report.update(state='blocked-live-drift',conflicts=conflicts)
+            if mode=='preflight' and conflicts==['apps/operations/my-account.php']:
+                # Owner explicitly approved this navigation source comparison in the private log.
+                p=conflicts[0]
+                print(''.join(difflib.unified_diff(blob('17aae6e9',p).decode().splitlines(True),before[p].decode().splitlines(True),fromfile='Git Settings',tofile='Live Settings')))
             raise RuntimeError('Live drift; no files changed: '+', '.join(conflicts))
         report['state']='preflight-pass'
         if mode=='deploy':
