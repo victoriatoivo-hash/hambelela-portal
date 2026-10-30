@@ -8,7 +8,7 @@ use RuntimeException;
 /** Read-only, owner-approved 120-minute policy. Never publishes scores or changes work. */
 final class PackerOrdersPreview
 {
-    public const VERSION = 'packer-orders-120-working-minutes-test-v1';
+    public const VERSION = 'packer-orders-history-summary-test-v2';
     private array $closures;
     private array $holidays = [];
     public function __construct(array $closures = []) { $this->closures = array_fill_keys($closures, true); }
@@ -114,7 +114,7 @@ final class PackerOrdersPreview
         return $r;
     }
     public static function summary(array $rows,int $employee,string $from,string $to): array {
-        $s=['assigned'=>0,'waiting_paid'=>0,'packed'=>0,'on_time'=>0,'late'=>0,'overdue'=>0,'pending'=>0,'not_measured'=>0,'excluded'=>0,'assessed'=>0,'successes'=>0,'score'=>null,'average'=>null,'fastest'=>null,'slowest'=>null,'modes'=>[]];$durations=[];
+        $s=['assigned'=>0,'waiting_paid'=>0,'packed'=>0,'on_time'=>0,'late'=>0,'overdue'=>0,'pending'=>0,'not_measured'=>0,'responsibility_review'=>0,'timing_measured'=>0,'timing_missing'=>0,'timing_reasons'=>[],'on_time_percent'=>null,'excluded'=>0,'assessed'=>0,'successes'=>0,'score'=>null,'average'=>null,'fastest'=>null,'slowest'=>null,'modes'=>[]];$durations=[];
         foreach ($rows as $r) {
             $mine=(int)($r['responsible_id']??0)===$employee;
             $done=(int)($r['packed_by']??0)===$employee && $r['packed_at']>=$from && $r['packed_at']<=$to;
@@ -131,13 +131,16 @@ final class PackerOrdersPreview
             }
             if ($mine && $r['result']==='Overdue') {$s['overdue']++;$m['overdue']++;}
             if ($mine && $r['result']==='Pending') $s['pending']++;
-            if ($r['result']==='Not Measured' || (!$r['responsible_id'] && !in_array($r['result'],['Excluded','Waiting for Paid'],true))) $s['not_measured']++;
+            if ($r['result']==='Not Measured') {$s['not_measured']++;$s['timing_reasons'][$r['reason']]=($s['timing_reasons'][$r['reason']]??0)+1;}
+            if (!$r['responsible_id'] && !in_array($r['result'],['Excluded','Waiting for Paid'],true)) $s['responsibility_review']++;
             if ($r['result']==='Excluded') $s['excluded']++;
             if ($mine && $r['due_at']>=$from && $r['due_at']<=$to && $r['score_outcome']!==null) { $s['assessed']++;if($r['score_outcome']==='success')$s['successes']++; }
             unset($m);
         }
         foreach ($s['modes'] as &$m) {$m['average']=$m['minutes']?round(array_sum($m['minutes'])/count($m['minutes']),1):null;unset($m['minutes']);}unset($m);
         if ($durations) {$s['average']=round(array_sum($durations)/count($durations),1);$s['fastest']=min($durations);$s['slowest']=max($durations);}
+        $s['timing_measured']=count($durations);$s['timing_missing']=$s['packed']-count($durations);
+        $s['on_time_percent']=$s['timing_measured']?round(100*$s['on_time']/$s['timing_measured'],1):null;
         $s['score']=$s['assessed']?round(100*$s['successes']/$s['assessed'],1):null;
         return $s;
     }

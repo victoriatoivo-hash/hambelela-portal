@@ -1,10 +1,10 @@
 """Employee report UI delta using the portal's established FTP baseline/backup/rollback workflow."""
 import ftplib, hashlib, io, json, os, secrets, subprocess, sys, zipfile
 
-BASE = '8cbe35eca7fae7495cfb26ac1ce197b736bb6419'
+BASE = '4274b8c4751c50e6cfdfb129b32065fd408f930f'
 BASES = {}
-NEW_FILES = ('shared/epi/PackerOrdersPreview.php', 'apps/operations/kpi-packer-orders-preview.php', 'assets/js/packer-orders-preview.js')
-FILES = NEW_FILES + ('apps/operations/kpi-employee.php', 'assets/js/employee-performance.js', 'assets/css/employee-performance.css')
+NEW_FILES = ('shared/epi/PackerOrderHistory.php',)
+FILES = NEW_FILES + ('shared/epi/PackerOrdersPreview.php', 'apps/operations/kpi-packer-orders-preview.php', 'assets/js/packer-orders-preview.js', 'assets/js/employee-performance.js', 'assets/css/employee-performance.css')
 REPORT = 'performance-report-workspace-report.json'
 BACKUP = 'performance-report-workspace-backup.zip'
 def blob(ref, path): return subprocess.check_output(['git','show',ref+':'+path])

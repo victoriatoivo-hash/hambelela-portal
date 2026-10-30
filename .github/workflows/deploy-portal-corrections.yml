@@ -59,6 +59,8 @@ jobs:
           php -l shared/epi/FrontDeskCoverage.php
           php tests/owner-front-coverage-db.php
           php -l shared/epi/PackerOrdersPreview.php
+          php -l shared/epi/PackerOrderHistory.php
+          php tests/packer-order-history.php
           php -l apps/operations/kpi-packer-orders-preview.php
           php tests/packer-orders-preview.php
           php tests/packer-orders-preview-db.php

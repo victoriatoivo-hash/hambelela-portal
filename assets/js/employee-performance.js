@@ -78,7 +78,13 @@
       ${section('evidence',`<section class="ep-area"><h2>${icon('file')}Published performance evidence</h2><form data-ep-evidence-filter class="ep-evidence-filters"><label>Search<input type="search" name="search"></label><label>Date<input type="date" name="date"></label><label>KPI area<select name="category"><option value="">All applicable categories</option>${categories.map(([k,c])=>`<option value="${esc(k)}">${esc(c.label)}</option>`).join('')}</select></label><label>Result<select name="status"><option value="">All outcomes</option><option value="success">Success</option><option value="failure">Failure</option></select></label><button class="btn-primary" type="submit">Apply filters</button></form><div data-ep-full-evidence><p>Select View all evidence to load the published records.</p></div></section>`)}
       ${section('logic',`<section class="ep-area">${logic}<h3>Category definitions and eligibility</h3>${categories.map(([,c])=>`<h3>${esc(c.label)}</h3>${measures(c)}`).join('')}</section>`)}`;
     if(activeTab==='evidence')loadEvidence();
-    if(isPacker)window.HambelelaPackerOrders?.mount(root,q('[data-ep-month]').value);
+    if(isPacker){
+      content.querySelector('.ep-summary')?.remove();
+      content.querySelector('.ep-result-state')?.remove();
+      const overview=content.querySelector('[data-ep-panel="overview"]');
+      if(overview)overview.innerHTML='<section class="ep-area" data-packer-work-overview><h2>Work at a glance</h2><p>Loading recorded work…</p></section>';
+      window.HambelelaPackerOrders?.mount(root,q('[data-ep-month]').value,data);
+    }
   }
   function selectTab(key){
     key=panelKey(key);
@@ -196,7 +202,7 @@
     const page=e.target.closest('[data-ep-evidence-page]');if(page){loadEvidence(Number(page.dataset.epEvidencePage));return;}
     const riskButton=e.target.closest('[data-ep-risk]');if(riskButton){const r=data.personal_risk[Number(riskButton.dataset.epRisk)];if(r){q('[data-kpi-timeline-content]').innerHTML=`<h2>${esc(r.object_reference)}</h2><dl class="ep-detail"><dt>Expected</dt><dd>${esc(label(r.obligation_key||r.event_key))}</dd><dt>Deadline</dt><dd>${esc(r.due_at||'See incident evidence')}</dd><dt>Current state</dt><dd>${esc(label(r.state||r.current_risk_state))}</dd><dt>Responsibility</dt><dd>${esc(data.employee_name)} · verified personal ownership; shared team risk is separate.</dd></dl><p>Resolving this obligation clears current risk but does not erase any historical breach. Inspect the corresponding category evidence for its published score impact.</p>`;dialog.showModal();}return;}
     const history=e.target.closest('[data-ep-history-page]');if(history){historyPage=Number(history.dataset.epHistoryPage);load();return;}
-    if(e.target.closest('[data-ep-refresh]'))load();if(e.target.closest('[data-kpi-timeline-close]'))dialog.close();
+    if(e.target.closest('[data-ep-refresh]')){load();if(isPacker)window.HambelelaPackerOrders?.refresh();}if(e.target.closest('[data-kpi-timeline-close]'))dialog.close();
     const review=e.target.closest('[data-ep-review]');if(review){openReview(Number(review.dataset.epReview));return;}
     const button=e.target.closest('[data-ep-evidence],[data-ep-detail]');if(!button)return;
     const row=button.hasAttribute('data-ep-detail')?detailRows[Number(button.dataset.epDetail)]:data.evidence[Number(button.dataset.epEvidence)];if(!row)return;

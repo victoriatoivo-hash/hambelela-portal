@@ -1,0 +1,34 @@
+<?php
+declare(strict_types=1);
+require_once dirname(__DIR__).'/shared/epi/PackerOrdersPreview.php';
+require_once dirname(__DIR__).'/shared/epi/PackerOrderHistory.php';
+use Hambelela\EPI\PackerOrdersPreview as E;
+use Hambelela\EPI\PackerOrderHistory as H;
+$n=0;
+function check($a,$b,$why){global$n;$n++;if($a!==$b)throw new RuntimeException($why.': '.json_encode($b));}
+$order=['mode'=>'collection','status'=>'in_progress','paid'=>false,'assigned_id'=>7,'display_date'=>'2026-09-01 08:00:00'];
+$engine=new E();
+$stage=H::event('in_progress',[],'2026-09-01 09:00:00',7,'ops_order_stage_events:1');
+$history=H::merge($stage,$order['display_date']);
+$result=$engine->evaluate($order,$history,[],[],'2026-09-30 17:00:00');
+check('On Time',$result['result'],'legacy stage + loaded time');
+check(60.0,$result['working_minutes'],'working minutes');
+check(null,$result['responsible_id'],'actor does not prove earlier responsibility');
+$s=E::summary([$result],7,'2026-09-01 00:00:00','2026-09-30 23:59:59');
+check(1,$s['timing_measured'],'unknown owner still measured');check(0,$s['not_measured'],'unknown owner not missing timing');check(1,$s['responsibility_review'],'owner reviewed separately');check(0,$s['assessed'],'no unjustified score');
+$audit=H::event('status_changed',['old_value'=>'new_order','new_value'=>'in_progress'],'2026-09-01 09:00:01',7,'ops_activity_logs:1');
+$merged=H::merge(array_merge($stage,$audit),$order['display_date']);
+check(2,count($merged),'mirror merged with loaded event');
+$other=H::event('in_progress',[],'2026-09-02 10:00:00',7,'ops_order_stage_events:2');
+check(3,count(H::merge(array_merge($stage,$audit,$other),$order['display_date'])),'later source cycle retained');
+$conflict=H::event('in_progress',[],'2026-09-01 09:00:00',8,'kpi_status_events:1');
+check('Not Measured',$engine->evaluate($order,H::merge(array_merge($stage,$conflict),$order['display_date']),[],[],'2026-09-30 17:00:00')['result'],'conflicting actors not hidden');
+$paid=H::event('portal_paid_confirmation_updated',['previous_status'=>'unpaid','new_status'=>'paid'],'2026-09-01 08:30:00',9,'kpi_activity_events:1');
+$courier=$engine->evaluate(array_replace($order,['mode'=>'courier','paid'=>true]),H::merge(array_merge($paid,$stage),$order['display_date']),[],[],'2026-09-30 17:00:00');
+check(30.0,$courier['working_minutes'],'original Paid starts courier');
+check('Not Measured',$engine->evaluate(array_replace($order,['mode'=>'courier','paid'=>true]),$history,[],[],'2026-09-30 17:00:00')['result'],'current paid not historical proof');
+$owners=H::ownership([['at'=>'2026-09-01 10:00:00','employee_id'=>7],['at'=>'2026-09-01 11:00:00','employee_id'=>0]]);
+check('2026-09-01 11:00:00',$owners[0]['effective_to'],'assignment clear ends ownership');
+check(null,$engine->evaluate($order,$history,$owners,[],'2026-09-30 17:00:00')['responsible_id'],'late assignment not backdated');
+check(1,count(H::merge($stage,'invalid')),'invalid loaded date ignored');
+echo "PASS: $n historical timing, deduplication, Paid evidence and attribution checks\n";
