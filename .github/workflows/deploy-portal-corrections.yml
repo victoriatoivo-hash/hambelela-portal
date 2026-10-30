@@ -25,6 +25,15 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+        ports: ['33317:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,6 +41,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.1'
+          extensions: pdo_mysql
       - name: Validate exact release files
         run: |
           php -l apps/operations/reports.php
@@ -42,6 +52,11 @@ jobs:
           node tests/performance-report-workspace-static.mjs
           node --check assets/js/employee-performance.js
           node tests/employee-packer-sections.cjs
+          php -l apps/operations/my-account.php
+          php -l apps/operations/front-coverage.php
+          php -l apps/operations/front-coverage-settings.php
+          php -l shared/epi/OwnerFrontCoverage.php
+          php tests/owner-front-coverage-db.php
       - name: Preflight or deploy approved delta with backup
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

@@ -628,6 +628,7 @@ $accountPhone = (string) ($employee['phone'] ?? ($_SESSION['user_phone'] ?? ''))
             <span class="settings-nav-divider"></span>
             <?php if ($canManagePortal): ?>
                 <button class="settings-nav-item <?= $activeSettingsSection === 'employees' ? 'active' : '' ?>" type="button" data-section="employees"><i data-lucide="users-round"></i> Employees & Roles</button>
+                <a href="front-coverage-settings.php" class="settings-nav-item" aria-label="Front Desk Coverage settings"><i data-lucide="calendar-clock"></i> Front Desk Coverage</a>
             <?php endif; ?>
             <button class="settings-nav-item <?= $activeSettingsSection === 'portal' ? 'active' : '' ?>" type="button" data-section="portal"><i data-lucide="settings"></i> Portal Settings</button>
             <button class="settings-nav-item <?= $activeSettingsSection === 'help' ? 'active' : '' ?>" type="button" data-section="help"><i data-lucide="circle-help"></i> Help</button>
