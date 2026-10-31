@@ -4,6 +4,7 @@ declare(strict_types=1);
 $pdo=new PDO('mysql:host=127.0.0.1;port=33317;charset=utf8mb4','root','',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $pdo->exec("SET time_zone='+02:00'");
 function db(){global$pdo;return $pdo;}
+function ops_hr_db(){return db();}
 function require_login(){}
 function current_role_key(){global$argv;return $argv[3]??'owner_admin';}
 function ops_current_employee_id(){return 7;}
@@ -14,7 +15,7 @@ function ops_order_display_datetime_expr($alias){return "$alias.created_at";}
 if(($argv[1]??'')==='child'){
     if(!preg_match('/^packer_preview_[a-f0-9]{16}$/D',$argv[2]))exit(2);
     $pdo->exec('USE `'.$argv[2].'`');define('BASE_PATH',dirname(__DIR__));
-    $_GET=['id'=>(int)($argv[4]??7),'from'=>'2026-10-01','to'=>'2026-10-29'];$_SERVER['REQUEST_METHOD']=$argv[5]??'GET';
+    $_GET=['id'=>(int)($argv[4]??7),'from'=>'2026-10-01','to'=>'2026-10-29','team'=>$argv[6]??'0'];$_SERVER['REQUEST_METHOD']=$argv[5]??'GET';
     $source=file_get_contents(BASE_PATH.'/apps/operations/kpi-packer-orders-preview.php');
     $source=str_replace("require_once __DIR__.'/operations.php';",'',$source);
     eval(substr($source,5));exit;
@@ -31,7 +32,7 @@ try{
       INSERT INTO kpi_status_events VALUES(1,1,'order','new_order','in_progress',7,'2026-10-28 07:30:00'),(2,3,'order','new_order','in_progress',8,'2026-10-28 07:00:00');");
     foreach([1,2,3]as$id){$p=['metadata'=>['occurred_at'=>'2026-10-28 08:00:00','original_created_at'=>'2026-10-28 08:00:00'],'record'=>['status'=>'new_order','portal_paid_confirmed'=>0]];$pdo->prepare("INSERT INTO epi_v2_outbox(event_key,entity_type,entity_id,action,payload_json) VALUES(?,'order',?,'order_created',?)")->execute([hash('sha256',(string)$id),$id,json_encode($p)]);}
     $pdo->exec("INSERT INTO epi_v2_ownership_periods(ownership_uuid,module,object_reference,employee_id,role_key,ownership_reason,effective_from,assigned_by,source) VALUES('a','Packing','ORDER-1',7,'packer','approved_order_assignment','2026-10-28 08:00:00',9,'test')");
-    $call=function($role='owner_admin',$id=7,$method='GET')use($name){$cmd=escapeshellarg(PHP_BINARY).' '.escapeshellarg(__FILE__).' child '.$name.' '.$role.' '.$id.' '.$method;$out=shell_exec($cmd);$p=json_decode($out,true);if(!is_array($p))throw new RuntimeException('Invalid endpoint response: '.$out);return $p;};
+    $call=function($role='owner_admin',$id=7,$method='GET',$team='0')use($name){$cmd=escapeshellarg(PHP_BINARY).' '.escapeshellarg(__FILE__).' child '.$name.' '.$role.' '.$id.' '.$method.' '.$team;$out=shell_exec($cmd);$p=json_decode($out,true);if(!is_array($p))throw new RuntimeException('Invalid endpoint response: '.$out);return $p;};
     $before=ops_rows('SELECT * FROM ops_orders');$p=$call();
     if(empty($p['ok']))throw new RuntimeException(json_encode($p));
     if(count($p['rows'])!==2||$p['summary']['packed']!==1||$p['summary']['score']!=100||$p['summary']['average']!=90||$p['summary']['waiting_paid']!==1)throw new RuntimeException('Incorrect database preview: '.json_encode($p['summary']));
@@ -58,6 +59,23 @@ try{
     if($p['previous']['summary']['packed']!==1||$p['previous']['summary']['average']!=60)throw new RuntimeException('Historical previous period unavailable');
     if(count($p['rows'])!==3||$p['summary']['not_measured']!==0||$p['summary']['average']!=75)throw new RuntimeException('Date scoping or database timezone mirror failed');
     if(count($p['comparison'])!==2||$call('packer',7)['comparison']!==[])throw new RuntimeException('Comparison permission failure');
+    $pdo->exec("CREATE TABLE ops_order_items(order_id INT,quantity DECIMAL(12,3));INSERT INTO ops_order_items VALUES(1,4),(1,2);
+      CREATE TABLE employee_user_links(portal_user_id INT,hr_employee_id INT,linked_at DATETIME,active INT);
+      INSERT INTO employee_user_links VALUES(7,101,'2026-01-01 00:00:00',1);
+      CREATE TABLE employees(id INT);INSERT INTO employees VALUES(101);
+      CREATE TABLE leave_requests(employee_id INT,status VARCHAR(20),start_date DATE,end_date DATE,days DECIMAL(5,2),approved_at DATETIME,approved_by INT);
+      INSERT INTO leave_requests VALUES(101,'approved','2026-10-02','2026-10-02',1,'2026-09-01 08:00:00',1);
+      CREATE TABLE epi_v2_duty_periods(employee_id INT,duty_key VARCHAR(30),effective_from DATETIME,effective_to DATETIME,superseded_at DATETIME,source VARCHAR(50),accepted_at DATETIME);
+      INSERT INTO epi_v2_duty_periods VALUES(7,'front_desk','2026-10-02 12:00:00','2026-10-02 14:00:00',NULL,'approved_front_roster',NULL),(7,'front_desk','2026-10-03 09:00:00','2026-10-03 10:00:00',NULL,'approved_front_roster',NULL);");
+    $p=$call();if($p['workload']['items_known_orders']!==1||$p['workload']['item_units']!=6||$p['workload']['team_share']!=66.7)throw new RuntimeException('Item context/team contribution failed');
+    $team=$call('owner_admin',7,'GET','1');if(empty($team['ok'])||count($team['comparison'])!==2||isset($team['rows'])||$team['workload_team_total']!==3)throw new RuntimeException('Team summary contract failed');
+    if($call('packer',7,'GET','1')['ok']!==false||$call('packer',7)['workload']['team_share']!==null)throw new RuntimeException('Team privacy failed');
+    require_once dirname(__DIR__).'/shared/epi/PackerOrdersPreview.php';require_once dirname(__DIR__).'/shared/epi/PackerWorkload.php';
+    $clock=new Hambelela\EPI\PackerOrdersPreview();
+    $capacity=Hambelela\EPI\PackerWorkload::capacity($pdo,$pdo,$clock,7,'2026-10-02 00:00:00','2026-10-03 13:00:00');
+    if($capacity['scheduled_hours']!=13||$capacity['leave_hours']!=9||$capacity['front_cover_hours']!=3||$capacity['remaining_scheduled_hours']!=3)throw new RuntimeException('Capacity overlap calculation failed: '.json_encode($capacity));
+    $pdo->exec('UPDATE leave_requests SET days=0.5');
+    if(Hambelela\EPI\PackerWorkload::capacity($pdo,$pdo,$clock,7,'2026-10-02 00:00:00','2026-10-03 13:00:00')['remaining_scheduled_hours']!==null)throw new RuntimeException('Ambiguous partial leave treated as full day');
     $before=ops_rows('SELECT * FROM ops_orders');$call();if($before!==ops_rows('SELECT * FROM ops_orders'))throw new RuntimeException('History reader mutated records');
     echo "PASS: legacy history, prior period, measured timing without responsibility, colleague privacy, UTC conversion and read-only behavior\n";
 }finally{$pdo->exec("DROP DATABASE `$name`");}

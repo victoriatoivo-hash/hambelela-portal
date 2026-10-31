@@ -159,7 +159,8 @@ final class PackerOrdersPreview
             unset($m);
         }
         foreach ($s['modes'] as &$m) {$m['average']=$m['minutes']?round(array_sum($m['minutes'])/count($m['minutes']),1):null;unset($m['minutes']);}unset($m);
-        if ($durations) {$s['average']=round(array_sum($durations)/count($durations),1);$s['fastest']=min($durations);$s['slowest']=max($durations);}
+        $s['median']=null;
+        if ($durations) {$s['average']=round(array_sum($durations)/count($durations),1);$s['fastest']=min($durations);$s['slowest']=max($durations);sort($durations,SORT_NUMERIC);$n=count($durations);$s['median']=round(($durations[intdiv($n-1,2)]+$durations[intdiv($n,2)])/2,1);}
         $s['timing_measured']=count($durations);$s['timing_missing']=$s['packed']-count($durations);
         $s['on_time_percent']=$s['timing_measured']?round(100*$s['on_time']/$s['timing_measured'],1):null;
         $s['score']=$s['assessed']?round(100*$s['successes']/$s['assessed'],1):null;

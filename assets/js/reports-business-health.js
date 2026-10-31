@@ -31,6 +31,23 @@
   let requestVersion = 0;
   let requestController;
   let lastRenderKey = '';
+  let workloadController, workloadKey='', workloadAt=0, workloadVersion=0;
+  async function loadWorkload(selectedPeriod){
+    const target=q('[data-packer-business-workload]');if(!target)return;
+    const start=String(selectedPeriod.from).slice(0,10),end=String(selectedPeriod.to).slice(0,10),key=start+'|'+end;
+    if(key===workloadKey&&Date.now()-workloadAt<60000)return;
+    const changed=key!==workloadKey;workloadKey=key;workloadAt=Date.now();workloadController?.abort();workloadController=new AbortController();
+    const controller=workloadController,version=++workloadVersion;let timedOut=false;
+    const timer=setTimeout(()=>{timedOut=true;controller.abort();},20000);
+    if(changed)target.innerHTML='<div class="pw-panel"><h3>Workload &amp; Capacity</h3><p>Loading selected period…</p></div>';
+    target.setAttribute('aria-busy','true');
+    try{
+      const response=await fetch('kpi-packer-orders-preview.php?'+new URLSearchParams({team:'1',from:start,to:end}),{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+      const data=await readKpiJson(response);if(version!==workloadVersion)return;
+      target.innerHTML=window.HambelelaPackerWorkload.render(data);
+    }catch(error){if(version!==workloadVersion||error.name==='AbortError'&&!timedOut)return;if(changed)target.innerHTML='<div class="pw-panel"><h3>Workload &amp; Capacity</h3></div>';target.querySelector('[data-workload-error]')?.remove();target.insertAdjacentHTML('afterbegin',`<p data-workload-error role="alert">${escapeHtml(timedOut?'Workload request timed out.':error.message)} Results have not refreshed. <button type="button" class="btn-secondary" data-workload-retry>Retry</button></p>`);}
+    finally{clearTimeout(timer);if(version===workloadVersion)target.removeAttribute('aria-busy');}
+  }
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
   const employeeScore = (person) => person.summary_score !== null && person.summary_score !== undefined && person.summary_score !== '' && Number.isFinite(Number(person.summary_score)) ? Number(person.summary_score) : null;
@@ -247,6 +264,7 @@
       const data = await readKpiJson(response);
       if (version !== requestVersion) return;
       latest = data;
+      loadWorkload(data.period);
       const renderKey = JSON.stringify(data);
       if (renderKey === lastRenderKey) return;
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
@@ -263,6 +281,7 @@
   }
 
   restore(); toggleCustom();
+  root.addEventListener('click',event=>{if(event.target.closest('[data-workload-retry]')&&latest){workloadAt=0;loadWorkload(latest.period);}});
   period.addEventListener('change', () => { toggleCustom(); persist(); if (period.value !== 'custom') load(); });
   [from, to].forEach((input) => input.addEventListener('change', () => { persist(); if (from.value && to.value) load(); }));
   includeHistorical.addEventListener('change', () => { persist(); load(true); });

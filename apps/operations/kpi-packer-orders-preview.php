@@ -3,8 +3,10 @@ declare(strict_types=1);
 require_once __DIR__.'/operations.php';
 require_once BASE_PATH.'/shared/epi/PackerOrdersPreview.php';
 require_once BASE_PATH.'/shared/epi/PackerOrderHistory.php';
+require_once BASE_PATH.'/shared/epi/PackerWorkload.php';
 use Hambelela\EPI\PackerOrdersPreview;
 use Hambelela\EPI\PackerOrderHistory;
+use Hambelela\EPI\PackerWorkload;
 header('Content-Type: application/json; charset=utf-8');
 header('Cache-Control: no-store');
 function pop_reply(array $body,int $code=200): void {http_response_code($code);echo json_encode($body,JSON_INVALID_UTF8_SUBSTITUTE|JSON_UNESCAPED_SLASHES);exit;}
@@ -13,6 +15,10 @@ try {
     require_login();
     if (($_SERVER['REQUEST_METHOD']??'GET')!=='GET') pop_reply(['ok'=>false,'message'=>'Read-only preview'],405);
     $id=(int)($_GET['id']??ops_current_employee_id());$owner=current_role_key()==='owner_admin';
+    $teamView=($_GET['team']??'')==='1';
+    if($teamView&&!$owner)pop_reply(['ok'=>false,'message'=>'Owner access required'],403);
+    $packers=ops_rows("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE r.role_key LIKE '%packer%' ORDER BY e.full_name");
+    if($teamView){if(!$packers)pop_reply(['ok'=>true,'comparison'=>[],'workload_team_total'=>0]);$id=(int)$packers[0]['id'];}
     if (!$owner && $id!==ops_current_employee_id()) pop_reply(['ok'=>false,'message'=>'You may view only your own performance'],403);
     $employee=ops_rows('SELECT e.id,e.full_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=?',[$id])[0]??null;
     if (!$employee || strpos($employee['role_key'],'packer')===false) pop_reply(['ok'=>false,'message'=>'Packer profile required'],404);
@@ -127,7 +133,19 @@ try {
     $filter=static fn($r)=>($modeFilter===''||$r['mode']===$modeFilter)&&($payment===''||$r['payment_method']===$payment)&&($paidFilter===''||($r['paid']!==null&&(bool)$r['paid']===($paidFilter==='1')));
     $allRows=array_values(array_filter($allRows,$filter));
     $previousRows=array_values(array_filter($previousRows,static fn($r)=>$filter($r)&&(($r['packed_at']!==null&&$r['packed_at']>=$previousFrom&&$r['packed_at']<=$previousTo)||($r['due_at']!==null&&$r['due_at']>=$previousFrom&&$r['due_at']<=$previousTo)||($r['display_date']>=$previousFrom&&$r['display_date']<=$previousTo))));
-    $comparison=[];
-    if($owner)foreach(ops_rows("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE r.role_key LIKE '%packer%' ORDER BY e.full_name")as$person)$comparison[]=['employee'=>$person,'summary'=>PackerOrdersPreview::summary($allRows,(int)$person['id'],$from,$to)];
-    pop_reply(['ok'=>true,'test_mode'=>true,'version'=>PackerOrdersPreview::VERSION,'employee'=>$employee,'from'=>$from,'to'=>$to,'as_of'=>$asOf,'rows'=>$rows,'payments'=>$payments,'summary'=>PackerOrdersPreview::summary($rows,$id,$from,$to),'comparison'=>$comparison,'previous'=>['from'=>$previousFrom,'to'=>$previousTo,'summary'=>PackerOrdersPreview::summary($previousRows,$id,$previousFrom,$previousTo)],'team_overdue_unattributed'=>$owner?$team:null,'scoring_note'=>'Test only. Packing times are measured independently of responsibility. Deadline-date scoring requires proven responsibility; missing attribution is not an individual failure. No official score, payroll, historical evidence or order was changed.','calendar_note'=>'Mon–Fri 08:00–17:00; Sat 09:00–13:00; Sundays, statutory Namibian holidays and saved calendar closures excluded. Special holiday declarations must be maintained in the existing calendar.']);
+    $items=[];
+    if(ops_table_exists('ops_order_items'))foreach(ops_rows('SELECT order_id,COUNT(*) `lines`,SUM(quantity) units FROM ops_order_items GROUP BY order_id HAVING MIN(quantity)>=0 AND COUNT(quantity)=COUNT(*) AND SUM(quantity)>0')as$item)$items[(int)$item['order_id']]=$item;
+    $hr=function_exists('ops_hr_db')?ops_hr_db():null;$comparison=[];$ownWorkload=null;
+    foreach($packers as$person){
+        $personId=(int)$person['id'];if(!$owner&&$personId!==$id)continue;
+        $workload=PackerWorkload::contribution($allRows,$personId,$from,$to,$items);
+        $workload['capacity']=PackerWorkload::capacity(db(),$hr,$engine,$personId,$from,$asOf);
+        if($personId===$id)$ownWorkload=$workload;
+        if($owner)$comparison[]=['employee'=>$person,'summary'=>PackerOrdersPreview::summary($allRows,$personId,$from,$to),'workload'=>$workload];
+    }
+    $teamTotal=$owner?array_sum(array_column(array_column($comparison,'summary'),'packed')):null;
+    foreach($comparison as&$person)$person['workload']['team_share']=$teamTotal?round(100*$person['summary']['packed']/$teamTotal,1):null;unset($person);
+    if($ownWorkload!==null)$ownWorkload['team_share']=$teamTotal?round(100*$ownWorkload['packed']/$teamTotal,1):null;
+    if($teamView)pop_reply(['ok'=>true,'from'=>$from,'to'=>$to,'as_of'=>$asOf,'comparison'=>$comparison,'workload_team_total'=>$teamTotal]);
+    pop_reply(['ok'=>true,'test_mode'=>true,'version'=>PackerOrdersPreview::VERSION,'employee'=>$employee,'from'=>$from,'to'=>$to,'as_of'=>$asOf,'rows'=>$rows,'payments'=>$payments,'summary'=>PackerOrdersPreview::summary($rows,$id,$from,$to),'workload'=>$ownWorkload,'workload_team_total'=>$teamTotal,'comparison'=>$comparison,'previous'=>['from'=>$previousFrom,'to'=>$previousTo,'summary'=>PackerOrdersPreview::summary($previousRows,$id,$previousFrom,$previousTo)],'team_overdue_unattributed'=>$owner?$team:null,'scoring_note'=>'Test only. Packing times are measured independently of responsibility. Deadline-date scoring requires proven responsibility; missing attribution is not an individual failure. No official score, payroll, historical evidence or order was changed.','calendar_note'=>'Mon–Fri 08:00–17:00; Sat 09:00–13:00; Sundays, statutory Namibian holidays and saved calendar closures excluded. Special holiday declarations must be maintained in the existing calendar.']);
 } catch(Throwable $e) {error_log('Packer Orders preview: '.$e->getMessage());pop_reply(['ok'=>false,'message'=>$e instanceof PDOException?'Orders evidence could not be read. No records were changed.':$e->getMessage()],422);}

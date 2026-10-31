@@ -27,6 +27,7 @@ $extraStylesheets = $tab !== 'dashboard' ? [[
     'version' => is_file(BASE_PATH . '/assets/css/performance-dashboard.css') ? (string) filemtime(BASE_PATH . '/assets/css/performance-dashboard.css') : '1',
 ]] : [];
 if ($tab === 'dashboard') $extraStylesheets[] = ['path'=>'assets/css/performance-workspace.css','version'=>(string) @filemtime(BASE_PATH.'/assets/css/performance-workspace.css')];
+if ($tab === 'business-health') $extraStylesheets[] = ['path'=>'assets/css/packer-workload.css','version'=>(string) @filemtime(BASE_PATH.'/assets/css/packer-workload.css')];
 $ready = ops_database_ready();
 $message = '';
 $messageType = 'success';
@@ -313,6 +314,7 @@ include BASE_PATH . '/shared/sidebar.php';
         <section class="kpi-management-story" data-kpi-management-story aria-live="polite"></section>
         <header class="kpi-dashboard-section-head"><h2>Business measures</h2><span>Measured records only · missing evidence is not a zero</span></header>
         <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
+        <section data-packer-business-workload aria-label="Packing workload and capacity"><div class="pw-panel"><h3>Workload &amp; Capacity</h3><p>Loading packer contributions…</p></div></section>
         <section class="kpi-dashboard-operational-grid">
             <article class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Order fulfilment</p><h2>Operational completion</h2></div><small>Authoritative order records and status history</small></div><div data-kpi-orders-overview></div></article>
             <article class="kpi-health-panel kpi-dashboard-risk" id="business-attention"><div class="kpi-panel-heading"><h2>Needs attention</h2><small>Open exceptions</small></div><div class="kpi-attention-list" data-kpi-attention></div></article>
@@ -332,6 +334,7 @@ include BASE_PATH . '/shared/sidebar.php';
         </details>
         <div data-kpi-scores hidden></div><div data-kpi-management-comparison hidden></div>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+        <script src="<?= BASE_URL ?>/assets/js/packer-workload.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/packer-workload.js') ?>"></script>
         <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
     <?php elseif ($tab === 'employees'): ?>
         <section class="performance-report-controls" aria-label="Employee performance filters">

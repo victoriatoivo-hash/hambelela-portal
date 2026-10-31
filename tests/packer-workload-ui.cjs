@@ -1,0 +1,10 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const context=vm.createContext({window:{}});vm.runInContext(fs.readFileSync('assets/js/packer-workload.js','utf8'),context);
+const data={workload_team_total:280,comparison:[{employee:{full_name:'Packer <7>'},summary:{packed:190,on_time:180,timing_measured:190,on_time_percent:94.7,median:60,average:66.3,fastest:20,slowest:180},workload:{team_share:67.9,items_known_orders:2,item_units:8,item_lines:5,responsibilities:3,fulfilled:2,fulfilled_by_colleague:1,open:1,overdue:1,capacity:{scheduled_hours:13,leave_hours:9,front_cover_hours:3,remaining_scheduled_hours:3,status:'recorded_adjustments'}}}]};
+const original=JSON.stringify(data),html=context.window.HambelelaPackerWorkload.render(data);
+for(const text of ['Workload &amp; Capacity','190 packed','67.9%','Within 2-hour target','180 / 190 measured','Median · includes waiting','2 / 190 orders covered','1 packed by colleague','not a combined employee grade','Not attendance']){assert.ok(html.toLowerCase().includes(text.toLowerCase()) || text==='Not attendance'&&html.includes('not attendance'),text);}
+assert.ok(html.includes('Packer &lt;7&gt;'));assert.equal(JSON.stringify(data),original);
+const own={employee:data.comparison[0].employee,summary:data.comparison[0].summary,workload:{...data.comparison[0].workload,team_share:null,capacity:{}}};
+const privateHtml=context.window.HambelelaPackerWorkload.render(own);assert.ok(privateHtml.includes('Owner view only'));assert.ok(privateHtml.includes('Not verified'));assert.ok(!privateHtml.includes('280 team'));
+for(const file of ['apps/operations/reports.php','apps/operations/kpi-employee.php']){const page=fs.readFileSync(file,'utf8');assert.ok(page.indexOf("'path'=>'assets/css/packer-workload.css'")<page.indexOf("include BASE_PATH . '/shared/header.php'"));}
+console.log('PASS: separated contribution/timeliness, honest denominators, safe names, no grade changes, private self view and first-paint styling');

@@ -64,6 +64,10 @@ jobs:
           php -l apps/operations/kpi-packer-orders-preview.php
           php tests/packer-orders-preview.php
           php tests/packer-calendar-performance.php
+          php tests/packer-workload.php
+          node tests/packer-workload-ui.cjs
+          node --check assets/js/packer-workload.js
+          node --check assets/js/reports-business-health.js
           node tests/packer-orders-loading.cjs
           php tests/packer-orders-preview-db.php
           node --check assets/js/packer-orders-preview.js
