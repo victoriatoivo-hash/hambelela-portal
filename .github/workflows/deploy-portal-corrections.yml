@@ -71,6 +71,12 @@ jobs:
           node tests/packer-orders-loading.cjs
           php tests/packer-orders-preview-db.php
           node --check assets/js/packer-orders-preview.js
+          php -l shared/epi/PackingWorkSummary.php
+          php -l apps/operations/kpi-packing-work-summary.php
+          php tests/packing-work-summary.php
+          php tests/packing-work-summary-db.php
+          node --check assets/js/packing-work-summary.js
+          node tests/packing-work-summary-ui.cjs
       - name: Preflight or deploy approved delta with backup
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

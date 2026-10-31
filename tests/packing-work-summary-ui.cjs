@@ -1,0 +1,12 @@
+const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/strict');
+const source=fs.readFileSync('assets/js/packing-work-summary.js','utf8');
+const context=vm.createContext({window:{}});vm.runInContext(source,context);
+const summary={completed:1,open:2,packages:500,kg:50,litres:0,quantity_known:1,items:3,progress_known:2,accuracy_percent:100,accuracy:{exact:1,less:0,more:0,mixed:0,unknown:0},states:{packing:1,packed_label_needed:1},sizes:{'g:100':500},progress_sizes:{'g:100':500},planned_sizes:{'g:100':500},priorities:{critical:2,low:1},reopened:0,corrections:0,notes:0,note_reasons:{},note_stages:{},timing:{median_minutes:1440,completed_measured:1,stage_age_minutes:{},website_median_minutes:null},responsibility_review:0,website_waiting:0,website_updated:0,daily:{'2026-10-03':1},quantity_updates:{},evidence:[{id:1,name:'<img src=x onerror=alert(1)>',status:'done',planned:'100g(500)',packed:'100g(500)',responsibility:'Assigned packer',working_minutes:1440,excluded_minutes:0}]};
+const html=context.window.HambelelaPackingWork.render({summary,policy:{priority:'No automatic priority penalty.',timing:'Working time only.'}});
+assert.ok(html.includes('500'));assert.ok(html.includes('24 h 0 min'));assert.ok(html.includes('&lt;img'));assert.ok(!html.includes('<img'));
+for(const title of ['Workload & quantities','Current work','Accuracy & corrections','Priority queue','Notes & issues','Website handoff'])assert.ok(html.includes(title),title);
+assert.ok(source.includes("if(!host.closest('[data-ep-panel]').hidden)load()"),'Lazy loaded, not an extra initial page request');
+assert.ok(source.includes('controller?.abort()'));assert.ok(source.includes('mine!==serial'));
+const css=fs.readFileSync('assets/css/packing-work-summary.css','utf8');assert.ok(css.includes('Jost'));assert.ok(css.includes('@media(max-width:600px)'));assert.ok(css.includes('font-size:16px'));
+const endpoint=fs.readFileSync('apps/operations/kpi-packing-work-summary.php','utf8');assert.ok(!/\b(INSERT INTO|UPDATE ops_|DELETE FROM|ALTER TABLE)\b/.test(endpoint));assert.ok(endpoint.includes('session_write_close'));
+console.log('PASS: summary rendering, escaping, lazy loading, stale-request guard, mobile styles and read-only endpoint.');

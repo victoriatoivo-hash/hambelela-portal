@@ -34,6 +34,7 @@
       const entries=categories.filter(([category])=>panelKey(category)===key);
       const heading=key==='packing_list'?'<h2>Packing List</h2>':'';
       if(key==='orders')return section(key,'<div data-packer-orders-preview></div><details class="ep-area"><summary>Previously published Orders measure (unchanged)</summary>'+entries.map(renderCategory).join('')+'</details>');
+      if(key==='packing_list')return section(key,'<div data-packing-work-summary></div><details class="ep-area"><summary>Previously published Packing List measures (unchanged)</summary>'+entries.map(renderCategory).join('')+'</details>');
       return section(key,heading+(entries.length?entries.map(renderCategory).join(''):`<section class="ep-area"><h2>${esc(title)}</h2><p>No configured measure is available for this section in the selected reporting period. This is not a zero score.</p></section>`));
     }).join('');
   }
@@ -84,6 +85,7 @@
       const overview=content.querySelector('[data-ep-panel="overview"]');
       if(overview)overview.innerHTML='<section class="ep-area" data-packer-work-overview><h2>Work at a glance</h2><p>Loading recorded work…</p></section>';
       window.HambelelaPackerOrders?.mount(root,q('[data-ep-month]').value,data);
+      window.HambelelaPackingWork?.mount(root,q('[data-ep-month]').value);
     }
   }
   function selectTab(key){
@@ -93,6 +95,7 @@
     nav.querySelectorAll?.('[role=tab]').forEach(p=>p.setAttribute('aria-selected',String(p.dataset.epTab===key)));
     nav.querySelectorAll?.('details').forEach(p=>{p.open=false;});
     if(key==='evidence')loadEvidence();
+    if(key==='packing_list'&&typeof window!=='undefined')window.HambelelaPackingWork?.activate();
   }
   async function loadEvidence(page=1){
     const host=q('[data-ep-full-evidence]'),mine=++evidenceVersion,profileVersion=version;if(!host)return;

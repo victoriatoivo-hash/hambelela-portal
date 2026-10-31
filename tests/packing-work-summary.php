@@ -1,0 +1,38 @@
+<?php
+declare(strict_types=1);
+require_once __DIR__.'/../shared/epi/PackerOrdersPreview.php';
+require_once __DIR__.'/../shared/epi/PackerWorkload.php';
+require_once __DIR__.'/../shared/epi/PackingWorkSummary.php';
+use Hambelela\EPI\PackingWorkSummary as S;
+use Hambelela\EPI\PackerOrdersPreview as Clock;
+$checks=0;function check($v,$message){global $checks;$checks++;if(!$v)throw new RuntimeException($message);}
+check(S::packages('100g (500)')===['g:100'=>500],'50kg chia must produce 500 separate 100g packs');
+check(S::packages('500 ml (200)')===['ml:500'=>200],'100L oil produces 200 bottles');
+check(S::packages('100g (100), 500g (80)')===['g:100'=>100,'g:500'=>80],'Mixed pack sizes');
+check(S::packages('1kg x 2; 500g (3)')===['g:1000'=>2,'g:500'=>3],'Unit normalization');
+check(S::packages('5 units')===['unit:1'=>5.0],'Pieces counted as units');
+foreach(['50','50kg unknown','10 bags','-5kg']as$text)check(S::packages($text)===null,'Ambiguous input: '.$text);
+check(S::accuracy(S::packages('100g (5)'),S::packages('500g (1)'))==='mixed','Equal weight is not equal package mix');
+check(S::accuracy(S::packages('100g (5)'),S::packages('100g (4)'))==='less','Underpacked');
+check(S::accuracy(S::packages('100g (5)'),S::packages('100g (6)'))==='more','Overpacked');
+foreach(['website','packed_label_needed','label_created','done_needs_label','correction_needed']as$s)check(!S::finished($s),'Not fully finished: '.$s);
+$item=['id'=>1,'item_name'=>'Chia','assigned_employee_id'=>7,'packing_status'=>'done','priority'=>'critical','quantity_planned'=>'100g (100), 500g (80)','quantity_packed'=>'100g (100), 500g (80)','date_loaded'=>'2026-10-02 16:00:00','date_started'=>'2026-10-02 16:30:00','date_completed'=>'2026-10-05 09:00:00'];
+$event=static fn($at,$field,$before,$after,$actor=7)=>compact('at','field','before','after','actor');
+$events=[1=>[$event('2026-10-02 16:30:00','packing_status','not_started','packing'),$event('2026-10-03 10:00:00','quantity_packed','0','100g (50)'),$event('2026-10-03 11:00:00','quantity_packed','100g (50)','100g (100)'),$event('2026-10-05 08:30:00','quantity_packed','100g (100)','100g (100), 500g (80)'),$event('2026-10-05 09:00:00','packing_status','packing','done')]];
+$clock=new Clock([]);$build=static fn($i,$ev,$owners=[],$ex=[],$from='2026-10-01 00:00:00',$to='2026-10-31 23:59:59')=>S::build($i,$ev,$owners,$ex,7,$from,$to,$clock);
+$s=$build([$item],$events);check($s['completed']===1&&$s['packages']===180&&$s['kg']==50,'Count final package snapshot once');
+check($s['timing']['median_minutes']==330,'Fri half-hour, Sat four hours, Mon one hour; Sunday excluded');
+check($s['quantity_updates']['2026-10-03']['added']==100,'Daily cumulative 50 then100 adds100, not150');
+check($s['accuracy_percent']==100&&$s['responsibility_review']===0,'Full process assigned packer');
+$old=$build([$item],$events,[],[],'2026-10-01 00:00:00','2026-10-03 23:59:59');check($old['completed']===0&&$old['open']===1&&$old['progress_sizes']['g:100']==100,'Historical snapshot before completion, no future quantity');
+$blocked=['employee_id'=>7,'effective_from'=>'2026-10-03 09:00:00','effective_to'=>'2026-10-03 11:00:00'];
+$s=$build([$item],$events,[],[$blocked,$blocked]);check($s['timing']['median_minutes']==210&&$s['evidence'][0]['excluded_minutes']==120,'Overlapping confirmed blockers deducted once');
+$e=$events;$e[1][]=$event('2026-10-06 09:00:00','packing_status','done','packing');$e[1][]=$event('2026-10-06 10:00:00','packing_status','packing','done');
+$s=$build([$item],$e);check($s['reopened']===1&&$s['completed']===1&&$s['packages']===180,'Reopened completion does not duplicate output');
+$noActor=$events;foreach($noActor[1]as&$r)$r['actor']=0;unset($r);$s=$build([$item],$noActor);check($s['timing']['median_minutes']===330.0&&$s['responsibility_review']===1,'Missing actor must not erase timing');
+$other=$item;$other['assigned_employee_id']=8;$s=$build([$other],$events);check($s['items']===0,'No other packer work');
+$assignment=[1=>[['at'=>'2026-10-07 08:00:00','old'=>7,'new'=>8]]];$s=$build([$other],$events,$assignment);check($s['completed']===1,'Later reassignment preserves earlier completion responsibility');
+$startBefore=$item;$startBefore['date_loaded']='2026-09-01 08:00:00';$s=$build([$startBefore],$events);check($s['completed']===1,'Carry-in batch completion included');
+$noteEvents=$events;$noteEvents[1][]=$event('2026-10-04 10:00:00','notes','','waiting for labels');$s=$build([$item],$noteEvents);check($s['notes']===1&&$s['note_reasons']['label']===1,'Notes diagnostic only');
+check(!array_key_exists('score',$s)&&!array_key_exists('stalled',$s),'No grade or stalled flag');
+echo "PASS: $checks Packing List workload, quantity, historical timing and attribution checks\n";

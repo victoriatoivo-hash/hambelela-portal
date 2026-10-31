@@ -19,6 +19,7 @@ if (empty($_SESSION['kpi_presence_csrf_token'])) $_SESSION['kpi_presence_csrf_to
 $activeApp = 'kpi';
 $extraStylesheets[] = ['path'=>'assets/css/employee-performance.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/employee-performance.css')];
 if($isPacker)$extraStylesheets[] = ['path'=>'assets/css/packer-workload.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/packer-workload.css')];
+if($isPacker)$extraStylesheets[] = ['path'=>'assets/css/packing-work-summary.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/packing-work-summary.css')];
 $profileMonth = preg_match('/^\d{4}-(0[1-9]|1[0-2])$/D', (string)($_GET['month']??'')) ? (string)$_GET['month'] : (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m');
 $profileInitials = implode('', array_map(static function($part){return strtoupper(substr($part,0,1));}, array_slice(preg_split('/\s+/',trim((string)$employee['full_name'])),0,2)));
 include BASE_PATH . '/shared/header.php';
@@ -40,7 +41,7 @@ include BASE_PATH . '/shared/sidebar.php';
   <section class="ep-content" data-kpi-employee-content aria-busy="true"><div class="ep-loading" role="status">Loading verified performance…</div><div class="ep-summary" aria-hidden="true"><?php foreach (range(1, 5) as $unused): ?><article class="ep-card ep-skeleton"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
   <noscript><p class="ep-loading">Enable JavaScript to view performance and evidence. No employee data has been changed.</p></noscript>
   <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline aria-label="Evidence details"><header class="ep-drawer-header"><span>Evidence details</span><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button></header><div data-kpi-timeline-content></div><footer class="ep-drawer-footer"><button class="btn-primary" type="button" data-kpi-timeline-close>Close</button></footer></dialog>
-  <?php if($isPacker): ?><script src="<?= BASE_URL ?>/assets/js/packer-workload.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/packer-workload.js') ?>"></script><script src="<?= BASE_URL ?>/assets/js/packer-orders-preview.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/packer-orders-preview.js') ?>"></script><?php endif; ?>
+  <?php if($isPacker): ?><script src="<?= BASE_URL ?>/assets/js/packer-workload.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/packer-workload.js') ?>"></script><script src="<?= BASE_URL ?>/assets/js/packer-orders-preview.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/packer-orders-preview.js') ?>"></script><script src="<?= BASE_URL ?>/assets/js/packing-work-summary.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/packing-work-summary.js') ?>"></script><?php endif; ?>
   <script src="<?= BASE_URL ?>/assets/js/employee-performance.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/employee-performance.js') ?>"></script>
 </main>
 <?php include BASE_PATH . '/shared/footer.php'; ?>
