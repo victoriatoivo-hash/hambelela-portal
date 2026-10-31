@@ -30,6 +30,28 @@ const {chromium} = require('playwright');
       }
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `page overflow ${width}`);
       console.log(`PASS: fixed totals bar and no horizontal overflow at ${width}x${height}`);
+      await page.evaluate(() => { if (!crypto.randomUUID) crypto.randomUUID = () => 'budget_layout_test_000001'; });
+      await page.locator('[data-tab="budgets"]').click();
+      await page.locator('#budgetNew').click();
+      await page.locator('#budgetName').fill('November household budget');
+      await page.locator('#budgetAvailable').fill('23000');
+      await page.locator('.b-name').fill('Groceries and household shopping');
+      await page.locator('.b-planned').fill('2500');
+      await page.locator('.b-actual').fill('1000');
+      await page.locator('#budgetAddCategory').click();
+      await page.locator('.miv-budget-category:last-child .b-name').fill('Transport');
+      await page.locator('.miv-budget-category:last-child .b-planned').fill('1500');
+      await page.locator('.miv-budget-category:last-child .b-actual').fill('500');
+      assert.equal(await page.locator('#budgetActual').innerText(), 'N$1,500.00');
+      assert.equal(await page.locator('#budgetRemaining').innerText(), 'N$21,500.00');
+      assert.equal(await bar.isVisible(), false, 'shipping bar hidden while budgeting');
+      assert(await page.locator('#budgetPie').evaluate(el => getComputedStyle(el).backgroundImage.includes('conic-gradient')), 'pie chart rendered');
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `budget page overflow ${width}`);
+      for (const selector of ['#budgetPie','#budgetCategories','#budgetSave']) {
+        const rect = await page.locator(selector).boundingBox();
+        assert(rect && rect.x >= -1 && rect.x + rect.width <= width + 1, `budget control fit ${selector} ${width}`);
+      }
+      console.log(`PASS: budgeting controls, chart and balances fit at ${width}x${height}`);
       await page.close();
     }
   } finally { await browser.close(); }
