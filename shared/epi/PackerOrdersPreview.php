@@ -11,6 +11,7 @@ final class PackerOrdersPreview
     public const VERSION = 'packer-orders-history-summary-test-v2';
     private array $closures;
     private array $holidays = [];
+    private array $yearSeconds = [];
     public function __construct(array $closures = []) { $this->closures = array_fill_keys($closures, true); }
     public static function time(string $s): DateTimeImmutable {
         if (!preg_match('/^\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:Z|[+-]\d{2}:\d{2})?$/D', $s)) throw new RuntimeException('Missing or invalid evidence timestamp');
@@ -59,11 +60,28 @@ final class PackerOrdersPreview
         throw new RuntimeException('Working calendar has no available deadline');
     }
     public function seconds(string $start,string $end): int {
-        $a=self::time($start);$b=self::time($end);$sum=0;
-        for ($day=$a->setTime(0,0);$day<=$b;$day=$day->modify('+1 day')) {
-            if ($w=$this->window($day)) $sum+=max(0,min($b->getTimestamp(),$w[1]->getTimestamp())-max($a->getTimestamp(),$w[0]->getTimestamp()));
-        }
+        $a=self::time($start);$b=self::time($end);if($b<=$a)return 0;
+        $first=(int)$a->format('Y');$last=(int)$b->format('Y');
+        $sum=$this->yearPosition($b)-$this->yearPosition($a);
+        for($year=$first;$year<$last;$year++){$this->calendarYear($year);$sum+=$this->yearSeconds[$year]['total'];}
         return $sum;
+    }
+    // Reuse calendar days across orders and previous-period comparisons.
+    private function calendarYear(int $year): void {
+        if(isset($this->yearSeconds[$year]))return;
+        $prefix=[];$total=0;$day=self::time("$year-01-01 00:00:00");
+        while((int)$day->format('Y')===$year){
+            $prefix[$day->format('m-d')]=$total;
+            if($w=$this->window($day))$total+=$w[1]->getTimestamp()-$w[0]->getTimestamp();
+            $day=$day->modify('+1 day');
+        }
+        $this->yearSeconds[$year]=['days'=>$prefix,'total'=>$total];
+    }
+    private function yearPosition(DateTimeImmutable $at): int {
+        $year=(int)$at->format('Y');$this->calendarYear($year);
+        $seconds=$this->yearSeconds[$year]['days'][$at->format('m-d')];
+        if($w=$this->window($at))$seconds+=max(0,min($at->getTimestamp(),$w[1]->getTimestamp())-$w[0]->getTimestamp());
+        return $seconds;
     }
     /** Events are normalized Namibia timestamps with explicit New/Paid/transition evidence. */
     public function evaluate(array $order,array $events,array $ownership,array $exceptions,string $asOf): array {

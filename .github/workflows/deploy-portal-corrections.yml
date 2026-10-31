@@ -63,6 +63,8 @@ jobs:
           php tests/packer-order-history.php
           php -l apps/operations/kpi-packer-orders-preview.php
           php tests/packer-orders-preview.php
+          php tests/packer-calendar-performance.php
+          node tests/packer-orders-loading.cjs
           php tests/packer-orders-preview-db.php
           node --check assets/js/packer-orders-preview.js
       - name: Preflight or deploy approved delta with backup

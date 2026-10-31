@@ -12,7 +12,9 @@
     if(['month','last_month','reporting'].includes(preset)){a.setUTCDate(1);if(preset==='reporting')a.setTime(new Date(month+'-01T12:00:00Z').getTime());if(preset==='last_month')a.setUTCMonth(a.getUTCMonth()-1);b.setTime(a.getTime());b.setUTCMonth(b.getUTCMonth()+1);b.setUTCDate(0);}
     return [day(a),day(b)];
   }
-  let state=null,host=null,root=null,request=null,serial=0,payload=null,profileData=null;
+  let state=null,host=null,root=null,request=null,serial=0,payload=null,profileData=null,payloadKey='';
+  const queryKey=()=>JSON.stringify([root.dataset.employeeId,state.from,state.to,state.mode,state.payment,state.paid]);
+  function overviewStatus(message){const el=root?.querySelector('[data-pop-overview-status]');if(el){el.textContent=message;if(!payload){const pending=el.previousElementSibling;if(pending?.tagName==='P')pending.textContent='Packing summary';}}}
   const options=(values,selected)=>values.map(([value,label])=>`<option value="${esc(value)}" ${value===selected?'selected':''}>${esc(label)}</option>`).join('');
   const table=(headers,rows)=>`<div class="ep-scroll" tabindex="0" aria-label="Packing summary"><table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   const metric=(name,value,help)=>`<div class="pop-metric" tabindex="0" title="${esc(help)}"><span>${esc(name)}</span><strong>${esc(value)}</strong><span class="pop-tip">${esc(help)}</span></div>`;
@@ -27,9 +29,9 @@
     <div data-pop-result role="status">Loading order history…</div></section>`;}
   function overview(){
     const el=root.querySelector('[data-packer-work-overview]');if(!el)return;
-    const s=payload.summary;
+    const s=payload?.summary;
     const areas=[['packing_list','Packing List',['packing','packing_list']],['tasks','Tasks',['tasks']],['courier','Courier Handover',['courier']],['quality','Quality & Errors',['quality']],['attendance','Attendance',['attendance']]];
-    el.innerHTML=`<div class="ep-area-head"><h2>Work at a glance</h2><span class="ep-muted">Orders: ${esc(payload.from.slice(0,10))} – ${esc(payload.to.slice(0,10))} · Other sections: ${esc(state.month)}</span></div><div class="pop-work-grid"><article class="pop-work-card"><h3>Orders</h3><strong>${s.packed} packed</strong><p>${s.on_time} on time · ${s.late} late · ${s.overdue} still overdue</p><p class="ep-muted">${s.timing_measured} packing times measured · ${s.timing_missing} missing timing</p><button class="ep-link" data-ep-tab="orders">Open Orders →</button></article>${areas.map(([tab,title,keys])=>{
+    el.innerHTML=`<div class="ep-area-head"><h2>Work at a glance</h2><span class="ep-muted">Orders: ${esc((payload?.from||state.from).slice(0,10))} – ${esc((payload?.to||state.to).slice(0,10))} · Other sections: ${esc(state.month)}</span></div><div class="pop-work-grid"><article class="pop-work-card"><h3>Orders</h3>${s?`<strong>${s.packed} packed</strong><p>${s.on_time} on time · ${s.late} late · ${s.overdue} still overdue</p><p class="ep-muted">${s.timing_measured} packing times measured · ${s.timing_missing} missing timing</p>`:'<p>Fetching packing summary…</p>'}<small data-pop-overview-status role="status"></small><button class="ep-link" data-ep-tab="orders">Open Orders →</button></article>${areas.map(([tab,title,keys])=>{
       const found=keys.flatMap(k=>Object.values(profileData?.categories?.[k]?.metrics||{})).filter(m=>m.numerator!=null&&m.eligible_volume>0);
       return `<article class="pop-work-card"><h3>${title}</h3>${found.length?found.slice(0,3).map(m=>`<p><strong>${esc(m.numerator)} / ${esc(m.eligible_volume)}</strong> ${esc(m.label)}</p>`).join(''):'<p>Historical results need verification</p>'}<small>Recorded section evidence only; not a complete monthly grade.</small><button class="ep-link" data-ep-tab="${tab}">Open ${title} →</button></article>`;
     }).join('')}</div><p class="ep-muted">No combined points total. Each area keeps its own measures; Orders history is calculated separately using the agreed working-hours rules.</p>`;
@@ -53,17 +55,20 @@
     result.removeAttribute('role');overview();
   }
   async function load(){
-    if(!host?.isConnected)return;request?.abort();request=new AbortController();const ticket=++serial,target=host;
+    if(!host?.isConnected)return;request?.abort();request=new AbortController();const controller=request,ticket=++serial,target=host,key=queryKey();
+    let timedOut=false;const timer=setTimeout(()=>{timedOut=true;controller.abort();},20000);
     const query=new URLSearchParams({id:root.dataset.employeeId,from:state.from,to:state.to,mode:state.mode,payment:state.payment,paid:state.paid});
     const output=host.querySelector('[data-pop-result]');output.setAttribute('aria-busy','true');
-    try{const response=await fetch('kpi-packer-orders-preview.php?'+query,{credentials:'same-origin',cache:'no-store',signal:request.signal});const p=await response.json();if(!response.ok||!p.ok)throw new Error(p.message||'History could not be loaded');if(ticket!==serial||target!==host||!target.isConnected)return;payload=p;host.querySelector('[name=payment]').innerHTML='<option value="">All payment types</option>'+options(p.payments.filter(Boolean).map(v=>[v,v]),state.payment);display();}
-    catch(e){if(e.name!=='AbortError'&&ticket===serial)output.innerHTML=`<p role="alert">${esc(e.message)}. No orders or scores were changed.</p><button class="btn-secondary" data-pop-retry>Retry</button>`;}
-    finally{if(ticket===serial)output.removeAttribute('aria-busy');}
+    overviewStatus(payload?'Updating in background…':'Fetching packing summary…');
+    try{const response=await fetch('kpi-packer-orders-preview.php?'+query,{credentials:'same-origin',cache:'no-store',signal:controller.signal});const p=await response.json();if(!response.ok||!p.ok)throw new Error(p.message||'History could not be loaded');if(ticket!==serial||target!==host||!target.isConnected)return;payload=p;payloadKey=key;host.querySelector('[name=payment]').innerHTML='<option value="">All payment types</option>'+options(p.payments.filter(Boolean).map(v=>[v,v]),state.payment);display();overviewStatus('Updated · '+p.as_of+' Namibia');}
+    catch(e){if((e.name!=='AbortError'||timedOut)&&ticket===serial){const message=timedOut?'Packing summary took too long. Please retry.':e.message;output.querySelector('[data-pop-error]')?.remove();const error=`<div data-pop-error><p role="alert">${esc(message)} ${payload?'Previously displayed results have not been refreshed.':'No orders or scores were changed.'}</p><button class="btn-secondary" data-pop-retry>Retry</button></div>`;if(payload)output.insertAdjacentHTML('afterbegin',error);else output.innerHTML=error;overviewStatus(message+' Open Orders to retry.');}}
+    finally{clearTimeout(timer);if(ticket===serial)output.removeAttribute('aria-busy');}
   }
   window.HambelelaPackerOrders={refresh:load,mount(profile,month,performance){
     root=profile;profileData=performance;host=root.querySelector('[data-packer-orders-preview]');if(!host)return;
-    if(!state||state.month!==month){const [from,to]=range('reporting',month);state={month,from,to,period:'reporting',mode:'',payment:'',paid:''};payload=null;}
+    if(!state||state.month!==month||state.employeeId!==root.dataset.employeeId){const [from,to]=range('reporting',month);state={month,employeeId:root.dataset.employeeId,from,to,period:'reporting',mode:'',payment:'',paid:''};payload=null;payloadKey='';}
     host.innerHTML=form();
+    if(payload&&payloadKey===queryKey())display();else{payload=null;overview();}
     host.addEventListener('submit',e=>{if(!e.target.matches('[data-pop-form]'))return;e.preventDefault();const f=new FormData(e.target);for(const key of ['from','to','period','mode','payment','paid'])state[key]=String(f.get(key)||'');load();});
     host.addEventListener('change',e=>{if(e.target.name==='period'){state.period=e.target.value;if(state.period!=='custom'){[state.from,state.to]=range(state.period,month);for(const name of ['from','to']){const input=host.querySelector(`[name=${name}]`);input.value=state[name];input.dispatchEvent(new Event('change'));}}}if(['from','to'].includes(e.target.name))host.querySelector('[name=period]').value='custom';});
     host.addEventListener('click',e=>{if(e.target.closest('[data-pop-retry]'))load();});load();

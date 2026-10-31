@@ -190,7 +190,7 @@
     try{const response=await fetch(`kpi-employee-data.php?action=performance&compact=1&id=${root.dataset.employeeId}&month=${encodeURIComponent(q('[data-ep-month]').value)}&history_page=${historyPage}${historyMonth?'&history_month='+encodeURIComponent(historyMonth):''}`,{cache:'no-store',credentials:'same-origin',signal:controller.signal});
       const payload=await response.json();if(!response.ok||!payload.ok)throw new Error(payload.message||'Performance is temporarily unavailable.');
       if(mine!==version)return;
-      const signature=JSON.stringify(payload);if(signature!==renderedSignature){render(payload);renderedSignature=signature;}
+      const signature=JSON.stringify(payload);if(signature!==renderedSignature){render(payload);renderedSignature=signature;}else if(isPacker)window.HambelelaPackerOrders?.refresh();
       q('[data-kpi-error]').hidden=true;
     }catch(error){if(error.name==='AbortError'||mine!==version)return;const alert=q('[data-kpi-error]');alert.textContent='Unable to load this performance period. Previously displayed data, if any, has not been refreshed. Please try again.';alert.hidden=false;
     }finally{if(mine===version){loading=false;content.removeAttribute('aria-busy');}}
@@ -202,7 +202,7 @@
     const page=e.target.closest('[data-ep-evidence-page]');if(page){loadEvidence(Number(page.dataset.epEvidencePage));return;}
     const riskButton=e.target.closest('[data-ep-risk]');if(riskButton){const r=data.personal_risk[Number(riskButton.dataset.epRisk)];if(r){q('[data-kpi-timeline-content]').innerHTML=`<h2>${esc(r.object_reference)}</h2><dl class="ep-detail"><dt>Expected</dt><dd>${esc(label(r.obligation_key||r.event_key))}</dd><dt>Deadline</dt><dd>${esc(r.due_at||'See incident evidence')}</dd><dt>Current state</dt><dd>${esc(label(r.state||r.current_risk_state))}</dd><dt>Responsibility</dt><dd>${esc(data.employee_name)} · verified personal ownership; shared team risk is separate.</dd></dl><p>Resolving this obligation clears current risk but does not erase any historical breach. Inspect the corresponding category evidence for its published score impact.</p>`;dialog.showModal();}return;}
     const history=e.target.closest('[data-ep-history-page]');if(history){historyPage=Number(history.dataset.epHistoryPage);load();return;}
-    if(e.target.closest('[data-ep-refresh]')){load();if(isPacker)window.HambelelaPackerOrders?.refresh();}if(e.target.closest('[data-kpi-timeline-close]'))dialog.close();
+    if(e.target.closest('[data-ep-refresh]'))load();if(e.target.closest('[data-kpi-timeline-close]'))dialog.close();
     const review=e.target.closest('[data-ep-review]');if(review){openReview(Number(review.dataset.epReview));return;}
     const button=e.target.closest('[data-ep-evidence],[data-ep-detail]');if(!button)return;
     const row=button.hasAttribute('data-ep-detail')?detailRows[Number(button.dataset.epDetail)]:data.evidence[Number(button.dataset.epEvidence)];if(!row)return;

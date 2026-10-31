@@ -16,6 +16,8 @@ try {
     if (!$owner && $id!==ops_current_employee_id()) pop_reply(['ok'=>false,'message'=>'You may view only your own performance'],403);
     $employee=ops_rows('SELECT e.id,e.full_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=?',[$id])[0]??null;
     if (!$employee || strpos($employee['role_key'],'packer')===false) pop_reply(['ok'=>false,'message'=>'Packer profile required'],404);
+    // Authentication is complete; this read must not block other portal requests.
+    if(session_status()===PHP_SESSION_ACTIVE)session_write_close();
     $now=new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek'));
     $from=(string)($_GET['from']??$now->format('Y-m-01'));$to=(string)($_GET['to']??$now->format('Y-m-d'));
     foreach ([$from,$to] as $day) { $d=DateTimeImmutable::createFromFormat('!Y-m-d',$day); if(!$d||$d->format('Y-m-d')!==$day)throw new RuntimeException('Choose valid reporting dates'); }
