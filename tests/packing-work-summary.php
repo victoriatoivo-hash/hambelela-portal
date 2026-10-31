@@ -24,7 +24,9 @@ $s=$build([$item],$events);check($s['completed']===1&&$s['packages']===180&&$s['
 check($s['timing']['median_minutes']==330,'Fri half-hour, Sat four hours, Mon one hour; Sunday excluded');
 check($s['quantity_updates']['2026-10-03']['added']==100,'Daily cumulative 50 then100 adds100, not150');
 check($s['accuracy_percent']==100&&$s['responsibility_review']===0,'Full process assigned packer');
+check($s['priorities']===[],'Finished batches are not still in the priority queue');
 $old=$build([$item],$events,[],[],'2026-10-01 00:00:00','2026-10-03 23:59:59');check($old['completed']===0&&$old['open']===1&&$old['progress_sizes']['g:100']==100,'Historical snapshot before completion, no future quantity');
+check($old['priorities']['critical']===1,'Historical priority queue includes unfinished batch');
 $blocked=['employee_id'=>7,'effective_from'=>'2026-10-03 09:00:00','effective_to'=>'2026-10-03 11:00:00'];
 $s=$build([$item],$events,[],[$blocked,$blocked]);check($s['timing']['median_minutes']==210&&$s['evidence'][0]['excluded_minutes']==120,'Overlapping confirmed blockers deducted once');
 $e=$events;$e[1][]=$event('2026-10-06 09:00:00','packing_status','done','packing');$e[1][]=$event('2026-10-06 10:00:00','packing_status','packing','done');

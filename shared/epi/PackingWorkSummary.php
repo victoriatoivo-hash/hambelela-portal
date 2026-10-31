@@ -98,7 +98,7 @@ final class PackingWorkSummary
                 foreach(array_unique(array_merge(array_keys($old),array_keys($new)))as$k){$delta=($new[$k]??0)-($old[$k]??0);if($delta>0)$out['quantity_updates'][$day]['added']+=$delta;else$out['quantity_updates'][$day]['reduced']-= $delta;}
             }
             if($open){$out['open']++;$out['states'][$state]=($out['states'][$state]??0)+1;}
-            $priority=self::status($snapshot['priority']??'unrecorded');$out['priorities'][$priority]=($out['priorities'][$priority]??0)+1;
+            $priority=self::status($snapshot['priority']??'unrecorded');if($open)$out['priorities'][$priority]=($out['priorities'][$priority]??0)+1;
             $plan=self::packages((string)($snapshot['quantity_planned']??''));$actual=self::packages((string)($snapshot['quantity_packed']??''));
             $accuracy=$completed?self::accuracy($plan,$actual):'in_progress';
             if($plan!==null)foreach($plan as$key=>$n)$out['planned_sizes'][$key]=($out['planned_sizes'][$key]??0)+$n;
