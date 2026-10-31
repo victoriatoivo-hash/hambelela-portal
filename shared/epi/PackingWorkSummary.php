@@ -87,9 +87,9 @@ final class PackingWorkSummary
             // Native timestamps still measure turnaround even without the older status actor.
             if(!$started&&!empty($item['date_started'])&&$item['date_started']<=$to)$started=$item['date_started'];
             if(!$finished&&self::finished($state)&&!empty($item['date_completed'])&&$item['date_completed']<=$to)$finished=$item['date_completed'];
-            $completed=self::finished($state)&&$finished!==null&&$finished>=$from&&$finished<=$to;
+            $completed=self::finished($state)&&$finished!==null&&$finished>=$from&&$finished<=$to&&self::ownerAt($item,$owners,$finished)===$employee;
             $open=!self::finished($state)&&$assigned===$employee;
-            if(!$open&&!($completed&&self::ownerAt($item,$owners,$finished)===$employee)&&!$hasActivity&&!($assigned===$employee&&$loaded>=$from))continue;
+            if(!$open&&!$completed&&!($assigned===$employee&&($hasActivity||$loaded>=$from)))continue;
             $out['items']++;$out['reopened']+=$reopened;$out['corrections']+=$corrections;
             foreach($quantityEvents as$e){
                 $old=self::packages((string)$e['before']);$new=self::packages((string)$e['after']);$day=substr($e['at'],0,10);

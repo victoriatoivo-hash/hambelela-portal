@@ -32,6 +32,7 @@ $s=$build([$item],$e);check($s['reopened']===1&&$s['completed']===1&&$s['package
 $noActor=$events;foreach($noActor[1]as&$r)$r['actor']=0;unset($r);$s=$build([$item],$noActor);check($s['timing']['median_minutes']===330.0&&$s['responsibility_review']===1,'Missing actor must not erase timing');
 $other=$item;$other['assigned_employee_id']=8;$s=$build([$other],$events);check($s['items']===0,'No other packer work');
 $assignment=[1=>[['at'=>'2026-10-07 08:00:00','old'=>7,'new'=>8]]];$s=$build([$other],$events,$assignment);check($s['completed']===1,'Later reassignment preserves earlier completion responsibility');
+$earlyAssignment=[1=>[['at'=>'2026-10-04 08:00:00','old'=>7,'new'=>8]]];$s=$build([$other],$events,$earlyAssignment);check($s['completed']===0&&$s['items']===0,'Earlier activity does not claim colleague completion');
 $startBefore=$item;$startBefore['date_loaded']='2026-09-01 08:00:00';$s=$build([$startBefore],$events);check($s['completed']===1,'Carry-in batch completion included');
 $noteEvents=$events;$noteEvents[1][]=$event('2026-10-04 10:00:00','notes','','waiting for labels');$s=$build([$item],$noteEvents);check($s['notes']===1&&$s['note_reasons']['label']===1,'Notes diagnostic only');
 check(!array_key_exists('score',$s)&&!array_key_exists('stalled',$s),'No grade or stalled flag');
