@@ -28,7 +28,22 @@ new MutationObserver(()=>{
  const search=document.createElement('input');search.type='search';search.placeholder='Search options…';search.setAttribute('aria-label','Search options');search.dataset.costSelectSearch='';popup.prepend(search);
  search.dataset.portalOpeningFocus='';
  search.focus({preventScroll:true});
+ const trigger=document.getElementById(popup.getAttribute('aria-labelledby'));
+ // The browser can finish focusing the trigger after its click handler.
+ // Retry after layout only if focus hasn't moved elsewhere.
+ requestAnimationFrame(()=>{if(search.isConnected&&popup.classList.contains('is-open')&&document.activeElement===trigger)search.focus({preventScroll:true});});
  search.addEventListener('input',()=>{const q=search.value.toLowerCase();popup.querySelectorAll('.portal-select-option').forEach(o=>{o.hidden=!o.textContent.toLowerCase().includes(q);});});
  if(!popup.dataset.costSearchKeys){popup.dataset.costSearchKeys='1';popup.addEventListener('keydown',e=>{if(!['ArrowDown','ArrowUp','Home','End'].includes(e.key)||!popup.querySelector('[data-cost-select-search]'))return;const rows=[...popup.querySelectorAll('.portal-select-option')].filter(o=>!o.hidden&&!o.disabled);if(!rows.length)return;e.preventDefault();e.stopImmediatePropagation();let i=rows.indexOf(document.activeElement);i=e.key==='Home'?0:e.key==='End'?rows.length-1:e.key==='ArrowDown'?(i+1)%rows.length:(i<=0?rows.length:i)-1;rows[i].focus();rows[i].scrollIntoView({block:'nearest'});},{capture:true});}
 }).observe(document.body,{childList:true,subtree:true});
+// If a browser leaves focus on the open button, route its first printable
+// key into the filter instead of swallowing it. Never change the selection.
+document.addEventListener('keydown',event=>{
+ const trigger=event.target.closest?.('.portal-custom-select-trigger[aria-expanded="true"]');
+ if(!trigger||event.defaultPrevented||event.isComposing||event.ctrlKey||event.metaKey||event.altKey||event.key.length!==1||event.key===' ')return;
+ const popup=document.getElementById(trigger.getAttribute('aria-controls'));
+ const search=popup?.querySelector('[data-cost-select-search]');
+ if(!search||!popup.classList.contains('is-open')||popup.getAttribute('aria-labelledby')!==trigger.id)return;
+ event.preventDefault();search.focus({preventScroll:true});
+ search.value+=event.key;search.dispatchEvent(new Event('input',{bubbles:true}));
+},{capture:true});
 })();
