@@ -22,7 +22,9 @@ return{ok:value.ok!==false,json:async()=>value};};
 // dependency: the release must not replace its newer notification behaviour.
 const portal=execFileSync('git',['show','2c758a0cb67a8c3bd2e4621ee9cbacaed5960f1b:assets/js/portal.js'],{encoding:'utf8'});
 const selectCode=s=>s.slice(s.indexOf('function initialisePortalDatePickers'),s.indexOf("window.addEventListener('DOMContentLoaded'")).replace(/\r\n/g,'\n');
-assert.equal(selectCode(portal),selectCode(fs.readFileSync('assets/js/portal.js','utf8')),'Shared dropdown implementation is identical to verified live revision');w.eval(portal.slice(0,portal.indexOf("window.addEventListener('DOMContentLoaded'")));
+const current=selectCode(fs.readFileSync('assets/js/portal.js','utf8'));
+assert.equal(current.replace(/      \/\/ Searchable menus manage their own opening focus\.[\s\S]*?      if \(!popupElement\.querySelector\('\[data-portal-opening-focus\]'\)\) focusSelectedOption\(focusPreference\);/, '      focusSelectedOption(focusPreference);'),selectCode(portal),'Only the opening-focus rule differs from the verified overlay');
+w.eval(portal.slice(0,portal.indexOf("window.addEventListener('DOMContentLoaded'")).replace(portal.slice(portal.indexOf('function initialisePortalDatePickers'),portal.indexOf("window.addEventListener('DOMContentLoaded'")),current));
 w.eval(fs.readFileSync('assets/js/cost-workbook-controls.js','utf8'));
 w.eval(fs.readFileSync('assets/js/retail-pricing.js','utf8'));
 const one=s=>{const e=d.querySelector(s);assert.ok(e,'Missing '+s);return e;},click=s=>one(s).click(),flush=async()=>{for(let i=0;i<6;i++)await new Promise(r=>setImmediate(r));},change=(s,v)=>{one(s).value=v;one(s).dispatchEvent(new w.Event('change',{bubbles:true}));},submit=()=>one('.rp-cost-link-dialog').dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));

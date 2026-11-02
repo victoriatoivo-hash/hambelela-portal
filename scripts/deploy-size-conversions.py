@@ -2,10 +2,10 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
 from pathlib import Path
 
-BASELINE = 'e8db9507'
+BASELINE = '29ebccf6'
 NEW_FILES = []
-FILES = ['assets/js/retail-pricing.js','shared/cost-workbook-pricing-master.php','shared/cost-workbook-pricing-autosave.php','shared/cost-workbook-pricing-discovery.php']
-DEPENDENCIES = ['assets/js/portal.js','assets/js/cost-workbook-controls.js','assets/css/cost-workbook-controls.css','apps/cost-manager/retail-pricing-api.php','shared/cost-workbook-cost-linking.php']
+FILES = ['assets/js/portal.js','assets/js/cost-workbook-controls.js']
+DEPENDENCIES = []
 # Preserve current live revisions matched to Git; only FILES are uploaded.
 DEPENDENCY_BASELINES = {}
 def git(*args): return subprocess.check_output(['git', *args])
@@ -28,9 +28,26 @@ ftp.login(os.environ['FTP_USERNAME'], os.environ['FTP_PASSWORD']); ftp.prot_p()
 try:
     before = {p:read(ftp,p) for p in FILES+DEPENDENCIES}
     desired = {p:git('show', sha+':'+p) for p in FILES}
+    # The global portal script may contain newer release changes outside this menu.
+    # Transplant just the reviewed opening-focus statement, never the whole Git file.
+    import tempfile
+    p=FILES[0]
+    anchor=b'      position();\n      focusSelectedOption(focusPreference);\n    });'
+    next_anchor=b"      position();\n      // Searchable menus manage their own opening focus. Don't steal the\n      // caret (or an arrow-key selection) on the next animation frame.\n      if (!popupElement.querySelector('[data-portal-opening-focus]')) focusSelectedOption(focusPreference);\n    });"
+    source=before[p].replace(b'\r\n',b'\n')
+    if source.count(anchor)+source.count(next_anchor)!=1:raise RuntimeError('Unrecognised live menu opener; nothing deployed')
+    assert git('show',BASELINE+':'+p).replace(anchor,next_anchor)==desired[p]
+    desired[p]=source.replace(anchor,next_anchor)
+    if b'\r\n' in before[p]:
+        if before[p].count(b'\r\n')!=before[p].count(b'\n'):raise RuntimeError('Mixed line endings; nothing deployed')
+        desired[p]=desired[p].replace(b'\n',b'\r\n')
+    with tempfile.TemporaryDirectory() as tmp:
+        for path,buf in desired.items():
+            staged=Path(tmp)/Path(path).name;staged.write_bytes(buf);subprocess.run(['node','--check',str(staged)],check=True)
     conflicts = []
     for p,data in before.items():
         baseline = None if p in NEW_FILES else git('show', DEPENDENCY_BASELINES.get(p, BASELINE)+':'+p)
+        if p==FILES[0]:baseline=before[p] # verified exact live opener above
         approved = desired.get(p, baseline)
         # Git checkout line-ending differences do not change PHP/JS/CSS semantics.
         norm = lambda value:None if value is None else value.replace(b'\r\n',b'\n')

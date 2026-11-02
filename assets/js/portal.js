@@ -231,7 +231,9 @@ const portalCustomSelectOverlay = (() => {
     window.requestAnimationFrame(() => {
       if (activeControl !== control) return;
       position();
-      focusSelectedOption(focusPreference);
+      // Searchable menus manage their own opening focus. Don't steal the
+      // caret (or an arrow-key selection) on the next animation frame.
+      if (!popupElement.querySelector('[data-portal-opening-focus]')) focusSelectedOption(focusPreference);
     });
   };
 
