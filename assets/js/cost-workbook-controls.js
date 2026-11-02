@@ -23,6 +23,7 @@ root.querySelectorAll('[data-cost-filters]').forEach(form=>{
 });
 // Reuse the portal select, adding search only for this workspace's long lists.
 new MutationObserver(()=>{
+ if(!root.isConnected)return;
  const popup=document.querySelector(root.dataset.page==='product-pricing'?'.portal-select-popup.is-open':'.portal-select-popup.is-open[data-portal-select-variant="cost-olive"]');if(!popup||popup.querySelector('[data-cost-select-search]')||(root.dataset.page!=='product-pricing'&&popup.querySelectorAll('.portal-select-option').length<8))return;
  const search=document.createElement('input');search.type='search';search.placeholder='Search options…';search.setAttribute('aria-label','Search options');search.dataset.costSelectSearch='';popup.prepend(search);
  search.dataset.portalOpeningFocus='';

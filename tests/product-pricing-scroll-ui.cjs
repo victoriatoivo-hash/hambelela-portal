@@ -16,7 +16,8 @@ const normalized=portal.replace(/\r\n/g,'\n');
 const scrollbarCode=text=>text.replace(/\r\n/g,'\n').slice(text.replace(/\r\n/g,'\n').indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar'));
 // Marketing conversation popups are separately covered by their database and DOM suites.
 const liveApproved=execFileSync('git',['show','bf24e681:assets/js/portal.js'],{encoding:'utf8'});
-assert.equal(normalized.slice(0,normalized.indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')),liveApproved.replace(/\r\n/g,'\n').slice(0,liveApproved.replace(/\r\n/g,'\n').indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')),'Unrelated notification code remains untouched');
+const expectedOpeningFocus="      // Searchable menus manage their own opening focus. Don't steal the\n      // caret (or an arrow-key selection) on the next animation frame.\n      if (!popupElement.querySelector('[data-portal-opening-focus]')) focusSelectedOption(focusPreference);";
+assert.equal(normalized.slice(0,normalized.indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')).replace(expectedOpeningFocus,'      focusSelectedOption(focusPreference);'),liveApproved.replace(/\r\n/g,'\n').slice(0,liveApproved.replace(/\r\n/g,'\n').indexOf('/**\n * One shared, viewport-sticky horizontal scrollbar')),'Unrelated notification code remains untouched');
 w.eval(scrollbarCode(normalized));
 const mirror=d.querySelector('[data-portal-horizontal-scroll-mirror]');
 Object.defineProperties(mirror,{clientWidth:{get:()=>width+20},scrollWidth:{get:()=>parseFloat(mirror.firstElementChild.style.width)||0}});
