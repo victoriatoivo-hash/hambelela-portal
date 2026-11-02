@@ -1,5 +1,5 @@
 """Apply only reviewed Orders payment hunks; refuse ambiguous or changed live anchors."""
-import difflib, ftplib, hashlib, io, json, os, pathlib, secrets, ssl, subprocess, sys, tempfile, zipfile
+import difflib, ftplib, hashlib, io, json, os, pathlib, secrets, socket, ssl, subprocess, sys, tempfile, zipfile
 base='c4d72248'
 helper='apps/operations/orders-pos-method.php'
 files=[helper,'apps/operations/operations.php','apps/operations/orders-board-action.php','assets/js/orders-board.js']
@@ -40,7 +40,11 @@ def delta(p,raw):
         if live.count(a)!=1:raise RuntimeError('Unmatched or ambiguous hunk: '+p+':'+str(i+1))
         live=live.replace(a,b,1)
     return live.replace(b'\n',b'\r\n') if raw.count(b'\r\n')==raw.count(b'\n') else live
-ftp=ftplib.FTP_TLS(os.environ['FTP_SERVER'],context=ssl.create_default_context(),timeout=45)
+host=os.environ['FTP_SERVER']
+canonical='s11745.sgp1.stableserver.net'
+def addresses(host):return {r[4][0] for r in socket.getaddrinfo(host,21,type=socket.SOCK_STREAM)}
+if addresses(host)&addresses(canonical):host=canonical
+ftp=ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45)
 ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD']);ftp.prot_p()
 before={p:read(p) for p in files}
 after={p:delta(p,before[p]) for p in files}
