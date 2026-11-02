@@ -33,7 +33,7 @@ const {chromium} = require('playwright');
       console.log(`PASS: fixed totals bar and no horizontal overflow at ${width}x${height}`);
       await page.evaluate(() => { if (!crypto.randomUUID) crypto.randomUUID = () => 'budget_layout_test_000001'; });
       await page.locator('[data-tab="budgets"]').click();
-      await page.locator('#budgetAvailable').fill('23000');
+      await page.locator('#moneyEdit').click(); await page.locator('#budgetAvailable').fill('23000');
       await page.locator('.b-name').fill('Groceries and household shopping');
       await page.locator('.b-planned').fill('2500');
       await page.locator('.b-actual').fill('1000');
@@ -46,7 +46,7 @@ const {chromium} = require('playwright');
       assert.equal(await bar.isVisible(), false, 'shipping bar hidden while budgeting');
       assert(await page.locator('#budgetPie').evaluate(el => getComputedStyle(el).backgroundImage.includes('conic-gradient')), 'pie chart rendered');
       assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `budget page overflow ${width}`);
-      for (const selector of ['#budgetPie','#budgetCategories','#budgetSave']) {
+      if(width<=850){await page.locator('[data-money-view="2"]').click();assert(await page.locator('#planBars').isVisible());await page.locator('[data-money-view="1"]').click();} for (const selector of ['#budgetPie','#budgetCategories','#budgetSave']) {
         const rect = await page.locator(selector).boundingBox();
         assert(rect && rect.x >= -1 && rect.x + rect.width <= width + 1, `budget control fit ${selector} ${width}`);
       }
