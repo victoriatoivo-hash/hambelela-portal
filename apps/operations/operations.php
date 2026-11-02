@@ -305,6 +305,8 @@ function ops_order_payment_allocations(int $orderId): array
 
 function ops_wc_payment_allocations(array $order): array
 {
+    require_once __DIR__ . '/orders-pos-method.php';
+    if (($single = ops_pos_single_tender($order)) !== null) return [$single];
     $candidates = [];
     $visit = static function ($value, string $key = '') use (&$visit, &$candidates): void {
         if (is_string($value) && (($value[0] ?? '') === '[' || ($value[0] ?? '') === '{')) {
@@ -366,6 +368,12 @@ function ops_sync_order_payment_allocations(int $orderId, array $allocations, st
     // Driver receipts are additive local financial events, not replaceable snapshots.
     // A later external snapshot requires explicit reconciliation, never blind replacement.
     if ($currentSource === 'delivery') return;
+    if (!empty($allocations[0]['_pos_method_only'])) {
+        $existing = ops_rows('SELECT payment_method AS method, amount_cents, transaction_reference FROM order_payment_allocations WHERE order_id = ? ORDER BY id FOR UPDATE', [$orderId]);
+        $rows = ops_pos_method_updates($allocations[0], $existing, $currentSource, $version, (string)($current['payment_version'] ?? ''));
+        if ($rows !== null) ops_replace_order_payment_allocations($orderId, $rows, 'pos', $version);
+        return;
+    }
     if ((string) ($current['payment_version'] ?? '') === $version) return;
     if ($source === 'woocommerce' && in_array($currentSource, ['pos', 'order_list'], true)) return;
     if ($source === 'order_list' && $currentSource === 'pos' && (string) ($current['payment_version'] ?? '') !== $version) return;
@@ -1221,7 +1229,8 @@ function ops_can_update_order_paid_status(): bool
 
 function ops_can_update_order_payment_method(): bool
 {
-    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'packer', 'packer_production_staff');
+    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'packer', 'packer_production_staff')
+        || (current_role_key() === 'marketing_sales' && (int)(current_user()['id'] ?? 0) === 15);
 }
 
 function ops_staff_text_key(array $employee): string

@@ -597,6 +597,13 @@ function ops_board_sync_website_orders(?string $date = null): array
     }
 
     $orders = array_values($ordersById);
+    // A correction today may belong to an order created outside the normal sync window.
+    if (!$date) {
+        try {
+            $collectOrders(['modified_after'=>$windowStart->format(DATE_ATOM),'orderby'=>'modified','order'=>'desc','status'=>'any','per_page'=>100]);
+            $orders = array_values($ordersById);
+        } catch (Throwable $error) { $syncWarnings[] = 'Modified-order sync: '.$error->getMessage(); }
+    }
 
     ops_board_sync_log('woocommerce orders fetched', [
         'count' => count($orders),
@@ -970,7 +977,7 @@ try {
             $amountCents = filter_var($rawAllocation['amount_cents'] ?? null, FILTER_VALIDATE_INT);
             if ($method === '' || !array_key_exists($method, ops_payment_method_map())) throw new RuntimeException('Choose a supported payment method.');
             if (isset($seen[$method])) throw new RuntimeException('A payment method cannot be selected twice.');
-            if ($amountCents === false || $amountCents <= 0) throw new RuntimeException('Every payment amount must be greater than zero.');
+            if ($amountCents === false || $amountCents < 0 || ($amountCents === 0 && count($rawAllocations) !== 1)) throw new RuntimeException('Use zero only for a single unpaid method. Split amounts must be positive.');
             $seen[$method] = true;
             $allocations[] = ['method'=>$method, 'amount_cents'=>(int) $amountCents, 'transaction_reference'=>substr(trim((string) ($rawAllocation['transaction_reference'] ?? '')), 0, 190)];
         }
@@ -998,12 +1005,13 @@ try {
         if ((int) ($order['woo_order_id'] ?? 0) > 0) {
             try {
                 $primary = $allocations[0]['method'];
+                require_once __DIR__.'/orders-pos-method.php';
                 $posSplit = array_map(static fn(array $allocation): array => [
                     'method' => $allocation['method'],
                     'amount' => number_format((int) $allocation['amount_cents'] / 100, 2, '.', ''),
                 ], $allocations);
                 wc_put('orders/' . (int) $order['woo_order_id'], [
-                    'payment_method' => $primary,
+                    'payment_method' => count($allocations) > 1 ? 'split' : ops_pos_gateway_id($primary),
                     'payment_method_title' => count($allocations) > 1 ? 'Split Payment' : ops_payment_label($primary),
                     'meta_data' => [
                         ['key'=>'_hpos_split', 'value'=>json_encode(count($allocations) > 1 ? $posSplit : [], JSON_UNESCAPED_SLASHES)],

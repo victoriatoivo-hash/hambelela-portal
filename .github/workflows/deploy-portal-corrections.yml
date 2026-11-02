@@ -1,4 +1,4 @@
-name: Deploy Hope Live Orders Trash permission
+name: Deploy Orders payment editing and POS sync
 on:
   workflow_dispatch:
     inputs:
@@ -17,6 +17,8 @@ jobs:
         with: {fetch-depth: 0}
       - run: |
           php tests/hope-orders-trash.php
+          php tests/orders-pos-method.php
+          node --check assets/js/orders-board.js
           node tests/orders-move-to-trash-static.mjs
           php -l apps/operations/orders-board-data.php
           php -l apps/operations/orders-board-action.php
@@ -27,13 +29,11 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           MODE: ${{ inputs.mode }}
           SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/deploy-performance-report-workspace.py "$MODE" "$SHA"
+        run: python3 scripts/deploy-orders-payment-delta.py "$MODE" "$SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: hope-orders-permission-${{ github.run_id }}
-          path: |
-            performance-report-workspace-report.json
-            performance-report-workspace-backup.zip
+          name: orders-payment-rollback-${{ github.run_id }}
+          path: orders-payment-backup.zip
           retention-days: 3
           if-no-files-found: warn
