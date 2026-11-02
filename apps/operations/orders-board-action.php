@@ -268,10 +268,7 @@ function ops_board_log_automatic_packer_assignment(int $orderId, array $packer, 
     ]);
 }
 
-function ops_board_can_move_to_trash(): bool
-{
-    return user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff');
-}
+require_once __DIR__ . '/orders-trash-permission.php';
 
 function ops_board_verify_csrf(): void
 {

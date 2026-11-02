@@ -5,12 +5,14 @@ const root = new URL('../', import.meta.url);
 const action = fs.readFileSync(new URL('apps/operations/orders-board-action.php', root), 'utf8');
 const data = fs.readFileSync(new URL('apps/operations/orders-board-data.php', root), 'utf8');
 const js = fs.readFileSync(new URL('assets/js/orders-board.js', root), 'utf8');
+const permission = fs.readFileSync(new URL('apps/operations/orders-trash-permission.php', root), 'utf8');
 
 for (const role of ['front_desk_admin_employee', 'packer_production_staff']) {
-  assert.match(action, new RegExp(role));
-  assert.match(data, new RegExp(role));
+  assert.match(permission, new RegExp(role));
 }
-assert.match(action, /function ops_board_can_move_to_trash/);
+assert.match(permission, /function ops_board_can_move_to_trash/);
+assert.match(action, /\$canDelete = ops_board_can_move_to_trash\(\)/);
+assert.match(data, /'can_move_to_trash' => ops_board_can_move_to_trash\(\)/);
 assert.match(action, /beginTransaction\(\)/);
 assert.match(action, /FOR UPDATE/);
 assert.match(action, /'trashedIds' => \$ids/);

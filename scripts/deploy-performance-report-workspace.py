@@ -1,10 +1,10 @@
 """Employee report UI delta using the portal's established FTP baseline/backup/rollback workflow."""
 import ftplib, hashlib, io, json, os, secrets, subprocess, sys, zipfile
 
-BASE = 'aa6e426a6d0413ea0f09098cec96f1fc8e76116f'
+BASE = '483eaecf'
 BASES = {}
-NEW_FILES = ()
-FILES = ('shared/epi/PackingWorkSummary.php',)
+NEW_FILES = ('apps/operations/orders-trash-permission.php',)
+FILES = NEW_FILES + ('apps/operations/orders-board-action.php','apps/operations/orders-board-data.php')
 REPORT = 'performance-report-workspace-report.json'
 BACKUP = 'performance-report-workspace-backup.zip'
 def blob(ref, path): return subprocess.check_output(['git','show',ref+':'+path])
@@ -21,7 +21,7 @@ def read_target(ftp,path):
         if any(name.rsplit('/',1)[-1]==path.rsplit('/',1)[-1] for name in names): raise
         return None
 def publish(ftp,path,data):
-    temp=path+'.delta-'+secrets.token_hex(8)
+    temp=path+'.delta-'+secrets.token_hex(8)+'.php'
     ftp.storbinary('STOR '+temp,io.BytesIO(data))
     if read(ftp,temp)!=data: raise RuntimeError('Staged file verification failed: '+path)
     ftp.rename(temp,path)
@@ -38,6 +38,30 @@ def main():
     try:
         ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD'])
         before={p:read_target(ftp,p) for p in FILES}
+        # Apply the reviewed hunks to the current live copy; never replace unrelated
+        # newer board functionality with a historical repository file.
+        import tempfile, pathlib
+        for p in FILES:
+            if p in NEW_FILES:continue
+            old,new=baseline[p],expected[p]
+            if before[p] is None:raise RuntimeError('Missing board file: '+p)
+            with tempfile.TemporaryDirectory() as tmp:
+                target=pathlib.Path(tmp,p);target.parent.mkdir(parents=True)
+                original=before[p].replace(b'\r\n',b'\n')
+                target.write_bytes(original)
+                patch=subprocess.check_output(['git','diff','--no-ext-diff','--no-color','-U1',BASE,sha,'--',p])
+                if not patch:raise RuntimeError('Missing release hunk: '+p)
+                opts=['git','apply','--whitespace=nowarn']
+                if subprocess.run(opts+['--reverse','--check'],cwd=tmp,input=patch,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0:
+                    subprocess.run(opts+['--check'],cwd=tmp,input=patch,check=True)
+                    subprocess.run(opts,cwd=tmp,input=patch,check=True)
+                subprocess.run(['php','-l',str(target)],check=True)
+                result=target.read_bytes()
+                if p.endswith('action.php'):
+                    for guard in [b'$canDelete = ops_board_can_move_to_trash();',b"'can_delete_forever' => user_has_role('owner_admin')",b'order_moved_to_trash', b'if (!ops_board_can_move_to_trash())']:
+                        if guard not in result:raise RuntimeError('Unrecognised live guard: '+p)
+                expected[p]=result.replace(b'\n',b'\r\n') if before[p].count(b'\r\n')==before[p].count(b'\n') else result
+                baseline[p]=before[p]
         report['before']={p:digest(v) for p,v in before.items()}
         conflicts=[p for p in FILES if digest(before[p]) not in (digest(baseline[p]),digest(expected[p]))]
         if conflicts:

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
+require_once __DIR__ . '/orders-trash-permission.php';
 
 header('Content-Type: application/json');
 
@@ -381,8 +382,8 @@ $ordersPermissions = [
     'can_manage_people' => $roleKey === 'owner_admin',
     'can_manage_packer_assignment' => in_array($roleKey, ['owner_admin','front_desk_admin','front_desk_admin_employee','supervisor_manager','packer','packer_production_staff','marketing_sales'], true),
     'can_bulk_manage' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager'], true),
-    'can_move_to_trash' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
-    'can_delete' => in_array($roleKey, ['owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'supervisor_manager', 'packer', 'packer_production_staff'], true),
+    'can_move_to_trash' => ops_board_can_move_to_trash(),
+    'can_delete' => ops_board_can_move_to_trash(),
 ];
 $responseData['permissions'] = $ordersPermissions;
 
