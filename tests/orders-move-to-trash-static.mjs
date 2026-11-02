@@ -16,7 +16,7 @@ assert.match(data, /'can_move_to_trash' => ops_board_can_move_to_trash\(\)/);
 assert.match(action, /beginTransaction\(\)/);
 assert.match(action, /FOR UPDATE/);
 assert.match(action, /'trashedIds' => \$ids/);
-assert.match(action, /http_response_code\(\$permissionFailure \? 403 : \(\$existingStatus === 419 \? 419 : 400\)\)/);
+assert.match(action, /http_response_code\(\$permissionFailure \? 403 : \(in_array\(\$existingStatus, \[409, 419\], true\) \? \$existingStatus : 400\)\)/);
 assert.match(js, /can_move_to_trash/);
 assert.match(js, /Move \$\{selectedOrders\.size\} selected item/);
 assert.match(js, /bulkTrashInProgress/);
