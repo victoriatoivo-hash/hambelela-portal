@@ -52,7 +52,24 @@ def main():
                 patch=subprocess.check_output(['git','diff','--no-ext-diff','--no-color','-U1',BASE,sha,'--',p])
                 if not patch:raise RuntimeError('Missing release hunk: '+p)
                 opts=['git','apply','--whitespace=nowarn']
-                if subprocess.run(opts+['--reverse','--check'],cwd=tmp,input=patch,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0:
+                if p.endswith('board-data.php'):
+                    # Newer live includes sit adjacent to the same operations bootstrap.
+                    # Match complete unique statements, irrespective of their neighbours.
+                    lines=original.splitlines(keepends=True)
+                    bootstrap=b"require_once __DIR__ . '/operations.php';"
+                    helper=b"require_once __DIR__ . '/orders-trash-permission.php';"
+                    def swap(statement,replacement):
+                        hits=[i for i,line in enumerate(lines) if line.rstrip()==statement]
+                        if len(hits)!=1: raise RuntimeError('Unexpected live permission/require statement: '+p)
+                        lines[hits[0]]=replacement+b'\n'
+                    if helper not in original: swap(bootstrap,bootstrap+b'\n'+helper)
+                    for key in [b'can_move_to_trash',b'can_delete']:
+                        prefix=b"    '"+key+b"' => "
+                        lookup=lambda data:next(line for line in data.splitlines() if line.startswith(prefix))
+                        approved=lookup(new)
+                        if approved not in lines and approved+b'\n' not in lines:swap(lookup(old),approved)
+                    target.write_bytes(b''.join(lines))
+                elif subprocess.run(opts+['--reverse','--check'],cwd=tmp,input=patch,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL).returncode!=0:
                     subprocess.run(opts+['--check'],cwd=tmp,input=patch,check=True)
                     subprocess.run(opts,cwd=tmp,input=patch,check=True)
                 subprocess.run(['php','-l',str(target)],check=True)
