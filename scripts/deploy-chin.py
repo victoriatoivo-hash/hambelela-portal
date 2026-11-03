@@ -13,7 +13,7 @@ PREFIX = "standalone/miv/"
 MARKER = b"chin.hambelelaorganic.com"
 # Exact predecessor sources from cf3741b4's parent. Unknown/manual edits stop deployment.
 PREVIOUS_HASHES = {
-    "bootstrap.php": "f5b33782551d9c9d679d72f80cad8b66398b00c87ce42d69d21898c58f069b11",
+    "bootstrap.php": "11dc6a2d77fad03352c43427b83dfdc9d308260fdd752d841620de86ecac7d4f",
     "extract.php": "b1e69c290a24bb64a6362fa1377fb8cb3b083e403fef039d0cd53bf072641a8a",
 }
 
