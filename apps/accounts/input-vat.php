@@ -58,6 +58,8 @@ include BASE_PATH.'/shared/sidebar.php';
       <button type="button" class="vatx-period-trigger vatx-period__trigger" data-vat-period-open aria-haspopup="dialog"><i data-lucide="calendar-days" aria-hidden="true"></i><span data-vat-period-label><?=htmlspecialchars($requestedMonth, ENT_QUOTES, 'UTF-8')?></span><i data-lucide="chevron-down" aria-hidden="true"></i></button>
       <button type="button" class="input-vat-month-arrow vatx-period__arrow" data-next-month aria-label="Next month"><i data-lucide="chevron-right" aria-hidden="true"></i></button>
       <span class="vatx-period-caption">Capture period · Namibia</span>
+      <button class="vatx-button portal-button portal-button--secondary vatx-button--secondary" type="button" data-input-vat-export title="Export all saved entries for the selected month, regardless of search or status filters"><i data-lucide="download" aria-hidden="true"></i><span>Export Excel</span></button>
+      <span class="vatx-help" data-input-vat-export-message role="status" aria-live="polite"></span>
       <dialog class="accounts-dialog vatx-period-dialog vatx-dialog" data-vat-period-dialog aria-label="Choose capture period"><header class="vatx-dialog__header"><h2>Choose capture period</h2><button type="button" data-vat-period-close aria-label="Close period picker">&times;</button></header><div class="vatx-year-nav"><button type="button" data-vat-year-step="-1" aria-label="Previous year">&lsaquo;</button><label class="vatx-field">Year<select data-month-year aria-label="Input VAT year"></select></label><button type="button" data-vat-year-step="1" aria-label="Next year">&rsaquo;</button></div><nav class="input-vat-month-tabs vatx-month-grid" aria-label="Input VAT months" data-month-tabs></nav><p class="vatx-help">Statuses reflect saved capture progress, not the age of a period.</p></dialog>
   </section>
   <section class="accounts-summary vatx-kpis" data-summary aria-live="polite" data-monthly-section></section>
@@ -222,4 +224,5 @@ include BASE_PATH.'/shared/sidebar.php';
 </main>
 <script defer src="<?=BASE_URL?>/assets/js/accounts-vat-workspace.js?v=<?=filemtime(BASE_PATH.'/assets/js/accounts-vat-workspace.js')?>"></script>
 <script defer src="<?=BASE_URL?>/assets/js/input-vat.js?v=<?=filemtime(BASE_PATH.'/assets/js/input-vat.js')?>"></script>
+<script defer src="<?=BASE_URL?>/assets/js/input-vat-export.js?v=<?=filemtime(BASE_PATH.'/assets/js/input-vat-export.js')?>"></script>
 <?php include BASE_PATH.'/shared/footer.php'; ?>

@@ -1,14 +1,14 @@
 """VAT presentation-only guarded delta deployment with targeted backup and rollback."""
 import difflib, ftplib, hashlib, io, json, os, socket, ssl, subprocess, sys, zipfile
 from pathlib import Path
-FILES=['assets/css/accounts-vat-workspace.css','apps/accounts/input-vat.php']
+FILES=['shared/input-vat-month-export.php','apps/accounts/input-vat-export.php','assets/js/input-vat-export.js','apps/accounts/input-vat.php']
 # Existing Git release 5f11b2f3 contains the styled confirmations on live.
 # Its Input VAT SHA256 bf04e4aa... matches preflight 40741431500 exactly.
 # Retain strict full-source comparison; never transform or accept unknown live bytes.
-BASELINES={p:'5f11b2f3831b46448bb20e5dcac9a6f442a76ba7' for p in FILES if p not in ('assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js')}
+BASELINES={}
 # Workflow 40747000259 verified the complete seven-file release byte-for-byte.
 # Finish scoped visual spacing without accepting any unknown live source.
-KNOWN_RELEASE='512f9e3e'
+KNOWN_RELEASE='7b1fd22b'
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
@@ -35,7 +35,7 @@ try:
  before={p:read(p) for p in FILES};desired={p:git('show',sha+':'+p) for p in FILES}
  for p in FILES:
   baseline=git('show',BASELINES[p]+':'+p) if p in BASELINES else None
-  partial=git('show',KNOWN_RELEASE+':'+p)
+  partial=git('show',KNOWN_RELEASE+':'+p) if p=='apps/accounts/input-vat.php' else None
   matches=norm(before[p]) in (norm(partial),norm(desired[p]))
   report['hashes'][p]={'live':digest(before[p]),'baseline':digest(baseline),'interrupted_release':digest(partial),'approved':digest(desired[p]),'matches':matches}
   if not matches:
