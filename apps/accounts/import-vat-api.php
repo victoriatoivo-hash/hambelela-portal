@@ -22,11 +22,16 @@ function im2_insert_statement_rows(int $statementId, array $rows): void
     $duplicateCheck = db()->prepare('SELECT r.id FROM accounts_import_vat_statement_rows r JOIN accounts_import_vat_statements s ON s.id=r.statement_id WHERE r.source_hash=? AND r.statement_id<>? AND s.status<>\'parse_failed\' LIMIT 1');
     $listedPeriodCheck = db()->prepare('SELECT id FROM accounts_import_vat_liabilities WHERE deleted_at IS NULL AND (reference=? OR (namra_tax_year=? AND namra_tax_period=?)) LIMIT 1');
     foreach ($rows as $row) {
+        $account = namra_row_account($row);
+        if (!import_vat_is_import_account($account)) {
+            $row['included_in_payable'] = 0;
+            $row['match_status'] = $account === 'Unknown' ? 'needs_review' : 'excluded';
+        }
         $duplicateCheck->execute([$row['source_hash'], $statementId]);
         $duplicateRow = (bool)$duplicateCheck->fetchColumn();
         $duplicateCheck->closeCursor();
         $alreadyListed = false;
-        if (in_array((string)$row['classification'], ['assessment', 'revision'], true)
+        if (import_vat_is_import_account($account) && in_array((string)$row['classification'], ['assessment', 'revision'], true)
             && import_vat_tax_period_month((string)$row['tax_year'], (string)$row['tax_period'])) {
             $listedPeriodCheck->execute([
                 im2_period_reference((string)$row['tax_year'], (string)$row['tax_period']),
@@ -237,6 +242,9 @@ function im2_confirm_statement(int $statementId): array
         if ((int)$row['excluded'] || $row['match_status'] === 'possible_duplicate') {
             continue;
         }
+        $account = namra_row_account($row);
+        if ($account === 'Unknown') throw new RuntimeException('Confirm the tax account for row '.$row['source_row_number'].' before import.');
+        if (!import_vat_is_import_account($account)) continue;
         $classification = (string)$row['classification'];
         if (in_array($classification, ['ignored_penalty', 'ignored_interest'], true)) {
             continue;
@@ -250,7 +258,7 @@ function im2_confirm_statement(int $statementId): array
         if (!$month) {
             throw new RuntimeException('Row '.$row['source_row_number'].' has an invalid NamRA Tax Year or Tax Period.');
         }
-        $key = $taxYear.'|'.$taxPeriod;
+        $key = $account.'|'.$taxYear.'|'.$taxPeriod;
         if (!isset($periods[$key])) {
             $periods[$key] = ['tax_year' => $taxYear, 'tax_period' => $taxPeriod, 'month' => $month, 'principal_rows' => [], 'payments' => []];
         }
@@ -285,9 +293,16 @@ function im2_confirm_statement(int $statementId): array
             $find->execute([$reference]);
             $liability = $find->fetch() ?: null;
 
-            $principalQuery = db()->prepare("SELECT SUM(x.transaction_amount) FROM (SELECT r.source_hash,MAX(r.transaction_amount) transaction_amount FROM accounts_import_vat_statement_rows r JOIN accounts_import_vat_statements s ON s.id=r.statement_id WHERE r.tax_year=? AND r.tax_period=? AND r.classification IN ('assessment','revision') AND r.excluded=0 AND r.match_status<>'possible_duplicate' AND (s.status='confirmed' OR s.id=?) GROUP BY r.source_hash) x");
+            $principalQuery = db()->prepare("SELECT r.* FROM accounts_import_vat_statement_rows r JOIN accounts_import_vat_statements s ON s.id=r.statement_id WHERE r.tax_year=? AND r.tax_period=? AND r.classification IN ('assessment','revision') AND r.excluded=0 AND r.match_status<>'possible_duplicate' AND (s.status='confirmed' OR s.id=?)");
             $principalQuery->execute([$period['tax_year'], $period['tax_period'], $statementId]);
-            $principal = round((float)$principalQuery->fetchColumn(), 2);
+            $uniquePrincipal = [];
+            foreach ($principalQuery->fetchAll() as $principalRow) {
+                if (import_vat_is_import_account(namra_row_account($principalRow))) {
+                    $hash = $principalRow['source_hash'];
+                    $uniquePrincipal[$hash] = max($uniquePrincipal[$hash] ?? 0, (float)$principalRow['transaction_amount']);
+                }
+            }
+            $principal = round(array_sum($uniquePrincipal), 2);
             $basis = $period['principal_rows'][0] ?? null;
 
             if (!$liability && $principal <= 0 && !$period['payments']) {

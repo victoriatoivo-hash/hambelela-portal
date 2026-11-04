@@ -53,11 +53,45 @@ function import_vat_classification(string $transactionType): string
     return $map[$code] ?? 'needs_review';
 }
 
+/** Tax identity is independent of transaction code, amount, reference and period. */
+function namra_tax_account(string $text): string
+{
+    $text = trim(preg_replace('/\s+/u', ' ', $text));
+    if (preg_match('/^(?:Employee[’\x27]?s? Tax|PAYE|ETX)\b/iu', $text)) return 'Employee Tax';
+    if (preg_match('/^Income Tax\b/iu', $text)) return 'Income Tax';
+    if (preg_match('/^Value Added Tax Import Account\b/iu', $text)
+        || preg_match('/^V\s*Im\s*a\s*p\s*lu\s*o\s*e\s*rt\s+A\s*A\s*d\s*c\s*d\s*c\s*e\s*o\s*d\s*u\s*n\s*T\s*t\s*ax\b/iu', $text)) return 'Value Added Tax Import Account';
+    if (preg_match('/^Value Added Tax\b/iu', $text)) return 'Value Added Tax';
+    return 'Unknown';
+}
+
+function import_vat_is_import_account(string $taxType): bool
+{
+    return namra_tax_account($taxType) === 'Value Added Tax Import Account';
+}
+
+function namra_row_account(array $row): string
+{
+    $source = json_decode((string)($row['source_json'] ?? ''), true) ?: [];
+    $rawAccount = namra_tax_account((string)($source['raw_line'] ?? ''));
+    // Original raw evidence takes precedence over legacy misclassification.
+    return $rawAccount !== 'Unknown' ? $rawAccount : namra_tax_account((string)($row['tax_type'] ?? ''));
+}
+
+/** Preserve already posted PAYE evidence when corrected parsing changes its hash. */
+function namra_paye_duplicate(PDO $db, array $row, string $classification): bool
+{
+    $q=$db->prepare('SELECT id FROM accounts_paye_rows WHERE source_hash=? OR (tax_year=? AND tax_period=? AND reference=? AND action_date=? AND classification=? AND amount=?) LIMIT 1');
+    $q->execute([$row['source_hash'],$row['tax_year'],$row['tax_period'],$row['doc_number']?:$row['reference'],$row['action_date'],$classification,abs((float)$row['transaction_amount'])]);
+    return (bool)$q->fetchColumn();
+}
+
 function import_vat_statement_row(array $source, int $rowNumber): array
 {
     $transactionType = trim((string)($source['transaction_type'] ?? ''));
     $classification = import_vat_classification($transactionType);
-    $included = in_array($classification, ['assessment', 'revision', 'payment'], true);
+    $account = namra_tax_account((string)($source['tax_type'] ?? ''));
+    $included = import_vat_is_import_account($account) && in_array($classification, ['assessment', 'revision', 'payment'], true);
     $kind = in_array($classification, ['assessment', 'revision'], true)
         ? 'liability'
         : ($classification === 'payment' ? 'payment' : 'unknown');
@@ -95,9 +129,9 @@ function import_vat_statement_row(array $source, int $rowNumber): array
         'other_charge_amount' => 0,
         'payment_amount' => $classification === 'payment' ? $amount : 0,
         'row_kind' => $kind,
-        'confidence' => ($classification === 'needs_review' || $periodNeedsReview) ? 'low' : 'high',
-        'match_status' => ($classification === 'needs_review' || $periodNeedsReview) ? 'needs_review' : ($included ? 'new' : 'excluded'),
-        'tax_type' => trim((string)($source['tax_type'] ?? 'Value Added Tax Import Account')),
+        'confidence' => ($account === 'Unknown' || $classification === 'needs_review' || $periodNeedsReview) ? 'low' : 'high',
+        'match_status' => ($account === 'Unknown' || $classification === 'needs_review' || $periodNeedsReview) ? 'needs_review' : ($included ? 'new' : 'excluded'),
+        'tax_type' => $account,
         'transaction_type' => preg_replace('/\s+/u', ' ', $transactionType),
         'liability_type' => trim((string)($source['liability_type'] ?? '')),
         'doc_number' => $doc,
@@ -118,6 +152,7 @@ function import_vat_statement_row(array $source, int $rowNumber): array
 function import_vat_namra_text_rows(string $text): array
 {
     $text = str_replace(["\r\n", "\r"], "\n", $text);
+    $text = preg_replace('/Value Added Tax\s*\n\s*Import Account/iu', 'Value Added Tax Import Account', $text);
     if (stripos($text, 'Transaction Records') === false || stripos($text, 'Tax Type') === false || stripos($text, 'Tax Year') === false) {
         throw new RuntimeException('The PDF is not the confirmed NamRA Transaction Records format. No records were posted.');
     }
@@ -125,22 +160,31 @@ function import_vat_namra_text_rows(string $text): array
     $rows = [];
     $logical = [];
     $buffer = '';
+    $pendingAccount = '';
     $hasTail = function (string $value): bool {
         // Smalot/pdfparser can concatenate the Tax Period cell with the Due Date
         // (for example `2027 520-08-2026`). Accept that confirmed extraction
         // shape while still requiring all three dates and the final amount.
-        return (bool)preg_match('/\b20\d{2}\s+\d{1,2}\s*\d{2}-\d{2}-\d{4}\s*\d{2}-\d{2}-\d{4}\s*\d{2}-\d{2}-\d{4}\s+[\d,]+\.\d{2}\s*$/', $value);
+        return (bool)preg_match('/\b20\d{2}\s+(?:\d{1,2}|-)\s*\d{2}-\d{2}-\d{4}\s*\d{2}-\d{2}-\d{4}\s*\d{2}-\d{2}-\d{4}\s+[\d,]+\.\d{2}\s*$/', $value);
     };
     foreach (preg_split('/\n+/', $text) as $line) {
         $line = trim(preg_replace('/[\x{00A0}\t ]+/u', ' ', (string)$line));
         if ($line === '') {
             continue;
         }
-        if (import_vat_transaction_code($line) !== '') {
+        $start = preg_replace('/^(?:Value Added Tax(?: Import Account)?|Employee[’\x27]?s? Tax|Income Tax|PAYE|V\s*Im\s*a\s*p\s*lu\s*o\s*e\s*rt\s+A\s*A\s*d\s*c\s*d\s*c\s*e\s*o\s*d\s*u\s*n\s*T\s*t\s*ax)\s*/iu', '', $line);
+        // Only a transaction-cell prefix starts a row. Dates/documents containing
+        // digits such as 201 must never reset a partially assembled row.
+        if (preg_match('/^\d\D{0,8}\d\D{0,8}\d\D{0,8}-/u', $start)) {
             if ($buffer !== '' && $hasTail($buffer)) {
                 $logical[] = $buffer;
             }
-            $buffer = $line;
+            $buffer = (namra_tax_account($line) === 'Unknown' && $pendingAccount !== '' ? $pendingAccount.' ' : '').$line;
+            $pendingAccount = '';
+        } elseif (namra_tax_account($line) !== 'Unknown') {
+            // Smalot places the account cell on a line before the transaction.
+            $pendingAccount = $line;
+            $buffer = '';
         } elseif ($buffer !== '' && !preg_match('/^(Namibia Revenue Agency|Transaction Records|TIN:|Taxpayer Name:|Tax Type)/i', $line)) {
             $buffer .= ' '.$line;
         }
@@ -152,10 +196,13 @@ function import_vat_namra_text_rows(string $text): array
 
     $number = 1;
     foreach ($logical as $line) {
-        if (!preg_match('/^(?<head>.*?)\s+(?<year>20\d{2})\s+(?<period>\d{1,2})\s*(?<due>\d{2}-\d{2}-\d{4})\s*(?<effective>\d{2}-\d{2}-\d{4})\s*(?<action>\d{2}-\d{2}-\d{4})\s+(?<amount>[\d,]+\.\d{2})\s*$/u', $line, $match)) {
+        if (!preg_match('/^(?<head>.*?)\s+(?<year>20\d{2})\s+(?<period>\d{1,2}|-)\s*(?<due>\d{2}-\d{2}-\d{4})\s*(?<effective>\d{2}-\d{2}-\d{4})\s*(?<action>\d{2}-\d{2}-\d{4})\s+(?<amount>[\d,]+\.\d{2})\s*$/u', $line, $match)) {
             continue;
         }
-        $code = import_vat_transaction_code($match['head']);
+        // Inspect the transaction cell only, never a document number containing 201/129.
+        $transactionHead = preg_replace('/^(?:Value Added Tax(?: Import Account)?|Employee[’\x27]?s? Tax|Income Tax|PAYE|V\s*Im\s*a\s*p\s*lu\s*o\s*e\s*rt\s+A\s*A\s*d\s*c\s*d\s*c\s*e\s*o\s*d\s*u\s*n\s*T\s*t\s*ax)\s*/iu', '', $match['head']);
+        preg_match('/^(\d)\D{0,8}(\d)\D{0,8}(\d)\D{0,8}-/u', $transactionHead, $codeParts);
+        $code = $codeParts ? $codeParts[1].$codeParts[2].$codeParts[3] : '';
         if ($code === '') {
             $code = 'unknown';
         }
@@ -167,7 +214,7 @@ function import_vat_namra_text_rows(string $text): array
             '481' => ['481 - Late Payment Penalty', 'Late Payment Penalty'],
             '304' => ['304 - Interest on Debit', 'Late Payment Interest'],
         ];
-        $transaction = $labels[$code][0] ?? preg_replace('/\s+/u', ' ', trim($match['head']));
+        $transaction = $labels[$code][0] ?? ($code.' - Unmapped transaction (review original evidence)');
         $liability = $labels[$code][1] ?? 'Needs review';
         $doc = '';
         if ($code === '129' && preg_match('/129\s*-\s*VIA\s+payment\s+Tax\s+(?<doc>.+)$/iu', $match['head'], $docMatch)) {
@@ -176,7 +223,7 @@ function import_vat_namra_text_rows(string $text): array
             $doc = $docMatch['doc'];
         }
         $rows[] = import_vat_statement_row([
-            'tax_type' => 'Value Added Tax Import Account',
+            'tax_type' => namra_tax_account($match['head']),
             'transaction_type' => $transaction,
             'liability_type' => $liability,
             'doc_number' => $doc,
