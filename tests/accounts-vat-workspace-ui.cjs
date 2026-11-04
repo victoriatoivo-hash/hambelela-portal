@@ -31,7 +31,12 @@ function outputPayload(month='2026-10',status='reconciled'){return {ok:true,data
    assert.equal(await page.locator('h1').evaluate(e=>getComputedStyle(e).fontSize),width<=600?'22px':'24px');
    assert.match(await page.locator('main').evaluate(e=>getComputedStyle(e).fontFamily),/Jost/);
    if(width<=600)assert(await page.locator('.vatx-header').evaluate(e=>e.getBoundingClientRect().height<180),'Compact mobile header must not reserve a desktop flex basis');
-   if(type==='input')assert.equal(await page.locator('[data-add-purchase]').first().evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(52, 65, 38)');
+   if(type==='input'){
+    assert.equal(await page.locator('[data-add-purchase]').first().evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(52, 65, 38)');
+    assert.equal(await page.locator('.vatx-supporting').count(),1,'Summaries must not be duplicated');
+    assert(await page.evaluate(()=>document.querySelector('.vatx-supporting').getBoundingClientRect().bottom<=document.querySelector('.accounts-table-card').getBoundingClientRect().top),'Summaries above table');
+    assert.match(await page.locator('.vatx-supporting .analysis-bar-fill').first().evaluate(e=>getComputedStyle(e).backgroundImage),/linear-gradient/,'Olive gradient bars');
+   }
    await page.evaluate(()=>Promise.all(document.getAnimations().map(a=>a.finished.catch(()=>{}))));
    await stableShot(page,{path:path.join(directory,`${type}-${width}.png`),fullPage:true});
    await page.locator('[data-vat-period-open]').click();assert(await page.locator('[data-vat-period-dialog]').isVisible());assert.equal(await page.locator('[data-month-tabs] button').count(),12);

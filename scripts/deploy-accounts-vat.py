@@ -1,20 +1,24 @@
 """VAT presentation-only guarded delta deployment with targeted backup and rollback."""
-import difflib, ftplib, hashlib, io, json, os, subprocess, sys, zipfile
+import difflib, ftplib, hashlib, io, json, os, socket, ssl, subprocess, sys, zipfile
 from pathlib import Path
-FILES=['assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js','assets/js/input-vat.js','assets/js/output-vat.js','apps/accounts/input-vat.php','apps/accounts/output-vat.php','apps/accounts/input-vat-live.php']
+FILES=['assets/css/accounts-vat-workspace.css','apps/accounts/input-vat.php']
 # Existing Git release 5f11b2f3 contains the styled confirmations on live.
 # Its Input VAT SHA256 bf04e4aa... matches preflight 40741431500 exactly.
 # Retain strict full-source comparison; never transform or accept unknown live bytes.
 BASELINES={p:'5f11b2f3831b46448bb20e5dcac9a6f442a76ba7' for p in FILES if p not in ('assets/css/accounts-vat-workspace.css','assets/js/accounts-vat-workspace.js')}
 # Workflow 40747000259 verified the complete seven-file release byte-for-byte.
 # Finish scoped visual spacing without accepting any unknown live source.
-KNOWN_RELEASE='5aa02849c6c973a3ea162b7b75c8ef47fddcdc32'
+KNOWN_RELEASE='512f9e3e'
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
 def digest(data): return hashlib.sha256(data).hexdigest() if data is not None else None
 assert mode in ('preflight','deploy') and git('rev-parse','HEAD').decode().strip()==sha
-ftp=ftplib.FTP_TLS(os.environ['FTP_SERVER'],timeout=45)
+host=os.environ['FTP_SERVER']
+canonical='s11745.sgp1.stableserver.net'
+def addresses(name): return {r[4][0] for r in socket.getaddrinfo(name,21,type=socket.SOCK_STREAM)}
+if addresses(host)&addresses(canonical): host=canonical
+ftp=ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45)
 ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD']);ftp.prot_p()
 report={'mode':mode,'sha':sha,'state':'checking','hashes':{}}
 def read(path):
@@ -32,11 +36,10 @@ try:
  for p in FILES:
   baseline=git('show',BASELINES[p]+':'+p) if p in BASELINES else None
   partial=git('show',KNOWN_RELEASE+':'+p)
-  matches=norm(before[p]) in (norm(baseline),norm(partial),norm(desired[p]))
+  matches=norm(before[p]) in (norm(partial),norm(desired[p]))
   report['hashes'][p]={'live':digest(before[p]),'baseline':digest(baseline),'interrupted_release':digest(partial),'approved':digest(desired[p]),'matches':matches}
   if not matches:
    report['state']='blocked-live-baseline-mismatch'
-   print(''.join(difflib.unified_diff((baseline or b'').decode().splitlines(True),(before[p] or b'').decode().splitlines(True),fromfile='git/'+p,tofile='live/'+p)))
    raise RuntimeError('No upload: live baseline differs '+p)
   if p.endswith('.php'): subprocess.run(['php','-l'],input=desired[p],capture_output=True,check=True)
  report['state']='preflight-pass'

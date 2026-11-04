@@ -48,7 +48,7 @@ jobs:
           "$RUNNER_TEMP/accounts-ui/node_modules/.bin/playwright" install --with-deps chromium
           NODE_PATH="$RUNNER_TEMP/accounts-ui/node_modules" node tests/accounts-vat-workspace-ui.cjs
           python3 -m py_compile scripts/deploy-accounts-vat.py
-      - name: Guard live baseline and publish only the seven VAT presentation files
+      - name: Guard live baseline and publish only Input VAT summary markup and styling
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

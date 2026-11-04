@@ -61,6 +61,11 @@ include BASE_PATH.'/shared/sidebar.php';
       <dialog class="accounts-dialog vatx-period-dialog vatx-dialog" data-vat-period-dialog aria-label="Choose capture period"><header class="vatx-dialog__header"><h2>Choose capture period</h2><button type="button" data-vat-period-close aria-label="Close period picker">&times;</button></header><div class="vatx-year-nav"><button type="button" data-vat-year-step="-1" aria-label="Previous year">&lsaquo;</button><label class="vatx-field">Year<select data-month-year aria-label="Input VAT year"></select></label><button type="button" data-vat-year-step="1" aria-label="Next year">&rsaquo;</button></div><nav class="input-vat-month-tabs vatx-month-grid" aria-label="Input VAT months" data-month-tabs></nav><p class="vatx-help">Statuses reflect saved capture progress, not the age of a period.</p></dialog>
   </section>
   <section class="accounts-summary vatx-kpis" data-summary aria-live="polite" data-monthly-section></section>
+  <section class="accounts-breakdowns vatx-supporting" data-monthly-section>
+    <article class="vatx-panel"><h2>VAT treatment</h2><div data-treatment-summary></div></article>
+    <article class="vatx-panel"><h2>Suppliers</h2><div data-supplier-summary></div></article>
+    <article class="vatx-panel"><h2>Descriptions</h2><div data-description-summary></div></article>
+  </section>
   <div class="vatx-workspace vatx-workspace--input"><div class="vatx-ledger">
 
   <section class="accounts-toolbar vatx-filterbar" aria-label="Input VAT working filters" data-monthly-toolbar>
@@ -109,12 +114,6 @@ include BASE_PATH.'/shared/sidebar.php';
     </div>
   </section>
   </div><aside class="vatx-panel vatx-capture-panel" data-monthly-section><h2>Capture progress</h2><div data-active-capture-status></div><p class="vatx-help">Completion records the capture review. Saved purchase values and their audit history remain unchanged.</p></aside></div>
-  <section class="accounts-breakdowns vatx-supporting" data-monthly-section>
-    <article class="vatx-panel"><h2>VAT treatment</h2><div data-treatment-summary></div></article>
-    <article class="vatx-panel"><h2>Suppliers</h2><div data-supplier-summary></div></article>
-    <article class="vatx-panel"><h2>Descriptions</h2><div data-description-summary></div></article>
-  </section>
-
   <dialog class="accounts-dialog input-vat-purchase-dialog vatx-dialog vatx-dialog--drawer" data-dialog>
     <form method="dialog" data-form enctype="multipart/form-data">
       <header class="vatx-dialog__header"><div><p class="eyebrow vatx-header__eyebrow">Input VAT</p><h2 class="vatx-dialog__title" data-form-title>Add Purchase</h2></div>
