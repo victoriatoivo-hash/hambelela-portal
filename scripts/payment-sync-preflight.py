@@ -4,7 +4,7 @@ ftp=ftplib.FTP(os.environ['FTP_SERVER'],timeout=45)
 ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD'])
 for path in paths:
     buf=io.BytesIO();ftp.retrbinary('RETR '+path,buf.write);data=buf.getvalue()
-    sha=subprocess.check_output(['git','hash-object','--stdin'],input=data).decode().strip()
+    sha=subprocess.check_output(['git','hash-object','--stdin'],input=data.replace(b'\r\n',b'\n')).decode().strip()
     history=subprocess.check_output(['git','log','--all','--format=%H','--',path]).decode().splitlines()
     matches=[]
     for commit in history:
@@ -12,4 +12,3 @@ for path in paths:
         if blob==sha: matches.append(commit);break
     print(json.dumps({'path':path,'sha256':hashlib.sha256(data).hexdigest(),'matching_commit':matches}))
 ftp.quit()
-
