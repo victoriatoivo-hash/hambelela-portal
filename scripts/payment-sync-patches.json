@@ -1,0 +1,87 @@
+{
+  "apps/operations/operations.php": [
+    {
+      "old": "function ops_website_payment_methods(): array\n{\n    return [\n        'Cash',\n        'Card/Swipe',\n        'EFT',\n        'FNB eWallet',\n        'EasyWallet',\n        'Blue Wallet',\n        'Nedbank',\n        'NetBank Wallet',\n        'Pay2Cell',\n        'PayToday',\n        'DPO',\n    ];\n}",
+      "new": "function ops_website_payment_methods(): array\n{\n    return [\n        'Cash',\n        'Card/Swipe',\n        'EFT',\n        'FNB eWallet',\n        'EasyWallet',\n        'Blue Wallet',\n        'Nedbank',\n        'NetBank Wallet',\n        'Pay2Cell',\n        'PayToday',\n        'DPO payment',\n    ];\n}",
+      "count": 1
+    },
+    {
+      "old": "function ops_normalize_payment_code(string $value): string\n{\n    $value = strtolower(trim($value));\n    $value = preg_replace('/[^a-z0-9]+/', '_', $value) ?? '';\n    $value = trim($value, '_');\n    $aliases = [\n        'cash' => 'cash', 'cod' => 'cash', 'cash_on_delivery' => 'cash', 'cash_payment' => 'cash',\n        'card' => 'card_swipe', 'card_payment' => 'card_swipe', 'swipe' => 'card_swipe', 'card_swipe' => 'card_swipe',\n        'eft' => 'eft', 'bacs' => 'eft', 'bank_transfer' => 'eft', 'direct_bank_transfer' => 'eft',\n        'fnb_ewallet' => 'fnb_ewallet', 'fnb_e_wallet' => 'fnb_ewallet', 'fnbwlt' => 'fnb_ewallet',\n        'easywallet' => 'easywallet', 'easy_wallet' => 'easywallet', 'easywlt' => 'easywallet',\n        'bluewallet' => 'blue_wallet', 'blue_wallet' => 'blue_wallet', 'bluewlt' => 'blue_wallet',\n        'nedbank' => 'nedbank', 'netbank_wallet' => 'netbank_wallet',\n        'pay2cell' => 'pay2cell', 'pay_2_cell' => 'pay2cell', 'paytoday' => 'paytoday', 'pay_today' => 'paytoday',\n        'dpo' => 'dpo', 'dpo_pay' => 'dpo', 'dpo_paygate' => 'dpo', 'woocommerce_dpo' => 'dpo', 'paygate' => 'dpo', 'paygate_payweb3' => 'dpo',\n    ];\n    if (isset($aliases[$value])) return $aliases[$value];\n    foreach (ops_payment_method_map() as $code => $label) {\n        if (strtolower((string) preg_replace('/[^a-z0-9]+/', '_', $label)) === $value) return $code;\n    }\n    return '';\n}",
+      "new": "function ops_normalize_payment_code(string $value): string\n{\n    $value = strtolower(trim($value));\n    $value = preg_replace('/[^a-z0-9]+/', '_', $value) ?? '';\n    $value = trim($value, '_');\n    $aliases = [\n        'cash' => 'cash', 'cod' => 'cash', 'cash_on_delivery' => 'cash', 'cash_payment' => 'cash',\n        'card' => 'card_swipe', 'card_payment' => 'card_swipe', 'swipe' => 'card_swipe', 'card_swipe' => 'card_swipe',\n        'eft' => 'eft', 'bacs' => 'eft', 'bank_transfer' => 'eft', 'direct_bank_transfer' => 'eft',\n        'fnb_ewallet' => 'fnb_ewallet', 'fnb_e_wallet' => 'fnb_ewallet', 'fnbwlt' => 'fnb_ewallet',\n        'easywallet' => 'easywallet', 'easy_wallet' => 'easywallet', 'easywlt' => 'easywallet',\n        'bluewallet' => 'blue_wallet', 'blue_wallet' => 'blue_wallet', 'bluewlt' => 'blue_wallet',\n        'nedbank' => 'nedbank', 'netbank_wallet' => 'netbank_wallet',\n        'pay2cell' => 'pay2cell', 'pay_2_cell' => 'pay2cell', 'paytoday' => 'paytoday', 'pay_today' => 'paytoday',\n        'dpo' => 'dpo', 'dpo_payment' => 'dpo', 'dpo_pay' => 'dpo', 'dpo_paygate' => 'dpo', 'woocommerce_dpo' => 'dpo', 'paygate' => 'dpo', 'paygate_payweb3' => 'dpo',\n    ];\n    if (isset($aliases[$value])) return $aliases[$value];\n    foreach (ops_payment_method_map() as $code => $label) {\n        if (strtolower((string) preg_replace('/[^a-z0-9]+/', '_', $label)) === $value) return $code;\n    }\n    return '';\n}",
+      "count": 1
+    },
+    {
+      "old": "function ops_normalize_website_payment_method(string $value): string\n{\n    $value = strtolower(trim($value));\n    $value = preg_replace('/[\\s_-]+/', ' ', $value) ?? '';\n\n    $patterns = [\n        'FNB eWallet' => '/\\bfnb\\s*e\\s*wallet\\b/i',\n        'NetBank Wallet' => '/\\bnet\\s*bank\\s*wallet\\b/i',\n        'EasyWallet' => '/\\beasy\\s*wallet\\b/i',\n        'Blue Wallet' => '/\\bblue\\s*wallet\\b|\\bbluewallet\\b/i',\n        'Pay2Cell' => '/\\bpay\\s*2\\s*cell\\b/i',\n        'PayToday' => '/\\bpay\\s*today\\b/i',\n        'Card/Swipe' => '/\\bcard\\s*\\/\\s*swipe\\b|\\bcard\\b|\\bswipe\\b/i',\n        'EFT' => '/\\beft\\b|\\bbank transfer\\b|\\bbacs\\b/i',\n        'Nedbank' => '/\\bnedbank\\b/i',\n        'Cash' => '/\\bcash\\b/i',\n        'DPO' => '/\\bdpo\\b|\\bpaygate\\b/i',\n    ];\n\n    foreach ($patterns as $method => $pattern) {\n        if (preg_match($pattern, $value)) {\n            return $method;\n        }\n    }\n\n    return '';\n}",
+      "new": "function ops_normalize_website_payment_method(string $value): string\n{\n    $value = strtolower(trim($value));\n    $value = preg_replace('/[\\s_-]+/', ' ', $value) ?? '';\n\n    if (preg_match('/\\bdpo\\b|\\bpaygate\\b/i', $value)) return 'DPO payment';\n    $patterns = [\n        'FNB eWallet' => '/\\bfnb\\s*e\\s*wallet\\b/i',\n        'NetBank Wallet' => '/\\bnet\\s*bank\\s*wallet\\b/i',\n        'EasyWallet' => '/\\beasy\\s*wallet\\b/i',\n        'Blue Wallet' => '/\\bblue\\s*wallet\\b|\\bbluewallet\\b/i',\n        'Pay2Cell' => '/\\bpay\\s*2\\s*cell\\b/i',\n        'PayToday' => '/\\bpay\\s*today\\b/i',\n        'Card/Swipe' => '/\\bcard\\s*\\/\\s*swipe\\b|\\bcard\\b|\\bswipe\\b/i',\n        'EFT' => '/\\beft\\b|\\bbank transfer\\b|\\bbacs\\b/i',\n        'Nedbank' => '/\\bnedbank\\b/i',\n        'Cash' => '/\\bcash\\b/i',\n        'DPO payment' => '/\\bdpo\\b|\\bpaygate\\b/i',\n    ];\n\n    foreach ($patterns as $method => $pattern) {\n        if (preg_match($pattern, $value)) {\n            return $method;\n        }\n    }\n\n    return '';\n}",
+      "count": 1
+    },
+    {
+      "old": "function ops_payment_label(string $code): string\n{\n    return ops_payment_method_map()[$code] ?? ucwords(str_replace('_', ' ', $code));\n}",
+      "new": "function ops_payment_label(string $code): string\n{\n    if ($code === 'dpo') return 'DPO payment';\n    return ops_payment_method_map()[$code] ?? ucwords(str_replace('_', ' ', $code));\n}",
+      "count": 1
+    },
+    {
+      "old": "function ops_wc_payment_method(array $order): string\n{\n    $allocations = ops_wc_payment_allocations($order);\n    if ($allocations) {\n        return implode(' / ', array_map(static fn(array $allocation): string => ops_payment_label((string) $allocation['method']), $allocations));\n    }\n    $title = trim((string) ($order['payment_method_title'] ?? ''));\n    $methodId = trim((string) ($order['payment_method'] ?? ''));\n    $metadata = [];\n    ops_collect_order_payment_text($order['meta_data'] ?? [], '', $metadata);\n    $metadataText = implode(' | ', $metadata);\n    $allText = trim($title . ' | ' . $methodId . ' | ' . $metadataText);\n    $split = (bool) preg_match('/\\bsplit[\\s_-]*(payment|tender)?\\b/i', $allText);\n\n    $components = [];\n    foreach (ops_website_payment_methods() as $candidate) {\n        $candidatePattern = [\n            'Cash' => '/\\bcash\\b/i', 'Card/Swipe' => '/\\bcard\\b|\\bswipe\\b/i',\n            'EFT' => '/\\beft\\b|\\bbank transfer\\b|\\bbacs\\b/i',\n            'FNB eWallet' => '/\\bfnb\\s*e\\s*wallet\\b/i', 'EasyWallet' => '/\\beasy\\s*wallet\\b/i',\n            'Blue Wallet' => '/\\bblue\\s*wallet\\b|\\bbluewallet\\b/i', 'Nedbank' => '/\\bnedbank\\b/i',\n            'NetBank Wallet' => '/\\bnet\\s*bank\\s*wallet\\b/i', 'Pay2Cell' => '/\\bpay\\s*2\\s*cell\\b/i',\n            'PayToday' => '/\\bpay\\s*today\\b/i',\n            'DPO' => '/\\bdpo\\b|\\bpaygate\\b/i',\n        ][$candidate];\n        if (preg_match($candidatePattern, $metadataText)) {\n            $components[] = $candidate;\n        }\n    }\n    $components = array_values(array_unique($components));\n\n    if ($split || count($components) > 1) {\n        return count($components) > 1 ? implode(' & ', $components) : '';\n    }\n\n    return ops_normalize_website_payment_method($title)\n        ?: ops_normalize_website_payment_method($methodId);\n}",
+      "new": "function ops_wc_payment_method(array $order): string\n{\n    if (ops_wc_dpo_state($order) !== null) return 'DPO payment';\n    $allocations = ops_wc_payment_allocations($order);\n    if ($allocations) {\n        return implode(' / ', array_map(static fn(array $allocation): string => ops_payment_label((string) $allocation['method']), $allocations));\n    }\n    if (in_array((string)($order['payment_method'] ?? ''), ['bacs','eft'], true)) return 'EFT';\n    $title = trim((string) ($order['payment_method_title'] ?? ''));\n    $methodId = trim((string) ($order['payment_method'] ?? ''));\n    $metadata = [];\n    ops_collect_order_payment_text($order['meta_data'] ?? [], '', $metadata);\n    $metadataText = implode(' | ', $metadata);\n    $allText = trim($title . ' | ' . $methodId . ' | ' . $metadataText);\n    $split = (bool) preg_match('/\\bsplit[\\s_-]*(payment|tender)?\\b/i', $allText);\n\n    $components = [];\n    foreach (ops_website_payment_methods() as $candidate) {\n        $candidatePattern = [\n            'Cash' => '/\\bcash\\b/i', 'Card/Swipe' => '/\\bcard\\b|\\bswipe\\b/i',\n            'EFT' => '/\\beft\\b|\\bbank transfer\\b|\\bbacs\\b/i',\n            'FNB eWallet' => '/\\bfnb\\s*e\\s*wallet\\b/i', 'EasyWallet' => '/\\beasy\\s*wallet\\b/i',\n            'Blue Wallet' => '/\\bblue\\s*wallet\\b|\\bbluewallet\\b/i', 'Nedbank' => '/\\bnedbank\\b/i',\n            'NetBank Wallet' => '/\\bnet\\s*bank\\s*wallet\\b/i', 'Pay2Cell' => '/\\bpay\\s*2\\s*cell\\b/i',\n            'PayToday' => '/\\bpay\\s*today\\b/i',\n            'DPO payment' => '/\\bdpo\\b|\\bpaygate\\b/i',\n        ][$candidate];\n        if (preg_match($candidatePattern, $metadataText)) {\n            $components[] = $candidate;\n        }\n    }\n    $components = array_values(array_unique($components));\n\n    if ($split || count($components) > 1) {\n        return count($components) > 1 ? implode(' & ', $components) : '';\n    }\n\n    return ops_normalize_website_payment_method($title)\n        ?: ops_normalize_website_payment_method($methodId);\n}",
+      "count": 1
+    },
+    {
+      "old": "require_once BASE_PATH . '/shared/epi/bootstrap.php';",
+      "new": "require_once BASE_PATH . '/shared/epi/bootstrap.php';\nrequire_once __DIR__ . '/orders-gateway-sync.php';",
+      "count": 1
+    }
+  ],
+  "apps/operations/orders-board-action.php": [
+    {
+      "old": "$paymentAllocations = ops_wc_payment_allocations($order);",
+      "new": "$paymentAllocations = ops_wc_dpo_state($order) !== null ? [] : ops_wc_payment_allocations($order);",
+      "count": 1
+    },
+    {
+      "old": "if ($affected === 1) ops_apply_initial_portal_paid_confirmation($orderId, $order, $customerContact);",
+      "new": "ops_sync_dpo_payment($orderId, $order);\n            if ($affected === 1) ops_apply_initial_portal_paid_confirmation($orderId, $order, $customerContact);",
+      "count": 1
+    },
+    {
+      "old": "['DPO',",
+      "new": "['DPO payment',",
+      "count": 1
+    }
+  ],
+  "apps/operations/sync-orders.php": [
+    {
+      "old": "$paymentAllocations = ops_wc_payment_allocations($order);",
+      "new": "$paymentAllocations = ops_wc_dpo_state($order) !== null ? [] : ops_wc_payment_allocations($order);",
+      "count": 1
+    },
+    {
+      "old": "if ($affected === 1) ops_apply_initial_portal_paid_confirmation($orderId, $order, $customerContact);",
+      "new": "ops_sync_dpo_payment($orderId, $order);\n            if ($affected === 1) ops_apply_initial_portal_paid_confirmation($orderId, $order, $customerContact);",
+      "count": 1
+    },
+    {
+      "old": "'status' => 'processing,on-hold,pending'",
+      "new": "'status' => 'processing,on-hold,pending,completed,failed,cancelled,refunded'",
+      "count": 1
+    }
+  ],
+  "assets/js/orders-board.js": [
+    {
+      "old": "'DPO'",
+      "new": "'DPO payment'",
+      "count": 2
+    },
+    {
+      "old": "dpo_pay:'dpo'",
+      "new": "dpo_payment:'dpo',woocommerce_dpo:'dpo',dpo_pay:'dpo'",
+      "count": 1
+    }
+  ],
+  "shared/order-payment-methods.php": [
+    {
+      "old": "'dpo'=>'DPO'",
+      "new": "'dpo'=>'DPO payment'",
+      "count": 1
+    }
+  ]
+}
