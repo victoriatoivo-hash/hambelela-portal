@@ -12,5 +12,15 @@ for path in paths:
         pattern=r'(?ms)^function '+name+r'\(.*?^}'
         a=re.search(pattern,live);b=re.search(pattern,repo)
         if b: results[name]={'exists':bool(a),'matches':bool(a and a.group()==b.group())}
+    for name, result in results.items():
+        if result['exists'] and not result['matches']:
+            pattern=r'(?ms)^function '+name+r'\(.*?^}'
+            current=re.search(pattern,live).group()
+            commits=subprocess.check_output(['git','log','--all','--format=%H','--',path]).decode().splitlines()
+            for commit in commits:
+                content=subprocess.check_output(['git','show',commit+':'+path]).decode('utf-8-sig').replace('\r\n','\n')
+                old=re.search(pattern,content)
+                if old and old.group()==current:
+                    result['matching_public_commit']=commit;break
     print(json.dumps({'path':path,'sha256':hashlib.sha256(data).hexdigest(),'bytes':len(data),'matches_trimmed':live==repo,'functions':results}))
 ftp.quit()
