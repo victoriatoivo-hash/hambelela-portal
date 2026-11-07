@@ -21,7 +21,8 @@ try:
     before=read(FILE); baseline=git('show',BASE+':'+FILE); desired=git('show',sha+':'+FILE)
     report.update(live=digest(before),baseline=digest(baseline),approved=digest(desired))
     if mode=='inspect':
-        print('TASK_SOURCE_DIFF_JSON='+json.dumps(''.join(difflib.unified_diff(norm(baseline).decode().splitlines(True),norm(before).decode().splitlines(True),fromfile='repository/'+FILE,tofile='live/'+FILE))))
+        for line in difflib.unified_diff(norm(baseline).decode().splitlines(True),norm(before).decode().splitlines(True),fromfile='repository/'+FILE,tofile='live/'+FILE):
+            print('TASK_SOURCE_DIFF_LINE='+json.dumps(line), flush=True)
         report['state']='source-differences-inspected'
         sys.exit(0)
     if norm(before) not in (norm(baseline),norm(desired)):
