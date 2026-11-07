@@ -32,9 +32,9 @@ if ($roleKey !== 'owner_admin') {
 // Owner dashboard shortcuts: presentation only; existing destinations enforce access.
 if ($roleKey === 'owner_admin') {
     $essOwnerShortcuts = [
-        ['name'=>'Bookkeeping', 'desc'=>'daily cash records and bookkeeping', 'icon'=>'book-open', 'href'=>BASE_URL.'/apps/operations/bookkeeping.php'],
-        ['name'=>'Orders Board', 'desc'=>'customer orders, payments and packing status', 'icon'=>'clipboard-list', 'href'=>BASE_URL.'/apps/operations/orders-board.php'],
-        ['name'=>'Task Management', 'desc'=>'assign, review and follow up on tasks', 'icon'=>'list-checks', 'href'=>BASE_URL.'/apps/operations/checklists.php'],
+        ['name'=>'Bookkeeping', 'accent'=>'Accounts', 'desc'=>'daily cash records and bookkeeping', 'icon'=>'book-open', 'href'=>BASE_URL.'/apps/operations/bookkeeping.php'],
+        ['name'=>'Orders Board', 'accent'=>'Operations', 'desc'=>'customer orders, payments and packing status', 'icon'=>'clipboard-list', 'href'=>BASE_URL.'/apps/operations/orders-board.php'],
+        ['name'=>'Task Management', 'accent'=>'Operations', 'desc'=>'assign, review and follow up on tasks', 'icon'=>'list-checks', 'href'=>BASE_URL.'/apps/operations/checklists.php'],
         ['name'=>'Product Pricing', 'desc'=>'product costs, packaging and profit margins', 'icon'=>'tags', 'href'=>BASE_URL.'/apps/cost-manager/product-pricing.php'],
     ];
     $essShortcutPaths = array_column($essOwnerShortcuts, 'href');
@@ -74,7 +74,7 @@ if ($roleKey === 'owner_admin') {
     <div class="ess-section-heading"><h2>Business modules</h2><span>Everything you need, in one place</span></div>
     <section class="ess-module-grid" id="ess-modules" aria-label="Business apps">
         <?php foreach ($apps as $index => $app): ?>
-        <a class="ess-module-card" data-ess-module data-ess-accent="<?= $essEscape($app['name']) ?>" data-search="<?= $essEscape($app['name'] . ' ' . $app['desc']) ?>" href="<?= $essEscape($app['href']) ?>" style="--ess-order:<?= (int) $index ?>" aria-label="<?= $essEscape($app['name'] . ' — ' . $app['desc']) ?>">
+        <a class="ess-module-card" data-ess-module data-ess-accent="<?= $essEscape($app['accent'] ?? $app['name']) ?>" data-search="<?= $essEscape($app['name'] . ' ' . $app['desc']) ?>" href="<?= $essEscape($app['href']) ?>" style="--ess-order:<?= (int) $index ?>" aria-label="<?= $essEscape($app['name'] . ' — ' . $app['desc']) ?>">
             <span class="ess-module-icon"><i data-lucide="<?= $essEscape($app['icon']) ?>" aria-hidden="true"></i></span>
             <h3><?= $essEscape($app['name']) ?></h3><p><?= $essEscape($app['desc']) ?></p>
             <?php if ($app['name'] === 'Marketing' && !empty($dashboardMarketingAssigned)): ?><span class="ess-module-badge" aria-label="<?= (int)$dashboardMarketingAssigned ?> assigned Marketing items"><?= (int)$dashboardMarketingAssigned ?></span><?php endif; ?>

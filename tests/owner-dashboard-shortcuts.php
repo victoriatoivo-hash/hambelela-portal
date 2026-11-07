@@ -21,6 +21,7 @@ foreach (['owner_admin','packer','marketing_sales_assistant','delivery_driver','
     }
     $expected = ['Cost Workbook','Acknowledgments','Bookkeeping','Orders Board','Task Management','Product Pricing','Existing card'];
     if (array_column($apps,'name') !== $expected) throw new RuntimeException('Incorrect ordering');
+    if (array_map(static fn($app) => $app['accent'] ?? $app['name'], array_slice($apps,2,4)) !== ['Accounts','Operations','Operations','Product Pricing']) throw new RuntimeException('Incorrect section colours');
     foreach (array_slice($apps,2,4) as $app) {
         if (!is_file(dirname(__DIR__).substr($app['href'],strlen(BASE_URL)))) throw new RuntimeException('Missing route');
         if (empty($app['icon']) || empty($app['desc'])) throw new RuntimeException('Missing card content');

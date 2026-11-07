@@ -2,7 +2,7 @@
 import ftplib, hashlib, io, json, os, socket, ssl, subprocess, sys, zipfile
 from pathlib import Path
 FILE='shared/ess-dashboard.php'
-BASE='1c7b1b4a'
+BASE='b0cd6ad77c0c3021f1593cc2afd13e279bc06f7b'
 mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n')
