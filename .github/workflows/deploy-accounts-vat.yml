@@ -5,7 +5,7 @@ on:
       mode:
         required: true
         type: choice
-        options: [preflight, deploy]
+        options: [inspect, preflight, deploy]
       approved_sha:
         required: true
         type: string

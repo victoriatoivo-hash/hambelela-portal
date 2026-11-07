@@ -1,5 +1,5 @@
 """One-file task-note delta with baseline guard, backup and rollback."""
-import ftplib, hashlib, io, json, os, socket, ssl, subprocess, sys, zipfile
+import difflib, ftplib, hashlib, io, json, os, socket, ssl, subprocess, sys, zipfile
 from pathlib import Path
 FILE='apps/operations/checklists.php'
 BASE='a7aecd1c'
@@ -7,7 +7,7 @@ mode,sha=sys.argv[1:3]
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(data): return data.replace(b'\r\n',b'\n')
 def digest(data): return hashlib.sha256(data).hexdigest()
-assert mode in ('preflight','deploy') and git('rev-parse','HEAD').decode().strip()==sha
+assert mode in ('inspect','preflight','deploy') and git('rev-parse','HEAD').decode().strip()==sha
 host=os.environ['FTP_SERVER']; canonical='s11745.sgp1.stableserver.net'
 def addresses(name): return {r[4][0] for r in socket.getaddrinfo(name,21,type=socket.SOCK_STREAM)}
 if addresses(host)&addresses(canonical): host=canonical
@@ -20,6 +20,10 @@ report={'mode':mode,'sha':sha,'file':FILE,'state':'checking'}
 try:
     before=read(FILE); baseline=git('show',BASE+':'+FILE); desired=git('show',sha+':'+FILE)
     report.update(live=digest(before),baseline=digest(baseline),approved=digest(desired))
+    if mode=='inspect':
+        print('TASK_SOURCE_DIFF_JSON='+json.dumps(''.join(difflib.unified_diff(norm(baseline).decode().splitlines(True),norm(before).decode().splitlines(True),fromfile='repository/'+FILE,tofile='live/'+FILE))))
+        report['state']='source-differences-inspected'
+        sys.exit(0)
     if norm(before) not in (norm(baseline),norm(desired)):
         raise RuntimeError('Live version differs; nothing uploaded')
     subprocess.run(['php','-l'],input=desired,capture_output=True,check=True)
