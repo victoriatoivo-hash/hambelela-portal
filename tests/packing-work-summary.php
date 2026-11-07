@@ -38,4 +38,20 @@ $earlyAssignment=[1=>[['at'=>'2026-10-04 08:00:00','old'=>7,'new'=>8]]];$s=$buil
 $startBefore=$item;$startBefore['date_loaded']='2026-09-01 08:00:00';$s=$build([$startBefore],$events);check($s['completed']===1,'Carry-in batch completion included');
 $noteEvents=$events;$noteEvents[1][]=$event('2026-10-04 10:00:00','notes','','waiting for labels');$s=$build([$item],$noteEvents);check($s['notes']===1&&$s['note_reasons']['label']===1,'Notes diagnostic only');
 check(!array_key_exists('score',$s)&&!array_key_exists('stalled',$s),'No grade or stalled flag');
+
+// Business Health must sum the same actual output as the employee profile,
+// ignoring cached workload quantities, including historical corrections.
+$actual=$item;$actual['quantity_packed']='100g (44), 500ml (5)';
+$actual['workload_package_count']=51;$actual['workload_weight_grams']=9000;
+$s=$build([$actual],$events);
+check(array_sum(array_column($s['output_daily'],'packages'))===$s['packages'],'Daily output and profile use one package total');
+check(abs(array_sum(array_column($s['output_daily'],'weight_kg'))-$s['kg'])<0.0001,'Daily weight equals profile');
+check(abs(array_sum(array_column($s['output_daily'],'volume_l'))-$s['litres'])<0.0001,'Daily volume equals profile');
+check($s['packages']===49&&$s['kg']===4.4&&$s['litres']===2.5,'Stored workload estimates do not replace recorded output');
+$s=$build([$other],$events,$assignment);
+check(array_sum(array_column($s['output_daily'],'items'))===1,'Daily output preserves historical owner');
+$s=$build([$item],$events,[],[],'2026-10-01 00:00:00','2026-10-03 23:59:59');
+check($s['output_daily']===[],'Unfinished batches never enter completed chart');
+$s=$build([$item],$e);
+check(array_sum(array_column($s['output_daily'],'items'))===1,'Reopening does not duplicate daily output');
 echo "PASS: $checks Packing List workload, quantity, historical timing and attribution checks\n";

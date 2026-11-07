@@ -9,7 +9,7 @@
   const to = q('[data-kpi-to]');
   const custom = root.querySelectorAll('[data-kpi-custom]');
   const includeHistorical = q('[data-kpi-include-historical]');
-  const labels = { orders: 'Orders received', fulfilment: 'Average business-hours order completion', order_start_response: 'Average business-hours New to In Progress', walk_in_completion: 'Average business-hours walk-in completion', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'Completed within six elapsed hours', pack_speed: 'Average elapsed packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
+  const labels = { orders: 'Orders received', fulfilment: 'Average business-hours order completion', order_start_response: 'Average business-hours New to In Progress', walk_in_completion: 'Average business-hours walk-in completion', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'Completed within six elapsed hours', pack_speed: 'Average working-time packing turnaround', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
   const compactLabels = { orders: 'Orders received', fulfilment: 'Order completion', order_start_response: 'Packing response', walk_in_completion: 'Walk-in completion', settlement: 'Payment settlement', final_closure: 'Final closure', dispatch: 'Completed within 6h', pack_speed: 'Packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence' };
   const cardIcon = (key) => {
     const paths = {

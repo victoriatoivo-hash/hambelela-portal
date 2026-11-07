@@ -8,16 +8,16 @@ function check($condition,string $message):void {global $checks;if(!$condition)t
 $person=['id'=>2,'name'=>'Synthetic employee','metrics'=>[['label'=>'Orders Outstanding','value'=>99]],'summary_score'=>98];
 $missing=BusinessHealthPerformance::person($person,['status'=>'not_configured'],'2026-10',0);
 check($missing['summary_score']===null,'Missing result must not become zero or legacy percentage');
-check($missing['summary_empty']==='Not Calculated','Missing policy explained');
+check($missing['summary_empty']==='View recorded work','Missing grade directs to recorded work');
 check(count($missing['metrics'])===1&&$missing['metrics'][0]['value']===0,'Shared 99-order queue must not attach to employee');
 $result=['status'=>'provisional','official_score_hundredths'=>null,'provisional_score_hundredths'=>8234,'result_id'=>31,'scorecard_version'=>'synthetic-v1','data_may_be_stale'=>true,
  'categories'=>['orders'=>['label'=>'Orders','official_score_hundredths'=>null,'provisional_score_hundredths'=>7500], 'tasks'=>['label'=>'Tasks','official_score_hundredths'=>null,
      'metrics'=>['completion'=>['label'=>'Completed attributable orders','numerator'=>15,'eligible_volume'=>20]]]]];
 $r=BusinessHealthPerformance::person($person,$result,'2026-10',2);
-check($r['summary_score']===82.34,'Provisional result must match stored hundredths exactly');
+check($r['summary_score']===null,'Incomplete grade is not presented as comparable performance');
 check($r['performance_result_id']===31,'Published revision preserved');
 check($r['scorecard_version']==='synthetic-v1','Rule version preserved');
-check(strpos($r['summary_label'],'Provisional')!==false,'Provisional label required');
+check($r['summary_label']==='Complete monthly grade unavailable','Incomplete result explained');
 check(strpos($r['summary_note'],'Data may be stale')!==false,'Stale result explained');
 check($r['metrics'][0]['value']===2,'Use personal risk');
 check($r['metrics'][1]['value']==='75.0% · provisional','Incomplete month cannot show an unqualified category percentage');
@@ -29,7 +29,7 @@ $zero=BusinessHealthPerformance::person($person,$result,'2026-10',0);
 check($zero['summary_score']===0,'Genuine calculated zero must survive');
 check($zero['summary_label']==='Official V2 monthly result','Official zero not provisional fallback');
 $range=BusinessHealthPerformance::person($person,['status'=>'select_month'],null,0);
-check($range['summary_score']===null&&$range['summary_empty']==='Select one month','Do not blend multiple months');
+check($range['summary_score']===null&&$range['performance_month']===null,'Do not blend multiple months');
 check(strpos(EmployeePerformanceService::measurementExplanation(['eligible_volume'=>20,'reason'=>'incomplete_source']),'coverage is not verified')!==false,
     'Observed work explains why a final KPI remains unavailable');
 check(strpos(EmployeePerformanceService::measurementExplanation(['eligible_volume'=>3,'reason'=>'low_sample','minimum_volume'=>5]),'minimum of 5')!==false,

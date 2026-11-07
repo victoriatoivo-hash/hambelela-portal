@@ -81,6 +81,23 @@ final class BusinessHealthPerformance
         }
         if($observed)$person['metrics'][]=['label'=>'Observed work · provisional, not a score',
             'rows'=>$observed,'tooltip'=>'Each KPI has its own eligible denominator. Published observations do not prove complete monthly source coverage.'];
+        if($official===null){
+            $person['summary_score']=null;
+            $person['summary_empty']='View recorded work';
+            $person['summary_label']='Complete monthly grade unavailable';
+        }
+        if(isset($person['recorded_packing'])&&is_array($person['recorded_packing'])){
+            $s=$person['recorded_packing'];
+            $person['metrics']=[
+                ['label'=>'Finished batches','value'=>$s['completed'],'tooltip'=>'Done within the selected dates, counted once. Same historical source as the employee profile.'],
+                ['label'=>'Finished packages','value'=>$s['packages'],'tooltip'=>'Actual recorded quantities, not planned quantities or cached workload estimates.'],
+                ['label'=>'Finished quantity','value'=>number_format($s['kg'],2).' kg · '.number_format($s['litres'],2).' L','tooltip'=>'Mass and volume are separate; never converted into one another.'],
+                ['label'=>'Open batches','value'=>$s['open'],'tooltip'=>'Unfinished assigned work at the reporting cutoff. No stalled alert or automatic penalty.'],
+                ['label'=>'Quantity match','value'=>$s['accuracy_percent']===null?'Not recorded':$s['accuracy_percent'].'%','tooltip'=>'Comparable completed quantities only; not a complete employee performance score.']
+            ];
+            $person['summary_note']='Recorded work for the selected dates. Published monthly results and review history remain on the employee profile.';
+        }
+        unset($person['recorded_packing']);
         return $person;
     }
 }

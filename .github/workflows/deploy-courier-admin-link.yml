@@ -26,6 +26,14 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+        ports:
+          - 33317:3306
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,6 +52,14 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/performance-ui" --no-audit --no-fund jsdom@24.1.3
           NODE_PATH="$RUNNER_TEMP/performance-ui/node_modules" node tests/performance-workspace-ui.cjs
           php tests/packing-work-summary.php
+          php tests/packing-work-summary-db.php
+          php tests/epi-business-health-result.php
+          php -l apps/operations/performance-order-scope.php
+          php -l apps/operations/packing-work-reporting.php
+          php -l apps/operations/kpi-packing-work-summary.php
+          node tests/packing-work-summary-ui.cjs
+          node --check assets/js/packer-orders-preview.js
+          node --check assets/js/packing-work-summary.js
           python3 -m py_compile scripts/deploy-performance-consistency.py
       - name: Back up and publish only the approved Performance files
         env:

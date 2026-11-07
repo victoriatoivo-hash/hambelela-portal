@@ -19,7 +19,7 @@
   const table=(headers,rows)=>`<div class="ep-scroll" tabindex="0" aria-label="Packing summary"><table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(r=>`<tr>${r.map(v=>`<td>${v}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
   const metric=(name,value,help)=>`<div class="pop-metric" tabindex="0" title="${esc(help)}"><span>${esc(name)}</span><strong>${esc(value)}</strong><span class="pop-tip">${esc(help)}</span></div>`;
   const modes=['collection','delivery','courier'],modeName=s=>s.charAt(0).toUpperCase()+s.slice(1);
-  function form(){return `<section class="ep-area pop-area"><div class="ep-area-head"><h2>Orders summary</h2><span class="ep-status">Test mode · published scores unchanged</span></div><form data-pop-form class="pop-filters">
+  function form(){return `<section class="ep-area pop-area"><div class="ep-area-head"><h2>Orders summary</h2><span class="ep-status" title="Calculated from recorded order history. Historical published scores are preserved separately.">Recorded work</span></div><form data-pop-form class="pop-filters">
     <label>Period<select name="period">${options([['reporting','Reporting month'],['today','Today'],['yesterday','Yesterday'],['week','This week'],['last_week','Last week'],['month','This month'],['last_month','Last month'],['custom','Custom dates']],state.period)}</select></label>
     <label>From<input name="from" type="date" required value="${state.from}"></label><label>To<input name="to" type="date" required value="${state.to}"></label>
     <label>Mode<select name="mode">${options([['','All modes'],...modes.map(m=>[m,modeName(m)])],state.mode)}</select></label>
@@ -33,8 +33,10 @@
     const areas=[['packing_list','Packing List',['packing','packing_list']],['tasks','Tasks',['tasks']],['courier','Courier Handover',['courier']],['quality','Quality & Errors',['quality']],['attendance','Attendance',['attendance']]];
     el.innerHTML=`<div class="ep-area-head"><h2>Work at a glance</h2><span class="ep-muted">Orders: ${esc((payload?.from||state.from).slice(0,10))} – ${esc((payload?.to||state.to).slice(0,10))} · Other sections: ${esc(state.month)}</span></div><div class="pop-work-grid"><article class="pop-work-card"><h3>Orders</h3>${s?`<strong>${s.packed} packed</strong><p>${s.on_time} on time · ${s.late} late · ${s.overdue} still overdue</p><p class="ep-muted">${s.timing_measured} packing times measured · ${s.timing_missing} missing timing</p>`:'<p>Fetching packing summary…</p>'}<small data-pop-overview-status role="status"></small><button class="ep-link" data-ep-tab="orders">Open Orders →</button></article>${areas.map(([tab,title,keys])=>{
       const found=keys.flatMap(k=>Object.values(profileData?.categories?.[k]?.metrics||{})).filter(m=>m.numerator!=null&&m.eligible_volume>0);
+      if(tab==='packing_list')return `<article class="pop-work-card"><h3>Packing List</h3><div data-packing-overview-card><p>Loading recorded batches…</p></div><button class="ep-link" data-ep-tab="packing_list">Open Packing List →</button></article>`;
       return `<article class="pop-work-card"><h3>${title}</h3>${found.length?found.slice(0,3).map(m=>`<p><strong>${esc(m.numerator)} / ${esc(m.eligible_volume)}</strong> ${esc(m.label)}</p>`).join(''):'<p>Historical results need verification</p>'}<small>Recorded section evidence only; not a complete monthly grade.</small><button class="ep-link" data-ep-tab="${tab}">Open ${title} →</button></article>`;
-    }).join('')}</div><p class="ep-muted">No combined points total. Each area keeps its own measures; Orders history is calculated separately using the agreed working-hours rules.</p>`;
+    }).join('')}</div><p class="ep-muted">Each area shows its own recorded work, not a combined grade. Orders and Packing List use their historical source records; published results remain in Review History.</p>`;
+    window.HambelelaPackingWork?.overview();
   }
   function compare(){
     const people=payload.comparison||[];if(people.length<2)return '';

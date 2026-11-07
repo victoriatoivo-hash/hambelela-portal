@@ -4,8 +4,8 @@ from pathlib import Path
 
 BASELINE = '483eaecf'
 BASELINES = {}
-FILES = ['apps/operations/reports-data.php', 'apps/operations/performance-activity.php', 'apps/operations/kpi-packing-work-summary.php', 'shared/epi/PackingWorkSummary.php', 'assets/js/performance-workspace.js', 'assets/js/packer-orders-preview.js', 'assets/js/packing-work-summary.js', 'assets/js/reports-business-health.js']
-NEW_FILES = []
+FILES = ['apps/operations/performance-order-scope.php', 'apps/operations/packing-work-reporting.php', 'shared/epi/PackingWorkSummary.php', 'shared/epi/BusinessHealthPerformance.php', 'apps/operations/reports-data.php', 'apps/operations/performance-activity.php', 'apps/operations/kpi-packing-work-summary.php', 'assets/js/performance-workspace.js', 'assets/js/packer-orders-preview.js', 'assets/js/packing-work-summary.js', 'assets/js/reports-business-health.js']
+NEW_FILES = ['apps/operations/performance-order-scope.php', 'apps/operations/packing-work-reporting.php']
 DEPENDENCIES = ['apps/operations/operations.php']
 REPORT = 'performance-consistency-report.json'
 BACKUP = 'performance-consistency-backup.zip'

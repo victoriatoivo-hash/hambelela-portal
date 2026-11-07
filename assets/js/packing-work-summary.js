@@ -8,7 +8,13 @@
   const table=(headers,rows)=>`<div class="pws-scroll" tabindex="0"><table><thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.length?rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join(''):`<tr><td colspan="${headers.length}">No recorded work in this period.</td></tr>`}</tbody></table></div>`;
   const metric=(title,value,help)=>`<div class="pws-stat"><span>${esc(title)} <button type="button" class="pws-info" aria-label="About ${esc(title)}">i<span role="tooltip">${esc(help)}</span></button></span><strong>${esc(value)}</strong></div>`;
   const pairs=o=>Object.entries(o).map(([k,v])=>`<div class="pws-pair"><span>${esc(label(k))}</span><strong>${num(v)}</strong></div>`).join('')||'<p>No records.</p>';
-  let host=null,root=null,month='',loadedKey='',cached=null,controller=null,serial=0;
+  let host=null,root=null,month='',loadedKey='',cached=null,controller=null,serial=0,monthResult=null,overviewError='';
+  function overview(){
+    const card=root?.querySelector('[data-packing-overview-card]');if(!card)return;
+    if(!monthResult){card.innerHTML=overviewError?`<p>${esc(overviewError)}</p><button type="button" data-pws-retry>Retry recorded work</button>`:'<p role="status">Loading recorded batches…</p>';card.querySelector('[data-pws-retry]')?.addEventListener('click',()=>load(true));return;}
+    const s=monthResult.summary;
+    card.innerHTML=`<div class="pws-stats">${metric('Finished batches',num(s.completed),'Done in the selected month, counted once. Labels and Website stages are unfinished.')}${metric('Finished packages',num(s.packages),'Actual recorded package quantities, not planned or cached estimates.')}${metric('Finished quantity',`${num(s.kg)} kg · ${num(s.litres)} L`,'Weight and volume are kept separate; this is the same output shown in Business Health.')}${metric('Open batches',num(s.open),'Assigned unfinished work at the period cutoff. No stalled alerts or fixed deadlines.')}</div>`;
+  }
   function render(p){
     const s=p.summary,states=s.states,known=Object.values(s.accuracy).reduce((a,b)=>a+b,0)-s.accuracy.unknown;
     const keys=[...new Set([...Object.keys(s.planned_sizes),...Object.keys(s.progress_sizes)])].sort((a,b)=>a.split(':')[0].localeCompare(b.split(':')[0])||Number(a.split(':')[1])-Number(b.split(':')[1]));
@@ -27,9 +33,10 @@
   async function load(force=false){
     if(!host)return;const form=host.querySelector('form'),params=new URLSearchParams(new FormData(form));params.set('id',root.dataset.employeeId);const key=params.toString(),status=host.querySelector('[data-pws-state]');
     if(key===loadedKey&&cached&&!force){host.querySelector('[data-pws-result]').innerHTML=render(cached);status.textContent='Recorded work loaded';return;}
-    controller?.abort();controller=new AbortController();const mine=++serial;status.textContent='Loading recorded work…';
-    try{const response=await fetch(`kpi-packing-work-summary.php?${params}`,{credentials:'same-origin',cache:'no-store',signal:controller.signal});const p=await response.json();if(mine!==serial)return;if(!response.ok||!p.ok)throw new Error(p.message||'Unable to load recorded work.');cached=p;loadedKey=key;host.querySelector('[data-pws-result]').innerHTML=render(p);status.textContent=`${p.from.slice(0,10)} – ${p.to.slice(0,10)} · Recorded work loaded`;}
-    catch(e){if(e.name!=='AbortError'&&mine===serial)status.textContent=`${e.message} Use Apply dates to retry.`;}
+    controller?.abort();controller=new AbortController();const mine=++serial;const requestController=controller;const timer=setTimeout(()=>requestController.abort(),30000);status.textContent='Loading recorded work…';
+    try{const response=await fetch(`kpi-packing-work-summary.php?${params}`,{credentials:'same-origin',cache:'no-store',signal:controller.signal});const p=await response.json();if(mine!==serial)return;if(!response.ok||!p.ok)throw new Error(p.message||'Unable to load recorded work.');cached=p;loadedKey=key;host.querySelector('[data-pws-result]').innerHTML=render(p);status.textContent=`${p.from.slice(0,10)} – ${p.to.slice(0,10)} · Recorded work loaded`;if(params.get('from')===`${month}-01`&&params.get('to')===new Date(Date.UTC(Number(month.slice(0,4)),Number(month.slice(5,7)),0)).toISOString().slice(0,10)){monthResult=p;overviewError='';overview();}}
+    catch(e){if(mine===serial){overviewError=e.name==='AbortError'?'Recorded work took too long to load.':e.message;status.textContent=`${overviewError} Use Apply dates to retry.`;overview();}}
+    finally{clearTimeout(timer);}
   }
-  window.HambelelaPackingWork={mount(r,m){controller?.abort();serial++;root=r;month=m;host=r.querySelector('[data-packing-work-summary]');if(!host)return;host.innerHTML=form();host.querySelector('form').addEventListener('submit',e=>{e.preventDefault();load(true);});if(!host.closest('[data-ep-panel]').hidden)load();},activate(){load();},refresh(){if(host&&!host.closest('[data-ep-panel]').hidden)load(true);},render};
+  window.HambelelaPackingWork={mount(r,m){controller?.abort();serial++;if(root?.dataset.employeeId!==r.dataset.employeeId||month!==m){cached=null;loadedKey='';monthResult=null;}overviewError='';root=r;month=m;host=r.querySelector('[data-packing-work-summary]');if(!host)return;host.innerHTML=form();host.querySelector('form').addEventListener('submit',e=>{e.preventDefault();load(true);});overview();load();},activate(){load();},refresh(){if(host)load(true);},overview,render};
 })();

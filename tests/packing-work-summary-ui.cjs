@@ -5,8 +5,9 @@ const summary={completed:1,open:2,packages:500,kg:50,litres:0,quantity_known:1,i
 const html=context.window.HambelelaPackingWork.render({summary,policy:{priority:'No automatic priority penalty.',timing:'Working time only.'}});
 assert.ok(html.includes('500'));assert.ok(html.includes('24 h 0 min'));assert.ok(html.includes('&lt;img'));assert.ok(!html.includes('<img'));
 for(const title of ['Workload & quantities','Current work','Accuracy & corrections','Priority queue','Notes & issues','Website handoff'])assert.ok(html.includes(title),title);
-assert.ok(source.includes("if(!host.closest('[data-ep-panel]').hidden)load()"),'Lazy loaded, not an extra initial page request');
+assert.ok(source.includes('overview();load();'),'Overview loads the same recorded packing summary');
+assert.ok(source.includes('30000'),'A hung request must offer retry rather than indefinite loading');
 assert.ok(source.includes('controller?.abort()'));assert.ok(source.includes('mine!==serial'));
 const css=fs.readFileSync('assets/css/packing-work-summary.css','utf8');assert.ok(css.includes('Jost'));assert.ok(css.includes('@media(max-width:600px)'));assert.ok(css.includes('font-size:16px'));
 const endpoint=fs.readFileSync('apps/operations/kpi-packing-work-summary.php','utf8');assert.ok(!/\b(INSERT INTO|UPDATE ops_|DELETE FROM|ALTER TABLE)\b/.test(endpoint));assert.ok(endpoint.includes('session_write_close'));
-console.log('PASS: summary rendering, escaping, lazy loading, stale-request guard, mobile styles and read-only endpoint.');
+console.log('PASS: summary rendering, escaping, overview loading, stale-request guard, mobile styles and read-only endpoint.');

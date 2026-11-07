@@ -3,15 +3,16 @@ declare(strict_types=1);
 require __DIR__.'/../apps/operations/performance-activity.php';
 $payments = true;
 function ops_column_exists(string $table, string $column): bool { return $GLOBALS['payments']; }
+function ops_order_display_datetime_expr(string $alias=''): string { return "COALESCE({$alias}.order_datetime,{$alias}.created_at)"; }
 function check($condition, string $message): void { if (!$condition) throw new RuntimeException($message); }
 $queries = [];
 $reader = static function ($sql, $params) use (&$queries): array {
     $queries[] = [$sql, $params];
     check(strpos($sql, 'SELECT ') === 0, 'Only SELECT is allowed');
     if (strpos($sql, 'GROUP BY') === false) return [['total'=>3,'value'=>'432.10']];
-    check(strpos($sql, "'trash'") !== false && strpos($sql, "'refunded'") !== false, 'Ineligible orders excluded');
     $isPayment = strpos($sql, 'DATE_ADD') !== false;
     if ($isPayment) {
+        check(strpos($sql, "'trash'") !== false && strpos($sql, "'refunded'") !== false, 'Ineligible revenue excluded');
         check(strpos($sql, 'portal_paid_confirmed=1') !== false, 'Only confirmed paid orders');
         check(strpos($sql, 'payment_updated_at') === false, 'Do not substitute edit dates');
     }
@@ -19,6 +20,8 @@ $reader = static function ($sql, $params) use (&$queries): array {
 };
 $result = pw_business_activity(new DateTimeImmutable('2026-10-27T14:30:00+02:00'), $reader);
 check(count($queries) === 5, 'Bounded aggregate reads');
+foreach($queries as[$sql])check(strpos($sql,'archived_at IS NULL')!==false&&strpos($sql,'deleted_at IS NULL')!==false,'Same active records as Orders List');
+check(strpos($queries[0][0],'COALESCE(ops_orders.order_datetime,ops_orders.created_at)')!==false,'Uses displayed order date, not import date');
 check($queries[0][1] === ['2026-10-21 00:00:00','2026-10-27 14:30:00'], 'Current local range');
 check($queries[1][1] === ['2026-10-20 22:00:00','2026-10-27 12:30:00'], 'UTC confirmation range');
 check($queries[2][1] === ['2026-10-14 00:00:00','2026-10-20 14:30:00'], 'Previous matched elapsed range');

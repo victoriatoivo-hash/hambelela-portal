@@ -59,7 +59,7 @@ final class PackingWorkSummary
         $out=['items'=>0,'completed'=>0,'open'=>0,'packages'=>0,'kg'=>0.0,'litres'=>0.0,'quantity_known'=>0,'responsibility_review'=>0,
             'accuracy'=>array_fill_keys(['exact','less','more','mixed','unknown'],0),'states'=>[],'sizes'=>[],'priorities'=>[],
             'reopened'=>0,'corrections'=>0,'notes'=>0,'note_stages'=>[],'note_reasons'=>[],'website_waiting'=>0,'website_updated'=>0,
-            'daily'=>[],'timing'=>[],'evidence'=>[],'notes_repeated'=>[],'progress_sizes'=>[],'planned_sizes'=>[],'progress_known'=>0,'quantity_updates'=>[]];
+            'daily'=>[],'output_daily'=>[],'timing'=>[],'evidence'=>[],'notes_repeated'=>[],'progress_sizes'=>[],'planned_sizes'=>[],'progress_known'=>0,'quantity_updates'=>[]];
         $durations=[];$queue=[];$stageAges=[];$web=[];$reasons=[];
         foreach($items as$item){
             $id=(int)$item['id'];$history=$events[$id]??[];$owners=$assignments[$id]??[];
@@ -118,6 +118,17 @@ final class PackingWorkSummary
                 $out['completed']++;if(!$attributed)$out['responsibility_review']++;
                 $out['accuracy'][$accuracy]++;
                 $day=substr($finished,0,10);$out['daily'][$day]=($out['daily'][$day]??0)+1;
+                if(!isset($out['output_daily'][$day]))$out['output_daily'][$day]=['items'=>0,'packages'=>0,'weight_kg'=>0.0,'volume_l'=>0.0,'units'=>0,'quantity_known'=>0];
+                $out['output_daily'][$day]['items']++;
+                if($actual!==null){
+                    $out['output_daily'][$day]['quantity_known']++;
+                    foreach($actual as$key=>$n){
+                        [$dim,$size]=explode(':',$key);$out['output_daily'][$day]['packages']+=$n;
+                        if($dim==='g')$out['output_daily'][$day]['weight_kg']+=(float)$size*$n/1000;
+                        elseif($dim==='ml')$out['output_daily'][$day]['volume_l']+=(float)$size*$n/1000;
+                        else $out['output_daily'][$day]['units']+=$n;
+                    }
+                }
                 if($actual!==null){$out['quantity_known']++;foreach($actual as$key=>$n){[$dim,$size]=explode(':',$key);$out['packages']+=$n;$out['sizes'][$key]=($out['sizes'][$key]??0)+$n;if($dim==='g')$out['kg']+=(float)$size*$n/1000;if($dim==='ml')$out['litres']+=(float)$size*$n/1000;}}
             }
             foreach($noteEvents as$e){$out['notes']++;$s=self::status(self::snapshot($item,$history,$e['at'])['packing_status']??'unknown');$out['note_stages'][$s]=($out['note_stages'][$s]??0)+1;$text=strtolower((string)$e['after']);foreach(['stock','label','bottle','pouch','seal','machine','shortage','spill','website']as$word)if(strpos($text,$word)!==false){$reasons[$word][$id]=true;}}

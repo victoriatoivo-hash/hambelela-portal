@@ -24,10 +24,9 @@
         let label='Not calculated';
         if(result){
           if(result.status==='official'&&numeric(result.official_score_hundredths))label=`${(Number(result.official_score_hundredths)/100).toFixed(1)} / 100`;
-          else if(['provisional','validation'].includes(result.status))label=numeric(result.provisional_score_hundredths)?`${(Number(result.provisional_score_hundredths)/100).toFixed(1)} / 100 · Provisional`:numeric(result.available_points_hundredths)&&Number(result.available_weight_hundredths)>0?`${(Number(result.available_points_hundredths)/100).toFixed(1)} / ${(Number(result.available_weight_hundredths)/100).toFixed(1)} pts · Provisional`:'Provisional';
-          else if(result.status==='insufficient_data')label='Not measured';
+          else if(['provisional','validation','insufficient_data'].includes(result.status))label='View recorded work';
           if(result.data_may_be_stale)label+=' · Update pending';
-          a.title=`${label}. ${numeric(result.personal_risk_count)?`${result.personal_risk_count} tracked open obligations. `:''}${result.risk_scope||''}`;
+          a.title=`${label}. Incomplete section evidence is not a complete employee grade. Open the profile for recorded work and review history. ${result.risk_scope||''}`;
         }
         show(a,label);
       }
@@ -53,7 +52,7 @@
   function render(data, params) {
     const counts=data.orders_overview?.counts || {}, components=data.operational_score_components || [];
     const measured=components.filter(c=>numeric(c.score));
-    q('[data-pw-score]').textContent=numeric(data.operational_score)?Number(data.operational_score).toFixed(1):'Not calculated';
+    q('[data-pw-score]').textContent=numeric(data.operational_score)?Number(data.operational_score).toFixed(1):'Incomplete coverage';
     q('[data-pw-score-note]').textContent=numeric(data.operational_score) ? `${measured.length} of ${components.length} operational sections measured. Uses the existing Business Health score.` : (data.operational_score_message || 'Not calculated — insufficient measured operational evidence.');
     const metrics=[['Order completion',percent(data.orders_overview?.final_completion_percent)],['Completed orders',number(counts.completed)],['Outstanding orders',number(counts.outstanding)]];
     q('[data-pw-metrics]').innerHTML=metrics.map(([label,value])=>`<article><span>${esc(label)}</span><strong>${esc(value)}</strong></article>`).join('');

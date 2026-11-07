@@ -25,7 +25,7 @@ const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_co
   ]})});await settle();
   assert.match(q('[data-pw-employee="1"] small').textContent,/0.0 \/ 100/,'calculated zero retained');
   assert.match(q('[data-pw-employee="2"] small').textContent,/Not calculated/,'unpublished not zero');
-  assert.match(q('[data-pw-employee="3"] small').textContent,/Provisional/);
+  assert.match(q('[data-pw-employee="3"] small').textContent,/View recorded work/);
   assert.match(q('[data-pw-employee="4"] small').textContent,/85.0 \/ 100 · Update pending/);
   assert.match(q('[data-pw-employee="1"]').title,/2 tracked open obligations/);
   assert.equal(w.document.querySelectorAll('.pw-bar-day').length,14);
@@ -75,7 +75,7 @@ const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_co
   assert.match(page,/require_role\('owner_admin'\)/);assert.match(page,/\?\? 'dashboard'/);
   assert.match(page,/employee-performance-workforce.js/,'existing reports preserved');
   const css=fs.readFileSync('assets/css/performance-workspace.css','utf8');
-  for(const token of ['#7754a5','Jost','max-width:520px','prefers-reduced-motion'])assert.ok(css.includes(token));
+  for(const token of ['#366b96','Jost','max-width:520px','prefers-reduced-motion'])assert.ok(css.includes(token),token);
   console.log('PASS: app cards, monthly dates/links, operational evidence, zero vs unavailable, race protection, errors/retry, escaping, read-only access, responsive theme');
   w.close();
 })().catch(error=>{console.error(error);process.exitCode=1;w.close();});
