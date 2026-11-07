@@ -31,12 +31,15 @@ check($zero['summary_label']==='Official V2 monthly result','Official zero not p
 $range=BusinessHealthPerformance::person($person,['status'=>'select_month'],null,0);
 check($range['summary_score']===null&&$range['performance_month']===null,'Do not blend multiple months');
 $packing=$person;
-$packing['recorded_packing']=['completed'=>3,'packages'=>47,'kg'=>4.4,'litres'=>2.5,'open'=>2,'accuracy_percent'=>null];
+$packing['recorded_packing']=['completed'=>3,'quantity_known'=>3,'packages'=>47,'kg'=>4.4,'litres'=>2.5,'open'=>2,'accuracy_percent'=>null];
 $mapped=BusinessHealthPerformance::person($packing,$result,'2026-11',1);
 check($mapped['metrics'][0]['value']===3&&$mapped['metrics'][1]['value']===47,'Business Health uses recorded batches and package quantities');
 check($mapped['metrics'][2]['value']==='4.40 kg · 2.50 L','Keep actual mass and volume separate');
 check($mapped['metrics'][3]['value']===2&&$mapped['metrics'][4]['value']==='Not recorded','Open batches and missing accuracy remain distinct');
 check(!isset($mapped['recorded_packing'])&&$mapped['performance_result_id']===31,'Presentation does not leak source payload or rewrite published result');
+$packing['recorded_packing']['quantity_known']=0;
+$unknown=BusinessHealthPerformance::person($packing,$result,'2026-11',1);
+check($unknown['metrics'][1]['value']==='Not recorded'&&$unknown['metrics'][2]['value']==='Not recorded','Finished work without quantity evidence is not zero output');
 check(strpos(EmployeePerformanceService::measurementExplanation(['eligible_volume'=>20,'reason'=>'incomplete_source']),'coverage is not verified')!==false,
     'Observed work explains why a final KPI remains unavailable');
 check(strpos(EmployeePerformanceService::measurementExplanation(['eligible_volume'=>3,'reason'=>'low_sample','minimum_volume'=>5]),'minimum of 5')!==false,

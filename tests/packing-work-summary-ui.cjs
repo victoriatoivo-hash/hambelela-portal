@@ -6,6 +6,9 @@ const html=context.window.HambelelaPackingWork.render({summary,policy:{priority:
 assert.ok(html.includes('500'));assert.ok(html.includes('24 h 0 min'));assert.ok(html.includes('&lt;img'));assert.ok(!html.includes('<img'));
 for(const title of ['Workload & quantities','Current work','Accuracy & corrections','Priority queue','Notes & issues','Website handoff'])assert.ok(html.includes(title),title);
 assert.ok(source.includes('overview();load();'),'Overview loads the same recorded packing summary');
+const missing=context.window.HambelelaPackingWork.render({summary:{...summary,quantity_known:0,packages:0,kg:0,litres:0},policy:{}});
+assert.ok(missing.includes('<strong>Not recorded</strong>'),'Unknown output must not display zero packages');
+assert.ok(!missing.includes('0 kg · 0 L in finished packages'),'Unknown mass and volume must not display zero output');
 assert.ok(source.includes('30000'),'A hung request must offer retry rather than indefinite loading');
 assert.ok(source.includes('controller?.abort()'));assert.ok(source.includes('mine!==serial'));
 const css=fs.readFileSync('assets/css/packing-work-summary.css','utf8');assert.ok(css.includes('Jost'));assert.ok(css.includes('@media(max-width:600px)'));assert.ok(css.includes('font-size:16px'));
