@@ -13,7 +13,7 @@
     const card=root?.querySelector('[data-packing-overview-card]');if(!card)return;
     if(!monthResult){card.innerHTML=overviewError?`<p>${esc(overviewError)}</p><button type="button" data-pws-retry>Retry recorded work</button>`:'<p role="status">Loading recorded batches…</p>';card.querySelector('[data-pws-retry]')?.addEventListener('click',()=>load(true));return;}
     const s=monthResult.summary;
-    card.innerHTML=`<div class="pws-stats">${metric('Finished batches',num(s.completed),'Done in the selected month, counted once. Labels and Website stages are unfinished.')}${metric('Finished packages',num(s.packages),'Actual recorded package quantities, not planned or cached estimates.')}${metric('Finished quantity',`${num(s.kg)} kg · ${num(s.litres)} L`,'Weight and volume are kept separate; this is the same output shown in Business Health.')}${metric('Open batches',num(s.open),'Assigned unfinished work at the period cutoff. No stalled alerts or fixed deadlines.')}</div>`;
+    card.innerHTML=`<p title="Done in the selected month, counted once. Labels and Website stages are unfinished."><strong>${num(s.completed)}</strong> finished batches · <strong>${num(s.packages)}</strong> packages</p><p title="Actual recorded quantities, not planned or cached estimates. Mass and volume remain separate."><strong>${num(s.kg)} kg · ${num(s.litres)} L</strong> finished quantity</p><p title="Assigned unfinished work at the period cutoff. No stalled alerts or fixed deadlines."><strong>${num(s.open)}</strong> open batches</p><small>Same recorded output as Packing List and Business Health.</small>`;
   }
   function render(p){
     const s=p.summary,states=s.states,known=Object.values(s.accuracy).reduce((a,b)=>a+b,0)-s.accuracy.unknown;
