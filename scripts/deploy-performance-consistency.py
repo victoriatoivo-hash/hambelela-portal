@@ -1,5 +1,5 @@
 """Approved delta workflow: pinned baseline, targeted backup, verified writes, rollback."""
-import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, ssl, socket
+import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, ssl, socket, re
 from pathlib import Path
 
 BASELINE = '483eaecf'
@@ -7,6 +7,7 @@ BASELINES = {}
 FILES = ['apps/operations/performance-order-scope.php', 'apps/operations/packing-work-reporting.php', 'shared/epi/PackingWorkSummary.php', 'shared/epi/BusinessHealthPerformance.php', 'apps/operations/reports-data.php', 'apps/operations/performance-activity.php', 'apps/operations/kpi-packing-work-summary.php', 'assets/js/performance-workspace.js', 'assets/js/packer-orders-preview.js', 'assets/js/packing-work-summary.js', 'assets/js/reports-business-health.js']
 NEW_FILES = ['apps/operations/performance-order-scope.php', 'apps/operations/packing-work-reporting.php']
 DEPENDENCIES = ['apps/operations/operations.php']
+DEPENDENCY_HASHES = {'apps/operations/operations.php': '2bb88e308cb1742a7ee7c974945be105f5b272ee7a32a01589bb097ccdd11bc0'}
 REPORT = 'performance-consistency-report.json'
 BACKUP = 'performance-consistency-backup.zip'
 def git(*args): return subprocess.check_output(['git',*args])
@@ -44,6 +45,16 @@ try:
     desired={p:git('show',sha+':'+p) for p in FILES}
     conflicts=[]
     for p,data in before.items():
+        if p in DEPENDENCIES:
+            # Never replace the newer shared operations file. Confirm the exact
+            # read-only date helper used by this release, without copying source.
+            pattern=rb'function ops_order_display_datetime_expr\([^\n]*\n\{.*?\n\}'
+            live_helper=re.search(pattern,norm(data),re.S)
+            git_helper=re.search(pattern,norm(git('show',BASELINE+':'+p)),re.S)
+            matches=digest(data)==DEPENDENCY_HASHES[p] and live_helper is not None and git_helper is not None and live_helper.group()==git_helper.group()
+            report['hashes'][p]={'live':digest(data),'read_only_dependency':True,'date_helper_compatible':bool(matches)}
+            if not matches: conflicts.append(p)
+            continue
         baseline=None if p in NEW_FILES else git('show',BASELINES.get(p,BASELINE)+':'+p)
         approved=desired.get(p,baseline)
         matches=norm(data) in (norm(baseline),norm(approved))
