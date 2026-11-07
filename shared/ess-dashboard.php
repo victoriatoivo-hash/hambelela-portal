@@ -28,6 +28,28 @@ if ($roleKey !== 'owner_admin') {
 ?>
 <?php if($roleKey==='delivery_driver'){$essQuickLinks=[['My deliveries','/apps/delivery/index.php','bike'],['Notifications','/notifications.php','bell'],['My account','/profile.php','user-round']];} ?>
 <?php include __DIR__.'/ess-sidebar.php'; ?>
+<?php
+// Owner dashboard shortcuts: presentation only; existing destinations enforce access.
+if ($roleKey === 'owner_admin') {
+    $essOwnerShortcuts = [
+        ['name'=>'Bookkeeping', 'desc'=>'daily cash records and bookkeeping', 'icon'=>'book-open', 'href'=>BASE_URL.'/apps/operations/bookkeeping.php'],
+        ['name'=>'Orders Board', 'desc'=>'customer orders, payments and packing status', 'icon'=>'clipboard-list', 'href'=>BASE_URL.'/apps/operations/orders-board.php'],
+        ['name'=>'Task Management', 'desc'=>'assign, review and follow up on tasks', 'icon'=>'list-checks', 'href'=>BASE_URL.'/apps/operations/checklists.php'],
+        ['name'=>'Product Pricing', 'desc'=>'product costs, packaging and profit margins', 'icon'=>'tags', 'href'=>BASE_URL.'/apps/cost-manager/product-pricing.php'],
+    ];
+    $essShortcutPaths = array_column($essOwnerShortcuts, 'href');
+    $apps = array_values(array_filter($apps, static fn(array $app): bool => !in_array($app['href'], $essShortcutPaths, true)));
+    $essShortcutPosition = count($apps);
+    foreach ($apps as $essAppIndex => $essApp) {
+        if ($essApp['name'] === 'Acknowledgments') {
+            $essShortcutPosition = $essAppIndex + 1;
+            break;
+        }
+    }
+    array_splice($apps, $essShortcutPosition, 0, $essOwnerShortcuts);
+}
+// End owner dashboard shortcuts.
+?>
 <main id="ess-main" class="workspace ess-dashboard-main<?= !empty($driverMobileProfile) ? ' driver-dashboard' : '' ?>" tabindex="-1">
     <?php include __DIR__.'/ess-topbar.php'; ?>
     <?php if (!empty($driverMobileProfile)): ?>
