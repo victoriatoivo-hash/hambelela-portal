@@ -50,7 +50,7 @@ const fixture=(score=72)=>({ok:true,operational_score:score,operational_score_co
   reply(2,fixture(0));await settle();reply(1,fixture(99));await settle();
   assert.equal(q('[data-pw-score]').textContent,'0.0','stale result cannot overwrite newest month; zero is real');
   q('[data-pw-refresh]').click();reply(3,fixture(null));await settle();
-  assert.equal(q('[data-pw-score]').textContent,'Not calculated','null is never zero');
+  assert.equal(q('[data-pw-score]').textContent,'Incomplete coverage','null is never zero');
   q('[data-pw-refresh]').click();reply(4,{ok:false,message:'Unavailable'},false);await settle();
   assert.equal(q('[data-pw-error]').hidden,false);assert.equal(q('[data-pw-score]').textContent,'—');
   assert.equal(q('progress'),null,'failure must not retain stale progress');
