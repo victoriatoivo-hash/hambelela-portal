@@ -26,7 +26,8 @@
           if(result.status==='official'&&numeric(result.official_score_hundredths))label=`${(Number(result.official_score_hundredths)/100).toFixed(1)} / 100`;
           else if(['provisional','validation','insufficient_data'].includes(result.status))label='View recorded work';
           if(result.data_may_be_stale)label+=' · Update pending';
-          a.title=`${label}. Incomplete section evidence is not a complete employee grade. Open the profile for recorded work and review history. ${result.risk_scope||''}`;
+          const risk=numeric(result.personal_risk_count)?`${number(result.personal_risk_count)} tracked open obligations. `:'';
+          a.title=`${label}. ${risk}Incomplete section evidence is not a complete employee grade. Open the profile for recorded work and review history. ${result.risk_scope||''}`;
         }
         show(a,label);
       }
