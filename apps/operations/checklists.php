@@ -494,7 +494,7 @@ function checklist_completion_validation(array $task, ?array $checkedOverride = 
     $note = $noteOverride ?? (string) ($task['completion_note'] ?? '');
     $note = trim($note);
     $noteLength = function_exists('mb_strlen') ? mb_strlen($note) : strlen($note);
-    if ($noteLength < 5) {
+    if ($noteLength < 5 || $note === 'Started work using Start Task.') {
         return ['valid' => false, 'code' => 'task_completion_note_required', 'message' => 'Enter a completion note explaining what was completed.', 'incomplete_items' => []];
     }
     if (!empty($task['completion_evidence_required'])) {
@@ -525,14 +525,17 @@ function checklist_require_completion(array $task, ?array $checkedOverride = nul
     if (!$validation['valid']) throw new RuntimeException(json_encode($validation, JSON_UNESCAPED_SLASHES));
 }
 
-function checklist_require_progress_note(?string $note): string
+function checklist_require_progress_note(?string $note, string $status = 'complete'): string
 {
     $note = trim((string) $note);
+    // This legacy Start Task placeholder is not employee completion evidence.
+    if ($note === 'Started work using Start Task.') $note = '';
+    if ($status !== 'complete') return $note;
     $length = function_exists('mb_strlen') ? mb_strlen($note) : strlen($note);
     if ($length < 5) throw new RuntimeException(json_encode([
         'valid' => false,
         'code' => 'task_progress_note_required',
-        'message' => 'Enter a note explaining the progress or work completed.',
+        'message' => 'Enter a completion note explaining what was completed (at least 5 characters).',
         'incomplete_items' => [],
     ], JSON_UNESCAPED_SLASHES));
     return $note;
@@ -1500,7 +1503,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $beforeRows = ops_rows("SELECT * FROM ops_checklist_tasks WHERE {$scope} LIMIT 1", $scopeParams);
             if (!$beforeRows) throw new RuntimeException('Task was not found or is not assigned to you.');
             $previousStatus = checklist_normalize_status((string) $beforeRows[0]['status']);
-            $progressNote = checklist_require_progress_note(ops_post_string('completion_note', 1500));
+            $progressNote = checklist_require_progress_note(array_key_exists('completion_note', $_POST) ? ops_post_string('completion_note', 1500) : (string) ($beforeRows[0]['completion_note'] ?? ''), $status);
             if (!$canManage && $previousStatus === 'complete' && $status !== 'complete') {
                 http_response_code(403);
                 throw new RuntimeException('Only management can reopen a completed task.');
@@ -1976,7 +1979,7 @@ if ($ready && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($action === 'update_task_progress') {
             $status = checklist_requested_status();
             $checked = array_values(array_filter(array_map('strval', $_POST['checked_items'] ?? [])));
-            $note = checklist_require_progress_note(ops_post_string('completion_note', 1500));
+            $note = checklist_require_progress_note(ops_post_string('completion_note', 1500), $status);
             $taskDb = db();
             $taskDb->beginTransaction();
             try {
@@ -2760,7 +2763,7 @@ include BASE_PATH . '/shared/ess-sidebar.php';
                         <section class="task-details-section task-progress-card">
                             <h3 class="task-section-title task-progress__heading"><?= $activeCorrection?'Correction response':'Progress Update' ?></h3>
                             <?php if ($canManage): ?><div class="task-field"><label for="task-progress-status-<?= $panelId ?>">Status</label><select id="task-progress-status-<?= $panelId ?>" name="status" data-portal-custom-select><?php ops_select_options($statuses, checklist_normalize_status((string) ($task['status'] ?? 'new'))); ?></select></div><?php else: ?><input type="hidden" name="status" value="complete"><?php endif; ?>
-                            <div class="task-field<?= $activeCorrection?' task-correction-response-field':'' ?>" id="task-notes-<?= $panelId ?>"><label class="task-progress-label" for="task-progress-note-<?= $panelId ?>"><?= $activeCorrection?'Correction completion note':'Completion note' ?> <span class="required-marker" aria-hidden="true">*</span></label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" required minlength="5" aria-required="true" maxlength="1000" data-completion-note placeholder="<?= $activeCorrection?'Explain exactly what you corrected.':'Explain what was completed.' ?>"><?= htmlspecialchars((string) ($task['completion_note'] ?? ''), ENT_QUOTES, 'UTF-8') ?></textarea><p class="task-progress-note-error" data-task-note-error role="alert" hidden>Enter a completion note before saving.</p></div>
+                            <div class="task-field<?= $activeCorrection?' task-correction-response-field':'' ?>" id="task-notes-<?= $panelId ?>"><label class="task-progress-label" for="task-progress-note-<?= $panelId ?>"><?= $activeCorrection?'Correction completion note':'Completion note' ?> <span class="required-marker" aria-hidden="true">*</span></label><textarea id="task-progress-note-<?= $panelId ?>" name="completion_note" aria-describedby="task-note-help-<?= $panelId ?>" maxlength="1000" data-completion-note placeholder="<?= $activeCorrection?'Explain exactly what you corrected.':'Explain what was completed.' ?>"><?= htmlspecialchars(checklist_require_progress_note((string) ($task['completion_note'] ?? ''), 'in_progress'), ENT_QUOTES, 'UTF-8') ?></textarea><small id="task-note-help-<?= $panelId ?>">Required when completing the task; optional while work is pending or in progress.</small><p class="task-progress-note-error" data-task-note-error role="alert" hidden>Enter a completion note before completing this task.</p></div>
                             <div class="task-progress-actions"><button class="task-btn task-btn--primary" type="submit" name="action" value="update_task_progress" data-save-task><?= $canManage ? 'Save progress' : 'Save Task' ?></button></div>
                         </section>
                     <?php else: ?>
@@ -4048,15 +4051,16 @@ function showTaskCompletionError(taskId, message, incompleteItems = []) {
   if (noteInvalid) note?.focus();
 }
 
-function validateTaskProgressNote(value) {
+function validateTaskProgressNote(value, status = 'complete') {
   const note = String(value || '').trim();
-  if (note.length < 5) return { valid:false, message:'Enter a note explaining the progress or work completed.' };
+  if (status !== 'complete') return { valid:true, value:note === 'Started work using Start Task.' ? '' : note };
+  if (note.length < 5 || note === 'Started work using Start Task.') return { valid:false, message:'Enter a completion note explaining what was completed (at least 5 characters).' };
   return { valid:true, value:note };
 }
 
-function validateTaskProgressForm(form) {
-  const status = form.querySelector('[name="status"]')?.value;
-  const noteValidation = validateTaskProgressNote(form.querySelector('[name="completion_note"]')?.value);
+function validateTaskProgressForm(form, requestedStatus) {
+  const status = requestedStatus || form.querySelector('[name="status"]')?.value;
+  const noteValidation = validateTaskProgressNote(form.querySelector('[name="completion_note"]')?.value, status);
   if (!noteValidation.valid) return { valid:false, incomplete:[], message:noteValidation.message };
   if (status !== 'complete') return { valid:true, incomplete:[], note:noteValidation.value };
   const incomplete = [...form.querySelectorAll('[data-required-checklist-item] input:not(:checked)')].map((input) => input.value);
@@ -4098,7 +4102,7 @@ function initialiseTaskCompletionEnforcement() {
       if (item) item.classList.toggle('is-complete', event.target.checked);
     });
     form.querySelector('[name="completion_note"]')?.addEventListener('input', (event) => {
-      const validation = validateTaskProgressNote(event.target.value);
+      const validation = validateTaskProgressNote(event.target.value, form.querySelector('[name="status"]')?.value);
       event.target.setAttribute('aria-invalid', validation.valid ? 'false' : 'true');
       const noteError = form.querySelector('[data-task-note-error]');
       if (noteError) noteError.hidden = validation.valid;
@@ -4205,8 +4209,7 @@ function promptTaskStart(taskId, panel) {
     const body = new FormData();
     body.set('action', 'update_task_status'); body.set('task_id', taskId);
     body.set('status', 'in_progress');
-    const existingNote = panel.querySelector('[name="completion_note"]')?.value?.trim();
-    body.set('completion_note', existingNote && existingNote.length >= 5 ? existingNote : 'Started work using Start Task.');
+    // Starting work records the start time only; preserve any genuine saved note.
     try {
       const response = await fetch(document.URL, {method:'POST',body,credentials:'same-origin',headers:{Accept:'application/json','X-Requested-With':'XMLHttpRequest'}});
       const result = await response.json();
@@ -4265,7 +4268,7 @@ function initialiseTaskStatusWorkflow() {
       const completionForm = document.querySelector(`[data-task-progress-form][data-task-id="${row.dataset.taskId}"]`);
       let progressNote = '';
       if (nextStatus === 'complete') {
-        const validation = completionForm ? validateTaskProgressForm(completionForm) : { valid:true, incomplete:[] };
+        const validation = completionForm ? validateTaskProgressForm(completionForm, 'complete') : { valid:false, incomplete:[], message:'Open the task and enter a completion note before completing it.' };
         if (!validation.valid) {
           close();
           showTaskCompletionError(row.dataset.taskId, validation.message, validation.incomplete);
@@ -4275,11 +4278,7 @@ function initialiseTaskStatusWorkflow() {
         if (!await confirmTaskCompletion(requiredCount)) { close(); return; }
         progressNote = validation.note || '';
       } else {
-        const enteredNote = window.prompt('Enter a note explaining the progress or work completed:');
-        if (enteredNote === null) { close(); return; }
-        const noteValidation = validateTaskProgressNote(enteredNote);
-        if (!noteValidation.valid) { window.alert(noteValidation.message); close(); return; }
-        progressNote = noteValidation.value;
+        // New / In Progress does not require a completion note.
       }
       const triggerForSave = activeTrigger;
       close();
@@ -4290,7 +4289,7 @@ function initialiseTaskStatusWorkflow() {
         formData.append('action', 'update_task_status');
         formData.append('task_id', row.dataset.taskId);
         formData.append('status', nextStatus);
-        formData.append('completion_note', progressNote);
+        if (nextStatus === 'complete') formData.append('completion_note', progressNote);
         const response = await fetch(document.URL, { method:'POST', body:formData, credentials:'same-origin', headers:{ Accept:'application/json' } });
         const result = await response.json();
         if (!response.ok || result.success !== true) {
