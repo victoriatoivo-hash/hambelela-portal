@@ -1,4 +1,4 @@
-name: Supplier variation linking delta
+name: Supplier unit draft linking correction
 on:
   push:
     branches: [codex/supplier-variation-link]
@@ -36,7 +36,7 @@ jobs:
           CW_TEST_DSN: mysql:host=127.0.0.1;port=3306;dbname=cw_supplier_test
           CW_TEST_USER: root
         run: |
-          php tests/product-variation-cost-linking.php
+          php tests/product-unit-draft-linking.php
           php tests/product-link-count-regression.php
           node --check assets/js/retail-pricing.js
           npm install --prefix /tmp/supplier-link-test jsdom@26

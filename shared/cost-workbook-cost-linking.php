@@ -18,14 +18,39 @@ function rpl_placeholder(array $body): bool {
 /** Keep standalone sizes intact; only overlapping or unresolved sizes need reconciliation. */
 function rpl_check_internal_size($sizeId,array $sites,array $sources,array $product): void {
     $sizes=rpm_sizes($sources,$product);$internal=rpm_find($sizes,'id',(int)$sizeId);
+    $countBasis=in_array($product['costing_basis'],['count','ready_made'],true);
+    if((string)$sizeId==='0'&&$countBasis)$internal=['id'=>0,'label'=>'1 unit','base_value'=>1];
     if(!$internal)throw new DomainException('An internal pricing row needs its size confirmed before linking. Its saved values have not been changed.');
     foreach($sites as $site){
         $websiteSize=rpm_site_size($site,$sizes);
+        if($websiteSize===null&&$countBasis)$websiteSize=0;
         if($websiteSize===null)throw new DomainException('A website variation has an unresolved size. Confirm its size before linking so an internal row cannot be duplicated.');
         $matched=rpm_find($sizes,'id',$websiteSize);
+        if($websiteSize===0&&$countBasis)$matched=['base_value'=>1];
         if($matched && abs((float)$matched['base_value']-(float)$internal['base_value'])<0.000000001)
             throw new DomainException('An internal pricing row already exists for website size '.$internal['label'].'. Use Link Website Variation on that existing row first. Its price and packaging will be preserved; no duplicate will be created.');
     }
+}
+/** Reuse an explicit one-unit draft, without discarding entered price or packaging. */
+function rpl_unit_draft_body(array $source,array $target,array $site,int $pid):array {
+    if(!empty($source['id'])||!empty($target['id']))throw new DomainException('This unit has approved pricing. Use Link Website on its existing row to preserve its pricing version.');
+    $body=array_merge($source,$target);
+    $sourcePrice=$source['selling_price_inc_vat']??'';$targetPrice=$target['selling_price_inc_vat']??'';
+    if($sourcePrice!==''&&$sourcePrice!==null){
+        if($targetPrice!==''&&$targetPrice!==null&&abs((float)$sourcePrice-(float)$targetPrice)>0.000001)throw new DomainException('The supplier row and website row have different working prices. Make them agree before linking; neither price was changed.');
+        $body['selling_price_inc_vat']=$sourcePrice;
+        $body['selling_price_source']=$source['selling_price_source']??'manual';
+    }
+    $packFields=['packaging_mode','packaging_setup_id','packaging_material_id','packaging_manual_cost','packaging_confirmed'];
+    if(!empty($source['packaging_confirmed'])){
+        if(!empty($target['packaging_confirmed'])){
+            $mode=$source['packaging_mode']??'setup';
+            $identity=['setup'=>'packaging_setup_id','material'=>'packaging_material_id','manual'=>'packaging_manual_cost'][$mode]??null;
+            if($mode!==($target['packaging_mode']??'setup')||($identity&&abs((float)($source[$identity]??0)-(float)($target[$identity]??0))>0.000001))throw new DomainException('The supplier row and website row have different packaging choices. Review those choices before linking; both rows are preserved.');
+        }
+        foreach($packFields as $field)$body[$field]=$source[$field]??($field==='packaging_mode'?'setup':null);
+    }
+    return array_merge($body,['product_id'=>$pid,'size_conversion_id'=>0,'website_key'=>$site['product_id'].':'.$site['variation_id'],'website_confirmed'=>true,'website_origin'=>true,'manual_name'=>'','source_token'=>'']);
 }
 function rpl_preview(PDO $pdo,array $input,array $settings): array {
     $pid=(int)($input['product_id']??0);$parent=(int)($input['website_product_id']??0);$variation=rpl_variation($input);$s=rpm_sources($pdo);$p=rpm_find($s['products'],'id',$pid);
@@ -42,7 +67,7 @@ function rpl_preview(PDO $pdo,array $input,array $settings): array {
         if((int)$price['product_id']===$pid && !empty($price['woo_product_id']) && !$inScope)throw new DomainException('This supplier product already has saved sizes linked outside this selection. Review those links first.');
         if((int)$price['product_id']===$pid && empty($price['woo_product_id']))rpl_check_internal_size($price['size_conversion_id']??null,$sites,$s,$p);
     }
-    $drafts=[];$preservedDrafts=[];
+    $drafts=[];$preservedDrafts=[];$unitDrafts=[];$unitMoves=[];$unitArchives=[];
     foreach($pdo->query('SELECT * FROM cw_retail_sheet_drafts WHERE active=1 ORDER BY id')->fetchAll() as $draft){
         $b=json_decode($draft['payload_json'],true)?:[];
         $inScope=rpl_in_scope($parent,$variation,rpl_parent($b),(int)(explode(':',(string)($b['website_key']??''))[1]??0));
@@ -50,9 +75,24 @@ function rpl_preview(PDO $pdo,array $input,array $settings): array {
         if(!$inScope && !((int)($b['product_id']??0)===$pid && empty($b['website_key'])))continue;
         if($inScope && !empty($b['product_id']) && (int)$b['product_id']!==$pid)throw new DomainException('A website row is already linked to another supplier product. Review it before applying a match.');
         if(empty($b['website_key'])&&!rpl_placeholder($b)){
+            if((string)($b['size_conversion_id']??'')==='0'&&in_array($p['costing_basis'],['count','ready_made'],true)&&empty($b['id'])&&count($sites)===1){
+                $owner=(int)$draft['owner_id'];
+                if(isset($unitDrafts[$owner]))throw new DomainException('There is more than one saved internal unit row. Review those rows before linking; no values were changed.');
+                $unitDrafts[$owner]=$draft;continue;
+            }
             rpl_check_internal_size($b['size_conversion_id']??null,$sites,$s,$p);
             $preservedDrafts[]=$draft;continue; // Never archive or rewrite an entered standalone row.
         }
+        $drafts[]=$draft;
+    }
+    foreach($unitDrafts as $owner=>$draft){
+        $target=[];$targetId=null;$key=$sites[0]['product_id'].':'.$sites[0]['variation_id'];
+        foreach($drafts as $candidate){$cb=json_decode($candidate['payload_json'],true)?:[];if((int)$candidate['owner_id']===$owner&&($cb['website_key']??'')===$key){
+            if($targetId!==null)throw new DomainException('More than one website draft exists. Review the duplicate drafts before linking.');
+            $target=$cb;$targetId=(int)$candidate['id'];
+        }}
+        $unitMoves[(int)$draft['id']]=rpl_unit_draft_body(json_decode($draft['payload_json'],true)?:[],$target,$sites[0],$pid);
+        if($targetId!==null)$unitArchives[$targetId]=true;
         $drafts[]=$draft;
     }
     $rows=[];$savedRows=rpm_rows($pdo,$s,$settings);unset($s['unlinked'][$parent]);foreach($sites as $site)unset($s['unlinked_variations'][$parent.':'.$site['variation_id']]); // Explicit preview only; save still requires its token and confirmation.
@@ -63,13 +103,15 @@ function rpl_preview(PDO $pdo,array $input,array $settings): array {
         $body=array_merge($body,$site['retained_body']??[],['product_id'=>$pid,'website_key'=>$key]);
         foreach($savedRows as $saved)if(!empty($saved['saved'])&&($saved['website_key']??'')===$key)$body=array_merge($body,$saved);
         foreach($drafts as $draft){$b=json_decode($draft['payload_json'],true)?:[];if(($b['website_key']??'')===$key && (int)$draft['owner_id']===rp_user()['id'])$body=array_merge($b,['product_id'=>$pid,'size_conversion_id'=>($b['size_conversion_id']??'')!==''?$b['size_conversion_id']:$size]);}
+        foreach($unitDrafts as $owner=>$draft)if($owner===rp_user()['id'])$body=array_merge($body,$unitMoves[(int)$draft['id']]);
         $row=rps_row($body,$s,$settings);
         $rows[]=['website_key'=>$key,'name'=>$site['product_name'],'variation'=>$site['variation_name'],'size'=>$row['size_label']??'Size Required','contents_cost'=>$row['product_cost_per_unit']??null,'working_price'=>$body['selling_price_inc_vat']??null,'packaging_missing'=>($row['packaging_cost_ex_vat']??null)===null,'issues'=>$row['issues']??[]];
     }
-    $token=hash('sha256',json_encode([$variation,$p,$sites,$s['sizes'],$s['setups'],$s['materials'],$relevantPrices,$drafts,$preservedDrafts,$savedRows,$settings]));
+    $token=hash('sha256',json_encode([$variation,$p,$sites,$s['sizes'],$s['setups'],$s['materials'],$relevantPrices,$drafts,$preservedDrafts,$unitMoves,$savedRows,$settings]));
     $websiteText=$sites[0]['product_name'].' '.($sites[0]['category']??'');$supplierText=$p['product_name'].' '.($p['product_category']??'');
     $warning=(bool)preg_match('/fragrance|parfum|perfume/i',$websiteText)!==(bool)preg_match('/fragrance|parfum|perfume/i',$supplierText)?'Possible product-type mismatch: fragrance and essential oil are not interchangeable. Check the product and grade carefully.':'';
-    return ['ok'=>true,'product_id'=>$pid,'website_product_id'=>$parent,'website_variation_id'=>$variation,'supplier_product'=>$p['product_name'],'short_code'=>$p['short_code'],'supplier'=>$p['supplier_name'],'website_product'=>$sites[0]['product_name'],'cost_per_base'=>$p['landed_cost_per_base'],'base_unit'=>$p['base_unit'],'rows'=>$rows,'token'=>$token,'drafts'=>$drafts,'warning'=>$warning];
+    if($unitMoves)$warning=trim($warning.' The existing 1-unit row will be reused. Its entered price and confirmed packaging are preserved.');
+    return ['ok'=>true,'product_id'=>$pid,'website_product_id'=>$parent,'website_variation_id'=>$variation,'supplier_product'=>$p['product_name'],'short_code'=>$p['short_code'],'supplier'=>$p['supplier_name'],'website_product'=>$sites[0]['product_name'],'cost_per_base'=>$p['landed_cost_per_base'],'base_unit'=>$p['base_unit'],'rows'=>$rows,'token'=>$token,'drafts'=>$drafts,'unit_moves'=>$unitMoves,'unit_archives'=>$unitArchives,'warning'=>$warning];
 }
 
 /** Audited undo of a whole-product match; purchase and price versions are immutable. */
@@ -126,6 +168,8 @@ function rpl_save(PDO $pdo,array $input,array $settings): array {
         $sites=rpm_sources($pdo);$actor=rp_user();
         foreach($plan['drafts'] as $draft){
             $b=json_decode($draft['payload_json'],true)?:[];$archive=empty($b['website_key']);
+            if(isset($plan['unit_moves'][(int)$draft['id']])){$b=$plan['unit_moves'][(int)$draft['id']];$archive=false;}
+            if(isset($plan['unit_archives'][(int)$draft['id']]))$archive=true;
             if(!$archive){$b['product_id']=$pid;$b['website_confirmed']=true;$b['source_token']='';
                 if(($b['size_conversion_id']??'')===''){foreach($sites['website'] as $site)if($site['product_id'].':'.$site['variation_id']===$b['website_key'])$b['size_conversion_id']=in_array($before['costing_basis'],['count','ready_made'],true)?0:rpm_site_size($site,rpm_sizes($sites,$before));}
             }

@@ -2,11 +2,11 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, ssl, socket, re
 from pathlib import Path
 
-BASELINE = 'f749cc77578342071b18d3e15c7cfd807f000daa'
+BASELINE = '0632e20a9463650b350dd3bbb71c98013f5af9a9'
 BASELINES = {}
-FILES = ['shared/cost-workbook-cost-linking.php', 'shared/cost-workbook-pricing-master.php', 'shared/cost-workbook-pricing-discovery.php', 'shared/cost-workbook-pricing-autosave.php', 'assets/js/retail-pricing.js']
+FILES = ['shared/cost-workbook-cost-linking.php']
 NEW_FILES = []
-DEPENDENCIES = []
+DEPENDENCIES = ['shared/cost-workbook-pricing-master.php', 'shared/cost-workbook-pricing-discovery.php', 'shared/cost-workbook-pricing-autosave.php']
 DEPENDENCY_HASHES = {}
 REPORT = 'supplier-variation-link-report.json'
 BACKUP = 'supplier-variation-link-backup.zip'
