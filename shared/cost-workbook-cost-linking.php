@@ -105,7 +105,7 @@ function rpl_preview(PDO $pdo,array $input,array $settings): array {
         foreach($drafts as $draft){$b=json_decode($draft['payload_json'],true)?:[];if(($b['website_key']??'')===$key && (int)$draft['owner_id']===rp_user()['id'])$body=array_merge($b,['product_id'=>$pid,'size_conversion_id'=>($b['size_conversion_id']??'')!==''?$b['size_conversion_id']:$size]);}
         foreach($unitDrafts as $owner=>$draft)if($owner===rp_user()['id'])$body=array_merge($body,$unitMoves[(int)$draft['id']]);
         $row=rps_row($body,$s,$settings);
-        $rows[]=['website_key'=>$key,'name'=>$site['product_name'],'variation'=>$site['variation_name'],'size'=>$row['size_label']??'Size Required','contents_cost'=>$row['product_cost_per_unit']??null,'working_price'=>$body['selling_price_inc_vat']??null,'packaging_missing'=>($row['packaging_cost_ex_vat']??null)===null,'issues'=>$row['issues']??[]];
+        $rows[]=['website_key'=>$key,'name'=>$site['product_name'],'variation'=>$site['variation_name'],'size'=>$row['size_label']??'Size Required','contents_cost'=>$row['product_cost_per_unit']??null,'working_price'=>$row['selling_price_inc_vat']??null,'packaging_missing'=>($row['packaging_cost_ex_vat']??null)===null,'issues'=>$row['issues']??[]];
     }
     $token=hash('sha256',json_encode([$variation,$p,$sites,$s['sizes'],$s['setups'],$s['materials'],$relevantPrices,$drafts,$preservedDrafts,$unitMoves,$savedRows,$settings]));
     $websiteText=$sites[0]['product_name'].' '.($sites[0]['category']??'');$supplierText=$p['product_name'].' '.($p['product_category']??'');

@@ -6,12 +6,13 @@ $unitSource=ins($pdo,'cw_cost_product_sources',['product_id'=>$unitPid,'source_t
 ins($pdo,'cw_landed_product_costs',['product_id'=>$unitPid,'product_source_id'=>$unitSource,'costing_basis'=>'count','base_unit'=>'unit','base_quantity'=>1,'supplier_cost_used'=>43.6412,'supplier_cost_per_base'=>43.6412,'landed_cost_per_base'=>43.6412,'cost_date'=>'2026-10-01','status_key'=>'complete','calculation_hash'=>hash('sha256','unitdraftfixture')]);
 $unitParent=889001;
 ins($pdo,'cw_product_snapshots',['product_id'=>$unitParent,'variation_id'=>0,'product_name'=>'Silicone Massage Bar Mold fixture','variation_name'=>'','product_type'=>'simple','sync_batch_id'=>$batch,'active_price_inc_vat'=>120,'stock_quantity'=>5]);
-$unitBody=['product_id'=>$unitPid,'size_conversion_id'=>0,'selling_price_inc_vat'=>'','packaging_mode'=>'none','packaging_confirmed'=>true,'effective_date'=>rpm_today()];
+$unitBody=['product_id'=>$unitPid,'size_conversion_id'=>0,'selling_price_source'=>'manual','selling_price_inc_vat'=>'','packaging_mode'=>'none','packaging_confirmed'=>true,'effective_date'=>rpm_today()];
 $unitSaved=rps_save($pdo,['row_key'=>'existing-unit-draft','revision'=>0,'mutation_id'=>bin2hex(random_bytes(16)),'body'=>$unitBody],$settings);
 $unitInput=['product_id'=>$unitPid,'website_product_id'=>$unitParent];
 $plan=rpl_preview($pdo,$unitInput,$settings);
 check(count($plan['rows'])===1&&!$plan['rows'][0]['packaging_missing'],'Valid 1 unit draft previews and retains no packaging');
 near($plan['rows'][0]['contents_cost'],43.6412,'Unit cost precision');
+check($plan['rows'][0]['working_price']===null,'An intentionally blank working price is not displayed as zero');
 // Missing size remains genuinely unresolved; no guesses for incomplete or weight rows.
 $unitProduct=rpm_find(rpm_sources($pdo)['products'],'id',$unitPid);
 blocked(fn()=>rpl_check_internal_size(null,[],rpm_sources($pdo),$unitProduct),'Blank size inferred as 1 unit');
