@@ -268,7 +268,8 @@ function openCostLink(row={}){
  $$('[data-link-close]',overlay).forEach(b=>b.onclick=close);overlay.addEventListener('click',e=>{if(e.target===overlay)close()});
  overlay.addEventListener('keydown',e=>{if(e.defaultPrevented)return;if(e.key==='Escape'){e.stopPropagation();if($('.portal-select-popup.is-open')){window.PortalCustomSelect?.close(true);return}close()}if(e.key==='Tab'){const nodes=$$('button:not([disabled]),input:not([disabled]),select:not([disabled])',form).filter(n=>n.tabIndex>=0&&n.getClientRects().length),first=nodes[0],last=nodes.at(-1);if(e.shiftKey&&document.activeElement===first){e.preventDefault();last?.focus()}else if(!e.shiftKey&&document.activeElement===last){e.preventDefault();first?.focus()}}});
  choices();form.elements.website_product_id.value=String(row.website_key?.split(':')[0]||'');form.elements.product_id.value=String(row.product_id||'');choices();
- variationChoices(row.website_key?.split(':')[1]??'');themeSelects(form);
+ const existingLink=data.products.find(p=>num(p.id)===num(row.product_id)&&num(p.woo_product_id)===num(form.elements.website_product_id.value));
+ variationChoices(existingLink?String(num(existingLink.woo_variation_id)):(row.website_key?.split(':')[1]??''));themeSelects(form);
  updateRemoval();['website_product_id','product_id','website_variation_id'].forEach(k=>form.elements[k].onchange=()=>{invalidate();choices();if(k==='website_product_id')variationChoices('');updateRemoval()});
  const selectedInput=()=>({product_id:num(form.elements.product_id.value),website_product_id:num(form.elements.website_product_id.value),website_variation_id:form.elements.website_variation_id.value});
  $('[data-unlink-preview]',form).onclick=async()=>{

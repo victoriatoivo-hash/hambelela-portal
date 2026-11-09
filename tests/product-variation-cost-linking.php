@@ -29,6 +29,7 @@ $catalog=rpm_sources($pdo);$rows=rpd_merge(rpd_website_rows(rpm_rows($pdo,$catal
 check(count($shapes)===4,'Exactly four website shape rows');
 check(!array_filter($rows,fn($r)=>in_array((int)($r['product_id']??0),$shapeProducts,true)&&empty($r['website_key'])),'No duplicate standalone unit row');
 foreach($shapes as $r){$vid=(int)explode(':',$r['website_key'])[1];check((int)$r['product_id']===$shapeProducts[$vid],'Independent supplier attribution');near($r['product_cost_per_unit'],40+($vid-100)*2.5,'Correct individual unit cost');near($r['selling_price_inc_vat'],150+$vid,'Working prices preserved');check($r['size_label']===$shapeIds[$vid],'Shape name displayed instead of indistinguishable unit');}
+blocked(fn()=>rpm_preview($catalog,$settings,['product_id'=>$shapeProducts[104],'website_key'=>$shapeParent.':101','website_confirmed'=>true,'size_conversion_id'=>0]),'Oval cost used on square through alternate editor');
 check($snapshot===$pdo->query('SELECT * FROM cw_product_snapshots ORDER BY id')->fetchAll(),'Website price and stock unchanged');
 check($versions===$pdo->query('SELECT * FROM cw_retail_price_versions ORDER BY id')->fetchAll(),'Historical financial versions unchanged');
 $staleBody=['website_origin'=>true,'manual_basis'=>'count','product_id'=>0,'size_conversion_id'=>0,'website_key'=>$shapeParent.':104','website_confirmed'=>true,'selling_price_inc_vat'=>254];
