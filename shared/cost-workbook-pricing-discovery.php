@@ -5,9 +5,11 @@ declare(strict_types=1);
 function rpd_match(array $site,array $sources):?array {
     $explicit=[];foreach($sources['products'] as $p)if(!empty($p['woo_product_id'])&&(int)$p['woo_product_id']===(int)$site['product_id']&&(empty($p['woo_variation_id'])||(int)$p['woo_variation_id']===(int)$site['variation_id']))$explicit[]=$p;
     if($explicit)return count($explicit)===1?$explicit[0]:null;
-    if(!empty($sources['unlinked'][(int)$site['product_id']]))return null;
+    if(!empty($sources['unlinked'][(int)$site['product_id']])||!empty($sources['unlinked_variations'][$site['product_id'].':'.$site['variation_id']]))return null;
     $matches=[];$sku=trim((string)($site['sku']??''));
     foreach($sources['products'] as $p){
+        // An explicit identity must never leak to a sibling via a shared supplier SKU.
+        if(!empty($p['woo_product_id']))continue;
         $exactVariation=!empty($p['woo_variation_id'])&&(int)$p['woo_variation_id']===(int)$site['variation_id']&&(int)($p['woo_product_id']??0)===(int)$site['product_id'];
         $parent=!empty($p['woo_product_id'])&&(int)$p['woo_product_id']===(int)$site['product_id']&&empty($p['woo_variation_id']);
         $code=$sku!==''&&in_array(strtolower($sku),array_map('strtolower',array_filter(array_merge([$p['woo_sku']??'',$p['short_code']??''],$p['supplier_codes']??[]))),true);

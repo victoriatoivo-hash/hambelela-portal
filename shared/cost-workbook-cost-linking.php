@@ -3,6 +3,15 @@ declare(strict_types=1);
 
 /** Explicit, shared parent-product identity link. Never sends a WooCommerce write. */
 function rpl_parent(array $body): int {return (int)explode(':',(string)($body['website_key']??''))[0];}
+/** Zero retains the existing all-sizes operation; a positive ID selects one variation. */
+function rpl_variation(array $input): int {
+    $value=$input['website_variation_id']??0;
+    if(!preg_match('/^\d+$/',(string)$value))throw new DomainException('Choose a valid website variation.');
+    return (int)$value;
+}
+function rpl_in_scope(int $parent,int $variation,int $candidateParent,int $candidateVariation):bool {
+    return $candidateParent===$parent && (!$variation || $candidateVariation===$variation);
+}
 function rpl_placeholder(array $body): bool {
     return empty($body['id']) && empty($body['website_key']) && empty($body['manual_name']) && empty($body['packaging_confirmed']) && ($body['size_conversion_id']??'')==='' && ($body['selling_price_inc_vat']??'')==='' && empty($body['packaging_material_id']) && empty($body['packaging_setup_id']) && ($body['packaging_manual_cost']??'')==='';
 }
@@ -19,32 +28,34 @@ function rpl_check_internal_size($sizeId,array $sites,array $sources,array $prod
     }
 }
 function rpl_preview(PDO $pdo,array $input,array $settings): array {
-    $pid=(int)($input['product_id']??0);$parent=(int)($input['website_product_id']??0);$s=rpm_sources($pdo);$p=rpm_find($s['products'],'id',$pid);
+    $pid=(int)($input['product_id']??0);$parent=(int)($input['website_product_id']??0);$variation=rpl_variation($input);$s=rpm_sources($pdo);$p=rpm_find($s['products'],'id',$pid);
     if(!$p||!$p['landed_cost_id'])throw new DomainException('Choose a supplier product with an approved cost source.');
-    $sites=array_values(array_filter($s['website'],function($w)use($parent){return (int)$w['product_id']===$parent;}));
+    $sites=array_values(array_filter($s['website'],function($w)use($parent,$variation){return rpl_in_scope($parent,$variation,(int)$w['product_id'],(int)$w['variation_id']);}));
     if(!$parent||!$sites)throw new DomainException('Choose a product from the latest website catalogue.');
-    if(!empty($p['woo_product_id']) && ((int)$p['woo_product_id']!==$parent || !empty($p['woo_variation_id'])))throw new DomainException('This supplier product already has a different website identity. It cannot be reassigned through ordinary matching.');
-    foreach($s['products'] as $other)if((int)$other['id']!==$pid && (int)($other['woo_product_id']??0)===$parent)throw new DomainException('This website product already uses another supplier-cost product. Review that existing link instead of merging histories.');
+    if(!empty($p['woo_product_id']) && ((int)$p['woo_product_id']!==$parent || (int)($p['woo_variation_id']??0)!==$variation))throw new DomainException('This supplier product already has a different website identity. Remove its current link before changing the linked variation or scope.');
+    foreach($s['products'] as $other)if((int)$other['id']!==$pid && (int)($other['woo_product_id']??0)===$parent && (!$variation || empty($other['woo_variation_id']) || (int)$other['woo_variation_id']===$variation))throw new DomainException('The selected website variation or product already uses another supplier cost. Review its existing link first.');
     $prices=$pdo->query('SELECT * FROM cw_retail_prices WHERE active=1 ORDER BY id')->fetchAll();$relevantPrices=[];
     foreach($prices as $price){
-        if((int)$price['woo_product_id']===$parent && (int)$price['product_id']!==$pid)throw new DomainException('A website size already has saved pricing for another cost product. Its history is protected; reconcile that link first.');
-        if((int)$price['product_id']===$pid || (int)$price['woo_product_id']===$parent)$relevantPrices[]=$price;
-        if((int)$price['product_id']===$pid && !empty($price['woo_product_id']) && (int)$price['woo_product_id']!==$parent)throw new DomainException('This supplier product already has saved sizes linked to another website product. Review those links first.');
+        $inScope=rpl_in_scope($parent,$variation,(int)$price['woo_product_id'],(int)($price['woo_variation_id']??0));
+        if($inScope && (int)$price['product_id']!==$pid)throw new DomainException('A website size already has saved pricing for another cost product. Its history is protected; reconcile that link first.');
+        if((int)$price['product_id']===$pid || $inScope)$relevantPrices[]=$price;
+        if((int)$price['product_id']===$pid && !empty($price['woo_product_id']) && !$inScope)throw new DomainException('This supplier product already has saved sizes linked outside this selection. Review those links first.');
         if((int)$price['product_id']===$pid && empty($price['woo_product_id']))rpl_check_internal_size($price['size_conversion_id']??null,$sites,$s,$p);
     }
     $drafts=[];$preservedDrafts=[];
     foreach($pdo->query('SELECT * FROM cw_retail_sheet_drafts WHERE active=1 ORDER BY id')->fetchAll() as $draft){
         $b=json_decode($draft['payload_json'],true)?:[];
-        if((int)($b['product_id']??0)===$pid && !empty($b['website_key']) && rpl_parent($b)!==$parent)throw new DomainException('An existing supplier row is linked to another website product. Its values and history must be reviewed first.');
-        if(rpl_parent($b)!==$parent && !((int)($b['product_id']??0)===$pid && empty($b['website_key'])))continue;
-        if(rpl_parent($b)===$parent && !empty($b['product_id']) && (int)$b['product_id']!==$pid)throw new DomainException('A website row is already linked to another supplier product. Review it before applying a shared match.');
+        $inScope=rpl_in_scope($parent,$variation,rpl_parent($b),(int)(explode(':',(string)($b['website_key']??''))[1]??0));
+        if((int)($b['product_id']??0)===$pid && !empty($b['website_key']) && !$inScope)throw new DomainException('An existing supplier row is linked outside this selection. Its values and history must be reviewed first.');
+        if(!$inScope && !((int)($b['product_id']??0)===$pid && empty($b['website_key'])))continue;
+        if($inScope && !empty($b['product_id']) && (int)$b['product_id']!==$pid)throw new DomainException('A website row is already linked to another supplier product. Review it before applying a match.');
         if(empty($b['website_key'])&&!rpl_placeholder($b)){
             rpl_check_internal_size($b['size_conversion_id']??null,$sites,$s,$p);
             $preservedDrafts[]=$draft;continue; // Never archive or rewrite an entered standalone row.
         }
         $drafts[]=$draft;
     }
-    $rows=[];$savedRows=rpm_rows($pdo,$s,$settings);unset($s['unlinked'][$parent]); // Explicit preview only; save still requires its token and confirmation.
+    $rows=[];$savedRows=rpm_rows($pdo,$s,$settings);unset($s['unlinked'][$parent]);foreach($sites as $site)unset($s['unlinked_variations'][$parent.':'.$site['variation_id']]); // Explicit preview only; save still requires its token and confirmation.
     foreach($sites as $site){
         $key=$site['product_id'].':'.$site['variation_id'];$size=rpm_site_size($site,rpm_sizes($s,$p));
         if($size===null&&in_array($p['costing_basis'],['count','ready_made'],true))$size=0;
@@ -55,18 +66,18 @@ function rpl_preview(PDO $pdo,array $input,array $settings): array {
         $row=rps_row($body,$s,$settings);
         $rows[]=['website_key'=>$key,'name'=>$site['product_name'],'variation'=>$site['variation_name'],'size'=>$row['size_label']??'Size Required','contents_cost'=>$row['product_cost_per_unit']??null,'working_price'=>$body['selling_price_inc_vat']??null,'packaging_missing'=>($row['packaging_cost_ex_vat']??null)===null,'issues'=>$row['issues']??[]];
     }
-    $token=hash('sha256',json_encode([$p,$sites,$s['sizes'],$s['setups'],$s['materials'],$relevantPrices,$drafts,$preservedDrafts,$savedRows,$settings]));
+    $token=hash('sha256',json_encode([$variation,$p,$sites,$s['sizes'],$s['setups'],$s['materials'],$relevantPrices,$drafts,$preservedDrafts,$savedRows,$settings]));
     $websiteText=$sites[0]['product_name'].' '.($sites[0]['category']??'');$supplierText=$p['product_name'].' '.($p['product_category']??'');
     $warning=(bool)preg_match('/fragrance|parfum|perfume/i',$websiteText)!==(bool)preg_match('/fragrance|parfum|perfume/i',$supplierText)?'Possible product-type mismatch: fragrance and essential oil are not interchangeable. Check the product and grade carefully.':'';
-    return ['ok'=>true,'product_id'=>$pid,'website_product_id'=>$parent,'supplier_product'=>$p['product_name'],'short_code'=>$p['short_code'],'supplier'=>$p['supplier_name'],'website_product'=>$sites[0]['product_name'],'cost_per_base'=>$p['landed_cost_per_base'],'base_unit'=>$p['base_unit'],'rows'=>$rows,'token'=>$token,'drafts'=>$drafts,'warning'=>$warning];
+    return ['ok'=>true,'product_id'=>$pid,'website_product_id'=>$parent,'website_variation_id'=>$variation,'supplier_product'=>$p['product_name'],'short_code'=>$p['short_code'],'supplier'=>$p['supplier_name'],'website_product'=>$sites[0]['product_name'],'cost_per_base'=>$p['landed_cost_per_base'],'base_unit'=>$p['base_unit'],'rows'=>$rows,'token'=>$token,'drafts'=>$drafts,'warning'=>$warning];
 }
 
 /** Audited undo of a whole-product match; purchase and price versions are immutable. */
 function rpl_unlink_preview(PDO $pdo,array $input,array $settings):array {
-    $pid=(int)($input['product_id']??0);$parent=(int)($input['website_product_id']??0);$s=rpm_sources($pdo);$p=rpm_find($s['products'],'id',$pid);
-    if(!$p||!$parent||(int)($p['woo_product_id']??0)!==$parent||!empty($p['woo_variation_id']))throw new DomainException('Choose the currently confirmed whole-product supplier link. Reload if it has changed.');
-    $sites=array_values(array_filter($s['website'],function($w)use($parent){return (int)$w['product_id']===$parent;}));
-    $q=$pdo->prepare('SELECT * FROM cw_retail_prices WHERE active=1 AND woo_product_id=? ORDER BY id');$q->execute([$parent]);$prices=$q->fetchAll();$bodies=[];
+    $pid=(int)($input['product_id']??0);$parent=(int)($input['website_product_id']??0);$variation=rpl_variation($input);$s=rpm_sources($pdo);$p=rpm_find($s['products'],'id',$pid);
+    if(!$p||!$parent||(int)($p['woo_product_id']??0)!==$parent||(int)($p['woo_variation_id']??0)!==$variation)throw new DomainException('Choose the currently confirmed supplier link and variation. Reload if it has changed.');
+    $sites=array_values(array_filter($s['website'],function($w)use($parent,$variation){return rpl_in_scope($parent,$variation,(int)$w['product_id'],(int)$w['variation_id']);}));
+    $q=$pdo->prepare('SELECT * FROM cw_retail_prices WHERE active=1 AND woo_product_id=? AND (?=0 OR woo_variation_id=?) ORDER BY id');$q->execute([$parent,$variation,$variation]);$prices=$q->fetchAll();$bodies=[];
     foreach($prices as $price){
         if((int)$price['product_id']!==$pid)throw new DomainException('This website product has conflicting saved supplier identities. No records changed; review the conflicting prices first.');
         $q=$pdo->prepare('SELECT * FROM cw_retail_price_versions WHERE retail_price_id=? AND version_no=?');$q->execute([$price['id'],$price['current_version']]);$v=$q->fetch();
@@ -74,10 +85,10 @@ function rpl_unlink_preview(PDO $pdo,array $input,array $settings):array {
         $source=json_decode($v['source_json'],true)?:[];$key=$parent.':'.($price['woo_variation_id']??0);
         $bodies[$key]=rps_body(array_merge($source,$price,['id'=>0,'version'=>0,'product_id'=>0,'manual_basis'=>$p['costing_basis'],'website_origin'=>true,'website_key'=>$key,'selling_price_inc_vat'=>$v['selling_price_inc_vat'],'source_token'=>'']));
     }
-    $drafts=[];foreach($pdo->query('SELECT * FROM cw_retail_sheet_drafts WHERE active=1 ORDER BY id')->fetchAll() as $draft){$b=json_decode($draft['payload_json'],true)?:[];if(rpl_parent($b)===$parent){if(!empty($b['product_id'])&&(int)$b['product_id']!==$pid)throw new DomainException('A draft uses another supplier identity. Resolve the conflicting draft first.');$drafts[]=$draft;}}
+    $drafts=[];foreach($pdo->query('SELECT * FROM cw_retail_sheet_drafts WHERE active=1 ORDER BY id')->fetchAll() as $draft){$b=json_decode($draft['payload_json'],true)?:[];if(rpl_in_scope($parent,$variation,rpl_parent($b),(int)(explode(':',(string)($b['website_key']??''))[1]??0))){if(!empty($b['product_id'])&&(int)$b['product_id']!==$pid)throw new DomainException('A draft uses another supplier identity. Resolve the conflicting draft first.');$drafts[]=$draft;}}
     $rows=[];foreach($sites as $site){$key=$parent.':'.$site['variation_id'];$body=$bodies[$key]??($site['retained_body']??[]);foreach($drafts as $draft){$b=json_decode($draft['payload_json'],true)?:[];if(($b['website_key']??'')===$key&&(int)$draft['owner_id']===rp_user()['id'])$body=$b;}$rows[]=['website_key'=>$key,'variation'=>$site['variation_name'],'working_price'=>$body['selling_price_inc_vat']??$site['active_price_inc_vat']];}
     $token=hash('sha256',json_encode([$p,$sites,$prices,$bodies,$drafts]));
-    return ['ok'=>true,'product_id'=>$pid,'website_product_id'=>$parent,'supplier_product'=>$p['product_name'],'website_product'=>$sites[0]['product_name']??('Website product #'.$parent),'rows'=>$rows,'token'=>$token,'product'=>$p,'prices'=>$prices,'drafts'=>$drafts,'retained_bodies'=>$bodies];
+    return ['ok'=>true,'product_id'=>$pid,'website_product_id'=>$parent,'website_variation_id'=>$variation,'supplier_product'=>$p['product_name'],'website_product'=>$sites[0]['product_name']??('Website product #'.$parent),'rows'=>$rows,'token'=>$token,'product'=>$p,'prices'=>$prices,'drafts'=>$drafts,'retained_bodies'=>$bodies];
 }
 function rpl_unlink(PDO $pdo,array $input,array $settings):array {
     if(empty($input['confirmed']))throw new DomainException('Confirm removal after reviewing the affected website sizes.');
@@ -98,7 +109,7 @@ function rpl_unlink(PDO $pdo,array $input,array $settings):array {
             $event=['action'=>'supplier_cost_unlinked','at'=>gmdate('c'),'actor_id'=>$actor['id'],'reason'=>$reason,'before'=>$before,'body'=>$body];
             $pdo->prepare("UPDATE cw_retail_sheet_drafts SET payload_json=?,pricing_id=NULL,state_key='draft',note_text='Supplier Cost Missing — select the correct supplier link.',revision=revision+1,mutation_id='',mutation_hash='',response_json=NULL,history_json=JSON_ARRAY_APPEND(COALESCE(history_json,'[]'),'$',JSON_EXTRACT(?,'$')) WHERE id=?")->execute([json_encode($body),json_encode($event),$draft['id']]);
         }
-        cw_supplier_cost_audit($pdo,'cost_product',$pid,'website_cost_unlinked',['product'=>$plan['product'],'prices'=>$plan['prices']],['website_product_id'=>$parent,'reason'=>$reason,'retained_bodies'=>$plan['retained_bodies'],'variation_keys'=>array_column($plan['rows'],'website_key')]);
+        cw_supplier_cost_audit($pdo,'cost_product',$pid,'website_cost_unlinked',['product'=>$plan['product'],'prices'=>$plan['prices']],['website_product_id'=>$parent,'website_variation_id'=>$plan['website_variation_id'],'reason'=>$reason,'retained_bodies'=>$plan['retained_bodies'],'variation_keys'=>array_column($plan['rows'],'website_key')]);
         $pdo->commit();return ['ok'=>true,'message'=>'Supplier link removed. Working prices and history are preserved. Select the correct supplier link to restore current costs and margins.'];
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }
@@ -111,17 +122,17 @@ function rpl_save(PDO $pdo,array $input,array $settings): array {
         $plan=rpl_preview($pdo,$input,$settings);
         if(!hash_equals($plan['token'],(string)($input['token']??'')))throw new DomainException('The catalogue, pricing or cost source changed. Preview the match again before confirming.');
         $pid=$plan['product_id'];$parent=$plan['website_product_id'];
-        $pdo->prepare('UPDATE cw_cost_products SET woo_product_id=?,woo_variation_id=0 WHERE id=?')->execute([$parent,$pid]);
+        $pdo->prepare('UPDATE cw_cost_products SET woo_product_id=?,woo_variation_id=? WHERE id=?')->execute([$parent,$plan['website_variation_id'],$pid]);
         $sites=rpm_sources($pdo);$actor=rp_user();
         foreach($plan['drafts'] as $draft){
             $b=json_decode($draft['payload_json'],true)?:[];$archive=empty($b['website_key']);
             if(!$archive){$b['product_id']=$pid;$b['website_confirmed']=true;$b['source_token']='';
-                if(($b['size_conversion_id']??'')===''){foreach($sites['website'] as $site)if($site['product_id'].':'.$site['variation_id']===$b['website_key'])$b['size_conversion_id']=rpm_site_size($site,rpm_sizes($sites,$before));}
+                if(($b['size_conversion_id']??'')===''){foreach($sites['website'] as $site)if($site['product_id'].':'.$site['variation_id']===$b['website_key'])$b['size_conversion_id']=in_array($before['costing_basis'],['count','ready_made'],true)?0:rpm_site_size($site,rpm_sizes($sites,$before));}
             }
             $event=['action'=>'supplier_cost_linked','at'=>gmdate('c'),'actor_id'=>$actor['id'],'before'=>json_decode($draft['payload_json'],true),'body'=>$b,'archived_placeholder'=>$archive];
             $pdo->prepare("UPDATE cw_retail_sheet_drafts SET payload_json=?,revision=revision+1,active=?,mutation_id='',mutation_hash='',response_json=NULL,history_json=JSON_ARRAY_APPEND(COALESCE(history_json,'[]'),'$',JSON_EXTRACT(?,'$')) WHERE id=?")->execute([json_encode($b),$archive?0:1,json_encode($event),$draft['id']]);
         }
-        cw_supplier_cost_audit($pdo,'cost_product',$pid,'website_cost_linked',$before,['website_product_id'=>$parent,'variation_keys'=>array_column($plan['rows'],'website_key')]);
-        $pdo->commit();return ['ok'=>true,'message'=>'Supplier cost linked to the website product and its sizes. Website prices and historical pricing were not changed.'];
+        cw_supplier_cost_audit($pdo,'cost_product',$pid,'website_cost_linked',$before,['website_product_id'=>$parent,'website_variation_id'=>$plan['website_variation_id'],'variation_keys'=>array_column($plan['rows'],'website_key')]);
+        $pdo->commit();return ['ok'=>true,'message'=>$plan['website_variation_id']?'Supplier cost linked to the selected variation only. Other variations, website prices and history were not changed.':'Supplier cost linked to the website product and its sizes. Website prices and historical pricing were not changed.'];
     }catch(Throwable $e){if($pdo->inTransaction())$pdo->rollBack();throw $e;}
 }

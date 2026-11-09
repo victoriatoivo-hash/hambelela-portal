@@ -16,13 +16,13 @@ function rpm_sources(PDO $pdo):array {
     if($batch){$q=$pdo->prepare("SELECT * FROM cw_product_snapshots WHERE sync_batch_id=? AND (variation_id>0 OR product_type<>'variable') ORDER BY product_name,variation_id");$q->execute([$batch]);$website=$q->fetchAll();$q=$pdo->prepare('SELECT completed_at FROM cw_sync_batches WHERE id=?');$q->execute([$batch]);$lastSync=$q->fetchColumn();}
     // Explicit removals outrank SKU suggestions. Keep confirmed working values available
     // to every owner without rewriting the historical financial versions.
-    $unlinked=[];$retained=[];
+    $unlinked=[];$unlinked_variations=[];$retained=[];
     foreach($pdo->query("SELECT after_json FROM cw_cost_audit_events WHERE entity_type='cost_product' AND action_key='website_cost_unlinked' ORDER BY id")->fetchAll() as $event){
         $a=json_decode($event['after_json'],true)?:[];$parent=(int)($a['website_product_id']??0);
-        if($parent){$unlinked[$parent]=true;foreach(($a['retained_bodies']??[]) as $key=>$body)$retained[$key]=$body;}
+        if($parent){if(!empty($a['website_variation_id']))$unlinked_variations[$parent.':'.$a['website_variation_id']]=true;else $unlinked[$parent]=true;foreach(($a['retained_bodies']??[]) as $key=>$body)$retained[$key]=$body;}
     }
     foreach($website as &$site){$key=$site['product_id'].':'.$site['variation_id'];if(isset($retained[$key]))$site['retained_body']=$retained[$key];}unset($site);
-    return compact('products','sizes','setups','materials','website','batch','lastSync','unlinked');
+    return compact('products','sizes','setups','materials','website','batch','lastSync','unlinked','unlinked_variations');
 }
 function rpm_find(array $rows,string $key,$value):?array{foreach($rows as $row)if((string)($row[$key]??'')===(string)$value)return $row;return null;}
 function rpm_sizes(array $sources,array $product):array {
@@ -59,7 +59,10 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $entered=$b;$b=rpm_website_defaults($sources,$b);
     $p=rpm_find($sources['products'],'id',$b['product_id']??0);
     $parent=(int)explode(':',(string)($b['website_key']??''))[0];
-    if($p&&!empty($sources['unlinked'][$parent])&&(int)($p['woo_product_id']??0)!==$parent)throw new DomainException('This supplier link was removed. Select and confirm the correct supplier link before using its cost.');
+    $variation=(int)(explode(':',(string)($b['website_key']??''))[1]??0);
+    if($p&&$parent&&!empty($p['woo_variation_id'])&&((int)$p['woo_product_id']!==$parent||(int)$p['woo_variation_id']!==$variation))throw new DomainException('This supplier cost belongs to a different website variation. Choose the correct supplier link.');
+    $removedLink=!empty($sources['unlinked'][$parent])||!empty($sources['unlinked_variations'][$b['website_key']??'']);
+    if($p&&$removedLink&&((int)($p['woo_product_id']??0)!==$parent||(!empty($p['woo_variation_id'])&&(int)$p['woo_variation_id']!==$variation)))throw new DomainException('This supplier link was removed. Select and confirm the correct supplier link before using its cost.');
     if(!$p){
         if(!empty($b['product_id']))throw new DomainException('This supplier product is no longer available. Choose a current cost source.');
         $p=['id'=>0,'product_name'=>trim((string)($b['manual_name']??'')),'short_code'=>trim((string)($b['manual_code']??'')),'product_category'=>trim((string)($b['manual_category']??'')),'costing_basis'=>$b['manual_basis']??'weight','base_unit'=>'','landed_cost_id'=>null,'landed_status'=>'unmatched','landed_cost_per_base'=>null,'supplier_name'=>'','cost_date'=>null,'supplier_cost_per_base'=>null,'transport_cost_per_base'=>null];
@@ -92,7 +95,7 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     $total=$complete?$known:null;$priceEx=$selling===null||!in_array($treatment,['standard','zero','exempt'],true)?null:$selling/(1+$vat/100);
     $profit=$priceEx!==null&&$known>0?$priceEx-$known:($complete&&$known===0.0&&$priceEx!==null?$priceEx:null);
     $margin=$profit!==null&&$priceEx>0?$profit/$priceEx*100:null;$markup=$profit!==null&&$known>0?$profit/$known*100:null;
-    $removed=empty($p['id'])&&!empty($sources['unlinked'][$parent]);
+    $removed=empty($p['id'])&&$removedLink;
     if($removed){$profit=$margin=$markup=null;$issues[]='Supplier Cost Missing — link removed';}
     if($profit!==null&&$profit<0)$issues[]='Loss-Making';elseif($margin!==null&&$margin<(float)($settings['retail_low_margin_threshold']??20))$issues[]='Low Margin';
     $stock=$site&&!empty($site['manage_stock'])&&is_numeric($site['stock_quantity'])?(float)$site['stock_quantity']:null;
@@ -111,6 +114,7 @@ function rpm_preview(array $sources,array $settings,array $b):array {
     if($pack===null)$issues[]='Missing Packaging Cost';
     if(!$complete&&$profit!==null)$issues[]='Provisional / Incomplete Cost';
     $extra['issues']=$issues;
+    if($site&&$size&&in_array($p['costing_basis'],['count','ready_made'],true)&&!empty($site['variation_id'])&&trim((string)$site['variation_name'])!=='')$extra['size_label']=$site['variation_name'];
     if(in_array('Transport / Source Review',$issues,true)||in_array('Packaging Estimate',$issues,true))$extra['completion_status']='Needs Review';
     return $extra + ['product_id'=>(int)$p['id'],'product_name'=>$p['product_name'],'short_code'=>$p['short_code'],'category'=>$p['product_category'],'supplier'=>$p['supplier_name'],'basis'=>$p['costing_basis'],'base_unit'=>$p['base_unit'],'landed_cost_id'=>$p['landed_cost_id'],'cost_date'=>$p['cost_date'],'supplier_cost_per_base'=>$p['supplier_cost_per_base'],'transport_cost_per_base'=>$p['transport_cost_per_base'],'landed_cost_per_base'=>$p['landed_status']==='complete'?$p['landed_cost_per_base']:null,'size_conversion_id'=>$size['id']??null,'size_label'=>$size['label']??'Select Size','conversion_base_value'=>$size['base_value']??null,'packaging_setup_id'=>$setup['id']??0,'packaging_material_id'=>$packMode==='material'?(int)($b['packaging_material_id']??0):0,'packaging_material_cost_id'=>$material['cost_id']??null,'packaging_setup'=>$packLabel,'packaging_mode'=>$packMode,'packaging_manual_cost'=>$packMode==='manual'?$pack:null,'packaging_confirmed'=>in_array($packMode,['setup','material'],true)?$pack!==null:$confirmed,'packaging_cost_ex_vat'=>$pack,'packaging_cost_inc_vat'=>$packInc,'product_cost_per_unit'=>$contents,'total_cost_ex_vat'=>$total,'selling_price_inc_vat'=>$selling,'selling_price_ex_vat'=>$priceEx,'profit_per_unit'=>$profit,'markup_percent'=>$markup,'margin_percent'=>$margin,'vat_rate'=>$vat,'vat_treatment'=>$treatment,'website_key'=>$site?$site['product_id'].':'.$site['variation_id']:'','website_name'=>$site?trim($site['product_name'].' · '.$site['variation_name']):'Not linked to website','website_sku'=>$site['sku']??'','website_price_inc_vat'=>$webPrice,'website_stock_quantity'=>$stock,'website_sync_at'=>$site?$sync:null,'stock_cost'=>$stock!==null&&$total!==null?$stock*$total:null,'retail_value'=>$stock!==null&&$webPrice!==null?$stock*$webPrice:null,'projected_profit'=>$priceEx!==null&&$stock!==null&&$webPrice!==null&&$total!==null?$stock*($webPrice/(1+$vat/100)-$total):null,'source_token'=>$token,'issues'=>$issues,'pricing_status'=>$pricingStatus,'website_status'=>$websiteStatus,'status'=>$pricingStatus,'website_price_differs'=>$difference];
 }
@@ -121,7 +125,7 @@ function rpm_rows(PDO $pdo,array $s,array $settings):array {
         try{$row=rpm_preview($s,$settings,$b);}catch(DomainException $e){$b['website_key']='';$b['packaging_setup_id']=0;$row=rpm_preview($s,$settings,$b);$row['issues'][]=$e->getMessage();}
         $row['id']=(int)$price['pricing_id'];$row['version']=(int)$price['current_version'];$row['saved']=true;$row['effective_date']=$price['effective_date'];$row['cost_changed']=$row['total_cost_ex_vat']!==null&&abs($row['total_cost_ex_vat']-(float)$price['saved_cost'])>0.00001;$rows[]=$row;$covered[$price['product_id'].':'.$price['size_conversion_id']]=true;
     }
-    foreach($s['products']as $p){$proposals=[];foreach($s['website']as $site){if(function_exists('rpd_match')&&(($candidate=rpd_match($site,$s))!==null)&&(int)$candidate['id']===(int)$p['id']){$size=rpm_site_size($site,rpm_sizes($s,$p));if($size===null&&($site['product_type']??'')==='simple'&&in_array($p['costing_basis'],['count','ready_made'],true))$size=0;if($size!==null&&!isset($covered[$p['id'].':'.$size]))$proposals[$size]=['size_conversion_id'=>$size,'website_key'=>isset($proposals[$size])?'':$site['product_id'].':'.$site['variation_id']];}}
+    foreach($s['products']as $p){$proposals=[];foreach($s['website']as $site){if(function_exists('rpd_match')&&(($candidate=rpd_match($site,$s))!==null)&&(int)$candidate['id']===(int)$p['id']){$size=rpm_site_size($site,rpm_sizes($s,$p));if($size===null&&(($site['product_type']??'')==='simple'||!empty($p['woo_variation_id']))&&in_array($p['costing_basis'],['count','ready_made'],true))$size=0;if($size!==null&&!isset($covered[$p['id'].':'.$size]))$proposals[$size]=['size_conversion_id'=>$size,'website_key'=>isset($proposals[$size])?'':$site['product_id'].':'.$site['variation_id']];}}
         $has=false;foreach($covered as $key=>$v)if(strpos($key,$p['id'].':')===0)$has=true;
         if(!$has&&!$proposals)$proposals[]=['size_conversion_id'=>null,'website_key'=>''];
         foreach($proposals as $b){$b['product_id']=$p['id'];if(!empty($b['website_key']))foreach($s['website'] as $web)if($web['product_id'].':'.$web['variation_id']===$b['website_key']){$b=array_merge($web['retained_body']??[],$b,cwp_vat($web,$settings));$b['website_confirmed']=true;break;}$row=rpm_preview($s,$settings,$b);$row['id']=0;$row['version']=0;$row['saved']=false;$row['effective_date']=rpm_today();$row['cost_changed']=false;if(isset($web['retained_body'])&&!empty($b['website_key']))$row['sheet_body']=$b;$rows[]=$row;}
