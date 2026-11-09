@@ -240,7 +240,22 @@ function cw_packaging_calculate(array $b,string $type,float $vatRate): array
     return ['cost_ex_vat'=>$net,'cost_inc_vat'=>$gross,'usable_units'=>$units?:null,'unit_cost_ex_vat'=>$units?$net/$units:0,'unit_cost_inc_vat'=>$units?$gross/$units:0,'status_key'=>$status,'print_yield'=>$yield,'exchange_rate'=>$rate];
 }
 
-function cw_packaging_cost(PDO $pdo,int $item,string $date): ?array
+// Owner-approved finished-package label allowance; supplier invoices and saved
+// cost versions remain unchanged. Effective-dated so historical costing is intact.
+function cw_packaging_label_policy(): array
+{
+    return ['effective_date'=>'2026-11-09','cost_ex_vat'=>0.45,'vat_rate'=>15,
+        'container_types'=>['Bottle','Jar','Pouch','Tube','Box','Bag','Tub','Other']];
+}
+
+function cw_packaging_label_allowance(string $date, string $type): array
+{
+    $policy=cw_packaging_label_policy();
+    $ex=$date >= $policy['effective_date'] && in_array($type,$policy['container_types'],true) ? $policy['cost_ex_vat'] : 0.0;
+    return ['label_cost_ex_vat'=>$ex,'label_cost_inc_vat'=>$ex*(1+$policy['vat_rate']/100)];
+}
+
+function cw_packaging_cost(PDO $pdo,int $item,string $date,bool $includeLabel=true): ?array
 {
     $q=$pdo->prepare('SELECT c.*,i.item_name,i.specification,i.active,t.name packaging_type FROM cw_packaging_items i JOIN cw_packaging_types t ON t.id=i.packaging_type_id JOIN cw_packaging_item_costs c ON c.packaging_item_id=i.id WHERE i.id=? AND c.effective_date<=? ORDER BY c.effective_date DESC,c.id DESC LIMIT 1');$q->execute([$item,$date]);$c=$q->fetch();
     if(!$c)return null;
@@ -249,22 +264,30 @@ function cw_packaging_cost(PDO $pdo,int $item,string $date): ?array
     $units=$c['usable_units']===null?(float)$c['purchase_quantity']:(float)$c['usable_units'];
     if($c['status_key']!=='ready'||$units<=0){$c['landed_ex']=$c['landed_inc']=null;return $c;}
     $c['freight_unit_ex']=(float)$c['freight_ex']/$units;$c['freight_unit_inc']=(float)$c['freight_inc']/$units;
-    $c['landed_ex']=(float)$c['unit_cost_ex_vat']+$c['freight_unit_ex'];$c['landed_inc']=(float)$c['unit_cost_inc_vat']+$c['freight_unit_inc'];return $c;
+    $c+=cw_packaging_label_allowance($date,$includeLabel?(string)$c['packaging_type']:'');
+    $c['landed_ex']=(float)$c['unit_cost_ex_vat']+$c['freight_unit_ex']+$c['label_cost_ex_vat'];
+    $c['landed_inc']=(float)$c['unit_cost_inc_vat']+$c['freight_unit_inc']+$c['label_cost_inc_vat'];return $c;
 }
 
 function cw_packaging_setup_cost(PDO $pdo,int $setup,string $date): array
 {
     $q=$pdo->prepare('SELECT * FROM cw_packaging_setups WHERE id=? AND effective_date<=?');$q->execute([$setup,$date]);$s=$q->fetch();if(!$s)throw new DomainException('Packaging setup is not effective on this date.');
     $q=$pdo->prepare('SELECT * FROM cw_packaging_setup_components WHERE packaging_setup_id=? ORDER BY display_order,id');$q->execute([$setup]);$rows=$q->fetchAll();
-    $ex=0;$inc=0;$supplier=0;$freight=0;$waste=0;$missing=[];$printed=false;$ribbon=false;
-    foreach($rows as &$r){$c=cw_packaging_cost($pdo,(int)$r['packaging_item_id'],$date);$r['material']=$c;$m=(float)$r['quantity']*(1+(float)$r['waste_percent']/100);
+    $ex=0;$inc=0;$supplier=0;$freight=0;$waste=0;$missing=[];$printed=false;$ribbon=false;$hasLabel=false;$hasContainer=false;
+    foreach($rows as &$r){$c=cw_packaging_cost($pdo,(int)$r['packaging_item_id'],$date,false);$r['material']=$c;$m=(float)$r['quantity']*(1+(float)$r['waste_percent']/100);
+        $hasLabel=$hasLabel||($c && $c['packaging_type']==='Label');
+        $hasContainer=$hasContainer||($c && in_array($c['packaging_type'],cw_packaging_label_policy()['container_types'],true));
         if(!$c||!$c['active']||$c['landed_ex']===null){$missing[]=$c['item_name']??('Material '.$r['packaging_item_id']);continue;}
         $printed=$printed||($c['packaging_type']==='Label'&&!empty($c['printed_label']));$ribbon=$ribbon||$c['packaging_type']==='Ribbon';
         $r['current_ex']=$m*$c['landed_ex'];$r['current_inc']=$m*$c['landed_inc'];$ex+=$r['current_ex'];$inc+=$r['current_inc'];
         $supplier+=(float)$r['quantity']*(float)$c['unit_cost_ex_vat'];$freight+=(float)$r['quantity']*$c['freight_unit_ex'];$waste+=(float)$r['quantity']*(float)$r['waste_percent']/100*$c['landed_ex'];
     }unset($r);
     if(!$rows)$missing[]='Components required';if($printed&&$ribbon)$missing[]='Printed labels already include printing; remove duplicate ribbon or use unprinted labels.';
-    return array_merge($s,['components'=>$rows,'component_count'=>count($rows),'complete'=>!$missing,'missing'=>$missing,'cost_ex_vat'=>$missing?null:$ex,'cost_inc_vat'=>$missing?null:$inc,'supplier_cost'=>$supplier,'freight_cost'=>$freight,'waste_cost'=>$waste]);
+    // One allowance per finished setup, not per cap/lid/component. A separately
+    // costed Label component already supplies the label, so never add it twice.
+    $label=cw_packaging_label_allowance($date,$hasContainer&&!$hasLabel?'Bottle':'');
+    $ex+=$label['label_cost_ex_vat'];$inc+=$label['label_cost_inc_vat'];
+    return array_merge($s,$label,['components'=>$rows,'component_count'=>count($rows),'complete'=>!$missing,'missing'=>$missing,'cost_ex_vat'=>$missing?null:$ex,'cost_inc_vat'=>$missing?null:$inc,'supplier_cost'=>$supplier,'freight_cost'=>$freight,'waste_cost'=>$waste]);
 }
 
 function cw_packaging_current_setups(PDO $pdo,string $date): array

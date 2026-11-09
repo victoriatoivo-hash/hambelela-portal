@@ -7,6 +7,7 @@ let state={items:[],setups:[],types:[],sizes:[],transports:[],vat_rate:0},active
 const esc=v=>{const e=document.createElement('span');e.textContent=v==null?'':String(v);return e.innerHTML;};
 const money=v=>v===null||v===undefined?'—':'N$ '+Number(v).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:2});
 const today=()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Africa/Windhoek',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+const labelAllowance=(date,type)=>{const p=state.label_policy;return p&&date>=p.effective_date&&p.container_types.includes(type)?Number(p.cost_ex_vat):0;};
 const status=k=>({ready:'Ready',print_yield_required:'Print Yield Required',price_required:'Price Required',usable_quantity_required:'Usable Quantity Required'})[k]||'Needs Costing';
 const itemForm=one('[data-pc-item-form]'),setupForm=one('[data-pc-setup-form]');
 async function request(action,body,query=''){
@@ -23,6 +24,7 @@ async function bootstrap(){
  options(filters.elements.type,state.types,'name','All types');
  options(filters.elements.supplier,[...new Set(state.items.map(i=>i.supplier_name).filter(Boolean))].map(s=>({id:s,name:s})),'name','All suppliers');
  options(itemForm.elements.transport_id,state.transports.map(t=>({...t,name:t.courier_name+' · '+t.invoice_number+' · '+t.currency+' '+t.allocable_amount})),'name','No additional freight');
+ if(state.label_policy&&state.date>=state.label_policy.effective_date)notice('Packaging totals include one N$ 0.45 label excluding VAT per finished package, from 9 November 2026. Separate caps/lids are not charged again. Supplier costs and historical versions are unchanged.');
  render();sync(filters);
 }
 const actions=(type,id,enabled=1)=>'<div class="pc3-inline-actions"><button type="button" class="pc3-row-action" data-edit="'+type+':'+id+'" aria-label="Edit '+type+'"><svg viewBox="0 0 24 24" fill="none"><path d="m4 16 12-12 4 4L8 20H4v-4Z" stroke="currentColor" stroke-width="1.7"/></svg></button><button type="button" class="pc3-button" data-history="'+type+':'+id+'">History</button><button type="button" class="pc3-button" data-toggle="'+type+':'+id+':'+(Number(enabled)?0:1)+'">'+(Number(enabled)?'Deactivate':'Reactivate')+'</button></div>';
@@ -91,16 +93,21 @@ function itemPreview(){
  one('[data-pc-freight-fields]').hidden=!b.transport_id;let freight=0;const t=state.transports.find(t=>String(t.id)===b.transport_id);
  if(t){freight=b.freight_method==='weight'?Number(t.allocable_amount)*Number(b.shipping_weight)/Number(b.shipment_weight):Number(b.freight_amount);if(t.currency!=='NAD')freight=Number(t.fx_confirmed)&&Number(t.exchange_rate)>0?freight*Number(t.exchange_rate):null;if(t.vat_treatment==='unconfirmed')freight=null;}
  const valid=units>0&&rate>0&&b.amount_entered!==''&&b.vat_treatment;
- one('[data-pc-footer-summary]').textContent='Usable units: '+(units>0&&!yieldMissing?units.toLocaleString():'—')+' · Landed / unit: '+money(valid&&freight!==null?(net+freight)/units:null);
- one('[data-pc-item-preview]').innerHTML=summary([['Total Usable Units',yieldMissing?'Print Yield Required':units>0?units.toLocaleString():'Quantity Required'],['Supplier Cost / Unit',money(valid?net/units:null)],['Freight / Unit',money(valid&&freight!==null?freight/units:null)],['Landed Cost / Unit',money(valid&&freight!==null?(net+freight)/units:null)]]);
+ const label=labelAllowance(filters.elements.as_of.value||today(),type);
+ one('[data-pc-footer-summary]').textContent='Usable units: '+(units>0&&!yieldMissing?units.toLocaleString():'—')+' · Packaging / unit: '+money(valid&&freight!==null?(net+freight)/units+label:null);
+ one('[data-pc-item-preview]').innerHTML=summary([['Total Usable Units',yieldMissing?'Print Yield Required':units>0?units.toLocaleString():'Quantity Required'],['Supplier Cost / Unit',money(valid?net/units:null)],['Freight / Unit',money(valid&&freight!==null?freight/units:null)],['Label / Unit · excl. VAT',money(label)],['Packaging Cost / Unit',money(valid&&freight!==null?(net+freight)/units+label:null)]]);
 }
 function setupPreview(){
- let supplier=0,freight=0,waste=0,inc=0,missing=false,printed=false,ribbon=false;const rows=all('[data-pc-components] .packaging-costs__component');if(!rows.length)missing=true;
+ let supplier=0,freight=0,waste=0,inc=0,missing=false,printed=false,ribbon=false,hasLabel=false,hasContainer=false;const rows=all('[data-pc-components] .packaging-costs__component');if(!rows.length)missing=true;
  rows.forEach(r=>{const id=r.querySelector('select').value,c=previewItems.find(i=>String(i.id)===id)?.cost,q=Number(r.querySelector('[data-k="quantity"]').value),w=Number(r.querySelector('[data-k="waste_percent"]').value),valid=c&&c.landed_ex!==null&&q>0;
- r.querySelector('[data-pc-component-unit]').textContent=money(valid?c.landed_ex:null);r.querySelector('[data-pc-component-total]').textContent=money(valid?q*(1+w/100)*c.landed_ex:null);
- if(!valid){missing=true;return;}supplier+=q*Number(c.unit_cost_ex_vat);freight+=q*c.freight_unit_ex;waste+=q*w/100*c.landed_ex;inc+=q*(1+w/100)*c.landed_inc;printed=printed||(c.packaging_type==='Label'&&Number(c.printed_label));ribbon=ribbon||c.packaging_type==='Ribbon';});
+ const base=valid?c.landed_ex-Number(c.label_cost_ex_vat||0):null;
+ r.querySelector('[data-pc-component-unit]').textContent=money(base);r.querySelector('[data-pc-component-total]').textContent=money(valid?q*(1+w/100)*base:null);
+ if(c){hasLabel=hasLabel||c.packaging_type==='Label';hasContainer=hasContainer||Boolean(state.label_policy?.container_types.includes(c.packaging_type));}
+ if(!valid){missing=true;return;}supplier+=q*Number(c.unit_cost_ex_vat);freight+=q*c.freight_unit_ex;waste+=q*w/100*base;inc+=q*(1+w/100)*(c.landed_inc-Number(c.label_cost_inc_vat||0));printed=printed||(c.packaging_type==='Label'&&Number(c.printed_label));ribbon=ribbon||c.packaging_type==='Ribbon';});
  missing=missing||(printed&&ribbon);
- one('[data-pc-setup-preview]').innerHTML=summary([['Packaging Supplier Cost',money(missing?null:supplier)],['Packaging Freight',money(missing?null:freight)],['Waste Allowance',money(missing?null:waste)],['Total excl. VAT',money(missing?null:supplier+freight+waste)],['Total incl. VAT',money(missing?null:inc)]])+(missing?'<p class="pc3-error">Confirm all component costs and quantities. Do not add ribbon to already printed labels.</p>':'');
+ const label=labelAllowance(setupForm.elements.effective_date.value||today(),hasContainer&&!hasLabel?'Bottle':'');
+ inc+=label*(1+Number(state.label_policy?.vat_rate||0)/100);
+ one('[data-pc-setup-preview]').innerHTML=summary([['Packaging Supplier Cost',money(missing?null:supplier)],['Packaging Freight',money(missing?null:freight)],['Waste Allowance',money(missing?null:waste)],['Label · excl. VAT',hasLabel?'Included in components':money(label)],['Total excl. VAT',money(missing?null:supplier+freight+waste+label)],['Total incl. VAT',money(missing?null:inc)]])+(missing?'<p class="pc3-error">Confirm all component costs and quantities. Do not add ribbon to already printed labels.</p>':'');
 }
 async function history(type,id){
  const h=await request('history',null,'type='+type+'&id='+id);one('[data-pc-history]').innerHTML='<div class="packaging-costs__table-wrap"><table><thead><tr><th>Effective</th><th>Supplier / Setup</th><th>Purchase Qty</th><th>Usable Units</th><th>Supplier / Unit</th><th>Freight</th><th>Recorded By</th></tr></thead><tbody>'+h.versions.map(v=>'<tr><td>'+esc(v.effective_date)+'</td><td>'+esc(v.supplier_name||v.setup_name||'—')+'</td><td>'+esc(v.purchase_quantity||'—')+'</td><td>'+esc(v.usable_units||v.purchase_quantity||'—')+'</td><td>'+money(v.unit_cost_ex_vat)+'</td><td>'+money(v.freight_ex)+'</td><td>'+esc(v.created_by_name)+' · '+esc(v.created_at)+'</td></tr>').join('')+'</tbody></table></div><h3>Audit History</h3>'+h.audit.map(a=>'<p>'+esc(a.action_key)+' · '+esc(a.actor_name)+' · '+esc(a.created_at)+'</p>').join('');
@@ -137,4 +144,3 @@ document.addEventListener('keydown',e=>{if(!active||e.defaultPrevented)return;if
 window.addEventListener('popstate',()=>tab(new URL(location.href).searchParams.get('tab')==='setups'?'setups':'items'));
 filters.elements.as_of.value=today();sync(filters);tab(new URL(location.href).searchParams.get('tab')==='setups'?'setups':'items');bootstrap().catch(e=>notice(e.message));
 })();
-
