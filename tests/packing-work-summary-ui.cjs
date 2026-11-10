@@ -13,6 +13,8 @@ const partial=context.window.HambelelaPackingWork.render({summary:{...summary,co
 assert.ok(partial.includes('500 · recorded subtotal'),'Partial quantities are explicitly subtotals');
 assert.ok(partial.includes('Handoff records needing review'),'Review count visible');
 assert.ok(partial.includes('Dates need review — update precedes packer confirmation'),'Specific chronology reason visible');
+const multipack=context.window.HambelelaPackingWork.render({summary:{...summary,packages:99,sizes:{'unit:20':99},planned_sizes:{'unit:20':50},progress_sizes:{'unit:20':99}},policy:{}});
+assert.ok(multipack.includes('20 units per pack'),'Multipack size remains explicit rather than displaying pieces as packages');
 assert.ok(source.includes('30000'),'A hung request must offer retry rather than indefinite loading');
 assert.ok(source.includes('controller?.abort()'));assert.ok(source.includes('mine!==serial'));
 const css=fs.readFileSync('assets/css/packing-work-summary.css','utf8');assert.ok(css.includes('Jost'));assert.ok(css.includes('@media(max-width:600px)'));assert.ok(css.includes('font-size:16px'));

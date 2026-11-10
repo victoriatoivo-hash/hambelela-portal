@@ -9,14 +9,25 @@ final class PackingWorkSummary
     public static function finished($s): bool {return self::status($s)==='done';}
 
     /** Explicit package quantities only; never interpret received bulk weight as output packs. */
-    public static function packages(string $text): ?array
+    public static function packages(string $text, ?array $plan = null): ?array
     {
         if(trim($text)==='0')return [];
+        // A bare count is usable only when this same batch explicitly plans
+        // individual units. Never infer a bottle size or copy the planned count.
+        if(preg_match('/^\s*\d+\s*$/',$text)&&$plan!==null&&array_keys($plan)===['unit:1'])return ['unit:1'=>(float)trim($text)];
         // Historical editors used both size(count) and count packs × size.
         // Normalize explicit package notation only: never infer a bare number,
         // discard unexplained notes, or convert mass to volume.
         $unit='(?:kg|kgs|kilograms?|g|grams?|ml|millilitres?|milliliters?|l|lt|litres?|liters?|pcs?|pieces?|units?)';
         $text=str_replace(['×','✕'], 'x', $text);
+        // Some saved editors left a trailing separator / truncated "Total"
+        // marker. Accept only these known non-numeric suffixes, not arbitrary notes.
+        $text=preg_replace('/\s*[—–]\s*(?:T)?\s*$/u','',$text);
+        $declaredUnits=null;
+        if(preg_match('/\s+totals?\s*:?\s*(\d+)\s*$/i',$text,$total)){
+            $declaredUnits=(float)$total[1];$text=substr($text,0,-strlen($total[0]));
+        }
+        $text=preg_replace('/\b(\d+(?:\.\d+)?)\s*('.$unit.')\s*-\s*(\d+)\s*packs?\b/i','$1$2($3)',$text);
         $text=preg_replace('/(?<![\w.])(\d+)\s*packs?\s*[x*]\s*(\d+(?:\.\d+)?)\s*('.$unit.')\b/i','$2$3($1)',$text);
         $text=preg_replace('/(?<![\w.])(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*('.$unit.')\s*\)/i','$2$3($1)',$text);
         $p='/\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms?|g|grams?|ml|millilitres?|milliliters?|l|lt|litres?|liters?|pcs?|pieces?|units?)\b\s*(?:\(\s*(\d+)\s*\)|[x*]\s*(\d+))?/i';
@@ -30,8 +41,18 @@ final class PackingWorkSummary
             elseif(in_array($u,['g','gram','grams'],true))$dim='g';
             elseif(in_array($u,['l','lt','litre','litres','liter','liters'],true)){$size*=1000;$dim='ml';}
             elseif(strpos($u,'ml')===0||strpos($u,'milli')===0)$dim='ml';
-            else{$dim='unit';$count*=$size;$size=1;}
+            else{
+                $dim='unit';
+                if(floor($size)!==$size)return null;
+                // 99 packs of 20 units = 99 packages, 1,980 pieces. Do not
+                // flatten this to 1,980 packages and inflate packer output.
+                if(($m[3]??'')===''&&($m[4]??'')===''){$count*=$size;$size=1;}
+            }
             $key=$dim.':'.rtrim(rtrim(sprintf('%.6F',$size),'0'),'.');$out[$key]=($out[$key]??0)+$count;
+        }
+        if($declaredUnits!==null){
+            $units=0;foreach($out as$key=>$n){[$dim,$size]=explode(':',$key);if($dim!=='unit')return null;$units+=(float)$size*$n;}
+            if($units!==$declaredUnits)return null;
         }
         ksort($out);return $out;
     }
@@ -99,14 +120,15 @@ final class PackingWorkSummary
             if(!$open&&!$completed&&!($assigned===$employee&&($hasActivity||$loaded>=$from)))continue;
             $out['items']++;$out['reopened']+=$reopened;$out['corrections']+=$corrections;
             foreach($quantityEvents as$e){
-                $old=self::packages((string)$e['before']);$new=self::packages((string)$e['after']);$day=substr($e['at'],0,10);
+                $eventPlan=self::packages((string)(self::snapshot($item,$history,$e['at'])['quantity_planned']??''));
+                $old=self::packages((string)$e['before'],$eventPlan);$new=self::packages((string)$e['after'],$eventPlan);$day=substr($e['at'],0,10);
                 if(!isset($out['quantity_updates'][$day]))$out['quantity_updates'][$day]=['added'=>0,'reduced'=>0,'unknown'=>0];
                 if($old===null||$new===null){$out['quantity_updates'][$day]['unknown']++;continue;}
                 foreach(array_unique(array_merge(array_keys($old),array_keys($new)))as$k){$delta=($new[$k]??0)-($old[$k]??0);if($delta>0)$out['quantity_updates'][$day]['added']+=$delta;else$out['quantity_updates'][$day]['reduced']-= $delta;}
             }
             if($open){$out['open']++;$out['states'][$state]=($out['states'][$state]??0)+1;}
             $priority=self::status($snapshot['priority']??'unrecorded');if($open)$out['priorities'][$priority]=($out['priorities'][$priority]??0)+1;
-            $plan=self::packages((string)($snapshot['quantity_planned']??''));$actual=self::packages((string)($snapshot['quantity_packed']??''));
+            $plan=self::packages((string)($snapshot['quantity_planned']??''));$actual=self::packages((string)($snapshot['quantity_packed']??''),$plan);
             $accuracy=$completed?self::accuracy($plan,$actual):'in_progress';
             if($plan!==null)foreach($plan as$key=>$n)$out['planned_sizes'][$key]=($out['planned_sizes'][$key]??0)+$n;
             if($actual!==null){$out['progress_known']++;foreach($actual as$key=>$n)$out['progress_sizes'][$key]=($out['progress_sizes'][$key]??0)+$n;}
@@ -133,7 +155,7 @@ final class PackingWorkSummary
                         [$dim,$size]=explode(':',$key);$out['output_daily'][$day]['packages']+=$n;
                         if($dim==='g')$out['output_daily'][$day]['weight_kg']+=(float)$size*$n/1000;
                         elseif($dim==='ml')$out['output_daily'][$day]['volume_l']+=(float)$size*$n/1000;
-                        else $out['output_daily'][$day]['units']+=$n;
+                        else $out['output_daily'][$day]['units']+=(float)$size*$n;
                     }
                 }
                 if($actual!==null){$out['quantity_known']++;foreach($actual as$key=>$n){[$dim,$size]=explode(':',$key);$out['packages']+=$n;$out['sizes'][$key]=($out['sizes'][$key]??0)+$n;if($dim==='g')$out['kg']+=(float)$size*$n/1000;if($dim==='ml')$out['litres']+=(float)$size*$n/1000;}}
