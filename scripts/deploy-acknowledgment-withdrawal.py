@@ -3,7 +3,7 @@ import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, ssl, socket, re
 from pathlib import Path
 
 BASELINE = '6087db3030e19725c097657608763904dc30f4ba'
-BASELINES = {}
+BASELINES = {'assets/js/acknowledgments-popup.js': '85aff67d086c3b96f6640b230d2b75cf5adebead'}
 FILES = ['shared/acknowledgments/Service.php', 'apps/acknowledgments/api.php', 'assets/js/acknowledgments.js']
 NEW_FILES = []
 DEPENDENCIES = ['shared/acknowledgments/integration.php', 'apps/acknowledgments/index.php', 'assets/js/acknowledgments-popup.js']
