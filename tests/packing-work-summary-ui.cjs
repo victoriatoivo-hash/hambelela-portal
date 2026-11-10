@@ -9,6 +9,10 @@ assert.ok(source.includes('overview();load();'),'Overview loads the same recorde
 const missing=context.window.HambelelaPackingWork.render({summary:{...summary,quantity_known:0,packages:0,kg:0,litres:0},policy:{}});
 assert.ok(missing.includes('<strong>Not recorded</strong>'),'Unknown output must not display zero packages');
 assert.ok(!missing.includes('0 kg · 0 L in finished packages'),'Unknown mass and volume must not display zero output');
+const partial=context.window.HambelelaPackingWork.render({summary:{...summary,completed:2,website_review:1,evidence:[{...summary.evidence[0],website_status:'chronology_review'}]},policy:{}});
+assert.ok(partial.includes('500 · recorded subtotal'),'Partial quantities are explicitly subtotals');
+assert.ok(partial.includes('Handoff records needing review'),'Review count visible');
+assert.ok(partial.includes('Dates need review — update precedes packer confirmation'),'Specific chronology reason visible');
 assert.ok(source.includes('30000'),'A hung request must offer retry rather than indefinite loading');
 assert.ok(source.includes('controller?.abort()'));assert.ok(source.includes('mine!==serial'));
 const css=fs.readFileSync('assets/css/packing-work-summary.css','utf8');assert.ok(css.includes('Jost'));assert.ok(css.includes('@media(max-width:600px)'));assert.ok(css.includes('font-size:16px'));

@@ -8,6 +8,7 @@ on:
         required: true
         type: choice
         options:
+          - inspect
           - preflight
           - deploy
       approved_sha:
@@ -84,12 +85,12 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           MODE: ${{ inputs.mode }}
           APPROVED_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/deploy-performance-report-workspace.py "$MODE" "$APPROVED_SHA"
+        run: python3 scripts/deploy-performance-consistency.py "$MODE" "$APPROVED_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: performance-report-workspace-${{ github.run_id }}
           path: |
-            performance-report-workspace-report.json
-            performance-report-workspace-backup.zip
+            performance-consistency-report.json
+            performance-consistency-backup.zip
           if-no-files-found: warn

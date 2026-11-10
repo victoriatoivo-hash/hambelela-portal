@@ -2,11 +2,11 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, ssl, socket, re
 from pathlib import Path
 
-BASELINE = 'd41addb985c08c9e6e05e93772d4c2a463c55880'
+BASELINE = 'c60bbcf0'
 BASELINES = {}
-FILES = ['apps/operations/performance-order-scope.php', 'apps/operations/packing-work-reporting.php', 'shared/epi/PackingWorkSummary.php', 'shared/epi/BusinessHealthPerformance.php', 'apps/operations/reports-data.php', 'apps/operations/performance-activity.php', 'apps/operations/kpi-packing-work-summary.php', 'assets/js/performance-workspace.js', 'assets/js/packer-orders-preview.js', 'assets/js/packing-work-summary.js', 'assets/js/reports-business-health.js']
+FILES = ['shared/epi/PackingWorkSummary.php', 'shared/epi/BusinessHealthPerformance.php', 'assets/js/packing-work-summary.js']
 NEW_FILES = []
-DEPENDENCIES = ['apps/operations/operations.php']
+DEPENDENCIES = []
 DEPENDENCY_HASHES = {'apps/operations/operations.php': '2bb88e308cb1742a7ee7c974945be105f5b272ee7a32a01589bb097ccdd11bc0'}
 REPORT = 'performance-consistency-report.json'
 BACKUP = 'performance-consistency-backup.zip'

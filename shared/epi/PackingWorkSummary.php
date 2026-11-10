@@ -12,9 +12,16 @@ final class PackingWorkSummary
     public static function packages(string $text): ?array
     {
         if(trim($text)==='0')return [];
+        // Historical editors used both size(count) and count packs × size.
+        // Normalize explicit package notation only: never infer a bare number,
+        // discard unexplained notes, or convert mass to volume.
+        $unit='(?:kg|kgs|kilograms?|g|grams?|ml|millilitres?|milliliters?|l|lt|litres?|liters?|pcs?|pieces?|units?)';
+        $text=str_replace(['×','✕'], 'x', $text);
+        $text=preg_replace('/(?<![\w.])(\d+)\s*packs?\s*[x*]\s*(\d+(?:\.\d+)?)\s*('.$unit.')\b/i','$2$3($1)',$text);
+        $text=preg_replace('/(?<![\w.])(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*('.$unit.')\s*\)/i','$2$3($1)',$text);
         $p='/\b(\d+(?:\.\d+)?)\s*(kg|kgs|kilograms?|g|grams?|ml|millilitres?|milliliters?|l|lt|litres?|liters?|pcs?|pieces?|units?)\b\s*(?:\(\s*(\d+)\s*\)|[x*]\s*(\d+))?/i';
         preg_match_all($p,$text,$matches,PREG_SET_ORDER);
-        if(!$matches||preg_replace('/[\s,;+]+/','',(string)preg_replace($p,'',$text))!=='')return null;
+        if(!$matches||preg_replace('/[\s,;+&]+/','',(string)preg_replace($p,'',$text))!=='')return null;
         $out=[];
         foreach($matches as$m){
             $size=(float)$m[1];$u=strtolower($m[2]);$count=(int)(($m[3]??'')!==''?$m[3]:(($m[4]??'')!==''?$m[4]:1));
@@ -58,7 +65,7 @@ final class PackingWorkSummary
     {
         $out=['items'=>0,'completed'=>0,'open'=>0,'packages'=>0,'kg'=>0.0,'litres'=>0.0,'quantity_known'=>0,'responsibility_review'=>0,
             'accuracy'=>array_fill_keys(['exact','less','more','mixed','unknown'],0),'states'=>[],'sizes'=>[],'priorities'=>[],
-            'reopened'=>0,'corrections'=>0,'notes'=>0,'note_stages'=>[],'note_reasons'=>[],'website_waiting'=>0,'website_updated'=>0,
+            'reopened'=>0,'corrections'=>0,'notes'=>0,'note_stages'=>[],'note_reasons'=>[],'website_waiting'=>0,'website_updated'=>0,'website_review'=>0,
             'daily'=>[],'output_daily'=>[],'timing'=>[],'evidence'=>[],'notes_repeated'=>[],'progress_sizes'=>[],'planned_sizes'=>[],'progress_known'=>0,'quantity_updates'=>[]];
         $durations=[];$queue=[];$stageAges=[];$web=[];$reasons=[];
         foreach($items as$item){
@@ -132,16 +139,19 @@ final class PackingWorkSummary
                 if($actual!==null){$out['quantity_known']++;foreach($actual as$key=>$n){[$dim,$size]=explode(':',$key);$out['packages']+=$n;$out['sizes'][$key]=($out['sizes'][$key]??0)+$n;if($dim==='g')$out['kg']+=(float)$size*$n/1000;if($dim==='ml')$out['litres']+=(float)$size*$n/1000;}}
             }
             foreach($noteEvents as$e){$out['notes']++;$s=self::status(self::snapshot($item,$history,$e['at'])['packing_status']??'unknown');$out['note_stages'][$s]=($out['note_stages'][$s]??0)+1;$text=strtolower((string)$e['after']);foreach(['stock','label','bottle','pouch','seal','machine','shortage','spill','website']as$word)if(strpos($text,$word)!==false){$reasons[$word][$id]=true;}}
-            $ready=$snapshot['packing_website_completed_at']??null;$updated=$snapshot['frontdesk_website_updated_at']??null;$webMinutes=null;
+            $ready=$snapshot['packing_website_completed_at']??null;$updated=$snapshot['frontdesk_website_updated_at']??null;$webMinutes=null;$webStatus='not_confirmed';
             if($ready&&$ready<=$to&&(int)($snapshot['packing_website_confirmed']??0)===1){
-                if($updated&&$updated>=$ready&&$updated<=$to&&(int)($snapshot['frontdesk_website_updated']??0)===1){$out['website_updated']++;$webMinutes=$clock->seconds($ready,$updated)/60;$web[]=$webMinutes;}
-                else{$out['website_waiting']++;$webMinutes=$clock->seconds($ready,$to)/60;}
+                if($updated&&$updated<$ready){$out['website_review']++;$webStatus='chronology_review';}
+                elseif((int)($snapshot['frontdesk_website_updated']??0)===1&&!$updated){$out['website_review']++;$webStatus='timestamp_review';}
+                elseif($updated&&$updated<=$to&&(int)($snapshot['frontdesk_website_updated']??0)===1){$out['website_updated']++;$webStatus='updated';$webMinutes=$clock->seconds($ready,$updated)/60;$web[]=$webMinutes;}
+                elseif($updated&&$updated<=$to){$out['website_review']++;$webStatus='confirmation_review';}
+                else{$out['website_waiting']++;$webStatus='waiting';$webMinutes=$clock->seconds($ready,$to)/60;}
             }
             $out['evidence'][]=['id'=>$id,'name'=>$snapshot['item_name']??'Packing item','priority'=>$priority,'status'=>$state,
                 'planned'=>$snapshot['quantity_planned']??'','packed'=>$snapshot['quantity_packed']??'','accuracy'=>$accuracy,
                 'started_at'=>$started,'finished_at'=>$finished,'working_minutes'=>$seconds===null?null:round($seconds/60,1),'excluded_minutes'=>round($deducted/60,1),
                 'assigned_id'=>$assigned,'responsibility'=>$completed?($attributed?'Historical responsibility supported':'Responsibility needs review'):'Assigned packer',
-                'website_ready_at'=>$ready,'website_updated_at'=>$updated&&$updated<=$to?$updated:null,'website_updated_by'=>$snapshot['frontdesk_website_updated_by']??null,'website_wait_minutes'=>$webMinutes];
+                'website_ready_at'=>$ready&&$ready<=$to?$ready:null,'website_updated_at'=>$updated&&$updated<=$to?$updated:null,'website_updated_by'=>$updated&&$updated<=$to?($snapshot['frontdesk_website_updated_by']??null):null,'website_wait_minutes'=>$webMinutes,'website_status'=>$webStatus];
         }
         foreach($reasons as$word=>$ids)$out['note_reasons'][$word]=count($ids);
         $out['notes_repeated']=array_filter($out['note_reasons'],static fn($n)=>$n>1);
