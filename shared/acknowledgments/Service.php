@@ -45,18 +45,51 @@ final class Service
     }
     public function listing(int $actor):array{
         $user=$this->actor($actor);$owner=$user['role_key']==='owner_admin';
-        $records=$this->rows("SELECT r.*,i.title,i.version,i.sender_id,i.deadline,i.required,i.created_at,i.root_id,i.release_state,i.scheduled_at,i.released_at,i.schedule_revision,s.full_name sender_name FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN ops_employees s ON s.id=i.sender_id WHERE r.schedule_active=1".($owner?'':" AND r.employee_id=? AND i.release_state='released'").' ORDER BY i.created_at DESC,r.id DESC',$owner?[]:[$actor]);
-        $now=$this->now();foreach($records as &$r){$r['overdue']=$r['release_state']==='released'&&$r['required']&&$r['status']!=='acknowledged'&&$r['deadline']&&$r['deadline']<$now;}unset($r);
+        $records=$this->rows("SELECT r.*,i.title,i.version,i.sender_id,i.deadline,i.required,i.created_at,i.root_id,i.release_state,i.scheduled_at,i.released_at,i.schedule_revision,s.full_name sender_name FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN ops_employees s ON s.id=i.sender_id WHERE (r.schedule_active=1 OR EXISTS(SELECT 1 FROM portal_ack_events w WHERE w.recipient_id=r.id AND w.event_type='withdrawn'))".($owner?'':" AND r.employee_id=? AND i.release_state='released'").' ORDER BY i.created_at DESC,r.id DESC',$owner?[]:[$actor]);
+        $now=$this->now();foreach($records as &$r){$r['withdrawn']=!(int)$r['schedule_active'];$r['overdue']=!$r['withdrawn']&&$r['release_state']==='released'&&$r['required']&&$r['status']!=='acknowledged'&&$r['deadline']&&$r['deadline']<$now;}unset($r);
         return ['owner'=>$owner,'employee_id'=>$actor,'records'=>$records,'employees'=>$owner?$this->rows("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' ORDER BY e.full_name"):[]];
     }
     public function detail(int $actor,int $id,bool $lock=false):array{
         $user=$this->actor($actor);$rows=$this->rows('SELECT r.*,i.title,i.message_html,i.version,i.root_id,i.sender_id,i.deadline,i.required,i.created_at,i.notify_immediately,i.release_state,i.scheduled_at,i.released_at,i.schedule_revision FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id WHERE r.id=?'.($lock?' FOR UPDATE':''),[$id]);
-        if(!$rows||($user['role_key']!=='owner_admin'&&((int)$rows[0]['employee_id']!==$actor||$rows[0]['release_state']!=='released'||!(int)$rows[0]['schedule_active'])))throw new \DomainException('This instruction is not assigned to you.');
+        $withdrawn=$rows&&!(int)$rows[0]['schedule_active']&&(bool)$this->rows("SELECT id FROM portal_ack_events WHERE recipient_id=? AND event_type='withdrawn' LIMIT 1",[$id]);
+        if(!$rows||($user['role_key']!=='owner_admin'&&((int)$rows[0]['employee_id']!==$actor||$rows[0]['release_state']!=='released'||(!(int)$rows[0]['schedule_active']&&!$withdrawn))))throw new \DomainException('This instruction is not assigned to you.');
+        $rows[0]['withdrawn']=$withdrawn;
         $rows[0]['recipients']=$user['role_key']==='owner_admin'?array_column($this->rows('SELECT employee_id FROM portal_ack_recipients WHERE instruction_id=? AND schedule_active=1',[$rows[0]['instruction_id']]),'employee_id'):[];
         return $rows[0]+['events'=>$this->rows('SELECT v.id,v.actor_id,v.event_type,v.message,v.created_at,e.full_name actor_name FROM portal_ack_events v LEFT JOIN ops_employees e ON e.id=v.actor_id WHERE v.recipient_id=? ORDER BY v.id',[$id])];
     }
     private function event(int $recipient,int $actor,string $type,string $message,string $key):void{
         $this->db->prepare('INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,?,?,?,?,?)')->execute([$recipient,$actor,$type,$message,$key,$this->now()]);
+    }
+    /** Withdraw one recipient/version, never erase its response or change sibling versions. */
+    public function withdrawal(int $actor,array $body):array{
+        $this->owner($actor);
+        $key=$this->token((string)($body['request_key']??''));
+        $id=(int)($body['recipient_id']??0);
+        $operation=(string)($body['operation']??'withdraw');
+        $reason=trim((string)($body['reason']??''));
+        if(!in_array($operation,['withdraw','restore'],true)||$reason===''||strlen($reason)>2000)
+            throw new \DomainException('Enter a reason (up to 2,000 characters).');
+        $this->db->beginTransaction();
+        try{
+            $d=$this->detail($actor,$id,true);
+            if($d['release_state']!=='released'||(int)$d['instruction_id']!==(int)($body['instruction_id']??0))
+                throw new \DomainException('Refresh and select the sent acknowledgment to withdraw.');
+            $type=$operation==='withdraw'?'withdrawn':'restored';
+            $previous=$this->rows('SELECT actor_id,recipient_id,event_type FROM portal_ack_events WHERE request_key=?',[$key]);
+            if($previous){
+                $p=$previous[0];
+                if((int)$p['actor_id']!==$actor||(int)$p['recipient_id']!==$id||$p['event_type']!==$type)
+                    throw new \DomainException('Invalid repeated request.');
+                $this->db->commit();return ['ok'=>true,'duplicate'=>true];
+            }
+            if($operation==='restore'&&!$d['withdrawn'])throw new \DomainException('This acknowledgment is not withdrawn.');
+            if($operation==='withdraw'&&$d['withdrawn']){$this->db->commit();return ['ok'=>true,'duplicate'=>true];}
+            $this->db->prepare('UPDATE portal_ack_recipients SET schedule_active=? WHERE id=?')->execute([$operation==='restore'?1:0,$id]);
+            $this->event($id,$actor,$type,$reason,$key);
+            // Lifecycle events belong in the audit trail, not a fresh actionable notification.
+            $this->db->prepare('UPDATE portal_ack_events SET notification_delivered_at=?,evidence_recorded_at=? WHERE request_key=?')->execute([$this->now(),$this->now(),$key]);
+            $this->db->commit();return ['ok'=>true,'duplicate'=>false];
+        }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
     public function send(int $actor,array $body):array{
         $this->owner($actor);$key=$this->token((string)($body['request_key']??''));$title=trim((string)($body['title']??''));$html=self::sanitize((string)($body['message_html']??''));
@@ -79,6 +112,7 @@ final class Service
         $key=$this->token((string)($body['request_key']??''));$id=(int)($body['recipient_id']??0);$action=(string)($body['action']??'');$message=trim((string)($body['message']??''));
         $this->db->beginTransaction();try{
             $d=$this->detail($actor,$id,true);$prior=$this->rows('SELECT actor_id,recipient_id FROM portal_ack_events WHERE request_key=?',[$key]);
+            if($d['withdrawn'])throw new \DomainException('This acknowledgment was withdrawn. Its response history is read-only.');
             if($d['release_state']!=='released'||!(int)$d['schedule_active'])throw new \DomainException('This acknowledgment has not been released.');
             if($prior){if((int)$prior[0]['actor_id']!==$actor||(int)$prior[0]['recipient_id']!==$id)throw new \DomainException('Invalid repeated request.');$this->db->commit();return;}
             if($d['status']==='acknowledged')throw new \DomainException('Completed acknowledgments cannot be edited. Send a revised instruction instead.');

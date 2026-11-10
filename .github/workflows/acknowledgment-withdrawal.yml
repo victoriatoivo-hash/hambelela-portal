@@ -1,0 +1,58 @@
+name: Audited acknowledgment withdrawal
+on:
+  push:
+    branches: [codex/acknowledgment-withdrawal]
+    paths: [.github/workflows/acknowledgment-withdrawal.yml]
+permissions:
+  contents: read
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: 'yes'
+        ports: ['13317:3306']
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=3s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_mysql, dom
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate withdrawal and existing scheduling
+        env:
+          ACK_TEST_DSN: mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test
+          ACK_TEST_PASSWORD: ''
+        run: |
+          php -l shared/acknowledgments/Service.php
+          php -l apps/acknowledgments/api.php
+          php tests/acknowledgments-withdrawal.php
+          node --check assets/js/acknowledgments.js
+          node tests/acknowledgments-schedule-ui.mjs
+          npm install --prefix /tmp/ack-tests jsdom@24
+          NODE_PATH=/tmp/ack-tests/node_modules node tests/acknowledgments-withdrawal-ui.cjs
+      - name: Deploy isolated withdrawal with targeted backup and rollback
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/deploy-acknowledgment-withdrawal.py deploy "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acknowledgment-withdrawal-release
+          path: |
+            acknowledgment-withdrawal-report.json
+            acknowledgment-withdrawal-backup.zip
+          retention-days: 14

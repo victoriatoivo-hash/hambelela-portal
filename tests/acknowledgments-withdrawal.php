@@ -1,0 +1,44 @@
+<?php
+declare(strict_types=1);
+require __DIR__.'/acknowledgments-scheduling.php';
+use Hambelela\Acknowledgments\Service as S;
+$testNow='2026-11-10 18:00:00';
+$common=['request_key'=>S::uuid(),'title'=>'Shared stock-up synthetic','message_html'=>'<p>Original</p>','recipients'=>[2,3],'required'=>true,'notify_immediately'=>true];
+$original=$s->send(1,$common);
+$rows=array_values(array_filter($s->listing(1)['records'],fn($r)=>(int)$r['instruction_id']===$original['instruction_id']));
+$a=(int)$rows[0]['id'];$b=(int)$rows[1]['id'];$employee=(int)$rows[0]['employee_id'];
+$s->respond($employee,['request_key'=>S::uuid(),'recipient_id'=>$a,'action'=>'acknowledge','understood'=>true],'preserved-session');
+$before=$s->detail(1,$a);$other=$s->detail(1,$b);
+$personal=$common;$personal['request_key']=S::uuid();$personal['revise_instruction']=$original['instruction_id'];$personal['recipients']=[$employee];$personal['title']='Personalised synthetic';
+$created=$s->send(1,$personal);$personalBefore=$db->query('SELECT * FROM portal_ack_recipients WHERE instruction_id='.$created['instruction_id'])->fetchAll(PDO::FETCH_ASSOC);
+$body=['request_key'=>S::uuid(),'recipient_id'=>$a,'instruction_id'=>$original['instruction_id'],'operation'=>'withdraw','reason'=>'Replaced by personalised version'];
+denied(fn()=>$s->withdrawal($employee,$body),'Employee cannot withdraw');
+$bad=$body;$bad['instruction_id']=99999;denied(fn()=>$s->withdrawal(1,$bad),'Wrong version rejected');
+$bad=$body;$bad['reason']=' ';denied(fn()=>$s->withdrawal(1,$bad),'Audit reason mandatory');
+$s->withdrawal(1,$body);check($s->withdrawal(1,$body)['duplicate'],'Withdrawal retry is repeat-safe');
+$body2=$body;$body2['request_key']=S::uuid();check($s->withdrawal(1,$body2)['duplicate'],'Second click with new key does not duplicate audit');
+$after=$s->detail(1,$a);
+foreach(['status','acknowledged_at','session_reference','message_html','version','deadline'] as $field)check($before[$field]===$after[$field],'Preserved '.$field);
+check($after['withdrawn']&&count($after['events'])===count($before['events'])+1,'Withdrawal audit appended, not overwritten');
+check(array_slice($after['events'],0,count($before['events']))===$before['events'],'All response events intact');
+$otherAfter=$s->detail(1,$b);unset($otherAfter['recipients']);$otherComparable=$other;unset($otherComparable['recipients']);
+check($otherAfter===$otherComparable,'Other recipient unaffected');
+check($db->query('SELECT * FROM portal_ack_recipients WHERE instruction_id='.$created['instruction_id'])->fetchAll(PDO::FETCH_ASSOC)===$personalBefore,'Personalised version unchanged');
+check($s->detail($employee,$a)['withdrawn'],'Employee history is read-only and accessible');
+denied(fn()=>$s->respond($employee,['request_key'=>S::uuid(),'recipient_id'=>$a,'action'=>'clarify','message'=>'stale tab'],'test'),'Stale employee form cannot respond to withdrawal');
+denied(fn()=>$s->detail($employee===2?3:2,$a),'Other employee cannot read withdrawn history');
+check($s->popup($employee)['title']==='Personalised synthetic','Personalised popup still available');
+$pending=['request_key'=>S::uuid(),'recipient_id'=>$b,'instruction_id'=>$original['instruction_id'],'operation'=>'withdraw','reason'=>'Replaced'];
+$s->withdrawal(1,$pending);check(($s->popup((int)$other['employee_id'])['id']??null)!=$b,'Withdrawn pending recipient excluded from popup');
+check((int)$db->query("SELECT COUNT(*) FROM portal_ack_recipients WHERE instruction_id=".$original['instruction_id']." AND schedule_active=1")->fetchColumn()===0,'Original no longer contributes to pending counts');
+check(count(array_filter($s->listing(1)['records'],fn($r)=>(int)$r['instruction_id']===$original['instruction_id']&&$r['withdrawn']&&!$r['overdue']))===2,'Both originals retained as withdrawn, never overdue');
+$restore=$body;$restore['request_key']=S::uuid();$restore['operation']='restore';$restore['reason']='Recovery test';$s->withdrawal(1,$restore);
+check(!$s->detail(1,$a)['withdrawn']&&$s->detail(1,$a)['status']===$before['status'],'Owner restore preserves signed state');
+check($s->withdrawal(1,$restore)['duplicate'],'Restore retry safe');
+// Force the audit insert to fail: the active flag must roll back too.
+$db->exec("CREATE TRIGGER ack_test_fail BEFORE INSERT ON portal_ack_events FOR EACH ROW SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT='Synthetic failure'");
+$failed=$body;$failed['request_key']=S::uuid();
+try{$s->withdrawal(1,$failed);throw new RuntimeException('Expected transaction failure');}catch(PDOException $e){}
+$db->exec('DROP TRIGGER ack_test_fail');
+check(!$s->detail(1,$a)['withdrawn'],'Failed audit rolls back withdrawal');
+echo "PASS withdrawal isolation, signatures, reminders, permissions, retries and rollback\n";
