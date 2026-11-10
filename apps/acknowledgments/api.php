@@ -14,6 +14,7 @@ try{
         $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
         if($action==='send')$result=$service->send($employee,$body);
         elseif($action==='schedule')$result=$service->schedule($employee,$body);
+        elseif($action==='withdrawal')$result=$service->withdrawal($employee,$body);
         elseif($action==='respond'){$service->respond($employee,$body,session_id());$result=['ok'=>true];}
         else throw new DomainException('Unsupported action.');
         acknowledgments_deliver();echo json_encode($result,JSON_THROW_ON_ERROR);exit;
