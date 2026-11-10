@@ -1,5 +1,5 @@
 name: Supplier unit draft linking correction
-# Preserve blank working prices in the verified matching preview.
+# Validate matching responses before rendering a preview or confirming success.
 on:
   push:
     branches: [codex/supplier-variation-link]

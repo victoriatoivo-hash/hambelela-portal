@@ -2,7 +2,20 @@
 const root=document.querySelector('[data-rp-root]');if(!root)return;const mode=root.dataset.mode,api=root.dataset.api,csrf=root.dataset.csrf,$=(s,c=document)=>c.querySelector(s),$$=(s,c=document)=>[...c.querySelectorAll(s)],num=v=>Number(v)||0,esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])),money=v=>'N$ '+num(v).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:2}),percent=v=>num(v).toFixed(1)+'%';
 let data={rows:[],products:[],sizes:[],setups:[],materials:[],website:[],settings:{}},active=null;
 const toast=(message,error=false)=>{const el=$('[data-rp-toast]');if(!el)return;el.textContent=message;el.classList.toggle('is-error',error);el.hidden=false;clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.hidden=true,3500)};
-async function request(action,options={}){const query=options.query||'';const response=await fetch(`${api}?action=${encodeURIComponent(action)}${query}`,{method:options.method||'GET',credentials:'same-origin',headers:{'Content-Type':'application/json','X-CW-CSRF':csrf},body:options.body?JSON.stringify(options.body):undefined});const result=await response.json().catch(()=>({message:'The server returned an invalid response.'}));if(!response.ok||result.ok===false)throw new Error(result.message||`Request failed (${response.status}).`);return result}
+async function request(action,options={}){
+ const query=options.query||'';
+ const response=await fetch(`${api}?action=${encodeURIComponent(action)}${query}`,{method:options.method||'GET',credentials:'same-origin',headers:{'Content-Type':'application/json','Accept':'application/json','X-CW-CSRF':csrf},body:options.body?JSON.stringify(options.body):undefined});
+ // Login redirects and hosting verification pages can return HTTP 200 without API data.
+ // Never treat those responses as a successful preview or save, or retry writes automatically.
+ if(response.status===401||(response.redirected&&/\/login\.php(?:[?#]|$)/i.test(response.url||'')))throw new Error('Your session has expired. Sign in again, then retry. Your selections have been kept.');
+ let result;
+ try{result=await response.json()}catch(e){throw new Error('The portal did not return a valid response. Please retry; if this continues, reload the page and sign in again. No success has been confirmed.')}
+ if(!result||typeof result!=='object'||Array.isArray(result))throw new Error('The portal returned an incomplete response. Please retry. No success has been confirmed.');
+ if(!response.ok||result.ok===false)throw new Error(result.message||`Request failed (${response.status}).`);
+ if(/^cost-(?:un)?link-/.test(action)&&result.ok!==true)throw new Error('The portal did not confirm this matching request. Please retry.');
+ if(/^cost-(?:un)?link-preview$/.test(action)&&(!Array.isArray(result.rows)||!result.rows.length||result.rows.some(row=>!row||typeof row!=='object'||Array.isArray(row))||typeof result.token!=='string'||!result.token.trim()))throw new Error('The matching preview was incomplete. Please retry Preview Selected Match. No link has been saved.');
+ return result;
+}
 const themeSelects=node=>{if(!(node instanceof Element))return;const selects=[...(node.matches('select')?[node]:[]),...node.querySelectorAll('select')];selects.filter(select=>!select.matches('[data-custom-select-ready]')).forEach(select=>{select.dataset.portalCustomSelect='';select.dataset.portalSelectVariant=select.matches('[data-packaging]')?'cost-packaging':mode==='pricing'?'cost-olive':'input-vat'});window.PortalCustomSelect?.initialise(node.matches('select')?(node.parentElement||root):node)};
 // Initialise our forms/editors explicitly, not every row/option or shared popup mutation.
 themeSelects(root);
@@ -411,3 +424,4 @@ function exportSheet(type){
 $$('[data-rp-export]').forEach(b=>b.addEventListener('click',()=>exportSheet(b.dataset.rpExport)));
 
 })();
+
