@@ -42,7 +42,7 @@ jobs:
           node tests/acknowledgments-schedule-ui.mjs
           npm install --prefix /tmp/ack-tests jsdom@24
           NODE_PATH=/tmp/ack-tests/node_modules node tests/acknowledgments-withdrawal-ui.cjs
-      - name: Deploy isolated withdrawal with targeted backup and rollback
+      - name: Deploy Edit and Delete controls with targeted backup and rollback
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

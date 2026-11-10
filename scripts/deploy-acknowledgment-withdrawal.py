@@ -2,11 +2,11 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, ssl, socket, re
 from pathlib import Path
 
-BASELINE = '6087db3030e19725c097657608763904dc30f4ba'
+BASELINE = '8769a6982d61cd162f030ca970bd1e3376407cb3'
 BASELINES = {'assets/js/acknowledgments-popup.js': '85aff67d086c3b96f6640b230d2b75cf5adebead'}
-FILES = ['shared/acknowledgments/Service.php', 'apps/acknowledgments/api.php', 'assets/js/acknowledgments.js']
+FILES = ['assets/js/acknowledgments.js']
 NEW_FILES = []
-DEPENDENCIES = ['shared/acknowledgments/integration.php', 'apps/acknowledgments/index.php', 'assets/js/acknowledgments-popup.js']
+DEPENDENCIES = ['shared/acknowledgments/Service.php', 'apps/acknowledgments/api.php', 'shared/acknowledgments/integration.php', 'apps/acknowledgments/index.php', 'assets/js/acknowledgments-popup.js']
 DEPENDENCY_HASHES = {}
 REPORT = 'acknowledgment-withdrawal-report.json'
 BACKUP = 'acknowledgment-withdrawal-backup.zip'
