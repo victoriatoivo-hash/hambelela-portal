@@ -158,7 +158,14 @@ final class PackerOrdersPreview
             if ($mine && $r['due_at']>=$from && $r['due_at']<=$to && $r['score_outcome']!==null) { $s['assessed']++;if($r['score_outcome']==='success')$s['successes']++; }
             unset($m);
         }
-        foreach ($s['modes'] as &$m) {$m['average']=$m['minutes']?round(array_sum($m['minutes'])/count($m['minutes']),1):null;unset($m['minutes']);}unset($m);
+        foreach ($s['modes'] as &$m) {
+            $times=$m['minutes'];sort($times,SORT_NUMERIC);$n=count($times);
+            $m['timing_missing']=$m['packed']-$n;
+            $m['average']=$n?round(array_sum($times)/$n,1):null;
+            $m['median']=$n?round(($times[intdiv($n-1,2)]+$times[intdiv($n,2)])/2,1):null;
+            $m['fastest']=$n?$times[0]:null;$m['slowest']=$n?$times[$n-1]:null;
+            unset($m['minutes']);
+        }unset($m);
         $s['median']=null;
         if ($durations) {$s['average']=round(array_sum($durations)/count($durations),1);$s['fastest']=min($durations);$s['slowest']=max($durations);sort($durations,SORT_NUMERIC);$n=count($durations);$s['median']=round(($durations[intdiv($n-1,2)]+$durations[intdiv($n,2)])/2,1);}
         $s['timing_measured']=count($durations);$s['timing_missing']=$s['packed']-count($durations);

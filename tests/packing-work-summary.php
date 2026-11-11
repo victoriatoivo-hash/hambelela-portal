@@ -49,6 +49,12 @@ $earlyAssignment=[1=>[['at'=>'2026-10-04 08:00:00','old'=>7,'new'=>8]]];$s=$buil
 $startBefore=$item;$startBefore['date_loaded']='2026-09-01 08:00:00';$s=$build([$startBefore],$events);check($s['completed']===1,'Carry-in batch completion included');
 $noteEvents=$events;$noteEvents[1][]=$event('2026-10-04 10:00:00','notes','','waiting for labels');$s=$build([$item],$noteEvents);check($s['notes']===1&&$s['note_reasons']['label']===1,'Notes diagnostic only');
 check(!array_key_exists('score',$s)&&!array_key_exists('stalled',$s),'No grade or stalled flag');
+$later=$events;$later[1][]=$event('2026-11-01 09:00:00','quantity_packed',$item['quantity_packed'],'100g (181)',9);
+$later[1][]=$event('2026-11-02 09:00:00','packing_status','done','packing');
+$later[1][]=$event('2026-11-03 09:00:00','quantity_packed','100g (181)','100g (200)');
+$amended=$build([array_replace($item,['quantity_packed'=>'100g (200)','packing_status'=>'packing'])],$later);
+check($amended['packages']===180&&count($amended['later_quantity_edits'])===1,'Post-period edits visible without changing original total or including reopened work');
+check($amended['later_quantity_edits'][0]['actor']===9,'Correction author is not the packer credited');
 
 // Business Health must sum the same actual output as the employee profile,
 // ignoring cached workload quantities, including historical corrections.

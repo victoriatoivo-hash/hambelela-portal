@@ -49,4 +49,8 @@ $s=Engine::summary([$on,$late,$over,$pending],7,'2026-10-30 00:00:00','2026-10-3
 $cross=$e->evaluate($base,[['kind'=>'new','at'=>'2026-10-30 16:00:00'],['kind'=>'packed','at'=>'2026-10-31 09:30:00','actor'=>7]],$owner,[],'2026-10-31 12:00:00');
 eq(0,Engine::summary([$cross],7,'2026-10-30 00:00:00','2026-10-30 23:59:59')['packed'],'packing not credited to prior day');
 eq(1,Engine::summary([$cross],7,'2026-10-31 00:00:00','2026-10-31 23:59:59')['packed'],'actual packing date');
+$mode=$s['modes'][$on['mode']];
+eq($s['median'],$mode['median'],'per-mode median excludes unfinished orders');
+eq($s['fastest'],$mode['fastest'],'per-mode fastest');eq($s['slowest'],$mode['slowest'],'per-mode slowest');
+eq(0,$mode['timing_missing'],'known timing denominator');
 echo "PASS: $n Packer Orders policy checks\n";

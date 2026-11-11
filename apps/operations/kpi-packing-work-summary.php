@@ -21,7 +21,21 @@ try{
     if($from>$to||(new DateTimeImmutable($from))->diff(new DateTimeImmutable($to))->days>366)throw new InvalidArgumentException('Choose a period of no more than one year.');
     $from.=' 00:00:00';$to=min($to.' 23:59:59',$now->format('Y-m-d H:i:s'));
     if($from>$to)throw new InvalidArgumentException('Choose a period that has already started.');
+    if(($_GET['view']??'')==='production'){
+        $people=[$employee];
+        if(($_GET['team']??'')==='1'){
+            if(current_role_key()!=='owner_admin')pws_reply(['ok'=>false,'message'=>'Owner access required'],403);
+            $people=ops_rows("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE r.role_key LIKE '%packer%' ORDER BY e.full_name");
+        }
+        $production=[];
+        foreach($people as$person){
+            $s=kpi_packing_work_summary((int)$person['id'],$from,$to);
+            $production[]=['name'=>$person['full_name']]+array_intersect_key($s,array_flip(['completed','quantity_known','packages','kg','litres','open']));
+        }
+        pws_reply(['ok'=>true,'from'=>$from,'to'=>$to,'production'=>$production]);
+    }
     $summary=kpi_packing_work_summary($id,$from,$to);
+    if(current_role_key()!=='owner_admin')unset($summary['later_quantity_edits']);
     // Evidence is restricted to this employee's batches; no colleague's note text is returned.
     pws_reply(['ok'=>true,'employee'=>$employee['full_name'],'from'=>$from,'to'=>$to,'summary'=>$summary,
         'policy'=>['stalled_alerts'=>false,'fixed_deadlines'=>false,'score_changes'=>false,'priority'=>'Queue order only. Historical availability is not assumed; no automatic priority-skipping penalty.',

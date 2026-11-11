@@ -4,6 +4,11 @@ const data={workload_team_total:280,comparison:[{employee:{full_name:'Packer <7>
 const original=JSON.stringify(data),html=context.window.HambelelaPackerWorkload.render(data);
 for(const text of ['Workload &amp; Capacity','190 packed','67.9%','Within 2-hour target','180 / 190 measured','Median · includes waiting','2 / 190 orders covered','1 packed by colleague','not a combined employee grade','Not attendance']){assert.ok(html.toLowerCase().includes(text.toLowerCase()) || text==='Not attendance'&&html.includes('not attendance'),text);}
 assert.ok(html.includes('Packer &lt;7&gt;'));assert.equal(JSON.stringify(data),original);
+const pair={...data,from:'2026-10-01',to:'2026-10-31',comparison:[{...data.comparison[0],employee:{id:7,full_name:'First'},summary:{...data.comparison[0].summary,modes:{collection:{packed:4,on_time:2,late:1,timing_missing:1}}}},{...data.comparison[0],employee:{id:8,full_name:'Second'}}]};
+context.URLSearchParams=URLSearchParams;
+const comparison=context.window.HambelelaPackerWorkload.render(pair);
+assert.match(comparison,/Orders by mode/);assert.match(comparison,/4 packed/);assert.match(comparison,/2 on time · 1 late · 1 without timing/);
+assert.match(comparison,/team=1&amp;from=2026-10-01&amp;to=2026-10-31/);
 const own={employee:data.comparison[0].employee,summary:data.comparison[0].summary,workload:{...data.comparison[0].workload,team_share:null,capacity:{}}};
 const privateHtml=context.window.HambelelaPackerWorkload.render(own);assert.ok(privateHtml.includes('Owner view only'));assert.ok(privateHtml.includes('Not verified'));assert.ok(!privateHtml.includes('280 team'));
 for(const file of ['apps/operations/reports.php','apps/operations/kpi-employee.php']){const page=fs.readFileSync(file,'utf8');assert.ok(page.indexOf("'path'=>'assets/css/packer-workload.css'")<page.indexOf("include BASE_PATH . '/shared/header.php'"));}

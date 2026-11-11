@@ -80,6 +80,8 @@
       ${section('logic',`<section class="ep-area">${logic}<h3>Category definitions and eligibility</h3>${categories.map(([,c])=>`<h3>${esc(c.label)}</h3>${measures(c)}`).join('')}</section>`)}`;
     if(activeTab==='evidence')loadEvidence();
     if(isPacker){
+      const history=content.querySelector('[data-ep-panel="history"]');
+      if(history && root.dataset.canReview==='1')history.insertAdjacentHTML('afterbegin',`<section class="ep-area"><h2>Monthly work review · ${esc(q('[data-ep-month]').value)}</h2><p data-review-orders>Orders summary not yet available.</p><div data-review-batches>Packing summary not yet available.</div><p class="ep-muted">Recorded work only. Check responsibilities and any corrections before deciding bonuses. This review does not change payroll or published scores.</p></section>`);
       content.querySelector('.ep-summary')?.remove();
       content.querySelector('.ep-result-state')?.remove();
       const overview=content.querySelector('[data-ep-panel="overview"]');

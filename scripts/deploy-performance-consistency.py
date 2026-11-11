@@ -2,9 +2,14 @@
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, ssl, socket, re
 from pathlib import Path
 
-BASELINE = '08457971c111adb2c66375be1d87b9471585db4e'
+BASELINE = 'c2006016e244f31eafbd97b942e1114a3941b7c7'
 BASELINES = {}
-FILES = ['shared/epi/PackingWorkSummary.php', 'assets/js/packing-work-summary.js']
+FILES = [
+    'apps/operations/performance-workspace.php', 'apps/operations/kpi-packer-orders-preview.php',
+    'apps/operations/kpi-packing-work-summary.php', 'shared/epi/PackerOrdersPreview.php',
+    'shared/epi/PackingWorkSummary.php', 'assets/js/employee-performance.js',
+    'assets/js/packer-orders-preview.js', 'assets/js/packer-workload.js', 'assets/js/packing-work-summary.js',
+]
 NEW_FILES = []
 DEPENDENCIES = []
 DEPENDENCY_HASHES = {'apps/operations/operations.php': '2bb88e308cb1742a7ee7c974945be105f5b272ee7a32a01589bb097ccdd11bc0'}

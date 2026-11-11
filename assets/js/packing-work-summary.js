@@ -15,6 +15,8 @@
   const pairs=o=>Object.entries(o).map(([k,v])=>`<div class="pws-pair"><span>${esc(label(k))}</span><strong>${num(v)}</strong></div>`).join('')||'<p>No records.</p>';
   let host=null,root=null,month='',loadedKey='',cached=null,controller=null,serial=0,monthResult=null,overviewError='';
   function overview(){
+    const review=root?.querySelector('[data-review-batches]');
+    if(review&&monthResult){const s=monthResult.summary,edits=s.later_quantity_edits||[];review.innerHTML=`<p><strong>${num(s.completed)} finished batches</strong> · ${packageTotal(s)} packages · ${quantityTotal(s)}. Quantities recorded for ${num(s.quantity_known)} / ${num(s.completed)} batches.</p>${edits.length?`<details><summary>Quantity edits recorded after this period (${edits.length})</summary><p>Shown for review, not added to this month’s totals.</p>${table(['Batch','Edited on','Edited by','Before','After'],edits.map(e=>[esc(e.name)+' #'+esc(e.batch),esc(e.at),e.actor?'Employee #'+esc(e.actor):'Not recorded',esc(e.before||'Not recorded'),esc(e.after||'Not recorded')]))}</details>`:''}`;}
     const card=root?.querySelector('[data-packing-overview-card]');if(!card)return;
     if(!monthResult){card.innerHTML=overviewError?`<p>${esc(overviewError)}</p><button type="button" data-pws-retry>Retry recorded work</button>`:'<p role="status">Loading recorded batches…</p>';card.querySelector('[data-pws-retry]')?.addEventListener('click',()=>load(true));return;}
     const s=monthResult.summary;

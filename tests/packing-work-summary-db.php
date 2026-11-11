@@ -14,7 +14,7 @@ function ops_column_exists($table,$column){return (bool)ops_rows('SELECT 1 FROM 
 if(($argv[1]??'')==='child'){
     if(!preg_match('/^packing_work_[a-f0-9]{16}$/D',$argv[2]))exit(2);
     $pdo->exec('USE `'.$argv[2].'`');define('BASE_PATH',dirname(__DIR__));
-    $_GET=['id'=>(int)($argv[4]??7),'from'=>'2026-10-01','to'=>'2026-10-29'];$_SERVER['REQUEST_METHOD']=$argv[5]??'GET';
+    $_GET=['id'=>(int)($argv[4]??7),'from'=>'2026-10-01','to'=>'2026-10-29'];$_SERVER['REQUEST_METHOD']=$argv[5]??'GET';if(isset($argv[6])&&$argv[6]!==''){$_GET['view']='production';$_GET['team']=$argv[6];}
     $source=file_get_contents(BASE_PATH.'/apps/operations/kpi-packing-work-summary.php');
     eval(substr(str_replace("require_once __DIR__.'/operations.php';",'',$source),5));exit;
 }
@@ -31,7 +31,7 @@ try{
       CREATE TABLE employee_user_links(portal_user_id INT,hr_employee_id INT,linked_at DATETIME,active INT);INSERT INTO employee_user_links VALUES(7,101,'2026-01-01 00:00:00',1);
       CREATE TABLE leave_requests(employee_id INT,status VARCHAR(20),start_date DATE,end_date DATE,days DECIMAL(5,2),approved_at DATETIME,approved_by INT);
       INSERT INTO leave_requests VALUES(101,'approved','2026-10-03','2026-10-03',1,'2026-09-01 08:00:00',1);");
-    $call=static function($role='owner_admin',$id=7,$method='GET')use($name){$cmd=escapeshellarg(PHP_BINARY).' '.escapeshellarg(__FILE__).' child '.escapeshellarg($name).' '.escapeshellarg($role).' '.(int)$id.' '.escapeshellarg($method);$out=shell_exec($cmd);$result=json_decode((string)$out,true);if(!$result)throw new RuntimeException('Bad response: '.$out);return$result;};
+    $call=static function($role='owner_admin',$id=7,$method='GET',$team='')use($name){$cmd=escapeshellarg(PHP_BINARY).' '.escapeshellarg(__FILE__).' child '.escapeshellarg($name).' '.escapeshellarg($role).' '.(int)$id.' '.escapeshellarg($method).' '.escapeshellarg($team);$out=shell_exec($cmd);$result=json_decode((string)$out,true);if(!$result)throw new RuntimeException('Bad response: '.$out);return$result;};
     $before=ops_rows('SELECT * FROM ops_packing_tasks');$p=$call();
     if(empty($p['ok'])||$p['summary']['completed']!==1||$p['summary']['open']!==1||$p['summary']['packages']!=500||$p['summary']['kg']!=50)throw new RuntimeException('Output quantity / carry-in / labels failed: '.json_encode($p));
     if($p['summary']['timing']['median_minutes']!=90||$p['summary']['evidence'][0]['finished_at']!=='2026-10-05 09:00:00')throw new RuntimeException('UTC conversion or approved absence failed');
@@ -42,5 +42,7 @@ try{
     if($before!==ops_rows('SELECT * FROM ops_packing_tasks'))throw new RuntimeException('Report mutated records');
     if($p['policy']['stalled_alerts']!==false||$p['policy']['fixed_deadlines']!==false||$p['policy']['score_changes']!==false)throw new RuntimeException('Cancelled alerts or scoring introduced');
     $pdo->exec("UPDATE leave_requests SET days=0.5");$p=$call();if($p['summary']['absence_source_verified']!==false||$p['summary']['timing']['median_minutes']!=330)throw new RuntimeException('Ambiguous half-day falsely deducted');
+    $pair=$call('owner_admin',7,'GET','1')['production'];if(count($pair)!==2||$pair[0]['packages']!=500||$pair[1]['litres']!=100||isset($pair[0]['evidence']))throw new RuntimeException('Production comparison scope or quantities incorrect');
+    if($call('packer',7,'GET','1')['ok']||count($call('packer',7,'GET','0')['production'])!==1)throw new RuntimeException('Comparison privacy failed');
     echo "PASS: Packing List endpoint permissions, read-only data, historical carry-in, UTC, no duplicate completions, approved absence and no alerts.\n";
 }finally{$pdo->exec("DROP DATABASE `$name`");}

@@ -129,9 +129,11 @@ try {
     usort($rows,static fn($a,$b)=>strcmp($b['packed_at']??$b['due_at']??$b['display_date'],$a['packed_at']??$a['due_at']??$a['display_date']));
     $modeFilter=(string)($_GET['mode']??'');$payment=(string)($_GET['payment']??'');$paidFilter=(string)($_GET['paid']??'');
     $payments=array_values(array_unique(array_column($rows,'payment_method')));sort($payments);
-    $rows=array_values(array_filter($rows,static fn($r)=>($modeFilter===''||$r['mode']===$modeFilter)&&($payment===''||$r['payment_method']===$payment)&&($paidFilter===''||($r['paid']!==null && $r['paid']===($paidFilter==='1')))));
-    $filter=static fn($r)=>($modeFilter===''||$r['mode']===$modeFilter)&&($payment===''||$r['payment_method']===$payment)&&($paidFilter===''||($r['paid']!==null&&(bool)$r['paid']===($paidFilter==='1')));
+    $status=(string)($_GET['status']??'');
+    $filter=static fn($r)=>($modeFilter===''||$r['mode']===$modeFilter)&&($payment===''||$r['payment_method']===$payment)&&($paidFilter===''||($r['paid']!==null&&(bool)$r['paid']===($paidFilter==='1')))&&($status===''||PackerOrdersPreview::status((string)$r['status'])===$status);
+    $rows=array_values(array_filter($rows,$filter));
     $allRows=array_values(array_filter($allRows,$filter));
+    $team=count(array_filter($allRows,static fn($r)=>!$r['responsible_id']&&$r['result']==='Overdue'));
     $previousRows=array_values(array_filter($previousRows,static fn($r)=>$filter($r)&&(($r['packed_at']!==null&&$r['packed_at']>=$previousFrom&&$r['packed_at']<=$previousTo)||($r['due_at']!==null&&$r['due_at']>=$previousFrom&&$r['due_at']<=$previousTo)||($r['display_date']>=$previousFrom&&$r['display_date']<=$previousTo))));
     $items=[];
     if(ops_table_exists('ops_order_items'))foreach(ops_rows('SELECT order_id,COUNT(*) `lines`,SUM(quantity) units FROM ops_order_items GROUP BY order_id HAVING MIN(quantity)>=0 AND COUNT(quantity)=COUNT(*) AND SUM(quantity)>0')as$item)$items[(int)$item['order_id']]=$item;

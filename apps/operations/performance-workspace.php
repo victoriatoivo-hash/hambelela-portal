@@ -20,6 +20,11 @@ try {
         }
     }
 } catch (Throwable $error) { error_log('Performance workspace: upcoming leave unavailable'); }
+$pwDay=$pwToday->format('Y-m-d');$pwDuty=null;
+if(current_role_key()==='owner_admin')try{
+    require_once BASE_PATH.'/shared/epi/OwnerFrontCoverage.php';
+    $pwDuty=\Hambelela\EPI\OwnerFrontCoverage::rows(db(),$pwDay);
+}catch(Throwable $error){error_log('Performance workspace: coverage unavailable');}
 ?>
 <div class="pw-toolbar" data-current-month="<?= $pwToday->format('Y-m') ?>"><span data-pw-updated role="status">Loading overview…</span><button class="pw-button" type="button" data-pw-refresh aria-label="Refresh dashboard"><i data-lucide="refresh-cw" aria-hidden="true"></i>Refresh</button></div>
 <div data-pw-error class="pw-error" role="alert" hidden></div>
@@ -44,6 +49,12 @@ try {
         </section>
     </div>
     <aside class="pw-side" aria-label="Operational priorities">
+        <?php if(current_role_key()==='owner_admin'): ?>
+        <section class="pw-panel"><header class="pw-section-head"><div><h2>Today’s front desk</h2><p><?= $pwToday->format('D, j M') ?> · Namibia time</p></div></header>
+            <?php if(!$pwDuty): ?><p class="pw-empty"><?= $pwDuty===null?'Coverage could not be loaded.':'No coverage scheduled for today.' ?></p>
+            <?php else: ?><ul class="pw-leave"><?php foreach($pwDuty as $slot): ?><li><strong><?= $pwEscape($slot['full_name']) ?></strong><span><?= $pwEscape(substr(max($pwDay.' 00:00:00',$slot['effective_from']),11,5)) ?> – <?= $pwEscape(substr(min($pwDay.' 23:59:59',$slot['effective_to']??$pwDay.' 23:59:59'),11,5)) ?></span><small><?= $slot['responsibility_level']==='primary'?'Front desk':'Cover' ?></small></li><?php endforeach; ?></ul><?php endif; ?>
+            <a class="pw-text-link" href="front-coverage-settings.php?day=<?= $pwDay ?>">View or edit coverage →</a>
+        </section><?php endif; ?>
         <section class="pw-panel"><header class="pw-section-head"><div><h2><i data-lucide="package" aria-hidden="true"></i>Packing progress</h2><p data-pw-packing-period>Orders in the selected month</p></div></header><div data-pw-packing>Loading packing progress…</div><a class="pw-text-link" href="orders-board.php">Open Orders List →</a></section>
         <section class="pw-panel"><header class="pw-section-head"><div><h2><i data-lucide="calendar-days" aria-hidden="true"></i>Upcoming leave</h2><p>Approved · today and the next 30 days</p></div></header>
             <?php if (!$pwLeaveAvailable): ?><p class="pw-empty">Leave information unavailable. <a href="../hr-portal/leave.php">Check HR leave</a>.</p>

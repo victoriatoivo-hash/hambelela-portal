@@ -145,6 +145,15 @@ final class PackingWorkSummary
             if($open&&$lastStage&&$lastStage>=$loaded)$stageAges[$state][]=round($clock->seconds($lastStage,$to)/60,1);
             if($completed){
                 $out['completed']++;if(!$attributed)$out['responsibility_review']++;
+                // Subsequent edits to the same finished run are review evidence only.
+                // Stop at the first reopen so later production is never credited to this batch.
+                foreach($history as$edit){
+                    if($edit['at']<=$to)continue;
+                    if($edit['field']==='packing_status'&&!self::finished($edit['after']))break;
+                    if($edit['field']==='quantity_packed'&&(string)$edit['before']!==(string)$edit['after']){
+                        $out['later_quantity_edits'][]=['batch'=>$id,'name'=>$snapshot['item_name']??'Packing item','at'=>$edit['at'],'actor'=>(int)($edit['actor']??0),'before'=>(string)$edit['before'],'after'=>(string)$edit['after']];
+                    }
+                }
                 $out['accuracy'][$accuracy]++;
                 $day=substr($finished,0,10);$out['daily'][$day]=($out['daily'][$day]??0)+1;
                 if(!isset($out['output_daily'][$day]))$out['output_daily'][$day]=['items'=>0,'packages'=>0,'weight_kg'=>0.0,'volume_l'=>0.0,'units'=>0,'quantity_known'=>0];
