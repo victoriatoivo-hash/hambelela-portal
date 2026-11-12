@@ -4,6 +4,7 @@ import io
 import os
 from pathlib import Path
 import ssl
+import socket
 import sys
 import uuid
 
@@ -38,7 +39,13 @@ def write(ftp, path, data):
             pass
 
 
-with ftplib.FTP_TLS(os.environ["FTP_SERVER"], context=ssl.create_default_context(), timeout=35) as ftp:
+# The hosting certificate covers the canonical name used by the existing portal release.
+host = os.environ["FTP_SERVER"]
+canonical = "s11745.sgp1.stableserver.net"
+if set(socket.gethostbyname_ex(host)[2]) & set(socket.gethostbyname_ex(canonical)[2]):
+    host = canonical
+
+with ftplib.FTP_TLS(host, context=ssl.create_default_context(), timeout=35) as ftp:
     ftp.login(os.environ["FTP_USERNAME"], os.environ["FTP_PASSWORD"])
     ftp.prot_p()
     live = read(ftp, "index.php")
@@ -48,7 +55,9 @@ with ftplib.FTP_TLS(os.environ["FTP_SERVER"], context=ssl.create_default_context
     apps = {name.rstrip("/").split("/")[-1] for name in ftp.nlst("apps")}
     if "sale-manager" not in apps:
         ftp.mkd(folder)
-    present = {name.rstrip("/").split("/")[-1] for name in ftp.nlst(folder)}
+        present = set()
+    else:
+        present = {name.rstrip("/").split("/")[-1] for name in ftp.nlst(folder)}
     for name in resources:
         path = folder + "/" + name
         content = (candidate / path).read_bytes()
