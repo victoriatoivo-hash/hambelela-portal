@@ -18,6 +18,7 @@ const src=p=>readFileSync('assets/js/'+p+'.js','utf8'),turn=()=>new Promise(r=>s
    const d=doc.querySelector('dialog[open]');assert.ok(d);const go=d.querySelector('[data-open]'),other=d.querySelector('[data-other]');assert.equal(go.textContent,'Reply');assert.equal(other.textContent,owner?'Respond Later':'Acknowledge');
    if(choice==='reply'){
     go.click();await turn();const input=d.querySelector('textarea');assert.equal(doc.activeElement,input);assert.equal(d.querySelector('.ack-private-body').textContent,'Confirm <b>stock</b>');
+    assert.equal(d.querySelector('.ack-private-body').dataset.sender,owner?'employee':'owner');
     input.value='Typed response';input.dispatchEvent(new w.Event('input'));go.click();await turn();assert.equal(input.value,'Typed response');assert.match(d.querySelector('[role=alert]').textContent,/Connection/);go.click();
    }else other.click();
    await turn();assert.equal(doc.querySelector('dialog'),null);assert.ok(actions.includes('private_act'));assert.equal(w.location.pathname,'/');

@@ -50,7 +50,7 @@ jobs:
           STAGE: ${{ inputs.contact_stage }}
         run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
   contact-design:
-    if: (github.ref == 'refs/heads/codex/employee-my-instructions' || github.ref == 'refs/heads/codex/private-assistance-prompts' || github.ref == 'refs/heads/codex/assistance-inline-replies') && inputs.approved_sha == github.sha
+    if: (github.ref == 'refs/heads/codex/employee-my-instructions' || github.ref == 'refs/heads/codex/private-assistance-prompts' || github.ref == 'refs/heads/codex/assistance-inline-replies' || github.ref == 'refs/heads/codex/private-message-bubbles') && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest
     permissions:
       contents: read

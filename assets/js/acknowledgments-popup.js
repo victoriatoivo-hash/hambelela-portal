@@ -38,7 +38,7 @@ function privateDialog(p,csrf,editing=false,release=()=>{}){
   if(loaded||loading)return;loading=true;controls();error.textContent='';
   try{const msg=await request('private_item&id='+Number(p.id));csrf=msg.csrf;
    find('[data-author]').textContent=msg.full_name+' · '+msg.created_at;
-   body.textContent=msg.body;body.hidden=false;loaded=true;
+   body.dataset.sender=p.owner?'employee':'owner';body.textContent=msg.body;body.hidden=false;loaded=true;
   }catch(e){error.textContent=e.message;go.textContent='Retry loading message';}
   finally{loading=false;if(loaded)go.textContent=editing?'Send reply':'Reply';controls();}
  }
