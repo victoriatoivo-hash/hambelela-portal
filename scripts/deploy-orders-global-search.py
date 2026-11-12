@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import secrets
+import socket
 import ssl
 import subprocess
 import sys
@@ -36,7 +37,11 @@ def patched(path, raw):
 
 if mode not in ('preflight','deploy') or git('rev-parse','HEAD').decode().strip() != sha:
     raise ValueError('Invalid release request')
-with ftplib.FTP_TLS(os.environ['FTP_SERVER'],context=ssl.create_default_context(),timeout=60) as ftp:
+host = os.environ['FTP_SERVER']
+canonical = 's11745.sgp1.stableserver.net'
+if set(socket.gethostbyname_ex(host)[2]) & set(socket.gethostbyname_ex(canonical)[2]):
+    host = canonical
+with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=60) as ftp:
     ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD'])
     ftp.prot_p()
     def read(path):
