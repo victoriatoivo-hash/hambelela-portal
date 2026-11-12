@@ -534,9 +534,8 @@
   } catch (error) {
     storedDateFilter = {};
   }
-  let boardDateScope = ['today', 'week', 'month', 'custom', 'all'].includes(storedDateFilter.preset)
-    ? storedDateFilter.preset
-    : 'today';
+  // Remember custom date inputs, but start every page load in the current month.
+  let boardDateScope = 'month';
   let boardMonth = todayKey().slice(0, 7);
   if (datePreset) datePreset.value = boardDateScope;
   if (dateFromFilter && /^\d{4}-\d{2}-\d{2}$/.test(storedDateFilter.from || '')) dateFromFilter.value = storedDateFilter.from;
@@ -609,7 +608,6 @@
 
   function persistDateFilter() {
     sessionStorage.setItem(dateFilterStorageKey, JSON.stringify({
-      preset: boardDateScope,
       from: dateFromFilter?.value || '',
       to: dateToFilter?.value || ''
     }));

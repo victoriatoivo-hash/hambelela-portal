@@ -93,8 +93,8 @@ include BASE_PATH . '/shared/ess-sidebar.php';
         <div class="orders-filter-panel" aria-label="Board filters" hidden>
             <label>Date Range
                 <div class="orders-filter-select" data-orders-filter-select="datePreset">
-                    <input id="board-date-preset" type="hidden" value="today">
-                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>Today</span><i data-lucide="chevron-down"></i></button>
+                    <input id="board-date-preset" type="hidden" value="month">
+                    <button type="button" class="orders-filter-trigger" data-orders-filter-trigger aria-haspopup="listbox" aria-expanded="false"><span>This Month</span><i data-lucide="chevron-down"></i></button>
                 </div>
             </label>
             <label class="orders-custom-date-field" data-orders-custom-date-field hidden>Date From

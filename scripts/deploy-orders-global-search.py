@@ -1,4 +1,4 @@
-"""Apply only unique reviewed search hunks to the current board, preserving other releases."""
+"""Apply only the monthly-default delta to the current board, preserving other releases."""
 import difflib
 import ftplib
 import hashlib
@@ -14,18 +14,17 @@ import sys
 import tempfile
 import zipfile
 
-paths = ['apps/operations/orders-list-query.php', 'apps/operations/orders-board-data.php',
-         'assets/css/orders-list-selection.css', 'assets/js/orders-board.js']
+paths = ['apps/operations/orders-board.php', 'assets/js/orders-board.js']
 mode, sha = sys.argv[1:]
 def git(*args):
     return subprocess.check_output(['git', *args])
 def norm(raw):
     return raw.replace(b'\r\n', b'\n')
 def patched(path, raw):
-    old = norm(git('show', '77d564bd:' + path)).splitlines(True)
+    old = norm(git('show', 'cfae896f:' + path)).splitlines(True)
     new = norm(git('show', sha + ':' + path)).splitlines(True)
     live = norm(raw)
-    for group in difflib.SequenceMatcher(None, old, new, autojunk=False).get_grouped_opcodes(3):
+    for group in difflib.SequenceMatcher(None, old, new, autojunk=False).get_grouped_opcodes(1):
         a = b''.join(old[group[0][1]:group[-1][2]])
         b = b''.join(new[group[0][3]:group[-1][4]])
         if live.count(b) == 1:
