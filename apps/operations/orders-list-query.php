@@ -21,7 +21,7 @@ function ops_list_reference(string $value): string
     return preg_replace('/\s+/', '', ltrim(trim($value), '#+ ')) ?? '';
 }
 
-function ops_list_search(string $search, string $nameExpression): array
+function ops_list_search(string $search, string $nameExpression, array $sources = []): array
 {
     $search = trim(preg_replace('/\s+/u', ' ', substr($search, 0, 160)) ?? '');
     if ($search === '') return ['', []];
@@ -42,9 +42,25 @@ function ops_list_search(string $search, string $nameExpression): array
         if ($phone !== '' && ctype_digit($phone)) {
             $parts[] = ops_list_compact_sql("COALESCE(o.customer_contact,'')") . " LIKE ? ESCAPE '!'";
             $params[] = ops_list_like($phone);
+            if (preg_match('/^(?:264|0)(8\d{3,})$/', $phone, $local)) {
+                $parts[] = ops_list_compact_sql("COALESCE(o.customer_contact,'')") . " LIKE ? ESCAPE '!'";
+                $params[] = ops_list_like($local[1]);
+            }
         }
         $parts[] = "LOWER({$refSql}) LIKE LOWER(?) ESCAPE '!'";
         $params[] = ops_list_like($reference);
+        // Match the board's labels as well as the stored values (walk_in / Walk-in).
+        $plain = static fn(string $expr): string => "LOWER(REPLACE(REPLACE({$expr}, '_', ' '), '-', ' '))";
+        $needle = ops_list_like(str_replace(['_', '-'], ' ', $search));
+        foreach ($sources as [$expression, $relation]) {
+            $predicate = $plain($expression)." LIKE LOWER(?) ESCAPE '!'";
+            $parts[] = $relation === '' ? $predicate : "EXISTS (SELECT 1 {$relation} AND {$predicate})";
+            $params[] = $needle;
+        }
+        if (preg_match('/^(?:N\$\s*|NAD\s*)?((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?)$/i', $search, $amount)) {
+            $parts[] = 'o.total_amount = ?';
+            $params[] = str_replace(',', '', $amount[1]);
+        }
     }
     return ['(' . implode(' OR ', $parts) . ')', $params];
 }

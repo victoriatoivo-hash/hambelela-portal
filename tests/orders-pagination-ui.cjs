@@ -6,6 +6,7 @@ const dom=new JSDOM('<main><div class="orders-filter-card"></div><section class=
 const source=fs.readFileSync('assets/js/orders-board.js','utf8');
 const ctx={document:dom.window.document,Intl,Date,Number,Set,Array,URLSearchParams,ordersCache:Array.from({length:787},(_,i)=>({id:i+1,created_at:i===0?'2026-10-01 09:00:00':'2026-10-27 12:00:00'})),orderDisplayDateTime:o=>o.created_at,esc:v=>String(v).replace(/[<>&"]/g,''),activeDateRange:()=>({from:'2026-10-01',to:'2026-10-31'}),boardState:{search:'',sortColumn:'date',sortDirection:'desc'},listFilterKeys:['sortColumn','sortDirection'],listPagination:{page:1,pages:1,total:787,page_size:787,hidden_matches:0},listPage:1};
 vm.createContext(ctx);
+vm.runInContext(source.slice(source.indexOf('  function globalOrderSearch()'),source.indexOf('  function scheduleOrdersSearch(')),ctx);
 vm.runInContext(source.slice(source.indexOf('  function renderOrdersPagination()'),source.indexOf('  const selectionCurrency =')),ctx);
 vm.runInContext(source.slice(source.indexOf('  function boardDataParams()'),source.indexOf('  function setButtonBusy(')),ctx);
 try {
@@ -32,6 +33,15 @@ try {
   assert.match(q('#orders-list-pagination-bottom').textContent,/All dates/);
   assert.equal(ctx.boardDataParams().get('q'),'Victoria');
   assert.equal(ctx.boardDataParams().has('date_from'),false);
+  ctx.activeDateRange=()=>({from:'2026-11-09',to:'2026-11-15'});
+  ctx.listFilterKeys.push('payment');ctx.boardState.payment='Swipe';
+  const tools=ctx.document.createElement('section');tools.innerHTML='<input data-board-search>';ctx.document.querySelector('main').prepend(tools);
+  ctx.ordersCache=[{id:55,order_number:'WEB-55',customer_name:'Victoria',created_at:'2026-09-01'}];
+  ctx.formatOrderInvoiceReference=v=>v;let opened;ctx.openPanel=id=>opened=id;
+  ctx.renderOrdersPagination();q('#orders-quick-matches button').click();
+  assert.equal(opened,'55');assert.equal(ctx.boardDataParams().has('payment'),false);assert.equal(ctx.boardDataParams().has('date_from'),false);
+  ctx.boardState.search='';ctx.renderOrdersPagination();assert.equal(q('#orders-quick-matches'),null);
+  assert.equal(ctx.boardDataParams().get('payment'),'Swipe');assert.equal(ctx.boardDataParams().get('date_from'),'2026-11-09');
   assert.equal(ctx.document.querySelectorAll('.orders-list-pagination').length,1,'refresh reuses the bottom summary without recreating the top box');
   assert.match(source,/requestedListKey !== ordersListQueryKey\(\)/,'stale filter responses ignored');
   console.log('PASS: all 787 orders, full date coverage, no page controls, filters/search, selection, empty state and refresh summaries');

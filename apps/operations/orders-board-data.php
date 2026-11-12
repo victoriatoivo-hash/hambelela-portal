@@ -139,10 +139,28 @@ $listOrderBy = "{$displayDateTimeExpr} DESC, o.id DESC";
 $listLimit = 'LIMIT 500';
 if ($paged) {
     $nameFields = ['o.customer_name'];
-    foreach (['customer_first_name','customer_last_name','billing_first_name','billing_last_name'] as $column) {
+    foreach (['customer_first_name','customer_last_name','billing_first_name','billing_last_name','first_name','last_name','shipping_first_name','shipping_last_name'] as $column) {
         if (ops_column_exists('ops_orders', $column)) $nameFields[] = 'o.'.$column;
     }
-    [$searchWhere, $searchParams] = ops_list_search((string)($_GET['q'] ?? ''), "CONCAT_WS(' ',".implode(',', $nameFields).')');
+    $queryText = trim((string)($_GET['q'] ?? ''));
+    $sources = [];
+    if (strlen($queryText) >= 2) {
+        $fields = ['o.customer_contact','o.payment_method','o.status','o.order_type','o.fulfilment_mode','o.notes','o.total_amount',$portalPaidSelect,$displayDateTimeExpr,"COALESCE(e.full_name,'Unassigned')"];
+        foreach (['woo_order_id','billing_phone','customer_email','waybill_reference','tracking_number'] as $column) {
+            if (ops_column_exists('ops_orders', $column)) $fields[] = 'o.'.$column;
+        }
+        // Search literal text within fields, never across the boundary between two orders.
+        $sources[] = ["CONCAT_WS(' | ',".implode(',', $fields).')', ''];
+        $sources[] = ["CONCAT_WS(' ',i.product_name,i.sku)", 'FROM ops_order_items i WHERE i.order_id=o.id'];
+        $sources[] = ["CONCAT_WS(' ',p.payment_method,p.transaction_reference)", 'FROM order_payment_allocations p WHERE p.order_id=o.id'];
+        if (ops_table_exists('hambelela_waybill_orders') && ops_table_exists('hambelela_waybills')) {
+            $sources[] = ["CONCAT_WS(' ',w.waybill_reference,w.customer_name,w.courier_names)", 'FROM hambelela_waybill_orders l JOIN hambelela_waybills w ON w.id=l.waybill_id WHERE l.order_id=o.id'];
+        }
+        if (ops_table_exists('ops_courier_requirements') && ops_table_exists('hambelela_waybills')) {
+            $sources[] = ["CONCAT_WS(' ',w.waybill_reference,w.customer_name,d.courier)", 'FROM ops_courier_requirements d LEFT JOIN hambelela_waybills w ON w.batch_id=d.batch_id WHERE d.order_id=o.id'];
+        }
+    }
+    [$searchWhere, $searchParams] = ops_list_search($queryText, "CONCAT_WS(' ',".implode(',', $nameFields).')', $sources);
     [$filterParts, $filterParams] = ops_list_filters($_GET, $displayDateTimeExpr, $portalPaidSelect, (int)ops_current_employee_id());
     $whereParts = array_merge($whereParts, $filterParts);
     $params = array_merge($params, $filterParams);
@@ -187,12 +205,12 @@ if ($paged) {
     $pageSize = $continuousList ? max(1, $count) : 100;
     $pageNumber = min(max(1, (int)($_GET['page'] ?? 1)), max(1, (int)ceil($count / $pageSize)));
     $hiddenMatches = 0;
-    if ($searchWhere !== '') {
+    if ($searchWhere !== '' && ($dateStart !== '' || $filterParts)) {
         $active = [];
         if ($hasArchivedAt) $active[] = 'o.archived_at IS NULL';
         if ($hasDeletedAt) $active[] = 'o.deleted_at IS NULL';
         $active[] = $searchWhere;
-        $allMatches = (int)(ops_row('SELECT COUNT(*) AS n FROM ops_orders o WHERE '.implode(' AND ', $active), $searchParams)['n'] ?? 0);
+        $allMatches = (int)(ops_row("SELECT COUNT(*) AS n {$from} WHERE ".implode(' AND ', $active), $searchParams)['n'] ?? 0);
         $hiddenMatches = max(0, $allMatches - $count);
     }
     $sorts = ['date'=>$displayDateTimeExpr,'task'=>'o.order_number','mobile'=>'o.customer_contact','mode'=>"COALESCE(NULLIF(o.fulfilment_mode,''),o.order_type)",'amount'=>'o.total_amount','payment'=>'o.payment_method','paid'=>$portalPaidSelect,'status'=>'o.status','packer'=>'e.full_name','text'=>'o.notes'];

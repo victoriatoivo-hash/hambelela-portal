@@ -292,7 +292,8 @@
     // The filter toolbar leads directly into the date groups; keep the summary at the end only.
     document.getElementById('orders-list-pagination')?.remove();
     const p = listPagination;
-    const range = activeDateRange();
+    const range = globalOrderSearch() ? null : activeDateRange();
+    showOrderMatches(ordersCache);
     const dateLabel = value => new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Windhoek'}).format(new Date(`${value}T12:00:00+02:00`));
     const dates = ordersCache.map(order=>String(orderDisplayDateTime(order)).slice(0,10)).filter(value=>/^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
     const scope = range ? `${dateLabel(range.from)} – ${dateLabel(range.to)}` : 'All dates';
@@ -388,6 +389,39 @@
     }
   });
 
+  function globalOrderSearch() {
+    return Array.from(boardState.search.trim().replace(/^#\s*/, '')).length >= 3;
+  }
+
+  function showOrderMatches(orders) {
+    const input = document.querySelector('[data-board-search]');
+    if (!input) return;
+    let panel = document.getElementById('orders-quick-matches');
+    if (!globalOrderSearch()) { panel?.remove(); return; }
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.id = 'orders-quick-matches';
+      panel.setAttribute('aria-label', 'Order search suggestions');
+      const info = document.createElement('span');
+      info.setAttribute('role','status');
+      panel.append(info, document.createElement('div'));
+      input.closest('section')?.after(panel);
+      panel.addEventListener('click', event => {
+        const button = event.target.closest('button[data-match-id]');
+        if (button) openPanel(button.dataset.matchId, 'details', button);
+      });
+    }
+    const summary = orders === null ? 'Searching…' : orders.length + (orders.length === 1 ? ' match' : ' matches');
+    const label = summary + ' · All active orders · Filters paused while searching';
+    if (panel.firstChild.textContent !== label) panel.firstChild.textContent = label;
+    const top = (orders || []).slice(0,6);
+    const markup = top.map(o => `<button type="button" class="portal-toolbar-action" data-match-id="${esc(o.id)}">${esc(formatOrderInvoiceReference(o.order_number))} · ${esc(o.customer_name || 'Customer')}</button>`).join('');
+    if (panel.dataset.rendered !== markup) {
+      panel.lastChild.innerHTML = markup;
+      panel.dataset.rendered = markup;
+    }
+  }
+
   function scheduleOrdersSearch(value, source = null) {
     const nextValue = String(value ?? '');
     const valueChanged = boardState.search !== nextValue;
@@ -398,11 +432,12 @@
     });
 
     if (!valueChanged) return;
+    showOrderMatches(null);
     window.clearTimeout(ordersSearchTimer);
     ordersSearchTimer = window.setTimeout(() => {
       ordersSearchTimer = null;
       requestOrdersList();
-    }, /^(?:[# +]*\d+)$/.test(nextValue.trim()) || !nextValue ? 0 : 250);
+    }, !nextValue ? 0 : 250);
   }
 
   function closeOrdersFilterMenu() {
@@ -597,7 +632,8 @@
 
   function boardDataParams() {
     const params = new URLSearchParams();
-    const range = activeDateRange();
+    const global = globalOrderSearch();
+    const range = global ? null : activeDateRange();
     if (range) {
       params.set('date_from', range.from);
       params.set('date_to', range.to);
@@ -605,7 +641,8 @@
     params.set('paged', '1');
     params.set('continuous', '1');
     params.set('q', boardState.search.trim());
-    listFilterKeys.forEach((key) => params.set(key, boardState[key] || ''));
+    listFilterKeys.filter(key => !global || key === 'sortColumn' || key === 'sortDirection')
+      .forEach((key) => params.set(key, boardState[key] || ''));
     params.set('page', String(listPage));
     params.set('t', String(Date.now()));
     return params;
@@ -3075,7 +3112,9 @@
     updateFilterBadge();
     renderMoreFilterChips();
     if (!visible.length) {
-      body.innerHTML = hasClientFilters()
+      body.innerHTML = globalOrderSearch()
+        ? '<div class="board-empty-state"><strong>No matching active orders.</strong><p>Try a shorter name, phone number, amount or order reference.</p></div>'
+        : hasClientFilters()
         ? '<div class="board-empty-state orders-filter-empty"><strong>No matching orders.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
         : '<div class="board-empty-state orders-data-empty"><strong>No orders found.</strong><p>There are currently no orders in this view.</p></div>';
       updateSelectionBar();
@@ -4948,7 +4987,7 @@
       if (syncState && !lastSyncMessage) {
         const count = ordersCache.length;
         const range = activeDateRange();
-        const suffix = boardDateScope === 'all'
+        const suffix = globalOrderSearch() || boardDateScope === 'all'
           ? ' across all dates'
           : range ? ` from ${range.from} to ${range.to}` : '';
         syncState.textContent = `Loaded ${count} orders${suffix} at ${new Date().toLocaleTimeString()}`;
@@ -4956,6 +4995,8 @@
       return data;
     } catch (error) {
       liveFailures += 1;
+      const searchStatus = document.querySelector('#orders-quick-matches [role=status]');
+      if (searchStatus && globalOrderSearch()) searchStatus.textContent = 'Could not refresh search results. Use Refresh to retry.';
       if (!hasInitialOrdersLoadCompleted) {
         renderInitialLoadError(error);
       } else if (syncState) {

@@ -39,6 +39,16 @@ check(searchRows('Vic',['person'=>'Packer Two']),[651],'Person filter');
 check(searchRows('Vic',['mode'=>'collection','status'=>'in_progress','minAmount'=>'300','maxAmount'=>'350']),[651],'Combined filters');
 check(count(searchRows('Vic',['person'=>'__me__'])),650,'Current employee filter');
 check(searchRows('Unknown'),[],'No matches');
+$db->exec("CREATE TEMPORARY TABLE test_waybills (order_id INT, waybill_reference VARCHAR(80))");
+$db->exec("INSERT INTO test_waybills VALUES (652,'WB-9186')");
+foreach (['cour'=>[652], 'N$500.00'=>[652], '918'=>[652], 'packER two'=>[651]] as $term=>$expected) {
+    [$clause,$bindings]=ops_list_search((string)$term,'o.customer_name',[
+        ["CONCAT_WS(' ',o.order_type,e.full_name)",''],
+        ['w.waybill_reference','FROM test_waybills w WHERE w.order_id=o.id']
+    ]);
+    $stmt=$db->prepare("SELECT o.id FROM ops_orders o LEFT JOIN ops_employees e ON e.id=o.assigned_packer_id WHERE ".$clause);
+    $stmt->execute($bindings);check(array_map('intval',$stmt->fetchAll(PDO::FETCH_COLUMN)),$expected,'Global lookup: '.$term);
+}
 $paged=$db->prepare('SELECT id FROM ops_orders ORDER BY id LIMIT 100 OFFSET 600');$paged->execute();
 check(count($paged->fetchAll()),52,'Final server page bounded');
 // Execute the endpoint's actual limit expression against the fixture dataset.

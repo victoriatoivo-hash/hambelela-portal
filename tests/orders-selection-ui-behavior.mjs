@@ -30,9 +30,9 @@ const pending=context.refreshSelectedOrderRecords();context.selectedOrders.clear
 assert.equal(await pending,false,'Stale selection response cannot overwrite a cleared selection');
 const schedule=source.slice(source.indexOf('  function scheduleOrdersSearch('),source.indexOf('  function closeOrdersFilterMenu()'));
 let delay;const scheduler={boardState:{search:''},ordersSearchTimer:null,document:{querySelectorAll:()=>[]},window:{clearTimeout(){},setTimeout(fn,ms){delay=ms;return 1;}},requestOrdersList(){}};
-vm.createContext(scheduler);vm.runInContext(schedule,scheduler);
+scheduler.showOrderMatches=()=>{};vm.createContext(scheduler);vm.runInContext(schedule,scheduler);
 scheduler.scheduleOrdersSearch('Vic');assert.equal(delay,250);
-scheduler.scheduleOrdersSearch('#38421');assert.equal(delay,0);
+scheduler.scheduleOrdersSearch('#38421');assert.equal(delay,250);
 scheduler.scheduleOrdersSearch('');assert.equal(delay,0);
 assert.doesNotMatch(source.slice(source.indexOf('  function renderOrders('),source.indexOf('  function patchLiveOrderGroups(')),/selectedOrders\.delete/,'Page/filter changes preserve selections');
 console.log('Selection currency, deduplication, refresh, warnings, stale responses, preservation and debounce passed.');
