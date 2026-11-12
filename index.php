@@ -67,7 +67,6 @@ if ($roleKey !== 'owner_admin' && ops_table_exists('ops_checklist_tasks')) {
 
 if ($roleKey === 'owner_admin') {
     $apps = [
-        ['name' => 'Sale Manager', 'desc' => 'Schedule website and POS sales, choose products and preview prices', 'icon' => 'tags', 'href' => BASE_URL . '/apps/sale-manager/', 'active' => true, 'tone' => 'pink'],
         ['name' => 'Cost Workbook', 'desc' => 'invoice to landed cost, margins, VAT and profit', 'icon' => 'table-2', 'href' => BASE_URL . '/apps/cost-manager/workbook.php', 'active' => true, 'tone' => 'pink'],
         ['name' => 'Operations', 'desc' => 'orders, packing, checklists, errors and employee performance', 'icon' => 'clipboard-check', 'href' => BASE_URL . '/apps/operations/index.php', 'active' => true, 'tone' => 'green'],
         ['name' => 'HR Portal', 'desc' => 'employee records, payroll and leave management', 'icon' => 'shield-check', 'href' => BASE_URL . '/apps/hr-portal/portal-login.php', 'active' => true, 'tone' => 'green'],
