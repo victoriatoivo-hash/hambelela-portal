@@ -21,10 +21,11 @@ function portal_device_cookie(string $secret, int $expires): void
 function portal_device_forget(): void
 {
     $key = portal_device_key();
-    $selector = $key ? substr($_COOKIE[PORTAL_DEVICE_COOKIE],0,32) : ($_SESSION['portal_device_id'] ?? null);
-    if (!$selector) return;
+    $selector = $_SESSION['portal_device_id'] ?? null;
+    if (!$selector && !$key) return;
     try {
-        db()->prepare('DELETE FROM portal_employee_devices WHERE device_id=?')->execute([$selector]);
+        if ($selector) db()->prepare('DELETE FROM portal_employee_devices WHERE device_id=?')->execute([$selector]);
+        if ($key) db()->prepare('DELETE FROM portal_employee_devices WHERE token_hash=?')->execute([$key]);
     } finally {
         portal_device_cookie('', 1);
         unset($_COOKIE[PORTAL_DEVICE_COOKIE],$_SESSION['portal_device_id']);
@@ -64,6 +65,18 @@ function portal_device_store(int $employee, string $passwordHash): void
     $_SESSION['portal_device_id'] = $selector;
 }
 
+function portal_device_revoked(PDO $db, int $employee, string $issued): bool
+{
+    if (is_file(__DIR__.'/employee-account-editor.php')) {
+        require_once __DIR__.'/employee-account-editor.php';
+        return employee_account_session_revoked($db, $employee, $issued);
+    }
+    $s = $db->prepare("SELECT metadata_json FROM ops_security_events WHERE employee_id=? AND event_type='employee_sessions_revoked' ORDER BY id DESC LIMIT 1");
+    $s->execute([$employee]);
+    $event = $s->fetchColumn();
+    return $event !== false && (int)strtotime($issued) <= (int)(json_decode((string)$event,true)['revoked_before'] ?? PHP_INT_MAX);
+}
+
 // Only restore at the normal login entry point, on a GET, never to replay a write.
 function portal_device_restore(): bool
 {
@@ -79,15 +92,7 @@ function portal_device_restore(): bool
     $row = $q->fetch(PDO::FETCH_ASSOC);
     if (!$row || $row['must_change_access_code'] || !hash_equals($row['credential_version'],hash('sha256',(string)$row['password_hash']))) return false;
     $issued = date(DATE_ATOM,(int)$row['issued_at']);
-    if (is_file(__DIR__.'/employee-account-editor.php')) {
-        require_once __DIR__.'/employee-account-editor.php';
-        if (employee_account_session_revoked($db,(int)$row['id'],$issued)) return false;
-    } else {
-        $s = $db->prepare("SELECT metadata_json FROM ops_security_events WHERE employee_id=? AND event_type='employee_sessions_revoked' ORDER BY id DESC LIMIT 1");
-        $s->execute([(int)$row['id']]);
-        $event = $s->fetchColumn();
-        if ($event !== false && (int)$row['issued_at'] <= (int)(json_decode((string)$event,true)['revoked_before'] ?? PHP_INT_MAX)) return false;
-    }
+    if (portal_device_revoked($db,(int)$row['id'],$issued)) return false;
     $user = ['id'=>(int)$row['id'],'name'=>$row['full_name'],'email'=>$row['email'],
         'role'=>$row['role_name'],'role_key'=>$row['role_key'],'source'=>'database'];
     require_once __DIR__.'/workplace-access.php';
@@ -140,12 +145,13 @@ function portal_restored_device_valid(int $employee, int $now): bool
 {
     if (empty($_SESSION['portal_restored_device'])) return true;
     try {
-        require_once __DIR__.'/database.php';
+        if (!function_exists('db')) require_once __DIR__.'/database.php';
         $q = db()->prepare("SELECT d.credential_version,e.password_hash FROM portal_employee_devices d
             JOIN ops_employees e ON e.id=d.employee_id WHERE d.device_id=? AND e.id=? AND d.expires_at>?
             AND e.status='active' AND e.must_change_access_code=0 AND (e.locked_until IS NULL OR e.locked_until<=NOW())");
         $q->execute([$_SESSION['portal_device_id'] ?? '',$employee,$now]);
         $r = $q->fetch();
-        return $r && hash_equals($r['credential_version'],hash('sha256',(string)$r['password_hash']));
+        return $r && hash_equals($r['credential_version'],hash('sha256',(string)$r['password_hash']))
+            && !portal_device_revoked(db(), $employee, (string)($_SESSION['authenticated_at'] ?? ''));
     } catch (Throwable $e) { return false; }
 }

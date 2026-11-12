@@ -59,14 +59,8 @@ try {
                 db()->prepare('UPDATE kpi_sessions SET last_seen_at = UTC_TIMESTAMP() WHERE session_token = ? AND user_id = ? AND logout_at IS NULL AND last_seen_at >= DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 SECOND)')->execute([$kpiSessionToken, $employeeId]);
             }
             db()->exec("UPDATE kpi_sessions SET logout_at = DATE_ADD(last_seen_at, INTERVAL 30 SECOND), session_expired_at = DATE_ADD(last_seen_at, INTERVAL 30 SECOND), end_reason = 'inactive_expiry' WHERE logout_at IS NULL AND last_seen_at < DATE_SUB(UTC_TIMESTAMP(), INTERVAL 90 SECOND)");
-            $open = db()->prepare('SELECT id FROM kpi_sessions WHERE user_id=? AND session_token=? AND logout_at IS NULL');
-            $open->execute([$employeeId,$kpiSessionToken]);
-            if (!$open->fetchColumn()) {
-                // Technical presence only: never emit an attendance login or create task/work evidence here.
-                $kpiSessionToken='pr'.bin2hex(random_bytes(31));
-                db()->prepare('INSERT INTO kpi_sessions(session_token,user_id,login_at,last_seen_at) VALUES(?,?,UTC_TIMESTAMP(),UTC_TIMESTAMP())')->execute([$kpiSessionToken,$employeeId]);
-                $_SESSION['kpi_session_token']=$kpiSessionToken;
-            }
+            // Reconnects already have a presence interval. They must not create
+            // a KPI login or attendance row just because a browser returned.
         } catch (Throwable $kpiError) {
             error_log(date(DATE_ATOM) . ' presence heartbeat: ' . $kpiError->getMessage() . PHP_EOL, 3, BASE_PATH . '/logs/kpi_errors.log');
         }

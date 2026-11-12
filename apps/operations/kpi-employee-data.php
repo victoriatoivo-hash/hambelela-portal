@@ -20,6 +20,95 @@ try {
     $employeeId=max(0,(int)($_GET['id']??$currentEmployeeId)); $section=(string)($_GET['section']??'overview');if(!$canReview&&$employeeId!==$currentEmployeeId)kpi_send_json(['ok'=>false,'message'=>'You may view only your own performance report.'],403);
     $employee=ops_rows('SELECT e.id,e.full_name,e.hire_date,e.working_days,e.shift_start,e.shift_end,e.late_grace_minutes,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? AND e.status=\'active\' AND r.role_key<>\'owner_admin\' LIMIT 1',[$employeeId])[0]??null;
     if(!$employee){kpi_send_json(['ok'=>false,'success'=>false,'data'=>null,'message'=>'Employee not found.','error_code'=>'KPI_EMPLOYEE_NOT_FOUND'],404);}
+    $requestedAction=(string)($_GET['action']??'');
+    if($requestedAction==='performance_communication_quality'){
+        if(!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner review required.'],403);
+        if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')kpi_send_json(['ok'=>false,'message'=>'POST required.'],405);
+        $token=(string)($_SESSION['kpi_presence_csrf_token']??'');if($token===''||!hash_equals($token,(string)($_POST['csrf_token']??'')))kpi_send_json(['ok'=>false,'message'=>'Refresh your session before reviewing evidence.'],403);
+        $key=(string)($_POST['opportunity_key']??'');
+        if(!ops_rows('SELECT opportunity_key FROM epi_v2_completed_work_units WHERE opportunity_key=? AND employee_id=?',[$key,$employeeId]))kpi_send_json(['ok'=>false,'message'=>'This work does not belong to this employee.'],422);
+        require_once BASE_PATH.'/shared/epi/OrderCommunicationCapture.php';
+        try{\Hambelela\EPI\OrderCommunicationCapture::reviewUnit(db(),$key,$currentEmployeeId,(string)($_POST['decision']??''),(string)($_POST['evidence_reference']??''),(string)($_POST['reason']??''));}
+        catch(RuntimeException $error){kpi_send_json(['ok'=>false,'message'=>$error->getMessage()],422);}
+        kpi_send_json(['ok'=>true,'message'=>'Quality evidence reviewed; automatic recalculation queued.']);
+    }
+    if(in_array($requestedAction,['performance_attendance_schedule','performance_website_audit'],true)){
+        if(!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner review required.'],403);
+        if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')kpi_send_json(['ok'=>false,'message'=>'Method not allowed.'],405);
+        $token=(string)($_SESSION['kpi_presence_csrf_token']??'');
+        if($token===''||!hash_equals($token,(string)($_POST['csrf_token']??'')))kpi_send_json(['ok'=>false,'message'=>'Your session expired. Refresh and try again.'],403);
+        require_once BASE_PATH.'/shared/epi/PhysicalEvidenceCapture.php';
+        try{
+            if($requestedAction==='performance_attendance_schedule')\Hambelela\EPI\PhysicalEvidenceCapture::schedule(db(),$employeeId,$currentEmployeeId,(string)($_POST['effective_from']??''),(string)($_POST['reason']??''));
+            else \Hambelela\EPI\PhysicalEvidenceCapture::website(db(),$employeeId,$currentEmployeeId,$_POST);
+        }catch(RuntimeException $error){kpi_send_json(['ok'=>false,'message'=>$error->getMessage()],422);}
+        kpi_send_json(['ok'=>true,'message'=>'Verified evidence saved. Background recalculation is queued; locked history stays unchanged.']);
+    }
+    if($requestedAction==='performance_incident_review'){
+        if(!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner review required.'],403);
+        if(($_SERVER['REQUEST_METHOD']??'GET')!=='POST')kpi_send_json(['ok'=>false,'message'=>'Method not allowed.'],405);
+        $token=(string)($_SESSION['kpi_presence_csrf_token']??'');
+        if($token===''||!hash_equals($token,(string)($_POST['csrf_token']??'')))
+            kpi_send_json(['ok'=>false,'message'=>'Your session expired. Refresh and try again.'],403);
+        $month=(string)($_GET['month']??'');
+        if(!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$month))kpi_send_json(['ok'=>false,'message'=>'Choose a valid reporting month.'],422);
+        require_once BASE_PATH.'/shared/epi/PerformanceIncidentReview.php';
+        try{
+            \Hambelela\EPI\PerformanceIncidentReview::save(db(),$employeeId,$month.'-01',$_POST,$currentEmployeeId,date('Y-m-d H:i:s'));
+        }catch(RuntimeException $error){kpi_send_json(['ok'=>false,'message'=>$error->getMessage()],422);}
+        kpi_send_json(['ok'=>true,'message'=>'Evidence link reviewed. Automatic recalculation is queued; any locked result stays unchanged.']);
+    }
+    if($requestedAction==='performance_evidence'){
+        require_once BASE_PATH.'/shared/epi/EmployeePerformanceService.php';
+        require_once BASE_PATH.'/shared/epi/PerformanceEvidenceView.php';
+        $month=(string)($_GET['month']??'');
+        if(!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$month))kpi_send_json(['ok'=>false,'message'=>'Choose a valid reporting month.'],422);
+        $result=(new \Hambelela\EPI\EmployeePerformanceService(db()))->read($employeeId,$month.'-01');
+        if(isset($_GET['result_id'])&&(int)$_GET['result_id']!==(int)($result['result_id']??0))kpi_send_json(['ok'=>false,'message'=>'The published result changed. Refresh the profile before reviewing its evidence.'],409);
+        $page=\Hambelela\EPI\PerformanceEvidenceView::page($result,$_GET);
+        $names=array_column(ops_rows('SELECT id,full_name FROM ops_employees'),'full_name','id');
+        foreach($page['records'] as &$record){$record['responsible_name']=$names[(int)($record['employee_id']??0)]??'Identity requires review';$record['fulfilled_by_name']=$names[(int)($record['fulfilled_by']??0)]??'Not recorded';}unset($record);
+        header('Cache-Control: private, no-store');kpi_send_json(['ok'=>true,'evidence'=>$page]);
+    }
+    if(in_array($requestedAction,['','performance','performance_export'],true)){
+        require_once BASE_PATH.'/shared/epi/EmployeePerformanceService.php';
+        $month=(string)($_GET['month']??date('Y-m'));
+        if(!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$month))kpi_send_json(['ok'=>false,'message'=>'Choose a valid reporting month.'],422);
+        $historyMonth=(string)($_GET['history_month']??'');
+        if($historyMonth!==''&&!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$historyMonth))kpi_send_json(['ok'=>false,'message'=>'Choose a valid historical month.'],422);
+        $result=(new \Hambelela\EPI\EmployeePerformanceService(db()))->profile($employeeId,$month.'-01',null,max(1,(int)($_GET['history_page']??1)),$historyMonth?:null);
+        require_once BASE_PATH.'/shared/epi/PerformanceIncidentReview.php';
+        $result['quality_review']=\Hambelela\EPI\PerformanceIncidentReview::read(db(),$employeeId,$month.'-01');
+        require_once BASE_PATH.'/shared/epi/PhysicalEvidenceCapture.php';
+        $result['physical_evidence']=\Hambelela\EPI\PhysicalEvidenceCapture::read(db(),$employeeId,$month.'-01');
+        require_once BASE_PATH.'/shared/epi/EvidenceCaptureInbox.php';
+        $result['capture_inbox']=\Hambelela\EPI\EvidenceCaptureInbox::employee(db(),$employeeId,$month.'-01');
+        require_once BASE_PATH.'/shared/epi/OrderCommunicationCapture.php';
+        $result['communication_audits']=$canReview?\Hambelela\EPI\OrderCommunicationCapture::qualityCandidates(db(),$employeeId,$month.'-01'):[];
+        if(!$canReview)$result['capture_inbox']['cash_entries']=[];
+        if(!$canReview)$result['quality_review']['work']=[];
+        header('Cache-Control: private, no-store');
+        header('X-Performance-Calculation: epi-v2-rate-1');
+        if($requestedAction==='performance_export'){
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="employee-performance-'.$employeeId.'-'.$month.'.csv"');
+            $out=fopen('php://output','wb');
+            fputcsv($out,\Hambelela\EPI\EmployeePerformanceService::exportHeaders());
+            foreach(\Hambelela\EPI\EmployeePerformanceService::exportRows($result) as $row){
+                foreach($row as &$cell)if(is_string($cell)&&preg_match('/^[=+@\-\t\r]/',$cell))$cell="'".$cell;unset($cell);
+                fputcsv($out,$row);
+            }fclose($out);exit;
+        }
+        if(($_GET['compact']??'')==='1'){
+            require_once BASE_PATH.'/shared/epi/PerformanceEvidenceView.php';
+            $result['evidence_modules']=array_values(array_unique(array_column($result['evidence']??[],'module')));
+            $preview=\Hambelela\EPI\PerformanceEvidenceView::page($result,['page_size'=>5,'unique_work'=>true]);
+            $result['evidence']=$preview['records'];$result['evidence_total']=$preview['total'];$result['evidence_preview_only']=true;
+        }
+        $choices=$canReview?ops_rows("SELECT e.id,e.full_name,r.name role_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' AND r.role_key<>'owner_admin' ORDER BY e.full_name"):[];
+        kpi_send_json(['ok'=>true,'employee'=>$employee,'performance'=>$result,'employees'=>$choices]);
+    }
+    if($requestedAction==='legacy_comparison'&&!$canReview)kpi_send_json(['ok'=>false,'message'=>'Owner access required for legacy comparison.'],403);
     if((string)($_GET['action']??'')==='live_presence'){
         header('Cache-Control: no-store, no-cache, must-revalidate, max-age=0');$livePresence=portal_presence_employee($employeeId);
         kpi_send_json(['ok'=>true,'employee'=>['id'=>$employeeId,'name'=>$employee['full_name']],'live_presence'=>$livePresence,'diagnostic'=>$canReview?['source_table'=>'ops_board_presence','session_table'=>'kpi_sessions','identity_mapping'=>$livePresence['identity_mapping']??null,'online_threshold_seconds'=>portal_presence_online_seconds(),'recent_threshold_seconds'=>portal_presence_recent_seconds()]:null]);
@@ -28,7 +117,7 @@ try {
         $evidenceDate=(string)($_GET['date']??'');if(!preg_match('/^\d{4}-\d{2}-\d{2}$/',$evidenceDate))throw new RuntimeException('Invalid evidence date.');
         $localZone=new DateTimeZone('Africa/Windhoek');$utcZone=new DateTimeZone('UTC');$localStart=new DateTimeImmutable($evidenceDate.' 00:00:00',$localZone);$localEnd=$localStart->modify('+1 day');$utcStart=$localStart->setTimezone($utcZone)->format('Y-m-d H:i:s');$utcEnd=$localEnd->setTimezone($utcZone)->format('Y-m-d H:i:s');
         $timeline=[];$sessionRows=ops_rows('SELECT id,session_token,login_at,last_seen_at,logout_at,end_reason FROM kpi_sessions WHERE user_id=? AND login_at>=? AND login_at<? ORDER BY login_at,id',[$employeeId,$utcStart,$utcEnd]);
-        foreach($sessionRows as$sessionRow){$login=(new DateTimeImmutable((string)$sessionRow['login_at'],$utcZone))->setTimezone($localZone)->format('Y-m-d H:i:s');$timeline[]=['occurred_at'=>$login,'event_type'=>'authentication','module'=>'Authentication','action'=>strncmp((string)$sessionRow['session_token'],'pr',2)===0?'Returned online':'Logged into portal','record_reference'=>null,'session_id'=>'session #'.(int)$sessionRow['id'],'source_log'=>'kpi_sessions','source_event_id'=>(int)$sessionRow['id'],'contributes_active_time'=>false,'contributes_kpi'=>false,'technical'=>false];$endRaw=$sessionRow['logout_at']?:$sessionRow['last_seen_at'];if($endRaw){$ended=(new DateTimeImmutable((string)$endRaw,$utcZone))->setTimezone($localZone)->format('Y-m-d H:i:s');$reason=(string)($sessionRow['end_reason']??'');$timeline[]=['occurred_at'=>$ended,'event_type'=>'authentication','module'=>'Authentication','action'=>$reason==='explicit_logout'?'Explicit logout':($reason==='inactive_expiry'?'Session ended by expiry':'Last authenticated presence'),'record_reference'=>null,'session_id'=>'session #'.(int)$sessionRow['id'],'source_log'=>'kpi_sessions','source_event_id'=>(int)$sessionRow['id'],'contributes_active_time'=>false,'contributes_kpi'=>false,'technical'=>false];}}
+        foreach($sessionRows as$sessionRow){$login=(new DateTimeImmutable((string)$sessionRow['login_at'],$utcZone))->setTimezone($localZone)->format('Y-m-d H:i:s');$timeline[]=['occurred_at'=>$login,'event_type'=>'authentication','module'=>'Authentication','action'=>'Logged into portal','record_reference'=>null,'session_id'=>'session #'.(int)$sessionRow['id'],'source_log'=>'kpi_sessions','source_event_id'=>(int)$sessionRow['id'],'contributes_active_time'=>false,'contributes_kpi'=>false,'technical'=>false];$endRaw=$sessionRow['logout_at']?:$sessionRow['last_seen_at'];if($endRaw){$ended=(new DateTimeImmutable((string)$endRaw,$utcZone))->setTimezone($localZone)->format('Y-m-d H:i:s');$reason=(string)($sessionRow['end_reason']??'');$timeline[]=['occurred_at'=>$ended,'event_type'=>'authentication','module'=>'Authentication','action'=>$reason==='explicit_logout'?'Explicit logout':($reason==='inactive_expiry'?'Session ended by expiry':'Last authenticated presence'),'record_reference'=>null,'session_id'=>'session #'.(int)$sessionRow['id'],'source_log'=>'kpi_sessions','source_event_id'=>(int)$sessionRow['id'],'contributes_active_time'=>false,'contributes_kpi'=>false,'technical'=>false];}}
         foreach(kpi_unified_events($evidenceDate.' 00:00:00',$evidenceDate.' 23:59:59',$employeeId)as$event){if($event['section']==='portal_activity')continue;$timeline[]=['occurred_at'=>$event['occurred_at'],'event_type'=>'workflow','module'=>$event['section'],'action'=>$event['action'],'record_reference'=>$event['related_reference']?:($event['record_type'].' #'.$event['record_id']),'session_id'=>null,'source_log'=>$event['source_log'],'source_event_id'=>$event['source_event_id'],'contributes_active_time'=>true,'contributes_kpi'=>true,'technical'=>false];}
         usort($timeline,static fn(array$a,array$b):int=>strcmp((string)$a['occurred_at'],(string)$b['occurred_at']));$withGaps=[];$previous=null;foreach($timeline as$event){$stamp=strtotime((string)$event['occurred_at']);if($previous!==null&&$stamp-$previous>900)$withGaps[]=['occurred_at'=>date('Y-m-d H:i:s',$previous),'ended_at'=>date('Y-m-d H:i:s',$stamp),'event_type'=>'inactive_period','module'=>'Inactive periods','action'=>'No portal activity recorded during this interval.','record_reference'=>null,'session_id'=>null,'source_log'=>'derived_from_timeline','source_event_id'=>null,'contributes_active_time'=>false,'contributes_kpi'=>false,'technical'=>false];$withGaps[]=$event;$previous=$stamp;}
         kpi_send_json(['ok'=>true,'employee'=>['id'=>$employeeId,'name'=>$employee['full_name']],'date'=>$evidenceDate,'timezone'=>'Africa/Windhoek','events'=>$withGaps,'historical_evidence_available'=>count($timeline)>0]);
