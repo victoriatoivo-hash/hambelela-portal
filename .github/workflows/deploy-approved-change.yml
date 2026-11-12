@@ -7,12 +7,42 @@ on:
         description: Approved isolated change commit SHA
         required: true
         type: string
+      ack_stage:
+        description: Acknowledgment communication release (deploy only after database and Owner verification)
+        type: choice
+        options: [inspect, deploy]
+        default: inspect
 
 concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
 
 jobs:
+  acknowledgment-communication:
+    if: github.ref == 'refs/heads/codex/ack-images-private-messages' && inputs.approved_sha == github.sha
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check and release only Acknowledgments portal files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          STAGE: ${{ inputs.ack_stage }}
+          ACK_SCHEMA_VERIFIED: ${{ inputs.ack_stage == 'deploy' && 'yes' || 'no' }}
+        run: python3 scripts/ack-communication-release.py "$STAGE" "$GITHUB_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always() && inputs.ack_stage == 'deploy'
+        with:
+          name: ack-communication-targeted-rollback
+          path: ack-communication-backup.zip
+          if-no-files-found: ignore
+          retention-days: 14
   coordinated-release:
     if: github.ref == 'refs/heads/codex/acknowledgments-packing-payment' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest

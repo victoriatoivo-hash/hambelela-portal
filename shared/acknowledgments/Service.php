@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Acknowledgments;
+require_once __DIR__.'/Material.php';
 
 /** One employee identity, immutable instruction versions and independent recipient responses. */
 final class Service
@@ -45,7 +46,7 @@ final class Service
     }
     public function listing(int $actor):array{
         $user=$this->actor($actor);$owner=$user['role_key']==='owner_admin';
-        $records=$this->rows("SELECT r.*,i.title,i.version,i.sender_id,i.deadline,i.required,i.created_at,i.root_id,i.release_state,i.scheduled_at,i.released_at,i.schedule_revision,s.full_name sender_name FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN ops_employees s ON s.id=i.sender_id WHERE (r.schedule_active=1 OR EXISTS(SELECT 1 FROM portal_ack_events w WHERE w.recipient_id=r.id AND w.event_type='withdrawn'))".($owner?'':" AND r.employee_id=? AND i.release_state='released'").' ORDER BY i.created_at DESC,r.id DESC',$owner?[]:[$actor]);
+        $records=$this->rows("SELECT r.*,(SELECT qa.event_type FROM portal_ack_events qa WHERE qa.recipient_id=r.id AND qa.event_type IN ('answer','answer_received','answer_unclear','answer_reply') ORDER BY qa.id DESC LIMIT 1) conversation_status,i.title,i.version,i.sender_id,i.deadline,i.required,i.created_at,i.root_id,i.release_state,i.scheduled_at,i.released_at,i.schedule_revision,s.full_name sender_name FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN ops_employees s ON s.id=i.sender_id WHERE (r.schedule_active=1 OR EXISTS(SELECT 1 FROM portal_ack_events w WHERE w.recipient_id=r.id AND w.event_type='withdrawn'))".($owner?'':" AND r.employee_id=? AND i.release_state='released'").' ORDER BY i.created_at DESC,r.id DESC',$owner?[]:[$actor]);
         $now=$this->now();foreach($records as &$r){$r['withdrawn']=!(int)$r['schedule_active'];$r['overdue']=!$r['withdrawn']&&$r['release_state']==='released'&&$r['required']&&$r['status']!=='acknowledged'&&$r['deadline']&&$r['deadline']<$now;}unset($r);
         return ['owner'=>$owner,'employee_id'=>$actor,'records'=>$records,'employees'=>$owner?$this->rows("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' ORDER BY e.full_name"):[]];
     }
@@ -55,7 +56,7 @@ final class Service
         if(!$rows||($user['role_key']!=='owner_admin'&&((int)$rows[0]['employee_id']!==$actor||$rows[0]['release_state']!=='released'||(!(int)$rows[0]['schedule_active']&&!$withdrawn))))throw new \DomainException('This instruction is not assigned to you.');
         $rows[0]['withdrawn']=$withdrawn;
         $rows[0]['recipients']=$user['role_key']==='owner_admin'?array_column($this->rows('SELECT employee_id FROM portal_ack_recipients WHERE instruction_id=? AND schedule_active=1',[$rows[0]['instruction_id']]),'employee_id'):[];
-        return $rows[0]+['events'=>$this->rows('SELECT v.id,v.actor_id,v.event_type,v.message,v.created_at,e.full_name actor_name FROM portal_ack_events v LEFT JOIN ops_employees e ON e.id=v.actor_id WHERE v.recipient_id=? ORDER BY v.id',[$id])];
+        return $rows[0]+Material::meta($this->db,(int)$rows[0]['instruction_id'])+['events'=>$this->rows('SELECT v.id,v.actor_id,v.event_type,v.message,v.created_at,e.full_name actor_name FROM portal_ack_events v LEFT JOIN ops_employees e ON e.id=v.actor_id WHERE v.recipient_id=? ORDER BY v.id',[$id])];
     }
     private function event(int $recipient,int $actor,string $type,string $message,string $key):void{
         $this->db->prepare('INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,?,?,?,?,?)')->execute([$recipient,$actor,$type,$message,$key,$this->now()]);
@@ -104,6 +105,7 @@ final class Service
             foreach($ids as $id)$this->actor($id);
             $this->db->prepare('INSERT INTO portal_ack_instructions(root_id,version,request_key,title,message_html,sender_id,deadline,required,notify_immediately,created_at,scheduled_at,release_state,released_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)')->execute([$root,$version,$key,$title,$html,$actor,$deadline,empty($body['required'])?0:1,$scheduled?1:(empty($body['notify_immediately'])?0:1),$this->now(),$scheduled,$scheduled?'scheduled':'released',$scheduled?null:$this->now()]);$instruction=(int)$this->db->lastInsertId();
             foreach($ids as $id){$employee=$this->actor($id);$this->db->prepare('INSERT INTO portal_ack_recipients(instruction_id,employee_id,employee_name) VALUES(?,?,?)')->execute([$instruction,$id,$employee['full_name']]);$recipient=(int)$this->db->lastInsertId();$this->event($recipient,$actor,$scheduled?'scheduled':'assigned',$scheduled?'Scheduled for '.$scheduled.' Africa/Windhoek':'Instruction assigned',self::uuid());}
+            Material::save($this->db,$instruction,$body,(int)($body['revise_instruction']??0));
             $this->db->commit();return ['instruction_id'=>$instruction,'duplicate'=>false];
         }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
@@ -115,6 +117,29 @@ final class Service
             if($d['withdrawn'])throw new \DomainException('This acknowledgment was withdrawn. Its response history is read-only.');
             if($d['release_state']!=='released'||!(int)$d['schedule_active'])throw new \DomainException('This acknowledgment has not been released.');
             if($prior){if((int)$prior[0]['actor_id']!==$actor||(int)$prior[0]['recipient_id']!==$id)throw new \DomainException('Invalid repeated request.');$this->db->commit();return;}
+            if(in_array($action,['image_opened','image_understood','image_unclear','answer','answer_received','answer_unclear','answer_reply'],true)){
+                $employee=(int)$d['employee_id']===$actor;
+                if(in_array($action,['image_opened','image_understood','image_unclear','answer'],true)){
+                    if(!$employee)throw new \DomainException('Only the recipient can record this response.');
+                    if($action==='answer'){
+                        if(!$d['question']||$message===''||strlen($message)>6000)throw new \DomainException('Type an answer to the question (up to 6,000 bytes).');
+                    }else{
+                        if(!$d['image_type'])throw new \DomainException('No image is attached.');
+                        if($action!=='image_opened'&&!$this->rows("SELECT id FROM portal_ack_events WHERE recipient_id=? AND event_type='image_opened' LIMIT 1",[$id]))throw new \DomainException('View the image first.');
+                        $message=['image_opened'=>'Opened the image','image_understood'=>'Confirmed image understood','image_unclear'=>'Needs clarification about the image'][$action];
+                    }
+                }else{
+                    $this->owner($actor);
+                    if((int)$d['sender_id']!==$actor)throw new \DomainException('Only the instruction sender can respond to this answer.');
+                    if(!$this->rows("SELECT id FROM portal_ack_events WHERE recipient_id=? AND event_type='answer' LIMIT 1",[$id]))throw new \DomainException('There is no answer to respond to yet.');
+                    if($action==='answer_reply'&&($message===''||strlen($message)>6000))throw new \DomainException('Type your reply (up to 6,000 bytes).');
+                    if($action!=='answer_reply')$message=$action==='answer_received'?'Answer acknowledged':'I don’t understand the answer. Please clarify.';
+                }
+                $this->event($id,$actor,$action,$message,$key);
+                // Thread messages are private to this record, not a dashboard feed or KPI.
+                $this->db->prepare('UPDATE portal_ack_events SET notification_delivered_at=?,evidence_recorded_at=? WHERE request_key=?')->execute([$this->now(),$this->now(),$key]);
+                $this->db->commit();return;
+            }
             if($d['status']==='acknowledged')throw new \DomainException('Completed acknowledgments cannot be edited. Send a revised instruction instead.');
             if(in_array($action,['acknowledge','clarify'],true)){
                 if((int)$d['employee_id']!==$actor)throw new \DomainException('Only the assigned employee may respond.');
@@ -133,7 +158,7 @@ final class Service
         }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
     public function popup(int $actor):?array{
-        $this->actor($actor);$rows=$this->rows("SELECT r.id,i.title,i.message_html,i.deadline,i.required FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id WHERE r.employee_id=? AND r.status<>'acknowledged' AND i.notify_immediately=1 AND i.release_state='released' AND r.schedule_active=1 ORDER BY COALESCE(i.released_at,i.created_at) DESC,r.id DESC LIMIT 1",[$actor]);return $rows[0]??null;
+        $this->actor($actor);$rows=$this->rows("SELECT r.id,i.title,i.message_html,i.deadline,i.required,m.question,m.image_type FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN portal_ack_material m ON m.instruction_id=i.id WHERE r.employee_id=? AND r.status<>'acknowledged' AND i.notify_immediately=1 AND i.release_state='released' AND r.schedule_active=1 ORDER BY COALESCE(i.released_at,i.created_at) DESC,r.id DESC LIMIT 1",[$actor]);return $rows[0]??null;
     }
     /** Row lock serializes the worker, cancellation, edits and Send Now. */
     private function releaseLocked(array $instruction):void{
@@ -173,6 +198,7 @@ final class Service
                 $this->db->prepare('UPDATE portal_ack_recipients SET schedule_active=0 WHERE instruction_id=?')->execute([$id]);
                 foreach($ids as $employee){$name=$this->actor($employee)['full_name'];$this->db->prepare('INSERT INTO portal_ack_recipients(instruction_id,employee_id,employee_name) VALUES(?,?,?) ON DUPLICATE KEY UPDATE schedule_active=1,employee_name=VALUES(employee_name)')->execute([$id,$employee,$name]);}
                 $this->db->prepare('UPDATE portal_ack_instructions SET title=?,message_html=?,scheduled_at=?,deadline=?,required=?,notify_immediately=1,schedule_revision=schedule_revision+1 WHERE id=?')->execute([$title,$html,$scheduled??$this->now(),$deadline,empty($body['required'])?0:1,$id]);
+                Material::save($this->db,$id,$body);
                 if(!$scheduled)$this->releaseLocked($i);
             }else throw new \DomainException('Unknown schedule action.');
             $recipients=$this->rows('SELECT id FROM portal_ack_recipients WHERE instruction_id=?',[$id]);

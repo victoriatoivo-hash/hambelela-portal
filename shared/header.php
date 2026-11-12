@@ -135,6 +135,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <!-- Task markup is enhanced after parsing; hold first paint until its presentation is ready. -->
     <script defer blocking="render" src="<?= BASE_URL ?>/assets/js/task-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-essentials.js') ?>"></script>
     <?php endif; ?>
+<?php if(!empty($headerUser['id'])): ?><link rel="stylesheet" href="<?=BASE_URL?>/assets/css/ack-communication.css?v=<?=filemtime(BASE_PATH.'/assets/css/ack-communication.css')?>"><script defer data-base="<?=htmlspecialchars(BASE_URL,ENT_QUOTES)?>" src="<?=BASE_URL?>/assets/js/ack-communication.js?v=<?=filemtime(BASE_PATH.'/assets/js/ack-communication.js')?>"></script><?php endif; ?>
 </head>
 <body<?= !empty($isEssDashboard) ? ' class="ess-dashboard"' : '' ?>>
 <?php if (!empty($user['id'])) { require_once BASE_PATH . '/shared/portal-policy-popup.php'; } ?>
@@ -144,6 +145,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                  data-presence-endpoint="<?= htmlspecialchars(BASE_URL . '/apps/operations/portal-presence.php', ENT_QUOTES, 'UTF-8') ?>"
                  data-notification-endpoint="<?= htmlspecialchars(BASE_URL . '/api/notifications.php?mode=summary', ENT_QUOTES, 'UTF-8') ?>">
             <div class="portal-header-actions">
+            <div class="ack-contact-stack"><a class="ack-contact-launch" href="<?=BASE_URL?>/apps/acknowledgments/messages.php" aria-label="Acknowledgments: private assistance or anonymous reporting"><i data-lucide="message-circle" aria-hidden="true"></i><span class="ack-contact-tip" hidden></span></a>
             <div class="portal-header-action portal-online-widget portal-online-staff" data-portal-online-widget data-online-staff-button
                  role="button" tabindex="0" aria-label="Online employees" aria-expanded="false">
                 <div class="portal-online-avatars" data-portal-online-avatars></div>
@@ -154,6 +156,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                         <p class="portal-online-empty">Checking staff status…</p>
                     </div>
                 </div>
+            </div>
             </div>
             <div class="portal-notification-control">
             <a class="portal-header-action portal-header-notifications portal-notification-button" data-notification-button href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"

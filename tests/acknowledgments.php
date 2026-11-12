@@ -9,9 +9,10 @@ if($dsn!=='mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test')throw ne
 $server=new PDO('mysql:host=127.0.0.1;port=13317','root',getenv('ACK_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $server->exec('CREATE DATABASE IF NOT EXISTS acknowledgments_test');
 $db=new PDO($dsn,'root',getenv('ACK_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-$db->exec('DROP TABLE IF EXISTS portal_ack_events,portal_ack_recipients,portal_ack_instructions,ops_employees,ops_roles');
+$db->exec('DROP TABLE IF EXISTS portal_ack_anonymous,portal_ack_assistance,portal_ack_material,portal_ack_events,portal_ack_recipients,portal_ack_instructions,ops_employees,ops_roles');
 $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(40));INSERT INTO ops_roles VALUES(1,'owner_admin'),(2,'front_desk_admin'),(3,'delivery_driver');CREATE TABLE ops_employees(id INT PRIMARY KEY,role_id INT,full_name VARCHAR(190),status VARCHAR(20));INSERT INTO ops_employees VALUES(1,1,'Synthetic Owner','active'),(2,2,'Synthetic Front','active'),(3,3,'Synthetic Driver','active'),(4,2,'Inactive','inactive')");
 $db->exec(file_get_contents(__DIR__.'/../database/acknowledgments.sql'));
+$db->exec(file_get_contents(__DIR__.'/../database/ack-communication.sql'));
 $testNow='2026-09-30 08:00:00';$s=new S($db,static function()use(&$testNow){return $testNow;});$body=['request_key'=>S::uuid(),'title'=>'Synthetic instruction','message_html'=>'<p onclick="bad()">Read <b>carefully</b></p><script>alert(1)</script><ol><li>Step</li></ol>','recipients'=>[2,3,2],'required'=>true,'notify_immediately'=>true,'deadline'=>'2026-10-01T09:00'];
 denied(fn()=>$s->send(2,$body),'Employee cannot create instructions');
 $sent=$s->send(1,$body);check(!$sent['duplicate'],'Owner sends instruction');check($s->send(1,$body)['duplicate'],'Send replay idempotent');
@@ -35,3 +36,4 @@ check($s->popup(2)['title']==='Revised','New instruction available to login popu
 $bad=$body;$bad['request_key']=S::uuid();$bad['recipients']=[4];denied(fn()=>$s->send(1,$bad),'Inactive recipient rejected');
 check((int)$db->query('SELECT COUNT(*) FROM portal_ack_instructions')->fetchColumn()===2,'Failed send rolls back');
 echo "Acknowledgments service checks complete. Synthetic database only.\n";
+require __DIR__.'/fixtures/ack-communication-checks.php';

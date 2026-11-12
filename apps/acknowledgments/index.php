@@ -7,6 +7,7 @@ $pageTitle='Acknowledgments | '.APP_NAME;$activeApp='acknowledgments';$extraStyl
 include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/sidebar.php';
 ?><main class="workspace hb-ack-page" id="ack-app">
 <header class="ack-top"><div><p class="hb-ack-eyebrow">Employee communication</p><h1>Acknowledgments</h1><p>Send instructions, request confirmations and track employee understanding.</p></div><button class="ack-action" id="ack-new" hidden>+ New Acknowledgment</button></header>
+<a class="ack-action secondary" href="messages.php">Messages &amp; assistance</a>
 <p id="ack-message" role="status"></p><section id="ack-summary" class="ack-summary"></section>
 <nav id="ack-tabs" aria-label="Acknowledgment views"></nav>
 <div class="ack-filters"><label>Search<input id="ack-search" type="search" placeholder="Employee or instruction"></label><label>Sort<select id="ack-sort" data-portal-custom-select><option value="latest">Latest first</option><option value="deadline">Deadline</option><option value="employee">Employee</option></select></label><label>Deadline<input id="ack-deadline-filter" type="date"></label><button class="ack-action secondary" id="ack-clear">Clear filters</button></div>

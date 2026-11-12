@@ -2,6 +2,7 @@
 declare(strict_types=1);
 require dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/auth.php';require_once BASE_PATH.'/shared/database.php';
 require_once BASE_PATH.'/shared/acknowledgments/integration.php';
+require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
 header('Content-Type: application/json');header('Cache-Control: no-store');
 try{
     if (!portal_validate_authenticated_session()) throw new DomainException('Your session expired. Please sign in again.');
@@ -12,6 +13,7 @@ try{
     if($_SERVER['REQUEST_METHOD']==='POST'){
         if(!hash_equals($_SESSION['ack_csrf'],(string)($_SERVER['HTTP_X_CSRF_TOKEN']??'')))throw new DomainException('Session verification failed. Refresh the page.');
         $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
+        if($action==='message'){(new \Hambelela\Acknowledgments\Mailbox(db(),(int)getenv('ACK_CONTACT_OWNER_ID')))->send($employee,$body);echo '{"ok":true}';exit;}
         if($action==='send')$result=$service->send($employee,$body);
         elseif($action==='schedule')$result=$service->schedule($employee,$body);
         elseif($action==='withdrawal')$result=$service->withdrawal($employee,$body);
@@ -19,8 +21,9 @@ try{
         else throw new DomainException('Unsupported action.');
         acknowledgments_deliver();echo json_encode($result,JSON_THROW_ON_ERROR);exit;
     }
-    if($action==='detail')$result=$service->detail($employee,(int)($_GET['id']??0));
-    elseif($action==='popup'){$result=['notice'=>$service->popup($employee),'pending'=>acknowledgments_pending($employee),'session'=>hash('sha256',session_id().':'.$employee)];acknowledgments_deliver();}
+    if($action==='inbox')$result=(new \Hambelela\Acknowledgments\Mailbox(db(),(int)getenv('ACK_CONTACT_OWNER_ID')))->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
+    elseif($action==='detail')$result=$service->detail($employee,(int)($_GET['id']??0));
+    elseif($action==='popup'){$result=['csrf'=>$_SESSION['ack_csrf'],'notice'=>$service->popup($employee),'pending'=>acknowledgments_pending($employee),'session'=>hash('sha256',session_id().':'.$employee)];acknowledgments_deliver();}
     else $result=$service->listing($employee)+['csrf'=>$_SESSION['ack_csrf']];
     echo json_encode($result,JSON_THROW_ON_ERROR);
 }catch(DomainException $e){http_response_code(403);echo json_encode(['error'=>$e->getMessage()]);}catch(Throwable $e){error_log('Acknowledgments API: '.$e->getMessage());http_response_code(500);echo json_encode(['error'=>'Could not complete this action. Your form has been kept; please retry.']);}
