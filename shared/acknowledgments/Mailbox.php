@@ -43,8 +43,8 @@ final class Mailbox {
         $r=$this->rows("SELECT a.id,a.employee_id FROM portal_ack_assistance a
             LEFT JOIN notifications n ON n.deduplication_key=CONCAT('ack-private-',a.id)
             LEFT JOIN notification_recipients r ON r.notification_id=n.id AND r.employee_id=?
-            WHERE a.owner_id=? AND $scope AND a.owner_id<>a.employee_id
-              AND NOT EXISTS(SELECT 1 FROM portal_ack_assistance newer WHERE newer.owner_id=a.owner_id AND newer.employee_id=a.employee_id AND newer.id>a.id)
+            WHERE a.owner_id=? AND $scope AND a.owner_id<>a.employee_id AND a.request_key NOT LIKE 'receipt:%'
+              AND NOT EXISTS(SELECT 1 FROM portal_ack_assistance newer WHERE newer.owner_id=a.owner_id AND newer.employee_id=a.employee_id AND newer.id>a.id AND (newer.request_key NOT LIKE 'receipt:%' OR newer.request_key=CONCAT('receipt:',a.id)))
               AND r.popup_seen_at IS NULL AND r.read_at IS NULL AND r.cleared_at IS NULL
               AND (r.next_reminder_at IS NULL OR r.next_reminder_at<=NOW())
             ORDER BY a.id LIMIT 1",$args);
@@ -65,6 +65,42 @@ final class Mailbox {
         $this->access($actor);
         $q=$this->db->prepare("UPDATE notification_recipients r JOIN notifications n ON n.id=r.notification_id SET r.popup_seen_at=COALESCE(r.popup_seen_at,NOW()),r.next_reminder_at=NULL WHERE r.employee_id=? AND n.related_type='ack_private_message' AND n.deduplication_key=?");
         $q->execute([$actor,'ack-private-'.$message]);
+    }
+    public function awaitingReply(int $actor):array {
+        $this->access($actor);
+        if($actor!==$this->owner)return [];
+        return $this->rows("SELECT a.id,e.full_name,a.created_at FROM portal_ack_assistance a
+            JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? AND a.sender_id=a.employee_id
+            AND a.request_key NOT LIKE 'receipt:%' AND NOT EXISTS(SELECT 1 FROM portal_ack_assistance b
+            WHERE b.owner_id=a.owner_id AND b.employee_id=a.employee_id AND b.id>a.id AND b.request_key NOT LIKE 'receipt:%') ORDER BY a.id",[$actor]);
+    }
+    public function incoming(int $actor,int $id):array {
+        $this->access($actor);$owner=$actor===$this->owner;
+        $row=$this->rows("SELECT a.id,a.employee_id,a.body,a.created_at,e.full_name FROM portal_ack_assistance a
+            JOIN ops_employees e ON e.id=a.sender_id WHERE a.id=? AND a.owner_id=? AND a.request_key NOT LIKE 'receipt:%' AND ".
+            ($owner?'a.sender_id=a.employee_id':'a.sender_id=a.owner_id AND a.employee_id=?'),
+            $owner?[$id,$this->owner]:[$id,$this->owner,$actor]);
+        if(!$row)throw new \DomainException('This message is not available to you.');
+        return $row[0]+['owner'=>$owner];
+    }
+    public function promptAction(int $actor,int $id,string $action,array $input):void {
+        $msg=$this->incoming($actor,$id);
+        $this->db->beginTransaction();
+        try{
+            if($action==='reply'){
+                $this->send($actor,['employee'=>(int)$msg['employee_id'],'request_key'=>$input['request_key']??'','message'=>$input['message']??'']);
+            }elseif($action==='later'&&$msg['owner']){
+                // The unanswered conversation stays in the Owner queue until a reply is saved.
+            }elseif($action==='understood'&&!$msg['owner']){
+                // Reserved key cannot be supplied by a normal send. One explicit receipt per reply.
+                $q=$this->db->prepare("INSERT INTO portal_ack_assistance(employee_id,owner_id,sender_id,body,request_key,created_at)
+                    VALUES(?,?,?,?,?,?) ON DUPLICATE KEY UPDATE id=id");
+                $q->execute([$actor,$this->owner,$actor,'I have read and understood your response.','receipt:'.$id,
+                    (new \DateTimeImmutable('now',new \DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s')]);
+            }else throw new \DomainException('This action is not available.');
+            $this->dismissPrompt($actor,$id);
+            $this->db->commit();
+        }catch(\Throwable $e){$this->db->rollBack();throw $e;}
     }
     public function send(int $actor,array $input):void {
         $this->access($actor);$text=trim((string)($input['message']??''));

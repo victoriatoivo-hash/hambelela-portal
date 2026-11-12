@@ -52,4 +52,17 @@ $store->run($report);$store->run($report);$anon=$box->inbox(1)['reports'];check(
 check(!$box->inbox(2)['reports']&&!$box->inbox(5)['reports'],'Other accounts cannot read anonymous inbox');$reply=['report'=>$anon[0]['report_id'],'message'=>'Thank you for reporting.'];
 denied(fn()=>$box->send(5,$reply),'Second admin cannot reply to anonymous report');$box->send(1,$reply);
 check(!$box->pendingPrompt(1)&&!$box->pendingPrompt(2),'Anonymous reporting does not trigger identified prompts');
+$incoming=$box->awaitingReply(1);$mid=(int)$incoming[0]['id'];
+check(count($incoming)===1&&!$box->awaitingReply(5)&&!$box->awaitingReply(3),'Only designated Owner has the unanswered queue');
+denied(fn()=>$box->incoming(5,$mid),'Different admin cannot open the inline message');
+$box->promptAction(1,$mid,'later',[]);
+check(count($box->awaitingReply(1))===1&&!$box->pendingPrompt(1),'Deferred request is available without another popup');
+$inline=['request_key'=>S::uuid(),'message'=>'Inline answer'];
+$box->promptAction(1,$mid,'reply',$inline);$box->promptAction(1,$mid,'reply',$inline);
+check(!$box->awaitingReply(1),'Owner reply removes the queued request');
+$rid=$box->pendingPrompt(2)['id'];check($box->incoming(2,$rid)['body']==='Inline answer','Employee can open the actual Owner reply');
+denied(fn()=>$box->promptAction(3,$rid,'understood',[]),'A colleague cannot acknowledge the reply');
+$box->promptAction(2,$rid,'understood',[]);$box->promptAction(2,$rid,'understood',[]);
+check(!$box->pendingPrompt(1)&&!$box->pendingPrompt(2)&&!$box->awaitingReply(1),'Receipt never starts a new assistance request');
+check(count(array_filter($box->inbox(1,2)['messages'],fn($m)=>$m['body']==='I have read and understood your response.'))===1,'Exactly one explicit receipt retained in the private conversation');
 check($store->run(['action'=>'check','code'=>$code])['reply']===$reply['message'],'Private code retrieves Owner reply');denied(fn()=>$store->run(['action'=>'check','code'=>bin2hex(random_bytes(16))]),'Wrong code cannot retrieve report');
