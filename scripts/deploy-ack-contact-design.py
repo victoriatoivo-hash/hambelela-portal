@@ -5,6 +5,9 @@ paths = ('assets/css/ack-communication.css','assets/js/ack-communication.js','as
 base = 'e821853b5bd00f0ca7de217fedf30a2fbf3db4fa'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
+if os.environ.get('GITHUB_REF')=='refs/heads/codex/ack-message-typography':
+    paths=('assets/css/ack-communication.css',)
+    base='88d28557c673dbcace6b6266926ba62e06dc8e75'
 if os.environ.get('GITHUB_REF')=='refs/heads/codex/ack-inbox-compat':
     paths=('shared/acknowledgments/Mailbox.php','apps/acknowledgments/api.php','assets/js/ack-inbox.js')
     base='b571f7ed997c599da2ff8372e4a2a13d14d1aaa7'
