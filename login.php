@@ -358,6 +358,11 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
     <link rel="apple-touch-icon" sizes="180x180" href="<?= BASE_URL ?>/assets/pwa/hambelela-180.png?v=1">
     <title><?= htmlspecialchars($pageTitle, ENT_QUOTES, 'UTF-8') ?></title>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/login-olive.css?v=<?=filemtime(BASE_PATH.'/assets/css/login-olive.css')?>">
+    <style>
+    [data-login-select] .login-profile-search{position:sticky;top:0;z-index:1;background:white;padding:4px}
+    .login-profile-search input{box-sizing:border-box;width:100%;padding:9px 12px;border:1px solid #dde1d6;border-radius:8px;font:inherit;font-size:16px;color:#344126}
+    [data-login-select] [hidden]{display:none!important}
+    </style>
 </head>
 <body class="login-page">
     <aside class="login-brand" aria-label="Hambelela Organic">
@@ -387,10 +392,14 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
                         <span class="portal-custom-select-value">Choose your name</span>
                         <svg class="portal-custom-select-chevron" viewBox="0 0 20 20" aria-hidden="true"><path d="m5 7.5 5 5 5-5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
                     </button>
-                    <div class="portal-custom-select-menu" role="listbox" tabindex="-1">
+                    <div class="portal-custom-select-menu">
+                        <div class="login-profile-search"><input type="search" aria-label="Find employee by name" aria-controls="login-profiles" placeholder="Type your first name or surname" autocomplete="off"></div>
+                        <div role="listbox" id="login-profiles" aria-labelledby="identity-label">
                         <?php foreach ($loginEmployees as $employee): ?>
                             <button type="button" class="portal-custom-select-option" role="option" data-profile-key="<?=hash('sha256', 'login-profile:' . (int) $employee['id'])?>" data-value="db:<?= (int) $employee['id'] ?>" aria-selected="false"><span class="login-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr(trim($employee['full_name']), 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><span class="login-option-name"><?= htmlspecialchars($employee['full_name'], ENT_QUOTES, 'UTF-8') ?></span><span class="login-option-check" aria-hidden="true">✓</span></button>
                         <?php endforeach; ?>
+                        </div>
+                        <p data-no-profiles role="status" hidden>No matching employee.</p>
                     </div>
                 </div>
             </div>
@@ -419,6 +428,22 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
   const valueLabel = select.querySelector('.portal-custom-select-value');
   const identity = select.querySelector('input[name="identity"]');
   const options = Array.from(select.querySelectorAll('.portal-custom-select-option'));
+  const search = select.querySelector('input[type=search]');
+  const empty = select.querySelector('[data-no-profiles]');
+  const filter = () => {
+    const query = search.value.trim().toLowerCase();
+    options.forEach(option => { option.hidden = !option.querySelector('.login-option-name').textContent.toLowerCase().includes(query); });
+    empty.hidden = options.some(option => !option.hidden);
+  };
+  search.addEventListener('input', filter);
+  search.addEventListener('keydown', event => {
+    if (!['Enter','ArrowDown','Escape'].includes(event.key)) return;
+    event.preventDefault();
+    if (event.key === 'Escape') { closeMenu(); trigger.focus(); return; }
+    const match = options.find(option => !option.hidden);
+    if (match && event.key === 'Enter') choose(match);
+    else match?.focus();
+  });
   const code = document.getElementById('code');
   const toggle = document.querySelector('.login-code-toggle');
   let activeIndex = -1;
@@ -426,8 +451,8 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
   const openMenu = () => {
     select.classList.add('is-open');
     trigger.setAttribute('aria-expanded', 'true');
-    activeIndex = Math.max(0, options.findIndex((option) => option.getAttribute('aria-selected') === 'true'));
-    options[activeIndex]?.focus();
+    search.value = ''; filter();
+    search.closest('.portal-custom-select-menu').scrollTop = 0; search.focus();
   };
   const closeMenu = () => {
     select.classList.remove('is-open');
@@ -454,8 +479,10 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
       if (event.key === 'Escape') { event.preventDefault(); closeMenu(); trigger.focus(); }
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault();
-        activeIndex = event.key === 'ArrowDown' ? Math.min(options.length - 1, index + 1) : Math.max(0, index - 1);
-        options[activeIndex]?.focus();
+        const visible = options.filter(item => !item.hidden);
+        activeIndex = visible.indexOf(option) + (event.key === 'ArrowDown' ? 1 : -1);
+        if (activeIndex < 0) search.focus();
+        else visible[Math.min(visible.length - 1, activeIndex)]?.focus();
       }
     });
   });

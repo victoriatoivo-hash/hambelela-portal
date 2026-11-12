@@ -7,12 +7,40 @@ on:
         description: Approved isolated change commit SHA
         required: true
         type: string
+      stability_step:
+        description: Staff login stability release
+        type: choice
+        options: [preflight, deploy, rollback]
+        default: preflight
 
 concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
 
 jobs:
+  staff-login-stability:
+    if: github.ref == 'refs/heads/codex/staff-login-stability' && inputs.approved_sha == github.sha
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate picker, resume and device-session behaviour
+        run: |
+          php -l login.php
+          php -l apps/operations/portal-presence.php
+          php tests/employee-device-session.php
+          npm install --prefix "$RUNNER_TEMP/login-tests" --ignore-scripts --no-audit --no-fund jsdom@24.1.3
+          NODE_PATH="$RUNNER_TEMP/login-tests/node_modules" node tests/staff-login-stability.cjs
+      - name: Guarded file-only release
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          STAGE: ${{ inputs.stability_step }}
+        run: python3 scripts/deploy-staff-login-stability.py "$STAGE" "$GITHUB_SHA"
   deploy-orders-marketing-packed-by:
     if: inputs.approved_sha == '32d1d216fefc08375e4a5f994f14b6f09ef4e281'
     runs-on: ubuntu-latest

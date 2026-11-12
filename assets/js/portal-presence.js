@@ -34,7 +34,8 @@
   }
 
   const status = document.querySelector('[data-portal-header-status]');
-  if (!status) return;
+  if (!status || status.dataset.presenceBound) return;
+  status.dataset.presenceBound = '1';
 
   const endpoint = status.dataset.presenceEndpoint || '';
   const dateNode = status.querySelector('[data-portal-date]');
@@ -144,12 +145,13 @@
   };
 
   let checking = false;
+  let navigating = false;
   let editing = false;
   document.addEventListener('input', (e) => {
     if (e.target.matches?.('input:not([type=search]),textarea,select,[contenteditable=true]') || e.target.isContentEditable) editing = true;
   }, true);
   const heartbeat = async () => {
-    if (checking || !endpoint || document.visibilityState === 'hidden') return;
+    if (checking || navigating || !endpoint || document.visibilityState === 'hidden') return;
     checking = true;
     try {
       const response = await fetch(endpoint, {
@@ -166,8 +168,12 @@
       if (payload.resume_dashboard && payload.dashboard && !editing && document.visibilityState === 'visible') {
         const home = new URL(payload.dashboard, location.origin);
         if (response.status === 401) home.searchParams.set('return', location.pathname + location.search);
-        if (home.origin === location.origin) location.replace(home.href);
-        return;
+        const pageKey = path => path.replace(/\/index\.php$/, '/');
+        if (home.origin === location.origin && pageKey(home.pathname) !== pageKey(location.pathname)) {
+          navigating = true;
+          location.replace(home.href);
+          return;
+        }
       }
       if (payload.ok) renderPresence(payload.employees || []);
     } catch (error) {
@@ -200,7 +206,7 @@
     if (document.visibilityState === 'visible') heartbeat();
   });
   window.addEventListener('online', heartbeat);
-  window.addEventListener('pageshow', (event) => { if (event.persisted) heartbeat(); });
+  window.addEventListener('pageshow', (event) => { if (event.persisted) { navigating = false; heartbeat(); } });
 
   const notificationControl = status.querySelector('.portal-notification-control');
   const notificationButton = status.querySelector('[data-notification-button]');

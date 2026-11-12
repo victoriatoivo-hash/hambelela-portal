@@ -71,6 +71,12 @@ try {
         db()->prepare('UPDATE portal_employee_devices SET last_contact=? WHERE device_id=? AND employee_id=?')->execute([$now,$_SESSION['portal_device_id'],$employeeId]);
     }
     if (portal_presence_dashboard_due($now)) $_SESSION['portal_dashboard_pending'] = true;
+    $dashboard = portal_post_login_destination(current_user());
+    $dashboardPath = parse_url($dashboard, PHP_URL_PATH);
+    if ($path === $dashboardPath || ($dashboardPath === BASE_URL.'/index.php' && $path === BASE_URL.'/')) {
+        // A visible dashboard heartbeat already fulfils the return. Do not reload it.
+        unset($_SESSION['portal_dashboard_pending']);
+    }
     $_SESSION['portal_last_contact'] = $now;
     $where = ["e.status = 'active'"];
     if (current_role_key() !== 'owner_admin') {
@@ -113,7 +119,7 @@ try {
     }, $rows);
 
     echo json_encode(['ok' => true, 'employees' => $employees, 'resume_dashboard' => !empty($_SESSION['portal_dashboard_pending']),
-        'dashboard' => portal_post_login_destination(current_user())], JSON_UNESCAPED_SLASHES);
+        'dashboard' => $dashboard], JSON_UNESCAPED_SLASHES);
 } catch (Throwable $error) {
     if (isset($db) && $db->inTransaction()) $db->rollBack();
     http_response_code(500);
