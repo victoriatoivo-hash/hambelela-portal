@@ -2,10 +2,18 @@
 'use strict';
 const script=document.currentScript,base=script.dataset.base||'';
 const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let running=false;
-document.querySelectorAll('a.ess-module-card[href$="/apps/acknowledgments/index.php"]').forEach(card=>{
- if(!card.querySelector('[data-ack-pending]')){const badge=document.createElement('span');badge.className='ess-module-badge';badge.dataset.ackPending='';badge.hidden=true;badge.setAttribute('aria-label','Instructions awaiting your response');card.append(badge);}
-});
+let running=false,refreshAgain=false;
+function paintAttention(d){
+ if(!d.attention)return;
+ const messages=d.attention.private+d.attention.reports,all=messages+d.pending;
+ const targets=document.querySelectorAll('.ack-contact-launch, a:is(.ess-module-card,.app-card,.ess-nav-item,.ps-nav-item)[href$="/apps/acknowledgments/index.php"], #ack-app a[href="messages.php"]');
+ for(const link of targets){const chat=link.matches('.ack-contact-launch,#ack-app a[href="messages.php"]'),count=chat?messages:all;
+  let b=link.querySelector('[data-ack-count]');if(!b){b=document.createElement('b');b.dataset.ackCount='';b.className='ack-attention-badge';b.setAttribute('aria-hidden','true');link.append(b);}
+  b.textContent=count>99?'99+':String(count);b.hidden=count===0;
+  if(!link.dataset.ackLabel)link.dataset.ackLabel=link.getAttribute('aria-label')||link.title||link.querySelector('h3,span')?.textContent||link.textContent.replace(b.textContent,'').trim();
+  const label=link.dataset.ackLabel+(count?' · '+count+' awaiting attention':'');link.setAttribute('aria-label',label);link.title=label;
+ }
+}
 async function request(action,body,csrf){
  const response=await fetch(base+'/apps/acknowledgments/api.php?action='+action,{cache:'no-store',...(body?{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:JSON.stringify(body)}:{})});
  if(!(response.headers.get('content-type')||'').includes('application/json'))throw Error('Please sign in again to respond.');
@@ -32,6 +40,7 @@ function privateDialog(p,csrf,editing=false,release=()=>{}){
  const find=s=>dialog.querySelector(s),go=find('[data-open]'),other=find('[data-other]'),label=find('label'),input=find('textarea'),body=find('.ack-private-body'),error=find('[role=alert]');
  find('h2').textContent=p.owner?'Employee assistance request':'Your private reply from the Owner';
  other.textContent=p.owner?(fromQueue?'Close':'Respond Later'):'Acknowledge';
+ if(!p.owner){const later=document.createElement('button');later.type='button';later.className='ack-action secondary';later.textContent='View later';later.onclick=()=>act('later');other.before(later);}
  let loaded=false,saving=false,loading=false,key=crypto.randomUUID();
  const controls=()=>{go.disabled=saving||loading||(editing&&loaded&&!input.value.trim());other.disabled=saving||(!p.owner&&!loaded)||(!csrf);input.readOnly=saving;};
  async function read(){
@@ -49,7 +58,7 @@ function privateDialog(p,csrf,editing=false,release=()=>{}){
   saving=true;controls();error.textContent='';
   try{const saved=await request('private_act',{id:Number(p.id),choice,request_key:key,message:choice==='reply'?input.value:''},csrf);
    if(saved.ok!==true)throw Error('Your action was not confirmed. Please retry.');
-   dialog.close();loadQueue();
+   dialog.close();loadQueue();window.dispatchEvent(new Event('ack:attention-changed'));
   }catch(e){saving=false;error.textContent=e.message;controls();}
  }
  function edit(){editing=true;label.hidden=false;go.textContent='Send reply';input.focus();controls();}
@@ -64,7 +73,7 @@ async function check(){
  if(running||document.visibilityState==='hidden')return;running=true;
  try{
   const d=await request('popup');
-  document.querySelectorAll('[data-ack-pending]').forEach(el=>{el.textContent=d.pending?String(d.pending):'';el.hidden=!d.pending;});
+  paintAttention(d);
   if(d.private_prompt&&!document.hidden&&!document.querySelector('dialog[open]')){
    const gate=window.PortalNoticeGate;
    if(gate&&!gate.acquire('private-assistance'))return;
@@ -101,8 +110,9 @@ async function check(){
   };
   dialog.addEventListener('cancel',e=>{if(saving)e.preventDefault();});
   dialog.addEventListener('close',()=>{dialog.remove();window.PortalNoticeGate?.release('acknowledgments');});
- }catch(e){window.PortalNoticeGate?.release('acknowledgments');/* Leave the existing notification centre available on network failure. */}finally{running=false;}
+ }catch(e){window.PortalNoticeGate?.release('acknowledgments');/* Leave the existing notification centre available on network failure. */}finally{running=false;if(refreshAgain){refreshAgain=false;check();}}
 }
+window.addEventListener('ack:attention-changed',()=>{if(running)refreshAgain=true;else check();});
 window.addEventListener('portal:notice-closed',check);
 check();setInterval(check,60000);document.addEventListener('visibilitychange',check);
 })();

@@ -1,4 +1,9 @@
 .ack-contact-control{position:relative;display:inline-flex;align-items:center;flex:none}
+.ack-attention-badge{display:inline-grid;place-items:center;box-sizing:border-box;min-width:19px;height:19px;padding:0 5px;border-radius:99px;background:#f1c45e;color:#352a13;font:600 11px/1 Jost,sans-serif;font-variant-numeric:tabular-nums;flex:none;margin-inline-start:auto}
+.ack-attention-badge[hidden]{display:none!important}.ack-contact-launch,.app-card:has(.ack-attention-badge),.ess-module-card:has(.ack-attention-badge){position:relative}
+.ack-contact-launch .ack-attention-badge{position:absolute;inset:-5px -5px auto auto;background:#b43739;color:white;border:1px solid white;pointer-events:none}
+:is(.ess-module-card,.app-card)>.ack-attention-badge{position:absolute;inset:12px 12px auto auto}
+.ack-contact-page form label.ack-start-topic{display:flex;align-items:center;gap:6px}.ack-start-topic input{width:16px;height:16px;accent-color:#59694a}.ack-contact-page .ack-topic-divider{text-align:center;border-block-end:1px solid #dfe4d8;padding:.25rem;color:#586254}
 .ack-contact-control .ack-contact-launch{display:grid;place-items:center;color:#445537;border-radius:10px;transition:background .15s,border-color .15s}
 .ack-contact-launch svg{width:18px;height:18px}.ack-contact-launch:hover,.ack-contact-launch[aria-expanded=true]{background:#eff2e9;border-color:#acb99e}
 .ack-contact-tip{position:absolute;right:0;top:calc(100% + 8px);z-index:4;background:#344126;color:#fff;border-radius:8px;padding:5px 10px;white-space:nowrap;pointer-events:none;font:500 12px/1.45 Jost,sans-serif}

@@ -23,6 +23,47 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  communication-attention:
+    if: github.ref == 'refs/heads/codex/communication-attention-badges' && inputs.approved_sha == github.sha
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    services:
+      db:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: isolated-fixture
+        ports: ['13317:3306']
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=3s --health-timeout=3s --health-retries=25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, dom, gd
+          coverage: none
+      - name: Verify message privacy, topic continuity, and counts on isolated fixtures
+        env:
+          ACK_TEST_DSN: 'mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test'
+          ACK_TEST_PASSWORD: isolated-fixture
+        run: |
+          php -l apps/acknowledgments/api.php
+          php tests/acknowledgments.php
+          npm install --prefix "$RUNNER_TEMP/contact-tests" --ignore-scripts --no-audit --no-fund jsdom@24.1.3
+          export NODE_PATH="$RUNNER_TEMP/contact-tests/node_modules"
+          node tests/ack-inbox-response.cjs
+          node tests/ack-assistance-prompts.cjs
+          node tests/ack-attention-badges.cjs
+      - name: Verify live baseline and release five communication files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          STAGE: ${{ inputs.contact_stage }}
+        run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
   inbox-compat:
     if: github.ref == 'refs/heads/codex/ack-inbox-compat' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest

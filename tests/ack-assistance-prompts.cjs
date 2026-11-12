@@ -8,12 +8,12 @@ const src=p=>readFileSync('assets/js/'+p+'.js','utf8'),turn=()=>new Promise(r=>s
   try{
    w.HTMLDialogElement.prototype.showModal=function(){this.setAttribute('open','');};
    w.HTMLDialogElement.prototype.close=function(){this.dispatchEvent(new w.Event('close'));};
-   let fail=choice==='reply',previousKey;
+   let fail=choice==='reply',previousKey,resolved=false;
    w.fetch=async(url,o)=>{const action=url.split('action=')[1].split('&')[0];actions.push(action);
     if(action==='private_act'){const b=JSON.parse(o.body);assert.equal(b.choice,choice);assert.equal(b.id,7);
      if(choice==='reply'){assert.equal(b.message,'Typed response');if(previousKey)assert.equal(previousKey,b.request_key);previousKey=b.request_key;}
-     if(fail){fail=false;throw Error('Connection lost');}}
-    return {ok:true,headers:{get:()=>'application/json'},json:async()=>action==='popup'?{private_prompt:{id:7,thread:2,owner},csrf:'x'}:action==='private_item'?{id:7,full_name:'Test',body:'Confirm <b>stock</b>',created_at:'Today',csrf:'x'}:{claimed:true,ok:true}};};
+     if(fail){fail=false;throw Error('Connection lost');}resolved=true;}
+    return {ok:true,headers:{get:()=>'application/json'},json:async()=>action==='popup'?{private_prompt:resolved?null:{id:7,thread:2,owner},csrf:'x'}:action==='private_item'?{id:7,full_name:'Test',body:'Confirm <b>stock</b>',created_at:'Today',csrf:'x'}:{claimed:true,ok:true}};};
    const script=doc.createElement('script');script.textContent=src('acknowledgments-popup');doc.body.append(script);await turn();
    const d=doc.querySelector('dialog[open]');assert.ok(d);const go=d.querySelector('[data-open]'),other=d.querySelector('[data-other]');assert.equal(go.textContent,'Reply');assert.equal(other.textContent,owner?'Respond Later':'Acknowledge');
    if(choice==='reply'){

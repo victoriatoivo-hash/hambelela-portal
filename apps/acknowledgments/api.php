@@ -33,7 +33,8 @@ try{
     elseif($action==='inbox')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='detail')$result=$service->detail($employee,(int)($_GET['id']??0));
     elseif($action==='popup'){$result=['csrf'=>$_SESSION['ack_csrf'],'notice'=>$service->popup($employee),'pending'=>acknowledgments_pending($employee),'session'=>hash('sha256',session_id().':'.$employee)];acknowledgments_deliver();
-        try{$result['private_prompt']=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->pendingPrompt($employee);}catch(Throwable $e){error_log('Private message prompts unavailable.');}}
+        try{$box=\Hambelela\Acknowledgments\Mailbox::forPortal(db());$result['attention']=$box->attention($employee);}catch(Throwable $e){error_log('Private attention counts unavailable.');}
+        try{if(isset($box))$result['private_prompt']=$box->pendingPrompt($employee);}catch(Throwable $e){error_log('Private message prompts unavailable.');}}
     else $result=$service->listing($employee)+['csrf'=>$_SESSION['ack_csrf']];
     echo json_encode($result,JSON_THROW_ON_ERROR);
 }catch(DomainException $e){http_response_code(403);echo json_encode(['error'=>$e->getMessage()]);}catch(Throwable $e){error_log('Acknowledgments API: '.$e->getMessage());http_response_code(500);echo json_encode(['error'=>'Could not complete this action. Your form has been kept; please retry.']);}
