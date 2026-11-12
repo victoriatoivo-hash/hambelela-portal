@@ -2,13 +2,14 @@
 /**
  * Plugin Name: Hambelela Sale Manager
  * Description: Scheduled portal campaigns for the online shop and Hambelela POS.
- * Version: 1.1.0
+ * Version: 1.2.0
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce
  */
 namespace Hambelela\Sales;
 defined('ABSPATH') || exit;
 require_once __DIR__.'/rules.php';
+if (is_admin()) require_once __DIR__.'/admin.php';
 
 function campaigns(): array {
     static $rules;
@@ -235,6 +236,11 @@ add_action('wp_head',static function(){
 .products .product,.woocommerce-product-gallery__image,.woocommerce-product-gallery__image--placeholder,.wc-block-components-product-image,.wp-block-woocommerce-product-image,.ho-featured-image{position:relative}
 .ho-portal-sale{display:inline-block;padding:.35em .75em;border-radius:4px;background:#8b2734;color:white;font-size:.8rem;font-weight:700}
 .products .ho-portal-sale{position:absolute;top:.65rem;right:.65rem;z-index:5;max-width:85%}
+</style>';
+    ribbon_styles();
+});
+function ribbon_styles() {
+    echo '<style>
 .ho-pre-black-friday{--edge:clamp(68px,6vw,80px);font-family:Jost,sans-serif;position:absolute;top:0;left:0;z-index:5;width:var(--edge);height:var(--edge);background:#101010;color:#fff;clip-path:polygon(0 0,100% 0,0 100%);pointer-events:none}
 .ho-pre-black-friday>[aria-hidden]{position:absolute;top:33%;left:33%;width:84%;transform:translate(-50%,-50%) rotate(-45deg);text-align:center;font-family:inherit;font-weight:700;font-size:calc(var(--edge) * .14);line-height:1;letter-spacing:.015em;color:#fff}
 .ho-pre-black-friday>[aria-hidden]>span{display:block;font-family:inherit}
@@ -245,7 +251,7 @@ add_action('wp_head',static function(){
 .ho-pre-black-friday>[aria-hidden]>span:nth-child(3){animation-delay:.8s}
 }
 </style>';
-});
+}
 function offer_price_html($html,$p) {
     $offer=offer_for($p);
     if (!$offer || $offer['amount'] === null) return $html;

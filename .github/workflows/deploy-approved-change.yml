@@ -366,7 +366,7 @@ jobs:
             packing-deployment-report.json
           if-no-files-found: warn
   deploy-sale-manager:
-    if: github.ref == 'refs/heads/main' && (inputs.approved_sha == '3c7cd4a9df97706aee3a0daadcf10460cf60368f' || inputs.approved_sha == '35ec981bbf50acfbaed8f8cf650fd6a3a880b6cf')
+    if: github.ref == 'refs/heads/main' && (inputs.approved_sha == '3c7cd4a9df97706aee3a0daadcf10460cf60368f' || inputs.approved_sha == '35ec981bbf50acfbaed8f8cf650fd6a3a880b6cf' || inputs.approved_sha == '91b4b4cbf0a0049605668cde2c8c4bcb4d5055c5')
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
@@ -384,8 +384,16 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
         run: |
           git worktree add --detach "$RUNNER_TEMP/sale-candidate" "$CANDIDATE_SHA"
-          git worktree add --detach "$RUNNER_TEMP/sale-previous" '3c7cd4a9df97706aee3a0daadcf10460cf60368f'
+          previous='3c7cd4a9df97706aee3a0daadcf10460cf60368f'
+          asset='apps/sale-manager/manager.js'
+          args=()
+          if [[ "$CANDIDATE_SHA" == '91b4b4cbf0a0049605668cde2c8c4bcb4d5055c5' ]]; then
+            previous='35ec981bbf50acfbaed8f8cf650fd6a3a880b6cf'
+            asset='integrations/hambelela-sale-manager/admin.js'
+            args+=(--retire)
+          fi
+          git worktree add --detach "$RUNNER_TEMP/sale-previous" "$previous"
           php "$RUNNER_TEMP/sale-candidate/tests/sale-manager.php"
           php -l "$RUNNER_TEMP/sale-candidate/apps/sale-manager/index.php"
-          node --check "$RUNNER_TEMP/sale-candidate/apps/sale-manager/manager.js"
-          python3 scripts/deploy-sale-manager.py "$RUNNER_TEMP/sale-candidate" "$RUNNER_TEMP/sale-previous"
+          node --check "$RUNNER_TEMP/sale-candidate/$asset"
+          python3 scripts/deploy-sale-manager.py "$RUNNER_TEMP/sale-candidate" "$RUNNER_TEMP/sale-previous" "${args[@]}"

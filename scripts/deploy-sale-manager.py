@@ -1,4 +1,4 @@
-"""Publish the three Sale Manager resources and add one owner launcher entry over FTPS."""
+"""Install a verified portal release or retire its editor after the WooCommerce migration."""
 import ftplib
 import io
 import os
@@ -13,7 +13,11 @@ previous = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 folder = "apps/sale-manager"
 resources = ["manager.css", "manager.js", "index.php"]
 new_launcher = (candidate / "index.php").read_bytes()
-entry = next(line for line in new_launcher.splitlines(keepends=True) if b"'name' => 'Sale Manager'" in line)
+retire = sys.argv[3:] == ["--retire"]
+if retire and previous is None:
+    raise ValueError("The previous release is required for retirement.")
+entry_source = (previous / "index.php").read_bytes() if retire else new_launcher
+entry = next(line for line in entry_source.splitlines(keepends=True) if b"'name' => 'Sale Manager'" in line)
 anchor = next(line for line in new_launcher.splitlines(keepends=True) if b"'name' => 'Cost Workbook'" in line)
 nonce = uuid.uuid4().hex
 
@@ -52,7 +56,13 @@ with ftplib.FTP_TLS(host, context=ssl.create_default_context(), timeout=35) as f
     live = read(ftp, "index.php")
     if live.count(anchor) != 1 or b"if ($roleKey === 'owner_admin') {" not in live:
         raise RuntimeError("Owner dashboard launcher does not match the expected portal.")
-    patched = live if entry in live else live.replace(anchor, entry + anchor, 1)
+    if retire:
+        if entry not in live and b"'name' => 'Sale Manager'" in live:
+            raise RuntimeError("The live Sale Manager launcher has changed.")
+        patched = live.replace(entry, b"", 1)
+        resources = ["index.php", "manager.js", "manager.css"]
+    else:
+        patched = live if entry in live else live.replace(anchor, entry + anchor, 1)
     apps = {name.rstrip("/").split("/")[-1] for name in ftp.nlst("apps")}
     if "sale-manager" not in apps:
         ftp.mkd(folder)
@@ -62,7 +72,7 @@ with ftplib.FTP_TLS(host, context=ssl.create_default_context(), timeout=35) as f
     updates = {}
     for name in resources:
         path = folder + "/" + name
-        content = (candidate / path).read_bytes()
+        content = None if retire and name != "index.php" else (candidate / path).read_bytes()
         current = read(ftp, path) if name in present else None
         if current == content:
             continue
@@ -72,6 +82,9 @@ with ftplib.FTP_TLS(host, context=ssl.create_default_context(), timeout=35) as f
     for path, (current, content) in updates.items():
         if current is not None and read(ftp, path) != current:
             raise RuntimeError("Portal file changed during upload: " + path)
+        if content is None:
+            ftp.delete(path)
+            continue
         write(ftp, path, content)
         if read(ftp, path) != content:
             raise RuntimeError("Could not confirm portal file: " + path)
@@ -81,4 +94,10 @@ with ftplib.FTP_TLS(host, context=ssl.create_default_context(), timeout=35) as f
         write(ftp, "index.php", patched)
     if read(ftp, "index.php") != patched:
         raise RuntimeError("Could not confirm launcher update.")
-    print("Verified three Sale Manager resources and the owner launcher entry.")
+    if retire:
+        remaining = {name.rstrip("/").split("/")[-1] for name in ftp.nlst(folder)}
+        if remaining & {"manager.css","manager.js"}:
+            raise RuntimeError("The legacy editor assets are still present.")
+        print("Verified the WooCommerce redirect, retired editor assets and removed portal launcher.")
+    else:
+        print("Verified three Sale Manager resources and the owner launcher entry.")

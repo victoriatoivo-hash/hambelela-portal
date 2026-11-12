@@ -1,18 +1,16 @@
+(()=>{
 'use strict';
-const el = id => document.getElementById(id);
+const root = document.getElementById('ho-sales-admin');
+const el = id => root.querySelector('#'+id);
 const state = {rules:{}, rows:[], include:new Set(), exclude:new Set(), id:'', revision:0, ready:false};
 const money = cents => 'N$'+(cents/100).toFixed(2);
 const node = (tag,txt) => { const n=document.createElement(tag); n.textContent=txt; return n; };
 function button(label,action) {
-    const b=node('button',label); b.type='button'; b.onclick=action; return b;
+    const b=node('button',label); b.type='button'; b.className='button'; b.onclick=action; return b;
 }
-async function api(action, data) {
-    const options = data ? {method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':document.querySelector('meta[name="csrf"]').content},body:JSON.stringify(data)} : {};
-    const response=await fetch('?action='+action,options);
-    let result;
-    try { result=await response.json(); } catch { throw new Error('The portal session or shop connection expired. Reload to reconnect.'); }
-    if (!response.ok) throw new Error(result.error || 'Shop request failed.');
-    return result;
+const apiRoot = '/wc/v3/hambelela-sales/';
+function readCampaigns() {
+    return wp.apiFetch({path:apiRoot+'campaigns'});
 }
 function localDate(stamp) {
     if (!stamp) return '';
@@ -28,11 +26,17 @@ function status(r) {
 }
 function list() {
     const out=el('campaigns'); out.replaceChildren();
-    for (const [id,r] of Object.entries(state.rules)) out.append(button(r.name+' · '+status(r),()=>openRule(id)));
+    for (const [id,r] of Object.entries(state.rules)) {
+        const row=node('div',''); row.className='ho-campaign';
+        const edit=button(r.name,()=>openRule(id)); edit.className='button-link';
+        row.append(edit,node('span',status(r))); out.append(row);
+    }
     if (!out.children.length) out.textContent='No saved campaigns.';
 }
 function openRule(id) {
     const r=state.rules[id];
+    el('overview').hidden=true; el('editor').hidden=false; el('new').hidden=true;
+    el('editor-title').textContent=r ? 'Edit sale' : 'New sale';
     state.id=id || Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');
     state.revision=r?.revision || 0;
     state.include=new Set(r?.include); state.exclude=new Set(r?.exclude);
@@ -44,7 +48,7 @@ function openRule(id) {
     for(const o of el('categories').options) o.selected=!!r?.categories.includes(Number(o.value));
     el('draft').textContent=r?.enabled ? 'Pause sale' : 'Save draft';
     el('publish').textContent=r?.enabled ? 'Update published sale' : 'Publish sale';
-    el('search').value=''; render();
+    el('search').value=''; render(); el('name').focus();
 }
 function selection() {
     return Array.from(el('categories').selectedOptions,o=>Number(o.value));
@@ -90,9 +94,11 @@ function render(){
         tr.append(node('td',row.name),node('td',money(current)),node('td',value>0 && total>=0 ? money(total):'—')); tbody.append(tr);
     }
     el('summary').textContent=eligible+' matched · '+reduced+' reduced by this offer'+(kind==='bundle'?' · totals for '+qty+' of each size':'')+'. A better existing basket offer takes priority.';
+    el('ribbon-preview').hidden = !/\bpre[\s\p{Pd}_]*black[\s\p{Pd}_]*friday\b/iu.test(el('name').value);
     return reduced;
 }
 el('editor').addEventListener('input',render);
+el('back').onclick=()=>{el('editor').hidden=true;el('overview').hidden=false;el('new').hidden=false;el('new').focus();};
 el('new').onclick=()=>{if(state.ready) openRule(null);};
 el('editor').onsubmit=async event=>{
     event.preventDefault(); if(!state.ready) return;
@@ -102,24 +108,26 @@ el('editor').onsubmit=async event=>{
         scope:el('scope').value,categories:selection(),include:[...state.include],exclude:[...state.exclude],start:el('start').value,end:el('end').value,stack:el('stack').checked,enabled};
     el('fields').disabled=true; state.ready=false; el('message').textContent='Saving campaign…';
     try{
-        const result=await api('save',payload);
+        const result=await wp.apiFetch({path:apiRoot+'campaigns/'+state.id,method:'PUT',data:payload});
         state.revision=result.revision;
-        state.rules=(await api('list')).campaigns;
+        state.rules=(await readCampaigns()).campaigns;
         list();openRule(result.id);el('message').textContent='Saved · '+status(state.rules[result.id]);
     }catch(err){el('message').textContent=err.message;}
     finally {el('fields').disabled=false;state.ready=true;}
 };
 (async()=>{
     try{
-        state.rules=(await api('list')).campaigns;
+        state.rules=(await readCampaigns()).campaigns;
         let cursor=0;
         do {
-            const page=await api('catalog&after='+cursor);
+            const page=await wp.apiFetch({path:apiRoot+'catalog?after='+cursor});
             if(page.categories) for(const cat of page.categories){const o=node('option',cat.name);o.value=cat.id;el('categories').append(o);}
             state.rows.push(...page.items);cursor=page.after;
             el('message').textContent='Loading catalogue · '+state.rows.length;
         }while(cursor);
-        el('fields').disabled=false; state.ready=true;list();openRule(null);
+        el('fields').disabled=false; state.ready=true;list();el('new').disabled=false;
         el('message').textContent='Connected to WooCommerce · '+state.rows.filter(r=>!r.group).length+' products and sizes';
     }catch(err){el('message').textContent='Sale Manager could not connect. '+err.message;}
+})();
+
 })();
