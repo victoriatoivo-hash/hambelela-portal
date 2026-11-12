@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hambelela Sale Manager
  * Description: Scheduled portal campaigns for the online shop and Hambelela POS.
- * Version: 1.2.0
+ * Version: 1.3.0
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce
  */
