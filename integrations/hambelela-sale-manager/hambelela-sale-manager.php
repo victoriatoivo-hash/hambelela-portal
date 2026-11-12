@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Hambelela Sale Manager
  * Description: Scheduled portal campaigns for the online shop and Hambelela POS.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Requires PHP: 7.4
  * Requires Plugins: woocommerce
  */
@@ -146,30 +146,54 @@ function offer_for($p) {
     if (!$rules || !$p || !$p->is_type(['simple','variation'])) return null;
     $row = row_for($p);
     $one = quote($rules,$row,1,time());
-    if ($one['rule']) return ['label'=>$one['rule']['name'],'amount'=>$one['total']/100,'regular'=>$row['regular']/100];
+    if ($one['rule']) return ['label'=>$one['rule']['name'],'campaign'=>$one['rule']['name'],'amount'=>$one['total']/100,'regular'=>$row['regular']/100];
     foreach ($rules as $r) {
         if ($r['kind'] !== 'bundle' || !quote([$r],$row,$r['quantity'],time())['rule']) continue;
-        return ['label'=>$r['quantity'].' for N$'.number_format($r['value']/100,2),'amount'=>null,'regular'=>$row['regular']/100];
+        return ['label'=>$r['quantity'].' for N$'.number_format(whole_dollar_cents($r['value'])/100,2),'campaign'=>$r['name'],'amount'=>null,'regular'=>$row['regular']/100];
     }
     return null;
 }
-function badge_for($p) {
-    if (!active_rules() || !$p) return '';
-    if ($p->is_type('variable')) {
-        foreach ($p->get_visible_children() as $child) if ($offer=offer_for(wc_get_product($child))) return 'Selected sizes · '.$offer['label'];
-        return '';
+function is_pre_black_friday(string $name): bool {
+    return (bool)preg_match('/\bpre[\s\p{Pd}_]*black[\s\p{Pd}_]*friday\b/iu', $name);
+}
+
+function badge_for($p): array {
+    if (!active_rules() || !$p) return [];
+    $variable = $p->is_type('variable');
+    $fallback = [];
+    foreach ($variable ? $p->get_visible_children() : [$p->get_id()] as $id) {
+        $offer = offer_for($variable ? wc_get_product($id) : $p);
+        if (!$offer) continue;
+        $prefix = $variable ? 'Selected sizes · ' : '';
+        if (is_pre_black_friday($offer['campaign'])) {
+            return ['corner'=>true, 'label'=>$prefix.'PRE BLACK FRIDAY'];
+        }
+        if (!$fallback) $fallback = ['corner'=>false, 'label'=>$prefix.$offer['label']];
     }
-    $offer=offer_for($p);
-    return $offer ? $offer['label'] : '';
+    return $fallback;
 }
 function badge() {
     global $product;
-    $label = badge_for($product);
-    if ($label !== '') echo '<span class="ho-portal-sale">'.esc_html($label).'</span>';
+    $badge = badge_for($product);
+    if (!$badge) return;
+    if ($badge['corner'] && current_filter() === 'woocommerce_before_shop_loop_item_title') {
+        echo '<span class="ho-pre-black-friday"><span aria-hidden="true">PRE BLACK<br>FRIDAY</span><span class="screen-reader-text">'.esc_html($badge['label']).'</span></span>';
+    } else {
+        echo '<span class="ho-portal-sale">'.esc_html($badge['label']).'</span>';
+    }
 }
 add_action('woocommerce_before_shop_loop_item_title',__NAMESPACE__.'\\badge',8);
 add_action('woocommerce_before_add_to_cart_form',__NAMESPACE__.'\\badge',7);
-add_action('wp_head',static function(){if (active_rules()) echo '<style>.products .product{position:relative}.ho-portal-sale{display:inline-block;padding:.35em .75em;border-radius:4px;background:#8b2734;color:white;font-size:.8rem;font-weight:700}.products .ho-portal-sale{position:absolute;top:.65rem;right:.65rem;z-index:5;max-width:85%}</style>';});
+add_action('wp_head',static function(){
+    if (!active_rules()) return;
+    echo '<style>
+.products .product{position:relative}
+.ho-portal-sale{display:inline-block;padding:.35em .75em;border-radius:4px;background:#8b2734;color:white;font-size:.8rem;font-weight:700}
+.products .ho-portal-sale{position:absolute;top:.65rem;right:.65rem;z-index:5;max-width:85%}
+.ho-pre-black-friday{--edge:clamp(58px,6vw,76px);position:absolute;top:0;left:0;z-index:5;width:var(--edge);height:var(--edge);background:#101010;color:#fff;clip-path:polygon(0 0,100% 0,0 100%);pointer-events:none}
+.ho-pre-black-friday>[aria-hidden]{position:absolute;top:31%;left:31%;width:84%;transform:translate(-50%,-50%) rotate(-45deg);text-align:center;font:800 calc(var(--edge) * .146)/1.04 Arial,sans-serif;letter-spacing:.015em;color:#fff}
+</style>';
+});
 function offer_price_html($html,$p) {
     $offer=offer_for($p);
     if (!$offer || $offer['amount'] === null) return $html;
