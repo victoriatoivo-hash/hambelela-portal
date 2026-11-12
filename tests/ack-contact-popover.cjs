@@ -9,6 +9,9 @@ const browser=await puppeteer.launch({executablePath:process.env.CHROME_BIN||'/u
 try{
  for(const width of [1280,375,320]){
   const page=await browser.newPage();await page.setViewport({width,height:720});
+  await page.setRequestInterception(true);
+  page.on('request',r=>r.isNavigationRequest()?r.respond({status:200,contentType:'text/html',body:'<!doctype html>'}):r.abort());
+  await page.goto('https://portal.example/dashboard');
   await page.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><style>'+read('assets/css/portal.css')+read('assets/css/portal-responsive.css')+read('assets/css/ack-communication.css')+'</style><main><div style="display:flex;justify-content:flex-end"><div class="portal-header-actions"><button>Online</button>'+buttons+'<div class="portal-notification-control"><a href="#bell" data-notification-button class="portal-header-action portal-header-notifications portal-notification-button">Bell</a></div></div></div><p id="outside">Other content</p></main>');
   await page.$eval('#outside',el=>el.style.marginTop='350px');
   await page.addScriptTag({content:read('assets/js/ack-communication.js')});
