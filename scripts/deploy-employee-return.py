@@ -1,13 +1,15 @@
 """Single pinned release. No config, credentials, business records or source artifacts."""
 import ftplib
-import hashlib
 import io
+import json
 import os
 import secrets
 import socket
 import ssl
 import subprocess
-from urllib.request import urlopen
+import time
+from urllib.request import Request, urlopen
+from urllib.error import HTTPError
 
 release = '6ef38d0b96153ae9e6e8a6aaee106000c0ef9938'
 original = {
@@ -42,6 +44,28 @@ def smoke():
     with urlopen(base+'/index.php?release_check='+secrets.token_hex(8),timeout=20) as res:
         if not res.geturl().startswith(base+'/login.php'):
             raise RuntimeError('Anonymous dashboard did not require sign-in')
+def verify_http():
+    try:
+        smoke()
+        return
+    except HTTPError as error:
+        if error.code != 403: raise
+    # Hosting may refuse traffic from the CI network. Require an independent
+    # HTTP verification receipt from the dispatching user; never waive the check.
+    context = 'live-session-http/'+os.environ['GITHUB_RUN_ID']+'/'+os.environ['GITHUB_RUN_ATTEMPT']
+    print('Runner HTTP 403: awaiting portal-network checks for '+context, flush=True)
+    url='https://api.github.com/repos/'+os.environ['GITHUB_REPOSITORY']+'/commits/'+release+'/statuses?per_page=100'
+    request=Request(url,headers={'Authorization':'Bearer '+os.environ['CHECK_RECEIPT_TOKEN'],'Accept':'application/vnd.github+json'})
+    for _ in range(24):
+        with urlopen(request, timeout=10) as response:
+            receipts=json.load(response)
+        for receipt in receipts:
+            if receipt['context']==context and receipt['creator']['login']==os.environ['GITHUB_ACTOR']:
+                if receipt['state']!='success': raise RuntimeError('External HTTP verification failed')
+                print('Portal-network HTTP checks confirmed for this deployment.',flush=True)
+                return
+        time.sleep(8)
+    raise RuntimeError('No independent HTTP verification; rolling back')
 with ftplib.FTP_TLS(host, context=ssl.create_default_context(), timeout=35) as ftp:
     ftp.login(os.environ['FTP_USERNAME'], os.environ['FTP_PASSWORD'])
     ftp.prot_p()
@@ -84,7 +108,7 @@ with ftplib.FTP_TLS(host, context=ssl.create_default_context(), timeout=35) as f
             attempted.append(p)
             write(p,target[p])
         if any(norm(read(p))!=target[p] for p in order): raise RuntimeError('Final verification failed')
-        if mode=='deploy': smoke()
+        if mode=='deploy': verify_http()
         print(mode,'verified:',', '.join(order))
     except Exception:
         for p in reversed(attempted):

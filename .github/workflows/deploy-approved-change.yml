@@ -24,6 +24,7 @@ jobs:
     timeout-minutes: 12
     permissions:
       contents: read
+      statuses: read
     services:
       mariadb:
         image: mariadb:11.4
@@ -55,6 +56,7 @@ jobs:
           node tests/working-day-session-static.mjs
       - name: Guarded release and public smoke check
         env:
+          CHECK_RECEIPT_TOKEN: ${{ github.token }}
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
