@@ -27,6 +27,10 @@ denied(fn()=>$s->respond(2,['request_key'=>S::uuid(),'recipient_id'=>$copyId,'ac
 $bad=array_replace($with,['image'=>base64_encode('not an image'),'request_key'=>S::uuid()]);
 denied(fn()=>$s->send(1,$bad),'Malformed attachment rejected');$q=$db->prepare('SELECT COUNT(*) FROM portal_ack_instructions WHERE request_key=?');$q->execute([$bad['request_key']]);check(!(int)$q->fetchColumn(),'Failed attachment rolls back instruction');
 $box=new Mailbox($db,1);$payload=['employee'=>2,'request_key'=>S::uuid(),'message'=>'Private question'];
+putenv('ACK_CONTACT_OWNER_ID');
+denied(fn()=>Mailbox::forPortal($db)->inbox(1),'Default inbox binding rejects a different owner identity');
+$db->exec("UPDATE ops_employees SET full_name='Victoria Toivo' WHERE id=1");
+check(Mailbox::forPortal($db)->inbox(1)['owner']===true,'Verified named Owner binding works without host-wide configuration');
 $box->send(2,$payload);$box->send(2,$payload);$box->send(1,array_replace($payload,['request_key'=>S::uuid(),'message'=>'Private reply']));
 check(count($box->inbox(2)['messages'])===2&&!$box->inbox(3)['messages'],'Private conversation is isolated and retried posts do not duplicate');
 denied(fn()=>$box->inbox(3,2),'Another employee cannot read named thread');denied(fn()=>$box->send(3,$payload),'Another employee cannot post into named thread');

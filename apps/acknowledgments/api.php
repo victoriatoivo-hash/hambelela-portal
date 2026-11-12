@@ -13,7 +13,7 @@ try{
     if($_SERVER['REQUEST_METHOD']==='POST'){
         if(!hash_equals($_SESSION['ack_csrf'],(string)($_SERVER['HTTP_X_CSRF_TOKEN']??'')))throw new DomainException('Session verification failed. Refresh the page.');
         $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
-        if($action==='message'){(new \Hambelela\Acknowledgments\Mailbox(db(),(int)getenv('ACK_CONTACT_OWNER_ID')))->send($employee,$body);echo '{"ok":true}';exit;}
+        if($action==='message'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->send($employee,$body);echo '{"ok":true}';exit;}
         if($action==='send')$result=$service->send($employee,$body);
         elseif($action==='schedule')$result=$service->schedule($employee,$body);
         elseif($action==='withdrawal')$result=$service->withdrawal($employee,$body);
@@ -21,7 +21,7 @@ try{
         else throw new DomainException('Unsupported action.');
         acknowledgments_deliver();echo json_encode($result,JSON_THROW_ON_ERROR);exit;
     }
-    if($action==='inbox')$result=(new \Hambelela\Acknowledgments\Mailbox(db(),(int)getenv('ACK_CONTACT_OWNER_ID')))->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
+    if($action==='inbox')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='detail')$result=$service->detail($employee,(int)($_GET['id']??0));
     elseif($action==='popup'){$result=['csrf'=>$_SESSION['ack_csrf'],'notice'=>$service->popup($employee),'pending'=>acknowledgments_pending($employee),'session'=>hash('sha256',session_id().':'.$employee)];acknowledgments_deliver();}
     else $result=$service->listing($employee)+['csrf'=>$_SESSION['ack_csrf']];

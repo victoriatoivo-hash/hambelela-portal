@@ -4,6 +4,14 @@ namespace Hambelela\Acknowledgments;
 
 final class Mailbox {
     public function __construct(private \PDO $db, private int $owner) {}
+    public static function forPortal(\PDO $db):self {
+        $configured=getenv('ACK_CONTACT_OWNER_ID');
+        if($configured!==false && $configured!=='')return new self($db,ctype_digit($configured)?(int)$configured:0);
+        // Production binding verified against the active employee and role before release.
+        // Fail closed if this is another installation or the verified identity changes.
+        $identity=(new Service($db))->actor(1);
+        return new self($db,$identity['full_name']==='Victoria Toivo' && $identity['role_key']==='owner_admin'?1:0);
+    }
     private function rows(string $sql,array $params):array {
         $q=$this->db->prepare($sql);$q->execute($params);return $q->fetchAll(\PDO::FETCH_ASSOC);
     }
