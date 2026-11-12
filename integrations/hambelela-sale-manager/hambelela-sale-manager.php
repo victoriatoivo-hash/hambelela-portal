@@ -177,7 +177,7 @@ function badge() {
     $badge = badge_for($product);
     if (!$badge) return;
     if ($badge['corner'] && current_filter() === 'woocommerce_before_shop_loop_item_title') {
-        echo '<span class="ho-pre-black-friday"><span aria-hidden="true">PRE BLACK<br>FRIDAY</span><span class="screen-reader-text">'.esc_html($badge['label']).'</span></span>';
+        echo '<span class="ho-pre-black-friday"><span aria-hidden="true">PRE<br>BLACK<br>FRIDAY</span><span class="screen-reader-text">'.esc_html($badge['label']).'</span></span>';
     } else {
         echo '<span class="ho-portal-sale">'.esc_html($badge['label']).'</span>';
     }
@@ -190,8 +190,8 @@ add_action('wp_head',static function(){
 .products .product{position:relative}
 .ho-portal-sale{display:inline-block;padding:.35em .75em;border-radius:4px;background:#8b2734;color:white;font-size:.8rem;font-weight:700}
 .products .ho-portal-sale{position:absolute;top:.65rem;right:.65rem;z-index:5;max-width:85%}
-.ho-pre-black-friday{--edge:clamp(58px,6vw,76px);position:absolute;top:0;left:0;z-index:5;width:var(--edge);height:var(--edge);background:#101010;color:#fff;clip-path:polygon(0 0,100% 0,0 100%);pointer-events:none}
-.ho-pre-black-friday>[aria-hidden]{position:absolute;top:36%;left:36%;width:84%;transform:translate(-50%,-50%) rotate(-45deg);text-align:center;font:800 calc(var(--edge) * .12)/1.04 Arial,sans-serif;letter-spacing:.015em;color:#fff}
+.ho-pre-black-friday{--edge:clamp(68px,6vw,80px);font-family:inherit;position:absolute;top:0;left:0;z-index:5;width:var(--edge);height:var(--edge);background:#101010;color:#fff;clip-path:polygon(0 0,100% 0,0 100%);pointer-events:none}
+.ho-pre-black-friday>[aria-hidden]{position:absolute;top:33%;left:33%;width:84%;transform:translate(-50%,-50%) rotate(-45deg);text-align:center;font-family:inherit;font-weight:700;font-size:calc(var(--edge) * .14);line-height:1;letter-spacing:.015em;color:#fff}
 </style>';
 });
 function offer_price_html($html,$p) {
