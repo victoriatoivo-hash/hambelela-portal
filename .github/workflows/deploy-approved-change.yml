@@ -13,6 +13,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  employee-return-baseline:
+    # Read-only preflight: a separate approved release is required to publish.
+    if: github.ref == 'refs/heads/main' && inputs.approved_sha == '358deaa79f530e6b1d97d2ba162821a1de4c8527'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Fingerprint the employee session release targets (no uploads)
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/check-employee-return-baseline.py
   deploy-orders-marketing-packed-by:
     if: inputs.approved_sha == '32d1d216fefc08375e4a5f994f14b6f09ef4e281'
     runs-on: ubuntu-latest
