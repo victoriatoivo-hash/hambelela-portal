@@ -26,17 +26,26 @@ function status(r) {
 }
 function list() {
     const out=el('campaigns'); out.replaceChildren();
-    for (const [id,r] of Object.entries(state.rules)) {
-        const row=node('div',''); row.className='ho-campaign';
-        const edit=button(r.name,()=>openRule(id)); edit.className='button-link';
-        row.append(edit,node('span',status(r))); out.append(row);
+    const entries=Object.entries(state.rules);
+    for (const [id,r] of entries) {
+        const currentStatus=status(r);
+        if (el('status-filter').value && el('status-filter').value!==currentStatus) continue;
+        const row=node('article',''); row.className='ho-campaign';
+        const main=node('div',''); main.className='ho-campaign-copy';
+        const name=button(r.name,()=>openRule(id)); name.className='ho-campaign-name';
+        const offer=r.kind==='percent' ? (r.value/100)+'% off' : r.kind==='bundle' ? r.quantity+' for '+money(offerCents('bundle',0,r.value)) : money(offerCents('fixed',0,r.value))+' fixed price';
+        const scope=r.scope==='selected' ? r.include.length+' selected' : r.scope==='all' ? 'Whole store' : 'Selected categories';
+        main.append(name,node('div',offer+' · '+scope));
+        const pill=node('span',currentStatus); pill.className='ho-state ho-state-'+(r.enabled ? currentStatus.toLowerCase() : 'draft');
+        const edit=button('Edit sale',()=>openRule(id)); edit.setAttribute('aria-label','Edit '+r.name);
+        row.append(main,pill,edit); out.append(row);
     }
-    if (!out.children.length) out.textContent='No saved campaigns.';
+    if (!out.children.length) out.textContent=entries.length ? 'No campaigns with this status.' : 'No saved campaigns.';
 }
 function openRule(id) {
     const r=state.rules[id];
     el('overview').hidden=true; el('editor').hidden=false; el('new').hidden=true;
-    el('editor-title').textContent=r ? 'Edit sale' : 'New sale';
+    el('editor-title').textContent=r ? r.name : 'New sale';
     state.id=id || Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');
     state.revision=r?.revision || 0;
     state.include=new Set(r?.include); state.exclude=new Set(r?.exclude);
@@ -97,8 +106,9 @@ function render(){
     el('ribbon-preview').hidden = !/\bpre[\s\p{Pd}_]*black[\s\p{Pd}_]*friday\b/iu.test(el('name').value);
     return reduced;
 }
+el('status-filter').addEventListener('change',list);
 el('editor').addEventListener('input',render);
-el('back').onclick=()=>{el('editor').hidden=true;el('overview').hidden=false;el('new').hidden=false;el('new').focus();};
+el('back').onclick=()=>{if(!state.ready)return;el('editor').hidden=true;el('overview').hidden=false;el('new').hidden=false;el('new').focus();};
 el('new').onclick=()=>{if(state.ready) openRule(null);};
 el('editor').onsubmit=async event=>{
     event.preventDefault(); if(!state.ready) return;
