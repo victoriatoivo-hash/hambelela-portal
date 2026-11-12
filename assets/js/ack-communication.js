@@ -57,7 +57,49 @@
  function popup(dialog,n,csrf){const f=dialog.querySelector('form'),b=el('section');if(n.image_type)b.append(btn('View image',()=>view(n.id,csrf,true)));if(n.question){const a=el('a','Answer in Acknowledgments');a.href=base+'index.php?record='+Number(n.id);b.append(el('p',n.question),a);}if(b.childElementCount){b.className='ack-material';f.before(b);}}
  window.AckCommunication={setup,fields,controls,popup};
  const tip=document.querySelector('.ack-contact-tip');
- if(tip&&!matchMedia('(prefers-reduced-motion: reduce)').matches)setTimeout(()=>{if(document.hidden||document.querySelector('dialog[open]'))return;
+ const trigger=document.querySelector('.ack-contact-launch'),panel=document.getElementById('ack-contact-options');
+ if(trigger&&panel){
+  let open=false;
+  const position=()=>{
+   if(!open)return;
+   const r=trigger.getBoundingClientRect(),gap=8,pad=10,height=window.innerHeight;
+   const above=r.top-pad,below=height-r.bottom-pad;
+   const up=below<panel.scrollHeight+gap&&above>below;
+   panel.style.maxHeight=Math.max(48,(up?above:below)-gap)+'px';
+   panel.style.left=Math.max(pad,Math.min(r.right-panel.offsetWidth,document.documentElement.clientWidth-panel.offsetWidth-pad))+'px';
+   panel.style.top=Math.max(pad,up?r.top-panel.offsetHeight-gap:r.bottom+gap)+'px';
+  };
+  const close=(focus=false)=>{
+   if(!open)return;open=false;
+   if(typeof panel.hidePopover==='function')panel.hidePopover();
+   panel.hidden=true;trigger.setAttribute('aria-expanded','false');
+   if(focus)trigger.focus({preventScroll:true});
+  };
+  trigger.addEventListener('click',e=>{
+   if(e.metaKey||e.ctrlKey||e.shiftKey||e.altKey)return;
+   e.preventDefault();if(open){close();return;}
+   if(tip)tip.hidden=true;
+   // Mount outside the scrolling header; native popovers also use the top layer.
+   document.body.append(panel);open=true;panel.hidden=false;
+   if(typeof panel.showPopover==='function')panel.showPopover();
+   trigger.setAttribute('aria-expanded','true');position();panel.querySelector('a').focus({preventScroll:true});
+  });
+  document.addEventListener('pointerdown',e=>{if(!panel.contains(e.target)&&!trigger.contains(e.target))close();},true);
+  document.addEventListener('focusin',e=>{if(!panel.contains(e.target)&&!trigger.contains(e.target))close();});
+  document.addEventListener('keydown',e=>{if(open&&e.key==='Escape'){e.preventDefault();close(true);}});
+  panel.addEventListener('keydown',e=>{
+   if(e.key!=='Tab')return;
+   const links=panel.querySelectorAll('a');
+   if(e.shiftKey&&document.activeElement===links[0]){e.preventDefault();close(true);}
+   else if(!e.shiftKey&&document.activeElement===links[links.length-1]){
+    const bell=document.querySelector('[data-notification-button]');if(bell){e.preventDefault();close();bell.focus();}
+   }
+  });
+  panel.addEventListener('click',e=>{if(e.target.closest('a'))close(true);});
+  window.addEventListener('resize',position);window.addEventListener('scroll',position,{capture:true,passive:true});
+  window.addEventListener('pagehide',()=>close());
+ }
+ if(tip&&!matchMedia('(prefers-reduced-motion: reduce)').matches)setTimeout(()=>{if(document.hidden||trigger?.getAttribute('aria-expanded')==='true'||document.querySelector('dialog[open]'))return;
   try{if(Date.now()-Number(sessionStorage.getItem('ack-tip-at'))<1800000)return;sessionStorage.setItem('ack-tip-at',String(Date.now()));}catch{return;}
   tip.textContent=['Need assistance?','Have a quick question?','Want to report something?'][Math.floor(Math.random()*3)];tip.hidden=false;setTimeout(()=>tip.hidden=true,5000);},45000);
 })();

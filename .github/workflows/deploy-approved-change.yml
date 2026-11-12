@@ -12,12 +12,42 @@ on:
         type: choice
         options: [inspect, deploy]
         default: inspect
+      contact_stage:
+        description: Acknowledgments launcher and reporting design
+        type: choice
+        options: [preflight, deploy, rollback]
+        default: preflight
 
 concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
 
 jobs:
+  contact-design:
+    if: github.ref == 'refs/heads/codex/ack-contact-design' && inputs.approved_sha == github.sha
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check contact workflows on desktop and mobile
+        run: |
+          php -l shared/header.php
+          php -l apps/acknowledgments/messages.php
+          node --check assets/js/ack-inbox.js
+          npm install --prefix "$RUNNER_TEMP/contact-tests" --ignore-scripts --no-audit --no-fund jsdom@24.1.3 puppeteer-core@24.10.2
+          export NODE_PATH="$RUNNER_TEMP/contact-tests/node_modules"
+          node tests/ack-communication-ui.cjs
+          node tests/ack-contact-popover.cjs
+      - name: Guarded design-only release
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          STAGE: ${{ inputs.contact_stage }}
+        run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
   acknowledgment-communication:
     if: github.ref == 'refs/heads/codex/ack-images-private-messages' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest

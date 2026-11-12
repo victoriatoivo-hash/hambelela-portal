@@ -149,7 +149,6 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                  data-notification-endpoint="<?= htmlspecialchars(BASE_URL . '/api/notifications.php?mode=summary', ENT_QUOTES, 'UTF-8') ?>">
             <div class="portal-header-actions">
             <?php if ($driverMobileProfile): ?><nav class="driver-mobile-account" aria-label="Driver account"><a href="<?= BASE_URL ?>/profile.php" aria-label="My Account"><i data-lucide="user-round" aria-hidden="true"></i></a><a href="<?= BASE_URL ?>/login.php?action=logout" aria-label="Logout"><i data-lucide="log-out" aria-hidden="true"></i></a></nav><?php endif; ?>
-            <div class="ack-contact-stack"><a class="ack-contact-launch" href="<?=BASE_URL?>/apps/acknowledgments/messages.php" aria-label="Acknowledgments: private assistance or anonymous reporting"><i data-lucide="message-circle" aria-hidden="true"></i><span class="ack-contact-tip" hidden></span></a>
             <div class="portal-header-action portal-online-widget portal-online-staff" data-portal-online-widget data-online-staff-button
                  role="button" tabindex="0" aria-label="Online employees" aria-expanded="false">
                 <div class="portal-online-avatars" data-portal-online-avatars></div>
@@ -161,6 +160,14 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     </div>
                 </div>
             </div>
+            <div class="ack-contact-control">
+                <a class="portal-header-action portal-header-notifications portal-notification-button ack-contact-launch" href="<?=BASE_URL?>/apps/acknowledgments/messages.php" aria-label="Messages and reporting" title="Messages and reporting" aria-controls="ack-contact-options" aria-expanded="false"><i data-lucide="message-circle" aria-hidden="true"></i></a>
+                <span class="ack-contact-tip" hidden></span>
+                <nav id="ack-contact-options" class="ack-contact-options" popover="manual" hidden aria-label="Messages and reporting">
+                    <header><span>ACKNOWLEDGMENTS</span><strong>Messages &amp; reporting</strong></header>
+                    <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#private"><i data-lucide="messages-square" aria-hidden="true"></i><span><strong>Ask for assistance</strong><small>Private conversation with the Owner.</small></span><span aria-hidden="true">›</span></a>
+                    <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#anonymous"><i data-lucide="shield-check" aria-hidden="true"></i><span><strong>Report anonymously</strong><small>See reporting options and how replies work.</small></span><span aria-hidden="true">›</span></a>
+                </nav>
             </div>
             <div class="portal-notification-control">
             <a class="portal-header-action portal-header-notifications portal-notification-button" data-notification-button href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"

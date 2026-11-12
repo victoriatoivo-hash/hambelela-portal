@@ -1,5 +1,32 @@
-.ack-contact-stack{display:grid;justify-items:center;align-items:center;gap:2px}
-.ack-contact-launch{position:relative;color:#445537;background:white;border:1px solid #e4e6dc;border-radius:8px;display:grid;place-items:center;width:34px;height:28px}.ack-contact-launch svg{width:17px;height:17px}.ack-contact-tip{position:absolute;top:0;right:110%;z-index:4;background:#344126;color:#fff;border-radius:8px;padding:5px 10px;white-space:nowrap;pointer-events:none}
-.ack-contact-page{max-width:60rem}.ack-contact-page section,.ack-material{background:white;border:1px solid #e4e6dc;border-radius:12px;margin:12px 0;padding:16px}.ack-material label,.ack-contact-page label{display:grid;gap:5px}.ack-contact-page p,.ack-material p{white-space:pre-wrap;overflow-wrap:anywhere}
+.ack-contact-control{position:relative;display:inline-flex;align-items:center;flex:none}
+.ack-contact-control .ack-contact-launch{display:grid;place-items:center;color:#445537;border-radius:10px;transition:background .15s,border-color .15s}
+.ack-contact-launch svg{width:18px;height:18px}.ack-contact-launch:hover,.ack-contact-launch[aria-expanded=true]{background:#eff2e9;border-color:#acb99e}
+.ack-contact-tip{position:absolute;right:0;top:calc(100% + 8px);z-index:4;background:#344126;color:#fff;border-radius:8px;padding:5px 10px;white-space:nowrap;pointer-events:none;font:500 12px/1.45 Jost,sans-serif}
+.ack-contact-options,.ack-contact-page{font:400 13px/1.5 Jost,sans-serif;color:#293126}
+.ack-contact-options{position:fixed;inset:auto;margin:0;z-index:1100;box-sizing:border-box;width:min(316px,calc(100vw - 20px));padding:6px;overflow:auto;overscroll-behavior:contain;background:#fff;border:1px solid #dfe4d8;border-radius:14px;box-shadow:0 12px 36px #24331e24}
+.ack-contact-options:not([hidden]){animation:ack-contact-in .15s ease-out}
+.ack-contact-options[hidden],.ack-contact-tip[hidden]{display:none!important}
+.ack-contact-options header{background:#f3f5ef;border-radius:9px;padding:10px 12px;margin-bottom:3px}
+.ack-contact-options header span{display:block;font-size:10px;font-weight:600;color:#59694a;letter-spacing:.09em}
+.ack-contact-options header strong{display:block;font-size:15px;font-weight:600}
+.ack-contact-options a{display:grid;grid-template-columns:30px 1fr auto;align-items:center;gap:9px;padding:10px 9px;border-radius:8px;text-decoration:none;color:inherit;transition:background .15s}
+.ack-contact-options a:hover,.ack-contact-options a:focus-visible{background:#f4f6ef}
+.ack-contact-options a svg,.ack-contact-symbol{box-sizing:border-box;width:30px;height:30px;padding:6px;background:#eef2e8;border-radius:8px;color:#536446}
+.ack-contact-options a strong,.ack-contact-options a small{display:block}.ack-contact-options a strong{font-weight:600;font-size:13px}.ack-contact-options a small{font-size:12px;color:#586254}
+.ack-contact-options a:focus-visible,.ack-contact-launch:focus-visible,.ack-contact-page :is(a,button,textarea):focus-visible{outline:2px solid #59694a;outline-offset:1px}
+.ack-contact-page{box-sizing:border-box;width:100%;max-width:68rem;min-width:0;margin-inline:auto}
+.ack-contact-page .ack-contact-back{display:inline-block;color:#526445;text-decoration:none;font-weight:500}
+.ack-contact-page h1{font:600 clamp(22px,3vw,28px)/1.2 Jost,sans-serif;color:#344126;margin:12px 0 18px}
+.ack-contact-page .ack-contact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.ack-contact-page .ack-contact-card,.ack-material{background:white;border:1px solid #e4e6dc;border-radius:12px;padding:16px}
+.ack-contact-card{min-width:0;scroll-margin-block:16px}.ack-contact-card header{display:flex;align-items:center;gap:10px}.ack-contact-card h2{font:600 16px/1.3 Jost,sans-serif;color:#344126;margin:0}
+.ack-contact-card h3{font:600 14px/1.4 Jost,sans-serif;margin:16px 0 6px}.ack-contact-card p{color:#566151;line-height:1.55}
+.ack-contact-card .ack-state{padding:10px 12px;border-radius:8px;background:#f4f5ef}
+.ack-contact-card .ack-thread-message{padding:9px 12px;border-inline-start:3px solid #93a282;background:#f5f7f1;border-radius:5px}
+.ack-contact-page .ack-contact-primary,.ack-contact-page form button{display:inline-flex;align-items:center;justify-content:center;margin:0;min-height:38px;padding:0 14px;border:1px solid #59694a;border-radius:9px;background:#59694a;color:white;text-decoration:none;font:500 12px/1.4 Jost,sans-serif;transition:background .15s}
+.ack-contact-page .ack-contact-primary:hover,.ack-contact-page form button:hover{background:#344126}.ack-contact-page form{display:grid;gap:8px;margin:12px 0}.ack-contact-page form button{justify-self:start}.ack-contact-page textarea{width:100%;box-sizing:border-box;resize:vertical}
+.ack-material{margin:12px 0}.ack-material label,.ack-contact-page label{display:grid;gap:5px}.ack-contact-page p,.ack-material p{white-space:pre-wrap;overflow-wrap:anywhere}
 .ack-contact-page textarea,.ack-material textarea{font:inherit;border:1px solid #cbd1c6;border-radius:8px;padding:8px;min-height:64px}.ack-material button,.ack-contact-page button,.ack-image-dialog button{font:inherit;color:#344126;background:white;border:1px solid #cbd1c6;padding:7px 12px;min-height:38px;border-radius:8px;cursor:pointer;margin:3px}.ack-image-dialog{box-sizing:border-box;width:min(94vw,720px);max-height:88dvh;padding:18px;border:1px solid #d8dfd0;border-radius:12px;color:#344126}.ack-image-dialog::backdrop{background:#16201599}.ack-image-dialog header{display:flex;justify-content:space-between;align-items:center}.ack-image-dialog img{display:block;max-width:100%;max-height:58dvh;object-fit:contain;margin:auto}.ack-image-dialog button:disabled{opacity:.55}
-@media(max-width:650px){.ack-material textarea,.ack-contact-page textarea{font-size:16px}.ack-contact-tip{right:auto;left:100%}}
+@keyframes ack-contact-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
+@media(prefers-reduced-motion:reduce){.ack-contact-options:not([hidden]){animation:none}.ack-contact-options a,.ack-contact-control .ack-contact-launch,.ack-contact-page .ack-contact-primary,.ack-contact-page form button{transition:none}}
+@media(max-width:700px){.ack-contact-page .ack-contact-grid{grid-template-columns:1fr}.ack-material textarea,.ack-contact-page textarea{font-size:16px}}
