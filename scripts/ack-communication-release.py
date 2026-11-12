@@ -2,6 +2,8 @@
 import ftplib, hashlib, io, os, pathlib, socket, ssl, subprocess, sys, zipfile, json
 
 BASE = '21553787'
+LIVE_BASE = {'shared/header.php':'b62bf7577350c5aaefbab50035e8550501cc0c81',
+             'assets/js/acknowledgments-popup.js':'3c6956aae3b5a2aa1d77c7015d8f2e731c06c723'}
 EXISTING = ['shared/acknowledgments/Service.php','apps/acknowledgments/api.php','assets/js/acknowledgments.js','assets/js/acknowledgments-popup.js','apps/acknowledgments/index.php','shared/header.php']
 NEW = ['shared/acknowledgments/Mailbox.php','shared/acknowledgments/Material.php','shared/acknowledgments/AnonymousAccess.php','assets/css/ack-communication.css','assets/js/ack-communication.js','assets/js/ack-inbox.js','apps/acknowledgments/image.php','apps/acknowledgments/messages.php']
 def git(*args):return subprocess.check_output(['git',*args])
@@ -23,12 +25,12 @@ with ftplib.FTP_TLS(server,context=ssl.create_default_context(),timeout=45) as f
         return b.getvalue()
     paths=NEW+EXISTING
     before={p:read(p) for p in paths}
-    expected={p:norm(git('show',BASE+':'+p)) if p in EXISTING else None for p in paths}
+    expected={p:LIVE_BASE.get(p) or (blob(norm(git('show',BASE+':'+p))) if p in EXISTING else 'absent') for p in paths}
     target={p:git('show',sha+':'+p) for p in paths}
-    for p in paths:print(p,'live',blob(norm(before[p])),'base',blob(expected[p]),flush=True)
+    for p in paths:print(p,'live',blob(norm(before[p])),'base',expected[p],flush=True)
     if mode=='inspect':sys.exit(0)
     if os.environ.get('ACK_SCHEMA_VERIFIED')!='yes':raise SystemExit('Database and Owner preflight required')
-    drift=[p for p in paths if norm(before[p]) not in (expected[p],norm(target[p]))]
+    drift=[p for p in paths if blob(norm(before[p])) not in (expected[p],blob(norm(target[p])))]
     if drift:raise SystemExit('Live source differs: '+', '.join(drift))
     changed=[p for p in paths if norm(before[p])!=norm(target[p])]
     with zipfile.ZipFile('ack-communication-backup.zip','w',zipfile.ZIP_DEFLATED) as z:
