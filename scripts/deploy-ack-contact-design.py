@@ -6,6 +6,9 @@ base = 'e821853b5bd00f0ca7de217fedf30a2fbf3db4fa'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
 staff_view=os.environ.get('GITHUB_REF')=='refs/heads/codex/employee-my-instructions'
+if os.environ.get('GITHUB_REF')=='refs/heads/codex/employee-instructions-messages-home':
+    paths=('assets/js/acknowledgments.js','apps/acknowledgments/messages.php','apps/acknowledgments/index.php')
+    base='135b553e866d812a322e452f4928406d99e927c8'
 if os.environ.get('GITHUB_REF')=='refs/heads/codex/communication-attention-badges':
     paths=('shared/acknowledgments/Mailbox.php','apps/acknowledgments/api.php','assets/css/ack-communication.css','assets/js/ack-inbox.js','assets/js/acknowledgments-popup.js')
     base='1d6e5df1b675530a6755907f700bc48bc7696534'

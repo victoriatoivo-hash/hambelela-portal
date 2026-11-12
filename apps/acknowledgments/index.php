@@ -3,6 +3,13 @@ declare(strict_types=1);
 require dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/auth.php';require_login();
 require_once BASE_PATH.'/shared/acknowledgments/integration.php';
 $service=new \Hambelela\Acknowledgments\Service(db());$actor=$service->actor((int)(current_user()['id']??0));$isManager=$actor['role_key']==='owner_admin';$sectionName=$isManager?'Acknowledgments':'My instructions';
+if(!$isManager){
+    // Keep the existing menu URL and render the employee destination on the first paint.
+    // A notification may additionally open one assigned instruction, never the register.
+    $instructionRecord=filter_var($_GET['record']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]])?:0;
+    require __DIR__.'/messages.php';
+    return;
+}
 $pageTitle=$sectionName.' | '.APP_NAME;$activeApp='acknowledgments';$extraStylesheets=[['path'=>'assets/css/acknowledgments.css','version'=>filemtime(BASE_PATH.'/assets/css/acknowledgments.css')]];
 include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/sidebar.php';
 ?><main class="workspace hb-ack-page" id="ack-app">
