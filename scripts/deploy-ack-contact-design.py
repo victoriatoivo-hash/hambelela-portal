@@ -5,6 +5,9 @@ paths = ('assets/css/ack-communication.css','assets/js/ack-communication.js','as
 base = 'e821853b5bd00f0ca7de217fedf30a2fbf3db4fa'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
+if os.environ.get('GITHUB_REF')=='refs/heads/codex/ack-inbox-compat':
+    paths=('shared/acknowledgments/Mailbox.php','apps/acknowledgments/api.php','assets/js/ack-inbox.js')
+    base='b571f7ed997c599da2ff8372e4a2a13d14d1aaa7'
 if mode not in ('preflight','deploy','rollback') or sha != git('rev-parse','HEAD').decode().strip(): sys.exit('Invalid release')
 old = {p:git('show',base+':'+p) for p in paths}
 new = {p:git('show',sha+':'+p) for p in paths}
@@ -28,7 +31,7 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=40) as ftp
     before={p:read(p) for p in paths}
     for p in paths:
         if norm(before[p]) not in (norm(old[p]),norm(new[p])): sys.exit('Unrecognized live version; nothing uploaded: '+p)
-    if mode=='preflight': print('All five live baselines verified.');sys.exit(0)
+    if mode=='preflight': print('All scoped live baselines verified.');sys.exit(0)
     target=old if mode=='rollback' else new
     changed=[]
     try:

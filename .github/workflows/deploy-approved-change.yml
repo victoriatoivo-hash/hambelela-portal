@@ -23,6 +23,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  inbox-compat:
+    if: github.ref == 'refs/heads/codex/ack-inbox-compat' && inputs.approved_sha == github.sha
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          coverage: none
+      - name: Check inbox on the supported PHP baseline
+        run: |
+          php -l apps/acknowledgments/api.php
+          php -l shared/acknowledgments/Mailbox.php
+          php -r "require 'shared/acknowledgments/Mailbox.php'; new Hambelela\Acknowledgments\Mailbox(new PDO('sqlite::memory:'),1);"
+          node --check assets/js/ack-inbox.js
+      - name: Guarded inbox delta
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          STAGE: ${{ inputs.contact_stage }}
+        run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
   contact-design:
     if: github.ref == 'refs/heads/codex/ack-contact-design' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest

@@ -3,7 +3,12 @@ declare(strict_types=1);
 namespace Hambelela\Acknowledgments;
 
 final class Mailbox {
-    public function __construct(private \PDO $db, private int $owner) {}
+    private \PDO $db;
+    private int $owner;
+    public function __construct(\PDO $db, int $owner) {
+        $this->db=$db;
+        $this->owner=$owner;
+    }
     public static function forPortal(\PDO $db):self {
         $configured=getenv('ACK_CONTACT_OWNER_ID');
         if($configured!==false && $configured!=='')return new self($db,ctype_digit($configured)?(int)$configured:0);
