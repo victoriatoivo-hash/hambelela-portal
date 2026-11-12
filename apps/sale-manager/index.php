@@ -48,4 +48,4 @@ if (isset($_GET['action'])) {
 <label>Find products or sizes<input id="search" type="search" placeholder="Search by name or product ID"></label>
 <div id="choices"></div><div id="picks"></div><h2>Price preview</h2><p id="summary"></p><div class="scroll"><table><thead><tr><th>Product or size</th><th>Current</th><th>With this offer</th></tr></thead><tbody id="preview"></tbody></table></div>
 <footer><button type="submit" id="draft" value="draft">Save draft</button><button type="submit" id="publish" value="publish">Publish sale</button></footer>
-</fieldset></form></div></main><script src="manager.js" defer></script></body></html>
+</fieldset></form></div></main><script src="manager.js?v=1.1.0" defer></script></body></html>
