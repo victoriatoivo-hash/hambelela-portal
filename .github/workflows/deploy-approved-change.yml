@@ -7,12 +7,59 @@ on:
         description: Approved isolated change commit SHA
         required: true
         type: string
+      session_action:
+        description: Employee session release only
+        type: choice
+        options: [preflight, deploy, rollback]
+        default: preflight
 
 concurrency:
   group: production-delta-deployment
   cancel-in-progress: false
 
 jobs:
+  publish-employee-return:
+    if: github.ref == 'refs/heads/main' && inputs.approved_sha == '6ef38d0b96153ae9e6e8a6aaee106000c0ef9938'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_DATABASE: sessions_fixture
+          MARIADB_ROOT_PASSWORD: fixture-only
+        ports: ['33319:3306']
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=5s --health-retries=15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Load exact candidate and audited rollback versions
+        run: |
+          git fetch origin 6ef38d0b96153ae9e6e8a6aaee106000c0ef9938 95f7792f8555e99a19d0a4c0db61feef0a7bfa77 e5a150243736e1ef49d190ec181a99f69a37aa80
+          git worktree add --detach "$RUNNER_TEMP/employee-release" 6ef38d0b96153ae9e6e8a6aaee106000c0ef9938
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo_mysql, pdo_sqlite
+      - name: Test the exact build with disposable records
+        run: |
+          cd "$RUNNER_TEMP/employee-release"
+          for p in shared/employee-device-session.php shared/auth.php login.php change-access-code.php shared/portal-presence-source.php apps/operations/portal-presence.php; do php -l "$p"; done
+          php tests/employee-device-session.php
+          php tests/employee-device-session-mariadb.php
+          node --check assets/js/portal-presence.js
+          node tests/employee-presence-resume.mjs
+          node tests/working-day-session-static.mjs
+      - name: Guarded release and public smoke check
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          SESSION_ACTION: ${{ inputs.session_action }}
+        run: python3 scripts/deploy-employee-return.py
   employee-return-baseline:
     # Read-only preflight: a separate approved release is required to publish.
     if: github.ref == 'refs/heads/main' && inputs.approved_sha == '358deaa79f530e6b1d97d2ba162821a1de4c8527'
