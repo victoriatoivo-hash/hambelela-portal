@@ -92,18 +92,7 @@
   const initials = (name) => String(name || 'User').trim().split(/\s+/)
     .slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || 'U';
 
-  const lastActivity = (seconds) => {
-    const value = Math.max(0, Number(seconds || 0));
-    if (value < 60) return 'Active now';
-    return `${Math.floor(value / 60)} min ago`;
-  };
-
-  const durationLabel = (seconds) => {
-    const value = Math.max(0, Number(seconds || 0));
-    const hours = Math.floor(value / 3600);
-    const minutes = Math.floor((value % 3600) / 60);
-    return `Current session: ${hours ? `${hours}h ` : ''}${minutes}m`;
-  };
+  const localStamp = (value) => value ? String(value).slice(0, 16) : '—';
 
   const renderPresence = (employees) => {
     const visible = Array.isArray(employees) ? employees : [];
@@ -115,6 +104,8 @@
       employee.page,
       employee.presence,
       employee.session_started_at,
+      localStamp(employee.last_seen_at),
+      localStamp(employee.prior_last_seen_at),
       Math.floor(Number(employee.session_duration_seconds || 0) / 60),
       Math.floor(Number(employee.seconds_since_activity || 0) / 60)
     ]));
@@ -123,7 +114,7 @@
     const nextCount = `${online.length} online`;
     if (countNode.textContent !== nextCount) countNode.textContent = nextCount;
 
-    const avatarEmployees = visible.slice(0, 3);
+    const avatarEmployees = online.slice(0, 3);
     avatarsNode.innerHTML = avatarEmployees.map((employee) => {
       const employeeKey = String(employee.id || employee.name || '');
       const isNew = !knownEmployees.has(employeeKey);
@@ -132,8 +123,8 @@
         ${escapeHtml(initials(employee.name))}
         <i class="portal-presence-dot is-${escapeHtml(employee.presence)}"></i>
       </span>`;
-    }).join('') + (visible.length > 3
-      ? `<span class="portal-online-avatar portal-online-avatar--more">+${visible.length - 3}</span>`
+    }).join('') + (online.length > 3
+      ? `<span class="portal-online-avatar portal-online-avatar--more">+${online.length - 3}</span>`
       : '');
 
     listNode.innerHTML = visible.length ? visible.map((employee) => `
@@ -144,15 +135,22 @@
         <span>
           <strong>${escapeHtml(employee.name)}</strong>
           <small>${escapeHtml(employee.role || 'Staff')}</small>
-          <em>Online since ${escapeHtml(employee.session_started_at ? String(employee.session_started_at).slice(11,16) : '—')} · ${escapeHtml(durationLabel(employee.session_duration_seconds))}</em>
-          <em>${escapeHtml(employee.page || 'Business Portal')} · ${escapeHtml(lastActivity(employee.seconds_since_activity))}</em>
+          <em>${employee.presence === 'online' ? 'Online' : 'Offline'} · Last seen ${escapeHtml(localStamp(employee.last_seen_at))}</em>
+          ${employee.prior_last_seen_at ? `<em>Last seen before break ${escapeHtml(localStamp(employee.prior_last_seen_at))}</em>` : ''}
+          <em>${employee.prior_last_seen_at ? 'Returned online' : 'Online from'} ${escapeHtml(localStamp(employee.session_started_at))}</em>
         </span>
       </article>
     `).join('') : '<p class="portal-online-empty">No operational staff online.</p>';
   };
 
+  let checking = false;
+  let editing = false;
+  document.addEventListener('input', (e) => {
+    if (e.target.matches?.('input:not([type=search]),textarea,select,[contenteditable=true]') || e.target.isContentEditable) editing = true;
+  }, true);
   const heartbeat = async () => {
-    if (!endpoint || document.visibilityState === 'hidden') return;
+    if (checking || !endpoint || document.visibilityState === 'hidden') return;
+    checking = true;
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
@@ -163,12 +161,18 @@
         },
         body: JSON.stringify({ page: currentPage(), path: location.pathname })
       });
-      if (!response.ok) return;
+      if (!response.ok && response.status !== 401) return;
       const payload = await response.json();
+      if (payload.resume_dashboard && payload.dashboard && !editing && document.visibilityState === 'visible') {
+        const home = new URL(payload.dashboard, location.origin);
+        if (response.status === 401) home.searchParams.set('return', location.pathname + location.search);
+        if (home.origin === location.origin) location.replace(home.href);
+        return;
+      }
       if (payload.ok) renderPresence(payload.employees || []);
     } catch (error) {
       // Presence is supplemental and must never interrupt portal work.
-    }
+    } finally { checking = false; }
   };
 
   const setPopover = (open) => {
@@ -195,6 +199,8 @@
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible') heartbeat();
   });
+  window.addEventListener('online', heartbeat);
+  window.addEventListener('pageshow', (event) => { if (event.persisted) heartbeat(); });
 
   const notificationControl = status.querySelector('.portal-notification-control');
   const notificationButton = status.querySelector('[data-notification-button]');

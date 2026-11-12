@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 const PORTAL_SESSION_MAX_SECONDS = 36000;
 const PORTAL_SESSION_TIMEZONE = 'Africa/Windhoek';
+require_once __DIR__ . '/employee-device-session.php';
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
     // Keep the server-side session available for the full working-day window.
@@ -128,6 +129,7 @@ function portal_validate_authenticated_session(): bool
         || $loginDate !== $now->format('Y-m-d')
         || $boundUserId !== $userId
         || !hash_equals(hash('sha256', session_id()), $identifier)
+        || !portal_restored_device_valid($userId, $now->getTimestamp())
     ) {
         portal_expire_session();
         return false;
@@ -255,6 +257,22 @@ function require_login(): void
 
     require_once __DIR__ . '/employee-features.php';
     enforce_employee_feature_for_current_request();
+
+    // Background requests must not consume the return-to-dashboard redirect.
+    if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET'
+        && strpos($_SERVER['HTTP_ACCEPT'] ?? '', 'text/html') !== false
+        && ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? 'document') === 'document'
+        && empty($_SESSION['must_change_access_code'])) {
+        $now = time();
+        $returning = portal_presence_dashboard_due($now) || !empty($_SESSION['portal_dashboard_pending']);
+        unset($_SESSION['portal_dashboard_pending']);
+        $_SESSION['portal_last_contact'] = $now;
+        $home = portal_post_login_destination(current_user());
+        if ($returning && parse_url($requestedPath, PHP_URL_PATH) !== parse_url($home, PHP_URL_PATH)) {
+            header('Location: '.$home, true, 303);
+            exit;
+        }
+    }
 }
 
 function logout_user(): void

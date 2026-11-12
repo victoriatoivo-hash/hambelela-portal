@@ -83,6 +83,8 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         unset($_SESSION['must_change_access_code'], $_SESSION['change_access_code_csrf']);
         $_SESSION['login_type'] = 'employee';
         session_regenerate_id(true);
+        portal_initialize_authenticated_session(current_user());
+        portal_device_issue($employeeId,$newHash);
         header('Location: ' . portal_post_login_destination(current_user()), true, 303);
         exit;
     } catch (Throwable $changeError) {

@@ -9,6 +9,13 @@ require_once __DIR__ . '/shared/login-security.php';
 require_once __DIR__ . '/shared/temporary-access-codes.php';
 
 if (($_GET['action'] ?? '') === 'logout') {
+    try {
+        portal_device_forget();
+    } catch (Throwable $revokeError) {
+        logout_user();
+        http_response_code(503);
+        exit('Signed out on this browser. Server revocation could not be verified; please contact the portal owner.');
+    }
     $epiLogoutUser = isset($_SESSION['user']) && is_array($_SESSION['user']) ? $_SESSION['user'] : [];
     $epiLogoutSession = (string) ($_SESSION['kpi_session_token'] ?? '');
     try {
@@ -23,6 +30,20 @@ if (($_GET['action'] ?? '') === 'logout') {
     logout_user();
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') !== 'logout'
+    && ($_SERVER['HTTP_SEC_FETCH_DEST'] ?? 'document') === 'document'
+    && strpos($_SERVER['HTTP_ACCEPT'] ?? 'text/html','text/html') !== false
+    && (!isset($_SESSION['user']) || !portal_validate_authenticated_session()) && portal_device_key()) {
+    try {
+        if (portal_device_restore()) {
+            $destination = portal_post_login_destination(current_user(), !empty($_SESSION['portal_dashboard_pending']) ? null : ($_GET['return'] ?? null));
+            header('Location: '.$destination,true,303);
+            exit;
+        }
+    } catch (Throwable $error) {
+        error_log('Employee device sign-in unavailable; interactive sign-in required.');
+    }
+}
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && isset($_SESSION['user']) && is_array($_SESSION['user']) && portal_validate_authenticated_session()) {
     $destination = !empty($_SESSION['must_change_access_code'])
         ? BASE_URL . '/change-access-code.php'
@@ -232,6 +253,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 && password_verify($code, (string) $employee['password_hash']);
 
             if ($permanentValid) {
+                unset($_SESSION['portal_restored_device'],$_SESSION['portal_dashboard_pending']);
                 session_regenerate_id(true);
                 $_SESSION['user'] = [
                     'id' => (int) $employee['id'],
@@ -243,6 +265,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 ];
                 portal_initialize_authenticated_session($_SESSION['user']);
                 record_login_event($_SESSION['user'], 'database');
+                portal_device_issue((int)$employee['id'],(string)$employee['password_hash']);
                 record_kpi_login_session((int) $_SESSION['user']['id']);
                 record_epi_attendance_event('login', $_SESSION['user'], 'database', (string) ($_SESSION['kpi_session_token'] ?? ''));
                 header('Location: ' . portal_post_login_destination($_SESSION['user'], $_GET['return'] ?? null), true, 303);
@@ -262,6 +285,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 && !empty($temporaryAccount['must_change_access_code']);
 
             if ($temporaryValid) {
+                portal_device_forget();
                 session_regenerate_id(true);
                 $_SESSION['user'] = [
                     'id' => (int) $employee['id'],
@@ -380,7 +404,7 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
                     </button>
                 </div>
             </div>
-            <div class="login-remember"><label><input type="checkbox" id="remember-profile" aria-describedby="remember-profile-help"><span>Remember me</span></label><small id="remember-profile-help">Remembers your profile only, never your access code.</small></div>
+            <p class="login-remember">You stay signed in on this browser for up to 90 days. Log out before another employee uses it.</p>
             <?php if ($error): ?><p class="login-alert" role="alert"><span aria-hidden="true">!</span>Unable to sign in. Check your details and try again.</p><?php endif; ?>
             <button type="submit" class="login-submit"><span>Continue</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
         </form>
@@ -396,15 +420,6 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
   const identity = select.querySelector('input[name="identity"]');
   const options = Array.from(select.querySelectorAll('.portal-custom-select-option'));
   const code = document.getElementById('code');
-  const remember = document.getElementById('remember-profile');
-  const rememberKey = 'hambelela.login.remembered-profile.v1';
-  const persistProfile = () => {
-    try {
-      const selected = options.find(option => option.getAttribute('aria-selected') === 'true');
-      if (remember.checked && selected) localStorage.setItem(rememberKey, selected.dataset.profileKey);
-      else localStorage.removeItem(rememberKey);
-    } catch { /* Storage may be disabled. Sign-in must continue to work. */ }
-  };
   const toggle = document.querySelector('.login-code-toggle');
   let activeIndex = -1;
 
@@ -427,17 +442,9 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
     toggle.setAttribute('aria-pressed', 'false');
     toggle.setAttribute('aria-label', 'Show access code');
     closeMenu();
-    persistProfile();
     if (focus) trigger.focus();
   };
 
-  remember.addEventListener('change', persistProfile);
-  try {
-    const saved = localStorage.getItem(rememberKey);
-    const selected = options.find(option => option.dataset.profileKey === saved);
-    if (selected) { remember.checked = true; choose(selected, false); }
-    else if (saved) localStorage.removeItem(rememberKey);
-  } catch { /* Remembering is optional, never required for sign-in. */ }
 
   trigger.addEventListener('click', () => select.classList.contains('is-open') ? closeMenu() : openMenu());
   options.forEach((option, index) => {
