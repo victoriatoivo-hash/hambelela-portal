@@ -14,12 +14,22 @@ eq($price([$r],array_replace($row,['categories'=>[],'id'=>7]),2,$now),18000);
 eq($price([$r],$row,2,$r['until']),21000);
 eq($price([array_replace($r,['enabled'=>false])],$row,2,$now),21000);
 $pct=clean_rule(array_replace($input,['scope'=>'all','kind'=>'percent','amount'=>'10']));
-eq($price([$pct],$row,1,$now),9450);
+eq($price([$pct],$row,1,$now),9500);
 eq($price([$pct,$r],$row,2,$now),18000);
 eq($price([$pct],array_replace($row,['base'=>9000]),1,$now),9000);
 $fixed=clean_rule(array_replace($input,['kind'=>'fixed','amount'=>'78.99','scope'=>'selected','include'=>[3]]));
-eq($price([$fixed],$row,1,$now),7899);
+eq($price([$fixed],$row,1,$now),7900);
 eq($price([$fixed],array_replace($row,['parent'=>0]),1,$now),10500);
+$chia=clean_rule(array_replace($input,['scope'=>'all','kind'=>'percent','amount'=>'15']));
+foreach ([3600=>3100,26300=>22400,10000=>8500] as $regular=>$expected) {
+    $sku=array_replace($row,['regular'=>$regular,'base'=>$regular]);
+    eq($price([$chia],$sku,3,$now),3*$expected);
+}
+foreach ([3000=>3000,3001=>3100,3005=>3100,3050=>3100,3099=>3100] as $cents=>$expected) {
+    eq($price([array_replace($fixed,['value'=>$cents])],$row,2,$now),2*$expected);
+}
+eq($price([$fixed],array_replace($row,['base'=>7850]),1,$now),7850);
+eq($price([array_replace($r,['value'=>18005])],$row,5,$now),46700);
 eq(date_stamp('2026-12-01T00:00'),1796076000);
 foreach ([['amount'=>'0'],['quantity'=>0],['end'=>'2026-02-30T04:00'],['scope'=>'selected','include'=>[]],['kind'=>'percent','amount'=>'101']] as $bad) {
     try { clean_rule(array_replace($input,$bad)); } catch (InvalidArgumentException $e) {continue;}

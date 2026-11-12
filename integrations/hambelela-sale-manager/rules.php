@@ -8,6 +8,11 @@ function matches(array $rule, array $row): bool {
     return $rule['scope'] === 'all' || ($rule['scope'] === 'category' && array_intersect($row['categories'], $rule['categories']));
 }
 
+// Prices are stored in cents. Round each sale unit (or bundle offer) before multiplying.
+function whole_dollar_cents(int $cents): int {
+    return intdiv($cents + 99, 100) * 100;
+}
+
 function quote(array $rules, array $row, int $qty, int $now): array {
     $base = $row['base'];
     $best = ['total' => $base * $qty, 'rule' => null];
@@ -17,15 +22,15 @@ function quote(array $rules, array $row, int $qty, int $now): array {
             ($rule['until'] && $now >= $rule['until']) || !matches($rule, $row)) continue;
         switch ($rule['kind']) {
             case 'percent':
-                $total = round($row['regular'] * (10000 - $rule['value']) / 10000) * $qty;
+                $total = whole_dollar_cents((int)round($row['regular'] * (10000 - $rule['value']) / 10000)) * $qty;
                 break;
             case 'fixed':
-                $total = $rule['value'] * $qty;
+                $total = whole_dollar_cents($rule['value']) * $qty;
                 break;
             case 'bundle':
                 $count = $rule['quantity'];
                 if ($qty < $count) continue 2;
-                $total = intdiv($qty, $count) * $rule['value'] + ($qty % $count) * $base;
+                $total = intdiv($qty, $count) * whole_dollar_cents($rule['value']) + ($qty % $count) * $base;
                 break;
             default: continue 2;
         }

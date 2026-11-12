@@ -55,6 +55,10 @@ function toggle(id,mode) {
     else { other.delete(id); selected.add(id); }
     render();
 }
+function offerCents(kind, regular, value) {
+    const cents = kind === 'percent' ? Math.round(regular * (10000 - value) / 10000) : value;
+    return Math.ceil(cents / 100) * 100;
+}
 function render(){
     const scope=el('scope').value, kind=el('kind').value;
     el('categoryBox').hidden=scope!=='category'; el('bundle').hidden=kind!=='bundle';
@@ -80,7 +84,7 @@ function render(){
         if(!(scope==='all' || [row.id,row.parent].some(id=>state.include.has(id)) || (scope==='category' && cats.some(c=>row.categories.includes(c))))) continue;
         eligible++;
         const current=row.base*qty;
-        const total=value>0 && qty>=1 && row.regular>0 ? Math.min(current,kind==='percent'?Math.round(row.regular*(10000-value)/10000):value) : current;
+        const total=value>0 && qty>=1 && row.regular>0 ? Math.min(current, offerCents(kind, row.regular, value)) : current;
         if(total>=0 && total<current) reduced++;
         const tr=node('tr','');
         tr.append(node('td',row.name),node('td',money(current)),node('td',value>0 && total>=0 ? money(total):'—')); tbody.append(tr);

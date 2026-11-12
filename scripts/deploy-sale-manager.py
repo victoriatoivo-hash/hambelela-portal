@@ -9,6 +9,7 @@ import sys
 import uuid
 
 candidate = Path(sys.argv[1])
+previous = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 folder = "apps/sale-manager"
 resources = ["manager.css", "manager.js", "index.php"]
 new_launcher = (candidate / "index.php").read_bytes()
@@ -58,15 +59,22 @@ with ftplib.FTP_TLS(host, context=ssl.create_default_context(), timeout=35) as f
         present = set()
     else:
         present = {name.rstrip("/").split("/")[-1] for name in ftp.nlst(folder)}
+    updates = {}
     for name in resources:
         path = folder + "/" + name
         content = (candidate / path).read_bytes()
-        if name in present and read(ftp, path) != content:
+        current = read(ftp, path) if name in present else None
+        if current == content:
+            continue
+        if current is not None and (previous is None or current != (previous / path).read_bytes()):
             raise RuntimeError("A different release already exists at " + path)
-    for name in resources:
-        path = folder + "/" + name
-        if name not in present:
-            write(ftp, path, (candidate / path).read_bytes())
+        updates[path] = (current, content)
+    for path, (current, content) in updates.items():
+        if current is not None and read(ftp, path) != current:
+            raise RuntimeError("Portal file changed during upload: " + path)
+        write(ftp, path, content)
+        if read(ftp, path) != content:
+            raise RuntimeError("Could not confirm portal file: " + path)
     if read(ftp, "index.php") != live:
         raise RuntimeError("Launcher changed during upload. Retry against the new version.")
     if patched != live:
