@@ -413,7 +413,6 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
                     </button>
                 </div>
             </div>
-            <p class="login-remember">You stay signed in on this browser for up to 90 days. Log out before another employee uses it.</p>
             <?php if ($error): ?><p class="login-alert" role="alert"><span aria-hidden="true">!</span>Unable to sign in. Check your details and try again.</p><?php endif; ?>
             <button type="submit" class="login-submit"><span>Continue</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
         </form>

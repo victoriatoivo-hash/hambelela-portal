@@ -1,8 +1,8 @@
-"""Guarded three-file delta; exact pre-release versions remain available in Git."""
+"""Guarded login copy change; exact pre-release version remains available in Git."""
 import ftplib, io, os, secrets, socket, ssl, subprocess, sys
 
-paths = ('login.php', 'apps/operations/portal-presence.php', 'assets/js/portal-presence.js')
-base = '6ef38d0b96153ae9e6e8a6aaee106000c0ef9938'
+paths = ('login.php',)
+base = '3c60a6c5203ead562b53aa9b5e906a6239ea2879'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
 if mode not in ('preflight','deploy','rollback') or sha != git('rev-parse','HEAD').decode().strip(): sys.exit('Invalid release')
@@ -28,7 +28,7 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=40) as ftp
     before={p:read(p) for p in paths}
     for p in paths:
         if norm(before[p]) not in (norm(old[p]),norm(new[p])): sys.exit('Unrecognized live version; nothing uploaded: '+p)
-    if mode=='preflight': print('All three live baselines verified.');sys.exit(0)
+    if mode=='preflight': print('Login baseline verified.');sys.exit(0)
     target=old if mode=='rollback' else new
     changed=[]
     try:

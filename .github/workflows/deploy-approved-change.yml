@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   staff-login-stability:
-    if: github.ref == 'refs/heads/codex/staff-login-stability' && inputs.approved_sha == github.sha
+    if: github.ref == 'refs/heads/codex/login-remove-reminder' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest
     permissions:
       contents: read
