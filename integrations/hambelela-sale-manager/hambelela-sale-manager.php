@@ -172,26 +172,78 @@ function badge_for($p): array {
     }
     return $fallback;
 }
+function ribbon_html(array $badge): string {
+    if (empty($badge['corner'])) return '';
+    return '<span class="ho-pre-black-friday"><span aria-hidden="true"><span>PRE</span><span>BLACK</span><span>FRIDAY</span></span><span class="screen-reader-text">'.esc_html($badge['label']).'</span></span>';
+}
+
 function badge() {
     global $product;
     $badge = badge_for($product);
     if (!$badge) return;
-    if ($badge['corner'] && current_filter() === 'woocommerce_before_shop_loop_item_title') {
-        echo '<span class="ho-pre-black-friday"><span aria-hidden="true">PRE<br>BLACK<br>FRIDAY</span><span class="screen-reader-text">'.esc_html($badge['label']).'</span></span>';
-    } else {
-        echo '<span class="ho-portal-sale">'.esc_html($badge['label']).'</span>';
+    if ($badge['corner']) {
+        if (current_filter() === 'woocommerce_before_shop_loop_item_title') echo ribbon_html($badge);
+        return;
     }
+    echo '<span class="ho-portal-sale">'.esc_html($badge['label']).'</span>';
 }
 add_action('woocommerce_before_shop_loop_item_title',__NAMESPACE__.'\\badge',8);
 add_action('woocommerce_before_add_to_cart_form',__NAMESPACE__.'\\badge',7);
+
+// Insert inside the image container so WooCommerce keeps its gallery and zoom markup.
+function ribbon_in_image(string $html, $product): string {
+    if (!$html || !$product || strpos($html,'ho-pre-black-friday')!==false) return $html;
+    $ribbon = ribbon_html(badge_for($product));
+    if (!$ribbon) return $html;
+    return preg_replace_callback('/^(\s*<div\b[^>]*>)/i',static function($match) use ($ribbon) {
+        return $match[1].$ribbon;
+    },$html,1);
+}
+add_filter('woocommerce_single_product_image_thumbnail_html',static function($html,$image_id){
+    global $product;
+    if (!$product || (int)$image_id !== (int)$product->get_image_id()) return $html;
+    return ribbon_in_image($html,$product);
+},20,2);
+add_filter('render_block_woocommerce/product-image',static function($html,$block,$instance) {
+    $id = $instance->context['postId'] ?? 0;
+    return $id ? ribbon_in_image($html,wc_get_product($id)) : $html;
+},20,3);
+
+// The homepage bestseller uses a custom image outside the WooCommerce product loop.
+add_action('wp_footer',static function(){
+    if (!is_front_page() || !active_rules()) return;
+    $id = (int)get_option('ho_featured_product_id');
+    $p = $id ? wc_get_product($id) : null;
+    $ribbon = ribbon_html(badge_for($p));
+    if (!$ribbon) return;
+    echo '<template id="ho-featured-campaign-ribbon">'.$ribbon.'</template>';
+    ?>
+    <script>
+    (function(){
+        const feature = document.querySelector('#ho-featured');
+        const image = feature && feature.querySelector('.ho-featured-image');
+        const link = feature && feature.querySelector('a[href="<?php echo esc_js($p->get_permalink()); ?>"]');
+        const template = document.getElementById('ho-featured-campaign-ribbon');
+        if (image && link && template && !image.querySelector('.ho-pre-black-friday')) image.prepend(template.content.cloneNode(true));
+    })();
+    </script>
+    <?php
+},100);
 add_action('wp_head',static function(){
     if (!active_rules()) return;
     echo '<style>
-.products .product{position:relative}
+.products .product,.woocommerce-product-gallery__image,.woocommerce-product-gallery__image--placeholder,.wc-block-components-product-image,.wp-block-woocommerce-product-image,.ho-featured-image{position:relative}
 .ho-portal-sale{display:inline-block;padding:.35em .75em;border-radius:4px;background:#8b2734;color:white;font-size:.8rem;font-weight:700}
 .products .ho-portal-sale{position:absolute;top:.65rem;right:.65rem;z-index:5;max-width:85%}
-.ho-pre-black-friday{--edge:clamp(68px,6vw,80px);font-family:inherit;position:absolute;top:0;left:0;z-index:5;width:var(--edge);height:var(--edge);background:#101010;color:#fff;clip-path:polygon(0 0,100% 0,0 100%);pointer-events:none}
+.ho-pre-black-friday{--edge:clamp(68px,6vw,80px);font-family:Jost,sans-serif;position:absolute;top:0;left:0;z-index:5;width:var(--edge);height:var(--edge);background:#101010;color:#fff;clip-path:polygon(0 0,100% 0,0 100%);pointer-events:none}
 .ho-pre-black-friday>[aria-hidden]{position:absolute;top:33%;left:33%;width:84%;transform:translate(-50%,-50%) rotate(-45deg);text-align:center;font-family:inherit;font-weight:700;font-size:calc(var(--edge) * .14);line-height:1;letter-spacing:.015em;color:#fff}
+.ho-pre-black-friday>[aria-hidden]>span{display:block;font-family:inherit}
+@keyframes ho-ribbon-word{0%,100%{transform:scale(1)}50%{transform:scale(1.10)}}
+@media (prefers-reduced-motion:no-preference){
+.ho-pre-black-friday>[aria-hidden]>span{animation:ho-ribbon-word .72s ease-in-out 1 both}
+.ho-pre-black-friday>[aria-hidden]>span:nth-child(2){animation-delay:.4s}
+.ho-pre-black-friday>[aria-hidden]>span:nth-child(3){animation-delay:.8s}
+}
 </style>';
 });
 function offer_price_html($html,$p) {
