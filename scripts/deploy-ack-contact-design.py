@@ -5,6 +5,10 @@ paths = ('assets/css/ack-communication.css','assets/js/ack-communication.js','as
 base = 'e821853b5bd00f0ca7de217fedf30a2fbf3db4fa'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
+staff_view=os.environ.get('GITHUB_REF')=='refs/heads/codex/employee-my-instructions'
+if staff_view:
+    paths=('shared/acknowledgments/Service.php','assets/js/acknowledgments.js','apps/acknowledgments/index.php','apps/acknowledgments/messages.php','assets/js/ack-communication.js','assets/js/acknowledgments-popup.js','shared/header.php','index.php')
+    base='8a8617369aecf9e61518e7413f11c699b8493b80'
 if os.environ.get('GITHUB_REF')=='refs/heads/codex/ack-message-typography':
     paths=('assets/css/ack-communication.css',)
     base='88d28557c673dbcace6b6266926ba62e06dc8e75'
@@ -32,6 +36,15 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=40) as ftp
             try: ftp.delete(tmp)
             except ftplib.error_perm: pass
     before={p:read(p) for p in paths}
+    # The dashboard has independent releases. Replace its unique label only;
+    # keep every other live byte, with a symmetric rollback and PHP lint.
+    if staff_view and norm(before['index.php']) not in (norm(old['index.php']),norm(new['index.php'])):
+        p='index.php'
+        a=b"'name'=>'Acknowledgments','desc'=>'Read, clarify and acknowledge company instructions and notices.'"
+        b=b"'name'=>($roleKey==='owner_admin'?'Acknowledgments':'My instructions'),'desc'=>'Read, clarify and acknowledge company instructions and notices.'"
+        if before[p].count(a)+before[p].count(b)!=1 or b'$roleKey = current_role_key();' not in before[p]: sys.exit('Dashboard baseline requires further review; nothing uploaded')
+        old[p]=before[p].replace(b,a); new[p]=before[p].replace(a,b)
+        subprocess.run(['php','-l'],input=new[p],check=True,stdout=subprocess.DEVNULL)
     for p in paths:
         if norm(before[p]) not in (norm(old[p]),norm(new[p])): sys.exit('Unrecognized live version; nothing uploaded: '+p)
     if mode=='preflight': print('All scoped live baselines verified.');sys.exit(0)

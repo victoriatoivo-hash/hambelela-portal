@@ -37,3 +37,7 @@ $bad=$body;$bad['request_key']=S::uuid();$bad['recipients']=[4];denied(fn()=>$s-
 check((int)$db->query('SELECT COUNT(*) FROM portal_ack_instructions')->fetchColumn()===2,'Failed send rolls back');
 echo "Acknowledgments service checks complete. Synthetic database only.\n";
 require __DIR__.'/fixtures/ack-communication-checks.php';
+$rid=(int)$db->query("SELECT id FROM portal_ack_recipients WHERE employee_id=2 AND schedule_active=1 LIMIT 1")->fetchColumn();
+$db->prepare("INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,1,'schedule_edit','internal recipient list',?,NOW())")->execute([$rid,S::uuid()]);
+check(!in_array('schedule_edit',array_column($s->detail(2,$rid)['events'],'event_type'),true),'Employee response omits scheduling audit payload');
+check(in_array('schedule_edit',array_column($s->detail(1,$rid)['events'],'event_type'),true),'Original scheduling audit remains available to Owner');

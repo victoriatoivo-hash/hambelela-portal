@@ -48,7 +48,7 @@ if ($employeeSidebarUpgrade) {
     $isEssDashboard = true;
     $pageUsesPortalSidebar = false;
     $essShellApps = ess_shell_apps();
-    $essShellApps[] = ['name'=>'Acknowledgments','icon'=>'clipboard-check','href'=>BASE_URL.'/apps/acknowledgments/index.php'];
+    $essShellApps[] = ['name'=>(($headerUser['role_key']??'')==='owner_admin'?'Acknowledgments':'My instructions'),'icon'=>'clipboard-check','href'=>BASE_URL.'/apps/acknowledgments/index.php'];
     $essActiveModule = '';
     $sidebarRequestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
     foreach ($essShellApps as $sidebarApp) {
@@ -164,7 +164,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                 <a class="portal-header-action portal-header-notifications portal-notification-button ack-contact-launch" href="<?=BASE_URL?>/apps/acknowledgments/messages.php" aria-label="Messages and reporting" title="Messages and reporting" aria-controls="ack-contact-options" aria-expanded="false"><i data-lucide="message-circle" aria-hidden="true"></i></a>
                 <span class="ack-contact-tip" hidden></span>
                 <nav id="ack-contact-options" class="ack-contact-options" popover="manual" hidden aria-label="Messages and reporting">
-                    <header><span>ACKNOWLEDGMENTS</span><strong>Messages &amp; reporting</strong></header>
+                    <header><?php if(($headerUser['role_key']??'')==='owner_admin'): ?><span>ACKNOWLEDGMENTS</span><?php endif; ?><strong>Messages &amp; reporting</strong></header>
                     <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#private"><i data-lucide="messages-square" aria-hidden="true"></i><span><strong>Ask for assistance</strong><small>Private conversation with the Owner.</small></span><span aria-hidden="true">›</span></a>
                     <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#anonymous"><i data-lucide="shield-check" aria-hidden="true"></i><span><strong>Report anonymously</strong><small>See reporting options and how replies work.</small></span><span aria-hidden="true">›</span></a>
                 </nav>

@@ -56,7 +56,7 @@ final class Service
         if(!$rows||($user['role_key']!=='owner_admin'&&((int)$rows[0]['employee_id']!==$actor||$rows[0]['release_state']!=='released'||(!(int)$rows[0]['schedule_active']&&!$withdrawn))))throw new \DomainException('This instruction is not assigned to you.');
         $rows[0]['withdrawn']=$withdrawn;
         $rows[0]['recipients']=$user['role_key']==='owner_admin'?array_column($this->rows('SELECT employee_id FROM portal_ack_recipients WHERE instruction_id=? AND schedule_active=1',[$rows[0]['instruction_id']]),'employee_id'):[];
-        return $rows[0]+Material::meta($this->db,(int)$rows[0]['instruction_id'])+['events'=>$this->rows('SELECT v.id,v.actor_id,v.event_type,v.message,v.created_at,e.full_name actor_name FROM portal_ack_events v LEFT JOIN ops_employees e ON e.id=v.actor_id WHERE v.recipient_id=? ORDER BY v.id',[$id])];
+        return $rows[0]+Material::meta($this->db,(int)$rows[0]['instruction_id'])+['events'=>$this->rows('SELECT v.id,v.actor_id,v.event_type,v.message,v.created_at,e.full_name actor_name FROM portal_ack_events v LEFT JOIN ops_employees e ON e.id=v.actor_id WHERE v.recipient_id=?'.($user['role_key']==='owner_admin'?'':" AND LEFT(v.event_type,9)<>'schedule_'").' ORDER BY v.id',[$id])];
     }
     private function event(int $recipient,int $actor,string $type,string $message,string $key):void{
         $this->db->prepare('INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,?,?,?,?,?)')->execute([$recipient,$actor,$type,$message,$key,$this->now()]);

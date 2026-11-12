@@ -54,7 +54,7 @@
   }
   parent.prepend(block);
  }
- function popup(dialog,n,csrf){const f=dialog.querySelector('form'),b=el('section');if(n.image_type)b.append(btn('View image',()=>view(n.id,csrf,true)));if(n.question){const a=el('a','Answer in Acknowledgments');a.href=base+'index.php?record='+Number(n.id);b.append(el('p',n.question),a);}if(b.childElementCount){b.className='ack-material';f.before(b);}}
+ function popup(dialog,n,csrf){const f=dialog.querySelector('form'),b=el('section');if(n.image_type)b.append(btn('View image',()=>view(n.id,csrf,true)));if(n.question){const a=el('a','Answer this question');a.href=base+'index.php?record='+Number(n.id);b.append(el('p',n.question),a);}if(b.childElementCount){b.className='ack-material';f.before(b);}}
  window.AckCommunication={setup,fields,controls,popup};
  const tip=document.querySelector('.ack-contact-tip');
  const trigger=document.querySelector('.ack-contact-launch'),panel=document.getElementById('ack-contact-options');

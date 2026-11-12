@@ -4,8 +4,8 @@ require dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/auth.ph
 require_once BASE_PATH.'/shared/acknowledgments/AnonymousAccess.php';
 $anon=\Hambelela\Acknowledgments\AnonymousAccess::url((string)parse_url('https://'.($_SERVER['HTTP_HOST']??''),PHP_URL_HOST));
 header('Cache-Control: private, no-store');header('Referrer-Policy: no-referrer');
-$pageTitle='Acknowledgment messages';$activeApp='acknowledgments';include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/sidebar.php';
-?><main class="workspace ack-contact-page"><a class="ack-contact-back" href="index.php">← Acknowledgments</a><h1>Messages &amp; reporting</h1>
+$isManager=(current_user()['role_key']??'')==='owner_admin';$pageTitle='Messages & reporting';$activeApp='acknowledgments';include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/sidebar.php';
+?><main class="workspace ack-contact-page"><a class="ack-contact-back" href="index.php">← <?=$isManager?'Acknowledgments':'My instructions'?></a><h1>Messages &amp; reporting</h1>
 <div class="ack-contact-grid">
 <section class="ack-contact-card" id="private" aria-labelledby="ack-private-title"><header><i class="ack-contact-symbol" data-lucide="messages-square" aria-hidden="true"></i><h2 id="ack-private-title">Private assistance</h2></header><p>Ask a question or request help. Only you and the designated Owner can read the conversation. Your name is visible to the Owner.</p>
 <button type="button" class="ack-contact-primary" id="ack-private-open">Open private inbox</button><div id="ack-private"></div></section>
