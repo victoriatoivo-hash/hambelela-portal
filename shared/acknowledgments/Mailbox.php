@@ -34,6 +34,38 @@ final class Mailbox {
             'messages'=>$employee?$this->rows('SELECT sender_id,body,created_at FROM portal_ack_assistance WHERE owner_id=? AND employee_id=? ORDER BY id',[$this->owner,$employee]):[],
             'reports'=>$owner?$this->rows('SELECT report_id,body,reply FROM portal_ack_anonymous WHERE owner_id=? ORDER BY CASE WHEN reply IS NULL THEN 0 ELSE 1 END,report_id',[$this->owner]):[]];
     }
+    // One prompt per conversation, for its latest incoming message only. Reading the
+    // existing ledger also picks up unanswered questions sent before prompts existed.
+    public function pendingPrompt(int $actor):?array {
+        $this->access($actor);
+        $scope=$actor===$this->owner?'a.sender_id=a.employee_id':'a.employee_id=? AND a.sender_id=a.owner_id';
+        $args=[$actor,$this->owner];if($actor!==$this->owner)$args[]=$actor;
+        $r=$this->rows("SELECT a.id,a.employee_id FROM portal_ack_assistance a
+            LEFT JOIN notifications n ON n.deduplication_key=CONCAT('ack-private-',a.id)
+            LEFT JOIN notification_recipients r ON r.notification_id=n.id AND r.employee_id=?
+            WHERE a.owner_id=? AND $scope AND a.owner_id<>a.employee_id
+              AND NOT EXISTS(SELECT 1 FROM portal_ack_assistance newer WHERE newer.owner_id=a.owner_id AND newer.employee_id=a.employee_id AND newer.id>a.id)
+              AND r.popup_seen_at IS NULL AND r.read_at IS NULL AND r.cleared_at IS NULL
+              AND (r.next_reminder_at IS NULL OR r.next_reminder_at<=NOW())
+            ORDER BY a.id LIMIT 1",$args);
+        return $r?['id'=>(int)$r[0]['id'],'thread'=>(int)$r[0]['employee_id'],'owner'=>$actor===$this->owner]:null;
+    }
+    public function claimPrompt(int $actor,int $message,callable $notify,string $base):bool {
+        $p=$this->pendingPrompt($actor);if(!$p||$p['id']!==$message)return false;
+        $n=$notify(['module'=>'system','related_type'=>'ack_private_message','related_id'=>$message,
+            'created_by'=>$p['owner']?$p['thread']:$this->owner,'required_delivery'=>true,
+            'title'=>$p['owner']?'Private assistance request':'Private reply from the Owner',
+            'message'=>'Open your private conversation to respond.',
+            'deduplication_key'=>'ack-private-'.$message,'action_link'=>$base.'/apps/acknowledgments/messages.php?thread='.$p['thread'].'#private'],[$actor]);
+        if(!$n)throw new \RuntimeException('Private notification not ready.');
+        $q=$this->db->prepare('UPDATE notification_recipients SET next_reminder_at=DATE_ADD(NOW(),INTERVAL 5 MINUTE) WHERE employee_id=? AND notification_id=? AND popup_seen_at IS NULL AND cleared_at IS NULL AND read_at IS NULL AND (next_reminder_at IS NULL OR next_reminder_at<=NOW())');
+        $q->execute([$actor,$n]);return $q->rowCount()===1;
+    }
+    public function dismissPrompt(int $actor,int $message):void {
+        $this->access($actor);
+        $q=$this->db->prepare("UPDATE notification_recipients r JOIN notifications n ON n.id=r.notification_id SET r.popup_seen_at=COALESCE(r.popup_seen_at,NOW()),r.next_reminder_at=NULL WHERE r.employee_id=? AND n.related_type='ack_private_message' AND n.deduplication_key=?");
+        $q->execute([$actor,'ack-private-'.$message]);
+    }
     public function send(int $actor,array $input):void {
         $this->access($actor);$text=trim((string)($input['message']??''));
         if($text===''||strlen($text)>6000)throw new \DomainException('Enter a message of up to 6,000 bytes.');

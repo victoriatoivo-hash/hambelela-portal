@@ -9,11 +9,17 @@ try{
     $employee=(int)(current_user()['id']??0);$service=new \Hambelela\Acknowledgments\Service(db());$service->actor($employee);
     if(!acknowledgments_ready())throw new DomainException('Acknowledgments is not activated yet.');
     $_SESSION['ack_csrf']=$_SESSION['ack_csrf']??bin2hex(random_bytes(32));$action=(string)($_GET['action']??'list');
-    if(in_array($action,['inbox','message'],true))require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
+    if(in_array($action,['inbox','message','popup','private_claim','private_seen'],true))require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
     if($_SERVER['REQUEST_METHOD']==='POST'){
         if(!hash_equals($_SESSION['ack_csrf'],(string)($_SERVER['HTTP_X_CSRF_TOKEN']??'')))throw new DomainException('Session verification failed. Refresh the page.');
         $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
         if($action==='message'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->send($employee,$body);echo '{"ok":true}';exit;}
+        if($action==='private_claim'||$action==='private_seen'){
+            $box=\Hambelela\Acknowledgments\Mailbox::forPortal(db());$mid=(int)($body['id']??0);
+            if($action==='private_seen'){$box->dismissPrompt($employee,$mid);echo '{"ok":true}';}
+            else echo json_encode(['claimed'=>$box->claimPrompt($employee,$mid,'notifications_create',BASE_URL)]);
+            exit;
+        }
         if($action==='send')$result=$service->send($employee,$body);
         elseif($action==='schedule')$result=$service->schedule($employee,$body);
         elseif($action==='withdrawal')$result=$service->withdrawal($employee,$body);
@@ -23,7 +29,8 @@ try{
     }
     if($action==='inbox')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='detail')$result=$service->detail($employee,(int)($_GET['id']??0));
-    elseif($action==='popup'){$result=['csrf'=>$_SESSION['ack_csrf'],'notice'=>$service->popup($employee),'pending'=>acknowledgments_pending($employee),'session'=>hash('sha256',session_id().':'.$employee)];acknowledgments_deliver();}
+    elseif($action==='popup'){$result=['csrf'=>$_SESSION['ack_csrf'],'notice'=>$service->popup($employee),'pending'=>acknowledgments_pending($employee),'session'=>hash('sha256',session_id().':'.$employee)];acknowledgments_deliver();
+        try{$result['private_prompt']=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->pendingPrompt($employee);}catch(Throwable $e){error_log('Private message prompts unavailable.');}}
     else $result=$service->listing($employee)+['csrf'=>$_SESSION['ack_csrf']];
     echo json_encode($result,JSON_THROW_ON_ERROR);
 }catch(DomainException $e){http_response_code(403);echo json_encode(['error'=>$e->getMessage()]);}catch(Throwable $e){error_log('Acknowledgments API: '.$e->getMessage());http_response_code(500);echo json_encode(['error'=>'Could not complete this action. Your form has been kept; please retry.']);}

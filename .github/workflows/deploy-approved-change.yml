@@ -50,7 +50,7 @@ jobs:
           STAGE: ${{ inputs.contact_stage }}
         run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
   contact-design:
-    if: github.ref == 'refs/heads/codex/employee-my-instructions' && inputs.approved_sha == github.sha
+    if: (github.ref == 'refs/heads/codex/employee-my-instructions' || github.ref == 'refs/heads/codex/private-assistance-prompts') && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -69,6 +69,9 @@ jobs:
           node tests/ack-contact-popover.cjs
           node tests/ack-employee-typography.cjs
           node tests/ack-staff-view.cjs
+          php -l shared/acknowledgments/Mailbox.php
+          php -l apps/acknowledgments/api.php
+          node tests/ack-assistance-prompts.cjs
       - name: Guarded design-only release
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

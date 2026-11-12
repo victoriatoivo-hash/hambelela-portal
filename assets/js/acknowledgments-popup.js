@@ -16,6 +16,28 @@ async function check(){
  try{
   const d=await request('popup');
   document.querySelectorAll('[data-ack-pending]').forEach(el=>{el.textContent=d.pending?String(d.pending):'';el.hidden=!d.pending;});
+  if(d.private_prompt&&!document.hidden&&!document.querySelector('dialog[open]')){
+   const gate=window.PortalNoticeGate;
+   if(gate&&!gate.acquire('private-assistance'))return;
+   let opened=false;
+   try{
+    const p=d.private_prompt,claimed=await request('private_claim',{id:p.id},d.csrf);
+    if(claimed.claimed&&!document.hidden&&!document.querySelector('dialog[open]')){
+     const dialog=document.createElement('dialog');dialog.className='hb-ack-popup hb-portal-notice hb-notice-modal';dialog.dataset.module='hr';dialog.setAttribute('aria-labelledby','ack-private-popup-title');
+     dialog.innerHTML='<p class="hb-ack-eyebrow">Private assistance</p><h2 id="ack-private-popup-title"></h2><p>Only you and the other person can read this conversation.</p><p role="alert"></p><footer><button type="button" class="ack-action" data-open></button><button type="button" class="ack-action secondary" data-close>Dismiss</button></footer>';
+     dialog.querySelector('h2').textContent=p.owner?'An employee is asking for assistance':'You have a reply from the Owner';
+     const go=dialog.querySelector('[data-open]'),close=dialog.querySelector('[data-close]');go.textContent=p.owner?'Reply':'View reply';
+     const finish=async navigate=>{if(go.disabled)return;go.disabled=close.disabled=true;
+      try{await request('private_seen',{id:p.id},d.csrf);
+       if(navigate)location.assign(base+'/apps/acknowledgments/messages.php?thread='+Number(p.thread)+'#private');
+       dialog.close();
+      }catch(e){dialog.querySelector('[role=alert]').textContent=e.message;go.disabled=close.disabled=false;}};
+     go.onclick=()=>finish(true);close.onclick=()=>finish(false);dialog.oncancel=e=>{e.preventDefault();finish(false);};
+     dialog.onclose=()=>{dialog.remove();gate?.release('private-assistance');};
+     document.body.append(dialog);dialog.showModal();opened=true;return;
+    }
+   }finally{if(!opened)gate?.release('private-assistance');}
+  }
   if(!d.notice||location.pathname.includes('/apps/acknowledgments/')||sessionStorage.getItem('ack-popup:'+d.session)||document.querySelector('dialog[open]'))return;
   if(!window.PortalNoticeGate?.acquire('acknowledgments'))return;
   const n=d.notice,dialog=document.createElement('dialog');dialog.className='hb-ack-popup hb-portal-notice hb-notice-modal';dialog.dataset.module='hr';dialog.setAttribute('aria-labelledby','ack-popup-title');

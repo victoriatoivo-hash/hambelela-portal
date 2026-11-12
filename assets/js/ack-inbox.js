@@ -27,6 +27,6 @@
    if(d.owner){add('h3','Anonymous reports');if(!d.reports.length)add('p','No reports.');for(const report of d.reports){add('h4','Anonymous report');add('p',report.body);if(report.reply)add('p','Your reply: '+report.reply);composer(report.reply?'Update reply':'Reply by private code',{report:report.report_id});}}
   }catch(x){if(run===seq)error.textContent=x.message||'Could not load messages.';}}
  document.querySelector('#ack-private-open').onclick=()=>load();
- const route=()=>{if(location.hash==='#private'&&!root.childElementCount)load();};
+ const route=()=>{if(location.hash==='#private'&&!root.childElementCount){const thread=new URLSearchParams(location.search).get('thread');load(/^\d+$/.test(thread||'')?Number(thread):0);}};
  window.addEventListener('hashchange',route);route();
 })();
