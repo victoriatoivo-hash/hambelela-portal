@@ -52,7 +52,7 @@ jobs:
           STAGE: ${{ inputs.contact_stage }}
         run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
   communication-attention:
-    if: github.ref == 'refs/heads/codex/communication-attention-badges' && inputs.approved_sha == github.sha
+    if: (github.ref == 'refs/heads/codex/communication-attention-badges' || github.ref == 'refs/heads/codex/builtin-unnamed-reports') && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
@@ -85,6 +85,11 @@ jobs:
           node tests/ack-inbox-response.cjs
           node tests/ack-assistance-prompts.cjs
           node tests/ack-attention-badges.cjs
+          if [ "$GITHUB_REF" = refs/heads/codex/builtin-unnamed-reports ]; then
+            php -l apps/acknowledgments/messages.php
+            node tests/ack-employee-home.cjs
+            node tests/ack-unnamed-report.cjs
+          fi
       - name: Verify live baseline and release five communication files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

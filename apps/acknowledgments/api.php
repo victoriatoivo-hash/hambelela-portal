@@ -9,10 +9,12 @@ try{
     $employee=(int)(current_user()['id']??0);$service=new \Hambelela\Acknowledgments\Service(db());$service->actor($employee);
     if(!acknowledgments_ready())throw new DomainException('Acknowledgments is not activated yet.');
     $_SESSION['ack_csrf']=$_SESSION['ack_csrf']??bin2hex(random_bytes(32));$action=(string)($_GET['action']??'list');
-    if(in_array($action,['inbox','message','popup','private_claim','private_seen','private_item','private_queue','private_act'],true))require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
+    if($action==='unnamed_report' && $_SERVER['REQUEST_METHOD']!=='POST'){http_response_code(405);header('Allow: POST');echo '{"error":"Use the reporting form."}';exit;}
+    if(in_array($action,['inbox','message','unnamed_report','popup','private_claim','private_seen','private_item','private_queue','private_act'],true))require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
     if($_SERVER['REQUEST_METHOD']==='POST'){
         if(!hash_equals($_SESSION['ack_csrf'],(string)($_SERVER['HTTP_X_CSRF_TOKEN']??'')))throw new DomainException('Session verification failed. Refresh the page.');
         $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
+        if($action==='unnamed_report'){echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->unnamedReport($employee,$body),JSON_THROW_ON_ERROR);exit;}
         if($action==='message'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->send($employee,$body);echo '{"ok":true}';exit;}
         if($action==='private_act'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->promptAction($employee,(int)($body['id']??0),(string)($body['choice']??''),$body);echo '{"ok":true}';exit;}
         if($action==='private_claim'||$action==='private_seen'){

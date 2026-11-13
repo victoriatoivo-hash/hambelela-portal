@@ -14,7 +14,8 @@ async function run(){
  for(const role of ['packer','delivery_driver','marketing_sales_assistant']){
   for(const entry of ['index','messages']){
    const d=new JSDOM(render(role,'',entry)).window.document;
-   assert.deepEqual([...d.querySelectorAll('main section h2')].map(h=>h.textContent),['Private assistance','Anonymous reporting']);
+   assert.deepEqual([...d.querySelectorAll('main section h2')].map(h=>h.textContent),['Private assistance','Send without my name']);
+   assert.match(d.querySelector('#anonymous').textContent,/Hosting logs may record/);
    assert.equal(d.querySelector('#ack-new,#ack-table,#ack-tabs,#ack-drawer,.ack-contact-back'),null);
   }
  }

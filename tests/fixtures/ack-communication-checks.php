@@ -48,6 +48,16 @@ $box->dismissPrompt(3,$p['id']);$db->exec('UPDATE notification_recipients SET ne
 check($box->pendingPrompt(1)!==null,'Another employee cannot dismiss the Owner prompt');
 $box->dismissPrompt(1,$p['id']);check(!$box->pendingPrompt(1),'Dismissal persists after a new poll');
 $store=new Store($db,1);$code=bin2hex(random_bytes(16));$report=['action'=>'submit','body'=>'Anonymous test','code'=>$code];
+$nativeCode=bin2hex(random_bytes(16));
+$native=['action'=>'submit','code'=>$nativeCode,'body'=>'A fixture report without a sender.'];
+check($box->unnamedReport(2,$native)['saved']&&$box->unnamedReport(2,$native)['saved'],'Unnamed submission survives a retried request');
+$nativeRows=$box->inbox(1)['reports'];check(count($nativeRows)===1&&array_keys($nativeRows[0])===['report_id','body','reply'],'Owner sees only report handle, text and reply');
+check(!$box->inbox(3)['reports']&&!$box->inbox(5)['reports'],'Reports invisible to other employees and admins');
+denied(fn()=>$box->unnamedReport(3,['action'=>'check','code'=>$nativeRows[0]['report_id']]),'Inbox handle cannot be used as a reply code');
+$box->send(1,['report'=>$nativeRows[0]['report_id'],'message'=>'Fixture owner response']);
+check($box->unnamedReport(2,['action'=>'check','code'=>$nativeCode])===['reply'=>'Fixture owner response'],'Code holder receives only the matching reply');
+denied(fn()=>$box->unnamedReport(2,array_replace($native,['body'=>'different'])),'Retry never replaces the report text');
+$db->prepare('DELETE FROM portal_ack_anonymous WHERE report_id=?')->execute([$nativeRows[0]['report_id']]); // Isolated synthetic fixture.
 $store->run($report);$store->run($report);$anon=$box->inbox(1)['reports'];check(count($anon)===1&&array_keys($anon[0])===['report_id','body','reply'],'Owner sees neither identity nor code, only one anonymous report after retry');
 check(!$box->inbox(2)['reports']&&!$box->inbox(5)['reports'],'Other accounts cannot read anonymous inbox');$reply=['report'=>$anon[0]['report_id'],'message'=>'Thank you for reporting.'];
 denied(fn()=>$box->send(5,$reply),'Second admin cannot reply to anonymous report');$box->send(1,$reply);

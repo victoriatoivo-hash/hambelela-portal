@@ -30,6 +30,30 @@
    if(d.owner){add('h3','Anonymous reports');if(!d.reports.length)add('p','No reports.');for(const report of d.reports){add('h4','Anonymous report');add('p',report.body);if(report.reply)add('p','Your reply: '+report.reply);composer(report.reply?'Update reply':'Reply by private code',{report:report.report_id});}}
   }catch(x){if(run===seq)error.textContent=x.message||'Could not load messages.';}}
  document.querySelector('#ack-private-open').onclick=()=>load();
+ const panel=document.querySelector('#anonymous[data-csrf]');
+ if(panel){
+  const field=id=>panel.querySelector('#unnamed-'+id);
+  const post=data=>request('api.php?action=unnamed_report',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':panel.dataset.csrf},body:JSON.stringify(data)});
+  let key='',sent=false;
+  const send=field('send'),check=field('check'),body=field('body'),receipt=field('receipt');
+  send.disabled=!window.crypto?.getRandomValues;check.disabled=false;
+  send.onclick=async()=>{
+   if(sent||!body.value.trim()){if(!sent){field('result').textContent='Write your report first.';body.focus();}return;}
+   if(!key)key=Array.from(crypto.getRandomValues(new Uint8Array(16)),b=>b.toString(16).padStart(2,'0')).join('').toUpperCase().match(/.{4}/g).join('-');
+   field('code').value=key;receipt.hidden=false;field('done').hidden=true;
+   send.disabled=true;body.readOnly=true;field('result').textContent='Sending…';
+   try{const r=await post({action:'submit',code:key,body:body.value});if(r.saved!==true)throw Error('Sending was not confirmed.');
+    sent=true;body.value='';field('result').textContent='Sent without your name. Save your private reply code now.';
+   }catch(e){field('result').textContent=e.message+' Keep the code and retry if needed.';}
+   finally{send.disabled=sent;body.readOnly=sent;field('done').hidden=!sent;}
+  };
+  field('done').onclick=()=>{key='';sent=false;receipt.hidden=true;field('code').value='';field('result').textContent='';send.disabled=false;body.readOnly=false;};
+  check.onclick=async()=>{const output=field('answer');check.disabled=true;output.textContent='Checking…';
+   try{const r=await post({action:'check',code:field('lookup').value});if(!Object.hasOwnProperty.call(r,'reply'))throw Error('Could not confirm a reply.');
+    output.textContent=r.reply===null?'Received. The Owner hasn’t replied yet.':'Owner’s reply: '+r.reply;
+   }catch(e){output.textContent=e.message;}finally{check.disabled=false;}
+  };
+ }
  const route=()=>{if(location.hash==='#private'&&!root.childElementCount){const thread=new URLSearchParams(location.search).get('thread');load(/^\d+$/.test(thread||'')?Number(thread):0);}};
  window.addEventListener('hashchange',route);route();
 })();

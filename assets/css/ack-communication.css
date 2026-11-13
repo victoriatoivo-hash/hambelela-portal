@@ -31,6 +31,7 @@
 .ack-contact-card #ack-private:not(:empty){margin-top:14px;border-top:1px solid #e4e6dc;padding-top:2px}.ack-contact-page .ack-contact-card p{font:400 12px/1.5 Jost,sans-serif;color:#50594c;margin:10px 0 12px}
 .ack-contact-card .ack-thread-message strong{font-weight:500}
 .ack-contact-card .ack-state{padding:10px 12px;border-radius:8px;background:#f4f5ef}
+#anonymous :is(label,summary){display:block;font-weight:500;margin-block:8px 4px;color:#344126}#anonymous summary{display:list-item;cursor:pointer}#anonymous :is(textarea,input){display:block;box-sizing:border-box;width:100%;font:400 14px/1.5 Jost,sans-serif;border:1px solid #cfd6c7;border-radius:8px;padding:8px 10px;margin-bottom:8px;color:#293126}#anonymous details{border-top:1px solid #e4e6dc;padding-top:6px}#unnamed-answer{white-space:pre-wrap;overflow-wrap:anywhere}
 :is(#ack-private,.ack-private-modal) [data-sender]{box-sizing:border-box;width:fit-content;max-width:85%;min-width:0;padding:8px 12px;border-radius:12px;text-align:start;overflow-wrap:anywhere}
 :is(#ack-private,.ack-private-modal) [data-sender="employee"]{margin-inline:0 auto;justify-self:start;border-inline-start:3px solid #93a282;border-end-start-radius:4px;background:#f2f5ee;color:#34452c}
 :is(#ack-private,.ack-private-modal) [data-sender="owner"]{margin-inline:auto 0;justify-self:end;border-inline-end:3px solid #759ab9;border-end-end-radius:4px;background:#eaf2fa;color:#254762}

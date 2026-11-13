@@ -6,6 +6,9 @@ base = 'e821853b5bd00f0ca7de217fedf30a2fbf3db4fa'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
 staff_view=os.environ.get('GITHUB_REF')=='refs/heads/codex/employee-my-instructions'
+if os.environ.get('GITHUB_REF')=='refs/heads/codex/builtin-unnamed-reports':
+    paths=('shared/acknowledgments/Mailbox.php','apps/acknowledgments/api.php','assets/css/ack-communication.css','assets/js/ack-inbox.js','apps/acknowledgments/messages.php','shared/header.php')
+    base='3b1848704c1b6133945fbc50454673d4669247c1'
 if os.environ.get('GITHUB_REF')=='refs/heads/codex/employee-instructions-messages-home':
     paths=('assets/js/acknowledgments.js','apps/acknowledgments/messages.php','apps/acknowledgments/index.php')
     base='135b553e866d812a322e452f4928406d99e927c8'
@@ -51,6 +54,13 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=40) as ftp
             try: ftp.delete(tmp)
             except ftplib.error_perm: pass
     before={p:read(p) for p in paths}
+    if os.environ.get('GITHUB_REF')=='refs/heads/codex/builtin-unnamed-reports':
+        p='shared/header.php'
+        a=b'<strong>Report anonymously</strong><small>See reporting options and how replies work.</small>'
+        b=b'<strong>Send without my name</strong><small>Report to the Owner and check a reply by private code.</small>'
+        if norm(old[p].replace(a,b))!=norm(new[p]) or before[p].count(a)+before[p].count(b)!=1: sys.exit('Unrecognized launcher: nothing uploaded')
+        old[p]=before[p].replace(b,a);new[p]=before[p].replace(a,b)
+        subprocess.run(['php','-l'],input=new[p],check=True,stdout=subprocess.DEVNULL)
     # The dashboard has independent releases. Replace its unique label only;
     # keep every other live byte, with a symmetric rollback and PHP lint.
     if staff_view and norm(before['index.php']) not in (norm(old['index.php']),norm(new['index.php'])):

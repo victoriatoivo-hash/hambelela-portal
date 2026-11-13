@@ -25,6 +25,32 @@ final class Mailbox {
         if(!$this->owner || $s->actor($this->owner)['role_key']!=='owner_admin')
             throw new \DomainException('The private inbox owner has not been configured.');
     }
+    // Sign-in is the entry gate, never part of the report, lookup key or notification.
+    public function unnamedReport(int $actor,array $data):array {
+        $this->access($actor);
+        $code=is_string($data['code']??null)?strtoupper(str_replace('-','',trim($data['code']))):'';
+        if(!preg_match('/^[A-F0-9]{32}$/D',$code))throw new \DomainException('Enter the complete private reply code.');
+        $hash=hash('sha256',$code);
+        try {
+            if(($data['action']??null)==='check'){
+                $r=$this->rows('SELECT reply FROM portal_ack_anonymous WHERE lookup_hash=? AND owner_id=?',[$hash,$this->owner]);
+                if(!$r)throw new \DomainException('No report was found for that code.');
+                return ['reply'=>$r[0]['reply']];
+            }
+            if(($data['action']??null)!=='submit')throw new \DomainException('Choose Send or Check reply.');
+            $body=is_string($data['body']??null)?trim($data['body']):'';
+            if($body===''||strlen($body)>6000)throw new \DomainException('Enter a report of up to 6,000 bytes.');
+            try{
+                $this->db->prepare('INSERT INTO portal_ack_anonymous(report_id,lookup_hash,owner_id,body) VALUES(?,?,?,?)')
+                    ->execute([bin2hex(random_bytes(16)),$hash,$this->owner,$body]);
+            }catch(\PDOException $e){
+                if((string)$e->getCode()!=='23000')throw $e;
+                $r=$this->rows('SELECT body FROM portal_ack_anonymous WHERE lookup_hash=? AND owner_id=?',[$hash,$this->owner]);
+                if(!$r||$r[0]['body']!==$body)throw new \DomainException('This code is already in use. Check your reply before starting another report.');
+            }
+            return ['saved'=>true];
+        }catch(\PDOException $e){throw new \RuntimeException('Unnamed reporting storage unavailable.');}
+    }
     public function inbox(int $actor,int $selected=0):array {
         $this->access($actor);$owner=$actor===$this->owner;
         if(!$owner && $selected && $selected!==$actor)throw new \DomainException('This conversation is private.');

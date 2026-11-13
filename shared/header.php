@@ -166,7 +166,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                 <nav id="ack-contact-options" class="ack-contact-options" popover="manual" hidden aria-label="Messages and reporting">
                     <header><?php if(($headerUser['role_key']??'')==='owner_admin'): ?><span>ACKNOWLEDGMENTS</span><?php endif; ?><strong>Messages &amp; reporting</strong></header>
                     <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#private"><i data-lucide="messages-square" aria-hidden="true"></i><span><strong>Ask for assistance</strong><small>Private conversation with the Owner.</small></span><span aria-hidden="true">›</span></a>
-                    <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#anonymous"><i data-lucide="shield-check" aria-hidden="true"></i><span><strong>Report anonymously</strong><small>See reporting options and how replies work.</small></span><span aria-hidden="true">›</span></a>
+                    <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#anonymous"><i data-lucide="shield-check" aria-hidden="true"></i><span><strong>Send without my name</strong><small>Report to the Owner and check a reply by private code.</small></span><span aria-hidden="true">›</span></a>
                 </nav>
             </div>
             <div class="portal-notification-control">
