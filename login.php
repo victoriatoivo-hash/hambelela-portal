@@ -12,6 +12,10 @@ portal_send_private_cache_headers();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'logout') {
     try {
+        require_once __DIR__.'/shared/portal-presence-source.php';
+        portal_widget_logout(db(),(int)($_SESSION['user']['id']??0),portal_widget_key());
+    } catch (Throwable $presenceError) { error_log('Online indicator cleanup deferred to expiry.'); }
+    try {
         portal_device_forget();
     } catch (Throwable $revokeError) {
         logout_user();

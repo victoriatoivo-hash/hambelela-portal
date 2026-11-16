@@ -1,0 +1,24 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),{JSDOM}=require('jsdom');
+(async()=>{
+ const dom=new JSDOM('<main><header></header></main><section data-portal-header-status data-presence-endpoint="/heartbeat"><time data-portal-date></time><time data-portal-time></time><span class="portal-header-avatar">A</span><div data-portal-online-widget><span data-portal-online-avatars></span><span data-portal-online-count></span><section data-portal-online-popover><div data-portal-online-list></div></section></div></section>',{url:'https://fixture.test/',runScripts:'outside-only',pretendToBeVisual:true});
+ const w=dom.window,d=w.document,select=s=>d.querySelector(s),list=select('[data-portal-online-list]'),count=select('[data-portal-online-count]'),timers=[],requests=[];
+ const people=[{id:2,name:'Fixture',role:'Front Desk',session_duration_seconds:3660,presence:'online'},{id:3,name:'Disconnected',presence:'offline'}];
+ let payload={ok:true,employees:people,self_online:true,show_durations:true},reduced=false;
+ w.setInterval=(f,n)=>{timers.push([n,f]);return timers.length;};
+ w.matchMedia=()=>({get matches(){return reduced},addEventListener(type,f){w.changeMotion=f}});
+ w.Element.prototype.animate=function(frames,options){assert.equal(options.iterations,Infinity);this.dataset.pulsing='yes';};
+ w.Element.prototype.getAnimations=function(){return [{cancel:()=>delete this.dataset.pulsing}]};
+ w.fetch=async(url,opt)=>{requests.push(JSON.parse(opt.body));return {ok:true,status:200,json:async()=>payload}};
+ w.eval(fs.readFileSync(process.env.WIDGET_JS||'assets/js/portal-presence.js','utf8'));await new Promise(setImmediate);
+ const beat=timers.find(([n])=>n===15000)[1];
+ assert.equal(count.textContent,'1 online');assert.match(list.textContent,/Front Desk.*1h 1m/);assert(!list.textContent.includes('Disconnected'));
+ assert.equal(d.querySelectorAll('[data-pulsing=yes]').length,3);
+ reduced=true;w.changeMotion();assert.equal(d.querySelectorAll('[data-pulsing=yes]').length,0);reduced=false;w.changeMotion();
+ payload.show_durations=false;await beat();assert(!/Front Desk|login|Last seen|break/i.test(list.textContent));
+ w.dispatchEvent(new w.Event('offline'));assert.equal(count.textContent,'Status unavailable');assert.equal(d.querySelectorAll('.is-online').length,0);
+ w.dispatchEvent(new w.Event('online'));await new Promise(setImmediate);assert.equal(count.textContent,'1 online');
+ Object.defineProperty(d,'visibilityState',{configurable:true,value:'hidden'});payload={ok:true,background:true};await beat();assert.equal(requests.at(-1).background,true);
+ Object.defineProperty(d,'visibilityState',{configurable:true,value:'visible'});payload={ok:true,employees:[],self_online:false};await beat();
+ assert.equal(count.textContent,'0 online');assert.equal(d.querySelectorAll('.is-online').length,0);dom.window.close();
+ console.log('PASS: roles, one roster for count and avatars, pulses, reduced motion, background connection, disconnect and reconnect.');
+})().catch(e=>{console.error(e);process.exitCode=1});

@@ -45,7 +45,6 @@
   const countNode = status.querySelector('[data-portal-online-count]');
   const popover = status.querySelector('[data-portal-online-popover]');
   const listNode = status.querySelector('[data-portal-online-list]');
-  const knownEmployees = new Set();
   let presenceSignature = '';
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
@@ -93,56 +92,38 @@
   const initials = (name) => String(name || 'User').trim().split(/\s+/)
     .slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join('') || 'U';
 
-  const localStamp = (value) => value ? String(value).slice(0, 16) : '—';
-
-  const renderPresence = (employees) => {
-    const visible = Array.isArray(employees) ? employees : [];
-    const online = visible.filter((employee) => employee.presence === 'online');
-    const nextSignature = JSON.stringify(visible.map((employee) => [
-      employee.id,
-      employee.name,
-      employee.role,
-      employee.page,
-      employee.presence,
-      employee.session_started_at,
-      localStamp(employee.last_seen_at),
-      localStamp(employee.prior_last_seen_at),
-      Math.floor(Number(employee.session_duration_seconds || 0) / 60),
-      Math.floor(Number(employee.seconds_since_activity || 0) / 60)
-    ]));
-    if (nextSignature === presenceSignature) return;
-    presenceSignature = nextSignature;
-    const nextCount = `${online.length} online`;
-    if (countNode.textContent !== nextCount) countNode.textContent = nextCount;
-
-    const avatarEmployees = online.slice(0, 3);
-    avatarsNode.innerHTML = avatarEmployees.map((employee) => {
-      const employeeKey = String(employee.id || employee.name || '');
-      const isNew = !knownEmployees.has(employeeKey);
-      knownEmployees.add(employeeKey);
-      return `<span class="portal-online-avatar${isNew ? ' is-entering' : ''}" title="${escapeHtml(employee.name)}">
-        ${escapeHtml(initials(employee.name))}
-        <i class="portal-presence-dot is-${escapeHtml(employee.presence)}"></i>
-      </span>`;
-    }).join('') + (online.length > 3
-      ? `<span class="portal-online-avatar portal-online-avatar--more">+${online.length - 3}</span>`
-      : '');
-
-    listNode.innerHTML = visible.length ? visible.map((employee) => `
-      <article class="portal-online-person">
-        <span class="portal-online-avatar">${escapeHtml(initials(employee.name))}
-          <i class="portal-presence-dot is-${escapeHtml(employee.presence)}"></i>
-        </span>
-        <span>
-          <strong>${escapeHtml(employee.name)}</strong>
-          <small>${escapeHtml(employee.role || 'Staff')}</small>
-          <em>${employee.presence === 'online' ? 'Online' : 'Offline'} · Last seen ${escapeHtml(localStamp(employee.last_seen_at))}</em>
-          ${employee.prior_last_seen_at ? `<em>Last seen before break ${escapeHtml(localStamp(employee.prior_last_seen_at))}</em>` : ''}
-          <em>${employee.prior_last_seen_at ? 'Returned online' : 'Online from'} ${escapeHtml(localStamp(employee.session_started_at))}</em>
-        </span>
-      </article>
-    `).join('') : '<p class="portal-online-empty">No operational staff online.</p>';
+  let receivedAt = 0, generation = 0;
+  const motion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+  function pulse() {
+    for(const dot of status.querySelectorAll('.portal-presence-dot.is-online')){
+      if(!dot.animate)continue;
+      dot.getAnimations().forEach(a=>a.cancel());
+      if(!motion?.matches)dot.animate([{opacity:1},{opacity:.58},{opacity:1}],{duration:1850,iterations:Infinity,easing:'ease-in-out'});
+    }
+  }
+  motion?.addEventListener?.('change',pulse);
+  const renderPresence = (employees, admin=false, self=false) => {
+    const people = [...new Map((Array.isArray(employees)?employees:[]).filter(p=>p.presence==='online').map(p=>[p.id,p])).values()];
+    const duration=p=>Number.isFinite(p.session_duration_seconds)?Math.floor(p.session_duration_seconds/60):null;
+    const signature=JSON.stringify([admin,self,people.map(p=>[p.id,p.name,admin?p.role:null,admin?duration(p):null])]);
+    if(signature===presenceSignature)return;
+    presenceSignature=signature;
+    const avatar=p=>'<span class="portal-online-avatar" title="'+escapeHtml(p.name)+'">'+escapeHtml(initials(p.name))+'<i class="portal-presence-dot is-online" aria-label="Online"></i></span>';
+    countNode.textContent=people.length+' online';
+    avatarsNode.innerHTML=people.slice(0,3).map(avatar).join('')+(people.length>3?'<span class="portal-online-avatar portal-online-avatar--more">+'+(people.length-3)+'</span>':'');
+    listNode.innerHTML=people.map(p=>{
+      const m=duration(p),elapsed=m===null?'Unavailable':(m>=60?Math.floor(m/60)+'h ':'')+(m%60)+'m';
+      return '<article class="portal-online-person">'+avatar(p)+'<span><strong>'+escapeHtml(p.name)+'</strong>'+
+        (admin?'<small>'+escapeHtml(p.role)+'</small><em>Current login: '+elapsed+'</em>':'')+'</span></article>';
+    }).join('')||'<p class="portal-online-empty">No employees online.</p>';
+    const profile=status.querySelector('.portal-header-avatar');
+    if(profile){profile.querySelector('[data-self-online]')?.remove();if(self){profile.style.position='relative';const dot=document.createElement('i');dot.dataset.selfOnline='';dot.className='portal-presence-dot is-online';dot.setAttribute('aria-label','Online');profile.append(dot);}}
+    pulse();
   };
+  function unavailable(){
+    receivedAt=0;renderPresence([]);countNode.textContent='Status unavailable';
+    listNode.innerHTML='<p class="portal-online-empty">Unable to confirm who is online.</p>';presenceSignature='';
+  }
 
   let checking = false;
   let navigating = false;
@@ -151,19 +132,24 @@
     if (e.target.matches?.('input:not([type=search]),textarea,select,[contenteditable=true]') || e.target.isContentEditable) editing = true;
   }, true);
   const heartbeat = async () => {
-    if (checking || navigating || !endpoint || document.visibilityState === 'hidden') return;
+    if (checking || navigating || !endpoint) return;
+    const background=document.visibilityState==='hidden',epoch=generation;
+    const controller=new window.AbortController();
+    const timeout=window.setTimeout(()=>controller.abort(),10000);
     checking = true;
     try {
       const response = await fetch(endpoint, {
         method: 'POST',
         credentials: 'same-origin',
+        signal:controller.signal,cache:'no-store',
         headers: {
           'Content-Type': 'application/json',
           Accept: 'application/json'
         },
-        body: JSON.stringify({ page: currentPage(), path: location.pathname })
+        body: JSON.stringify({ page: currentPage(), path: location.pathname,background })
       });
-      if (!response.ok && response.status !== 401) return;
+      if(epoch!==generation)return;
+      if (!response.ok){unavailable();if(response.status!==401)return;}
       const payload = await response.json();
       if (payload.resume_dashboard && payload.dashboard && !editing && document.visibilityState === 'visible') {
         const home = new URL(payload.dashboard, location.origin);
@@ -175,10 +161,12 @@
           return;
         }
       }
-      if (payload.ok) renderPresence(payload.employees || []);
+      if(epoch!==generation)return;
+      if (payload.ok && !payload.background){receivedAt=Date.now();renderPresence(payload.employees,payload.show_durations===true,payload.self_online===true);}
+      else if(!payload.ok)unavailable();
     } catch (error) {
-      // Presence is supplemental and must never interrupt portal work.
-    } finally { checking = false; }
+      unavailable();
+    } finally { window.clearTimeout(timeout);checking = false; }
   };
 
   const setPopover = (open) => {
@@ -206,6 +194,7 @@
     if (document.visibilityState === 'visible') heartbeat();
   });
   window.addEventListener('online', heartbeat);
+  window.addEventListener('offline',()=>{generation++;unavailable();});
   window.addEventListener('pageshow', (event) => { if (event.persisted) { navigating = false; heartbeat(); } });
 
   const notificationControl = status.querySelector('.portal-notification-control');
@@ -314,6 +303,6 @@
   window.lucide?.createIcons();
   updateClock();
   heartbeat();
-  window.setInterval(updateClock, 1000);
-  window.setInterval(heartbeat, 30000);
+  window.setInterval(()=>{updateClock();if(receivedAt&&Date.now()-receivedAt>120000)unavailable();}, 1000);
+  window.setInterval(heartbeat, 15000);
 })();

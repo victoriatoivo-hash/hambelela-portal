@@ -3,6 +3,9 @@ import ftplib, io, os, secrets, socket, ssl, subprocess, sys
 
 paths = ('login.php',)
 base = 'c7bd45dade281d090f3a7196fd59a49e681d36e3'
+if os.environ.get('GITHUB_REF')=='refs/heads/codex/live-online-presence':
+    base='7f32c2aeddc036ecba4496c2e03d5eca7e5458ee'
+    paths=('shared/portal-presence-source.php','login.php','apps/operations/portal-presence.php','assets/js/portal-presence.js')
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
 if mode not in ('preflight','deploy','rollback') or sha != git('rev-parse','HEAD').decode().strip(): sys.exit('Invalid release')

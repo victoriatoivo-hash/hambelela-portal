@@ -16,6 +16,15 @@ if (current_role_key() === 'guest' || !portal_validate_authenticated_session()) 
 require_login();
 
 try {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') {http_response_code(405);header('Allow: POST');echo '{"ok":false}';exit;}
+    $body=json_decode((string)file_get_contents('php://input'),true);
+    $body=is_array($body)?$body:$_POST;
+    $employeeId=ops_current_employee_id();
+    if(!$employeeId)throw new RuntimeException('No authenticated employee');
+    $now=time();
+    portal_widget_touch(db(),$employeeId,portal_widget_key(),$now,(int)strtotime((string)($_SESSION['authenticated_at']??'')),(int)$_SESSION['absolute_expires_at']);
+    // Background tabs confirm connectivity without claiming work or changing the dashboard-return clock.
+    if(($body['background']??false)===true){echo '{"ok":true,"background":true}';exit;}
     db()->exec(
         "CREATE TABLE IF NOT EXISTS ops_board_presence (
             employee_id INT NOT NULL PRIMARY KEY,
@@ -29,11 +38,8 @@ try {
         db()->exec("ALTER TABLE ops_board_presence ADD COLUMN path VARCHAR(255) NULL AFTER page");
     }
 
-    $body = json_decode((string) file_get_contents('php://input'), true);
-    $body = is_array($body) ? $body : $_POST;
     $page = substr(trim((string) ($body['page'] ?? 'Business Portal')), 0, 160);
     $path = substr(trim((string) ($body['path'] ?? '')), 0, 255);
-    $employeeId = ops_current_employee_id();
 
     if ($employeeId) {
         $db = db();
@@ -78,47 +84,9 @@ try {
         unset($_SESSION['portal_dashboard_pending']);
     }
     $_SESSION['portal_last_contact'] = $now;
-    $where = ["e.status = 'active'"];
-    if (current_role_key() !== 'owner_admin') {
-        $where[] = "bp.last_seen_at > DATE_SUB(NOW(), INTERVAL " . portal_presence_online_seconds() . " SECOND)";
-        $where[] = "r.role_key <> 'owner_admin'";
-    }
-
-    $rows = ops_rows(
-        "SELECT e.id, e.full_name, r.name AS role_name, r.role_key,
-                bp.page, bp.path, bp.last_seen_at,
-                s.returned_at, s.last_seen, UNIX_TIMESTAMP()-s.returned_at AS session_duration_seconds,
-                (SELECT prior.last_seen FROM portal_employee_presence_intervals prior WHERE prior.employee_id=bp.employee_id AND prior.id<s.id ORDER BY prior.id DESC LIMIT 1) AS prior_last_seen,
-                TIMESTAMPDIFF(SECOND, bp.last_seen_at, NOW()) AS seconds_since_activity
-         FROM ops_board_presence bp
-         JOIN ops_employees e ON e.id = bp.employee_id
-         JOIN ops_roles r ON r.id = e.role_id
-         LEFT JOIN portal_employee_presence_intervals s ON s.id = (
-             SELECT latest.id FROM portal_employee_presence_intervals latest
-             WHERE latest.employee_id = bp.employee_id ORDER BY latest.id DESC LIMIT 1
-         )
-         WHERE " . implode(' AND ', $where) . "
-         ORDER BY bp.last_seen_at DESC, e.full_name ASC"
-    );
-
-    $employees = array_map(static function (array $row): array {
-        $seconds = max(0, (int) ($row['seconds_since_activity'] ?? 0));
-        return [
-            'id' => (int) $row['id'],
-            'name' => (string) $row['full_name'],
-            'role' => (string) $row['role_name'],
-            'page' => (string) ($row['page'] ?: 'Business Portal'),
-            'path' => (string) ($row['path'] ?? ''),
-            'presence' => $seconds < portal_presence_online_seconds() ? 'online' : 'offline',
-            'last_seen_at' => isset($row['last_seen']) ? portal_presence_local_time((int)$row['last_seen']) : $row['last_seen_at'],
-            'prior_last_seen_at' => isset($row['prior_last_seen']) ? portal_presence_local_time((int)$row['prior_last_seen']) : null,
-            'seconds_since_activity' => $seconds,
-            'session_started_at' => isset($row['returned_at']) ? portal_presence_local_time((int)$row['returned_at']) : null,
-            'session_duration_seconds' => max(0, (int) ($row['session_duration_seconds'] ?? 0)),
-        ];
-    }, $rows);
-
-    echo json_encode(['ok' => true, 'employees' => $employees, 'resume_dashboard' => !empty($_SESSION['portal_dashboard_pending']),
+    $admin=current_role_key()==='owner_admin';
+    echo json_encode(['ok'=>true,'employees'=>portal_widget_roster(db(),$now,$admin),'show_durations'=>$admin,
+        'self_online'=>true,'resume_dashboard'=>!empty($_SESSION['portal_dashboard_pending']),
         'dashboard' => $dashboard], JSON_UNESCAPED_SLASHES);
 } catch (Throwable $error) {
     if (isset($db) && $db->inTransaction()) $db->rollBack();
