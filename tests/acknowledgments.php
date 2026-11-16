@@ -26,6 +26,7 @@ denied(fn()=>$respond(1,'acknowledge','',true),'Owner cannot sign for employee')
 denied(fn()=>$respond(2,'acknowledge'),'Understanding checkbox required');
 denied(fn()=>$respond(2,'clarify'),'Clarification message required');
 $respond(2,'clarify','Please explain step one');check($s->detail(2,$id)['status']==='clarification','Clarification preserved');
+check($s->popup(2)===null,'Awaiting explanation does not prompt again');
 $respond(1,'explained_personally','Explained step one in person');check($s->detail(2,$id)['status']==='pending','Personal explanation does not acknowledge for employee');
 $respond(1,'reply','Follow this instruction');
 $key=S::uuid();$ack=['request_key'=>$key,'recipient_id'=>$id,'action'=>'acknowledge','understood'=>true];$s->respond(2,$ack,'synthetic-session');$s->respond(2,$ack,'synthetic-session');
@@ -41,3 +42,7 @@ $rid=(int)$db->query("SELECT id FROM portal_ack_recipients WHERE employee_id=2 A
 $db->prepare("INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,1,'schedule_edit','internal recipient list',?,NOW())")->execute([$rid,S::uuid()]);
 check(!in_array('schedule_edit',array_column($s->detail(2,$rid)['events'],'event_type'),true),'Employee response omits scheduling audit payload');
 check(in_array('schedule_edit',array_column($s->detail(1,$rid)['events'],'event_type'),true),'Original scheduling audit remains available to Owner');
+$extra=$body;$extra['deadline']='';$extra['title']='Other pending notice';$extra['request_key']=S::uuid();$s->send(1,$extra);
+$first=(int)$s->popup(2)['id'];$next=$s->popup(2,[$first]);
+check($next!==null && (int)$next['id']!==$first,'Deferring one record leaves another available');
+check((int)$s->popup(2)['id']===$first,'Deferred record remains pending when timer expires');

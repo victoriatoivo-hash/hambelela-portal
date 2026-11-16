@@ -157,8 +157,12 @@ final class Service
             $this->event($id,$actor,$action,$message,$key);$this->db->commit();
         }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
-    public function popup(int $actor):?array{
-        $this->actor($actor);$rows=$this->rows("SELECT r.id,i.title,i.message_html,i.deadline,i.required,m.question,m.image_type FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN portal_ack_material m ON m.instruction_id=i.id WHERE r.employee_id=? AND r.status<>'acknowledged' AND i.notify_immediately=1 AND i.release_state='released' AND r.schedule_active=1 ORDER BY COALESCE(i.released_at,i.created_at) DESC,r.id DESC LIMIT 1",[$actor]);return $rows[0]??null;
+    public function popup(int $actor,array $snoozed=[]):?array{
+        $this->actor($actor);
+        if(count($snoozed)>1000)throw new \DomainException('Too many deferred notices.');
+        foreach($snoozed as $id)if(!is_int($id)||$id<1)throw new \DomainException('Invalid deferred notice.');
+        $exclude=$snoozed?' AND r.id NOT IN ('.implode(',',array_fill(0,count($snoozed),'?')).')':'';
+        $rows=$this->rows("SELECT r.id,i.title,i.message_html,i.deadline,i.required,m.question,m.image_type FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN portal_ack_material m ON m.instruction_id=i.id WHERE r.employee_id=? AND r.status='pending' AND i.notify_immediately=1 AND i.release_state='released' AND r.schedule_active=1".$exclude." ORDER BY COALESCE(i.released_at,i.created_at) DESC,r.id DESC LIMIT 1",array_merge([$actor],$snoozed));return $rows[0]??null;
     }
     /** Row lock serializes the worker, cancellation, edits and Send Now. */
     private function releaseLocked(array $instruction):void{

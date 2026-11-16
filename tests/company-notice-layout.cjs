@@ -12,6 +12,9 @@ const file = name => fs.readFileSync(path.join(assets, name), 'utf8');
     for (const width of [320, 390, 768, 1440]) {
       const page = await browser.newPage({viewport:{width,height:800}});
       const actions = [];
+      const pending = [1];
+      await page.clock.install();
+      await page.addInitScript(()=>sessionStorage.setItem('ack-popup:fixture','shown'));
       const styles = [file('css/portal.css'), file('css/acknowledgments.css'),
         fs.readFileSync(process.env.NOTICE_BASE_CSS || path.join(assets,'css/portal-notices.css'),'utf8'),
         file('css/ack-communication.css')].join('\n');
@@ -21,8 +24,13 @@ const file = name => fs.readFileSync(path.join(assets, name), 'utf8');
         if (u.pathname === '/style') return route.fulfill({contentType:'text/css',body:styles});
         if (u.pathname.endsWith('.js')) return route.fulfill({contentType:'text/javascript',body:file('js'+u.pathname)});
         if (u.pathname.endsWith('api.php')) {
-          if (route.request().method()==='POST') actions.push(route.request().postDataJSON().action);
-          return route.fulfill({json:{csrf:'fixture',session:'fixture',notice:{id:1,required:true,title:'Dispatch schedule',message_html:'Please review the attached instructions.',deadline:'2026-11-16 17:00',image_type:'png'}}});
+          const body=route.request().postDataJSON()||{}, action=u.searchParams.get('action');
+          if(action==='respond'){
+            actions.push(body.action);
+            if(body.action==='acknowledge')pending.splice(pending.indexOf(body.recipient_id),1);
+          }
+          const id=pending.find(id=>!(body.snoozed||[]).includes(id));
+          return route.fulfill({json:{csrf:'fixture',session:'fixture',notice:id?{id,required:true,title:'Notice '+id,message_html:'Please review the attached instructions.',deadline:'2026-11-16 17:00',image_type:'png'}:null}});
         }
         if (u.pathname.endsWith('image.php')) return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="240"><rect width="480" height="240" fill="olive"/></svg>'});
         return route.abort();
@@ -56,10 +64,20 @@ const file = name => fs.readFileSync(path.join(assets, name), 'utf8');
         await submit.click(); await dlg.waitFor({state:'detached'});
         assert.deepEqual(actions,['image_opened','acknowledge']);
       } else {
+        pending.push(2);
         await dlg.locator('[data-clarify]').click();
         assert(await dlg.locator('.ack-check').isHidden());
-        await dlg.locator('[data-later]').click(); await dlg.waitFor({state:'detached'});
-        assert.deepEqual(actions,['image_opened']);
+        await dlg.locator('[data-later]').click();
+        await dlg.getByRole('heading',{name:'Notice 2'}).waitFor();
+        await dlg.locator('.ack-check span').click();await submit.click();
+        await dlg.waitFor({state:'detached'});
+        await Promise.all([page.waitForResponse(r=>r.url().includes('action=popup_alternative')),page.reload()]);
+        assert.equal(await dlg.count(),0,'refresh should respect defer');
+        await Promise.all([page.waitForResponse(r=>r.url().includes('action=popup_alternative')),page.clock.fastForward(14*60*1000)]);
+        assert.equal(await dlg.count(),0,'must not interrupt before 15 minutes');
+        await page.clock.fastForward(61*1000);
+        await dlg.getByRole('heading',{name:'Notice 1'}).waitFor();
+        assert.deepEqual(actions,['image_opened','acknowledge']);
       }
       await page.close(); console.log(width+'px: passed');
     }

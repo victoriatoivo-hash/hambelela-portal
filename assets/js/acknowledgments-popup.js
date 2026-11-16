@@ -69,6 +69,25 @@ function privateDialog(p,csrf,editing=false,release=()=>{}){
  if(editing)edit();if(editing||!p.owner)read();else controls();
 }
 loadQueue();
+// Snooze only this recipient record. The former session-wide "shown" flag is intentionally ignored.
+const reminderMs=15*60*1000;
+let reminders={},reminderSession='',wake;
+function readReminders(session){
+ if(reminderSession!==session){
+  reminderSession=session;reminders={};
+  try{reminders=JSON.parse(sessionStorage.getItem('ack-reminders:'+session)||'{}')||{};}catch{}
+ }
+ const now=Date.now();
+ for(const [id,until] of Object.entries(reminders))if(!(until>now))delete reminders[id];
+ clearTimeout(wake);
+ if(Object.keys(reminders).length)wake=setTimeout(()=>{if(running)refreshAgain=true;else check();},Math.max(0,Math.min(...Object.values(reminders))-now));
+ return reminders;
+}
+function remindLater(session,id){
+ readReminders(session)[id]=Date.now()+reminderMs;
+ try{sessionStorage.setItem('ack-reminders:'+session,JSON.stringify(reminders));}catch{}
+ readReminders(session);
+}
 async function check(){
  if(running||document.visibilityState==='hidden')return;running=true;
  try{
@@ -85,19 +104,27 @@ async function check(){
     }
    }finally{if(!opened)gate?.release('private-assistance');}
   }
-  if(!d.notice||location.pathname.includes('/apps/acknowledgments/')||sessionStorage.getItem('ack-popup:'+d.session)||document.querySelector('dialog[open]'))return;
-  if(!window.PortalNoticeGate?.acquire('acknowledgments'))return;
-  const n=d.notice,dialog=document.createElement('dialog');dialog.className='hb-ack-popup hb-portal-notice hb-notice-modal ack-company-notice';dialog.dataset.module='hr';dialog.setAttribute('aria-labelledby','ack-popup-title');
+  if(!d.notice||location.pathname.includes('/apps/acknowledgments/')||document.querySelector('dialog[open]'))return;
+  let n=d.notice;
+  const snoozed=readReminders(d.session);
+  if(snoozed[n.id]){
+   // Let the server pick another eligible record, including older pending notices.
+   n=(await request('popup_alternative',{snoozed:Object.keys(snoozed).map(Number)},d.csrf)).notice;
+   if(n&&snoozed[n.id])return;
+  }
+  if(!n||document.hidden||document.querySelector('dialog[open]'))return;
+  if(window.PortalNoticeGate&&!window.PortalNoticeGate.acquire('acknowledgments'))return;
+  const dialog=document.createElement('dialog');dialog.className='hb-ack-popup hb-portal-notice hb-notice-modal ack-company-notice';dialog.dataset.module='hr';dialog.setAttribute('aria-labelledby','ack-popup-title');
   // message_html is sanitized by the same server service used by the details view.
   dialog.innerHTML='<p class="hb-ack-eyebrow ack-notice-brand"><span class="ack-notice-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H5v17h14V4h-3M9 2h6v4H9zM8 13l3 3 5-6" stroke-width="1.6"/></svg></span>Company notice</p><h2 id="ack-popup-title">'+(n.required?'Please review your instruction':'Company Instruction')+'</h2><h3>'+esc(n.title)+'</h3><div class="ack-preview">'+n.message_html+'</div>'+(n.deadline?'<p class="ack-help">Deadline (Namibia): '+esc(n.deadline)+'</p>':'')+'<form><label class="ack-check"><input type="checkbox" name="understood"><span>I have read and understood this instruction.</span></label><label class="ack-question" hidden>Your question<textarea name="message" maxlength="6000" placeholder="Which part needs explaining?"></textarea></label><p role="alert"></p><footer><button class="ack-action" type="submit" disabled>Acknowledge</button><button class="ack-action secondary" type="button" data-clarify>I Don’t Understand</button><button class="ack-action secondary" type="button" data-later>Remind Me Later</button></footer></form>';
-  window.AckCommunication?.popup(dialog,n,d.csrf);document.body.append(dialog);dialog.showModal();sessionStorage.setItem('ack-popup:'+d.session,'shown');
+  window.AckCommunication?.popup(dialog,n,d.csrf);document.body.append(dialog);dialog.showModal();
   const form=dialog.querySelector('form'),submit=form.querySelector('[type=submit]'),understood=form.elements.understood,question=form.querySelector('.ack-question'),message=form.elements.message,error=form.querySelector('[role=alert]');
   let saving=false,action='acknowledge',key=crypto.randomUUID();
   understood.onchange=()=>{submit.disabled=saving||!understood.checked;};
   form.querySelector('[data-clarify]').onclick=()=>{
    if(saving)return;action='clarify';key=crypto.randomUUID();question.hidden=false;message.required=true;understood.closest('label').hidden=true;submit.textContent='Send clarification';submit.disabled=false;form.querySelector('[data-clarify]').hidden=true;message.focus();
   };
-  form.querySelector('[data-later]').onclick=()=>{if(!saving)dialog.close();};
+  form.querySelector('[data-later]').onclick=()=>{if(!saving){remindLater(d.session,n.id);dialog.close();}};
   form.onsubmit=async event=>{
    event.preventDefault();if(saving||action==='acknowledge'&&!understood.checked)return;
    if(action==='clarify'&&!message.value.trim()){error.textContent='Please enter your question.';message.focus();return;}
@@ -105,11 +132,11 @@ async function check(){
    try{
     const session=await request('list');
     await request('respond',{request_key:key,recipient_id:Number(n.id),action,understood:understood.checked,message:message.value},session.csrf);
-    dialog.close();await check();
+    dialog.close();
    }catch(e){error.textContent=e.message;}finally{saving=false;submit.disabled=action==='acknowledge'&&!understood.checked;}
   };
-  dialog.addEventListener('cancel',e=>{if(saving)e.preventDefault();});
-  dialog.addEventListener('close',()=>{dialog.remove();window.PortalNoticeGate?.release('acknowledgments');});
+  dialog.addEventListener('cancel',e=>{if(saving)e.preventDefault();else remindLater(d.session,n.id);});
+  dialog.addEventListener('close',()=>{dialog.remove();window.PortalNoticeGate?.release('acknowledgments');check();});
  }catch(e){window.PortalNoticeGate?.release('acknowledgments');/* Leave the existing notification centre available on network failure. */}finally{running=false;if(refreshAgain){refreshAgain=false;check();}}
 }
 window.addEventListener('ack:attention-changed',()=>{if(running)refreshAgain=true;else check();});

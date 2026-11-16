@@ -29,11 +29,31 @@ jobs:
     timeout-minutes: 12
     permissions:
       contents: read
+    services:
+      db:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: isolated-fixture
+        ports: ['13317:3306']
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=3s --health-timeout=3s --health-retries=25
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Verify company notice layout with synthetic records
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: pdo_mysql, gd, dom
+          coverage: none
+      - name: Test recipient eligibility with an isolated database
+        env:
+          ACK_TEST_DSN: mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test
+          ACK_TEST_PASSWORD: isolated-fixture
+        run: |
+          php -l apps/acknowledgments/api.php
+          php -l shared/acknowledgments/Service.php
+          php tests/acknowledgments.php
+      - name: Verify company notice layout and reminders with synthetic records
         run: |
           node --check assets/js/ack-communication.js
           node --check assets/js/acknowledgments-popup.js
