@@ -1,0 +1,27 @@
+/* Text only. Inherit each screen's portal font; leave values, controls and layout alone. */
+.ess-dashboard #ess-marketing-title,
+.ess-marketing-page .marketing-main-grid .marketing-panel-header h2,
+.ess-marketing-page .marketing-app-tile strong,
+.ess-marketing-page [data-marketing-analytics] :is(h2,h3),
+.epi-attendance-page [data-last-seen-column] thead th:nth-child(3),
+.settings-wrap [data-last-seen-column] thead th:nth-child(5) {
+  color:#1C2118; font-size:10.5px; font-size-adjust:none; font-weight:500;
+}
+.ess-dashboard [aria-labelledby="ess-marketing-title"] .ess-empty,
+.ess-marketing-page .marketing-hero-subtitle,
+.ess-marketing-page .marketing-main-grid .marketing-panel-header p,
+.ess-marketing-page .marketing-app-tile small,
+.ess-marketing-page .marketing-kpi-card small,
+.ess-marketing-page .marketing-report-card small,
+.ess-marketing-page [data-marketing-analytics] :is(.marketing-section-heading > div > span,header > span,.marketing-filter-status,.marketing-empty,.marketing-safe-note),
+.ess-marketing-page [data-marketing-analytics] article > p:not(:has(+ h2)) {
+  color:#747A70; font-weight:300; line-height:normal;
+}
+.ess-dashboard [aria-labelledby="ess-marketing-title"] :is(.ess-section-label,.ess-stat-label),
+.ess-marketing-page :is(.marketing-hero-copy .marketing-eyebrow,.marketing-kpi-card .marketing-kpi-label,.marketing-report-card > span,.marketing-upcoming button > span),
+.ess-marketing-page [data-marketing-analytics] :is(header p:has(+ h2),th,.marketing-source-badge,[data-analytics-summary] article > span),
+#kpi-employee-profile [data-live-seen],
+.epi-attendance-page [data-last-seen-column] tbody td:nth-child(3),
+.settings-wrap [data-last-seen-column] tbody td:nth-child(5) {
+  color:rgb(28,33,24); font-size:9.5px; font-weight:400;
+}

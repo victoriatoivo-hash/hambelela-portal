@@ -119,6 +119,9 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
         ?>
         <link rel="stylesheet" href="<?= BASE_URL ?>/<?= htmlspecialchars($stylesheetHref, ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($stylesheetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <?php endforeach; ?>
+    <?php if (in_array($_SERVER['SCRIPT_NAME'] ?? '', ['/index.php','/apps/marketing/index.php','/apps/operations/kpi-employee.php','/apps/operations/epi-attendance-performance.php','/apps/operations/my-account.php'], true)): ?>
+    <link rel="stylesheet" href="<?=BASE_URL?>/assets/css/section-typography.css?v=<?=filemtime(BASE_PATH.'/assets/css/section-typography.css')?>">
+    <?php endif; ?>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-date-picker.css?v=<?= htmlspecialchars($datePickerCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-sticky-scrollbar.css?v=<?= htmlspecialchars($stickyScrollbarCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
