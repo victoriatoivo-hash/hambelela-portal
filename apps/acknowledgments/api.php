@@ -10,13 +10,15 @@ try{
     if(!acknowledgments_ready())throw new DomainException('Acknowledgments is not activated yet.');
     $_SESSION['ack_csrf']=$_SESSION['ack_csrf']??bin2hex(random_bytes(32));$action=(string)($_GET['action']??'list');
     if($action==='unnamed_report' && $_SERVER['REQUEST_METHOD']!=='POST'){http_response_code(405);header('Allow: POST');echo '{"error":"Use the reporting form."}';exit;}
-    if(in_array($action,['inbox','message','unnamed_report','popup','private_claim','private_seen','private_item','private_queue','private_act'],true))require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
+    if(in_array($action,['register','report_thread','report_alert','inbox','message','unnamed_report','popup','private_claim','private_seen','private_item','private_queue','private_act'],true))require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
     if($_SERVER['REQUEST_METHOD']==='POST'){
         if(!hash_equals($_SESSION['ack_csrf'],(string)($_SERVER['HTTP_X_CSRF_TOKEN']??'')))throw new DomainException('Session verification failed. Refresh the page.');
         $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
         if($action==='popup_alternative'){if(!is_array($body['snoozed']??null))throw new DomainException('Invalid deferred notices.');echo json_encode(['notice'=>$service->popup($employee,$body['snoozed'],(int)($body['prefer']??0))],JSON_THROW_ON_ERROR);exit;}
         if($action==='unnamed_report'){echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->unnamedReport($employee,$body),JSON_THROW_ON_ERROR);exit;}
         if($action==='message'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->send($employee,$body);echo '{"ok":true}';exit;}
+        if($action==='report_thread'){echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->reportAction($employee,$body),JSON_THROW_ON_ERROR);exit;}
+        if($action==='register_seen'){$service->registerSeen($employee,(int)$body['id'],(int)$body['event'],!empty($body['alert_only']));echo '{"ok":true}';exit;}
         if($action==='private_act'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->promptAction($employee,(int)($body['id']??0),(string)($body['choice']??''),$body);echo '{"ok":true}';exit;}
         if($action==='private_claim'||$action==='private_seen'){
             $box=\Hambelela\Acknowledgments\Mailbox::forPortal(db());$mid=(int)($body['id']??0);
@@ -31,7 +33,16 @@ try{
         else throw new DomainException('Unsupported action.');
         acknowledgments_deliver();echo json_encode($result,JSON_THROW_ON_ERROR);exit;
     }
-    if($action==='clarification_poll')$result=['turn'=>$service->threadPrompt($employee,(int)($_GET['event']??0)),'csrf'=>$_SESSION['ack_csrf']];
+    if($action==='register'){$info=array_column($service->registerInfo($employee),null,'id');$result=$service->listing($employee);foreach($result['records'] as &$row)$row+=$info[$row['id']]??[];unset($row);$result['reports']=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->registerReports($employee);$result['csrf']=$_SESSION['ack_csrf'];}
+    elseif($action==='report_alert')$result=['report'=>\Hambelela\Acknowledgments\Mailbox::forPortal(db())->reportAlert($employee),'csrf'=>$_SESSION['ack_csrf']];
+    elseif($action==='clarification_poll'){
+        $result=['turn'=>$service->threadPrompt($employee,(int)($_GET['event']??0)),'csrf'=>$_SESSION['ack_csrf']];
+        if(!$result['turn']&&empty($_GET['event'])&&(current_user()['role_key']??'')==='owner_admin'){
+            require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
+            $result['report']=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->reportAlert($employee);
+            if(!$result['report'])$result['answer']=$service->answerAlert($employee);
+        }
+    }
     elseif($action==='private_item')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->incoming($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='private_queue')$result=['items'=>\Hambelela\Acknowledgments\Mailbox::forPortal(db())->awaitingReply($employee)];
     elseif($action==='inbox')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];

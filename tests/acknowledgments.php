@@ -9,10 +9,11 @@ if($dsn!=='mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test')throw ne
 $server=new PDO('mysql:host=127.0.0.1;port=13317','root',getenv('ACK_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $server->exec('CREATE DATABASE IF NOT EXISTS acknowledgments_test');
 $db=new PDO($dsn,'root',getenv('ACK_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-$db->exec('DROP TABLE IF EXISTS portal_ack_anonymous,portal_ack_assistance,portal_ack_material,portal_ack_events,portal_ack_recipients,portal_ack_instructions,ops_employees,ops_roles');
+$db->exec('DROP TABLE IF EXISTS portal_ack_report_messages,portal_ack_register_seen,portal_ack_anonymous,portal_ack_assistance,portal_ack_material,portal_ack_events,portal_ack_recipients,portal_ack_instructions,ops_employees,ops_roles');
 $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(40));INSERT INTO ops_roles VALUES(1,'owner_admin'),(2,'front_desk_admin'),(3,'delivery_driver');CREATE TABLE ops_employees(id INT PRIMARY KEY,role_id INT,full_name VARCHAR(190),status VARCHAR(20));INSERT INTO ops_employees VALUES(1,1,'Synthetic Owner','active'),(2,2,'Synthetic Front','active'),(3,3,'Synthetic Driver','active'),(4,2,'Inactive','inactive')");
 $db->exec(file_get_contents(__DIR__.'/../database/acknowledgments.sql'));
 $db->exec(file_get_contents(__DIR__.'/../database/ack-communication.sql'));
+$db->exec(file_get_contents(__DIR__.'/../database/ack-combined-register.sql'));
 $testNow='2026-09-30 08:00:00';$s=new S($db,static function()use(&$testNow){return $testNow;});$body=['request_key'=>S::uuid(),'title'=>'Synthetic instruction','message_html'=>'<p onclick="bad()">Read <b>carefully</b></p><script>alert(1)</script><ol><li>Step</li></ol>','recipients'=>[2,3,2],'required'=>true,'notify_immediately'=>true,'deadline'=>'2026-10-01T09:00'];
 denied(fn()=>$s->send(2,$body),'Employee cannot create instructions');
 $sent=$s->send(1,$body);check(!$sent['duplicate'],'Owner sends instruction');check($s->send(1,$body)['duplicate'],'Send replay idempotent');
@@ -50,3 +51,10 @@ check((int)$s->popup(2,[],(int)$next['id'])['id']===(int)$next['id'],'Restores a
 check((int)$s->popup(2,[],$completedNoticeId)['id']===$first,'Cannot restore an acknowledged notice');
 check((int)$s->popup(2,[(int)$next['id']],(int)$next['id'])['id']===$first,'Deferral wins over restore');
 check((int)$s->popup(2)['id']===$first,'Deferred record remains pending when timer expires');
+$info=array_column($s->registerInfo(1),null,'id');check((bool)$info[$completedNoticeId]['has_clarification']&&(bool)$info[$completedNoticeId]['unread'],'Clarification is a typed conversation with unread events');
+$s->registerSeen(1,$completedNoticeId,(int)$info[$completedNoticeId]['event_id']);
+check(!(bool)array_column($s->registerInfo(1),null,'id')[$completedNoticeId]['unread'],'Owner read cursor clears only the opened conversation');
+denied(fn()=>$s->registerInfo(2),'Employee cannot list the owner register');
+$legacyRef=bin2hex(random_bytes(16));$db->prepare('INSERT INTO portal_ack_anonymous(report_id,lookup_hash,owner_id,body,reply) VALUES(?,?,1,?,?)')->execute([$legacyRef,hash('sha256',random_bytes(32)),'Legacy original','Legacy answer']);
+for($i=0;$i<2;$i++)$db->exec(file_get_contents(__DIR__.'/../database/ack-combined-register.sql'));
+$legacy=$box->reportAction(1,['report'=>$legacyRef]);check(array_column($legacy['messages'],'body')===['Legacy original','Legacy answer']&&array_column($legacy['messages'],'submitted_on')===[null,null],'Re-running migration preserves both surviving legacy messages and never fabricates dates');

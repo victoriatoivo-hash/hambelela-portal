@@ -15,7 +15,7 @@ include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/sidebar.php';
 <button type="button" class="ack-contact-primary" id="ack-private-open">Open private inbox</button><div id="ack-private"></div></section>
 <section class="ack-contact-card" id="anonymous" data-csrf="<?=htmlspecialchars($_SESSION['ack_csrf'],ENT_QUOTES)?>" aria-labelledby="ack-anon-title"><header><i class="ack-contact-symbol" data-lucide="shield-check" aria-hidden="true"></i><h2 id="ack-anon-title">Send without my name</h2></header>
 <p>Only the designated Owner receives the report. Your name and employee ID are not attached or shown in the inbox. Avoid including details that identify you.</p>
-<p class="ack-state">Hosting logs may record connection details, such as your IP address and the time you visited. This is not a guarantee of complete anonymity.</p>
+<p class="ack-state">The conversation shows the Namibia date, never the time or your account. The Owner gets a prompt when a message arrives, so they may infer approximately when it was sent. Hosting logs may also record connection details such as IP and visit time.</p>
 <label for="unnamed-body">Your report</label><textarea id="unnamed-body" rows="3" maxlength="6000" autocomplete="off"></textarea>
 <button type="button" class="ack-contact-primary" id="unnamed-send" disabled>Send without my name</button>
 <p id="unnamed-result" role="status"></p>

@@ -81,3 +81,10 @@
 .ack-thread-notice .ack-question:not([hidden]){display:grid;gap:5px}
 .ack-thread-notice .ack-question textarea{box-sizing:border-box;width:100%;padding:8px;border:1px solid #cbd1c6;border-radius:8px;font:inherit}
 .ack-thread-notice [hidden]{display:none!important}
+.ack-report-dialog h2{overflow-wrap:anywhere}
+.ack-report-history{max-height:46dvh;overflow:auto;display:flex;flex-direction:column;gap:8px;margin:10px 0}
+.ack-report-bubble{align-self:flex-start;max-width:88%;padding:8px 12px;background:#f2eff7;border-radius:10px;color:#302b38;overflow-wrap:anywhere}
+.ack-report-bubble.is-owner{align-self:flex-end;background:#edf2e6;color:#344126}
+.ack-report-bubble p{white-space:pre-wrap;margin:4px 0}
+.ack-report-dialog form:not([hidden]){display:grid;gap:8px}.ack-report-dialog textarea{display:block;box-sizing:border-box;width:100%;font:inherit}
+.ack-type,.ack-unread{display:inline-block;border-radius:10px;padding:2px 8px;font-weight:500}.ack-type.ack{background:#edf2e6;color:#344126}.ack-type.clarify{background:#fff2d9;color:#735019}.ack-type.report{background:#f0ebf7;color:#594178}.ack-unread{background:#e8f0fa;color:#285780}.ack-table [data-thread]{cursor:pointer}

@@ -58,6 +58,25 @@ final class Service
         $rows[0]['recipients']=$user['role_key']==='owner_admin'?array_column($this->rows('SELECT employee_id FROM portal_ack_recipients WHERE instruction_id=? AND schedule_active=1',[$rows[0]['instruction_id']]),'employee_id'):[];
         return $rows[0]+Material::meta($this->db,(int)$rows[0]['instruction_id'])+['events'=>$this->rows('SELECT v.id,v.actor_id,v.event_type,v.message,v.created_at,e.full_name actor_name FROM portal_ack_events v LEFT JOIN ops_employees e ON e.id=v.actor_id WHERE v.recipient_id=?'.($user['role_key']==='owner_admin'?'':" AND LEFT(v.event_type,9)<>'schedule_'").' ORDER BY v.id',[$id])];
     }
+    public function registerInfo(int $actor):array {
+        $this->owner($actor);
+        $types="'assigned','clarify','reply','explained_personally','acknowledge','answer','answer_reply','answer_unclear','answer_received'";
+        return $this->rows("SELECT r.id,m.id event_id,m.created_at latest_date,LEFT(m.message,240) latest_message,
+          EXISTS(SELECT 1 FROM portal_ack_events c WHERE c.recipient_id=r.id AND c.event_type='clarify') has_clarification,
+          EXISTS(SELECT 1 FROM portal_ack_events c WHERE c.recipient_id=r.id AND c.event_type IN ($types) AND c.actor_id<>? AND c.id>COALESCE(s.event_id,0)) unread
+          FROM portal_ack_recipients r LEFT JOIN portal_ack_register_seen s ON s.recipient_id=r.id AND s.owner_id=?
+          LEFT JOIN portal_ack_events m ON m.id=(SELECT MAX(v.id) FROM portal_ack_events v WHERE v.recipient_id=r.id AND v.event_type IN ($types))",[$actor,$actor]);
+    }
+    public function answerAlert(int $actor):?array{
+        $this->owner($actor);
+        $rows=$this->rows("SELECT r.id,m.id event_id FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id
+         JOIN portal_ack_events m ON m.id=(SELECT MAX(v.id) FROM portal_ack_events v WHERE v.recipient_id=r.id AND v.event_type IN ('answer','answer_received','answer_reply','answer_unclear'))
+         LEFT JOIN portal_ack_register_seen s ON s.recipient_id=r.id AND s.owner_id=? WHERE i.sender_id=? AND i.release_state='released' AND r.schedule_active=1 AND m.event_type='answer' AND m.id>GREATEST(COALESCE(s.event_id,0),COALESCE(s.alerted_id,0)) ORDER BY m.id LIMIT 1",[$actor,$actor]);return $rows[0]??null;
+    }
+    public function registerSeen(int $actor,int $id,int $event,bool $alertOnly=false):void{
+        $this->owner($actor);
+        $this->db->prepare('INSERT INTO portal_ack_register_seen(owner_id,recipient_id,event_id,alerted_id) SELECT ?,recipient_id,'.($alertOnly?'0':'id').',id FROM portal_ack_events WHERE recipient_id=? AND id=? ON DUPLICATE KEY UPDATE event_id=GREATEST(event_id,VALUES(event_id)),alerted_id=GREATEST(alerted_id,VALUES(alerted_id))')->execute([$actor,$id,$event]);
+    }
     private function event(int $recipient,int $actor,string $type,string $message,string $key):void{
         $this->db->prepare('INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,?,?,?,?,?)')->execute([$recipient,$actor,$type,$message,$key,$this->now()]);
     }

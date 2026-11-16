@@ -25,31 +25,25 @@ final class Mailbox {
         if(!$this->owner || $s->actor($this->owner)['role_key']!=='owner_admin')
             throw new \DomainException('The private inbox owner has not been configured.');
     }
-    // Sign-in is the entry gate, never part of the report, lookup key or notification.
+    private function store():\Hambelela\AnonymousIntake\Store {
+        require_once dirname(__DIR__,2).'/standalone/ack-anonymous/Store.php';
+        return new \Hambelela\AnonymousIntake\Store($this->db,$this->owner);
+    }
     public function unnamedReport(int $actor,array $data):array {
-        $this->access($actor);
-        $code=is_string($data['code']??null)?strtoupper(str_replace('-','',trim($data['code']))):'';
-        if(!preg_match('/^[A-F0-9]{32}$/D',$code))throw new \DomainException('Enter the complete private reply code.');
-        $hash=hash('sha256',$code);
-        try {
-            if(($data['action']??null)==='check'){
-                $r=$this->rows('SELECT reply FROM portal_ack_anonymous WHERE lookup_hash=? AND owner_id=?',[$hash,$this->owner]);
-                if(!$r)throw new \DomainException('No report was found for that code.');
-                return ['reply'=>$r[0]['reply']];
-            }
-            if(($data['action']??null)!=='submit')throw new \DomainException('Choose Send or Check reply.');
-            $body=is_string($data['body']??null)?trim($data['body']):'';
-            if($body===''||strlen($body)>6000)throw new \DomainException('Enter a report of up to 6,000 bytes.');
-            try{
-                $this->db->prepare('INSERT INTO portal_ack_anonymous(report_id,lookup_hash,owner_id,body) VALUES(?,?,?,?)')
-                    ->execute([bin2hex(random_bytes(16)),$hash,$this->owner,$body]);
-            }catch(\PDOException $e){
-                if((string)$e->getCode()!=='23000')throw $e;
-                $r=$this->rows('SELECT body FROM portal_ack_anonymous WHERE lookup_hash=? AND owner_id=?',[$hash,$this->owner]);
-                if(!$r||$r[0]['body']!==$body)throw new \DomainException('This code is already in use. Check your reply before starting another report.');
-            }
-            return ['saved'=>true];
-        }catch(\PDOException $e){throw new \RuntimeException('Unnamed reporting storage unavailable.');}
+        $this->access($actor);return $this->store()->run($data);
+    }
+    public function registerReports(int $actor):array {
+        if($actor!==$this->owner)return [];$this->access($actor);return $this->store()->summaries();
+    }
+    public function reportAlert(int $actor):?array {
+        if($actor!==$this->owner)return null;$this->access($actor);return $this->store()->alert();
+    }
+    public function reportAction(int $actor,array $body):array {
+        if($actor!==$this->owner)throw new \DomainException('Report unavailable.');
+        $this->access($actor);$id=(string)($body['report']??'');
+        if(!preg_match('/^[a-f0-9]{32}$/D',$id))throw new \DomainException('Report unavailable.');
+        if(isset($body['dismiss'])){$this->store()->dismiss($id,(int)$body['dismiss']);return ['ok'=>true];}
+        return $this->store()->ownerThread($id,$body);
     }
     public function inbox(int $actor,int $selected=0):array {
         $this->access($actor);$owner=$actor===$this->owner;
@@ -58,7 +52,7 @@ final class Mailbox {
         return ['owner'=>$owner,'employee'=>$employee,
             'threads'=>$owner?$this->rows('SELECT a.employee_id,e.full_name,MAX(a.id) latest FROM portal_ack_assistance a JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? GROUP BY a.employee_id,e.full_name ORDER BY latest DESC',[$this->owner]):[],
             'messages'=>$employee?$this->rows("SELECT id,sender_id,body,created_at,(request_key LIKE 't:%') starts_topic FROM portal_ack_assistance WHERE owner_id=? AND employee_id=? ORDER BY id",[$this->owner,$employee]):[],
-            'reports'=>$owner?$this->rows('SELECT report_id,body,reply FROM portal_ack_anonymous WHERE owner_id=? ORDER BY CASE WHEN reply IS NULL THEN 0 ELSE 1 END,report_id',[$this->owner]):[]];
+            'reports'=>[]]; // Reports are managed in the unified register only.
     }
     // One prompt per conversation, for its latest incoming message only. Reading the
     // existing ledger also picks up unanswered questions sent before prompts existed.
@@ -74,7 +68,7 @@ final class Mailbox {
             (SELECT 1 FROM portal_ack_assistance r WHERE r.employee_id=a.employee_id AND r.owner_id=a.owner_id
              AND r.sender_id=a.employee_id AND r.request_key=CONCAT('receipt:',a.id))";
         $chats=(int)$this->rows($sql,$owner?[$this->owner]:[$this->owner,$actor])[0]['n'];
-        $reports=$owner?(int)$this->rows('SELECT COUNT(*) n FROM portal_ack_anonymous WHERE owner_id=? AND reply IS NULL',[$actor])[0]['n']:0;
+        $reports=$owner?(int)$this->rows("SELECT COUNT(*) n FROM portal_ack_anonymous r JOIN portal_ack_report_messages m ON m.id=(SELECT MAX(t.id) FROM portal_ack_report_messages t WHERE t.report_id=r.report_id) WHERE r.owner_id=? AND m.side='reporter'",[$actor])[0]['n']:0;
         return ['private'=>$chats,'reports'=>$reports];
     }
     public function pendingPrompt(int $actor):?array {
@@ -146,12 +140,7 @@ final class Mailbox {
     public function send(int $actor,array $input):void {
         $this->access($actor);$text=trim((string)($input['message']??''));
         if($text===''||strlen($text)>6000)throw new \DomainException('Enter a message of up to 6,000 bytes.');
-        if(isset($input['report'])){
-            if($actor!==$this->owner)throw new \DomainException('Only the inbox owner can reply.');
-            $id=(string)$input['report'];
-            if(!$this->rows('SELECT report_id FROM portal_ack_anonymous WHERE owner_id=? AND report_id=?',[$actor,$id]))throw new \DomainException('Report unavailable.');
-            $this->db->prepare('UPDATE portal_ack_anonymous SET reply=? WHERE owner_id=? AND report_id=?')->execute([$text,$actor,$id]);return;
-        }
+        if(isset($input['report'])){$this->reportAction($actor,$input);return;}
         $employee=(int)($input['employee']??$actor);$key=(string)($input['request_key']??'');
         if($employee===$this->owner||($actor!==$this->owner&&$employee!==$actor)||!preg_match('/^[a-f0-9-]{36}$/D',$key))throw new \DomainException('Invalid conversation.');
         if($actor===$this->owner&&!$this->rows('SELECT id FROM portal_ack_assistance WHERE employee_id=? AND owner_id=? LIMIT 1',[$employee,$actor]))throw new \DomainException('Choose an existing conversation.');

@@ -27,7 +27,6 @@
     const last=d.messages[d.messages.length-1];
     if(!d.owner&&last&&Number(last.sender_id)!==Number(d.employee)){const ack=add('button','Acknowledge reply');ack.type='button';ack.onclick=async()=>{ack.disabled=true;try{await request('api.php?action=private_act',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':d.csrf},body:JSON.stringify({id:last.id,choice:'understood'})});window.dispatchEvent(new Event('ack:attention-changed'));await load(id);}catch(e){error.textContent=e.message;ack.disabled=false;}};}
     composer('Private message',{employee:d.employee});}
-   if(d.owner){add('h3','Anonymous reports');if(!d.reports.length)add('p','No reports.');for(const report of d.reports){add('h4','Anonymous report');add('p',report.body);if(report.reply)add('p','Your reply: '+report.reply);composer(report.reply?'Update reply':'Reply by private code',{report:report.report_id});}}
   }catch(x){if(run===seq)error.textContent=x.message||'Could not load messages.';}}
  document.querySelector('#ack-private-open').onclick=()=>load();
  const panel=document.querySelector('#anonymous[data-csrf]');
@@ -48,9 +47,12 @@
    finally{send.disabled=sent;body.readOnly=sent;field('done').hidden=!sent;}
   };
   field('done').onclick=()=>{key='';sent=false;receipt.hidden=true;field('code').value='';field('result').textContent='';send.disabled=false;body.readOnly=false;};
+  field('lookup').oninput=()=>{field('answer').replaceChildren();};
   check.onclick=async()=>{const output=field('answer');check.disabled=true;output.textContent='Checking…';
-   try{const r=await post({action:'check',code:field('lookup').value});if(!Object.hasOwnProperty.call(r,'reply'))throw Error('Could not confirm a reply.');
-    output.textContent=r.reply===null?'Received. The Owner hasn’t replied yet.':'Owner’s reply: '+r.reply;
+   try{const code=field('lookup').value,r=await post({action:'thread',code});if(code!==field('lookup').value)return;if(!Array.isArray(r.messages))throw Error('Could not load the conversation.');
+    output.replaceChildren();for(const m of r.messages){const p=el('span',(m.side==='owner'?'Owner':'You')+' · '+(m.submitted_on||'Date not recorded')+' — '+m.body);output.append(p,el('br'));}
+    const label=el('label','Follow-up message'),input=el('textarea'),b=el('button','Send follow-up'),feedback=el('span');label.append(input);input.maxLength=6000;b.type='button';output.append(label,b,feedback);
+    let retryKey='',previous='';b.onclick=async()=>{const value=input.value.trim();if(!value)return;if(code!==field('lookup').value){feedback.textContent='Check the code again before replying.';return;}if(value!==previous){retryKey=crypto.randomUUID();previous=value;}b.disabled=true;input.readOnly=true;try{await post({action:'followup',body:value,code,request_key:retryKey});check.click();}catch(e){feedback.textContent=e.message;b.disabled=false;input.readOnly=false;}};
    }catch(e){output.textContent=e.message;}finally{check.disabled=false;}
   };
  }

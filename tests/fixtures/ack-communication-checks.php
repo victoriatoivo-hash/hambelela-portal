@@ -51,15 +51,22 @@ $store=new Store($db,1);$code=bin2hex(random_bytes(16));$report=['action'=>'subm
 $nativeCode=bin2hex(random_bytes(16));
 $native=['action'=>'submit','code'=>$nativeCode,'body'=>'A fixture report without a sender.'];
 check($box->unnamedReport(2,$native)['saved']&&$box->unnamedReport(2,$native)['saved'],'Unnamed submission survives a retried request');
-$nativeRows=$box->inbox(1)['reports'];check(count($nativeRows)===1&&array_keys($nativeRows[0])===['report_id','body','reply'],'Owner sees only report handle, text and reply');
-check(!$box->inbox(3)['reports']&&!$box->inbox(5)['reports'],'Reports invisible to other employees and admins');
+$nativeRows=$box->registerReports(1);check(count($nativeRows)===1&&array_keys($nativeRows[0])===['report_id','side','latest_message','latest_date','submitted_date','unread'],'Owner sees safe register summary only');
+check(!$box->registerReports(3)&&!$box->registerReports(5),'Reports invisible to other employees and admins');
 denied(fn()=>$box->unnamedReport(3,['action'=>'check','code'=>$nativeRows[0]['report_id']]),'Inbox handle cannot be used as a reply code');
-$box->send(1,['report'=>$nativeRows[0]['report_id'],'message'=>'Fixture owner response']);
+$notice=$box->reportAlert(1);check($notice&&$notice['report_id']===$nativeRows[0]['report_id']&&!$box->reportAlert(5),'Owner-only reference notification');
+$box->reportAction(1,['report'=>$notice['report_id'],'dismiss'=>$notice['message_id']]);check(!$box->reportAlert(1)&&(int)$box->registerReports(1)[0]['unread']===1,'Dismissal does not read a report');
+$box->send(1,['report'=>$nativeRows[0]['report_id'],'message'=>'Fixture owner response','request_key'=>S::uuid()]);
 check($box->unnamedReport(2,['action'=>'check','code'=>$nativeCode])===['reply'=>'Fixture owner response'],'Code holder receives only the matching reply');
 denied(fn()=>$box->unnamedReport(2,array_replace($native,['body'=>'different'])),'Retry never replaces the report text');
+$follow=['action'=>'followup','code'=>$nativeCode,'body'=>'More details','request_key'=>S::uuid()];
+$box->unnamedReport(3,$follow);$box->unnamedReport(2,$follow);
+$thread=$box->reportAction(1,['report'=>$notice['report_id']]);
+check(array_column($thread['messages'],'side')===['reporter','owner','reporter']&&array_reduce($thread['messages'],fn($ok,$m)=>$ok&&preg_match('/^\d{4}-\d{2}-\d{2}$/D',$m['submitted_on']),true),'Date-only chronology; retry is not another message');
+check(!$box->reportAlert(1)&&!(int)$box->registerReports(1)[0]['unread'],'Opening thread clears read and notification for seen messages');
 $db->prepare('DELETE FROM portal_ack_anonymous WHERE report_id=?')->execute([$nativeRows[0]['report_id']]); // Isolated synthetic fixture.
-$store->run($report);$store->run($report);$anon=$box->inbox(1)['reports'];check(count($anon)===1&&array_keys($anon[0])===['report_id','body','reply'],'Owner sees neither identity nor code, only one anonymous report after retry');
-check(!$box->inbox(2)['reports']&&!$box->inbox(5)['reports'],'Other accounts cannot read anonymous inbox');$reply=['report'=>$anon[0]['report_id'],'message'=>'Thank you for reporting.'];
+$store->run($report);$store->run($report);$anon=$box->registerReports(1);check(count($anon)===1&&!isset($anon[0]['lookup_hash']),'Owner sees neither identity nor code, only one anonymous report after retry');
+check(!$box->registerReports(2)&&!$box->registerReports(5),'Other accounts cannot read anonymous inbox');$reply=['report'=>$anon[0]['report_id'],'message'=>'Thank you for reporting.','request_key'=>S::uuid()];
 denied(fn()=>$box->send(5,$reply),'Second admin cannot reply to anonymous report');$box->send(1,$reply);
 check(!$box->pendingPrompt(1)&&!$box->pendingPrompt(2),'Anonymous reporting does not trigger identified prompts');
 $incoming=$box->awaitingReply(1);$mid=(int)$incoming[0]['id'];
