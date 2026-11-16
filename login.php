@@ -8,7 +8,9 @@ require_once __DIR__ . '/shared/database.php';
 require_once __DIR__ . '/shared/login-security.php';
 require_once __DIR__ . '/shared/temporary-access-codes.php';
 
-if (($_GET['action'] ?? '') === 'logout') {
+portal_send_private_cache_headers();
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') === 'logout') {
     try {
         portal_device_forget();
     } catch (Throwable $revokeError) {
@@ -28,6 +30,8 @@ if (($_GET['action'] ?? '') === 'logout') {
     }
     record_epi_attendance_event('logout', $epiLogoutUser, 'explicit_logout', $epiLogoutSession);
     logout_user();
+    header('Location: ' . BASE_URL . '/login.php', true, 303);
+    exit;
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['action'] ?? '') !== 'logout'
@@ -344,6 +348,10 @@ if ($opsLoginReady) {
 }
 
 $pageTitle = 'Login | ' . APP_NAME;
+$signInAction = BASE_URL . '/login.php';
+if (isset($_GET['return'])) {
+    $signInAction .= '?return=' . rawurlencode(portal_safe_return_path($_GET['return']));
+}
 $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemtime(BASE_PATH . '/assets/css/portal.css') : (string) time();
 ?>
 <!doctype html>
@@ -379,7 +387,7 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
             <h1 class="login-title">Sign in</h1>
             <p class="login-subtitle">Choose your staff profile and enter your private access code.</p>
         </header>
-        <form method="post" class="login-form" id="login-form">
+        <form method="post" class="login-form" id="login-form" action="<?= htmlspecialchars($signInAction, ENT_QUOTES, 'UTF-8') ?>">
             <?php if (!$opsLoginReady): ?>
                 <p class="login-notice">Employee login is temporarily unavailable. Contact an administrator.</p>
             <?php endif; ?>
@@ -413,7 +421,7 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
                     </button>
                 </div>
             </div>
-            <?php if ($error): ?><p class="login-alert" role="alert"><span aria-hidden="true">!</span>Unable to sign in. Check your details and try again.</p><?php endif; ?>
+            <?php if ($error): ?><p class="login-alert" role="alert"><span aria-hidden="true">!</span><?= $_SERVER['REQUEST_METHOD'] === 'GET' ? htmlspecialchars($error, ENT_QUOTES, 'UTF-8') : 'Unable to sign in. Check your details and try again.' ?></p><?php endif; ?>
             <button type="submit" class="login-submit"><span>Continue</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5"/></svg></button>
         </form>
         <footer class="login-footer"><span>Hambelela Business Portal<br>Authorised staff access only.</span><span class="login-secure-label"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z"/><path d="m8 12 3 3 5-6"/></svg>Secure access</span></footer>
@@ -505,11 +513,15 @@ $assetVersion = is_file(BASE_PATH . '/assets/css/portal.css') ? (string) filemti
     event.preventDefault();
     openMenu();
   });
-  window.addEventListener('pageshow', () => {
+  window.addEventListener('pageshow', (event) => {
     const button = document.querySelector('.login-submit');
     button.disabled = false; button.removeAttribute('aria-busy');
     button.querySelector('span').textContent = 'Continue';
-    code.value = ''; code.type = 'password';
+    if (event.persisted) {
+      code.value = ''; code.type = 'password';
+      toggle.setAttribute('aria-pressed', 'false');
+      toggle.setAttribute('aria-label', 'Show access code');
+    }
   });
 })();
 </script>

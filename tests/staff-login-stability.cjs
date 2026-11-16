@@ -15,6 +15,22 @@ q('[type=search]').dispatchEvent(new w.KeyboardEvent('keydown',{key:'Enter',canc
 assert.equal(q('#identity').value,'db:7');assert.equal(q('.portal-custom-select-value').textContent,'Hope Kahuika');
 q('.portal-custom-select-trigger').click();assert.equal(w.document.querySelectorAll('.portal-custom-select-option:not([hidden])').length,9);
 const presence=fs.readFileSync('assets/js/portal-presence.js','utf8');
+for (const width of [375,768,1440]) {
+  const page=new JSDOM(form,{runScripts:'outside-only'});
+  const win=page.window, doc=win.document;
+  Object.defineProperty(win,'innerWidth',{value:width});
+  win.eval(script);
+  doc.querySelector('.portal-custom-select-trigger').click();
+  doc.querySelector('[data-value="db:7"]').click();
+  const code=doc.querySelector('#code');
+  code.value='typed-before-load';
+  win.dispatchEvent(new win.PageTransitionEvent('pageshow',{persisted:false}));
+  assert.equal(new win.FormData(doc.querySelector('form')).get('identity'),'db:7');
+  assert.equal(code.value,'typed-before-load','normal pageshow must not clear entered code');
+  win.dispatchEvent(new win.PageTransitionEvent('pageshow',{persisted:true}));
+  assert.equal(code.value,'','history restore must clear a previously entered code');
+  win.close();
+}
 async function exercise(path,status,payload,edit=false){
   const dom=new JSDOM('<section data-portal-header-status data-presence-endpoint="/heartbeat">'+
     ['date','time','online-widget','online-avatars','online-count','online-popover','online-list'].map(n=>'<span data-portal-'+n+'></span>').join('')+'</section><textarea></textarea>',{pretendToBeVisual:true});
