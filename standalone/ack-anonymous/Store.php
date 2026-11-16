@@ -3,7 +3,9 @@ declare(strict_types=1);
 namespace Hambelela\AnonymousIntake;
 /** Capability-based intake. No reporter identity, session, private code or exact time in the thread. */
 final class Store {
-    public function __construct(private \PDO $db,private int $owner){}
+    private \PDO $db;
+    private int $owner;
+    public function __construct(\PDO $db,int $owner){$this->db=$db;$this->owner=$owner;}
     private function sql(string $q,array $p):\PDOStatement{$s=$this->db->prepare($q);$s->execute($p);return $s;}
     private static function day():string{return (new \DateTimeImmutable('now',new \DateTimeZone('Africa/Windhoek')))->format('Y-m-d');}
     private static function text($v):string{if(!is_string($v)||trim($v)===''||strlen(trim($v))>6000)throw new \DomainException('Enter a message of up to 6,000 bytes.');return trim($v);}
