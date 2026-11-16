@@ -11,8 +11,8 @@ const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__di
    const page=await browser.newPage({viewport:{width,height:820}});page.setDefaultTimeout(16000);
    await page.route('https://notice.test/**',async route=>{
     const u=new URL(route.request().url());
-    if(u.pathname==='/')return route.fulfill({contentType:'text/html',body:'<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><script defer src="/popup.js"></script>'});
-    if(u.pathname==='/popup.js')return route.fulfill({contentType:'text/javascript',body:script});
+    if(u.pathname==='/')return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script defer src="/popup.js"></script>'});
+    if(u.pathname==='/popup.js')return route.fulfill({contentType:'text/javascript; charset=utf-8',body:script});
     const result=service(actor,u.searchParams.get('action'),{...Object.fromEntries(u.searchParams),...(route.request().postDataJSON()||{})});
     return route.fulfill({status:result.error?403:200,json:result});
    });
