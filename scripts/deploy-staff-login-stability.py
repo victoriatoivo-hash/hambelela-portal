@@ -2,7 +2,7 @@
 import ftplib, io, os, secrets, socket, ssl, subprocess, sys
 
 paths = ('login.php',)
-base = '3c60a6c5203ead562b53aa9b5e906a6239ea2879'
+base = 'c7bd45dade281d090f3a7196fd59a49e681d36e3'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
 if mode not in ('preflight','deploy','rollback') or sha != git('rev-parse','HEAD').decode().strip(): sys.exit('Invalid release')
