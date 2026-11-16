@@ -60,7 +60,12 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/notice-tests" --ignore-scripts --no-audit --no-fund playwright@1.56.1
           curl -fsS --retry 2 https://portal.hambelelaorganic.com/assets/css/portal-notices.css -o "$RUNNER_TEMP/portal-notices.css"
           CHROME_BIN="$(command -v google-chrome)" NODE_PATH="$RUNNER_TEMP/notice-tests/node_modules" NOTICE_BASE_CSS="$RUNNER_TEMP/portal-notices.css" node tests/company-notice-layout.cjs
-      - name: Compare live baselines and release only three popup assets
+      - name: Test Admin and Employee clarification round trips on isolated MariaDB
+        env:
+          ACK_TEST_DSN: mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test
+          ACK_TEST_PASSWORD: isolated-fixture
+        run: CHROME_BIN="$(command -v google-chrome)" NODE_PATH="$RUNNER_TEMP/notice-tests/node_modules" node tests/ack-clarification-roundtrip.cjs
+      - name: Compare live baselines and release only Company Notice files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
@@ -69,6 +74,9 @@ jobs:
         run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
       - name: Test the publicly served styles and scripts on desktop and mobile
         if: inputs.contact_stage == 'deploy'
+        env:
+          ACK_TEST_DSN: mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test
+          ACK_TEST_PASSWORD: isolated-fixture
         run: |
           export NOTICE_ASSETS="$RUNNER_TEMP/published-assets"
           mkdir -p "$NOTICE_ASSETS/css" "$NOTICE_ASSETS/js"
@@ -77,6 +85,7 @@ jobs:
           done
           for f in css/ack-communication.css js/ack-communication.js js/acknowledgments-popup.js; do diff --strip-trailing-cr "assets/$f" "$NOTICE_ASSETS/$f"; done
           CHROME_BIN="$(command -v google-chrome)" NODE_PATH="$RUNNER_TEMP/notice-tests/node_modules" node tests/company-notice-layout.cjs
+          CHROME_BIN="$(command -v google-chrome)" NODE_PATH="$RUNNER_TEMP/notice-tests/node_modules" node tests/ack-clarification-roundtrip.cjs
   employee-instructions-home:
     if: github.ref == 'refs/heads/codex/employee-instructions-messages-home' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest

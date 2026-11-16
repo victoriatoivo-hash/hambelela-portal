@@ -75,3 +75,9 @@
 .ack-notice-viewer [role=status]{margin:12px 0 0;font:400 14px/1.5 Jost,sans-serif;color:#4d5948}
 .ack-notice-viewer > div:not(:empty){display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
 @media(max-width:600px){.ack-company-notice .ack-attachment-row button,.ack-notice-viewer button{min-height:44px}.ack-notice-viewer header button{width:44px}}
+.ack-thread-notice section[aria-label="Conversation"]{margin-block:12px;overflow-wrap:anywhere}
+.ack-thread-notice section[aria-label="Conversation"] p{background:#f3f5ef;border-radius:9px;padding:9px 12px;margin:6px 0;white-space:pre-wrap}
+.ack-thread-notice section[aria-label="Conversation"] strong{font-size:12px;color:#46563d}
+.ack-thread-notice .ack-question:not([hidden]){display:grid;gap:5px}
+.ack-thread-notice .ack-question textarea{box-sizing:border-box;width:100%;padding:8px;border:1px solid #cbd1c6;border-radius:8px;font:inherit}
+.ack-thread-notice [hidden]{display:none!important}

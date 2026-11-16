@@ -69,6 +69,59 @@ function privateDialog(p,csrf,editing=false,release=()=>{}){
  if(editing)edit();if(editing||!p.owner)read();else controls();
 }
 loadQueue();
+// Clarification delivery uses a read-only poll, not the notification/evidence delivery job.
+let threadRunning=false,threadTimer,threadDialog=null,threadErrors=0;
+function scheduleThread(ms=4000){clearTimeout(threadTimer);if(!document.hidden)threadTimer=setTimeout(pollThread,ms);}
+async function pollThread(){
+ if(threadRunning||document.hidden)return;
+ threadRunning=true;
+ try{
+  if(threadDialog?.busy||(!threadDialog&&document.querySelector('dialog[open]')))return;
+  const current=threadDialog;
+  const d=await request('clarification_poll'+(current?'&event='+Number(current.turn.event_id):''));
+  threadErrors=0;
+  if(current){if(!d.turn&&current===threadDialog&&!current.busy)current.dialog.close();return;}
+  if(!d.turn||document.hidden||document.querySelector('dialog[open]'))return;
+  const t=d.turn,r=await request('detail&id='+Number(t.recipient_id));
+  const messages=r.events.filter(v=>['clarify','reply','explained_personally'].includes(v.event_type));
+  if(Number(messages.at(-1)?.id)!==Number(t.event_id)||r.withdrawn||r.status!==(t.event_type==='clarify'?'clarification':'pending')||document.hidden||document.querySelector('dialog[open]'))return;
+  if(window.PortalNoticeGate&&!window.PortalNoticeGate.acquire('ack-thread'))return;
+  try{showThread(t,r,messages,d.csrf);}catch(e){window.PortalNoticeGate?.release('ack-thread');throw e;}
+ }catch{threadErrors++;}finally{threadRunning=false;scheduleThread(Math.min(60000,4000*2**Math.min(4,threadErrors)));}
+}
+function showThread(t,r,messages,csrf){
+ const admin=t.event_type==='clarify',dialog=document.createElement('dialog');
+ dialog.className='hb-ack-popup hb-portal-notice hb-notice-modal ack-company-notice ack-thread-notice';
+ dialog.dataset.module='hr';dialog.setAttribute('aria-labelledby','ack-thread-heading');
+ dialog.innerHTML='<p class="hb-ack-eyebrow">Company notice · Clarification</p><h2 id="ack-thread-heading"></h2><h3></h3><div class="ack-preview"></div><section aria-label="Conversation"></section><form><label class="ack-question">Your message<textarea maxlength="6000" rows="3"></textarea></label><p role="alert"></p><footer></footer></form>';
+ dialog.querySelector('h2').textContent=admin?r.employee_name+' asks for clarification':'Management replied to your question';
+ dialog.querySelector('h3').textContent=r.title;dialog.querySelector('.ack-preview').innerHTML=r.message_html;
+ const history=dialog.querySelector('section');
+ for(const m of messages){const p=document.createElement('p'),who=document.createElement('strong');who.textContent=(m.actor_name||'Sender')+' · '+m.created_at;p.append(who,document.createElement('br'),document.createTextNode(m.message));history.append(p);}
+ const form=dialog.querySelector('form'),input=form.querySelector('textarea'),label=input.closest('label'),error=form.querySelector('[role=alert]'),footer=form.querySelector('footer');
+ const state={turn:t,dialog,busy:false};let key=crypto.randomUUID(),previous='';
+ function button(title,primary,fn){const b=document.createElement('button');b.type='button';b.className='ack-action'+(primary?'':' secondary');b.textContent=title;b.onclick=fn;footer.append(b);return b;}
+ async function send(action){
+  if(state.busy)return;
+  const message=['reply','clarify'].includes(action)?input.value.trim():'';
+  if(['reply','clarify'].includes(action)&&!message){error.textContent='Enter your message first.';input.focus();return;}
+  if(action==='thread_later'&&input.value.trim()&&!window.confirm('Leave without sending your draft?'))return;
+  const signature=JSON.stringify([action,message]);if(signature!==previous){key=crypto.randomUUID();previous=signature;}
+  state.busy=true;input.readOnly=true;footer.querySelectorAll('button').forEach(b=>b.disabled=true);error.textContent='';
+  try{await request('respond',{action,message,recipient_id:Number(t.recipient_id),expected_event:Number(t.event_id),understood:action==='acknowledge',request_key:key},csrf);dialog.close();}
+  catch(e){error.textContent=e.message;}finally{state.busy=false;input.readOnly=false;footer.querySelectorAll('button').forEach(b=>b.disabled=false);}
+ }
+ label.hidden=!admin;const primary=button(admin?'Send reply':'I Understand / Acknowledge',true,()=>send(admin?'reply':label.hidden?'acknowledge':'clarify'));
+ if(!admin){const again=button('I Still Don’t Understand',false,()=>{label.hidden=false;again.hidden=true;primary.textContent='Send clarification';input.focus();});}
+ button(admin?'Respond Later':'View Later',false,()=>send('thread_later'));
+ form.onsubmit=e=>{e.preventDefault();};dialog.oncancel=e=>{e.preventDefault();if(!state.busy)send('thread_later');};
+ dialog.onclose=()=>{dialog.remove();threadDialog=null;window.PortalNoticeGate?.release('ack-thread');scheduleThread(0);};
+ document.body.append(dialog);dialog.showModal();threadDialog=state;
+ // Enter in a newly opened dialog must not accidentally confirm understanding.
+ if(admin)input.focus();else{dialog.querySelector('h2').tabIndex=-1;dialog.querySelector('h2').focus();}
+}
+window.addEventListener('focus',()=>scheduleThread(0));document.addEventListener('visibilitychange',()=>scheduleThread(0));
+window.addEventListener('portal:notice-closed',()=>scheduleThread(0));scheduleThread(0);
 // Snooze only this recipient record. The former session-wide "shown" flag is intentionally ignored.
 const reminderMs=15*60*1000;
 let reminders={},reminderSession='',wake;
@@ -142,7 +195,7 @@ async function check(){
    saving=true;submit.disabled=true;error.textContent='';
    try{
     const session=await request('list');
-    await request('respond',{request_key:key,recipient_id:Number(n.id),action,understood:understood.checked,message:message.value},session.csrf);
+    await request('respond',{request_key:key,recipient_id:Number(n.id),expected_event:0,action,understood:understood.checked,message:message.value},session.csrf);
     dialog.close();
    }catch(e){error.textContent=e.message;}finally{saving=false;submit.disabled=action==='acknowledge'&&!understood.checked;}
   };

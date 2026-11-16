@@ -31,7 +31,8 @@ try{
         else throw new DomainException('Unsupported action.');
         acknowledgments_deliver();echo json_encode($result,JSON_THROW_ON_ERROR);exit;
     }
-    if($action==='private_item')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->incoming($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
+    if($action==='clarification_poll')$result=['turn'=>$service->threadPrompt($employee,(int)($_GET['event']??0)),'csrf'=>$_SESSION['ack_csrf']];
+    elseif($action==='private_item')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->incoming($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='private_queue')$result=['items'=>\Hambelela\Acknowledgments\Mailbox::forPortal(db())->awaitingReply($employee)];
     elseif($action==='inbox')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='detail')$result=$service->detail($employee,(int)($_GET['id']??0));

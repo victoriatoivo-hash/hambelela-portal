@@ -117,6 +117,21 @@ final class Service
             if($d['withdrawn'])throw new \DomainException('This acknowledgment was withdrawn. Its response history is read-only.');
             if($d['release_state']!=='released'||!(int)$d['schedule_active'])throw new \DomainException('This acknowledgment has not been released.');
             if($prior){if((int)$prior[0]['actor_id']!==$actor||(int)$prior[0]['recipient_id']!==$id)throw new \DomainException('Invalid repeated request.');$this->db->commit();return;}
+            if(array_key_exists('expected_event',$body)){
+                $turns=array_values(array_filter($d['events'],static fn($v)=>in_array($v['event_type'],['clarify','reply','explained_personally'],true)));
+                $last=$turns?end($turns):null;
+                if((int)($last['id']??0)!==(int)$body['expected_event']||$d['status']==='acknowledged')throw new \DomainException('This conversation changed. Reopen the latest message.');
+                if($action==='reply'||($action==='thread_later'&&$d['status']==='clarification')){
+                    if($d['status']!=='clarification'||(int)$d['sender_id']!==$actor)throw new \DomainException('Only the instruction sender may respond to this question.');
+                    $this->owner($actor);
+                }elseif(!in_array($action,['acknowledge','clarify','thread_later'],true)||$d['status']!=='pending'||(int)$d['employee_id']!==$actor)throw new \DomainException('This is not your turn to respond.');
+                if($action==='thread_later'){
+                    if(!$last)throw new \DomainException('No clarification message to defer.');
+                    // A delivery receipt, not a response, notification, or performance event.
+                    $this->db->prepare("INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at,notification_delivered_at,evidence_recorded_at) VALUES(?,?,'thread_deferred','Deferred to Acknowledgments',?,?,?,?) ON DUPLICATE KEY UPDATE id=id")->execute([$id,$actor,'ack-later-'.$last['id'],$this->now(),$this->now(),$this->now()]);
+                    $this->db->commit();return;
+                }
+            }
             if(in_array($action,['image_opened','image_understood','image_unclear','answer','answer_received','answer_unclear','answer_reply'],true)){
                 $employee=(int)$d['employee_id']===$actor;
                 if(in_array($action,['image_opened','image_understood','image_unclear','answer'],true)){
@@ -157,11 +172,22 @@ final class Service
             $this->event($id,$actor,$action,$message,$key);$this->db->commit();
         }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
+    /** Lightweight, read-only delivery check. Opening a dialog never consumes a message. */
+    public function threadPrompt(int $actor,int $event=0):?array{
+        $user=$this->actor($actor);
+        $args=[$actor];$target="(r.employee_id=? AND r.status='pending' AND v.event_type IN ('reply','explained_personally'))";
+        if($user['role_key']==='owner_admin'){$target.=" OR (i.sender_id=? AND r.status='clarification' AND v.event_type='clarify')";$args[]=$actor;}
+        if($event>0)$args[]=$event;
+        $rows=$this->rows("SELECT v.id event_id,r.id recipient_id,v.event_type FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id JOIN portal_ack_events v ON v.id=(SELECT t.id FROM portal_ack_events t WHERE t.recipient_id=r.id AND t.event_type IN ('clarify','reply','explained_personally') ORDER BY t.id DESC LIMIT 1) WHERE i.release_state='released' AND r.schedule_active=1 AND ($target) AND NOT EXISTS(SELECT 1 FROM portal_ack_events later WHERE later.request_key=CONCAT('ack-later-',v.id))".($event>0?' AND v.id=?':'')." ORDER BY v.id LIMIT 1",$args);
+        return $rows[0]??null;
+    }
     public function popup(int $actor,array $snoozed=[],int $prefer=0):?array{
         $this->actor($actor);
         if(count($snoozed)>1000)throw new \DomainException('Too many deferred notices.');
         foreach($snoozed as $id)if(!is_int($id)||$id<1)throw new \DomainException('Invalid deferred notice.');
         $exclude=$snoozed?' AND r.id NOT IN ('.implode(',',array_fill(0,count($snoozed),'?')).')':'';
+        // Once management has replied, show the conversation instead of a generic instruction.
+        $exclude.=" AND NOT EXISTS(SELECT 1 FROM portal_ack_events t WHERE t.recipient_id=r.id AND t.event_type IN ('reply','explained_personally'))";
         $priority=$prefer>0?'(r.id=?) DESC,':'';
         $args=array_merge([$actor],$snoozed);if($prefer>0)$args[]=$prefer;
         $rows=$this->rows("SELECT r.id,i.title,i.message_html,i.deadline,i.required,m.question,m.image_type FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN portal_ack_material m ON m.instruction_id=i.id WHERE r.employee_id=? AND r.status='pending' AND i.notify_immediately=1 AND i.release_state='released' AND r.schedule_active=1".$exclude." ORDER BY ".$priority."COALESCE(i.released_at,i.created_at) DESC,r.id DESC LIMIT 1",$args);return $rows[0]??null;
