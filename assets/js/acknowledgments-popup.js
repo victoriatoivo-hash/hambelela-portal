@@ -88,12 +88,23 @@ function remindLater(session,id){
  try{sessionStorage.setItem('ack-reminders:'+session,JSON.stringify(reminders));}catch{}
  readReminders(session);
 }
+// Store only a recipient-record ID; always reload content and eligibility from the server.
+function openNotice(session,id){
+ const key='ack-open:'+session;
+ try{
+  if(id===undefined)return Number(sessionStorage.getItem(key))||0;
+  if(id)sessionStorage.setItem(key,String(id));else sessionStorage.removeItem(key);
+ }catch{}
+ return 0;
+}
 async function check(){
  if(running||document.visibilityState==='hidden')return;running=true;
  try{
   const d=await request('popup');
   paintAttention(d);
-  if(d.private_prompt&&!document.hidden&&!document.querySelector('dialog[open]')){
+  if(!d.notice)openNotice(d.session,0);
+  const prefer=d.notice&&!location.pathname.includes('/apps/acknowledgments/')?openNotice(d.session):0;
+  if(!prefer&&d.private_prompt&&!document.hidden&&!document.querySelector('dialog[open]')){
    const gate=window.PortalNoticeGate;
    if(gate&&!gate.acquire('private-assistance'))return;
    let opened=false;
@@ -107,9 +118,9 @@ async function check(){
   if(!d.notice||location.pathname.includes('/apps/acknowledgments/')||document.querySelector('dialog[open]'))return;
   let n=d.notice;
   const snoozed=readReminders(d.session);
-  if(snoozed[n.id]){
-   // Let the server pick another eligible record, including older pending notices.
-   n=(await request('popup_alternative',{snoozed:Object.keys(snoozed).map(Number)},d.csrf)).notice;
+  if(snoozed[n.id]||(prefer&&prefer!==Number(n.id))){
+   n=(await request('popup_alternative',{snoozed:Object.keys(snoozed).map(Number),prefer},d.csrf)).notice;
+   if(!n||Number(n.id)!==prefer)openNotice(d.session,0);
    if(n&&snoozed[n.id])return;
   }
   if(!n||document.hidden||document.querySelector('dialog[open]'))return;
@@ -117,7 +128,7 @@ async function check(){
   const dialog=document.createElement('dialog');dialog.className='hb-ack-popup hb-portal-notice hb-notice-modal ack-company-notice';dialog.dataset.module='hr';dialog.setAttribute('aria-labelledby','ack-popup-title');
   // message_html is sanitized by the same server service used by the details view.
   dialog.innerHTML='<p class="hb-ack-eyebrow ack-notice-brand"><span class="ack-notice-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H5v17h14V4h-3M9 2h6v4H9zM8 13l3 3 5-6" stroke-width="1.6"/></svg></span>Company notice</p><h2 id="ack-popup-title">'+(n.required?'Please review your instruction':'Company Instruction')+'</h2><h3>'+esc(n.title)+'</h3><div class="ack-preview">'+n.message_html+'</div>'+(n.deadline?'<p class="ack-help">Deadline (Namibia): '+esc(n.deadline)+'</p>':'')+'<form><label class="ack-check"><input type="checkbox" name="understood"><span>I have read and understood this instruction.</span></label><label class="ack-question" hidden>Your question<textarea name="message" maxlength="6000" placeholder="Which part needs explaining?"></textarea></label><p role="alert"></p><footer><button class="ack-action" type="submit" disabled>Acknowledge</button><button class="ack-action secondary" type="button" data-clarify>I Don’t Understand</button><button class="ack-action secondary" type="button" data-later>Remind Me Later</button></footer></form>';
-  window.AckCommunication?.popup(dialog,n,d.csrf);document.body.append(dialog);dialog.showModal();
+  window.AckCommunication?.popup(dialog,n,d.csrf);document.body.append(dialog);dialog.showModal();openNotice(d.session,n.id);
   const form=dialog.querySelector('form'),submit=form.querySelector('[type=submit]'),understood=form.elements.understood,question=form.querySelector('.ack-question'),message=form.elements.message,error=form.querySelector('[role=alert]');
   let saving=false,action='acknowledge',key=crypto.randomUUID();
   understood.onchange=()=>{submit.disabled=saving||!understood.checked;};
@@ -136,7 +147,7 @@ async function check(){
    }catch(e){error.textContent=e.message;}finally{saving=false;submit.disabled=action==='acknowledge'&&!understood.checked;}
   };
   dialog.addEventListener('cancel',e=>{if(saving)e.preventDefault();else remindLater(d.session,n.id);});
-  dialog.addEventListener('close',()=>{dialog.remove();window.PortalNoticeGate?.release('acknowledgments');check();});
+  dialog.addEventListener('close',()=>{openNotice(d.session,0);dialog.remove();window.PortalNoticeGate?.release('acknowledgments');check();});
  }catch(e){window.PortalNoticeGate?.release('acknowledgments');/* Leave the existing notification centre available on network failure. */}finally{running=false;if(refreshAgain){refreshAgain=false;check();}}
 }
 window.addEventListener('ack:attention-changed',()=>{if(running)refreshAgain=true;else check();});

@@ -29,7 +29,8 @@ const file = name => fs.readFileSync(path.join(assets, name), 'utf8');
             actions.push(body.action);
             if(body.action==='acknowledge')pending.splice(pending.indexOf(body.recipient_id),1);
           }
-          const id=pending.find(id=>!(body.snoozed||[]).includes(id));
+          const eligible=pending.filter(id=>!(body.snoozed||[]).includes(id));
+          const id=eligible.includes(body.prefer)?body.prefer:eligible[0];
           return route.fulfill({json:{csrf:'fixture',session:'fixture',notice:id?{id,required:true,title:'Notice '+id,message_html:'Please review the attached instructions.',deadline:'2026-11-16 17:00',image_type:'png'}:null}});
         }
         if (u.pathname.endsWith('image.php')) return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="240"><rect width="480" height="240" fill="olive"/></svg>'});
@@ -38,6 +39,11 @@ const file = name => fs.readFileSync(path.join(assets, name), 'utf8');
       await page.goto('https://notice.test/');
       const dlg = page.locator('.ack-company-notice[open]');
       await dlg.waitFor();
+      pending.unshift(3); // A newer notice arrives while the employee is reading notice 1.
+      await page.reload();
+      await dlg.getByRole('heading',{name:'Notice 1'}).waitFor();
+      assert.deepEqual(actions,[],'Refreshing an open notice must not submit any response');
+      pending.shift();
       assert(await dlg.evaluate(d => {
         const box = d.querySelector('.ack-check input'), label = d.querySelector('.ack-check span');
         const brand = d.querySelector('.ack-notice-brand'), range = new Range();

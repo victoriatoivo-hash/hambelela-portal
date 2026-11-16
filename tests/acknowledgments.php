@@ -37,6 +37,7 @@ check($s->popup(2)['title']==='Revised','New instruction available to login popu
 $bad=$body;$bad['request_key']=S::uuid();$bad['recipients']=[4];denied(fn()=>$s->send(1,$bad),'Inactive recipient rejected');
 check((int)$db->query('SELECT COUNT(*) FROM portal_ack_instructions')->fetchColumn()===2,'Failed send rolls back');
 echo "Acknowledgments service checks complete. Synthetic database only.\n";
+$completedNoticeId=$id;
 require __DIR__.'/fixtures/ack-communication-checks.php';
 $rid=(int)$db->query("SELECT id FROM portal_ack_recipients WHERE employee_id=2 AND schedule_active=1 LIMIT 1")->fetchColumn();
 $db->prepare("INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,1,'schedule_edit','internal recipient list',?,NOW())")->execute([$rid,S::uuid()]);
@@ -45,4 +46,7 @@ check(in_array('schedule_edit',array_column($s->detail(1,$rid)['events'],'event_
 $extra=$body;$extra['deadline']='';$extra['title']='Other pending notice';$extra['request_key']=S::uuid();$s->send(1,$extra);
 $first=(int)$s->popup(2)['id'];$next=$s->popup(2,[$first]);
 check($next!==null && (int)$next['id']!==$first,'Deferring one record leaves another available');
+check((int)$s->popup(2,[],(int)$next['id'])['id']===(int)$next['id'],'Restores already-open eligible notice ahead of a newer one');
+check((int)$s->popup(2,[],$completedNoticeId)['id']===$first,'Cannot restore an acknowledged notice');
+check((int)$s->popup(2,[(int)$next['id']],(int)$next['id'])['id']===$first,'Deferral wins over restore');
 check((int)$s->popup(2)['id']===$first,'Deferred record remains pending when timer expires');

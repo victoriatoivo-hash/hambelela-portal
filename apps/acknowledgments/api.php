@@ -14,7 +14,7 @@ try{
     if($_SERVER['REQUEST_METHOD']==='POST'){
         if(!hash_equals($_SESSION['ack_csrf'],(string)($_SERVER['HTTP_X_CSRF_TOKEN']??'')))throw new DomainException('Session verification failed. Refresh the page.');
         $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
-        if($action==='popup_alternative'){if(!is_array($body['snoozed']??null))throw new DomainException('Invalid deferred notices.');echo json_encode(['notice'=>$service->popup($employee,$body['snoozed'])],JSON_THROW_ON_ERROR);exit;}
+        if($action==='popup_alternative'){if(!is_array($body['snoozed']??null))throw new DomainException('Invalid deferred notices.');echo json_encode(['notice'=>$service->popup($employee,$body['snoozed'],(int)($body['prefer']??0))],JSON_THROW_ON_ERROR);exit;}
         if($action==='unnamed_report'){echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->unnamedReport($employee,$body),JSON_THROW_ON_ERROR);exit;}
         if($action==='message'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->send($employee,$body);echo '{"ok":true}';exit;}
         if($action==='private_act'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->promptAction($employee,(int)($body['id']??0),(string)($body['choice']??''),$body);echo '{"ok":true}';exit;}
