@@ -82,7 +82,7 @@ async function pollThread(){
   threadErrors=0;
   if(current){if(!d.turn&&current===threadDialog&&!current.busy)current.dialog.close();return;}
   if(document.hidden||document.querySelector('dialog[open]'))return;
-  if(!d.turn){if(d.report)reportDialog(d.report.report_id,d.csrf,d.report.message_id);else if(d.answer)answerAlert(d.answer,d.csrf);return;}
+  if(!d.turn){if(d.report)reportDialog(d.report.report_id,d.csrf,d.report.message_id,null,d.report.preview);else if(d.assistance)reportDialog(Number(d.assistance.topic),d.csrf,d.assistance.message_id,d.assistance.employee_name,d.assistance.latest_message);else if(d.answer)answerAlert(d.answer,d.csrf);return;}
   const t=d.turn,r=await request('detail&id='+Number(t.recipient_id));
   const messages=r.events.filter(v=>['clarify','reply','explained_personally'].includes(v.event_type));
   if(Number(messages.at(-1)?.id)!==Number(t.event_id)||r.withdrawn||r.status!==(t.event_type==='clarify'?'clarification':'pending')||document.hidden||document.querySelector('dialog[open]'))return;
@@ -97,8 +97,8 @@ function showThread(t,r,messages,csrf){
  dialog.innerHTML='<p class="hb-ack-eyebrow">Company notice · Clarification</p><h2 id="ack-thread-heading"></h2><h3></h3><div class="ack-preview"></div><section aria-label="Conversation"></section><form><label class="ack-question">Your message<textarea maxlength="6000" rows="3"></textarea></label><p role="alert"></p><footer></footer></form>';
  dialog.querySelector('h2').textContent=admin?r.employee_name+' asks for clarification':'Management replied to your question';
  dialog.querySelector('h3').textContent=r.title;dialog.querySelector('.ack-preview').innerHTML=r.message_html;
- const history=dialog.querySelector('section');
- for(const m of messages){const p=document.createElement('p'),who=document.createElement('strong');who.textContent=(m.actor_name||'Sender')+' · '+m.created_at;p.append(who,document.createElement('br'),document.createTextNode(m.message));history.append(p);}
+ const history=dialog.querySelector('section');history.classList.add('ack-report-history');
+ for(const m of messages){const p=document.createElement('p'),who=document.createElement('strong');p.className='ack-report-bubble'+(m.event_type==='clarify'?'':' is-owner');who.textContent=(m.actor_name||'Sender')+' · '+m.created_at;p.append(who,document.createElement('br'),document.createTextNode(m.message));history.append(p);}
  const form=dialog.querySelector('form'),input=form.querySelector('textarea'),label=input.closest('label'),error=form.querySelector('[role=alert]'),footer=form.querySelector('footer');
  const state={turn:t,dialog,busy:false};let key=crypto.randomUUID(),previous='';
  function button(title,primary,fn){const b=document.createElement('button');b.type='button';b.className='ack-action'+(primary?'':' secondary');b.textContent=title;b.onclick=fn;footer.append(b);return b;}
@@ -116,43 +116,50 @@ function showThread(t,r,messages,csrf){
  if(!admin){const again=button('I Still Don’t Understand',false,()=>{label.hidden=false;again.hidden=true;primary.textContent='Send clarification';input.focus();});}
  button(admin?'Respond Later':'View Later',false,()=>send('thread_later'));
  form.onsubmit=e=>{e.preventDefault();};dialog.oncancel=e=>{e.preventDefault();if(!state.busy)send('thread_later');};
- dialog.onclose=()=>{dialog.remove();threadDialog=null;window.PortalNoticeGate?.release('ack-thread');scheduleThread(0);};
- document.body.append(dialog);dialog.showModal();threadDialog=state;
+ dialog.onclose=()=>{dialog.remove();threadDialog=null;window.PortalNoticeGate?.release('ack-thread');window.dispatchEvent(new Event('ack:register-changed'));scheduleThread(0);};
+ document.body.append(dialog);dialog.showModal();threadDialog=state;if(admin)window.dispatchEvent(new Event('ack:register-changed'));
  // Enter in a newly opened dialog must not accidentally confirm understanding.
  if(admin)input.focus();else{dialog.querySelector('h2').tabIndex=-1;dialog.querySelector('h2').focus();}
 }
 // Used both by the existing table and by an alert on any signed-in owner page.
-function reportDialog(ref,csrf,alertId=0){
- if(!/^[a-f0-9]{32}$/.test(ref)||document.querySelector('dialog[open]'))return;
+function reportDialog(ref,csrf,alertId=0,employee=null,preview=''){
+ const named=employee!==null,title=named?'Assistance Request':'Anonymous report';
+ if((named?!(Number.isSafeInteger(ref)&&ref>0):!/^[a-f0-9]{32}$/.test(ref))||document.querySelector('dialog[open]'))return;
  const gate=window.PortalNoticeGate;if(gate&&!gate.acquire('ack-report'))return;
  const dialog=document.createElement('dialog');dialog.className='hb-portal-notice hb-notice-modal ack-company-notice ack-report-dialog';
- dialog.setAttribute('aria-label','Anonymous report');
+ dialog.setAttribute('aria-label',title);
  dialog.innerHTML='<p class="hb-ack-eyebrow">Anonymous report</p><h2></h2><div class="ack-report-history"></div><form hidden><label>Your reply<textarea required maxlength="6000" rows="3"></textarea></label><button class="ack-action">Send reply</button></form><p role="alert"></p><footer></footer>';
- dialog.querySelector('h2').textContent='Reference '+ref;
+ dialog.querySelector('.hb-ack-eyebrow').textContent=title;
+ dialog.querySelector('h2').textContent=named?employee:'Reference '+ref;
+ if(alertId)dialog.querySelector('.ack-report-history').textContent=preview||'New message';
  const hist=dialog.querySelector('.ack-report-history'),form=dialog.querySelector('form'),input=form.querySelector('textarea'),error=dialog.querySelector('[role=alert]'),footer=dialog.querySelector('footer');
- let busy=false,key=crypto.randomUUID(),lastBody='';
+ let busy=false,key=crypto.randomUUID(),lastBody='',cursor=0,checking=false,version=0;
  function button(title,fn){const b=document.createElement('button');b.type='button';b.className='ack-action secondary';b.textContent=title;b.onclick=fn;footer.append(b);}
- async function call(body){if(busy)return;busy=true;error.textContent='';form.querySelector('button').disabled=true;input.readOnly=true;
-  try{const d=await request('report_thread',{report:ref,...body},csrf);
+ async function call(body,background=false){if(busy||background&&checking)return;const ticket=++version;
+  if(background)checking=true;else{busy=true;error.textContent='';form.querySelector('button').disabled=true;input.readOnly=true;}
+  try{const d=await request(named?'assistance_thread':'report_thread',named?{topic:ref,...body}:{report:ref,...body},csrf);
+   if(!dialog.open||ticket!==version||d.unchanged)return;cursor=Number(d.cursor)||0;
    if(body.dismiss){dialog.close();return;}
-   hist.replaceChildren();for(const m of d.messages){const p=document.createElement('article'),head=document.createElement('small'),text=document.createElement('p');p.className='ack-report-bubble '+(m.side==='owner'?'is-owner':'');head.textContent=(m.side==='owner'?'You':'Anonymous')+' · '+(m.submitted_on||'Date not recorded');text.textContent=m.body;p.append(head,text);hist.append(p);}
+   hist.replaceChildren();for(const m of d.messages){const p=document.createElement('article'),head=document.createElement('small'),text=document.createElement('p');p.className='ack-report-bubble '+(m.side==='owner'?'is-owner':'');head.textContent=(m.side==='owner'?'You':named?employee:'Anonymous')+' · '+(named?m.created_at:m.submitted_on||'Date not recorded');text.textContent=m.body;p.append(head,text);hist.append(p);}
    if(body.message){input.value='';key=crypto.randomUUID();}form.hidden=false;footer.replaceChildren();button('Close',()=>dialog.close());hist.scrollTop=hist.scrollHeight;
    window.dispatchEvent(new Event('ack:register-changed'));
-  }catch(e){error.textContent=e.message;}finally{busy=false;input.readOnly=false;form.querySelector('button').disabled=false;}
+  }catch(e){if(!background)error.textContent=e.message;}finally{if(background)checking=false;else{busy=false;input.readOnly=false;form.querySelector('button').disabled=false;}}
  }
  form.onsubmit=e=>{e.preventDefault();const message=input.value.trim();if(!message)return;if(lastBody!==message){key=crypto.randomUUID();lastBody=message;}call({message,request_key:key});};
  button('Open conversation',()=>call({}));if(alertId)button('Later',()=>call({dismiss:Number(alertId)}));else button('Close',()=>dialog.close());
  dialog.oncancel=e=>{if(busy||alertId&&form.hidden){e.preventDefault();if(!busy)call({dismiss:Number(alertId)});}};
- dialog.onclose=()=>{dialog.remove();gate?.release('ack-report');window.dispatchEvent(new Event('ack:register-changed'));scheduleThread(0);};
+ const timer=setInterval(()=>{if(cursor&&!document.hidden&&dialog.open&&!form.hidden)call({after:cursor},true);},4000);
+ dialog.onclose=()=>{clearInterval(timer);dialog.remove();gate?.release('ack-report');window.dispatchEvent(new Event('ack:register-changed'));scheduleThread(0);};
  document.body.append(dialog);dialog.showModal();if(!alertId)call({});else window.dispatchEvent(new Event('ack:register-changed'));
 }
-window.AckReportThread={open:reportDialog};
+window.AckReportThread={open:reportDialog,assistance:(id,csrf,name)=>reportDialog(id,csrf,0,name)};
 function answerAlert(a,csrf){
  const gate=window.PortalNoticeGate;if(gate&&!gate.acquire('ack-answer'))return;
  const dialog=document.createElement('dialog');dialog.className='hb-portal-notice hb-notice-modal ack-company-notice';
  dialog.setAttribute('aria-label','Acknowledgement conversation');
  dialog.innerHTML='<h2>New employee message</h2><div></div><p role="alert"></p><footer><button class="ack-action" type="button">Open conversation</button><button class="ack-action secondary" type="button">Later</button></footer>';
  const [open,later]=dialog.querySelectorAll('button'),area=dialog.querySelector('div'),error=dialog.querySelector('[role=alert]');let read=false;
+ dialog.querySelector('h2').textContent='Acknowledgement · '+(a.employee_name||'Employee');area.textContent=a.preview||'New employee message';
  const seen=only=>request('register_seen',{id:a.id,event:a.event_id,alert_only:only},csrf);
  async function show(){open.disabled=true;try{const r=await request('detail&id='+Number(a.id));await seen(false);read=true;open.hidden=true;later.textContent='Close';dialog.querySelector('h2').textContent=r.title;
  area.replaceChildren();const original=document.createElement('div');original.className='ack-preview';original.innerHTML=r.message_html;area.append(original);

@@ -38,7 +38,7 @@
 .ack-contact-page .ack-contact-primary,.ack-contact-page form button{display:inline-flex;align-items:center;justify-content:center;margin:0;min-height:40px;padding:0 14px;border:1px solid #59694a;border-radius:9px;background:#59694a;color:white;text-decoration:none;font:500 11.5px/1.4 Jost,sans-serif;transition:background .15s}
 .ack-contact-page .ack-contact-primary:hover,.ack-contact-page form button:hover{background:#344126}.ack-contact-page form{display:grid;gap:8px;margin:12px 0}.ack-contact-page form button{justify-self:start}.ack-contact-page form label{font:500 10.5px/1.5 Jost,sans-serif;color:#344126}.ack-contact-page textarea{width:100%;box-sizing:border-box;resize:vertical}
 .ack-material{margin:12px 0}.ack-material label,.ack-contact-page label{display:grid;gap:5px}.ack-contact-page p,.ack-material p{white-space:pre-wrap;overflow-wrap:anywhere}
-.ack-contact-page form textarea{font:400 12px/1.5 Jost,sans-serif;letter-spacing:normal;color:#1c2118;background:#fff;border:1px solid #cbd1c6;border-radius:8px;padding:9px 12px;min-height:78px}
+.ack-contact-page form textarea{background:#fff;border:1px solid #cbd1c6;border-radius:8px;padding:9px 12px;min-height:78px}
 .ack-material textarea{font:inherit;border:1px solid #cbd1c6;border-radius:8px;padding:8px;min-height:64px}.ack-material button,.ack-contact-page button,.ack-image-dialog button{font:inherit;color:#344126;background:white;border:1px solid #cbd1c6;padding:7px 12px;min-height:38px;border-radius:8px;cursor:pointer;margin:3px}.ack-image-dialog{box-sizing:border-box;width:min(94vw,720px);max-height:88dvh;padding:18px;border:1px solid #d8dfd0;border-radius:12px;color:#344126}.ack-image-dialog::backdrop{background:#16201599}.ack-image-dialog header{display:flex;justify-content:space-between;align-items:center}.ack-image-dialog img{display:block;max-width:100%;max-height:58dvh;object-fit:contain;margin:auto}.ack-image-dialog button:disabled{opacity:.55}
 @keyframes ack-contact-in{from{opacity:0;transform:translateY(-3px)}to{opacity:1;transform:none}}
 @media(prefers-reduced-motion:reduce){.ack-contact-options:not([hidden]){animation:none}.ack-contact-options a,.ack-contact-control .ack-contact-launch,.ack-contact-page .ack-contact-primary,.ack-contact-page form button{transition:none}}
@@ -88,3 +88,25 @@
 .ack-report-bubble p{white-space:pre-wrap;margin:4px 0}
 .ack-report-dialog form:not([hidden]){display:grid;gap:8px}.ack-report-dialog textarea{display:block;box-sizing:border-box;width:100%;font:inherit}
 .ack-type,.ack-unread{display:inline-block;border-radius:10px;padding:2px 8px;font-weight:500}.ack-type.ack{background:#edf2e6;color:#344126}.ack-type.clarify{background:#fff2d9;color:#735019}.ack-type.report{background:#f0ebf7;color:#594178}.ack-unread{background:#e8f0fa;color:#285780}.ack-table [data-thread]{cursor:pointer}
+
+/* Share the existing private-message composer's type with the popup and thread
+   bodies. Never inherit a form label's weight; leave sender labels and rich
+   text explicitly formatted by an author alone. */
+:is(#ack-drawer,#anonymous,.ack-contact-page,.ack-company-notice,.ack-private-modal,.ack-material) textarea,
+#ack-drawer :is(.ack-editor,.ack-bubble,.ack-instruction),
+.ack-company-notice .ack-preview,
+.ack-thread-notice section[aria-label="Conversation"] p,
+#ack-private .ack-thread-message[data-sender],
+:is(#ack-private,.ack-private-modal) .ack-private-body[data-sender],
+.ack-report-history .ack-report-bubble,
+.ack-report-history .ack-report-bubble p,
+#unnamed-answer > span {
+  font:400 12px/1.5 Jost,sans-serif;
+  color:#1c2118;
+  letter-spacing:normal;
+  text-transform:none;
+}
+@media(max-width:700px){
+  :is(#ack-drawer,#anonymous,.ack-contact-page,.ack-company-notice,.ack-private-modal,.ack-material) textarea,
+  #ack-drawer .ack-editor{font-size:16px}
+}

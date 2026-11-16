@@ -9,7 +9,7 @@ if($dsn!=='mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test')throw ne
 $server=new PDO('mysql:host=127.0.0.1;port=13317','root',getenv('ACK_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $server->exec('CREATE DATABASE IF NOT EXISTS acknowledgments_test');
 $db=new PDO($dsn,'root',getenv('ACK_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
-$db->exec('DROP TABLE IF EXISTS portal_ack_report_messages,portal_ack_register_seen,portal_ack_anonymous,portal_ack_assistance,portal_ack_material,portal_ack_events,portal_ack_recipients,portal_ack_instructions,ops_employees,ops_roles');
+$db->exec('DROP TABLE IF EXISTS portal_ack_report_messages,portal_ack_register_seen,portal_ack_assistance_seen,portal_ack_anonymous,portal_ack_assistance,portal_ack_material,portal_ack_events,portal_ack_recipients,portal_ack_instructions,ops_employees,ops_roles');
 $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(40));INSERT INTO ops_roles VALUES(1,'owner_admin'),(2,'front_desk_admin'),(3,'delivery_driver');CREATE TABLE ops_employees(id INT PRIMARY KEY,role_id INT,full_name VARCHAR(190),status VARCHAR(20));INSERT INTO ops_employees VALUES(1,1,'Synthetic Owner','active'),(2,2,'Synthetic Front','active'),(3,3,'Synthetic Driver','active'),(4,2,'Inactive','inactive')");
 $db->exec(file_get_contents(__DIR__.'/../database/acknowledgments.sql'));
 $db->exec(file_get_contents(__DIR__.'/../database/ack-communication.sql'));
@@ -56,5 +56,12 @@ $s->registerSeen(1,$completedNoticeId,(int)$info[$completedNoticeId]['event_id']
 check(!(bool)array_column($s->registerInfo(1),null,'id')[$completedNoticeId]['unread'],'Owner read cursor clears only the opened conversation');
 denied(fn()=>$s->registerInfo(2),'Employee cannot list the owner register');
 $legacyRef=bin2hex(random_bytes(16));$db->prepare('INSERT INTO portal_ack_anonymous(report_id,lookup_hash,owner_id,body,reply) VALUES(?,?,1,?,?)')->execute([$legacyRef,hash('sha256',random_bytes(32)),'Legacy original','Legacy answer']);
+$old=$db->prepare("INSERT INTO portal_ack_assistance(owner_id,employee_id,sender_id,body,request_key,created_at) VALUES(1,3,?,?,?,NOW())");
+$old->execute([3,'First retained request',S::uuid()]);$legacyFirst=(int)$db->lastInsertId();
+$old->execute([1,'First retained reply',S::uuid()]);
+$old->execute([3,'Second retained request','t:'.str_replace('-','',S::uuid())]);$legacySecond=(int)$db->lastInsertId();
+$old->execute([1,'Second retained reply',S::uuid()]);
 for($i=0;$i<2;$i++)$db->exec(file_get_contents(__DIR__.'/../database/ack-combined-register.sql'));
+check(array_column($box->assistanceThread(1,['topic'=>$legacyFirst])['messages'],'body')===['First retained request','First retained reply']
+ &&array_column($box->assistanceThread(1,['topic'=>$legacySecond])['messages'],'body')===['Second retained request','Second retained reply'],'Repeated migration preserves unmarked legacy start and explicit new-topic boundary');
 $legacy=$box->reportAction(1,['report'=>$legacyRef]);check(array_column($legacy['messages'],'body')===['Legacy original','Legacy answer']&&array_column($legacy['messages'],'submitted_on')===[null,null],'Re-running migration preserves both surviving legacy messages and never fabricates dates');

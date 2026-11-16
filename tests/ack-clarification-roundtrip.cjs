@@ -1,7 +1,8 @@
 // Two independent browser sessions, production popup code and production Service against isolated MariaDB.
 const {chromium}=require('playwright'), assert=require('node:assert/strict');
 const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('node:child_process');
-const service=(actor,action,data={})=>JSON.parse(execFileSync('php',[path.join(__dirname,'fixtures/clarification-service-cli.php'),String(actor),action],{input:JSON.stringify(data),encoding:'utf8'}));
+const phpDir=process.env.ACK_TEST_PHP_DIR,php=phpDir?path.join(phpDir,'php.exe'):'php',options=phpDir?['-n','-d','extension_dir='+path.join(phpDir,'ext'),'-d','extension=pdo_mysql']:[];
+const service=(actor,action,data={})=>JSON.parse(execFileSync(php,[...options,path.join(__dirname,'fixtures/clarification-service-cli.php'),String(actor),action],{input:JSON.stringify(data),encoding:'utf8'}));
 const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__dirname,'../assets'),'js/acknowledgments-popup.js'),'utf8');
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROME_BIN});

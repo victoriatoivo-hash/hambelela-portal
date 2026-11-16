@@ -69,7 +69,7 @@ final class Service
     }
     public function answerAlert(int $actor):?array{
         $this->owner($actor);
-        $rows=$this->rows("SELECT r.id,m.id event_id FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id
+        $rows=$this->rows("SELECT r.id,m.id event_id,r.employee_name,LEFT(m.message,160) preview FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id
          JOIN portal_ack_events m ON m.id=(SELECT MAX(v.id) FROM portal_ack_events v WHERE v.recipient_id=r.id AND v.event_type IN ('answer','answer_received','answer_reply','answer_unclear'))
          LEFT JOIN portal_ack_register_seen s ON s.recipient_id=r.id AND s.owner_id=? WHERE i.sender_id=? AND i.release_state='released' AND r.schedule_active=1 AND m.event_type='answer' AND m.id>GREATEST(COALESCE(s.event_id,0),COALESCE(s.alerted_id,0)) ORDER BY m.id LIMIT 1",[$actor,$actor]);return $rows[0]??null;
     }

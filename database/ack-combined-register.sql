@@ -1,4 +1,16 @@
 -- Run explicitly against the acknowledgments DB before deploying the register.
+ALTER TABLE portal_ack_assistance ADD COLUMN IF NOT EXISTS topic_id BIGINT UNSIGNED NULL,
+ ADD INDEX IF NOT EXISTS assistance_topic(owner_id,employee_id,topic_id,id);
+-- Preserve existing topic boundaries; never move a message already linked explicitly.
+UPDATE portal_ack_assistance a JOIN (
+ SELECT id,COALESCE(MAX(CASE WHEN request_key LIKE 't:%' THEN id END) OVER
+ (PARTITION BY owner_id,employee_id ORDER BY id ROWS UNBOUNDED PRECEDING),
+ MIN(id) OVER(PARTITION BY owner_id,employee_id)) root FROM portal_ack_assistance
+) history ON history.id=a.id SET a.topic_id=history.root WHERE a.topic_id IS NULL;
+CREATE TABLE IF NOT EXISTS portal_ack_assistance_seen (
+ owner_id INT NOT NULL, topic_id BIGINT UNSIGNED NOT NULL, seen BIGINT UNSIGNED NOT NULL DEFAULT 0,
+ alerted BIGINT UNSIGNED NOT NULL DEFAULT 0, PRIMARY KEY(owner_id,topic_id)
+) ENGINE=InnoDB;
 -- Anonymous rows contain no reporter account, session, private code, IP, or device metadata.
 CREATE TABLE IF NOT EXISTS portal_ack_report_messages (
  id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,

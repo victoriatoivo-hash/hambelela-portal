@@ -4,6 +4,7 @@ require_once dirname(__DIR__,2).'/config.php';require_once BASE_PATH.'/shared/au
 $_SESSION['ack_csrf']=$_SESSION['ack_csrf']??bin2hex(random_bytes(32));
 header('Cache-Control: private, no-store');header('Referrer-Policy: no-referrer');
 $isManager=$isManager??((current_user()['role_key']??'')==='owner_admin');$pageTitle='Messages & reporting';$activeApp='acknowledgments';
+if($isManager){header('Location: '.BASE_URL.'/apps/acknowledgments/index.php');exit;}
 $single=!$isManager&&!empty($instructionRecord);
 if($single){
     $extraStylesheets=[['path'=>'assets/css/acknowledgments.css','version'=>filemtime(BASE_PATH.'/assets/css/acknowledgments.css')]];

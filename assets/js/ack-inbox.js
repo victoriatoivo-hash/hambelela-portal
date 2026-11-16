@@ -19,14 +19,21 @@
    function composer(title,fields){
     const f=add('form'),label=el('label',title),input=el('textarea'),button=el('button','Send'),key=crypto.randomUUID();
     input.required=true;input.maxLength=6000;label.append(input);f.append(label,button);
-    if(fields.employee){const topic=el('input'),choice=el('label','Start a new conversation');topic.type='checkbox';topic.checked=!d.messages.length;choice.className='ack-start-topic';choice.prepend(topic);f.prepend(choice);topic.onchange=()=>input.focus();fields.new_topic=topic.checked;topic.addEventListener('change',()=>{fields.new_topic=topic.checked;});}
+    if(fields.employee){const topic=el('input'),choice=el('label','Start a new conversation');topic.type='checkbox';topic.checked=!d.messages.length;choice.className='ack-start-topic';choice.prepend(topic);f.prepend(choice);topic.onchange=()=>input.focus();fields.new_topic=topic.checked;topic.addEventListener('change',()=>{fields.new_topic=topic.checked;label.firstChild.textContent=title;fields.topic=Number(d.messages.at(-1)?.topic_id)||0;});}
     f.onsubmit=async e=>{e.preventDefault();button.disabled=true;error.textContent='';
      try{const result=await request('api.php?action=message',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':d.csrf},body:JSON.stringify({...fields,message:input.value,request_key:key})});if(result.ok!==true)throw Error('Sending was not confirmed. Please try again.');window.dispatchEvent(new Event('ack:attention-changed'));await load(id);}
-     catch(x){error.textContent=x.message;button.disabled=false;}};}
+     catch(x){error.textContent=x.message;button.disabled=false;}};
+    return (topic,title)=>{const toggle=f.querySelector('input[type=checkbox]');if(toggle)toggle.checked=false;fields.new_topic=false;fields.topic=topic;label.firstChild.textContent='Reply to: '+title;input.focus();};}
    if(d.employee){add('h3',d.owner?'Conversation with '+(d.threads.find(t=>Number(t.employee_id)===Number(d.employee))?.full_name??'employee'):'Your conversation');for(const m of d.messages){if(Number(m.starts_topic)===1)add('p','New conversation · '+m.created_at).className='ack-topic-divider';const p=add('p'),employee=Number(m.sender_id)===Number(d.employee);p.className='ack-thread-message';p.dataset.sender=employee?'employee':'owner';p.append(el('strong',(employee?'Employee':'Owner')+' · '+m.created_at),el('br'),document.createTextNode(m.body));}
     const last=d.messages[d.messages.length-1];
     if(!d.owner&&last&&Number(last.sender_id)!==Number(d.employee)){const ack=add('button','Acknowledge reply');ack.type='button';ack.onclick=async()=>{ack.disabled=true;try{await request('api.php?action=private_act',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':d.csrf},body:JSON.stringify({id:last.id,choice:'understood'})});window.dispatchEvent(new Event('ack:attention-changed'));await load(id);}catch(e){error.textContent=e.message;ack.disabled=false;}};}
-    composer('Private message',{employee:d.employee});}
+    const latestTopic=Number(last?.topic_id)||0,selectReply=composer('Private message',{employee:d.employee,topic:latestTopic});
+    // Keep the existing chronological inbox. An employee can also address an older
+    // topic directly instead of accidentally sending its reply to the newest one.
+    if(!d.owner){const bubbles=root.querySelectorAll('.ack-thread-message'),tails=new Map(),titles=new Map();
+     d.messages.forEach((m,i)=>{const id=Number(m.topic_id);if(id){tails.set(id,i);if(!titles.has(id))titles.set(id,m.body.slice(0,80));}});
+     if(tails.size>1)for(const [id,i] of tails){const reply=el('button','Reply to this conversation');reply.type='button';reply.onclick=()=>selectReply(id,titles.get(id));bubbles[i].after(reply);}}
+   }
   }catch(x){if(run===seq)error.textContent=x.message||'Could not load messages.';}}
  document.querySelector('#ack-private-open').onclick=()=>load();
  const panel=document.querySelector('#anonymous[data-csrf]');

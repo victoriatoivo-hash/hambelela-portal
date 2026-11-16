@@ -50,16 +50,21 @@ final class Store {
             WHERE r.owner_id=? ORDER BY m.id DESC",[$this->owner])->fetchAll(\PDO::FETCH_ASSOC);
     }
     public function ownerThread(string $id,array $body):array{
+        if(isset($body['after'])&&!isset($body['message'])){
+            $head=$this->sql('SELECT MAX(m.id) FROM portal_ack_anonymous r JOIN portal_ack_report_messages m ON m.report_id=r.report_id WHERE r.owner_id=? AND r.report_id=?',[$this->owner,$id])->fetchColumn();
+            if($head!==null&&(int)$head===(int)$body['after'])return ['unchanged'=>true];
+        }
         $this->db->beginTransaction();try{
             if(!$this->sql('SELECT report_id FROM portal_ack_anonymous WHERE owner_id=? AND report_id=? FOR UPDATE',[$this->owner,$id])->fetchColumn())throw new \DomainException('Report unavailable.');
             if(isset($body['message']))$this->append($id,'owner',self::text($body['message']),$this->key($body));
             $messages=$this->messages($id);
             $this->sql('UPDATE portal_ack_report_messages SET owner_read=1,alerted=1 WHERE report_id=? AND owner_read=0',[$id]);
-            $this->db->commit();return ['report_id'=>$id,'messages'=>$messages];
+            $cursor=(int)$this->sql('SELECT MAX(id) FROM portal_ack_report_messages WHERE report_id=?',[$id])->fetchColumn();
+            $this->db->commit();return ['report_id'=>$id,'messages'=>$messages,'cursor'=>$cursor];
         }catch(\Throwable $e){$this->db->rollBack();throw $e;}
     }
     public function alert():?array{
-        $r=$this->sql("SELECT m.report_id,MAX(m.id) message_id FROM portal_ack_report_messages m JOIN portal_ack_anonymous r ON r.report_id=m.report_id WHERE r.owner_id=? AND m.alerted=0 GROUP BY m.report_id ORDER BY MIN(m.id) LIMIT 1",[$this->owner])->fetch(\PDO::FETCH_ASSOC);
+        $r=$this->sql("SELECT m.report_id,m.id message_id,LEFT(m.body,160) preview FROM portal_ack_report_messages m JOIN portal_ack_anonymous r ON r.report_id=m.report_id WHERE r.owner_id=? AND m.alerted=0 AND m.id=(SELECT MAX(t.id) FROM portal_ack_report_messages t WHERE t.report_id=m.report_id AND t.alerted=0) ORDER BY m.id LIMIT 1",[$this->owner])->fetch(\PDO::FETCH_ASSOC);
         return $r?:null;
     }
     public function dismiss(string $id,int $through):void{

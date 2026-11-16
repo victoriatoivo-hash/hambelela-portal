@@ -15,11 +15,19 @@ async function run(){
   for(const entry of ['index','messages']){
    const d=new JSDOM(render(role,'',entry)).window.document;
    assert.deepEqual([...d.querySelectorAll('main section h2')].map(h=>h.textContent),['Private assistance','Send without my name']);
-   assert.match(d.querySelector('#anonymous').textContent,/Hosting logs may record/);
+   assert.match(d.querySelector('#anonymous').textContent,/Hosting logs may (?:also )?record connection details/);
    assert.equal(d.querySelector('#ack-new,#ack-table,#ack-tabs,#ack-drawer,.ack-contact-back'),null);
   }
  }
  const manager=new JSDOM(render('owner_admin')).window.document;assert.ok(manager.querySelector('#ack-tabs'));assert.ok(manager.querySelector('#ack-new'));
+ assert.ok(manager.querySelector('#ack-type-filter'));assert.equal(manager.querySelector('#ack-private-open'),null);
+ assert.equal(render('owner_admin','','messages'),'','Old Admin route does not render a second inbox');
+ const inboxDom=new JSDOM(render('packer'),{url:'https://portal.test/apps/acknowledgments/messages.php',runScripts:'outside-only'});
+ try{const w=inboxDom.window,d=w.document,messages=[{id:11,topic_id:11,sender_id:7,body:'First request'},{id:20,topic_id:20,sender_id:7,body:'Second request'}];let posted;
+ w.fetch=async(url,options)=>{if(options?.method==='POST')posted=JSON.parse(options.body);return {ok:true,json:async()=>options?.method==='POST'?{ok:true}:{owner:false,employee:7,messages,csrf:'test'}};};
+ w.eval(fs.readFileSync('assets/js/ack-inbox.js','utf8'));d.querySelector('#ack-private-open').click();await new Promise(r=>setImmediate(r));
+ [...d.querySelectorAll('#ack-private button')].find(b=>b.textContent==='Reply to this conversation').click();const form=d.querySelector('#ack-private form');form.querySelector('textarea').value='Answer to first request';form.dispatchEvent(new w.Event('submit',{cancelable:true}));await new Promise(r=>setImmediate(r));assert.equal(posted.topic,11);assert.equal(posted.new_topic,false);
+ }finally{inboxDom.window.close();}
  const bad=new JSDOM(render('packer','oops')).window.document;assert.equal(bad.querySelector('#ack-drawer'),null);
  for(const allowed of [true,false]){
  const dom=new JSDOM(render('packer','47'),{url:'https://portal.test/apps/acknowledgments/index.php?record=47',runScripts:'outside-only'});

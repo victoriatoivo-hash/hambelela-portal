@@ -160,7 +160,9 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     </div>
                 </div>
             </div>
-            <div class="ack-contact-control">
+            <?php if(($headerUser['role_key']??'')==='owner_admin'): ?>
+            <a class="portal-header-action portal-header-notifications" href="<?=BASE_URL?>/apps/acknowledgments/index.php" aria-label="Acknowledgements inbox" title="Acknowledgements inbox"><i data-lucide="messages-square" aria-hidden="true"></i></a>
+            <?php else: ?><div class="ack-contact-control">
                 <a class="portal-header-action portal-header-notifications portal-notification-button ack-contact-launch" href="<?=BASE_URL?>/apps/acknowledgments/messages.php" aria-label="Messages and reporting" title="Messages and reporting" aria-controls="ack-contact-options" aria-expanded="false"><i data-lucide="message-circle" aria-hidden="true"></i></a>
                 <span class="ack-contact-tip" hidden></span>
                 <nav id="ack-contact-options" class="ack-contact-options" popover="manual" hidden aria-label="Messages and reporting">
@@ -169,7 +171,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#anonymous"><i data-lucide="shield-check" aria-hidden="true"></i><span><strong>Send without my name</strong><small>Report to the Owner and check a reply by private code.</small></span><span aria-hidden="true">›</span></a>
                 </nav>
             </div>
-            <div class="portal-notification-control">
+            <?php endif; ?><div class="portal-notification-control">
             <a class="portal-header-action portal-header-notifications portal-notification-button" data-notification-button href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"
                aria-label="Notifications, <?= (int) $headerNotificationUnread ?> unread" aria-expanded="false" aria-controls="portal-notification-preview">
                 <i data-lucide="bell"></i>

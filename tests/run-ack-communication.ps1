@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$MariaBin,[Parameter(Mandatory)][string]$PhpDir)
+param([Parameter(Mandatory)][string]$MariaBin,[Parameter(Mandatory)][string]$PhpDir,[switch]$BrowserRoundTrip)
 $ErrorActionPreference='Stop'
 $port=13317
 $listeners=[Net.NetworkInformation.IPGlobalProperties]::GetIPGlobalProperties().GetActiveTcpListeners()
@@ -19,11 +19,16 @@ try{
     if(!$ready){throw 'Test server did not start'}
     & "$PhpDir/php.exe" -n -d "extension_dir=$PhpDir/ext" -d extension=pdo_mysql -d extension=gd "$PSScriptRoot/acknowledgments.php"
     if($LASTEXITCODE){throw 'Acknowledgment tests failed'}
+    if($BrowserRoundTrip){
+        $env:ACK_TEST_PHP_DIR=$PhpDir
+        node "$PSScriptRoot/ack-clarification-roundtrip.cjs"
+        if($LASTEXITCODE){throw 'Two-role notification test failed'}
+    }
 }finally{
     if(!$server.HasExited){
         $env:MYSQL_PWD=$env:ACK_TEST_PASSWORD
         & "$MariaBin/mariadb-admin.exe" '--host=127.0.0.1' '--port=13317' '--user=root' shutdown
         if(!$server.WaitForExit(5000)){$server.Kill()}
     }
-    Remove-Item Env:MYSQL_PWD,Env:ACK_TEST_PASSWORD,Env:ACK_TEST_DSN -ErrorAction SilentlyContinue
+    Remove-Item Env:MYSQL_PWD,Env:ACK_TEST_PASSWORD,Env:ACK_TEST_DSN,Env:ACK_TEST_PHP_DIR -ErrorAction SilentlyContinue
 }
