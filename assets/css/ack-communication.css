@@ -110,3 +110,25 @@
   :is(#ack-drawer,#anonymous,.ack-contact-page,.ack-company-notice,.ack-private-modal,.ack-material) textarea,
   #ack-drawer .ack-editor{font-size:16px}
 }
+
+/* Header pop-ups, not the underlying page. The contact menu moves to body on open. */
+[data-portal-header-status] [data-portal-online-popover] > strong,
+[data-portal-header-status] [data-portal-online-popover] .portal-online-person strong,
+#ack-contact-options header strong,
+#ack-contact-options a strong,
+dialog:is(.ack-private-modal,.ack-report-dialog)[open] > h2 {
+  font-family:Jost,sans-serif; font-size:10.5px; font-size-adjust:none; font-weight:500; color:#1C2118;
+}
+[data-portal-header-status] [data-portal-online-popover] .portal-online-person small,
+[data-portal-header-status] [data-portal-online-popover] .portal-online-empty,
+#ack-contact-options a small,
+dialog.ack-private-modal[open] > [data-author] {
+  font-family:Jost,sans-serif; font-weight:300; line-height:normal; color:#747A70;
+}
+[data-portal-header-status] [data-portal-online-popover] .portal-online-person em,
+#ack-contact-options header span,
+dialog:is(.ack-private-modal,.ack-report-dialog)[open] > .hb-ack-eyebrow,
+dialog:is(.ack-private-modal,.ack-report-dialog)[open] label,
+dialog.ack-report-dialog[open] .ack-report-bubble small {
+  font-family:Jost,sans-serif; font-size:9.5px; font-weight:400; color:rgb(28,33,24);
+}
