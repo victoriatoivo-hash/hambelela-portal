@@ -23,6 +23,40 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  company-notice-popup:
+    if: github.ref == 'refs/heads/codex/company-notice-popup' && inputs.approved_sha == github.sha
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify company notice layout with synthetic records
+        run: |
+          node --check assets/js/ack-communication.js
+          node --check assets/js/acknowledgments-popup.js
+          npm install --prefix "$RUNNER_TEMP/notice-tests" --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          curl -fsS --retry 2 https://portal.hambelelaorganic.com/assets/css/portal-notices.css -o "$RUNNER_TEMP/portal-notices.css"
+          CHROME_BIN="$(command -v google-chrome)" NODE_PATH="$RUNNER_TEMP/notice-tests/node_modules" NOTICE_BASE_CSS="$RUNNER_TEMP/portal-notices.css" node tests/company-notice-layout.cjs
+      - name: Compare live baselines and release only three popup assets
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          STAGE: ${{ inputs.contact_stage }}
+        run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
+      - name: Test the publicly served styles and scripts on desktop and mobile
+        if: inputs.contact_stage == 'deploy'
+        run: |
+          export NOTICE_ASSETS="$RUNNER_TEMP/published-assets"
+          mkdir -p "$NOTICE_ASSETS/css" "$NOTICE_ASSETS/js"
+          for f in css/portal.css css/acknowledgments.css css/portal-notices.css css/ack-communication.css js/ack-communication.js js/acknowledgments-popup.js; do
+            curl -fsS --retry 2 "https://portal.hambelelaorganic.com/assets/$f?v=$GITHUB_SHA" -o "$NOTICE_ASSETS/$f"
+          done
+          for f in css/ack-communication.css js/ack-communication.js js/acknowledgments-popup.js; do diff --strip-trailing-cr "assets/$f" "$NOTICE_ASSETS/$f"; done
+          CHROME_BIN="$(command -v google-chrome)" NODE_PATH="$RUNNER_TEMP/notice-tests/node_modules" node tests/company-notice-layout.cjs
   employee-instructions-home:
     if: github.ref == 'refs/heads/codex/employee-instructions-messages-home' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest

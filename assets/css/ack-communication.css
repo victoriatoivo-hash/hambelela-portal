@@ -48,3 +48,30 @@
 .ack-private-modal label textarea{box-sizing:border-box;width:100%;min-height:76px;resize:vertical;border:1px solid #cbd1c6;border-radius:8px;padding:9px 12px;color:#1c2118;background:white;font:400 14px/1.5 Jost,sans-serif}
 #ack-private-queue:not([hidden]){margin:12px 0;padding:12px 16px;border:1px solid #e4e6dc;border-radius:10px;background:white}#ack-private-queue h2{margin:0 0 8px;font:600 15px/1.3 Jost,sans-serif;color:#344126}#ack-private-queue [data-queue-items]>div{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 0}
 @media(max-width:700px){.ack-private-modal label textarea{font-size:16px}.ack-private-modal[open]{max-height:82dvh;overflow:auto}}
+
+/* Company instructions only; other portal notices retain their own theme. */
+.ack-company-notice.hb-portal-notice .ack-notice-brand{display:flex;align-items:center;gap:9px;margin:0 0 12px;color:#485d39;font:600 11px/1.25 Jost,sans-serif;letter-spacing:.09em;text-transform:uppercase}
+.ack-company-notice .ack-notice-icon{display:inline-grid;place-items:center;flex:none;width:30px;height:30px;border-radius:9px;background:#e9efdf;color:#475e37}
+.ack-company-notice .ack-notice-icon svg{display:block;width:17px;height:17px;fill:none;stroke:currentColor}
+.ack-company-notice .ack-notice-material{margin:12px 0;padding:10px 12px;border:1px solid #dce3d4;border-radius:10px;background:#f7f9f3}
+.ack-company-notice .ack-attachment-row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:9px;color:#293426}
+.ack-company-notice .ack-attachment-row strong{font:500 14px/1.3 Jost,sans-serif}
+.ack-company-notice .ack-attachment-row button,.ack-notice-viewer button{margin:0;min-height:36px;padding:6px 12px;border:1px solid #bfcbb4;border-radius:8px;background:#fff;color:#34492b;font:500 13px/1.3 Jost,sans-serif;cursor:pointer}
+.ack-company-notice .ack-attachment-row button:hover,.ack-notice-viewer button:hover{border-color:#839575;background:#edf2e6}
+.ack-company-notice .ack-notice-question p{margin:0 0 4px;overflow-wrap:anywhere}
+.ack-company-notice .ack-attachment-row + .ack-notice-question{margin-top:9px;padding-top:9px;border-top:1px solid #dce3d4}
+.ack-company-notice .ack-notice-question a{color:#465d37;text-underline-offset:3px}
+.ack-company-notice.hb-portal-notice label.ack-check:not([hidden]){display:flex;align-items:center;gap:10px;margin:12px 0 0;padding:9px 11px;min-height:44px;box-sizing:border-box;border-radius:9px;background:#f2f5ec;color:#303929;font:500 14px/1.4 Jost,sans-serif;cursor:pointer}
+.ack-company-notice.hb-portal-notice label.ack-check input[type=checkbox]{appearance:auto;accent-color:#506c3e;width:17px;height:17px;min-height:0;flex:0 0 17px;display:block;margin:0;padding:0;box-shadow:none;cursor:pointer}
+.ack-company-notice .ack-check span{min-width:0}
+.ack-company-notice .ack-check[hidden]{display:none}
+.ack-company-notice form [role=alert]:empty{margin:0}
+.ack-company-notice :is(button,input,a):focus-visible,.ack-notice-viewer button:focus-visible{outline:2px solid #506c3e;outline-offset:2px}
+.ack-image-dialog.ack-notice-viewer{box-sizing:border-box;border:1px solid #d7dfcf;border-radius:15px;background:white;color:#273323;font-family:Jost,sans-serif;box-shadow:0 18px 60px #24331e30;overflow:auto;overscroll-behavior:contain}
+.ack-notice-viewer header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.ack-notice-viewer header strong{font:600 17px/1.3 Jost,sans-serif}
+.ack-notice-viewer header button{width:38px;padding:0;font-size:20px}
+.ack-notice-viewer img{display:block;box-sizing:border-box;width:100%;max-height:56dvh;object-fit:contain;border:1px solid #dfe5d9;border-radius:9px;background:#f5f7f1}
+.ack-notice-viewer [role=status]{margin:12px 0 0;font:400 14px/1.5 Jost,sans-serif;color:#4d5948}
+.ack-notice-viewer > div:not(:empty){display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+@media(max-width:600px){.ack-company-notice .ack-attachment-row button,.ack-notice-viewer button{min-height:44px}.ack-notice-viewer header button{width:44px}}

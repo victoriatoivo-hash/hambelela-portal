@@ -8,8 +8,9 @@
   if(!r.headers.get('content-type')?.includes('application/json'))throw Error('Please sign in again.');
   const d=await r.json();if(!r.ok)throw Error(d.error||'Not saved. Please retry.');
  }
- function view(id,csrf,recipient){
+ function view(id,csrf,recipient,fromNotice=false){
   const modal=el('dialog');modal.className='ack-image-dialog';modal.setAttribute('aria-label','Acknowledgment image');
+  if(fromNotice)modal.classList.add('ack-notice-viewer');
   const h=el('header'),close=btn('×',()=>modal.close());close.setAttribute('aria-label','Close image');h.append(el('strong','Acknowledgment image'),close);
   const img=el('img'),status=el('p','Loading image…'),actions=el('div');img.alt='Image attached to this acknowledgment';status.setAttribute('role','status');
   modal.append(h,img,status,actions);document.body.append(modal);modal.showModal();close.focus();
@@ -54,7 +55,17 @@
   }
   parent.prepend(block);
  }
- function popup(dialog,n,csrf){const f=dialog.querySelector('form'),b=el('section');if(n.image_type)b.append(btn('View image',()=>view(n.id,csrf,true)));if(n.question){const a=el('a','Answer this question');a.href=base+'index.php?record='+Number(n.id);b.append(el('p',n.question),a);}if(b.childElementCount){b.className='ack-material';f.before(b);}}
+ function popup(dialog,n,csrf){
+  const f=dialog.querySelector('form'),b=el('section');
+  if(n.image_type){
+   const row=el('div'),icon=el('span'),open=btn('View image',()=>view(n.id,csrf,true,true));
+   row.className='ack-attachment-row';icon.className='ack-notice-icon';icon.setAttribute('aria-hidden','true');
+   icon.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="3" y="4" width="18" height="16" rx="3"/><circle cx="9" cy="9" r="1.5"/><path d="m4 17 5-5 3 3 3-4 5 6"/></svg>';
+   open.setAttribute('aria-haspopup','dialog');row.append(icon,el('strong','Attached image'),open);b.append(row);
+  }
+  if(n.question){const q=el('div'),a=el('a','Answer this question');q.className='ack-notice-question';a.href=base+'index.php?record='+Number(n.id);q.append(el('p',n.question),a);b.append(q);}
+  if(b.childElementCount){b.className='ack-material ack-notice-material';f.before(b);}
+ }
  window.AckCommunication={setup,fields,controls,popup};
  const tip=document.querySelector('.ack-contact-tip');
  const trigger=document.querySelector('.ack-contact-launch'),panel=document.getElementById('ack-contact-options');
