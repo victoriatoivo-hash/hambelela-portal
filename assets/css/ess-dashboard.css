@@ -263,3 +263,51 @@ body.ess-dashboard {margin:0; min-height:100vh; background:var(--cream); color:v
   .ess-dashboard .ess-page-footer {flex-wrap:wrap;}
   .ess-dashboard .ess-panel-header {padding:10px 14px;}
 }
+
+/* Employee home reminder: Task Management's amber, Jost and olive shell.
+   Only presentation belongs here; employee eligibility and dismissal live in index.php. */
+.ess-dashboard .dashboard-task-reminder {
+  --task-600:#966313; --task-800:#744B0F; --task-50:#FBF6ED; --task-200:#E7D5B4;
+}
+.ess-dashboard .dashboard-task-reminder-backdrop {
+  border-radius:0; background:rgba(28,33,24,.38); backdrop-filter:blur(3px);
+}
+.ess-dashboard .dashboard-task-reminder > section {
+  width:min(440px,100%); min-width:0; max-height:calc(100vh - 36px); max-height:calc(100dvh - 36px);
+  padding:22px; border:1px solid var(--border); border-radius:var(--radius-lg);
+  color:var(--text-primary); background:var(--white); box-shadow:0 16px 48px rgba(28,33,24,.15);
+  overflow:auto; overscroll-behavior:contain;
+}
+.ess-dashboard .dashboard-task-reminder > section > span {
+  display:inline-flex; align-items:center; gap:8px; margin-right:40px;
+  color:var(--task-800); font:500 10px/1.3 'Jost',sans-serif; letter-spacing:.055em;
+}
+.ess-dashboard .dashboard-task-reminder > section > span::before {
+  content:""; display:block; flex:none; width:28px; height:28px; border-radius:8px;
+  background:var(--task-600) center/17px no-repeat url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m3 6 2 2 4-4m-6 12 2 2 4-4M13 6h8m-8 10h8'/%3E%3C/svg%3E");
+}
+.ess-dashboard .dashboard-task-reminder h2 {
+  margin:12px 0 16px; color:var(--text-primary); font:500 21px/1.25 'Jost',sans-serif; letter-spacing:-.025em;
+}
+.ess-dashboard .dashboard-task-reminder-close {
+  border-color:var(--border); background:var(--white); color:var(--text-secondary);
+}
+.ess-dashboard .dashboard-task-reminder-close:hover {background:var(--cream);}
+.ess-dashboard .dashboard-task-reminder section > div a {
+  min-width:0; padding:11px 13px; gap:2px; overflow-wrap:anywhere;
+  border:1px solid var(--border); border-radius:var(--radius-sm); background:var(--cream-2); color:var(--text-primary);
+}
+.ess-dashboard .dashboard-task-reminder section > div a:hover {background:var(--task-50); border-color:var(--task-200);}
+.ess-dashboard .dashboard-task-reminder section > div strong {font-weight:500; font-size:13px; line-height:1.4;}
+.ess-dashboard .dashboard-task-reminder section > div small {font-size:11px; color:var(--text-secondary);}
+.ess-dashboard .dashboard-task-reminder-open {
+  height:auto; min-height:38px; margin-top:16px; padding:8px 14px; border-radius:var(--radius-sm);
+  background:var(--task-600); color:var(--white); font:500 12px/1.35 'Jost',sans-serif;
+}
+.ess-dashboard .dashboard-task-reminder-open:is(:hover,:active) {background:var(--task-800); color:var(--white);}
+.ess-dashboard .dashboard-task-reminder section :is(a,button):focus-visible {outline:2px solid var(--task-600); outline-offset:2px;}
+@media (max-width:600px) {
+  .ess-dashboard .dashboard-task-reminder > section {padding:18px;}
+  .ess-dashboard .dashboard-task-reminder-close {width:44px; height:44px; top:8px; right:8px;}
+  .ess-dashboard .dashboard-task-reminder-open {width:100%; min-height:44px;}
+}
