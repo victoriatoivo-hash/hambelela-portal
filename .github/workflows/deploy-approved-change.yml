@@ -23,6 +23,23 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  hr-phone-header:
+    if: github.ref == 'refs/heads/codex/hr-phone-header-release' && inputs.approved_sha == github.sha
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - name: Publish only the HR stylesheet after checking the live baseline
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          STAGE: ${{ inputs.contact_stage }}
+        run: python3 scripts/deploy-ack-contact-design.py "$STAGE" "$GITHUB_SHA"
   inbox-compat:
     if: github.ref == 'refs/heads/codex/ack-inbox-compat' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest

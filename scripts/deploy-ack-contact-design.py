@@ -5,6 +5,9 @@ paths = ('assets/css/ack-communication.css','assets/js/ack-communication.js','as
 base = 'e821853b5bd00f0ca7de217fedf30a2fbf3db4fa'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
+if os.environ.get('GITHUB_REF')=='refs/heads/codex/hr-phone-header-release':
+    paths=('apps/hr-portal/includes/styles.css',)
+    base='53e0f762dce6f4bc6e703f79c45a01333eb39129'
 staff_view=os.environ.get('GITHUB_REF')=='refs/heads/codex/employee-my-instructions'
 if os.environ.get('GITHUB_REF')=='refs/heads/codex/assistance-inline-replies':
     paths=('shared/acknowledgments/Mailbox.php','apps/acknowledgments/api.php','assets/css/ack-communication.css','apps/acknowledgments/index.php','assets/js/acknowledgments-popup.js')
