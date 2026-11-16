@@ -24,7 +24,7 @@ const markup=php.slice(php.indexOf('<main'),php.lastIndexOf('</main>')+7).replac
   const area=page.locator('#ack-table'),row=area.locator('[data-kind=report]'),dialog=page.getByRole('dialog',{name:'Anonymous report'});
   const types=['Assistance Request','Anonymous Report','Acknowledgement','Clarification'];
   await row.waitFor();assert.deepEqual(await area.locator('.ack-type').allTextContents(),types);
-  await area.getByRole('columnheader',{name:'Latest activity'}).waitFor();
+  assert((await area.locator('thead th[scope="col"]').allTextContents()).includes('Latest activity'));
   for(const type of types){await page.locator('#ack-type-filter').selectOption({label:type});assert.deepEqual(await area.locator('.ack-type').allTextContents(),[type]);}
   await page.locator('#ack-clear').click();assert.deepEqual(await area.locator('.ack-type').allTextContents(),types);
   assert((await row.innerText()).includes('Date not recorded'));assert((await row.innerText()).includes('Unread'));
