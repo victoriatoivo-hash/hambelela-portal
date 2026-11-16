@@ -112,7 +112,7 @@
 }
 
 /* Header pop-ups, not the underlying page. The contact menu moves to body on open. */
-[data-portal-header-status] [data-portal-online-popover] > strong,
+[data-portal-header-status] [data-portal-online-widget] .portal-online-popover[data-portal-online-popover] > strong,
 [data-portal-header-status] [data-portal-online-popover] .portal-online-person strong,
 #ack-contact-options header strong,
 #ack-contact-options a strong,
