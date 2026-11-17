@@ -4,6 +4,7 @@ const fs=require('node:fs'),path=require('node:path'),{execFileSync}=require('no
 const phpDir=process.env.ACK_TEST_PHP_DIR,php=phpDir?path.join(phpDir,'php.exe'):'php',options=phpDir?['-n','-d','extension_dir='+path.join(phpDir,'ext'),'-d','extension=pdo_mysql']:[];
 const service=(actor,action,data={})=>JSON.parse(execFileSync(php,[...options,path.join(__dirname,'fixtures/clarification-service-cli.php'),String(actor),action],{input:JSON.stringify(data),encoding:'utf8'}));
 const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__dirname,'../assets'),'js/acknowledgments-popup.js'),'utf8');
+assert.equal(fs.readFileSync(path.join(__dirname,'../assets/js/ack-anonymous-thread.js'),'utf8').trimEnd().replace(/\r\n/g,'\n'),fs.readFileSync(path.join(__dirname,'../standalone/ack-anonymous/thread.js'),'utf8').trimEnd().replace(/\r\n/g,'\n'),'The independently published anonymous clients must match');
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROME_BIN});
  try{
