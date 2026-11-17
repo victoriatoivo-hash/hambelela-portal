@@ -12,7 +12,7 @@ const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__di
    const page=await browser.newPage({viewport:{width,height:820}});page.setDefaultTimeout(16000);
    await page.route('https://notice.test/**',async route=>{
     const u=new URL(route.request().url());
-    if(u.pathname==='/')return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script defer src="/popup.js"></script>'});
+    if(u.pathname==='/')return route.fulfill({contentType:'text/html; charset=utf-8',body:`<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><script>window.HambelelaPortalUser={id:${actor+(process.env.NOTICE_ASSETS?1000:0)}}</script><script defer src="/popup.js"></script><section id="ack-response-chats" hidden><div data-chat-items></div></section>`});
     if(u.pathname==='/popup.js')return route.fulfill({contentType:'text/javascript; charset=utf-8',body:script});
     const result=service(actor,u.searchParams.get('action'),{...Object.fromEntries(u.searchParams),...(route.request().postDataJSON()||{})});
     return route.fulfill({status:result.error?403:200,json:result});
@@ -54,5 +54,26 @@ const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__di
   assert.deepEqual(record.events.filter(e=>['clarify','reply','acknowledge'].includes(e.event_type)).map(e=>e.event_type),['clarify','reply','clarify','reply','acknowledge']);
   assert.equal(service(72,'clarification_poll').turn,null);assert.equal(service(71,'clarification_poll').turn,null);
   console.log('PASS: automatic bidirectional prompts, deferred/offline delivery, repeated turns, stale and duplicate responses, explicit acknowledgment and original history.');
+  const recipient=72+(process.env.NOTICE_ASSETS?1000:0);
+  service(71,'chat_start',{employee:recipient,message:'Which shelf is ready?',request_key:require('crypto').randomUUID()});
+  await form(phone).getByText('Which shelf is ready?',{exact:true}).waitFor();
+  assert.equal(await form(phone).getByRole('checkbox').count(),0);
+  await form(phone).getByRole('button',{name:'Respond Later'}).click();
+  await phone.locator('#ack-response-chats button').filter({hasText:'Respond Later'}).click();
+  await form(phone).locator('textarea').fill('The top shelf.');
+  await form(phone).getByRole('button',{name:'Send Reply'}).click();
+  await form(admin).getByRole('button',{name:'Open conversation'}).click();
+  await form(admin).getByText('The top shelf.',{exact:true}).waitFor();
+  await form(admin).locator('textarea').fill('Is it labelled?');
+  await form(admin).getByRole('button',{name:'Send Reply'}).click();
+  await form(phone).getByText('Is it labelled?',{exact:true}).waitFor();
+  await form(phone).locator('textarea').fill('Yes, it is.');
+  await form(phone).getByRole('button',{name:'Send Reply'}).click();
+  await form(admin).getByRole('button',{name:'Open conversation'}).click();
+  await form(admin).getByText('Yes, it is.',{exact:true}).waitFor();
+  await form(admin).getByRole('button',{name:'Mark completed'}).click();
+  await form(admin).waitFor({state:'detached'});
+  assert.equal(service(71,'chat_list').chats[0].status,'Completed');
+  console.log('PASS: mobile employee and desktop owner exchange four messages in one private chat, defer, reopen and resolve explicitly.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

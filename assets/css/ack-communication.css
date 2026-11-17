@@ -112,6 +112,9 @@
 }
 
 /* Header pop-ups, not the underlying page. The contact menu moves to body on open. */
+#ack-app .ack-type.chat{color:#315c83;background:#eaf2fa}
+#ack-content form[hidden],.ack-report-dialog form[hidden]{display:none!important}
+#ack-response-chats [data-chat-items]{display:grid;gap:6px}
 [data-portal-header-status] [data-portal-online-widget] .portal-online-popover[data-portal-online-popover] > strong,
 [data-portal-header-status] [data-portal-online-popover] .portal-online-person strong,
 #ack-contact-options header strong,

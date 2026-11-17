@@ -82,7 +82,7 @@ async function pollThread(){
   threadErrors=0;
   if(current){if(!d.turn&&current===threadDialog&&!current.busy)current.dialog.close();return;}
   if(document.hidden||document.querySelector('dialog[open]'))return;
-  if(!d.turn){if(d.report)reportDialog(d.report.report_id,d.csrf,d.report.message_id,null,d.report.preview);else if(d.assistance)reportDialog(Number(d.assistance.topic),d.csrf,d.assistance.message_id,d.assistance.employee_name,d.assistance.latest_message);else if(d.answer)answerAlert(d.answer,d.csrf);return;}
+  if(!d.turn){if(d.chat)responseChat(Number(d.chat.id),d.csrf,Number(d.chat.owner_id)===Number(window.HambelelaPortalUser?.id)?d.chat:null);else if(d.report)reportDialog(d.report.report_id,d.csrf,d.report.message_id,null,d.report.preview);else if(d.assistance)reportDialog(Number(d.assistance.topic),d.csrf,d.assistance.message_id,d.assistance.employee_name,d.assistance.latest_message);else if(d.answer)answerAlert(d.answer,d.csrf);return;}
   const t=d.turn,r=await request('detail&id='+Number(t.recipient_id));
   const messages=r.events.filter(v=>['clarify','reply','explained_personally'].includes(v.event_type));
   if(Number(messages.at(-1)?.id)!==Number(t.event_id)||r.withdrawn||r.status!==(t.event_type==='clarify'?'clarification':'pending')||document.hidden||document.querySelector('dialog[open]'))return;
@@ -153,6 +153,46 @@ function reportDialog(ref,csrf,alertId=0,employee=null,preview=''){
  document.body.append(dialog);dialog.showModal();if(!alertId)call({});else window.dispatchEvent(new Event('ack:register-changed'));
 }
 window.AckReportThread={open:reportDialog,assistance:(id,csrf,name)=>reportDialog(id,csrf,0,name)};
+// Required-response chats use assistance bubble styling, not instruction actions or receipts.
+function responseChat(id,csrf,preview=null){
+ if(document.querySelector('dialog[open]'))return;
+ const gate=window.PortalNoticeGate;if(gate&&!gate.acquire('response-chat'))return;
+ const d=document.createElement('dialog');d.className='hb-portal-notice hb-notice-modal ack-company-notice ack-report-dialog';d.setAttribute('aria-label','Chat – Response Required');
+ d.innerHTML='<p class="hb-ack-eyebrow">Chat – Response Required</p><h2>Conversation</h2><div class="ack-report-history" aria-label="Conversation history"></div><form hidden><label>Your reply<textarea required maxlength="6000" rows="3"></textarea></label><button class="ack-action">Send Reply</button></form><p role="alert"></p><footer></footer>';
+ const find=s=>d.querySelector(s),hist=find('.ack-report-history'),f=find('form'),input=find('textarea'),err=find('[role=alert]'),footer=find('footer');
+ let last=Number(preview?.last_id||0),closed=false,loaded=false,busy=false,polling=false,version=0,key='',draft=null;
+ const button=(name,fn)=>{const b=document.createElement('button');b.type='button';b.className='ack-action secondary';b.textContent=name;b.onclick=fn;footer.append(b);};
+ const leave=()=>{if(busy||input.value.trim()&&!window.confirm('Discard your unsent reply?'))return;if(last&&!closed)act('later');else d.close();};
+ async function act(op){
+  if(busy||op==='poll'&&polling)return;
+  const ticket=++version,write=op!=='poll',body={id,op,expected:last,after:last,closed};
+  if(op==='reply'){const msg=input.value.trim();if(!msg)return;if(draft!==msg){key=crypto.randomUUID();draft=msg;}Object.assign(body,{message:msg,request_key:key});}
+  if(write){busy=true;input.readOnly=true;f.querySelector('button').disabled=true;}else polling=true;
+  try{const r=await request('chat_thread',body,csrf);if(!d.open||ticket!==version||r.unchanged)return;
+   if(op==='later'||op==='reply'||op==='complete'){d.close();return;}
+   const wasAtBottom=!loaded||hist.scrollHeight-hist.clientHeight-hist.scrollTop<24;
+   last=Number(r.last);closed=r.closed;loaded=true;err.textContent='';find('h2').textContent=closed?'Completed conversation':'Conversation';
+   hist.replaceChildren();for(const m of r.messages){const row=document.createElement('article'),meta=document.createElement('small'),p=document.createElement('p');row.className='ack-report-bubble'+(Number(m.mine)?' is-owner':'');meta.textContent=(Number(m.mine)?'You':m.sender)+' · '+m.created_at;p.textContent=m.body;row.append(meta,p);hist.append(row);}
+   f.hidden=closed;footer.replaceChildren();button(closed?'Close':'Respond Later',leave);if(r.can_complete)button('Mark completed',()=>{if(!input.value.trim()||window.confirm('Discard your draft and resolve this chat?'))act('complete');});
+   if(wasAtBottom)hist.scrollTop=hist.scrollHeight;
+  }catch(e){if(ticket===version){err.textContent=e.message;if(!loaded){footer.replaceChildren();button('Retry',()=>act('open'));button('Close',()=>d.close());}}}
+  finally{if(write){busy=false;input.readOnly=false;f.querySelector('button').disabled=false;}else polling=false;}
+ }
+ f.onsubmit=e=>{e.preventDefault();act('reply');};d.oncancel=e=>{e.preventDefault();leave();};
+ const timer=setInterval(()=>{if(loaded&&!closed&&!document.hidden)act('poll');},4000);
+ d.onclose=()=>{clearInterval(timer);d.remove();gate?.release('response-chat');window.dispatchEvent(new Event('ack:register-changed'));scheduleThread(0);};
+ document.body.append(d);d.showModal();if(preview){find('h2').textContent=preview.employee_name+' replied';hist.textContent=preview.latest_message;button('Open conversation',()=>act('open'));button('Respond Later',leave);}else act('open');
+}
+window.AckResponseChat={open:responseChat};
+const chatCard=document.getElementById('ack-response-chats');
+if(chatCard){
+ let revision=0,signature='';
+ const loadChats=async()=>{if(document.hidden)return;const ticket=++revision;try{
+  const d=await request('chat_list');if(ticket!==revision)return;const next=JSON.stringify(d.chats);if(next===signature)return;signature=next;chatCard.hidden=!d.chats.length;
+  const list=chatCard.querySelector('[data-chat-items]');list.replaceChildren();for(const r of d.chats){const b=document.createElement('button');b.className='ack-action secondary';b.textContent=r.title+' · '+r.status;b.onclick=()=>responseChat(Number(r.id),d.csrf);list.append(b);}
+ }catch{if(!signature){chatCard.hidden=false;chatCard.querySelector('[data-chat-items]').textContent='Chats could not be loaded. Retrying…';}}};
+ loadChats();setInterval(loadChats,15000);window.addEventListener('ack:register-changed',loadChats);
+}
 function answerAlert(a,csrf){
  const gate=window.PortalNoticeGate;if(gate&&!gate.acquire('ack-answer'))return;
  const dialog=document.createElement('dialog');dialog.className='hb-portal-notice hb-notice-modal ack-company-notice';

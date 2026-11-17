@@ -14,6 +14,7 @@ $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(40));INSER
 $db->exec(file_get_contents(__DIR__.'/../database/acknowledgments.sql'));
 $db->exec(file_get_contents(__DIR__.'/../database/ack-communication.sql'));
 $db->exec(file_get_contents(__DIR__.'/../database/ack-combined-register.sql'));
+require __DIR__.'/fixtures/ack-response-chat-checks.php';
 $testNow='2026-09-30 08:00:00';$s=new S($db,static function()use(&$testNow){return $testNow;});$body=['request_key'=>S::uuid(),'title'=>'Synthetic instruction','message_html'=>'<p onclick="bad()">Read <b>carefully</b></p><script>alert(1)</script><ol><li>Step</li></ol>','recipients'=>[2,3,2],'required'=>true,'notify_immediately'=>true,'deadline'=>'2026-10-01T09:00'];
 denied(fn()=>$s->send(2,$body),'Employee cannot create instructions');
 $sent=$s->send(1,$body);check(!$sent['duplicate'],'Owner sends instruction');check($s->send(1,$body)['duplicate'],'Send replay idempotent');

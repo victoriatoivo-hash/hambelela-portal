@@ -1,0 +1,28 @@
+<?php
+require_once __DIR__.'/../../shared/acknowledgments/ResponseChats.php';
+use Hambelela\Acknowledgments\ResponseChats;
+use Hambelela\Acknowledgments\Service as ChatService;
+$db->exec(file_get_contents(__DIR__.'/../../database/ack-response-chats.sql'));
+$chatService=new ResponseChats($db);
+$ask=['employee'=>2,'message'=>'Which delivery is ready?','request_key'=>ChatService::uuid()];
+denied(fn()=>$chatService->start(2,$ask),'Chat creation is admin only');
+denied(fn()=>$chatService->start(1,array_merge($ask,['employee'=>4])),'Inactive employee cannot receive chat');
+$cid=$chatService->start(1,$ask)['id'];check($cid===$chatService->start(1,$ask)['id'],'Retry does not create a second chat');
+$turn=fn($actor,$args=[])=>$chatService->thread($actor,$args+['id'=>$cid]);
+$state=fn()=>$chatService->rows(1)[0]['status'];
+check($state()==='Awaiting Employee Response'&&count($chatService->rows(2,true))===1,'Opening message persists for offline employee');
+denied(fn()=>$turn(3),'Another employee cannot read the chat');
+$open=$turn(2);check(count($open['messages'])===1&&$state()==='Awaiting Employee Response'&&!$chatService->rows(2,true),'Opening reads without resolving');
+denied(fn()=>$turn(1,['op'=>'complete','expected'=>$open['last']]),'Cannot resolve before receiving a reply');
+$turn(2,['op'=>'later','expected'=>$open['last']]);check($state()==='Respond Later'&&count($chatService->rows(2))===1,'Deferred chat remains in employee portal');
+$r=['op'=>'reply','message'=>'The first delivery.','request_key'=>ChatService::uuid()];$ans=$turn(2,$r);$turn(2,$r);
+check($state()==='Awaiting Admin Response'&&count($chatService->rows(1,true))===1&&count($ans['messages'])===2,'Employee reply alerts owner exactly once');
+denied(fn()=>$turn(1,['op'=>'complete','expected'=>$open['last']]),'Stale resolution rejected');
+$turn(1,['op'=>'reply','message'=>'Which shelf?','request_key'=>ChatService::uuid()]);
+check($state()==='Awaiting Employee Response'&&count($chatService->rows(2,true))===1,'Owner follow-up alerts employee in original thread');
+$ans=$turn(2,['op'=>'reply','message'=>'Top shelf.','request_key'=>ChatService::uuid()]);
+denied(fn()=>$turn(2,['op'=>'complete','expected'=>$ans['last']]),'Employee cannot mark resolved');
+$end=$turn(1,['op'=>'complete','expected'=>$ans['last']]);
+check($end['closed']&&$state()==='Completed'&&count($end['messages'])===4,'Only explicit owner resolution completes chat; history retained');
+denied(fn()=>$turn(2,['op'=>'reply','message'=>'No more.','request_key'=>ChatService::uuid()]),'Completed chat is read only');
+check((int)$db->query('SELECT COUNT(*) FROM portal_ack_instructions')->fetchColumn()===0,'Chats do not generate instruction obligations');
