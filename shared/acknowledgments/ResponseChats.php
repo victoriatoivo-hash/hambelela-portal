@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Acknowledgments;
+require_once __DIR__.'/Mailbox.php';
 
 final class ResponseChats {
     private \PDO $db;
@@ -36,7 +37,7 @@ final class ResponseChats {
           (m.sender_id<>? AND c.last_id>IF(c.owner_id=?,c.owner_seen,c.employee_seen)) unread
           FROM portal_ack_response_chats c JOIN ops_employees e ON e.id=c.employee_id
           JOIN portal_ack_response_chat_messages o ON o.chat_id=c.id AND o.sender_id=c.owner_id AND o.request_key=c.create_key
-          JOIN portal_ack_response_chat_messages m ON m.id=c.last_id WHERE (c.owner_id=? OR c.employee_id=?)";
+          JOIN portal_ack_response_chat_messages m ON m.id=c.last_id WHERE (c.employee_id=? OR (c.owner_id=? AND NOT EXISTS(SELECT 1 FROM portal_ack_owner_chat_deletions h WHERE h.owner_id=c.owner_id AND h.kind='chat' AND h.thread_id=c.id AND h.through_id>=c.last_id)))";
         return $this->q($sql.($alerts?" AND (c.completed_at IS NULL OR m.request_key LIKE 'end:%' OR m.request_key LIKE 'ack:%') HAVING unread=1 ORDER BY c.last_id LIMIT 1":' ORDER BY c.last_id DESC'),[$actor,$actor,$actor,$actor])->fetchAll(\PDO::FETCH_ASSOC);
     }
     public function thread(int $actor,array $p):array{
@@ -44,6 +45,11 @@ final class ResponseChats {
             $id=(int)($p['id']??0);$c=$this->q('SELECT * FROM portal_ack_response_chats WHERE id=? AND (owner_id=? OR employee_id=?) FOR UPDATE',[$id,$actor,$actor])->fetch();
             if(!$c)throw new \DomainException('Private conversation unavailable.');
             $owner=(int)$c['owner_id']===$actor;$op=$p['op']??'open';$last=(int)$c['last_id'];
+            if($op==='delete_for_me'){
+                if(!$owner)throw new \DomainException('Only the Owner can delete this chat from their inbox.');
+                Mailbox::forPortal($this->db)->removeForOwner($actor,'chat',$id,$last,(int)($p['expected']??0));
+                return ['removed'=>true];
+            }
             $writer=(int)$this->q('SELECT sender_id FROM portal_ack_response_chat_messages WHERE chat_id=? AND id=?',[$id,$last])->fetchColumn();
             if($op==='reply'){
                 $key=$this->key($p);$text=$this->body($p);$prior=$this->q('SELECT body FROM portal_ack_response_chat_messages WHERE chat_id=? AND sender_id=? AND request_key=?',[$id,$actor,$key])->fetchColumn();
@@ -71,7 +77,7 @@ final class ResponseChats {
             if($op==='poll'&&(int)($p['after']??0)===$last&&(bool)($p['closed']??false)===$closed)return ['unchanged'=>true];
             $messages=$this->q('SELECT m.id,m.body,m.created_at,e.full_name sender,(m.sender_id=?) mine FROM portal_ack_response_chat_messages m JOIN ops_employees e ON e.id=m.sender_id WHERE m.chat_id=? ORDER BY m.id',[$actor,$id])->fetchAll(\PDO::FETCH_ASSOC);
             $tail=end($messages);
-            return ['messages'=>$messages,'last'=>$last,'closed'=>$closed,'owner'=>$owner,'can_ack'=>!$owner&&!$closed&&!$tail['mine'],
+            return ['messages'=>$messages,'last'=>$last,'closed'=>$closed,'owner'=>$owner,'can_remove'=>$owner&&Mailbox::forPortal($this->db)->isDesignatedOwner($actor),'can_ack'=>!$owner&&!$closed&&!$tail['mine'],
               'closure'=>$closed?($this->q("SELECT IF(request_key LIKE 'ack:%','Closed – Acknowledged',IF(request_key LIKE 'end:%','Closed by Management','Completed')) FROM portal_ack_response_chat_messages WHERE id=?",[$last])->fetchColumn()):null,
               'closed_by'=>$closed?($this->q("SELECT e.full_name FROM portal_ack_response_chat_messages m JOIN ops_employees e ON e.id=IF(m.request_key LIKE 'ack:%',?,?) WHERE m.id=?",[(int)$c['employee_id'],(int)$c['owner_id'],$last])->fetchColumn()):null,'closed_at'=>$closed?($c['completed_at']?:$tail['created_at']):null];
         });

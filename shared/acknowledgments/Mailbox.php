@@ -25,6 +25,15 @@ final class Mailbox {
         if(!$this->owner || $s->actor($this->owner)['role_key']!=='owner_admin')
             throw new \DomainException('The private inbox owner has not been configured.');
     }
+    public function isDesignatedOwner(int $actor):bool {
+        return $actor===$this->owner && $actor>0 && (new Service($this->db))->actor($actor)['role_key']==='owner_admin';
+    }
+    public function removeForOwner(int $actor,string $kind,int $topic,int $head,int $expected):void {
+        if(!$this->isDesignatedOwner($actor))throw new \DomainException('Only the designated Owner can delete a chat from their inbox.');
+        if($head!==$expected||$head<=0)throw new \DomainException('A newer message arrived. Read it before deleting.');
+        $this->db->prepare('INSERT INTO portal_ack_owner_chat_deletions(owner_id,kind,thread_id,through_id,removed_at) VALUES(?,?,?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE through_id=GREATEST(through_id,VALUES(through_id)),removed_at=UTC_TIMESTAMP()')->execute([$actor,$kind,$topic,$head]);
+    }
+    private const VISIBLE="NOT EXISTS (SELECT 1 FROM portal_ack_owner_chat_deletions h WHERE h.owner_id=a.owner_id AND h.kind='assistance' AND h.thread_id=a.topic_id AND h.through_id>=a.id)";
     private function store():\Hambelela\AnonymousIntake\Store {
         require_once dirname(__DIR__,2).'/standalone/ack-anonymous/Store.php';
         return new \Hambelela\AnonymousIntake\Store($this->db,$this->owner);
@@ -47,7 +56,7 @@ final class Mailbox {
           LEFT JOIN portal_ack_assistance_seen s ON s.owner_id=root.owner_id AND s.topic_id=root.id
           LEFT JOIN notifications old_notice ON old_notice.deduplication_key=CONCAT('ack-private-',m.id)
           LEFT JOIN notification_recipients old_delivery ON old_delivery.notification_id=old_notice.id AND old_delivery.employee_id=root.owner_id
-          WHERE root.owner_id=? AND root.id=root.topic_id ".
+          WHERE root.owner_id=? AND root.id=root.topic_id AND NOT EXISTS (SELECT 1 FROM portal_ack_owner_chat_deletions h WHERE h.owner_id=root.owner_id AND h.kind='assistance' AND h.thread_id=root.id AND h.through_id>=m.id) ".
           ($alert?"AND m.sender_id=root.employee_id AND m.request_key NOT LIKE 'later:%' AND m.request_key NOT LIKE 'receipt:%' AND old_delivery.popup_seen_at IS NULL AND old_delivery.cleared_at IS NULL AND old_delivery.read_at IS NULL AND m.id>GREATEST(COALESCE(s.seen,0),COALESCE(s.alerted,0)) ORDER BY m.id LIMIT 1":"ORDER BY m.id DESC"),[$actor]);
     }
     // Both participants use one topic-bound dialog. All writers take the same employee lock as send().
@@ -61,6 +70,11 @@ final class Mailbox {
             $this->rows('SELECT id FROM ops_employees WHERE id=? FOR UPDATE',[$emp]);
             $head=function()use($topic){return $this->rows('SELECT id,sender_id,request_key,body,created_at FROM portal_ack_assistance WHERE topic_id=? AND owner_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE',[$topic,$this->owner])[0];};
             $h=$head();$closed=static function($h){return strpos($h['request_key'],'ack:')===0||strpos($h['request_key'],'end:')===0;};$op=$p['op']??'open';
+            if($op==='delete_for_me'){
+                $this->removeForOwner($actor,'assistance',$topic,(int)$h['id'],(int)($p['expected']??0));
+                $this->db->prepare("UPDATE notification_recipients r JOIN notifications n ON n.id=r.notification_id JOIN portal_ack_assistance a ON n.deduplication_key=CONCAT('ack-private-',a.id) SET r.cleared_at=COALESCE(r.cleared_at,NOW()),r.next_reminder_at=NULL WHERE r.employee_id=? AND n.related_type='ack_private_message' AND a.owner_id=? AND a.topic_id=? AND a.id<=?")->execute([$actor,$actor,$topic,$h['id']]);
+                $this->db->commit();return ['removed'=>true];
+            }
             if($op==='reply')$this->send($actor,['employee'=>$emp,'topic'=>$topic,'message'=>$p['message']??'','request_key'=>$p['request_key']??'']);
             elseif(in_array($op,['ack','end','later'],true)){
                 if(($op==='end'&&!$owner)||($op==='ack'&&$owner))throw new \DomainException('This action is not available.');
@@ -80,7 +94,7 @@ final class Mailbox {
                 $this->db->prepare('INSERT INTO portal_ack_assistance_seen(owner_id,topic_id,seen,alerted) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE seen=GREATEST(seen,VALUES(seen)),alerted=GREATEST(alerted,VALUES(alerted))')->execute([$actor,$topic,$last,$last]);
                 $messages=$this->rows('SELECT m.id,m.body,m.created_at,e.full_name sender,(m.sender_id=?) mine FROM portal_ack_assistance m JOIN ops_employees e ON e.id=m.sender_id WHERE m.owner_id=? AND m.topic_id=? ORDER BY m.id',[$actor,$this->owner,$topic]);
                 $incoming=$this->rows("SELECT sender_id FROM portal_ack_assistance WHERE topic_id=? AND request_key NOT LIKE 'later:%' ORDER BY id DESC LIMIT 1",[$topic]);
-                $out=['messages'=>$messages,'last'=>$last,'closed'=>$done,'owner'=>$owner,'can_ack'=>!$owner&&!$done&&(int)$incoming[0]['sender_id']!==$actor,'closure'=>$done?$h['body']:null,'closed_at'=>$done?$h['created_at']:null,'closed_by'=>$done?end($messages)['sender']:null];
+                $out=['messages'=>$messages,'last'=>$last,'closed'=>$done,'owner'=>$owner,'can_remove'=>$owner,'can_ack'=>!$owner&&!$done&&(int)$incoming[0]['sender_id']!==$actor,'closure'=>$done?$h['body']:null,'closed_at'=>$done?$h['created_at']:null,'closed_by'=>$done?end($messages)['sender']:null];
             }
             $this->db->commit();return $out;
         }catch(\Throwable $e){$this->db->rollBack();throw $e;}
@@ -116,8 +130,8 @@ final class Mailbox {
         if(!$owner && $selected && $selected!==$actor)throw new \DomainException('This conversation is private.');
         $employee=$owner?$selected:$actor;
         return ['owner'=>$owner,'employee'=>$employee,
-            'threads'=>$owner?$this->rows('SELECT a.employee_id,e.full_name,MAX(a.id) latest FROM portal_ack_assistance a JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? GROUP BY a.employee_id,e.full_name ORDER BY latest DESC',[$this->owner]):[],
-            'messages'=>$employee?$this->rows("SELECT id,topic_id,sender_id,body,created_at,(request_key LIKE 't:%') starts_topic FROM portal_ack_assistance WHERE owner_id=? AND employee_id=? ORDER BY id",[$this->owner,$employee]):[],
+            'threads'=>$owner?$this->rows('SELECT a.employee_id,e.full_name,MAX(a.id) latest FROM portal_ack_assistance a JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? AND '.self::VISIBLE.' GROUP BY a.employee_id,e.full_name ORDER BY latest DESC',[$this->owner]):[],
+            'messages'=>$employee?$this->rows("SELECT id,topic_id,sender_id,body,created_at,(request_key LIKE 't:%') starts_topic FROM portal_ack_assistance a WHERE owner_id=? AND employee_id=? ".($owner?"AND EXISTS(SELECT 1 FROM portal_ack_assistance b WHERE b.topic_id=a.topic_id AND b.owner_id=a.owner_id AND ".str_replace('a.','b.',self::VISIBLE).") ":'')."ORDER BY id",[$this->owner,$employee]):[],
             'reports'=>[]]; // Reports are managed in the unified register only.
     }
     // One prompt per conversation, for its latest incoming message only. Reading the
@@ -133,6 +147,7 @@ final class Mailbox {
             WHERE a.request_key NOT LIKE 'ack:%' AND a.request_key NOT LIKE 'end:%' AND a.sender_id=".($owner?'a.employee_id':'a.owner_id')." AND NOT EXISTS
             (SELECT 1 FROM portal_ack_assistance r WHERE r.employee_id=a.employee_id AND r.owner_id=a.owner_id
              AND r.sender_id=a.employee_id AND r.request_key=CONCAT('receipt:',a.id))";
+        if($owner)$sql.=' AND '.self::VISIBLE;
         $chats=(int)$this->rows($sql,$owner?[$this->owner]:[$this->owner,$actor])[0]['n'];
         $reports=$owner?(int)$this->rows("SELECT COUNT(*) n FROM portal_ack_anonymous r JOIN portal_ack_report_messages m ON m.id=(SELECT MAX(t.id) FROM portal_ack_report_messages t WHERE t.report_id=r.report_id) WHERE r.owner_id=? AND m.side='reporter'",[$actor])[0]['n']:0;
         return ['private'=>$chats,'reports'=>$reports];
@@ -140,6 +155,7 @@ final class Mailbox {
     public function pendingPrompt(int $actor):?array {
         $this->access($actor);
         $scope=$actor===$this->owner?'a.sender_id=a.employee_id':'a.employee_id=? AND a.sender_id=a.owner_id';
+        if($actor===$this->owner)$scope.=' AND '.self::VISIBLE;
         $args=[$actor,$this->owner];if($actor!==$this->owner)$args[]=$actor;
         $r=$this->rows("SELECT a.id,a.employee_id,a.topic_id FROM portal_ack_assistance a
             LEFT JOIN notifications n ON n.deduplication_key=CONCAT('ack-private-',a.id)
@@ -172,7 +188,7 @@ final class Mailbox {
         $this->access($actor);
         if($actor!==$this->owner)return [];
         return $this->rows("SELECT a.id,a.topic_id,e.full_name,a.created_at FROM portal_ack_assistance a
-            JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? AND a.sender_id=a.employee_id
+            JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? AND a.sender_id=a.employee_id AND ".self::VISIBLE."
             AND a.request_key NOT LIKE 'receipt:%' AND a.request_key NOT LIKE 'later:%' AND a.request_key NOT LIKE 'ack:%' AND a.request_key NOT LIKE 'end:%' AND NOT EXISTS(SELECT 1 FROM portal_ack_assistance b
             WHERE b.owner_id=a.owner_id AND b.topic_id=a.topic_id AND b.id>a.id AND b.request_key NOT LIKE 'later:%') ORDER BY a.id",[$actor]);
     }

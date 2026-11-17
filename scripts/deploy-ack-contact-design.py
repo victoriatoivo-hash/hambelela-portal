@@ -6,6 +6,9 @@ base = 'e821853b5bd00f0ca7de217fedf30a2fbf3db4fa'
 def git(*args): return subprocess.check_output(['git', *args])
 mode, sha = sys.argv[1:]
 staff_view=os.environ.get('GITHUB_REF')=='refs/heads/codex/employee-my-instructions'
+if os.environ.get('GITHUB_REF')=='refs/heads/codex/owner-inbox-delete':
+    paths=('shared/acknowledgments/Mailbox.php','shared/acknowledgments/ResponseChats.php','assets/js/acknowledgments-popup.js')
+    base='de2df1f3c99584e0400e924715618910e38e4b17'
 if os.environ.get('GITHUB_REF')=='refs/heads/codex/ack-combined-register':
     # Independently deployable CSS. Never publish the readers or either intake
     # writer through this path: those require the private DB cutover first.

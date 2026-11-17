@@ -170,7 +170,7 @@ function responseChat(id,csrf,preview=null,assistance=false){
   if(op==='reply'){const msg=input.value.trim();if(!msg){input.reportValidity();input.focus();return;}if(draft!==msg){key=crypto.randomUUID();draft=msg;}Object.assign(body,{message:msg,request_key:key});}
   if(write){busy=true;input.readOnly=true;footer.querySelectorAll('button').forEach(b=>b.disabled=true);}else polling=true;
   try{const r=await request(assistance?'assistance_dialog':'chat_thread',body,csrf);if(!d.open||ticket!==version||r.unchanged)return;
-   if(op==='later'||op==='end'||op==='ack'){d.close();return;}
+   if(op==='later'||op==='end'||op==='ack'||(op==='delete_for_me'&&r.removed)){d.close();return;}
    if(op==='reply'){input.value='';key='';draft=null;window.dispatchEvent(new Event('ack:register-changed'));}
    const wasAtBottom=!loaded||hist.scrollHeight-hist.clientHeight-hist.scrollTop<24;
    last=Number(r.last);closed=r.closed;loaded=true;err.textContent='';find('h2').textContent=closed?r.closure:'Open conversation';
@@ -182,6 +182,7 @@ function responseChat(id,csrf,preview=null,assistance=false){
     if(!r.owner&&r.can_ack)button('Acknowledge',()=>finish('ack')).className='ack-action ack-conversation-ack';
     button(r.owner?'Send Reply':'Reply',()=>act('reply')).className='ack-action';
     button('Respond Later',leave);if(r.owner)button('End Conversation',()=>finish('end')).className='ack-action ack-conversation-end';}
+   if(r.can_remove===true)button('Delete chat',()=>{if(window.confirm('Remove this chat from your inbox only? The employee keeps the conversation. A new reply will bring it back.'+(input.value.trim()?' Your unsent draft will be discarded.':'')))act('delete_for_me');});
    if(wasAtBottom)hist.scrollTop=hist.scrollHeight;
   }catch(e){if(ticket===version){err.textContent=e.message;if(!loaded){footer.replaceChildren();button('Retry',()=>act('open'));button('Close',()=>d.close());}}}
   finally{if(write){busy=false;input.readOnly=false;footer.querySelectorAll('button').forEach(b=>b.disabled=false);}else polling=false;}

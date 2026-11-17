@@ -14,6 +14,8 @@ $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(40));INSER
 $db->exec(file_get_contents(__DIR__.'/../database/acknowledgments.sql'));
 $db->exec(file_get_contents(__DIR__.'/../database/ack-communication.sql'));
 $db->exec(file_get_contents(__DIR__.'/../database/ack-combined-register.sql'));
+$db->exec(file_get_contents(__DIR__.'/../database/ack-owner-chat-deletions.sql'));
+putenv('ACK_CONTACT_OWNER_ID=1');
 require __DIR__.'/fixtures/ack-response-chat-checks.php';
 $testNow='2026-09-30 08:00:00';$s=new S($db,static function()use(&$testNow){return $testNow;});$body=['request_key'=>S::uuid(),'title'=>'Synthetic instruction','message_html'=>'<p onclick="bad()">Read <b>carefully</b></p><script>alert(1)</script><ol><li>Step</li></ol>','recipients'=>[2,3,2],'required'=>true,'notify_immediately'=>true,'deadline'=>'2026-10-01T09:00'];
 denied(fn()=>$s->send(2,$body),'Employee cannot create instructions');
@@ -41,6 +43,7 @@ check((int)$db->query('SELECT COUNT(*) FROM portal_ack_instructions')->fetchColu
 echo "Acknowledgments service checks complete. Synthetic database only.\n";
 $completedNoticeId=$id;
 require __DIR__.'/fixtures/ack-communication-checks.php';
+require __DIR__.'/fixtures/ack-owner-delete-checks.php';
 $rid=(int)$db->query("SELECT id FROM portal_ack_recipients WHERE employee_id=2 AND schedule_active=1 LIMIT 1")->fetchColumn();
 $db->prepare("INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,1,'schedule_edit','internal recipient list',?,NOW())")->execute([$rid,S::uuid()]);
 check(!in_array('schedule_edit',array_column($s->detail(2,$rid)['events'],'event_type'),true),'Employee response omits scheduling audit payload');
