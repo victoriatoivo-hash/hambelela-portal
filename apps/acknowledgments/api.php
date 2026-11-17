@@ -9,6 +9,8 @@ try{
     $employee=(int)(current_user()['id']??0);$service=new \Hambelela\Acknowledgments\Service(db());$service->actor($employee);
     if(!acknowledgments_ready())throw new DomainException('Acknowledgments is not activated yet.');
     $_SESSION['ack_csrf']=$_SESSION['ack_csrf']??bin2hex(random_bytes(32));$action=(string)($_GET['action']??'list');
+    require_once BASE_PATH.'/shared/acknowledgments/ResponseChats.php';
+    $chats=new \Hambelela\Acknowledgments\ResponseChats(db());
     if($action==='unnamed_report' && $_SERVER['REQUEST_METHOD']!=='POST'){http_response_code(405);header('Allow: POST');echo '{"error":"Use the reporting form."}';exit;}
     if(in_array($action,['inbox','message','unnamed_report','popup','private_claim','private_seen','private_item','private_queue','private_act'],true))require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
     if($_SERVER['REQUEST_METHOD']==='POST'){
@@ -24,6 +26,12 @@ try{
             exit;
         }
         if($action==='send')$result=$service->send($employee,$body);
+        elseif($action==='remove_assistance'){
+            require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
+            \Hambelela\Acknowledgments\Mailbox::forPortal(db())->removeFromInbox($employee,(int)($body['employee']??0),(int)($body['through']??0));
+            echo '{"ok":true}';exit;
+        }
+        elseif($action==='response_chat'){echo json_encode($chats->write($employee,$body),JSON_THROW_ON_ERROR);exit;}
         elseif($action==='schedule')$result=$service->schedule($employee,$body);
         elseif($action==='withdrawal')$result=$service->withdrawal($employee,$body);
         elseif($action==='respond'){$service->respond($employee,$body,session_id());$result=['ok'=>true];}
@@ -33,10 +41,20 @@ try{
     if($action==='private_item')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->incoming($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='private_queue')$result=['items'=>\Hambelela\Acknowledgments\Mailbox::forPortal(db())->awaitingReply($employee)];
     elseif($action==='inbox')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
+    elseif($action==='response_chat')$result=$chats->detail($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
+    elseif($action==='response_list')$result=['items'=>$chats->listing($employee)];
     elseif($action==='detail')$result=$service->detail($employee,(int)($_GET['id']??0));
     elseif($action==='popup'){$result=['csrf'=>$_SESSION['ack_csrf'],'notice'=>$service->popup($employee),'pending'=>acknowledgments_pending($employee),'session'=>hash('sha256',session_id().':'.$employee)];acknowledgments_deliver();
+        $result['response_queue']=$chats->prompt($employee);
         try{$box=\Hambelela\Acknowledgments\Mailbox::forPortal(db());$result['attention']=$box->attention($employee);}catch(Throwable $e){error_log('Private attention counts unavailable.');}
         try{if(isset($box))$result['private_prompt']=$box->pendingPrompt($employee);}catch(Throwable $e){error_log('Private message prompts unavailable.');}}
-    else $result=$service->listing($employee)+['csrf'=>$_SESSION['ack_csrf']];
+    else {
+        $result=$service->listing($employee)+['csrf'=>$_SESSION['ack_csrf']];
+        if($result['owner']){
+            require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
+            $result['chats']=$chats->listing($employee);
+            $result['mail']=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->register($employee);
+        }
+    }
     echo json_encode($result,JSON_THROW_ON_ERROR);
 }catch(DomainException $e){http_response_code(403);echo json_encode(['error'=>$e->getMessage()]);}catch(Throwable $e){error_log('Acknowledgments API: '.$e->getMessage());http_response_code(500);echo json_encode(['error'=>'Could not complete this action. Your form has been kept; please retry.']);}

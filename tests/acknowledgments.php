@@ -13,6 +13,7 @@ $db->exec('DROP TABLE IF EXISTS portal_ack_anonymous,portal_ack_assistance,porta
 $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(40));INSERT INTO ops_roles VALUES(1,'owner_admin'),(2,'front_desk_admin'),(3,'delivery_driver');CREATE TABLE ops_employees(id INT PRIMARY KEY,role_id INT,full_name VARCHAR(190),status VARCHAR(20));INSERT INTO ops_employees VALUES(1,1,'Synthetic Owner','active'),(2,2,'Synthetic Front','active'),(3,3,'Synthetic Driver','active'),(4,2,'Inactive','inactive')");
 $db->exec(file_get_contents(__DIR__.'/../database/acknowledgments.sql'));
 $db->exec(file_get_contents(__DIR__.'/../database/ack-communication.sql'));
+$db->exec(file_get_contents(__DIR__.'/../database/ack-owner-chat-deletions.sql'));
 $testNow='2026-09-30 08:00:00';$s=new S($db,static function()use(&$testNow){return $testNow;});$body=['request_key'=>S::uuid(),'title'=>'Synthetic instruction','message_html'=>'<p onclick="bad()">Read <b>carefully</b></p><script>alert(1)</script><ol><li>Step</li></ol>','recipients'=>[2,3,2],'required'=>true,'notify_immediately'=>true,'deadline'=>'2026-10-01T09:00'];
 denied(fn()=>$s->send(2,$body),'Employee cannot create instructions');
 $sent=$s->send(1,$body);check(!$sent['duplicate'],'Owner sends instruction');check($s->send(1,$body)['duplicate'],'Send replay idempotent');
@@ -37,6 +38,7 @@ $bad=$body;$bad['request_key']=S::uuid();$bad['recipients']=[4];denied(fn()=>$s-
 check((int)$db->query('SELECT COUNT(*) FROM portal_ack_instructions')->fetchColumn()===2,'Failed send rolls back');
 echo "Acknowledgments service checks complete. Synthetic database only.\n";
 require __DIR__.'/fixtures/ack-communication-checks.php';
+require __DIR__.'/fixtures/ack-response-chat-checks.php';
 $rid=(int)$db->query("SELECT id FROM portal_ack_recipients WHERE employee_id=2 AND schedule_active=1 LIMIT 1")->fetchColumn();
 $db->prepare("INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,1,'schedule_edit','internal recipient list',?,NOW())")->execute([$rid,S::uuid()]);
 check(!in_array('schedule_edit',array_column($s->detail(2,$rid)['events'],'event_type'),true),'Employee response omits scheduling audit payload');

@@ -51,12 +51,40 @@ final class Mailbox {
             return ['saved'=>true];
         }catch(\PDOException $e){throw new \RuntimeException('Unnamed reporting storage unavailable.');}
     }
+    private static function visibleToOwner():string {
+        return "NOT EXISTS(SELECT 1 FROM portal_ack_owner_chat_deletions h WHERE h.owner_id=a.owner_id AND h.kind='assistance' AND h.thread_id=a.employee_id AND h.through_id>=a.id)";
+    }
+    public function isDesignatedOwner(int $actor):bool {
+        return $actor>0 && $actor===$this->owner && (new Service($this->db))->actor($actor)['role_key']==='owner_admin';
+    }
+    public function removeFromInbox(int $actor,int $employee,int $through):void {
+        $this->access($actor);
+        if($actor!==$this->owner||$through<1)throw new \DomainException('Only the conversation owner can delete a chat.');
+        $this->db->beginTransaction();
+        try {
+            $r=$this->rows('SELECT id FROM portal_ack_assistance WHERE owner_id=? AND employee_id=? ORDER BY id DESC LIMIT 1 FOR UPDATE',[$actor,$employee]);
+            if(!$r||(int)$r[0]['id']!==$through)throw new \DomainException('The conversation changed. Open it again before deleting.');
+            $this->db->prepare("INSERT INTO portal_ack_owner_chat_deletions VALUES(?,'assistance',?,?,UTC_TIMESTAMP()) ON DUPLICATE KEY UPDATE through_id=VALUES(through_id)")->execute([$actor,$employee,$through]);
+            $this->db->prepare("UPDATE notification_recipients r JOIN notifications n ON n.id=r.notification_id JOIN portal_ack_assistance a ON n.deduplication_key=CONCAT('ack-private-',a.id)
+                SET r.cleared_at=COALESCE(r.cleared_at,NOW()),r.next_reminder_at=NULL WHERE n.related_type='ack_private_message' AND r.employee_id=? AND a.owner_id=? AND a.employee_id=? AND a.id<=?")->execute([$actor,$actor,$employee,$through]);
+            $this->db->commit();
+        }catch(\Throwable $e){$this->db->rollBack();throw $e;}
+    }
+    public function register(int $actor):array {
+        $this->access($actor);if($actor!==$this->owner)return [];
+        $threads=$this->rows("SELECT 'assistance' kind,a.employee_id id,e.full_name employee_name,a.created_at updated_at,
+            CASE WHEN a.request_key LIKE 'receipt:%' THEN 'Acknowledged' WHEN a.sender_id=a.owner_id THEN 'Owner replied' ELSE 'Awaiting Admin Response' END label
+            FROM portal_ack_assistance a JOIN ops_employees e ON e.id=a.employee_id JOIN
+            (SELECT employee_id,MAX(id) latest FROM portal_ack_assistance WHERE owner_id=? GROUP BY employee_id) t ON a.id=t.latest WHERE ".self::visibleToOwner(),[$actor]);
+        return array_merge($threads,$this->rows("SELECT 'report' kind,report_id id,'Anonymous' employee_name,NULL updated_at,
+            CASE WHEN reply IS NULL THEN 'Awaiting Admin Response' ELSE 'Owner replied' END label FROM portal_ack_anonymous WHERE owner_id=?",[$actor]));
+    }
     public function inbox(int $actor,int $selected=0):array {
         $this->access($actor);$owner=$actor===$this->owner;
         if(!$owner && $selected && $selected!==$actor)throw new \DomainException('This conversation is private.');
         $employee=$owner?$selected:$actor;
         return ['owner'=>$owner,'employee'=>$employee,
-            'threads'=>$owner?$this->rows('SELECT a.employee_id,e.full_name,MAX(a.id) latest FROM portal_ack_assistance a JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? GROUP BY a.employee_id,e.full_name ORDER BY latest DESC',[$this->owner]):[],
+            'threads'=>$owner?$this->rows('SELECT a.employee_id,e.full_name,MAX(a.id) latest FROM portal_ack_assistance a JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? AND '.self::visibleToOwner().' GROUP BY a.employee_id,e.full_name ORDER BY latest DESC',[$this->owner]):[],
             'messages'=>$employee?$this->rows("SELECT id,sender_id,body,created_at,(request_key LIKE 't:%') starts_topic FROM portal_ack_assistance WHERE owner_id=? AND employee_id=? ORDER BY id",[$this->owner,$employee]):[],
             'reports'=>$owner?$this->rows('SELECT report_id,body,reply FROM portal_ack_anonymous WHERE owner_id=? ORDER BY CASE WHEN reply IS NULL THEN 0 ELSE 1 END,report_id',[$this->owner]):[]];
     }
@@ -73,6 +101,7 @@ final class Mailbox {
             WHERE a.sender_id=".($owner?'a.employee_id':'a.owner_id')." AND NOT EXISTS
             (SELECT 1 FROM portal_ack_assistance r WHERE r.employee_id=a.employee_id AND r.owner_id=a.owner_id
              AND r.sender_id=a.employee_id AND r.request_key=CONCAT('receipt:',a.id))";
+        if($owner)$sql.=' AND '.self::visibleToOwner();
         $chats=(int)$this->rows($sql,$owner?[$this->owner]:[$this->owner,$actor])[0]['n'];
         $reports=$owner?(int)$this->rows('SELECT COUNT(*) n FROM portal_ack_anonymous WHERE owner_id=? AND reply IS NULL',[$actor])[0]['n']:0;
         return ['private'=>$chats,'reports'=>$reports];
@@ -80,6 +109,7 @@ final class Mailbox {
     public function pendingPrompt(int $actor):?array {
         $this->access($actor);
         $scope=$actor===$this->owner?'a.sender_id=a.employee_id':'a.employee_id=? AND a.sender_id=a.owner_id';
+        if($actor===$this->owner)$scope.=' AND '.self::visibleToOwner();
         $args=[$actor,$this->owner];if($actor!==$this->owner)$args[]=$actor;
         $r=$this->rows("SELECT a.id,a.employee_id FROM portal_ack_assistance a
             LEFT JOIN notifications n ON n.deduplication_key=CONCAT('ack-private-',a.id)
@@ -112,7 +142,7 @@ final class Mailbox {
         if($actor!==$this->owner)return [];
         return $this->rows("SELECT a.id,e.full_name,a.created_at FROM portal_ack_assistance a
             JOIN ops_employees e ON e.id=a.employee_id WHERE a.owner_id=? AND a.sender_id=a.employee_id
-            AND a.request_key NOT LIKE 'receipt:%' AND NOT EXISTS(SELECT 1 FROM portal_ack_assistance b
+            AND ".self::visibleToOwner()." AND a.request_key NOT LIKE 'receipt:%' AND NOT EXISTS(SELECT 1 FROM portal_ack_assistance b
             WHERE b.owner_id=a.owner_id AND b.employee_id=a.employee_id AND b.id>a.id AND b.request_key NOT LIKE 'receipt:%') ORDER BY a.id",[$actor]);
     }
     public function incoming(int $actor,int $id):array {

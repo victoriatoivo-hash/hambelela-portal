@@ -12,7 +12,8 @@ include BASE_PATH.'/shared/header.php';include BASE_PATH.'/shared/sidebar.php';
 ?><main class="workspace ack-contact-page"><?php if($isManager): ?><a class="ack-contact-back" href="index.php">← Acknowledgments</a><?php endif; ?><h1>Messages &amp; reporting</h1>
 <div class="ack-contact-grid">
 <section class="ack-contact-card" id="private" aria-labelledby="ack-private-title"><header><i class="ack-contact-symbol" data-lucide="messages-square" aria-hidden="true"></i><h2 id="ack-private-title">Private assistance</h2></header><p>Ask a question or request help. Only you and the designated Owner can read the conversation. Your name is visible to the Owner.</p>
-<button type="button" class="ack-contact-primary" id="ack-private-open">Open private inbox</button><div id="ack-private"></div></section>
+<button type="button" class="ack-contact-primary" id="ack-private-open">Open private inbox</button><div id="ack-private"></div>
+<div id="ack-response-inbox" aria-label="Response-required conversations"></div></section>
 <section class="ack-contact-card" id="anonymous" data-csrf="<?=htmlspecialchars($_SESSION['ack_csrf'],ENT_QUOTES)?>" aria-labelledby="ack-anon-title"><header><i class="ack-contact-symbol" data-lucide="shield-check" aria-hidden="true"></i><h2 id="ack-anon-title">Send without my name</h2></header>
 <p>Only the designated Owner receives the report. Your name and employee ID are not attached or shown in the inbox. Avoid including details that identify you.</p>
 <p class="ack-state">Hosting logs may record connection details, such as your IP address and the time you visited. This is not a guarantee of complete anonymity.</p>

@@ -15,6 +15,9 @@ async function run(owner){
   if(action==='withdrawal'){const b=JSON.parse(opts.body);posts.push(b);if(fail)return {ok:false,headers:{get:()=> 'application/json'},json:async()=>({error:'Synthetic failure'})};records.find(r=>r.id===b.recipient_id).withdrawn=b.operation==='withdraw';payload={ok:true};}
   return {ok:true,headers:{get:()=> 'application/json'},json:async()=>payload};
  };
+ const communication=d.createElement('script');communication.dataset.base='';d.body.append(communication);
+ Object.defineProperty(d,'currentScript',{configurable:true,value:communication});
+ w.eval(fs.readFileSync('assets/js/ack-communication.js','utf8'));
  w.eval(source);await tick();d.querySelector('[data-view="1"]').click();await tick();
  if(!owner){assert.equal(d.querySelector('[data-withdrawal]'),null);assert.equal(d.querySelector('[data-record-action]'),null);dom.window.close();return;}
  assert.equal(d.querySelector('[data-revise]').textContent,'Edit');

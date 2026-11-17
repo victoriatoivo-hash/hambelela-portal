@@ -12,6 +12,7 @@
 <script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH . '/assets/js/ess-dashboard.js') ?>"></script>
 <?php endif; ?>
 <?php if (!empty($headerUser) && ($headerUser['role_key'] ?? 'guest') !== 'guest'): ?>
+<script defer data-base="<?=htmlspecialchars(BASE_URL,ENT_QUOTES)?>" src="<?=BASE_URL?>/assets/js/ack-response-chat.js?v=<?=filemtime(BASE_PATH.'/assets/js/ack-response-chat.js')?>"></script>
 <script defer data-base="<?=htmlspecialchars(BASE_URL,ENT_QUOTES)?>" src="<?=BASE_URL?>/assets/js/acknowledgments-popup.js?v=<?=filemtime(BASE_PATH.'/assets/js/acknowledgments-popup.js')?>"></script>
 <?php endif; ?>
 <?php include __DIR__.'/profile-menu.php'; ?>

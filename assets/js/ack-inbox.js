@@ -25,6 +25,12 @@
      catch(x){error.textContent=x.message;button.disabled=false;}};}
    if(d.employee){add('h3',d.owner?'Conversation with '+(d.threads.find(t=>Number(t.employee_id)===Number(d.employee))?.full_name??'employee'):'Your conversation');for(const m of d.messages){if(Number(m.starts_topic)===1)add('p','New conversation · '+m.created_at).className='ack-topic-divider';const p=add('p'),employee=Number(m.sender_id)===Number(d.employee);p.className='ack-thread-message';p.dataset.sender=employee?'employee':'owner';p.append(el('strong',(employee?'Employee':'Owner')+' · '+m.created_at),el('br'),document.createTextNode(m.body));}
     const last=d.messages[d.messages.length-1];
+    if(d.owner&&last){
+     const del=add('button','Delete chat');del.type='button';
+     del.onclick=async()=>{if(!window.confirm('Delete this chat from your inbox only? The employee keeps the full conversation. A new reply will bring it back.'))return;
+      del.disabled=true;try{await request('api.php?action=remove_assistance',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':d.csrf},body:JSON.stringify({employee:d.employee,through:last.id})});await load();window.dispatchEvent(new Event('ack:attention-changed'));}
+      catch(e){error.textContent=e.message;del.disabled=false;}};
+    }
     if(!d.owner&&last&&Number(last.sender_id)!==Number(d.employee)){const ack=add('button','Acknowledge reply');ack.type='button';ack.onclick=async()=>{ack.disabled=true;try{await request('api.php?action=private_act',{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':d.csrf},body:JSON.stringify({id:last.id,choice:'understood'})});window.dispatchEvent(new Event('ack:attention-changed'));await load(id);}catch(e){error.textContent=e.message;ack.disabled=false;}};}
     composer('Private message',{employee:d.employee});}
    if(d.owner){add('h3','Anonymous reports');if(!d.reports.length)add('p','No reports.');for(const report of d.reports){add('h4','Anonymous report');add('p',report.body);if(report.reply)add('p','Your reply: '+report.reply);composer(report.reply?'Update reply':'Reply by private code',{report:report.report_id});}}

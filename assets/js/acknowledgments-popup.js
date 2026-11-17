@@ -5,7 +5,7 @@ const esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 let running=false,refreshAgain=false;
 function paintAttention(d){
  if(!d.attention)return;
- const messages=d.attention.private+d.attention.reports,all=messages+d.pending;
+ const messages=d.attention.private+d.attention.reports+(d.response_queue?.count||0),all=messages+d.pending;
  const targets=document.querySelectorAll('.ack-contact-launch, a:is(.ess-module-card,.app-card,.ess-nav-item,.ps-nav-item)[href$="/apps/acknowledgments/index.php"], #ack-app a[href="messages.php"]');
  for(const link of targets){const chat=link.matches('.ack-contact-launch,#ack-app a[href="messages.php"]'),count=chat?messages:all;
   let b=link.querySelector('[data-ack-count]');if(!b){b=document.createElement('b');b.dataset.ackCount='';b.className='ack-attention-badge';b.setAttribute('aria-hidden','true');link.append(b);}
@@ -74,6 +74,7 @@ async function check(){
  try{
   const d=await request('popup');
   paintAttention(d);
+  if(window.AckResponseChat?.notify(d.response_queue,d.session))return;
   if(d.private_prompt&&!document.hidden&&!document.querySelector('dialog[open]')){
    const gate=window.PortalNoticeGate;
    if(gate&&!gate.acquire('private-assistance'))return;
@@ -112,7 +113,7 @@ async function check(){
   dialog.addEventListener('close',()=>{dialog.remove();window.PortalNoticeGate?.release('acknowledgments');});
  }catch(e){window.PortalNoticeGate?.release('acknowledgments');/* Leave the existing notification centre available on network failure. */}finally{running=false;if(refreshAgain){refreshAgain=false;check();}}
 }
-window.addEventListener('ack:attention-changed',()=>{if(running)refreshAgain=true;else check();});
+window.addEventListener('ack:attention-changed',()=>{loadQueue();if(running)refreshAgain=true;else check();});
 window.addEventListener('portal:notice-closed',check);
-check();setInterval(check,60000);document.addEventListener('visibilitychange',check);
+check();setInterval(check,15000);document.addEventListener('visibilitychange',check);
 })();

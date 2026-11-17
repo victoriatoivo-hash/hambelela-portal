@@ -23,6 +23,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  response-chat:
+    if: github.ref == 'refs/heads/codex/response-required-chat' && inputs.approved_sha == github.sha
+    runs-on: ubuntu-latest
+    permissions: {contents: read}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - name: Lint release
+        run: |
+          for f in apps/acknowledgments/{api,messages}.php shared/acknowledgments/{Mailbox,ResponseChats}.php shared/footer.php; do php -l "$f"; done
+          for f in assets/js/{acknowledgments,acknowledgments-popup,ack-response-chat,ack-inbox}.js; do node --check "$f"; done
+      - name: Guarded portal-only file release
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          STAGE: ${{ inputs.contact_stage }}
+        run: python3 scripts/release-response-chat.py "$STAGE" "$GITHUB_SHA"
   employee-instructions-home:
     if: github.ref == 'refs/heads/codex/employee-instructions-messages-home' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest
