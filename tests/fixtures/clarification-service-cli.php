@@ -3,6 +3,7 @@
 if(PHP_SAPI!=='cli'||getenv('ACK_TEST_DSN')!=='mysql:host=127.0.0.1;port=13317;dbname=acknowledgments_test')exit(2);
 require __DIR__.'/../../shared/acknowledgments/Service.php';
 require __DIR__.'/../../shared/acknowledgments/ResponseChats.php';
+require __DIR__.'/../../shared/acknowledgments/Mailbox.php';
 use Hambelela\Acknowledgments\Service;
 $db=new PDO(getenv('ACK_TEST_DSN'),'root',getenv('ACK_TEST_PASSWORD'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION]);
 $svc=new Service($db);$actor=(int)$argv[1];$action=$argv[2];$b=json_decode(stream_get_contents(STDIN),true)??[];
@@ -15,7 +16,12 @@ try{
     }elseif($action==='popup')$out=['notice'=>$svc->popup($actor),'session'=>'fixture-'.$actor,'csrf'=>'fixture'];
     elseif($action==='list')$out=['csrf'=>'fixture'];
     elseif($action==='detail')$out=$svc->detail($actor,(int)$b['id']);
-    elseif($action==='clarification_poll')$out=['turn'=>$svc->threadPrompt($actor,(int)($b['event']??0)),'chat'=>(new \Hambelela\Acknowledgments\ResponseChats($db))->rows($actor,true)[0]??null,'csrf'=>'fixture'];
+    elseif($action==='clarification_poll'){
+        $out=['turn'=>$svc->threadPrompt($actor,(int)($b['event']??0)),'chat'=>(new \Hambelela\Acknowledgments\ResponseChats($db))->rows($actor,true)[0]??null,'csrf'=>'fixture'];
+        $box=new \Hambelela\Acknowledgments\Mailbox($db,getenv('NOTICE_ASSETS')?1071:71);$out['assistance']=$actor===(getenv('NOTICE_ASSETS')?1071:71)?($box->assistanceRows($actor,true)[0]??null):$box->pendingPrompt($actor);
+    }
+    elseif($action==='assistance_dialog')$out=(new \Hambelela\Acknowledgments\Mailbox($db,getenv('NOTICE_ASSETS')?1071:71))->dialog($actor,$b);
+    elseif($action==='assistance_start'){(new \Hambelela\Acknowledgments\Mailbox($db,getenv('NOTICE_ASSETS')?1071:71))->send($actor,$b+['new_topic'=>true]);$out=['ok'=>true];}
     elseif($action==='chat_start')$out=(new \Hambelela\Acknowledgments\ResponseChats($db))->start($actor,$b);
     elseif($action==='chat_thread')$out=(new \Hambelela\Acknowledgments\ResponseChats($db))->thread($actor,$b);
     elseif($action==='chat_list')$out=['chats'=>(new \Hambelela\Acknowledgments\ResponseChats($db))->rows($actor),'csrf'=>'fixture'];

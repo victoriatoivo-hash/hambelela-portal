@@ -23,6 +23,8 @@ check($state()==='Awaiting Employee Response'&&count($chatService->rows(2,true))
 $ans=$turn(2,['op'=>'reply','message'=>'Top shelf.','request_key'=>ChatService::uuid()]);
 denied(fn()=>$turn(2,['op'=>'complete','expected'=>$ans['last']]),'Employee cannot mark resolved');
 $end=$turn(1,['op'=>'complete','expected'=>$ans['last']]);
-check($end['closed']&&$state()==='Completed'&&count($end['messages'])===4,'Only explicit owner resolution completes chat; history retained');
+check($end['closed']&&$state()==='Closed by Management'&&count($end['messages'])===5,'Only explicit owner resolution completes chat; history retained');
 denied(fn()=>$turn(2,['op'=>'reply','message'=>'No more.','request_key'=>ChatService::uuid()]),'Completed chat is read only');
 check((int)$db->query('SELECT COUNT(*) FROM portal_ack_instructions')->fetchColumn()===0,'Chats do not generate instruction obligations');
+$cid2=$chatService->start(1,['employee'=>2,'message'=>'Please review','request_key'=>ChatService::uuid()])['id'];$v=$chatService->thread(2,['id'=>$cid2]);
+$ack=['id'=>$cid2,'op'=>'ack','expected'=>$v['last']];$end=$chatService->thread(2,$ack);check($end['closure']==='Closed – Acknowledged'&&$end['closed_at']&&count($chatService->rows(1,true))===1,'Employee closure alerts owner and records its time');check($chatService->thread(2,$ack)['last']===$end['last'],'Employee closure retry adds no row');

@@ -30,13 +30,13 @@ final class ResponseChats {
     public function rows(int $actor,bool $alerts=false):array{
         $sql="SELECT c.id,c.owner_id,c.employee_id,c.created_at,c.last_id,c.completed_at,e.full_name employee_name,
           LEFT(o.body,80) title,LEFT(m.body,220) latest_message,m.created_at latest_date,
-          CASE WHEN c.completed_at IS NOT NULL THEN 'Completed' WHEN c.deferred_id=c.last_id THEN 'Respond Later'
+          CASE WHEN c.completed_at IS NOT NULL THEN CASE WHEN m.request_key LIKE 'ack:%' THEN 'Closed – Acknowledged' WHEN m.request_key LIKE 'end:%' THEN 'Closed by Management' ELSE 'Completed' END WHEN c.deferred_id=c.last_id THEN 'Respond Later'
                WHEN m.sender_id=c.owner_id THEN 'Awaiting Employee Response' ELSE 'Awaiting Admin Response' END status,
           (m.sender_id<>? AND c.last_id>IF(c.owner_id=?,c.owner_seen,c.employee_seen)) unread
           FROM portal_ack_response_chats c JOIN ops_employees e ON e.id=c.employee_id
           JOIN portal_ack_response_chat_messages o ON o.chat_id=c.id AND o.sender_id=c.owner_id AND o.request_key=c.create_key
           JOIN portal_ack_response_chat_messages m ON m.id=c.last_id WHERE (c.owner_id=? OR c.employee_id=?)";
-        return $this->q($sql.($alerts?' AND c.completed_at IS NULL HAVING unread=1 ORDER BY c.last_id LIMIT 1':' ORDER BY c.last_id DESC'),[$actor,$actor,$actor,$actor])->fetchAll(\PDO::FETCH_ASSOC);
+        return $this->q($sql.($alerts?" AND (c.completed_at IS NULL OR m.request_key LIKE 'end:%' OR m.request_key LIKE 'ack:%') HAVING unread=1 ORDER BY c.last_id LIMIT 1":' ORDER BY c.last_id DESC'),[$actor,$actor,$actor,$actor])->fetchAll(\PDO::FETCH_ASSOC);
     }
     public function thread(int $actor,array $p):array{
         return $this->tx(function()use($actor,$p){
@@ -49,19 +49,30 @@ final class ResponseChats {
                 if($prior!==false){if($prior!==$text)throw new \DomainException('Message retry differs.');}
                 elseif($c['completed_at'])throw new \DomainException('This chat is completed.');
                 else{$this->append($id,$actor,$key,$text);$last=(int)$this->q('SELECT last_id FROM portal_ack_response_chats WHERE id=?',[$id])->fetchColumn();}
-            }elseif($op==='later'||$op==='complete'){
-                if((int)($p['expected']??0)!==$last)throw new \DomainException('A newer message arrived. Read it and try again.');
-                if($op==='complete'){
-                    if(!$owner||$writer===$actor)throw new \DomainException('An employee response is required before resolving.');
-                    $this->q('UPDATE portal_ack_response_chats SET completed_at=COALESCE(completed_at,?) WHERE id=?',[$this->now(),$id]);
-                }elseif(!$c['completed_at']&&!$owner&&$writer!==$actor)$this->q('UPDATE portal_ack_response_chats SET deferred_id=? WHERE id=?',[$last,$id]);
+            }elseif(in_array($op,['later','complete','end','ack'],true)){
+                if($op==='complete'&&(!$owner||$writer===$actor))throw new \DomainException('An employee response is required before resolving.');
+                if(($op==='end'&&!$owner)||($op==='ack'&&$owner))throw new \DomainException('This action is not available.');
+                if(!$c['completed_at']){
+                    if((int)($p['expected']??0)!==$last)throw new \DomainException('A newer message arrived. Read it and try again.');
+                    if($op==='later'){
+                        if($writer!==$actor)$this->q('UPDATE portal_ack_response_chats SET deferred_id=? WHERE id=?',[$last,$id]);
+                    }else{
+                        if($op==='ack'&&$writer===$actor)throw new \DomainException('No incoming message to acknowledge.');
+                        $this->append($id,$actor,($owner?'end:':'ack:').$last,$owner?'Closed by Management':'Closed – Acknowledged');
+                        $last=(int)$this->q('SELECT last_id FROM portal_ack_response_chats WHERE id=?',[$id])->fetchColumn();
+                        $this->q('UPDATE portal_ack_response_chats SET completed_at=? WHERE id=?',[$this->now(),$id]);
+                    }
+                }
             }elseif(!in_array($op,['open','poll'],true))throw new \DomainException('Unknown chat action.');
             $seen=$owner?'owner_seen':'employee_seen';
             if((int)$c[$seen]<$last)$this->q("UPDATE portal_ack_response_chats SET $seen=? WHERE id=?",[$last,$id]);
             $closed=(bool)$this->q('SELECT completed_at FROM portal_ack_response_chats WHERE id=?',[$id])->fetchColumn();
             if($op==='poll'&&(int)($p['after']??0)===$last&&(bool)($p['closed']??false)===$closed)return ['unchanged'=>true];
             $messages=$this->q('SELECT m.id,m.body,m.created_at,e.full_name sender,(m.sender_id=?) mine FROM portal_ack_response_chat_messages m JOIN ops_employees e ON e.id=m.sender_id WHERE m.chat_id=? ORDER BY m.id',[$actor,$id])->fetchAll(\PDO::FETCH_ASSOC);
-            return ['messages'=>$messages,'last'=>$last,'closed'=>$closed,'can_complete'=>$owner&&!$closed&&!end($messages)['mine']];
+            $tail=end($messages);
+            return ['messages'=>$messages,'last'=>$last,'closed'=>$closed,'owner'=>$owner,'can_ack'=>!$owner&&!$closed&&!$tail['mine'],
+              'closure'=>$closed?($this->q("SELECT IF(request_key LIKE 'ack:%','Closed – Acknowledged',IF(request_key LIKE 'end:%','Closed by Management','Completed')) FROM portal_ack_response_chat_messages WHERE id=?",[$last])->fetchColumn()):null,
+              'closed_by'=>$closed?($this->q("SELECT e.full_name FROM portal_ack_response_chat_messages m JOIN ops_employees e ON e.id=IF(m.request_key LIKE 'ack:%',?,?) WHERE m.id=?",[(int)$c['employee_id'],(int)$c['owner_id'],$last])->fetchColumn()):null,'closed_at'=>$closed?($c['completed_at']?:$tail['created_at']):null];
         });
     }
 }

@@ -28,7 +28,7 @@ async function loadQueue(){
   for(const item of result.items){
    const row=document.createElement('div'),name=document.createElement('span'),reply=document.createElement('button');
    name.textContent=item.full_name+' · '+item.created_at;reply.type='button';reply.className='ack-action secondary';reply.textContent='Reply';
-   reply.onclick=()=>{if(!document.querySelector('dialog[open]'))privateDialog({id:item.id,owner:true},null,true);};
+   reply.onclick=()=>{if(!document.querySelector('dialog[open]'))responseChat(Number(item.topic_id),result.csrf,null,true);};
    row.append(name,reply);items.append(row);
   }
  }catch(e){if(run===queueRequest){queue.hidden=false;items.textContent='Could not load private requests. ';const b=document.createElement('button');b.type='button';b.textContent='Retry';b.className='ack-action secondary';b.onclick=loadQueue;items.append(b);}}
@@ -82,7 +82,7 @@ async function pollThread(){
   threadErrors=0;
   if(current){if(!d.turn&&current===threadDialog&&!current.busy)current.dialog.close();return;}
   if(document.hidden||document.querySelector('dialog[open]'))return;
-  if(!d.turn){if(d.chat)responseChat(Number(d.chat.id),d.csrf,Number(d.chat.owner_id)===Number(window.HambelelaPortalUser?.id)?d.chat:null);else if(d.report)reportDialog(d.report.report_id,d.csrf,d.report.message_id,null,d.report.preview);else if(d.assistance)reportDialog(Number(d.assistance.topic),d.csrf,d.assistance.message_id,d.assistance.employee_name,d.assistance.latest_message);else if(d.answer)answerAlert(d.answer,d.csrf);return;}
+  if(!d.turn){if(d.chat)responseChat(Number(d.chat.id),d.csrf,!d.chat.completed_at&&Number(d.chat.owner_id)===Number(window.HambelelaPortalUser?.id)?d.chat:null);else if(d.report)reportDialog(d.report.report_id,d.csrf,d.report.message_id,null,d.report.preview);else if(d.assistance)responseChat(Number(d.assistance.topic),d.csrf,null,true);else if(d.answer)answerAlert(d.answer,d.csrf);return;}
   const t=d.turn,r=await request('detail&id='+Number(t.recipient_id));
   const messages=r.events.filter(v=>['clarify','reply','explained_personally'].includes(v.event_type));
   if(Number(messages.at(-1)?.id)!==Number(t.event_id)||r.withdrawn||r.status!==(t.event_type==='clarify'?'clarification':'pending')||document.hidden||document.querySelector('dialog[open]'))return;
@@ -152,31 +152,39 @@ function reportDialog(ref,csrf,alertId=0,employee=null,preview=''){
  dialog.onclose=()=>{clearInterval(timer);dialog.remove();gate?.release('ack-report');window.dispatchEvent(new Event('ack:register-changed'));scheduleThread(0);};
  document.body.append(dialog);dialog.showModal();if(!alertId)call({});else window.dispatchEvent(new Event('ack:register-changed'));
 }
-window.AckReportThread={open:reportDialog,assistance:(id,csrf,name)=>reportDialog(id,csrf,0,name)};
+window.AckReportThread={open:reportDialog,assistance:(id,csrf,name)=>responseChat(id,csrf,null,true)};
 // Required-response chats use assistance bubble styling, not instruction actions or receipts.
-function responseChat(id,csrf,preview=null){
+function responseChat(id,csrf,preview=null,assistance=false){
  if(document.querySelector('dialog[open]'))return;
  const gate=window.PortalNoticeGate;if(gate&&!gate.acquire('response-chat'))return;
- const d=document.createElement('dialog');d.className='hb-portal-notice hb-notice-modal ack-company-notice ack-report-dialog';d.setAttribute('aria-label','Chat – Response Required');
- d.innerHTML='<p class="hb-ack-eyebrow">Chat – Response Required</p><h2>Conversation</h2><div class="ack-report-history" aria-label="Conversation history"></div><form hidden><label>Your reply<textarea required maxlength="6000" rows="3"></textarea></label><button class="ack-action">Send Reply</button></form><p role="alert"></p><footer></footer>';
+ const d=document.createElement('dialog');d.className='hb-portal-notice hb-notice-modal ack-company-notice ack-report-dialog ack-conversation-dialog';d.setAttribute('aria-label',assistance?'Assistance Request':'Chat – Response Required');
+ d.innerHTML='<p class="hb-ack-eyebrow">Chat – Response Required</p><h2>Conversation</h2><p data-closed-meta hidden></p><div class="ack-report-history" aria-label="Conversation history"></div><form hidden><label>Your reply<textarea required maxlength="6000" rows="3"></textarea></label></form><p role="alert"></p><footer></footer>';
+ if(assistance)d.querySelector('.hb-ack-eyebrow').textContent='Assistance Request';
  const find=s=>d.querySelector(s),hist=find('.ack-report-history'),f=find('form'),input=find('textarea'),err=find('[role=alert]'),footer=find('footer');
  let last=Number(preview?.last_id||0),closed=false,loaded=false,busy=false,polling=false,version=0,key='',draft=null;
- const button=(name,fn)=>{const b=document.createElement('button');b.type='button';b.className='ack-action secondary';b.textContent=name;b.onclick=fn;footer.append(b);};
+ const button=(name,fn)=>{const b=document.createElement('button');b.type='button';b.className='ack-action secondary';b.textContent=name;b.onclick=fn;footer.append(b);return b;};
  const leave=()=>{if(busy||input.value.trim()&&!window.confirm('Discard your unsent reply?'))return;if(last&&!closed)act('later');else d.close();};
  async function act(op){
   if(busy||op==='poll'&&polling)return;
   const ticket=++version,write=op!=='poll',body={id,op,expected:last,after:last,closed};
-  if(op==='reply'){const msg=input.value.trim();if(!msg)return;if(draft!==msg){key=crypto.randomUUID();draft=msg;}Object.assign(body,{message:msg,request_key:key});}
-  if(write){busy=true;input.readOnly=true;f.querySelector('button').disabled=true;}else polling=true;
-  try{const r=await request('chat_thread',body,csrf);if(!d.open||ticket!==version||r.unchanged)return;
-   if(op==='later'||op==='reply'||op==='complete'){d.close();return;}
+  if(op==='reply'){const msg=input.value.trim();if(!msg){input.reportValidity();input.focus();return;}if(draft!==msg){key=crypto.randomUUID();draft=msg;}Object.assign(body,{message:msg,request_key:key});}
+  if(write){busy=true;input.readOnly=true;footer.querySelectorAll('button').forEach(b=>b.disabled=true);}else polling=true;
+  try{const r=await request(assistance?'assistance_dialog':'chat_thread',body,csrf);if(!d.open||ticket!==version||r.unchanged)return;
+   if(op==='later'||op==='end'||op==='ack'){d.close();return;}
+   if(op==='reply'){input.value='';key='';draft=null;window.dispatchEvent(new Event('ack:register-changed'));}
    const wasAtBottom=!loaded||hist.scrollHeight-hist.clientHeight-hist.scrollTop<24;
-   last=Number(r.last);closed=r.closed;loaded=true;err.textContent='';find('h2').textContent=closed?'Completed conversation':'Conversation';
+   last=Number(r.last);closed=r.closed;loaded=true;err.textContent='';find('h2').textContent=closed?r.closure:'Open conversation';
    hist.replaceChildren();for(const m of r.messages){const row=document.createElement('article'),meta=document.createElement('small'),p=document.createElement('p');row.className='ack-report-bubble'+(Number(m.mine)?' is-owner':'');meta.textContent=(Number(m.mine)?'You':m.sender)+' · '+m.created_at;p.textContent=m.body;row.append(meta,p);hist.append(row);}
-   f.hidden=closed;footer.replaceChildren();button(closed?'Close':'Respond Later',leave);if(r.can_complete)button('Mark completed',()=>{if(!input.value.trim()||window.confirm('Discard your draft and resolve this chat?'))act('complete');});
+   f.hidden=closed;footer.replaceChildren();
+   const meta=find('[data-closed-meta]');meta.hidden=!closed;meta.textContent=closed?'Closed by '+r.closed_by+' · '+r.closed_at:'';
+   if(closed){button('Close',()=>d.close());}
+   else{const finish=op=>{if(!input.value.trim()||window.confirm('Discard the draft and close this conversation?'))act(op);};
+    if(!r.owner&&r.can_ack)button('Acknowledge',()=>finish('ack')).className='ack-action ack-conversation-ack';
+    button(r.owner?'Send Reply':'Reply',()=>act('reply')).className='ack-action';
+    button('Respond Later',leave);if(r.owner)button('End Conversation',()=>finish('end')).className='ack-action ack-conversation-end';}
    if(wasAtBottom)hist.scrollTop=hist.scrollHeight;
   }catch(e){if(ticket===version){err.textContent=e.message;if(!loaded){footer.replaceChildren();button('Retry',()=>act('open'));button('Close',()=>d.close());}}}
-  finally{if(write){busy=false;input.readOnly=false;f.querySelector('button').disabled=false;}else polling=false;}
+  finally{if(write){busy=false;input.readOnly=false;footer.querySelectorAll('button').forEach(b=>b.disabled=false);}else polling=false;}
  }
  f.onsubmit=e=>{e.preventDefault();act('reply');};d.oncancel=e=>{e.preventDefault();leave();};
  const timer=setInterval(()=>{if(loaded&&!closed&&!document.hidden)act('poll');},4000);
@@ -254,7 +262,7 @@ async function check(){
    try{
     const p=d.private_prompt,claimed=await request('private_claim',{id:p.id},d.csrf);
     if(claimed.claimed&&!document.hidden&&!document.querySelector('dialog[open]')){
-     privateDialog(p,d.csrf,false,()=>gate?.release('private-assistance'));opened=true;return;
+     gate?.release('private-assistance');responseChat(Number(p.topic),d.csrf,null,true);opened=true;return;
     }
    }finally{if(!opened)gate?.release('private-assistance');}
   }

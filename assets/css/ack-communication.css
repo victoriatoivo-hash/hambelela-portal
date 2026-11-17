@@ -135,3 +135,8 @@ dialog:is(.ack-private-modal,.ack-report-dialog)[open] label,
 dialog.ack-report-dialog[open] .ack-report-bubble small {
   font-family:Jost,sans-serif; font-size:9.5px; font-weight:400; color:rgb(28,33,24);
 }
+.ack-conversation-dialog[open] footer {display:flex;align-items:center;justify-content:flex-start;flex-flow:row wrap;gap:6px}
+.ack-conversation-dialog[open] footer .ack-action {flex:0 1 auto;width:auto;max-width:100%;min-height:34px;margin:0;padding:6px 10px;font:500 12px/1.25 Jost,sans-serif}
+.ack-conversation-dialog[open] .ack-conversation-ack {background:#596a49;color:#fff}
+.ack-conversation-dialog[open] .ack-conversation-end {background:#fff;color:#913c32;border:1px solid #bd7972}
+.ack-conversation-dialog[open] form[hidden],.ack-conversation-dialog[open] [role=alert]:empty {display:none!important}

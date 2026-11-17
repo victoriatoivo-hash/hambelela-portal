@@ -21,6 +21,7 @@ try{
         if($action==='popup_alternative'){if(!is_array($body['snoozed']??null))throw new DomainException('Invalid deferred notices.');echo json_encode(['notice'=>$service->popup($employee,$body['snoozed'],(int)($body['prefer']??0))],JSON_THROW_ON_ERROR);exit;}
         if($action==='unnamed_report'){echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->unnamedReport($employee,$body),JSON_THROW_ON_ERROR);exit;}
         if($action==='message'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->send($employee,$body);echo '{"ok":true}';exit;}
+        if($action==='assistance_dialog'){require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->dialog($employee,$body),JSON_THROW_ON_ERROR);exit;}
         if($action==='assistance_thread'){echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->assistanceThread($employee,$body),JSON_THROW_ON_ERROR);exit;}
         if($action==='report_thread'){echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->reportAction($employee,$body),JSON_THROW_ON_ERROR);exit;}
         if($action==='register_seen'){$service->registerSeen($employee,(int)$body['id'],(int)$body['event'],!empty($body['alert_only']));echo '{"ok":true}';exit;}
@@ -43,6 +44,10 @@ try{
     elseif($action==='clarification_poll'){
         $result=['turn'=>$service->threadPrompt($employee,(int)($_GET['event']??0)),'csrf'=>$_SESSION['ack_csrf']];
         if(!$result['turn']&&empty($_GET['event']))$result['chat']=$chats->rows($employee,true)[0]??null;
+        if(!$result['turn']&&empty($_GET['event'])&&empty($result['chat'])&&(current_user()['role_key']??'')!=='owner_admin'){
+            require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
+            $prompt=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->pendingPrompt($employee);if($prompt)$result['assistance']=['topic'=>$prompt['topic']];
+        }
         if(!$result['turn']&&empty($_GET['event'])&&(current_user()['role_key']??'')==='owner_admin'){
             require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';
             $result['report']=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->reportAlert($employee);
@@ -52,7 +57,7 @@ try{
     }
     elseif($action==='chat_list')$result=['chats'=>$chats->rows($employee),'csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='private_item')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->incoming($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
-    elseif($action==='private_queue')$result=['items'=>\Hambelela\Acknowledgments\Mailbox::forPortal(db())->awaitingReply($employee)];
+    elseif($action==='private_queue')$result=['items'=>\Hambelela\Acknowledgments\Mailbox::forPortal(db())->awaitingReply($employee),'csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='inbox')$result=\Hambelela\Acknowledgments\Mailbox::forPortal(db())->inbox($employee,(int)($_GET['id']??0))+['csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='detail')$result=$service->detail($employee,(int)($_GET['id']??0));
     elseif($action==='popup'){$result=['csrf'=>$_SESSION['ack_csrf'],'notice'=>$service->popup($employee),'pending'=>acknowledgments_pending($employee),'session'=>hash('sha256',session_id().':'.$employee)];acknowledgments_deliver();
