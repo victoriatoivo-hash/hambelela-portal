@@ -46,25 +46,26 @@ final class Service
     }
     public function listing(int $actor):array{
         $user=$this->actor($actor);$owner=$user['role_key']==='owner_admin';
-        $records=$this->rows("SELECT r.*,(SELECT qa.event_type FROM portal_ack_events qa WHERE qa.recipient_id=r.id AND qa.event_type IN ('answer','answer_received','answer_unclear','answer_reply') ORDER BY qa.id DESC LIMIT 1) conversation_status,i.title,i.version,i.sender_id,i.deadline,i.required,i.created_at,i.root_id,i.release_state,i.scheduled_at,i.released_at,i.schedule_revision,s.full_name sender_name FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN ops_employees s ON s.id=i.sender_id WHERE (r.schedule_active=1 OR EXISTS(SELECT 1 FROM portal_ack_events w WHERE w.recipient_id=r.id AND w.event_type='withdrawn'))".($owner?'':" AND r.employee_id=? AND i.release_state='released'").' ORDER BY i.created_at DESC,r.id DESC',$owner?[]:[$actor]);
+        $records=$this->rows("SELECT r.*,EXISTS(SELECT 1 FROM portal_ack_events ce WHERE ce.recipient_id=r.id AND ce.event_type='thread_end') chat_ended,(SELECT qa.event_type FROM portal_ack_events qa WHERE qa.recipient_id=r.id AND qa.event_type IN ('answer','answer_received','answer_unclear','answer_reply') ORDER BY qa.id DESC LIMIT 1) conversation_status,i.title,i.version,i.sender_id,i.deadline,i.required,i.created_at,i.root_id,i.release_state,i.scheduled_at,i.released_at,i.schedule_revision,s.full_name sender_name FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN ops_employees s ON s.id=i.sender_id WHERE (r.schedule_active=1 OR EXISTS(SELECT 1 FROM portal_ack_events w WHERE w.recipient_id=r.id AND w.event_type IN ('withdrawn','thread_end')))".($owner?'':" AND r.employee_id=? AND i.release_state='released'").' ORDER BY i.created_at DESC,r.id DESC',$owner?[]:[$actor]);
         $now=$this->now();foreach($records as &$r){$r['withdrawn']=!(int)$r['schedule_active'];$r['overdue']=!$r['withdrawn']&&$r['release_state']==='released'&&$r['required']&&$r['status']!=='acknowledged'&&$r['deadline']&&$r['deadline']<$now;}unset($r);
         return ['owner'=>$owner,'employee_id'=>$actor,'records'=>$records,'employees'=>$owner?$this->rows("SELECT e.id,e.full_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.status='active' ORDER BY e.full_name"):[]];
     }
     public function detail(int $actor,int $id,bool $lock=false):array{
         $user=$this->actor($actor);$rows=$this->rows('SELECT r.*,i.title,i.message_html,i.version,i.root_id,i.sender_id,i.deadline,i.required,i.created_at,i.notify_immediately,i.release_state,i.scheduled_at,i.released_at,i.schedule_revision FROM portal_ack_recipients r JOIN portal_ack_instructions i ON i.id=r.instruction_id WHERE r.id=?'.($lock?' FOR UPDATE':''),[$id]);
-        $withdrawn=$rows&&!(int)$rows[0]['schedule_active']&&(bool)$this->rows("SELECT id FROM portal_ack_events WHERE recipient_id=? AND event_type='withdrawn' LIMIT 1",[$id]);
+        $withdrawn=$rows&&!(int)$rows[0]['schedule_active']&&(bool)$this->rows("SELECT id FROM portal_ack_events WHERE recipient_id=? AND event_type IN ('withdrawn','thread_end') LIMIT 1",[$id]);
         if(!$rows||($user['role_key']!=='owner_admin'&&((int)$rows[0]['employee_id']!==$actor||$rows[0]['release_state']!=='released'||(!(int)$rows[0]['schedule_active']&&!$withdrawn))))throw new \DomainException('This instruction is not assigned to you.');
         $rows[0]['withdrawn']=$withdrawn;
+        $rows[0]['chat_ended']=$withdrawn&&(bool)$this->rows("SELECT id FROM portal_ack_events WHERE recipient_id=? AND event_type='thread_end' LIMIT 1",[$id]);
         $rows[0]['recipients']=$user['role_key']==='owner_admin'?array_column($this->rows('SELECT employee_id FROM portal_ack_recipients WHERE instruction_id=? AND schedule_active=1',[$rows[0]['instruction_id']]),'employee_id'):[];
         return $rows[0]+Material::meta($this->db,(int)$rows[0]['instruction_id'])+['events'=>$this->rows('SELECT v.id,v.actor_id,v.event_type,v.message,v.created_at,e.full_name actor_name FROM portal_ack_events v LEFT JOIN ops_employees e ON e.id=v.actor_id WHERE v.recipient_id=?'.($user['role_key']==='owner_admin'?'':" AND LEFT(v.event_type,9)<>'schedule_'").' ORDER BY v.id',[$id])];
     }
     public function registerInfo(int $actor):array {
         $this->owner($actor);
-        $types="'assigned','clarify','reply','explained_personally','acknowledge','answer','answer_reply','answer_unclear','answer_received','image_unclear','image_understood'";
+        $types="'assigned','clarify','reply','explained_personally','acknowledge','answer','answer_reply','answer_unclear','answer_received','image_unclear','image_understood','thread_end'";
         return $this->rows("SELECT r.id,m.id event_id,m.event_type latest_event_type,m.created_at latest_date,LEFT(m.message,240) latest_message,
           (SELECT c.event_type FROM portal_ack_events c WHERE c.recipient_id=r.id AND c.event_type IN ('image_unclear','image_understood','reply','explained_personally','acknowledge') ORDER BY c.id DESC LIMIT 1) image_turn,
           EXISTS(SELECT 1 FROM portal_ack_events c WHERE c.recipient_id=r.id AND c.event_type='clarify') has_clarification,
-          EXISTS(SELECT 1 FROM portal_ack_events c WHERE c.recipient_id=r.id AND c.event_type IN ($types) AND c.actor_id<>? AND c.id>COALESCE(s.event_id,0)) unread
+          (m.actor_id<>? AND m.id>COALESCE(s.event_id,0)) unread
           FROM portal_ack_recipients r LEFT JOIN portal_ack_register_seen s ON s.recipient_id=r.id AND s.owner_id=?
           LEFT JOIN portal_ack_events m ON m.id=(SELECT MAX(v.id) FROM portal_ack_events v WHERE v.recipient_id=r.id AND v.event_type IN ($types))",[$actor,$actor]);
     }
@@ -77,6 +78,12 @@ final class Service
     public function registerSeen(int $actor,int $id,int $event,bool $alertOnly=false):void{
         $this->owner($actor);
         $this->db->prepare('INSERT INTO portal_ack_register_seen(owner_id,recipient_id,event_id,alerted_id) SELECT ?,recipient_id,'.($alertOnly?'0':'id').',id FROM portal_ack_events WHERE recipient_id=? AND id=? ON DUPLICATE KEY UPDATE event_id=GREATEST(event_id,VALUES(event_id)),alerted_id=GREATEST(alerted_id,VALUES(alerted_id))')->execute([$actor,$id,$event]);
+    }
+    public function closurePrompt(int $actor):?array{
+        return $this->rows("SELECT v.id event_id,r.id recipient_id,i.title FROM portal_ack_events v JOIN portal_ack_recipients r ON r.id=v.recipient_id JOIN portal_ack_instructions i ON i.id=r.instruction_id LEFT JOIN portal_ack_register_seen s ON s.recipient_id=r.id AND s.owner_id=r.employee_id WHERE r.employee_id=? AND v.event_type='thread_end' AND v.id>COALESCE(s.event_id,0) ORDER BY v.id LIMIT 1",[$actor])[0]??null;
+    }
+    public function seenClosure(int $actor,int $event):void{
+        $this->db->prepare("INSERT INTO portal_ack_register_seen(owner_id,recipient_id,event_id,alerted_id) SELECT r.employee_id,r.id,v.id,v.id FROM portal_ack_events v JOIN portal_ack_recipients r ON r.id=v.recipient_id WHERE v.id=? AND v.event_type='thread_end' AND r.employee_id=? ON DUPLICATE KEY UPDATE event_id=GREATEST(event_id,VALUES(event_id)),alerted_id=GREATEST(alerted_id,VALUES(alerted_id))")->execute([$event,$actor]);
     }
     private function event(int $recipient,int $actor,string $type,string $message,string $key):void{
         $this->db->prepare('INSERT INTO portal_ack_events(recipient_id,actor_id,event_type,message,request_key,created_at) VALUES(?,?,?,?,?,?)')->execute([$recipient,$actor,$type,$message,$key,$this->now()]);
@@ -103,6 +110,7 @@ final class Service
                     throw new \DomainException('Invalid repeated request.');
                 $this->db->commit();return ['ok'=>true,'duplicate'=>true];
             }
+            if($d['chat_ended'])throw new \DomainException('Closed conversations are read-only.');
             if($operation==='restore'&&!$d['withdrawn'])throw new \DomainException('This acknowledgment is not withdrawn.');
             if($operation==='withdraw'&&$d['withdrawn']){$this->db->commit();return ['ok'=>true,'duplicate'=>true];}
             $this->db->prepare('UPDATE portal_ack_recipients SET schedule_active=? WHERE id=?')->execute([$operation==='restore'?1:0,$id]);
@@ -134,6 +142,17 @@ final class Service
         $key=$this->token((string)($body['request_key']??''));$id=(int)($body['recipient_id']??0);$action=(string)($body['action']??'');$message=trim((string)($body['message']??''));
         $this->db->beginTransaction();try{
             $d=$this->detail($actor,$id,true);$prior=$this->rows('SELECT actor_id,recipient_id FROM portal_ack_events WHERE request_key=?',[$key]);
+            if($action==='thread_end'){
+                $this->owner($actor);
+                if((int)$d['sender_id']!==$actor||!in_array('clarify',array_column($d['events'],'event_type'),true))throw new \DomainException('Not your clarification thread.');
+                if($d['chat_ended']){$this->db->commit();return;}
+                if($d['withdrawn']||$d['status']==='acknowledged')throw new \DomainException('Conversation already inactive.');
+                $turns=array_values(array_filter($d['events'],static fn($v)=>in_array($v['event_type'],['clarify','reply','explained_personally'],true)));
+                if((int)($body['expected_event']??0)!==(int)end($turns)['id'])throw new \DomainException('Read the latest message first.');
+                $this->event($id,$actor,'thread_end','Closed by Management',$key);
+                $this->db->prepare('UPDATE portal_ack_recipients SET schedule_active=0 WHERE id=?')->execute([$id]);
+                $this->db->commit();return;
+            }
             if($d['withdrawn'])throw new \DomainException('This acknowledgment was withdrawn. Its response history is read-only.');
             if($d['release_state']!=='released'||!(int)$d['schedule_active'])throw new \DomainException('This acknowledgment has not been released.');
             if($prior){if((int)$prior[0]['actor_id']!==$actor||(int)$prior[0]['recipient_id']!==$id)throw new \DomainException('Invalid repeated request.');$this->db->commit();return;}
@@ -152,6 +171,7 @@ final class Service
                     $this->db->commit();return;
                 }
             }
+            if($d['status']==='acknowledged'&&in_array('clarify',array_column($d['events'],'event_type'),true))throw new \DomainException('Closed clarification conversations are read-only.');
             if(in_array($action,['image_opened','image_understood','image_unclear','answer','answer_received','answer_unclear','answer_reply'],true)){
                 $employee=(int)$d['employee_id']===$actor;
                 if(in_array($action,['image_opened','image_understood','image_unclear','answer'],true)){

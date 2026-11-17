@@ -18,6 +18,7 @@ try{
         if(!hash_equals($_SESSION['ack_csrf'],(string)($_SERVER['HTTP_X_CSRF_TOKEN']??'')))throw new DomainException('Session verification failed. Refresh the page.');
         $body=json_decode(file_get_contents('php://input'),true,32,JSON_THROW_ON_ERROR);if(!is_array($body))throw new DomainException('Invalid request.');
         if($action==='chat_start'||$action==='chat_thread'){echo json_encode($action==='chat_start'?$chats->start($employee,$body):$chats->thread($employee,$body),JSON_THROW_ON_ERROR);exit;}
+        if($action==='closure_seen'){$service->seenClosure($employee,(int)($body['event']??0));echo '{"ok":true}';exit;}
         if($action==='popup_alternative'){if(!is_array($body['snoozed']??null))throw new DomainException('Invalid deferred notices.');echo json_encode(['notice'=>$service->popup($employee,$body['snoozed'],(int)($body['prefer']??0))],JSON_THROW_ON_ERROR);exit;}
         if($action==='unnamed_report'){echo json_encode(\Hambelela\Acknowledgments\Mailbox::forPortal(db())->unnamedReport($employee,$body),JSON_THROW_ON_ERROR);exit;}
         if($action==='message'){\Hambelela\Acknowledgments\Mailbox::forPortal(db())->send($employee,$body);echo '{"ok":true}';exit;}
@@ -43,6 +44,7 @@ try{
     elseif($action==='report_alert')$result=['report'=>\Hambelela\Acknowledgments\Mailbox::forPortal(db())->reportAlert($employee),'csrf'=>$_SESSION['ack_csrf']];
     elseif($action==='clarification_poll'){
         $result=['turn'=>$service->threadPrompt($employee,(int)($_GET['event']??0)),'csrf'=>$_SESSION['ack_csrf']];
+        if(!$result['turn']&&empty($_GET['event']))$result['closure']=$service->closurePrompt($employee);
         if(!$result['turn']&&empty($_GET['event']))$result['chat']=$chats->rows($employee,true)[0]??null;
         if(!$result['turn']&&empty($_GET['event'])&&empty($result['chat'])&&(current_user()['role_key']??'')!=='owner_admin'){
             require_once BASE_PATH.'/shared/acknowledgments/Mailbox.php';

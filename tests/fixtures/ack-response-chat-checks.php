@@ -14,7 +14,7 @@ check($state()==='Awaiting Employee Response'&&count($chatService->rows(2,true))
 denied(fn()=>$turn(3),'Another employee cannot read the chat');
 $open=$turn(2);check(count($open['messages'])===1&&$state()==='Awaiting Employee Response'&&!$chatService->rows(2,true),'Opening reads without resolving');
 denied(fn()=>$turn(1,['op'=>'complete','expected'=>$open['last']]),'Cannot resolve before receiving a reply');
-$turn(2,['op'=>'later','expected'=>$open['last']]);check($state()==='Respond Later'&&count($chatService->rows(2))===1,'Deferred chat remains in employee portal');
+$turn(2,['op'=>'later','expected'=>$open['last']]);check($state()==='Awaiting Employee Response'&&count($chatService->rows(2))===1,'Deferred chat remains in employee portal');
 $r=['op'=>'reply','message'=>'The first delivery.','request_key'=>ChatService::uuid()];$ans=$turn(2,$r);$turn(2,$r);
 check($state()==='Awaiting Admin Response'&&count($chatService->rows(1,true))===1&&count($ans['messages'])===2,'Employee reply alerts owner exactly once');
 denied(fn()=>$turn(1,['op'=>'complete','expected'=>$open['last']]),'Stale resolution rejected');

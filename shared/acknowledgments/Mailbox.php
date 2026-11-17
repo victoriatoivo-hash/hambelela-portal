@@ -52,7 +52,7 @@ final class Mailbox {
           (m.sender_id=root.employee_id AND m.request_key NOT LIKE 'later:%' AND m.id>COALESCE(s.seen,0) AND old_delivery.read_at IS NULL) unread,
           (m.request_key LIKE 'receipt:%') receipt,CASE WHEN m.request_key LIKE 'end:%' THEN 'Closed by Management' WHEN m.request_key LIKE 'ack:%' THEN 'Closed – Acknowledged' WHEN m.request_key LIKE 'later:%' THEN 'Respond Later' WHEN m.request_key LIKE 'receipt:%' THEN 'Reply received' WHEN m.sender_id=root.owner_id THEN 'Awaiting Employee Response' ELSE 'Awaiting Admin Response' END status
           FROM portal_ack_assistance root JOIN ops_employees e ON e.id=root.employee_id
-          JOIN portal_ack_assistance m ON m.id=(SELECT MAX(x.id) FROM portal_ack_assistance x WHERE x.owner_id=root.owner_id AND x.employee_id=root.employee_id AND x.topic_id=root.id)
+          JOIN portal_ack_assistance m ON m.id=(SELECT MAX(x.id) FROM portal_ack_assistance x WHERE x.owner_id=root.owner_id AND x.employee_id=root.employee_id AND x.topic_id=root.id AND x.request_key NOT LIKE 'later:%')
           LEFT JOIN portal_ack_assistance_seen s ON s.owner_id=root.owner_id AND s.topic_id=root.id
           LEFT JOIN notifications old_notice ON old_notice.deduplication_key=CONCAT('ack-private-',m.id)
           LEFT JOIN notification_recipients old_delivery ON old_delivery.notification_id=old_notice.id AND old_delivery.employee_id=root.owner_id
@@ -82,7 +82,7 @@ final class Mailbox {
                     if((int)($p['expected']??0)!==(int)$h['id'])throw new \DomainException('A newer message arrived. Read it before continuing.');
                     $incoming=$this->rows("SELECT sender_id FROM portal_ack_assistance WHERE topic_id=? AND request_key NOT LIKE 'later:%' ORDER BY id DESC LIMIT 1",[$topic]);
                     if($op==='ack'&&(int)$incoming[0]['sender_id']===$actor)throw new \DomainException('No incoming message to acknowledge.');
-                    if($op!=='later'||((int)$incoming[0]['sender_id']!==$actor&&strpos($h['request_key'],'later:')!==0)){
+                    if($op!=='later'){
                         $text=['ack'=>'Closed – Acknowledged','end'=>'Closed by Management','later'=>'Respond Later'][$op];
                         $this->db->prepare('INSERT INTO portal_ack_assistance(employee_id,owner_id,sender_id,topic_id,request_key,body,created_at) VALUES(?,?,?,?,?,?,?)')->execute([$emp,$this->owner,$actor,$topic,$op.':'.$h['id'],$text,(new \DateTimeImmutable('now',new \DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s')]);
                     }
@@ -94,7 +94,7 @@ final class Mailbox {
                 $this->db->prepare('INSERT INTO portal_ack_assistance_seen(owner_id,topic_id,seen,alerted) VALUES(?,?,?,?) ON DUPLICATE KEY UPDATE seen=GREATEST(seen,VALUES(seen)),alerted=GREATEST(alerted,VALUES(alerted))')->execute([$actor,$topic,$last,$last]);
                 $messages=$this->rows('SELECT m.id,m.body,m.created_at,e.full_name sender,(m.sender_id=?) mine FROM portal_ack_assistance m JOIN ops_employees e ON e.id=m.sender_id WHERE m.owner_id=? AND m.topic_id=? ORDER BY m.id',[$actor,$this->owner,$topic]);
                 $incoming=$this->rows("SELECT sender_id FROM portal_ack_assistance WHERE topic_id=? AND request_key NOT LIKE 'later:%' ORDER BY id DESC LIMIT 1",[$topic]);
-                $out=['messages'=>$messages,'last'=>$last,'closed'=>$done,'owner'=>$owner,'can_remove'=>$owner,'can_ack'=>!$owner&&!$done&&(int)$incoming[0]['sender_id']!==$actor,'closure'=>$done?$h['body']:null,'closed_at'=>$done?$h['created_at']:null,'closed_by'=>$done?end($messages)['sender']:null];
+                $out=['messages'=>$messages,'last'=>$last,'closed'=>$done,'awaiting_owner'=>(int)$incoming[0]['sender_id']===$emp,'owner'=>$owner,'can_remove'=>$owner,'can_ack'=>!$owner&&!$done&&(int)$incoming[0]['sender_id']!==$actor,'closure'=>$done?$h['body']:null,'closed_at'=>$done?$h['created_at']:null,'closed_by'=>$done?end($messages)['sender']:null];
             }
             $this->db->commit();return $out;
         }catch(\Throwable $e){$this->db->rollBack();throw $e;}
@@ -149,7 +149,7 @@ final class Mailbox {
              AND r.sender_id=a.employee_id AND r.request_key=CONCAT('receipt:',a.id))";
         if($owner)$sql.=' AND '.self::VISIBLE;
         $chats=(int)$this->rows($sql,$owner?[$this->owner]:[$this->owner,$actor])[0]['n'];
-        $reports=$owner?(int)$this->rows("SELECT COUNT(*) n FROM portal_ack_anonymous r JOIN portal_ack_report_messages m ON m.id=(SELECT MAX(t.id) FROM portal_ack_report_messages t WHERE t.report_id=r.report_id) WHERE r.owner_id=? AND m.side='reporter'",[$actor])[0]['n']:0;
+        $reports=$owner?(int)$this->rows("SELECT COUNT(*) n FROM portal_ack_anonymous r JOIN portal_ack_report_messages m ON m.id=(SELECT MAX(t.id) FROM portal_ack_report_messages t WHERE t.report_id=r.report_id) WHERE r.owner_id=? AND m.side='reporter' AND m.message_key<>'close:ack'",[$actor])[0]['n']:0;
         return ['private'=>$chats,'reports'=>$reports];
     }
     public function pendingPrompt(int $actor):?array {

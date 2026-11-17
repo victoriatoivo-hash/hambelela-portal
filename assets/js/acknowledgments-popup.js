@@ -82,6 +82,7 @@ async function pollThread(){
   threadErrors=0;
   if(current){if(!d.turn&&current===threadDialog&&!current.busy)current.dialog.close();return;}
   if(document.hidden||document.querySelector('dialog[open]'))return;
+  if(!d.turn&&d.closure){const modal=document.createElement('dialog');modal.className='hb-portal-notice ack-company-notice';const title=document.createElement('h2'),note=document.createElement('p'),ok=document.createElement('button');title.textContent='Closed by Management';note.textContent=d.closure.title;ok.textContent='Close';ok.className='ack-action';modal.append(title,note,ok);document.body.append(modal);modal.showModal();const dismiss=async()=>{ok.disabled=true;try{await request('closure_seen',{event:d.closure.event_id},d.csrf);modal.close();}catch(e){note.textContent=e.message;ok.disabled=false;}};modal.oncancel=e=>{e.preventDefault();dismiss();};ok.onclick=dismiss;modal.onclose=()=>{modal.remove();scheduleThread(0);};return;}
   if(!d.turn){if(d.chat)responseChat(Number(d.chat.id),d.csrf,!d.chat.completed_at&&Number(d.chat.owner_id)===Number(window.HambelelaPortalUser?.id)?d.chat:null);else if(d.report)reportDialog(d.report.report_id,d.csrf,d.report.message_id,null,d.report.preview);else if(d.assistance)responseChat(Number(d.assistance.topic),d.csrf,null,true);else if(d.answer)answerAlert(d.answer,d.csrf);return;}
   const t=d.turn,r=await request('detail&id='+Number(t.recipient_id));
   const messages=r.events.filter(v=>['clarify','reply','explained_personally'].includes(v.event_type));
@@ -115,6 +116,7 @@ function showThread(t,r,messages,csrf){
  label.hidden=!admin;const primary=button(admin?'Send reply':'I Understand / Acknowledge',true,()=>send(admin?'reply':label.hidden?'acknowledge':'clarify'));
  if(!admin){const again=button('I Still Don’t Understand',false,()=>{label.hidden=false;again.hidden=true;primary.textContent='Send clarification';input.focus();});}
  button(admin?'Respond Later':'View Later',false,()=>send('thread_later'));
+ if(admin)button('End Conversation',false,()=>send('thread_end'));
  form.onsubmit=e=>{e.preventDefault();};dialog.oncancel=e=>{e.preventDefault();if(!state.busy)send('thread_later');};
  dialog.onclose=()=>{dialog.remove();threadDialog=null;window.PortalNoticeGate?.release('ack-thread');window.dispatchEvent(new Event('ack:register-changed'));scheduleThread(0);};
  document.body.append(dialog);dialog.showModal();threadDialog=state;if(admin)window.dispatchEvent(new Event('ack:register-changed'));
@@ -139,9 +141,10 @@ function reportDialog(ref,csrf,alertId=0,employee=null,preview=''){
   if(background)checking=true;else{busy=true;error.textContent='';form.querySelector('button').disabled=true;input.readOnly=true;}
   try{const d=await request(named?'assistance_thread':'report_thread',named?{topic:ref,...body}:{report:ref,...body},csrf);
    if(!dialog.open||ticket!==version||d.unchanged)return;cursor=Number(d.cursor)||0;
-   if(body.dismiss){dialog.close();return;}
+   if(body.dismiss||body.message||body.end){dialog.close();return;}
    hist.replaceChildren();for(const m of d.messages){const p=document.createElement('article'),head=document.createElement('small'),text=document.createElement('p');p.className='ack-report-bubble '+(m.side==='owner'?'is-owner':'');head.textContent=(m.side==='owner'?'You':named?employee:'Anonymous')+' · '+(named?m.created_at:m.submitted_on||'Date not recorded');text.textContent=m.body;p.append(head,text);hist.append(p);}
-   if(body.message){input.value='';key=crypto.randomUUID();}form.hidden=false;footer.replaceChildren();button('Close',()=>dialog.close());hist.scrollTop=hist.scrollHeight;
+   form.hidden=!!d.closed;footer.replaceChildren();dialog.querySelector('h2').textContent=d.closed||'Reference '+ref;
+   button(d.closed?'Close':'Respond Later',()=>dialog.close());if(!d.closed)button('End Conversation',()=>call({end:true,expected:cursor}));hist.scrollTop=hist.scrollHeight;
    window.dispatchEvent(new Event('ack:register-changed'));
   }catch(e){if(!background)error.textContent=e.message;}finally{if(background)checking=false;else{busy=false;input.readOnly=false;form.querySelector('button').disabled=false;}}
  }
@@ -170,10 +173,9 @@ function responseChat(id,csrf,preview=null,assistance=false){
   if(op==='reply'){const msg=input.value.trim();if(!msg){input.reportValidity();input.focus();return;}if(draft!==msg){key=crypto.randomUUID();draft=msg;}Object.assign(body,{message:msg,request_key:key});}
   if(write){busy=true;input.readOnly=true;footer.querySelectorAll('button').forEach(b=>b.disabled=true);}else polling=true;
   try{const r=await request(assistance?'assistance_dialog':'chat_thread',body,csrf);if(!d.open||ticket!==version||r.unchanged)return;
-   if(op==='later'||op==='end'||op==='ack'||(op==='delete_for_me'&&r.removed)){d.close();return;}
-   if(op==='reply'){input.value='';key='';draft=null;window.dispatchEvent(new Event('ack:register-changed'));}
+   if(op==='reply'||op==='later'||op==='end'||op==='ack'||(op==='delete_for_me'&&r.removed)){d.close();return;}
    const wasAtBottom=!loaded||hist.scrollHeight-hist.clientHeight-hist.scrollTop<24;
-   last=Number(r.last);closed=r.closed;loaded=true;err.textContent='';find('h2').textContent=closed?r.closure:'Open conversation';
+   last=Number(r.last);closed=r.closed;loaded=true;err.textContent='';find('h2').textContent=closed?r.closure:r.awaiting_owner?'Awaiting Admin Response':'Awaiting Employee Response';
    hist.replaceChildren();for(const m of r.messages){const row=document.createElement('article'),meta=document.createElement('small'),p=document.createElement('p');row.className='ack-report-bubble'+(Number(m.mine)?' is-owner':'');meta.textContent=(Number(m.mine)?'You':m.sender)+' · '+m.created_at;p.textContent=m.body;row.append(meta,p);hist.append(row);}
    f.hidden=closed;footer.replaceChildren();
    const meta=find('[data-closed-meta]');meta.hidden=!closed;meta.textContent=closed?'Closed by '+r.closed_by+' · '+r.closed_at:'';
@@ -214,7 +216,7 @@ function answerAlert(a,csrf){
  area.replaceChildren();const original=document.createElement('div');original.className='ack-preview';original.innerHTML=r.message_html;area.append(original);
  const log=document.createElement('div');log.className='ack-report-history';area.append(log);
  for(const m of r.events){const p=document.createElement('article');p.className='ack-report-bubble'+(Number(m.actor_id)===Number(r.sender_id)?' is-owner':'');p.textContent=(m.actor_name||'Employee')+' · '+m.created_at+' — '+m.message;log.append(p);}
- const composer=document.createElement('div');area.append(composer);window.AckCommunication?.controls(composer,r,csrf,false,true,show);window.dispatchEvent(new Event('ack:register-changed'));
+ const composer=document.createElement('div');area.append(composer);window.AckCommunication?.controls(composer,r,csrf,false,true,()=>{dialog.close();window.dispatchEvent(new Event('ack:register-changed'));});window.dispatchEvent(new Event('ack:register-changed'));
  }catch(e){error.textContent=e.message;}finally{open.disabled=false;}}
  open.onclick=show;later.onclick=async()=>{try{if(!read)await seen(true);dialog.close();}catch(e){error.textContent=e.message;}};
  dialog.oncancel=e=>{e.preventDefault();later.click();};dialog.onclose=()=>{dialog.remove();gate?.release('ack-answer');scheduleThread(0);};document.body.append(dialog);dialog.showModal();

@@ -61,7 +61,7 @@ const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__di
   await form(phone).getByText('Which shelf is ready?',{exact:true}).waitFor();
   assert.equal(await form(phone).getByRole('checkbox').count(),0);
   await form(phone).getByRole('button',{name:'Respond Later'}).click();
-  await phone.locator('#ack-response-chats button').filter({hasText:'Respond Later'}).click();
+  await phone.locator('#ack-response-chats button').filter({hasText:'Awaiting Employee Response'}).click();
   await form(phone).locator('textarea').fill('The top shelf.');
   await form(phone).getByRole('button',{name:'Reply'}).click();
   await form(admin).getByRole('button',{name:'Open conversation'}).click();
@@ -71,6 +71,7 @@ const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__di
   await form(phone).getByText('Is it labelled?',{exact:true}).waitFor();
   await form(phone).locator('textarea').fill('Yes, it is.');
   await form(phone).getByRole('button',{name:'Reply'}).click();
+  await form(admin).getByRole('button',{name:'Open conversation'}).click();
   await form(admin).getByText('Yes, it is.',{exact:true}).waitFor();
   await form(admin).getByRole('button',{name:'End Conversation'}).click();
   await form(admin).waitFor({state:'detached'});
@@ -79,7 +80,7 @@ const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__di
   assert.equal(await form(phone).locator('textarea:visible').count(),0);
   await form(phone).getByRole('button',{name:'Close',exact:true}).click();
   service(71,'chat_start',{employee:recipient,message:'Read the update?',request_key:require('crypto').randomUUID()});
-  const checkRow=async p=>{const boxes=await form(p).locator('footer button').evaluateAll(buttons=>buttons.map(b=>b.getBoundingClientRect().toJSON()));assert.equal(boxes.length,3);assert(boxes.every((b,i)=>b.y===boxes[0].y&&b.height===boxes[0].height&&(!i||b.left>=boxes[i-1].right)));};
+  const checkRow=async p=>{const boxes=await form(p).locator('footer button').filter({hasNotText:/Delete/}).evaluateAll(buttons=>buttons.map(b=>b.getBoundingClientRect().toJSON()));assert.equal(boxes.length,3);assert(boxes.every((b,i)=>b.y===boxes[0].y&&b.height===boxes[0].height&&(!i||b.left>=boxes[i-1].right)));};
   await form(phone).getByRole('button',{name:'Acknowledge',exact:true}).waitFor();await checkRow(phone);
   await form(phone).getByRole('button',{name:'Acknowledge',exact:true}).click();
   await form(admin).getByRole('heading',{name:'Closed – Acknowledged'}).waitFor();
@@ -92,6 +93,16 @@ const script=fs.readFileSync(path.join(process.env.NOTICE_ASSETS||path.join(__di
   await form(phone).getByRole('button',{name:'Acknowledge',exact:true}).click();
   await form(admin).getByRole('heading',{name:'Closed – Acknowledged'}).waitFor();
   assert.equal(await form(admin).locator('textarea:visible').count(),0);
+  await form(admin).getByRole('button',{name:'Close',exact:true}).click();
+  const code=require('crypto').randomBytes(16).toString('hex');service(72,'unnamed_report',{action:'submit',code,body:'Anonymous question A'});
+  await phone.addScriptTag({path:path.join(__dirname,'../standalone/ack-anonymous/thread.js')});
+  await phone.evaluate(c=>window.anonymousConversation(async b=>{const r=await fetch('/api.php?action=unnamed_report',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});const d=await r.json();if(!r.ok)throw Error(d.error);return d;},document.createElement('p')).watch(c),code);
+  await form(admin).getByRole('button',{name:'Open conversation'}).click();await form(admin).locator('textarea').fill('Anonymous answer one');await form(admin).getByRole('button',{name:'Send reply'}).click();await form(admin).waitFor({state:'detached'});
+  await form(phone).getByText('Anonymous answer one',{exact:true}).waitFor();await form(phone).locator('textarea').fill('Anonymous question B');await form(phone).getByRole('button',{name:'Reply',exact:true}).click();await form(phone).waitFor({state:'detached'});
+  await form(admin).getByRole('button',{name:'Open conversation'}).click();await form(admin).locator('textarea').fill('Anonymous answer two');await form(admin).getByRole('button',{name:'Send reply'}).click();
+  await form(phone).getByText('Anonymous answer two',{exact:true}).waitFor();await form(phone).getByRole('button',{name:'Acknowledge'}).click();
+  await form(admin).getByRole('button',{name:'Open conversation'}).click();await form(admin).getByRole('heading',{name:'Closed – Acknowledged'}).waitFor();assert.equal(await form(admin).locator('textarea:visible').count(),0);
+  console.log('PASS: anonymous reporter and owner exchange multiple replies and receive explicit closure without identifying the reporter.');
   console.log('PASS: mobile employee and desktop owner exchange four messages in one private chat, defer, reopen and resolve explicitly.');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});

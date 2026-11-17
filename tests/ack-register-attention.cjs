@@ -29,7 +29,7 @@ const markup=php.slice(php.indexOf('<main'),php.lastIndexOf('</main>')+7).replac
   await page.getByRole('button',{name:'All',exact:true}).click();
   assert.deepEqual(await page.locator('#ack-table .ack-status-done').allTextContents(),['Acknowledged','Closed by Management']);
   assert.equal(await q.locator('.ack-status-waiting').textContent(),'Awaiting Employee');
-  assert.equal(await page.locator('[data-kind=report] .ack-status-ongoing').textContent(),'Conversation Ongoing');
+  assert.equal(await page.locator('[data-kind=report] .ack-status-waiting').textContent(),'Awaiting Employee');
   assert.equal(await page.locator('[data-thread="1"] .ack-status-pending').textContent(),'Pending');
   await page.close();console.log('PASS '+width+'px: count, unread vs action, deferral, explicit closure, automatic ordering, reply and all badge tones');
  }

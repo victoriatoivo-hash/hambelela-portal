@@ -44,19 +44,12 @@
    field('code').value=key;receipt.hidden=false;field('done').hidden=true;
    send.disabled=true;body.readOnly=true;field('result').textContent='Sending…';
    try{const r=await post({action:'submit',code:key,body:body.value});if(r.saved!==true)throw Error('Sending was not confirmed.');
-    sent=true;body.value='';field('result').textContent='Sent without your name. Save your private reply code now.';
+    sent=true;lookupThread.watch(key);body.value='';field('result').textContent='Sent without your name. Save your private reply code now.';
    }catch(e){field('result').textContent=e.message+' Keep the code and retry if needed.';}
    finally{send.disabled=sent;body.readOnly=sent;field('done').hidden=!sent;}
   };
   field('done').onclick=()=>{key='';sent=false;receipt.hidden=true;field('code').value='';field('result').textContent='';send.disabled=false;body.readOnly=false;};
-  field('lookup').oninput=()=>{field('answer').replaceChildren();};
-  check.onclick=async()=>{const output=field('answer');check.disabled=true;output.textContent='Checking…';
-   try{const code=field('lookup').value,r=await post({action:'thread',code});if(code!==field('lookup').value)return;if(!Array.isArray(r.messages))throw Error('Could not load the conversation.');
-    output.replaceChildren();for(const m of r.messages){const p=el('span',(m.side==='owner'?'Owner':'You')+' · '+(m.submitted_on||'Date not recorded')+' — '+m.body);output.append(p,el('br'));}
-    const label=el('label','Follow-up message'),input=el('textarea'),b=el('button','Send follow-up'),feedback=el('span');label.append(input);input.maxLength=6000;b.type='button';output.append(label,b,feedback);
-    let retryKey='',previous='';b.onclick=async()=>{const value=input.value.trim();if(!value)return;if(code!==field('lookup').value){feedback.textContent='Check the code again before replying.';return;}if(value!==previous){retryKey=crypto.randomUUID();previous=value;}b.disabled=true;input.readOnly=true;try{await post({action:'followup',body:value,code,request_key:retryKey});check.click();}catch(e){feedback.textContent=e.message;b.disabled=false;input.readOnly=false;}};
-   }catch(e){output.textContent=e.message;}finally{check.disabled=false;}
-  };
+  const lookupThread=window.anonymousConversation(post,field('answer'));field('lookup').oninput=()=>{lookupThread.forget();field('answer').textContent='';};check.onclick=()=>lookupThread.open(field('lookup').value);
  }
  const route=()=>{if(location.hash==='#private'&&!root.childElementCount){const thread=new URLSearchParams(location.search).get('thread');load(/^\d+$/.test(thread||'')?Number(thread):0);}};
  window.addEventListener('hashchange',route);route();

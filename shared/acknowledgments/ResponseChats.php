@@ -32,7 +32,7 @@ final class ResponseChats {
         $sql="SELECT c.id,c.owner_id,c.employee_id,c.created_at,c.last_id,c.completed_at,e.full_name employee_name,
           LEFT(o.body,80) title,LEFT(m.body,220) latest_message,COALESCE(c.completed_at,m.created_at) latest_date,
           (m.sender_id=c.employee_id) awaiting_owner,
-          CASE WHEN c.completed_at IS NOT NULL THEN CASE WHEN m.request_key LIKE 'ack:%' THEN 'Closed – Acknowledged' WHEN m.request_key LIKE 'end:%' THEN 'Closed by Management' ELSE 'Completed' END WHEN c.deferred_id=c.last_id THEN 'Respond Later'
+          CASE WHEN c.completed_at IS NOT NULL THEN CASE WHEN m.request_key LIKE 'ack:%' THEN 'Closed – Acknowledged' WHEN m.request_key LIKE 'end:%' THEN 'Closed by Management' ELSE 'Completed' END
                WHEN m.sender_id=c.owner_id THEN 'Awaiting Employee Response' ELSE 'Awaiting Admin Response' END status,
           (m.sender_id<>? AND c.last_id>IF(c.owner_id=?,c.owner_seen,c.employee_seen)) unread
           FROM portal_ack_response_chats c JOIN ops_employees e ON e.id=c.employee_id
@@ -77,7 +77,7 @@ final class ResponseChats {
             if($op==='poll'&&(int)($p['after']??0)===$last&&(bool)($p['closed']??false)===$closed)return ['unchanged'=>true];
             $messages=$this->q('SELECT m.id,m.body,m.created_at,e.full_name sender,(m.sender_id=?) mine FROM portal_ack_response_chat_messages m JOIN ops_employees e ON e.id=m.sender_id WHERE m.chat_id=? ORDER BY m.id',[$actor,$id])->fetchAll(\PDO::FETCH_ASSOC);
             $tail=end($messages);
-            return ['messages'=>$messages,'last'=>$last,'closed'=>$closed,'owner'=>$owner,'can_remove'=>$owner&&Mailbox::forPortal($this->db)->isDesignatedOwner($actor),'can_ack'=>!$owner&&!$closed&&!$tail['mine'],
+            return ['messages'=>$messages,'last'=>$last,'closed'=>$closed,'awaiting_owner'=>(bool)($owner?!$tail['mine']:$tail['mine']),'owner'=>$owner,'can_remove'=>$owner&&Mailbox::forPortal($this->db)->isDesignatedOwner($actor),'can_ack'=>!$owner&&!$closed&&!$tail['mine'],
               'closure'=>$closed?($this->q("SELECT IF(request_key LIKE 'ack:%','Closed – Acknowledged',IF(request_key LIKE 'end:%','Closed by Management','Completed')) FROM portal_ack_response_chat_messages WHERE id=?",[$last])->fetchColumn()):null,
               'closed_by'=>$closed?($this->q("SELECT e.full_name FROM portal_ack_response_chat_messages m JOIN ops_employees e ON e.id=IF(m.request_key LIKE 'ack:%',?,?) WHERE m.id=?",[(int)$c['employee_id'],(int)$c['owner_id'],$last])->fetchColumn()):null,'closed_at'=>$closed?($c['completed_at']?:$tail['created_at']):null];
         });
