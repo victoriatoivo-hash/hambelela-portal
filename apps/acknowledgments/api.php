@@ -64,6 +64,13 @@ try{
         try{$box=\Hambelela\Acknowledgments\Mailbox::forPortal(db());$result['attention']=$box->attention($employee);}catch(Throwable $e){error_log('Private attention counts unavailable.');}
         try{if(isset($box)&&($p=$box->pendingPrompt($employee))&&!$p['owner'])$result['private_prompt']=$p;}catch(Throwable $e){error_log('Private message prompts unavailable.');}}
     else $result=$service->listing($employee)+['csrf'=>$_SESSION['ack_csrf']];
-    if($action==='register')$result['chats']=$chats->rows($employee);
+    if($action==='register'){
+        $result['chats']=$chats->rows($employee);
+        $canRemove=$box->isDesignatedOwner($employee);
+        foreach($result['chats'] as &$chat)$chat['can_remove']=$canRemove&&(int)$chat['owner_id']===$employee;
+        unset($chat);
+        foreach($result['assistance'] as &$topic)$topic['can_remove']=$canRemove;
+        unset($topic);
+    }
     echo json_encode($result,JSON_THROW_ON_ERROR);
 }catch(DomainException $e){http_response_code(403);echo json_encode(['error'=>$e->getMessage()]);}catch(Throwable $e){error_log('Acknowledgments API: '.$e->getMessage());http_response_code(500);echo json_encode(['error'=>'Could not complete this action. Your form has been kept; please retry.']);}

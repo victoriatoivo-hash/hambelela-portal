@@ -24,7 +24,7 @@ concurrency:
 
 jobs:
   owner-inbox-delete:
-    if: github.ref == 'refs/heads/codex/owner-inbox-delete' && inputs.approved_sha == github.sha
+    if: (github.ref == 'refs/heads/codex/owner-inbox-delete' || github.ref == 'refs/heads/codex/owner-chat-list-delete') && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
