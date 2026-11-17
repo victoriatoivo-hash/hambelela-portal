@@ -1,10 +1,14 @@
 """Only publish the pinned collection endpoint; refuse any unrelated existing file."""
-import ftplib, hashlib, io, os, ssl, secrets, subprocess
+import socket, ftplib, hashlib, io, os, ssl, secrets, subprocess
 sha='12bfbbb18f3a2e9335e6040fa3df9ea3894080f7'
 path='pos-collection-hold.php';mode=os.environ['SESSION_ACTION']
 assert mode in ('preflight','deploy','rollback')
 data=subprocess.check_output(['git','show',sha+':'+path]);assert subprocess.check_output(['git','diff-tree','--no-commit-id','--name-only','-r',sha]).decode().splitlines()==[path]
-with ftplib.FTP_TLS(os.environ['FTP_SERVER'],context=ssl.create_default_context(),timeout=30) as ftp:
+host=os.environ['FTP_SERVER']
+canonical='s11745.sgp1.stableserver.net'
+if set(socket.gethostbyname_ex(host)[2]) & set(socket.gethostbyname_ex(canonical)[2]):
+    host=canonical
+with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=30) as ftp:
     ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD']);ftp.prot_p()
     def names(d):return {s.rstrip('/').split('/')[-1] for s in ftp.nlst(d)}
     def read(name):
