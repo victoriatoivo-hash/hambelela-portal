@@ -140,3 +140,13 @@ dialog.ack-report-dialog[open] .ack-report-bubble small {
 .ack-conversation-dialog[open] .ack-conversation-ack {background:#596a49;color:#fff}
 .ack-conversation-dialog[open] .ack-conversation-end {background:#fff;color:#913c32;border:1px solid #bd7972}
 .ack-conversation-dialog[open] form[hidden],.ack-conversation-dialog[open] [role=alert]:empty {display:none!important}
+.ack-table .ack-register-status{display:inline-block;max-width:100%;border-radius:10px;padding:2px 8px;font:inherit;font-weight:500;line-height:1.4}
+.ack-table .ack-status-reply{background:#f8e7e2;color:#803c30}
+.ack-table .ack-status-waiting{background:#fff2d9;color:#735019}
+.ack-table .ack-status-ongoing{background:#eaf2fa;color:#254762}
+.ack-table .ack-status-done{background:#edf2e6;color:#344e2e}
+.ack-table .ack-status-pending{background:#efefec;color:#545950}
+#ack-table tr.ack-needs-reply>td{background:#fff8f5}
+#ack-table tr.ack-needs-reply>td:first-child{box-shadow:inset 3px 0 #c58272}
+#ack-tabs .ack-attention-count{display:inline-block;min-width:1.5em;padding:1px 5px;margin-inline-start:5px;border-radius:10px;text-align:center;background:#f8e7e2;color:#803c30;font-variant-numeric:tabular-nums}
+@media(max-width:650px){#ack-table tr.ack-needs-reply{box-shadow:inset 3px 0 #c58272;background:#fff8f5}#ack-table tr.ack-needs-reply>td:first-child{box-shadow:none}}

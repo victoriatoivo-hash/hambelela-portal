@@ -60,8 +60,9 @@ final class Service
     }
     public function registerInfo(int $actor):array {
         $this->owner($actor);
-        $types="'assigned','clarify','reply','explained_personally','acknowledge','answer','answer_reply','answer_unclear','answer_received'";
-        return $this->rows("SELECT r.id,m.id event_id,m.created_at latest_date,LEFT(m.message,240) latest_message,
+        $types="'assigned','clarify','reply','explained_personally','acknowledge','answer','answer_reply','answer_unclear','answer_received','image_unclear','image_understood'";
+        return $this->rows("SELECT r.id,m.id event_id,m.event_type latest_event_type,m.created_at latest_date,LEFT(m.message,240) latest_message,
+          (SELECT c.event_type FROM portal_ack_events c WHERE c.recipient_id=r.id AND c.event_type IN ('image_unclear','image_understood','reply','explained_personally','acknowledge') ORDER BY c.id DESC LIMIT 1) image_turn,
           EXISTS(SELECT 1 FROM portal_ack_events c WHERE c.recipient_id=r.id AND c.event_type='clarify') has_clarification,
           EXISTS(SELECT 1 FROM portal_ack_events c WHERE c.recipient_id=r.id AND c.event_type IN ($types) AND c.actor_id<>? AND c.id>COALESCE(s.event_id,0)) unread
           FROM portal_ack_recipients r LEFT JOIN portal_ack_register_seen s ON s.recipient_id=r.id AND s.owner_id=?

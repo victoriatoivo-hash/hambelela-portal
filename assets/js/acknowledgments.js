@@ -1,31 +1,61 @@
 (()=>{'use strict';
 const $=s=>document.querySelector(s),esc=v=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let data,tab='All',page=1,busy=false,record;const drawer=$('#ack-drawer'),tabs=['All','Scheduled','Pending','Needs Clarification','Acknowledged','Overdue','History'];
+let data,tab='All',page=1,busy=false,record;const drawer=$('#ack-drawer'),tabs=['All','Needs My Attention','Scheduled','Pending','Needs Clarification','Acknowledged','Overdue','History'];
 const status=r=>r.withdrawn?'Withdrawn':r.release_state==='scheduled'?'Scheduled':r.release_state==='cancelled'?'Cancelled':r.status==='acknowledged'?'Acknowledged':r.status==='clarification'?'Needs Clarification':r.overdue?'Overdue':'Pending';
 async function api(action,body,id){const r=await fetch('api.php?action='+action+(id?'&id='+id:''),{cache:'no-store',...(body?{method:'POST',headers:{'Content-Type':'application/json','X-CSRF-Token':data.csrf},body:JSON.stringify(body)}:{})});if(!(r.headers.get('content-type')||'').includes('application/json'))throw Error('Please sign in again.');const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d;}
 function reportRows(){return (data.reports||[]).map(r=>({...r,id:r.report_id,type:'Anonymous Report',title:'Anonymous report',employee_name:r.report_id,status:r.side==='owner'?'Replied':'Awaiting reply',created_at:r.submitted_date}));}
 function assistanceRows(){return (data.assistance||[]).map(r=>({...r,id:r.topic,type:'Assistance Request',status:r.status||(Number(r.receipt)?'Reply received':r.side==='owner'?'Replied':'Awaiting reply')}));}
 function itemType(r){return r.type||(Number(r.has_clarification)?'Clarification':'Acknowledgement');}
-function list(){const q=$('#ack-search').value.toLowerCase(),day=$('#ack-deadline-filter').value,sort=$('#ack-sort').value;
- return data.records.concat(reportRows(),assistanceRows(),(data.chats||[]).map(r=>({...r,type:'Chat – Response Required'}))).filter(r=>{const match=r.type?(tab==='All'||tab==='Pending'&&(r.status==='Awaiting reply'||['Chat – Response Required','Assistance Request'].includes(r.type)&&!['Completed','Reply received','Closed by Management','Closed – Acknowledged'].includes(r.status))||tab==='History'&&['Completed','Closed by Management','Closed – Acknowledged'].includes(r.status)):tab==='All'||tab==='History'&&(r.withdrawn||r.status==='acknowledged'||r.release_state==='cancelled')||!r.withdrawn&&(tab===status(r)||tab==='Overdue'&&r.overdue||tab==='Pending'&&r.release_state==='released'&&r.status==='pending');
+function registerRows(){return data.records.concat(reportRows(),assistanceRows(),(data.chats||[]).map(r=>({...r,type:'Chat – Response Required'})));}
+function visual(r){
+ const reply=['reply','Reply Needed'],waiting=['waiting','Awaiting Employee'],ongoing=['ongoing','Conversation Ongoing'];
+ if(!r.type){
+  const own=Number(r.sender_id)===Number(data.employee_id);
+  if(r.withdrawn||r.release_state!=='released')return ['pending',status(r)];
+  if(own&&r.conversation_status==='answer')return reply;
+  if(r.status==='acknowledged')return ['done','Acknowledged'];
+  if(r.status==='clarification'||r.image_turn==='image_unclear')return own?reply:['ongoing','Awaiting instruction sender'];
+  if(['reply','explained_personally'].includes(r.latest_event_type)||Number(r.has_clarification)||['answer_reply','answer_unclear','answer_received'].includes(r.conversation_status))return waiting;
+  return ['pending',status(r)];
+ }
+ if(['Closed by Management','Closed – Acknowledged','Completed'].includes(r.status))return ['done',r.status];
+ if(r.type==='Anonymous Report')return r.side==='reporter'?reply:ongoing;
+ if(r.status==='Respond Later'){
+  // Assistance stores who deferred; a management chat retains the last message sender.
+  const mine=r.type==='Assistance Request'?r.side==='owner':Number(r.awaiting_owner)===1;
+  return mine?reply:waiting;
+ }
+ if(r.status==='Awaiting Admin Response'||r.status==='Awaiting reply')return reply;
+ if(r.status==='Awaiting Employee Response'||r.status==='Replied')return waiting;
+ return ongoing;
+}
+function list(all){const q=$('#ack-search').value.toLowerCase(),day=$('#ack-deadline-filter').value,sort=$('#ack-sort').value;
+ return all.filter(r=>{const match=tab==='Needs My Attention'?visual(r)[0]==='reply':r.type?(tab==='All'||tab==='Pending'&&(r.status==='Awaiting reply'||['Chat – Response Required','Assistance Request'].includes(r.type)&&!['Completed','Reply received','Closed by Management','Closed – Acknowledged'].includes(r.status))||tab==='History'&&['Completed','Closed by Management','Closed – Acknowledged'].includes(r.status)):tab==='All'||tab==='History'&&(r.withdrawn||r.status==='acknowledged'||r.release_state==='cancelled')||!r.withdrawn&&(tab===status(r)||tab==='Overdue'&&r.overdue||tab==='Pending'&&r.release_state==='released'&&r.status==='pending');
  return match&&(!$('#ack-type-filter')?.value||$('#ack-type-filter').value===itemType(r))&&(!day||r.deadline?.startsWith(day))&&[r.title,r.employee_name,r.latest_message,itemType(r)].join(' ').toLowerCase().includes(q);}).sort((a,b)=>sort==='employee'?a.employee_name.localeCompare(b.employee_name):sort==='deadline'?String(a.deadline||'9999').localeCompare(b.deadline||'9999'):String(b.latest_date||b.created_at||'').localeCompare(String(a.latest_date||a.created_at||'')));}
 function rowActions(r){
  const ownerActions=!data.owner?'':r.withdrawn?'<button class="ack-action secondary" data-record-action="restore" data-id="'+r.id+'">Restore</button>':r.release_state==='released'?'<button class="ack-action secondary" data-record-action="edit" data-id="'+r.id+'">Edit</button><button class="ack-action secondary" data-record-action="delete" data-id="'+r.id+'">Delete</button>':r.release_state==='scheduled'?'<button class="ack-action secondary" data-record-action="edit" data-id="'+r.id+'">Edit</button>':'';
  return '<div class="ack-toolbar"><button class="ack-action secondary" data-view="'+r.id+'">View</button>'+ownerActions+'</div>';
 }
-function render(){const rows=list();page=Math.min(page,Math.max(1,Math.ceil(rows.length/25)));if($('#ack-new'))$('#ack-new').hidden=!data.owner;$('#ack-tabs').innerHTML=tabs.filter(t=>data.owner||t!=='Scheduled').map(t=>'<button class="ack-action" data-tab="'+t+'" aria-pressed="'+(t===tab)+'">'+t+'</button>').join('');$('#ack-summary').innerHTML=[[data.owner?'Awaiting Acknowledgment':'Awaiting your response',data.records.filter(r=>!r.withdrawn&&r.release_state==='released'&&r.status!=='acknowledged').length],['Needs Clarification',data.records.filter(r=>!r.withdrawn&&r.status==='clarification').length],['Acknowledged',data.records.filter(r=>!r.withdrawn&&r.status==='acknowledged').length],['Overdue',data.records.filter(r=>r.overdue).length]].map(([t,n])=>'<article><h2>'+t+'</h2><strong>'+n+'</strong></article>').join('');const heads=['Type','Employee / reference','Instruction / latest message','Submitted','Latest activity','Deadline','Status','Actions'];
+function render(){const all=registerRows(),count=all.filter(r=>visual(r)[0]==='reply').length,rows=list(all);page=Math.min(page,Math.max(1,Math.ceil(rows.length/25)));if($('#ack-new'))$('#ack-new').hidden=!data.owner;$('#ack-tabs').innerHTML=tabs.filter(t=>data.owner||!['Scheduled','Needs My Attention'].includes(t)).map(t=>'<button class="ack-action" data-tab="'+t+'" aria-pressed="'+(t===tab)+'">'+t+(t==='Needs My Attention'?' <span class="ack-attention-count">'+count+'</span>':'')+'</button>').join('');$('#ack-summary').innerHTML=[[data.owner?'Awaiting Acknowledgment':'Awaiting your response',data.records.filter(r=>!r.withdrawn&&r.release_state==='released'&&r.status!=='acknowledged').length],['Needs Clarification',data.records.filter(r=>!r.withdrawn&&r.status==='clarification').length],['Acknowledged',data.records.filter(r=>!r.withdrawn&&r.status==='acknowledged').length],['Overdue',data.records.filter(r=>r.overdue).length]].map(([t,n])=>'<article><h2>'+t+'</h2><strong>'+n+'</strong></article>').join('');const heads=['Type','Employee / reference','Instruction / latest message','Submitted','Latest activity','Deadline','Status','Actions'];
  $('#ack-table').innerHTML='<table><thead><tr>'+heads.map(h=>'<th scope="col">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.slice((page-1)*25,page*25).map(r=>{
  const tag=itemType(r),cls=r.type==='Chat – Response Required'?'chat':r.type==='Assistance Request'?'assistance':r.type?'report':Number(r.has_clarification)?'clarify':'ack',button=r.type?'<button type="button" class="ack-action secondary" data-report="'+esc(r.id)+'">View</button>':rowActions(r);
- return '<tr data-thread="'+esc(r.id)+'" data-kind="'+cls+'">'+['<span class="ack-type '+cls+'">'+tag+'</span>',esc(r.employee_name),'<strong>'+esc(r.title)+'</strong><br>'+esc(r.latest_message||'—')+(Number(r.unread)?' <span class="ack-unread">Unread</span>':''),esc(r.created_at||'Date not recorded')+(r.scheduled_at?'<small> · Scheduled: '+esc(r.scheduled_at)+'</small>':''),esc(r.latest_date||r.created_at||'Date not recorded'),esc(r.deadline||'—'),esc(r.type?r.status:status(r))+(r.acknowledged_at?'<small> · '+esc(r.acknowledged_at)+'</small>':''),button].map((v,i)=>'<td data-label="'+heads[i]+'">'+v+'</td>').join('')+'</tr>';}).join('')+'</tbody></table>'+(!rows.length?'<p class="ack-note">No matching items.</p>':'');$('#ack-page').textContent='Page '+page+' of '+Math.max(1,Math.ceil(rows.length/25));$('#ack-prev').disabled=page===1;$('#ack-next').disabled=page*25>=rows.length;}
+ const [tone,label]=visual(r),badge='<span class="ack-register-status ack-status-'+tone+'">'+esc(label)+'</span>'+(r.status==='Respond Later'?' <small>Deferred</small>':r.overdue&&label!=='Overdue'?' <small>Overdue</small>':'');
+ return '<tr'+(tone==='reply'?' class="ack-needs-reply"':'')+' data-thread="'+esc(r.id)+'" data-kind="'+cls+'">'+['<span class="ack-type '+cls+'">'+tag+'</span>',esc(r.employee_name),'<strong>'+esc(r.title)+'</strong><br>'+esc(r.latest_message||'—')+(Number(r.unread)?' <span class="ack-unread">Unread</span>':''),esc(r.created_at||'Date not recorded')+(r.scheduled_at?'<small> · Scheduled: '+esc(r.scheduled_at)+'</small>':''),esc(r.latest_date||r.created_at||'Date not recorded'),esc(r.deadline||'—'),badge+(r.acknowledged_at?'<small> · '+esc(r.acknowledged_at)+'</small>':''),button].map((v,i)=>'<td data-label="'+heads[i]+'">'+v+'</td>').join('')+'</tr>';}).join('')+'</tbody></table>'+(!rows.length?'<p class="ack-note">No matching items.</p>':'');$('#ack-page').textContent='Page '+page+' of '+Math.max(1,Math.ceil(rows.length/25));$('#ack-prev').disabled=page===1;$('#ack-next').disabled=page*25>=rows.length;}
 let loadVersion=0;
 async function load(quiet=false){if(drawer?.dataset.record){window.dispatchEvent(new Event('ack:attention-changed'));return;}
  const version=++loadVersion;
  try{const next=await api('register');if(version!==loadVersion)return;
-  if(!quiet||JSON.stringify(data)!==JSON.stringify(next)){data=next;render();}
+  if(!quiet||JSON.stringify(data)!==JSON.stringify(next)){
+   const active=document.activeElement,filter=active?.closest('#ack-tabs [data-tab]'),row=active?.closest('#ack-table [data-thread]');
+   const index=row?[...row.querySelectorAll('button')].indexOf(active):-1;data=next;render();
+   if(filter)document.querySelector('#ack-tabs [data-tab="'+CSS.escape(filter.dataset.tab)+'"]')?.focus({preventScroll:true});
+   if(index>=0){const same=document.querySelector('#ack-table [data-kind="'+CSS.escape(row.dataset.kind)+'"][data-thread="'+CSS.escape(row.dataset.thread)+'"]');
+    (same?.querySelectorAll('button')[index]||document.querySelector('#ack-tabs [aria-pressed=true]'))?.focus({preventScroll:true});}
+  }
   $('#ack-message').textContent='Anonymous reports show a public reference and date only.';
  }catch(e){if(version===loadVersion)$('#ack-message').textContent=e.message;}}
-function refreshList(){if(data?.owner&&!document.hidden&&!document.querySelector('dialog[open]')&&!document.activeElement?.closest('#ack-table'))load(true);}
-window.setInterval(refreshList,30000);document.addEventListener('visibilitychange',refreshList);
+let checking=false;async function refreshList(){if(checking||!data?.owner||document.hidden)return;checking=true;try{await load(true);}finally{checking=false;}}
+window.setInterval(refreshList,5000);document.addEventListener('visibilitychange',refreshList);
 window.addEventListener('ack:register-changed',()=>{if(document.querySelector('#ack-table'))load();});
 function open(title,html){$('#ack-drawer-title').textContent=title;$('#ack-content').innerHTML=html;$('#ack-error').textContent='';if(!drawer.open)drawer.showModal();}
 function scheduleLabel(r){

@@ -29,7 +29,8 @@ final class ResponseChats {
     }
     public function rows(int $actor,bool $alerts=false):array{
         $sql="SELECT c.id,c.owner_id,c.employee_id,c.created_at,c.last_id,c.completed_at,e.full_name employee_name,
-          LEFT(o.body,80) title,LEFT(m.body,220) latest_message,m.created_at latest_date,
+          LEFT(o.body,80) title,LEFT(m.body,220) latest_message,COALESCE(c.completed_at,m.created_at) latest_date,
+          (m.sender_id=c.employee_id) awaiting_owner,
           CASE WHEN c.completed_at IS NOT NULL THEN CASE WHEN m.request_key LIKE 'ack:%' THEN 'Closed – Acknowledged' WHEN m.request_key LIKE 'end:%' THEN 'Closed by Management' ELSE 'Completed' END WHEN c.deferred_id=c.last_id THEN 'Respond Later'
                WHEN m.sender_id=c.owner_id THEN 'Awaiting Employee Response' ELSE 'Awaiting Admin Response' END status,
           (m.sender_id<>? AND c.last_id>IF(c.owner_id=?,c.owner_seen,c.employee_seen)) unread
