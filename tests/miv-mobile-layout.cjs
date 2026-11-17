@@ -51,6 +51,20 @@ const {chromium} = require('playwright');
         assert(rect && rect.x >= -1 && rect.x + rect.width <= width + 1, `budget control fit ${selector} ${width}`);
       }
       console.log(`PASS: budgeting controls, chart and balances fit at ${width}x${height}`);
+      await page.locator('[data-tab="invoices"]').click();
+      await page.locator('#newInvoice').click();
+      await page.locator('#invCustomer').fill('Mobile invoice customer');
+      await page.locator('#invWeight').fill('2.500');
+      await page.locator('#invItems').fill('Bottles and packaging');
+      await page.locator('#invFreight').fill('501.12');
+      await page.locator('#invAdmin').fill('40.09');
+      assert.equal(await page.locator('#invTotal').innerText(), 'N$541.21');
+      assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `invoice page overflow ${width}`);
+      for (const selector of ['#invCustomer','#invItems','#invFreight','#issueInvoice']) {
+        const rect=await page.locator(selector).boundingBox();
+        assert(rect && rect.x>=-1 && rect.x+rect.width<=width+1, `invoice control fit ${selector} ${width}`);
+      }
+      console.log(`PASS: invoice form, totals and buttons fit at ${width}x${height}`);
       await page.close();
     }
   } finally { await browser.close(); }
