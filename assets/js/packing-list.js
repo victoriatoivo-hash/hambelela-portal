@@ -439,7 +439,11 @@
 
   function workloadQuantity(value) {
     const totals = { weight: 0, volume: 0, count: 0, unknown: false };
-    const text = String(value || '').trim();
+    const text = String(value ?? '').trim()
+      .replace(/(\d+)\s*packs?\s*[x×*]\s*(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\b/gi,'$2$3($1)')
+      .replace(/(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\s*-\s*(\d+)\s*packs?\b/gi,'$1$2($3)')
+      .replace(/(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\s*\)/gi,'$2$3($1)');
+    if (text === '0') return totals;
     const pattern = /(\d+(?:\.\d+)?)\s*(kilograms?|kgs?|grams?|g|millilitres?|ml|litres?|liters?|lt|l|pieces?|pcs?|units?)\b\s*(?:\(\s*(\d+)\s*\)|[x*]\s*(\d+))?/gi;
     const remainder = text.replace(pattern, (_, amount, unitName, bracketCount, timesCount) => {
       const unit = parsePackUnit(unitName);
@@ -1138,7 +1142,7 @@
     const manual = packingDraftMode === 'manual';
     monthlyRequest++; monthlyReview=null;
     const distributionDescription=distributionReview?.querySelector('.invoice-section-description');
-    if(distributionDescription)distributionDescription.textContent=manual?'Review the complete product rows assigned to each packer.':'Balance this invoice against completed packs this month and outstanding assignments.';
+    if(distributionDescription)distributionDescription.textContent=manual?'Review the complete product rows assigned to each packer.':'Balance weight, liquids and units separately using completed quantities this month and work still to pack.';
     const distributionHelp=distributionReview?.querySelector('.packing-distribution-help');
     if(distributionHelp)distributionHelp.textContent=manual?'Review each row before creating packing items.':'Adjust the number of packs for each employee. Each size must add up to the invoice quantity.';
     const headers=distributionReview?.querySelectorAll('thead th');
@@ -1535,31 +1539,34 @@
   }
 
   // Raise the lowest assigned totals together, without looping once per package.
-  function monthlyShares(loads,count) {
-    if(!loads.length || !Number.isSafeInteger(count) || count<0) throw Error('Invalid pack allocation.');
-    const order=loads.map((_,i)=>i).sort((a,b)=>loads[a]-loads[b]||a-b), out=loads.map(()=>0);
-    let level=loads[order[0]], n=1;
-    while(n<order.length){
-      const gap=loads[order[n]]-level;
-      if(gap>Math.floor(count/n))break;
-      count-=gap*n;level+=gap;n++;
+  function monthlyShares(loads,count,size) {
+    if(!loads.length || loads.some(x=>!Number.isFinite(x)||x<0) || !Number.isSafeInteger(count) || count<0 || !(size>0) || !Number.isFinite(size)) throw Error('Invalid physical quantity.');
+    // Each assignment adds one whole size to the lowest load of this dimension.
+    // Find the full levels in bulk, then award the last few by actual physical load.
+    const min=Math.min(...loads), starts=loads.map(x=>Math.floor(Math.min(count,(x-min)/size)));
+    let lo=0,hi=count;
+    while(lo<hi){
+      const mid=lo+Math.ceil((hi-lo)/2);
+      if(starts.reduce((a,x)=>a+Math.max(0,mid-x),0)<=count)lo=mid;else hi=mid-1;
     }
-    for(let k=0;k<n;k++)out[order[k]]=level-loads[order[k]]+Math.floor(count/n)+(k<count%n?1:0);
+    const out=starts.map(x=>Math.max(0,lo-x)),left=count-out.reduce((a,b)=>a+b,0);
+    const order=loads.map((x,i)=>({i,next:x+out[i]*size})).sort((a,b)=>a.next-b.next || a.i-b.i);
+    for(let j=0;j<left;j++)out[order[j].i]++;
     return out;
   }
+  const dimensions=['weight','volume','count'];
+  const emptyPhysical=()=>({weight:0,volume:0,count:0});
+  const showPhysical=q=>[ [q.weight/1000,'kg'],[q.volume/1000,'L'],[q.count,'units'] ].map(([v,u])=>v.toLocaleString(undefined,{maximumFractionDigits:6})+' '+u).join(' · ');
   const monthlyKey=()=>JSON.stringify([invoiceImportId,invoiceDraftRows.map(r=>[r.item_name,r.quantity_planned,r.received_weight,r.unit,r.bulk_remainder,r.priority,r.assignment_source,r.assigned_employee_id])]);
   function makeMonthlyReview(history){
-    const people=packers.map(p=>({id:String(p.id),name:p.full_name,auto:Number(p.packing_auto_assignable)===1,packed:0,pending:0,unknown:0}));
+    const people=packers.map(p=>({id:String(p.id),name:p.full_name,auto:Number(p.packing_auto_assignable)===1,packed:emptyPhysical(),pending:emptyPhysical(),unknown:0}));
     for(const h of history.rows){
       const p=people.find(p=>p.id===String(h.profile_id));if(!p)continue;
-      const raw=String(h.quantity??'').trim().replace(/[—–]\s*T?$/i,'').replace(/(\d+)\s*packs?\s*[x×*]\s*(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\b/gi,'$2$3($1)').replace(/(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\s*-\s*(\d+)\s*packs?\b/gi,'$1$2($3)');
-      // A finished batch recorded only by weight/volume is not a confirmed
-      // package count. Do not give it a guessed one-package credit.
-      const bulkOnly=h.bucket==='packed'&&/^\d+(?:\.\d+)?\s*(?:kgs?|kilograms?|g|grams?|ml|millilit(?:er|re)s?|l|lt|lit(?:er|re)s?)$/i.test(raw);
-      const n=bulkOnly?0:quantityPlanStats(raw).totalUnits;
-      if(n||raw==='0')p[h.bucket]+=n*Number(h.batches);else p.unknown+=Number(h.batches);
+      const quantity=workloadQuantity(h.quantity), batches=Number(h.batches);
+      for(const d of dimensions)p[h.bucket][d]+=quantity[d]*batches;
+      if(quantity.unknown)p.unknown+=batches;
     }
-    const loads=people.map(p=>p.packed+p.pending), eligible=people.map((p,i)=>p.auto?i:-1).filter(i=>i>=0);
+    const loads=people.map(p=>Object.fromEntries(dimensions.map(d=>[d,p.packed[d]+p.pending[d]]))), eligible=people.map((p,i)=>p.auto?i:-1).filter(i=>i>=0);
     const lines=invoiceDraftRows.map(row=>quantityPlanParts(row.quantity_planned).map(part=>({part,shares:people.map(()=>0)})));
     // Reserve explicit choices first, so suggestions for other lines account for them.
     for(const manual of [true,false])invoiceDraftRows.forEach((row,i)=>{
@@ -1568,18 +1575,20 @@
       const pool=manual?[assigned]:eligible.length?eligible:[assigned];
       if(pool.some(k=>k<0))throw Error('Choose an eligible packer before reviewing allocation.');
       for(const line of lines[i]){
-        const shares=monthlyShares(pool.map(k=>loads[k]),line.part.count);
-        pool.forEach((k,j)=>{line.shares[k]=shares[j];loads[k]+=shares[j];});
+        const unit=parsePackUnit(line.part.unit), d=unit.dimension, size=unit.factor*line.part.amount;
+        const shares=monthlyShares(pool.map(k=>loads[k][d]),line.part.count,size);
+        pool.forEach((k,j)=>{line.shares[k]=shares[j];loads[k][d]+=shares[j]*size;});
       }
     });
     return {month:history.month,people,lines,key:monthlyKey()};
   }
   function renderMonthlyReview(keepFields=false){
-    const m=monthlyReview, added=m.people.map(()=>0);
+    const m=monthlyReview, added=m.people.map(emptyPhysical);
     const rows=[];let valid=m.key===monthlyKey();
     if(valid)m.lines.forEach((parts,i)=>parts.forEach(({part,shares},j)=>{
       const sum=shares.reduce((a,b)=>a+b,0),ok=shares.every(x=>Number.isSafeInteger(x)&&x>=0)&&sum===part.count;
-      valid=valid&&ok;shares.forEach((n,k)=>added[k]+=Number.isFinite(n)?n:0);
+      const unit=parsePackUnit(part.unit);
+      valid=valid&&ok;shares.forEach((n,k)=>{if(Number.isSafeInteger(n)&&n>=0)added[k][unit.dimension]+=n*part.amount*unit.factor;});
       const fields=m.people.map((p,k)=>'<label>'+esc(p.name)+' <input type="number" min="0" max="'+part.count+'" step="1" data-month-share="'+i+':'+j+':'+k+'" value="'+(Number.isFinite(shares[k])?shares[k]:'')+'"></label>').join(' ');
       rows.push('<tr><td>'+esc(invoiceDraftRows[i].item_name)+'</td><td>'+esc(part.amount+' '+part.unit)+'</td><td>'+part.count+' packs</td><td>'+fields+'</td><td>'+sum+'</td><td>'+(ok?'Balanced':'Allocate exactly '+part.count+' packs')+'</td></tr>');
     }));
@@ -1590,7 +1599,7 @@
       tr.cells[4].textContent=Number.isFinite(sum)?String(sum):'—';
       tr.cells[5].textContent=line.shares.every(n=>Number.isSafeInteger(n)&&n>=0)&&sum===line.part.count?'Balanced':'Allocate exactly '+line.part.count+' packs';
     });
-    distributionSummary.innerHTML='<p>Monthly packing balance · '+esc(m.month)+' · finished packs, not estimated hours.</p>'+m.people.map((p,k)=>'<div class="packing-distribution-card"><span>'+esc(p.name)+'</span><strong>'+added[k]+' from this invoice</strong><small>'+p.packed+' packed this month · '+p.pending+' pending · '+(p.packed+p.pending+added[k])+' projected'+(p.unknown?' · '+p.unknown+' quantities not readable (totals partial)':'')+'</small></div>').join('');
+    distributionSummary.innerHTML='<p>Monthly packing balance · '+esc(m.month)+' · kilograms, litres and units are balanced separately.</p>'+m.people.map((p,k)=>'<div class="packing-distribution-card"><span>'+esc(p.name)+'</span><strong>From this invoice: '+showPhysical(added[k])+'</strong><small>Completed this month: '+showPhysical(p.packed)+'<br>Still to pack: '+showPhysical(p.pending)+'<br>Projected: '+showPhysical(Object.fromEntries(dimensions.map(d=>[d,p.packed[d]+p.pending[d]+added[k][d]])))+(p.unknown?'<br>'+p.unknown+' unclear quantities (totals partial)':'')+'</small></div>').join('');
     const submit=invoiceModal?.querySelector('[data-confirm-quantities-create]');if(submit)submit.disabled=!valid;
   }
   function monthlySubmission(){
