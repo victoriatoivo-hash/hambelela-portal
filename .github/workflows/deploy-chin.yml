@@ -72,11 +72,11 @@ jobs:
           CHIN_FTP_PASSWORD: ${{ secrets.CHIN_FTP_PASSWORD }}
           DEPLOY_MODE: ${{ inputs.mode }}
           # FastComet GOI-457-19250 permits upload with automatic server scanning.
-          # Owner approved the mobile field focus fix on 2026-11-18; PR #111.
+          # Owner approved the shipping rate breakdown on 2026-11-18; PR #112.
           # FastComet scans on upload; this fingerprint identifies the approved payload,
           # and does not claim an independent pre-upload scan was performed.
           # A changed payload must be approved again; deploy-chin.py verifies this hash.
-          CHIN_SCANNER_CLEARANCE_SHA256: '8dd59754f0e21e003ba5c6ddb4af4e85289da7003aabbbfc60f96196b7b48fd1'
+          CHIN_SCANNER_CLEARANCE_SHA256: '0cca22d5d6e5c8556c6470c735227bb175c9ae8f852996daadda328408592700'
         run: |
           if [ "$DEPLOY_MODE" = "inspect" ]; then
             python3 scripts/deploy-chin.py --inspect
