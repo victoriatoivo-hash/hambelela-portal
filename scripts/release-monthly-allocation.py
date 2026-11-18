@@ -2,10 +2,9 @@
 import os, ftplib, io, subprocess, secrets, ssl, socket
 from pathlib import Path
 
-paths = [f'apps/operations/packing-{name}.php' for name in
-         ('monthly-history','monthly-validation','list-data','list-action')] + ['assets/js/packing-list.js']
+paths = ['apps/operations/packing-monthly-history.php','assets/js/packing-list.js']
 def git(*args): return subprocess.check_output(['git', *args])
-expected = {p: None if i<2 else git('show','d22c27b5:'+p) for i,p in enumerate(paths)}
+expected = {p: git('show','b0c41bcb:'+p) for p in paths}
 desired = {p: Path(p).read_bytes() for p in paths}
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
 host=os.environ['FTP_SERVER']
@@ -31,8 +30,7 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             except ftplib.error_perm: pass
     before={p:read(p) for p in paths}
     for p in paths:
-        prior_release = git('show','a821b83f:'+p) if p == 'assets/js/packing-list.js' else desired[p]
-        if norm(before[p]) not in (norm(expected[p]),norm(desired[p]),norm(prior_release)):
+        if norm(before[p]) not in (norm(expected[p]),norm(desired[p])):
             import hashlib
             blob=before[p] or b''
             print('Live normalized Git blob:',hashlib.sha1(b'blob '+str(len(norm(blob))).encode()+b'\0'+norm(blob)).hexdigest())
@@ -49,4 +47,4 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             if before[p] is None: ftp.delete(p)
             else: put(p,before[p],desired[p])
         raise
-    print('All five live files verified. No database changes.')
+    print('Both live tally files verified. No database changes.')

@@ -14,5 +14,18 @@ assert.deepEqual(plain(review.people[1].packed),{weight:60000,volume:25000,count
 assert.deepEqual(plain(review.people[1].pending),{weight:0,volume:25000,count:0});
 assert.deepEqual(plain(ctx.workloadQuantity('20(500ml), 250g(4), 10 units(3)')),{weight:1000,volume:10000,count:30,unknown:false});
 assert.equal(ctx.workloadQuantity('unrecorded').unknown,true);
+const entries=[['5','5units'],['5','5units'],['50','50units'],['20 individual items','20units'],['5 individual items','5units'],['18 individual items','20units'],['20 individual items','20units']];
+assert.equal(entries.slice(0,3).reduce((s,x)=>s+ctx.workloadQuantity(...x).count,0),60);
+assert.equal(entries.slice(3).reduce((s,x)=>s+ctx.workloadQuantity(...x).count,0),63);
+for(const received of ['5kg','5L','500 ml','5','','5 units in 1 kg']){
+  assert.deepEqual(plain(ctx.workloadQuantity('5',received)),{weight:0,volume:0,count:0,unknown:true});
+}
+assert.equal(ctx.workloadQuantity('1 individual item','').count,1);
+assert.equal(ctx.workloadQuantity('1.5','3units').unknown,true);
+assert.equal(ctx.makeMonthlyReview({month:'2026-11',rows:[
+  {profile_id:7,bucket:'packed',quantity:'5',received_stock:'5units',batches:2},
+  {profile_id:7,bucket:'packed',quantity:'50',received_stock:'50units',batches:1},
+  {profile_id:7,bucket:'packed',quantity:'5',received_stock:'5kg',batches:1}
+]}).people[0].packed.count,60);
 for(let i=1;i<400;i++){let loads=[i%3,i%11,i%7],n=i%50,size=(i%8+1)*0.25,got=plain(ctx.monthlyShares(loads,n,size)),expected=[0,0,0];for(let j=0;j<n;j++){const l=loads.map((x,k)=>x+expected[k]*size);expected[l.indexOf(Math.min(...l))]++;}assert.deepEqual(got,expected);}
 console.log('PASS independent weight, volume and item loads; pending separate; editable splits; conservation; 399 discrete allocation cases');

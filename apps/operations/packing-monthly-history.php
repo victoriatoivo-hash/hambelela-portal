@@ -16,10 +16,11 @@ function packing_monthly_history(PDO $db, DateTimeImmutable $start):array {
     }
     // One source row per task, never one per edit or status event. Finished archives count; archived backlog does not.
 
-    $stmt=$db->prepare("SELECT $person AS profile_id, CASE WHEN $done THEN 'packed' ELSE 'pending' END AS bucket,
+    $received = ops_column_exists('ops_packing_tasks','received_weight') ? 'p.received_weight' : 'NULL';
+    $stmt=$db->prepare("SELECT $person AS profile_id, $received AS received_stock, CASE WHEN $done THEN 'packed' ELSE 'pending' END AS bucket,
         CASE WHEN $done THEN p.quantity_packed ELSE p.quantity_planned END AS quantity, COUNT(*) AS batches
         FROM ops_packing_tasks p WHERE (($done AND p.date_completed>=? AND p.date_completed<?)
-        OR ($open $active)) $live GROUP BY profile_id,bucket,quantity");
+        OR ($open $active)) $live GROUP BY profile_id,bucket,quantity,received_stock");
     $stmt->execute([$start->format('Y-m-d H:i:s'),$start->modify('+1 month')->format('Y-m-d H:i:s')]);
     return $stmt->fetchAll(PDO::FETCH_ASSOC);
 }

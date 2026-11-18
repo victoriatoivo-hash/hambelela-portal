@@ -437,13 +437,20 @@
     if (undoButton) undoButton.disabled = !lastUndo;
   }
 
-  function workloadQuantity(value) {
+  function workloadQuantity(value, receivedStock = '') {
     const totals = { weight: 0, volume: 0, count: 0, unknown: false };
     const text = String(value ?? '').trim()
+      .replace(/individual\s+items?\b/gi,'units')
       .replace(/(\d+)\s*packs?\s*[x×*]\s*(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\b/gi,'$2$3($1)')
       .replace(/(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\s*-\s*(\d+)\s*packs?\b/gi,'$1$2($3)')
       .replace(/(\d+)\s*\(\s*(\d+(?:\.\d+)?)\s*(kg|g|ml|l)\s*\)/gi,'$2$3($1)');
     if (text === '0') return totals;
+    // The received quantity carries the confirmed invoice unit. A plan's
+    // package count (or a product name) is not proof the stock is count-based.
+    if (/^\d+$/.test(text) && Number.isSafeInteger(Number(text)) &&
+        /^\s*\d+(?:\.\d+)?\s*(?:units?|pieces?|pcs?|each|ea|individual\s+items?|labels?|bottles?|jars?|packs?|pouch(?:es)?|tea\s*bags?)\s*$/i.test(String(receivedStock))) {
+      totals.count = Number(text); return totals;
+    }
     const pattern = /(\d+(?:\.\d+)?)\s*(kilograms?|kgs?|grams?|g|millilitres?|ml|litres?|liters?|lt|l|pieces?|pcs?|units?)\b\s*(?:\(\s*(\d+)\s*\)|[x*]\s*(\d+))?/gi;
     const remainder = text.replace(pattern, (_, amount, unitName, bracketCount, timesCount) => {
       const unit = parsePackUnit(unitName);
@@ -466,10 +473,10 @@
       const key = String(row.assigned_employee_id || '');
       if (!groups.has(key)) continue;
       const group = groups.get(key);
-      const planned = workloadQuantity(row.quantity_planned);
+      const planned = workloadQuantity(row.quantity_planned, row.received_weight);
       group.rows++;
       add(group.assigned, planned);
-      if (packingStatusIsCompleted(row.packing_status)) add(group.completed, workloadQuantity(row.quantity_packed));
+      if (packingStatusIsCompleted(row.packing_status)) add(group.completed, workloadQuantity(row.quantity_packed, row.received_weight));
       else add(group.remaining, planned);
     }
     return [...groups.values()];
@@ -1562,7 +1569,7 @@
     const people=packers.map(p=>({id:String(p.id),name:p.full_name,auto:Number(p.packing_auto_assignable)===1,packed:emptyPhysical(),pending:emptyPhysical(),unknown:0}));
     for(const h of history.rows){
       const p=people.find(p=>p.id===String(h.profile_id));if(!p)continue;
-      const quantity=workloadQuantity(h.quantity), batches=Number(h.batches);
+      const quantity=workloadQuantity(h.quantity,h.received_stock), batches=Number(h.batches);
       for(const d of dimensions)p[h.bucket][d]+=quantity[d]*batches;
       if(quantity.unknown)p.unknown+=batches;
     }
