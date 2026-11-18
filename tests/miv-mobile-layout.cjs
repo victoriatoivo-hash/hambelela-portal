@@ -51,6 +51,17 @@ const {chromium} = require('playwright');
         assert(rect && rect.x >= -1 && rect.x + rect.width <= width + 1, `budget control fit ${selector} ${width}`);
       }
       console.log(`PASS: budgeting controls, chart and balances fit at ${width}x${height}`);
+      if (width <= 850) {
+        await page.locator('[data-tab="invoices"]').click();
+        await page.locator('#newInvoice').click();
+        await page.locator('#invChinaFreight').fill('125');
+        const undersized = await page.locator('input, select, textarea').evaluateAll(fields =>
+          fields.filter(el => !['checkbox','radio','hidden','button','submit','file','range','color'].includes(el.type))
+            .filter(el => parseFloat(getComputedStyle(el).fontSize) < 16)
+            .map(el => el.id || el.className || el.tagName));
+        assert.deepEqual(undersized, [], 'mobile fields, including invoice line items, must not trigger focus zoom');
+        assert(!/maximum-scale|user-scalable\s*=\s*(?:no|0)/i.test(await page.locator('meta[name="viewport"]').getAttribute('content')), 'manual zoom remains available');
+      }
       await page.close();
     }
   } finally { await browser.close(); }
