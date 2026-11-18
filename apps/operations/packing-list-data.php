@@ -44,6 +44,15 @@ if (!$canViewAllPackingItems && !$canViewAssignedPackingItems) {
     echo json_encode(['ok' => false, 'message' => 'You do not have permission to view the Packing List.']);
     exit;
 }
+if (isset($_GET['monthly_allocation'])) {
+    if (!$canViewAllPackingItems) { http_response_code(403); echo json_encode(['ok'=>false]); exit; }
+    require_once __DIR__.'/packing-monthly-history.php';
+    $start=new DateTimeImmutable('first day of this month 00:00',new DateTimeZone('Africa/Windhoek'));
+    try { $rows=packing_monthly_history(db(),$start); }
+    catch(Throwable $e){http_response_code(503);echo json_encode(['ok'=>false,'message'=>'Monthly packing history is unavailable.']);exit;}
+    header('Cache-Control: no-store');
+    echo json_encode(['ok'=>true,'month'=>$start->format('Y-m'),'rows'=>$rows]);exit;
+}
 $dataVersion = packing_list_data_version($canViewAllPackingItems, $currentEmployeeId);
 if ((string) ($_GET['version_only'] ?? '') === '1') {
     echo json_encode(['ok' => true, 'dataVersion' => $dataVersion]);

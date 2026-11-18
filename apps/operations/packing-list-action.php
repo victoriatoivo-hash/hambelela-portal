@@ -2198,6 +2198,10 @@ try {
             throw new RuntimeException('No invoice rows were submitted.');
         }
         $declaredCount = (int) ($_POST['declared_count'] ?? count($rows));
+        if(isset($_POST['monthly_source_json'])){
+            require_once __DIR__.'/packing-monthly-validation.php';
+            packing_validate_monthly_split(json_decode((string)$_POST['monthly_source_json'],true,64,JSON_THROW_ON_ERROR),$rows);
+        }
         $submittedCount = count($rows);
         $importId = trim(substr((string) ($_POST['import_id'] ?? ''), 0, 100));
         if ($declaredCount !== $submittedCount) {
@@ -2378,12 +2382,17 @@ try {
                     $audit[] = "Duplicate prevented: {$itemName}";
                     $skipped++;
                     $acceptedIds[] = (int) $duplicate[0]['id'];
+                    $matchedExistingIds[] = (int) $duplicate[0]['id'];
                     $skippedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $itemName, 'reason' => 'This exact import line was already loaded.', 'existing_id' => (int) $duplicate[0]['id']];
                     continue;
                 }
             }
 
-            $existingRow = $syncMode !== 'create_only'
+            // Without an invoice reference, a quantity split can coincide with a
+            // completely unrelated prior purchase. The exact import key above
+            // still handles retries without matching historical work by size alone.
+            $allowFallback=!isset($_POST['monthly_source_json'])||$invoiceNumber!=='';
+            $existingRow = $syncMode !== 'create_only' && $allowFallback
                 ? packing_find_existing_invoice_row($invoiceNumber, $invoiceRowKey, $itemName, $receivedWeight, $quantityPlan, 0, $matchedExistingIds)
                 : null;
 
