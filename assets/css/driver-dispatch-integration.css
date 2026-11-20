@@ -1,0 +1,32 @@
+/* Only Phase 08 integration. Supplied layout stylesheet remains intact. */
+.ho-driver-dispatch{height:var(--chat-height,100dvh);min-height:0;padding-top:env(safe-area-inset-top,0px)}
+.hm-native-dialog{position:fixed;inset:0;margin:auto;color:#253c2b}
+.hm-native-dialog:not([open]){display:none}
+.hm-native-dialog::backdrop{background:#1d2d2370}
+.hm-native-dialog[open]{animation:hm-rise .18s ease-out}
+.hm-dispatch-select{margin:8px 20px 0;font-size:11px;display:grid;gap:5px}
+.hm-dispatch-select select,.hm-draft-context select{border:1px solid #d3e4d1;border-radius:8px;padding:7px;min-width:0;background:#fff;color:#3b5941;font:inherit}
+.hm-draft-context{display:flex;align-items:center;gap:7px;margin:0 0 9px;font-size:10px}
+.hm-draft-context select{flex:1}
+.hm-draft-context button{border:0;background:transparent;color:#657d69;font-size:18px}
+.hm-options{font-size:9px!important;color:#738c78;border:0;padding:3px 1px;margin-top:4px;background:transparent}
+.hm-options + .hm-options{float:right}
+.hm-sender{font-size:9px;font-weight:650;color:#687f6b;display:block;margin-bottom:3px}
+.hm-message-meta{white-space:normal;flex-wrap:wrap}
+.hm-context-link{font-size:10px;display:block;margin-bottom:5px;color:#507958;text-decoration:underline}
+.hm-context-unavailable{font-size:10px;color:#89948b;margin-bottom:5px}
+.hm-priority{font-size:10px;color:#925d25;margin-bottom:4px;display:block}
+.hm-handle{display:flex;gap:5px;margin-top:8px;flex-wrap:wrap;font-size:10px}
+.hm-handle select,.hm-handle button{font-size:10px!important;border:1px solid #cbdbcb;border-radius:7px;padding:5px;background:#fff;color:#42674a;max-width:100%}
+.hm-unread{border-radius:10px;background:#daede0;padding:3px 7px;font-size:10px}
+.hm-message-input:focus{font-size:16px} /* Prevent iOS focus zoom without changing the idle reference. */
+.hm-bubble{flex-shrink:0}
+.hm-history{scroll-padding-bottom:12px}
+.ho-driver-dispatch[data-compact="1"] .hm-contact,.ho-driver-dispatch[data-compact="1"] .hm-subtitle,.ho-driver-dispatch[data-compact="1"] .hm-quick-title{display:none}
+.ho-driver-dispatch[data-compact="1"] .hm-header{min-height:61px;padding-block:7px}
+.ho-driver-dispatch[data-compact="1"] .hm-compose-zone{padding-block:4px}
+.ho-driver-dispatch[data-compact="1"] .hm-quick-list{margin-bottom:6px}
+.ho-driver-dispatch[data-compact="1"] .ho-driver-dashboard__bottomnav{height:calc(60px + env(safe-area-inset-bottom,0px));padding-top:4px;padding-bottom:env(safe-area-inset-bottom,0px)}
+.ho-driver-dispatch[data-compact="1"] .ho-driver-dashboard__tab{height:48px}
+@keyframes hm-rise{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.hm-native-dialog[open]{animation:none}}

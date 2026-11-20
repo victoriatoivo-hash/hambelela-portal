@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
 require_once __DIR__.'/ErrandInbox.php';
+require_once __DIR__.'/DispatchInbox.php';
 final class DriverInbox
 {
     // Both recipient and CURRENT assignment are checked on every read and write.
@@ -20,6 +21,8 @@ final class DriverInbox
     }
     public static function feed(\PDO $db,array $a,int $before=0,string $tab='all'):array {
         $delivery=self::deliveryFeed($db,$a,$before,$tab);$errands=ErrandInbox::feed($db,self::guard($a),$before,$tab);
+        $chat=DispatchInbox::feed($db,self::guard($a),$before,$tab);
+        $errands['items']=array_merge($errands['items'],$chat['items']);$errands['more']=$errands['more']||$chat['more'];$errands['through']=max($errands['through'],$chat['through']);foreach($errands['counts'] as $k=>$v)$errands['counts'][$k]+=$chat['counts'][$k];
         $items=array_merge($delivery['items'],$errands['items']);usort($items,static fn($a,$b)=>(int)$b['id']<=>(int)$a['id']);
         $delivery['more']=$delivery['more']||$errands['more']||count($items)>40;$delivery['items']=array_slice($items,0,40);
         foreach($delivery['counts'] as $k=>$v)$delivery['counts'][$k]+=$errands['counts'][$k];$delivery['through']=max($delivery['through'],$errands['through']);return $delivery;
