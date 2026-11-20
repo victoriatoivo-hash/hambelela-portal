@@ -76,3 +76,33 @@ body.driver-compact-app dialog.df-payment-sheet textarea{min-height:44px}
 body.driver-compact-app dialog.df-payment-sheet [type=submit]{position:static}
 body.driver-compact-app .df-panel .df-detail-row,body.driver-compact-app .df-tools .df-options{margin:0;padding-top:0;border-top:0}
 body.driver-compact-app #message:empty{display:none}
+/* Shared portal rules also position dialogs; the driver's panels are bottom sheets,
+   centred in the viewport on both the handset and the desktop driver preview. */
+body.driver-compact-app dialog:is(.driver-app-sheet,.errand-dialog)[open]{
+  position:fixed!important;inset:auto 0 0!important;margin:0 auto!important;box-sizing:border-box;
+  width:min(100%,510px)!important;max-width:100vw!important;max-height:94dvh;
+  border-radius:28px 28px 0 0!important;box-shadow:0 -10px 40px #14261c25;
+}
+body.driver-compact-app dialog.df-details-sheet[open]{display:flex;flex-direction:column;height:min(92dvh,850px);overflow:hidden}
+body.driver-compact-app .df-details-sheet>.driver-app-handle{flex:none;width:44px;height:4px;background:#c7c6bf}
+body.driver-compact-app dialog.df-details-sheet>header{flex:none;min-height:50px;padding:0 3px 9px;margin:0;border-bottom:1px solid #e9e7e1}
+body.driver-compact-app dialog.df-details-sheet .driver-app-sheet-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:12px 3px 6px}
+body.driver-compact-app .df-details-sheet .df-primary{position:static;flex:none;padding:12px 0 0;border-top:1px solid #eee9e1}
+body.driver-compact-app .df-metrics small{display:flex;gap:5px;align-items:center;margin-bottom:4px}
+body.driver-compact-app .df-metrics small svg{color:#9b620f;width:15px;height:15px}
+body.driver-compact-app .df-options-trigger{display:grid;place-items:center;background:white;color:#263e2c;border:0;border-radius:50%;min-width:42px;width:42px;height:42px;box-shadow:0 2px 10px #15291f18}
+body.driver-compact-app .df-options-trigger svg{width:18px;height:18px}
+body.driver-compact-app dialog.df-options-sheet header h2{flex:1;text-align:center;padding-right:44px}
+body.driver-compact-app .df-option-list{display:grid;gap:4px;background:white;padding:10px 12px 12px;margin:0;border:1px solid #eae8e2}
+body.driver-compact-app .df-option-list legend{padding:0 5px;color:#505c4e}
+body.driver-compact-app .df-option-list button,.df-option-controls:not([hidden]) :is(a,button){display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:8px 12px;border:0;border-radius:12px;background:#f6f5f1;color:#263c2b;font:500 13px Jost,sans-serif;text-decoration:none}
+body.driver-compact-app .df-option-list button[aria-pressed=true]{background:#e2f0de;color:#1b542c}
+.df-option-controls[hidden]{display:none!important}.df-option-controls:not([hidden]),.df-option-controls:not([hidden]) .actions{display:grid;gap:6px;margin-top:8px}
+body.driver-compact-app .df-options-sheet #refresh{display:flex!important}
+@keyframes driverSheetSlideUp{from{transform:translateY(100%);opacity:.75}to{transform:translateY(0);opacity:1}}
+@keyframes driverSheetSlideDown{to{transform:translateY(100%);opacity:.65}}
+@media(prefers-reduced-motion:no-preference){
+ body.driver-compact-app dialog:is(.driver-app-sheet,.errand-dialog)[open]{animation:driverSheetSlideUp .29s cubic-bezier(.2,.78,.22,1) both!important}
+ body.driver-compact-app dialog.driver-app-sheet.df-leaving[open]{animation:driverSheetSlideDown .14s ease-in both!important}
+}
+@media(prefers-reduced-motion:reduce){body.driver-compact-app dialog:is(.driver-app-sheet,.errand-dialog)[open]{animation:none!important;transition:none!important}}

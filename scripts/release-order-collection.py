@@ -8,9 +8,9 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "66c18ea31aa7c1a9dc6d407b02970fc57c119286"
+base = "9bea183e71126a138ece662fa93fded0fb13764a"
 new_paths = []
-paths = ["assets/css/driver-delivery-ui.css"]
+paths = ["assets/css/driver-delivery-ui.css","assets/js/driver-delivery-ui.js"]
 def original(p):
     if p in new_paths:return None
     return subprocess.check_output(["git","show",base+":"+p])

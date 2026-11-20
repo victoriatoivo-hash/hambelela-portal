@@ -46,11 +46,11 @@
   const ip=j.status==='out_for_delivery',balance=due(j),phone=String(j.customer_mobile||'').replace(/[^+0-9]/g,'');
   const title=ip?'In Progress':closed(j)?(j.status==='cancelled'?'Cancelled':'Delivered'):j.status==='ready'?'Ready':j.status;
   const panel=(ico,label,html)=>'<details class="df-detail-row"><summary>'+icon(ico)+esc(label)+icon('chevron')+'</summary>'+html+'</details>';
-  const metric=(label,value)=>'<div><small>'+esc(label)+'</small><strong>'+esc(value)+'</strong></div>';
+  const metric=(label,value)=>'<div><small>'+icon(label==='Total'?'box':label==='Paid'?'check':'note')+esc(label)+'</small><strong>'+esc(value)+'</strong></div>';
   const itemsHtml=items.length?items.map(i=>'<p class="driver-app-item"><span>'+esc(i.product_name)+'</span><span>× '+esc(i.quantity)+'</span></p>').join(''):'<p>Items not recorded. Check the parcel with Front Desk.</p>';
   const d=modal(ref(j),'<div class="df-destination"><div>'+icon('user')+'<strong>'+esc(j.customer_name||'Customer')+'</strong>'+(phone?'<a href="tel:'+esc(phone)+'">'+icon('phone')+esc(j.customer_mobile)+'</a>':'')+'</div><div>'+icon('pin')+esc(j.address||j.area||'Address not recorded')+button('navigate','Navigate',j,'map')+'</div></div>'+
    '<div class="df-metrics">'+metric('Total',j.order_total!=null?'N$ '+j.order_total:'Not recorded')+metric('Paid',j.order_payment_status||'Not recorded')+metric('To collect',balance===null?'Needs review':money(balance))+'</div>'+
-   '<div class="df-panel">'+panel('box','Items ('+items.length+')',itemsHtml)+panel('note','Delivery notes','<p>'+esc(j.notes||'No additional instructions')+'</p>')+panel('clock','Deliver before','<p>'+esc(j.deadline?.label||'No specific time')+'</p>')+
+   '<div class="df-panel">'+panel('box','Items ('+items.length+')',itemsHtml)+panel('note','Delivery notes','<p>'+esc(j.notes||'No additional instructions')+'</p>')+panel('clock',j.deadline?.mode&&j.deadline.mode!=='none'?'Deliver before · '+j.deadline.label:'Deliver before','<p>'+esc(j.deadline?.label||'No specific time')+'</p>')+
    (Number(j.urgent)?'<div class="df-urgent">'+icon('bolt')+'Urgent delivery</div>':'')+'</div>'+
    (j.started_at?'<div class="df-trip">'+icon('truck')+'<div><span>'+(ip?'Delivery in progress':'Delivery time')+'</span><time data-driver-timer="'+Number(j.id)+'">'+elapsed(j)+'</time><small>Started '+esc(stamp(j.started_at))+'</small></div></div>':'')+
    panel('clock','Delivery history','<p>Completed: '+esc(stamp(j.delivered_at||j.completed_at))+'</p><ol>'+(j.history||[]).map(h=>'<li>'+esc(h.type.replaceAll('_',' '))+' · '+esc(stamp(h.at))+(h.note||h.reason?'<p>'+esc(h.note||h.reason)+'</p>':'')+'</li>').join('')+'</ol><small>Namibia time</small>')+
@@ -60,6 +60,7 @@
   const body=d.querySelector('.driver-app-sheet-body');
   if(j.declaration)body.insertAdjacentHTML('beforeend','<p>Declared: '+money(j.declaration.declared_cents)+' · '+esc(j.declaration.declared_method)+(j.declaration.declaration_review?' · Difference '+money(j.declaration.difference_cents)+' — pending reconciliation':'')+'</p>');
   if(!preview&&['ready','out_for_delivery'].includes(j.status))body.insertAdjacentHTML('beforeend','<div class="df-primary">'+(j.status==='ready'?readyAction(j):button('finish','Complete delivery',j,'check'))+'</div>');
+  const footer=body.querySelector('.df-primary');if(footer)d.append(footer);
   bind(d);
  }
  function navigate(j){
@@ -96,8 +97,15 @@
   void check();setInterval(check,30000);window.addEventListener('online',check);document.addEventListener('visibilitychange',check);
  }
  function appNav(head,tools){
-  const actions=tools.querySelector('.actions'),menu=document.createElement('details');menu.className='df-options';menu.innerHTML='<summary aria-label="Delivery options">'+icon('filter')+'</summary><div></div>';tools.append(menu);const tray=menu.lastElementChild;
-  const errands=tools.querySelector('a');if(errands)tray.append(errands);if(actions)tray.append(actions);
+  const actions=tools.querySelector('.actions'),errands=tools.querySelector('a'),tray=document.createElement('div'),trigger=document.createElement('button');
+  tray.hidden=true;tray.className='df-option-controls';trigger.type='button';trigger.className='df-options-trigger';trigger.setAttribute('aria-haspopup','dialog');trigger.setAttribute('aria-label','Delivery options');trigger.innerHTML=icon('filter');tools.append(tray,trigger);if(errands)tray.append(errands);if(actions)tray.append(actions);
+  trigger.onclick=()=>{
+   const labels={active:'All',progress:'In progress',completed:'Completed',cancelled:'Cancelled'};
+   const d=modal('Delivery options','<fieldset class="df-option-list"><legend>Show deliveries</legend>'+Object.entries(labels).map(([key,label])=>'<button type="button" data-filter-tab="'+key+'" aria-pressed="'+(key===currentTab)+'">'+esc(label)+'<span aria-hidden="true">'+(key===currentTab?'✓':'')+'</span></button>').join('')+'</fieldset>');
+   d.classList.add('df-options-sheet');tray.hidden=false;d.querySelector('.driver-app-sheet-body').append(tray);
+   d.addEventListener('close',()=>{tray.hidden=true;tools.prepend(tray);trigger.focus();},{once:true});
+   d.querySelector('.df-option-list').onclick=e=>{const b=e.target.closest('[data-filter-tab]');if(!b)return;document.querySelector('.delivery-primary-tabs [data-tab="'+b.dataset.filterTab+'"]')?.click();close();};
+  };
   const nav=document.createElement('nav');nav.className='df-nav';nav.setAttribute('aria-label','Driver navigation');nav.innerHTML=[['home','Deliveries'],['pin','Map'],['clock','History'],['user','Profile']].map(([i,t])=>'<button type="button" data-destination="'+t+'">'+icon(i)+'<span>'+t+'</span></button>').join('');
   (head.closest('.delivery-main')||head.parentElement).append(nav);
   nav.onclick=e=>{const dest=e.target.closest('button')?.dataset.destination;if(!dest)return;
