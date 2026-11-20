@@ -25,6 +25,15 @@
  function heading(j){return '<div class="driver-app-summary"><strong>'+esc(ref(j))+'</strong><span>'+esc(j.customer_name)+'</span></div>';}
  function button(action,label,j,ico){if(preview&&action!=='navigate')return '';return '<button type="button" data-driver-action="'+action+'" data-id="'+Number(j.id)+'">'+icon(ico)+esc(label)+'</button>';}
  function toneClass(j){return j.status==='cancelled'?'cancelled':j.remaining===null||j.collection_state==='Shortfall / issue'?'review':due(j)>0?'unpaid':'paid';}
+ function readyAction(j){
+  const c=j.custody;
+  if(c?.tracking_version){
+   if(!c.acceptance)return button('accept','Accept delivery',j,'check');
+   if(!c.collection&&!c.exception)return c.handover?button('confirm_pickup','Confirm '+c.handover.data.parcel_count+' parcels collected',j,'check'):'<span class="driver-app-muted">Awaiting Front Desk handover</span>';
+  }
+  return button('start','Start delivery',j,'play');
+ }
+ function custody(j,action){form(action==='accept'?'Accept delivery':'Confirm parcel collection',j,'<p>'+esc(action==='accept'?'Confirm that you accept this assignment.':'Confirm you physically received '+j.custody.handover.data.parcel_count+' parcels from Front Desk.')+'</p>',async()=>{await command({action,id:Number(j.id)});});}
  function card(j){
   const state=toneClass(j),ip=j.status==='out_for_delivery',cancel=j.status==='cancelled',urgent=Number(j.urgent)>0&&!closed(j);
   const payment=j.collection_state==='Collected by Driver'?'Collected':j.remaining==null||j.collection_state==='Shortfall / issue'?'Review':due(j)>0?'Not paid':'Paid';
@@ -37,7 +46,7 @@
   const body=d.querySelector('.driver-app-sheet-body');if(Number(j.urgent))body.insertAdjacentHTML('afterbegin','<p class="df-badge df-cancel">Urgent delivery</p>');
   if(j.started_at)body.insertAdjacentHTML('beforeend','<p class="df-counter">'+icon('clock')+' '+(closed(j)?'Delivery time':'In progress')+' · <time data-driver-timer="'+Number(j.id)+'">'+elapsed(j)+'</time></p>');
   if(j.declaration)body.insertAdjacentHTML('beforeend','<p>Declared: '+money(j.declaration.declared_cents)+' · '+esc(j.declaration.declared_method)+(j.declaration.declaration_review?' · Difference '+money(j.declaration.difference_cents)+' — pending reconciliation':'')+'</p>');
-  if(!preview&&['ready','out_for_delivery'].includes(j.status))body.insertAdjacentHTML('beforeend','<div class="df-primary">'+button(j.status==='ready'?'start':'finish',j.status==='ready'?'Start delivery':'Complete delivery',j,j.status==='ready'?'play':'check')+'</div>');
+  if(!preview&&['ready','out_for_delivery'].includes(j.status))body.insertAdjacentHTML('beforeend','<div class="df-primary">'+(j.status==='ready'?readyAction(j):button('finish','Complete delivery',j,'check'))+'</div>');
   bind(d);
  }
  function navigate(j){
@@ -55,15 +64,17 @@
  function start(j){form('Start delivery',j,'<p>The delivery timer starts when you confirm you are leaving.</p>',async()=>{await command({action:'start',id:Number(j.id)});sound(false);});}
  function finish(j){
   const owing=due(j);if(owing===null){modal('Payment needs review',heading(j)+'<p>Front Desk must verify the outstanding balance.</p>');return;}
+  const proof=j.custody?.tracking_version?'<label>Received by<input name="received_by" maxlength="190" required></label><label>Confirmation method<select name="confirmation_method"><option value="recipient_confirmation">Recipient confirmation</option><option value="signed_receipt">Signed receipt</option><option value="photo_reference">Photo reference</option><option value="customer_call">Customer call</option></select></label><label>Proof reference (required for photo/receipt)<input name="proof_reference" maxlength="500"></label>':'';
   const options=[...(owing===0?[['already_paid','Already paid – no collection']]:[['no_payment','No payment received']]),['cash','Cash on delivery'],['eft','Bank transfer'],['mobile','Mobile payment (e.g. eWallet)'],['other','Other']];
-  const f=form('Complete delivery',j,'<fieldset><legend>How was the payment made?</legend>'+options.map(([v,t])=>'<label class="driver-app-check"><input type="radio" name="method" value="'+v+'" required> '+t+'</label>').join('')+'</fieldset><label>Amount collected (N$)<input name="amount" type="number" min="0" max="99999999.99" step="0.01" inputmode="decimal" required placeholder="0.00"></label><p data-difference aria-live="polite"></p><label>Note (optional)<textarea name="note" rows="2" maxlength="2000"></textarea></label>',async data=>{
-   await command({action:'complete',id:Number(j.id),confirmation:{confirmed:true,method:data.get('method'),amount:String(data.get('amount')),note:String(data.get('note')||'').trim()}});sound(true);
+  const f=form('Complete delivery',j,proof+'<fieldset><legend>How was the payment made?</legend>'+options.map(([v,t])=>'<label class="driver-app-check"><input type="radio" name="method" value="'+v+'" required> '+t+'</label>').join('')+'</fieldset><label>Amount collected (N$)<input name="amount" type="number" min="0" max="99999999.99" step="0.01" inputmode="decimal" required placeholder="0.00"></label><p data-difference aria-live="polite"></p><label>Note (optional)<textarea name="note" rows="2" maxlength="2000"></textarea></label>',async data=>{
+   if(j.custody?.tracking_version&&(!String(data.get('received_by')||'').trim()||(['signed_receipt','photo_reference'].includes(data.get('confirmation_method'))&&!String(data.get('proof_reference')||'').trim())))throw Error('Record the recipient and required proof reference before confirming.');
+   await command({action:'complete',id:Number(j.id),confirmation:{confirmed:true,method:data.get('method'),amount:String(data.get('amount')),note:String(data.get('note')||'').trim(),...(j.custody?.tracking_version?{received_by:String(data.get('received_by')).trim(),confirmation_method:data.get('confirmation_method'),proof_reference:String(data.get('proof_reference')||'').trim()}:{})}});sound(true);
   });f.querySelector('[type=submit]').textContent='✓ Confirm Completion';
   const amount=f.elements.amount;function sync(){const zero=['already_paid','no_payment'].includes(f.elements.method.value);if(zero){amount.value='0.00';amount.readOnly=true;}else{if(amount.readOnly)amount.value='';amount.readOnly=false;}amount.min=zero?'0':'0.01';f.querySelector('[data-difference]').textContent=amount.value!==''&&Math.round(Number(amount.value)*100)!==owing?'Difference from '+money(owing)+' due. Front Desk will review.':'Outstanding: '+money(owing);}
   f.addEventListener('input',sync);sync();
  }
  function note(j,fail){form(fail?'Unable to deliver':'Add delivery note',j,(fail?'<label>Reason<select name="reason"><option>Customer unavailable</option><option>Wrong address</option><option>Payment issue</option><option>Vehicle issue</option><option>Other</option></select></label>':'')+'<label>Note<textarea name="note" required maxlength="2000" rows="3"></textarea></label>',async data=>{if(!String(data.get('note')).trim())throw Error('Enter a note.');await command({action:fail?'fail':'note',id:Number(j.id),note:data.get('note'),...(fail?{reason:data.get('reason')}:{})});});}
- function bind(root){root.onclick=e=>{const b=e.target.closest('[data-driver-action]');if(!b||saving||(preview&&!['details','navigate'].includes(b.dataset.driverAction)))return;const j=board.jobs.find(j=>Number(j.id)===Number(b.dataset.id));if(!j)return;({details,navigate,start,finish,note,fail:j=>note(j,true)})[b.dataset.driverAction]?.(j);};}
+ function bind(root){root.onclick=e=>{const b=e.target.closest('[data-driver-action]');if(!b||saving||(preview&&!['details','navigate'].includes(b.dataset.driverAction)))return;const j=board.jobs.find(j=>Number(j.id)===Number(b.dataset.id));if(!j)return;({details,navigate,start,finish,note,accept:j=>custody(j,'accept'),confirm_pickup:j=>custody(j,'confirm_pickup'),fail:j=>note(j,true)})[b.dataset.driverAction]?.(j);};}
  let errandRows=[],openErrand,currentTab='active',term='';
  function render(data,send,tab){currentTab=tab;
   if(preview){errandRows=data.preview_errands||[];openErrand=j=>modal('Errand #'+Number(j.id),'<section><h3>Pickup</h3><p>'+esc(j.place)+' · '+esc(j.contact_name)+'</p><p>'+esc(j.contents)+'</p></section><section><h3>Payment</h3><p>'+esc(j.payment_state==='paid'?'Paid':'Not paid')+(j.amount!=null?' · N$ '+esc(j.amount):'')+'</p><p>'+esc(j.payer||'')+'</p></section><p>'+esc(j.note||'')+'</p>');}
@@ -87,5 +98,5 @@
   soundButton.innerHTML=icon('sound');soundButton.setAttribute('aria-pressed',String(sounds));soundButton.setAttribute('aria-label',sounds?'Turn delivery sounds off':'Turn delivery sounds on');
  }
  setInterval(()=>{if(document.hidden||!board)return;document.querySelectorAll('[data-driver-timer]').forEach(el=>{const j=board.jobs.find(j=>Number(j.id)===Number(el.dataset.driverTimer));if(j){const t=elapsed(j);if(el.textContent!==t)el.textContent=t;}});},1000);
- window.DriverDeliveryUI={render,showDetails(data,send,j){board=data;command=send;details(j);},errands(rows,open){openErrand=open;if(JSON.stringify(rows)===JSON.stringify(errandRows))return;errandRows=rows;if(board&&!document.querySelector('dialog[open]'))render(board,command,currentTab);}};
+ window.DriverDeliveryUI={render,showCompletion(data,send,j){if(preview)return;board=data;command=send;finish(j);},showDetails(data,send,j){board=data;command=send;details(j);},errands(rows,open){openErrand=open;if(JSON.stringify(rows)===JSON.stringify(errandRows))return;errandRows=rows;if(board&&!document.querySelector('dialog[open]'))render(board,command,currentTab);}};
 })();

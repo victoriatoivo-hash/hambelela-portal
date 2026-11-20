@@ -61,7 +61,10 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
     before={p:read(p) for p in paths};desired={p:Path(p).read_bytes() for p in paths}
     for p in paths:
         if p.endswith('.php'):subprocess.run(['php','-l'],input=desired[p],check=True)
-    bad=[p for p in paths if norm(before[p]) not in (norm(original(p)),norm(desired[p]))]
+    # Two public assets have a newer, verified production release (2d47dc79).
+    # These are exact normalized source hashes; never substitute or ignore a new mismatch.
+    custody_baseline={"assets/js/driver-delivery-ui.js":"2df9e42e1c64d84f735447d563be964369e1f41d5c3c71df61ee22d228fb2417","assets/js/delivery-core.js":"e407f3a747a18f84d41d8c540a3e9c2c82142091d99ba4260736ee624c56eff2"}
+    bad=[p for p in paths if digest(before[p]) not in (custody_baseline.get(p) or digest(original(p)),digest(desired[p]))]
     for p in bad:print("Unrecognised live baseline:",p,digest(before[p]))
     if bad:raise RuntimeError("No files published; resolve differences first.")
     for p in ["apps/delivery/front-api.php","shared/epi/BusinessTimeEngine.php","shared/epi/Support.php"]:
