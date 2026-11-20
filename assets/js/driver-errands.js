@@ -54,30 +54,7 @@
   function field(form,label,name,value='',kind='input'){
     const wrap=el('label',label),input=document.createElement(kind);input.name=name;input.value=value??'';wrap.append(input);form.append(wrap);return input;
   }
-  function edit(j,action){
-    if(dialog)return;
-    const titles={edit:'Edit errand',cancel:'Cancel errand',reopen:'Reopen errand',collected:'Confirm collection',blocked:'Unable to collect'};
-    const box=modal(titles[action]+' #'+j.id),form=document.createElement('form'),grid=el('div','','errand-grid');
-    box.append(form);form.append(grid);
-    if(action==='edit'){
-      for(const [name,label,max,kind] of [['place','Pickup place or address',255,'input'],['contact_name','Contact person',190,'input'],['contents','Items to collect',1500,'textarea']]){
-        const n=field(grid,label,name,j[name],kind);n.required=true;n.maxLength=max;
-      }
-      const drivers=field(grid,'Driver','driver_id','','select');
-      root.querySelectorAll('[name=driver_id] option').forEach(o=>drivers.append(o.cloneNode(true)));drivers.value=j.driver_id;drivers.required=true;
-      const paid=field(grid,'Payment status','payment_state','','select');for(const [v,label] of [['paid','Paid'],['unpaid','Not paid']]){const o=el('option',label);o.value=v;paid.append(o);}paid.value=j.payment_state;
-      const amount=field(grid,'Amount (N$), if known','amount',j.amount);amount.inputMode='decimal';amount.pattern='[0-9]{1,9}([.][0-9]{1,2})?';
-      field(grid,'Who pays / payment instructions','payer',j.payer).maxLength=190;
-    }else details(grid,j);
-    const noteField=field(form,action==='collected'?'Collection note':'Reason / update note','note','','textarea');noteField.required=true;noteField.maxLength=1500;
-    if(action==='collected'){
-      const label=el('label','','errand-confirm'),check=document.createElement('input');check.type='checkbox';check.name='confirmed';check.value='1';check.required=true;label.append(check,document.createTextNode('I confirm the items were collected.'));form.append(label);
-    }
-    const msg=el('p','','errand-error');msg.setAttribute('role','alert');const actions=el('div','','actions'),submit=el('button',action==='collected'?'Confirm collected':'Save update','primary');submit.type='submit';
-    actions.append(button('Close',()=>box.close()),submit);form.append(msg,actions);
-    form.onsubmit=async e=>{e.preventDefault();if(!form.reportValidity())return;if(isDriver)unlockSound();submit.disabled=true;try{await command(j,action,Object.fromEntries(new FormData(form)));if(isDriver&&action==='collected')chime(true);box.close();await poll();}catch(e){msg.textContent=e.message;submit.disabled=false;}};
-    box.showModal();
-  }
+  function openCurrent(j){const target=new URL(url,location.href);target.search='?errands=1&errand='+Number(j.id);location.assign(target.href);}
   async function history(j){
     if(dialog)return;const box=modal('Tracking history #'+j.id),content=el('div','Loading history…');box.append(content,button('Close',()=>box.close()));box.showModal();
     try{
@@ -96,33 +73,11 @@
     c.append(head,el('h3',j.place));details(c,j);if(j.note)c.append(el('p','Latest note: '+j.note));
     c.append(el('p','Created by '+(j.creator_name||'Recorded employee')+' · '+stamp(j.created_at)+'\nSeen: '+stamp(j.seen_at)+' · Collected: '+stamp(j.collected_at)+(j.updated_at?'\nUpdated: '+stamp(j.updated_at):'')+' · Namibia time','errand-timing'));
     const actions=el('div','','actions');
-    if(j.state!=='cancelled'){
-      if(isDriver&&!j.collected_at){actions.append(button('Mark collected',()=>edit(j,'collected')),button('Unable to collect',()=>edit(j,'blocked')));}
-      else if(!isDriver){
-        if(!j.collected_at)actions.append(button('Edit / reassign',()=>edit(j,'edit')),button('Cancel errand',()=>edit(j,'cancel')));
-        if(j.collected_at||j.state==='blocked')actions.append(button('Reopen / correct completion',()=>edit(j,'reopen')));
-      }
-    }
+    if(j.state!=='cancelled')actions.append(button('Open current assignment',()=>openCurrent(j)));
     actions.append(button('History',()=>history(j)));c.append(actions);return c;
   }
   function errState(j){return j.state==='cancelled'?'Cancelled':j.collected_at?'Completed':j.state==='started'?'In progress':j.state==='blocked'?'Needs attention':'Ready';}
-  function errandDetails(j){
-    if(dialog)return;const box=modal('ERR-'+Number(j.id));box.classList.add('errand-view-sheet');
-    const leave=()=>{dialog=null;box.close();};
-    const tag=el('span','Errand · '+errState(j),'er-chip');box.querySelector('header').append(tag);
-    details(box,j);const facts=el('div','','er-facts');
-    if(j.note){const n=el('section');n.append(el('small','Instructions / latest note'),el('p',j.note));facts.append(n);}
-    if(j.started_at){const trip=el('section','','er-trip'),clock=el('time',timer(j));clock.dataset.errandTimer=String(j.id);clock.dataset.start=j.started_at;clock.dataset.end=j.collected_at||'';trip.append(el('small',j.collected_at?'Errand duration':'Errand in progress'),clock,el('small','Started '+stamp(j.started_at)));facts.append(trip);}
-    facts.append(button('Tracking history',()=>{leave();void history(j);}));box.append(facts);
-    const actions=el('div','','actions');
-    if(!j.collected_at&&j.state!=='cancelled'){
-      if(j.state==='open')actions.append(button('▶ Start errand',()=>{
-        leave();const box=modal('Start errand #'+j.id);details(box,j);const error=el('p','','errand-error'),confirm=button('▶ Confirm start',async()=>{unlockSound();confirm.disabled=true;try{await command(j,'started');chime(false);box.close();await poll();}catch(e){error.textContent=e.message;confirm.disabled=false;}},'primary');box.append(error,button('Cancel',()=>box.close()),confirm);box.showModal();
-      },'primary'));
-      actions.append(button('✓ Complete',()=>{leave();edit(j,'collected');},j.state==='open'?'secondary':'primary'),button('Unable to collect',()=>{leave();edit(j,'blocked');}));
-    }
-    box.append(actions);box.showModal();
-  }
+  function errandDetails(j){openCurrent(j);}
   function compactCard(j){
     const c=el('article','','errand-card driver-errand-card');c.dataset.id=String(j.id);c.dataset.fingerprint=JSON.stringify(j);const b=button('',()=>errandDetails(j),'er-open');
     b.append(el('strong','ERR-'+j.id),el('span',j.place),el('small',errState(j)),el('span','›'));c.append(b);return c;

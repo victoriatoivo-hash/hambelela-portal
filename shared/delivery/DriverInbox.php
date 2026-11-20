@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
+require_once __DIR__.'/ErrandInbox.php';
 final class DriverInbox
 {
     // Both recipient and CURRENT assignment are checked on every read and write.
@@ -18,6 +19,12 @@ final class DriverInbox
         return in_array($kind,['assignment','reassigned'],true)?'orders':'updates';
     }
     public static function feed(\PDO $db,array $a,int $before=0,string $tab='all'):array {
+        $delivery=self::deliveryFeed($db,$a,$before,$tab);$errands=ErrandInbox::feed($db,self::guard($a),$before,$tab);
+        $items=array_merge($delivery['items'],$errands['items']);usort($items,static fn($a,$b)=>(int)$b['id']<=>(int)$a['id']);
+        $delivery['more']=$delivery['more']||$errands['more']||count($items)>40;$delivery['items']=array_slice($items,0,40);
+        foreach($delivery['counts'] as $k=>$v)$delivery['counts'][$k]+=$errands['counts'][$k];$delivery['through']=max($delivery['through'],$errands['through']);return $delivery;
+    }
+    private static function deliveryFeed(\PDO $db,array $a,int $before=0,string $tab='all'):array {
         $id=self::guard($a);$k=self::kind();
         $max=$db->prepare('SELECT MAX(n.id),MAX(CASE WHEN ('.$k.") IN ('assignment','reassigned') AND r.read_at IS NULL THEN n.id END)".self::SCOPE);$max->execute([$id,$id]);[$through,$assignment]=$max->fetch(\PDO::FETCH_NUM);
         $g=$db->prepare("SELECT $k kind,n.priority,COUNT(*) qty".self::SCOPE." AND n.id<=? AND r.read_at IS NULL GROUP BY kind,n.priority");
@@ -36,6 +43,7 @@ final class DriverInbox
         $db->prepare("INSERT IGNORE INTO delivery_outbox(event_key,delivery_id,recipient_employee_id,payload_json,next_attempt_at) SELECT CONCAT('order-payment:',?,':',j.id),j.id,j.driver_employee_id,JSON_OBJECT('kind','payment'),UTC_TIMESTAMP() FROM delivery_jobs j WHERE j.order_id=? AND j.source='hambelela' AND j.status IN ('ready','out_for_delivery','failed') AND j.driver_employee_id IS NOT NULL")->execute([$audit,$order]);
     }
     public static function mark(\PDO $db,array $a,int $id,bool $all):void {
+        ErrandInbox::mark($db,self::guard($a),$id,$all);
         $actor=self::guard($a);if($id<1)throw new \DomainException('Notification required.');
         $s=$db->prepare("UPDATE notification_recipients r JOIN notifications n ON n.id=r.notification_id JOIN delivery_jobs j ON j.id=n.related_id SET r.read_at=UTC_TIMESTAMP() WHERE r.read_at IS NULL AND r.cleared_at IS NULL AND r.employee_id=? AND j.driver_employee_id=? AND n.module='delivery' AND n.related_type='delivery_job' AND n.id".($all?'<=?':'=?'));$s->execute([$actor,$actor,$id]);
     }
