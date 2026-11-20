@@ -7,6 +7,7 @@ require BASE_PATH.'/shared/delivery/DriverOrderDetailsData.php';
 use Hambelela\Delivery\DriverOrderDetailsData as D;
 $db=new PDO('mysql:host=127.0.0.1;port=43379;dbname=driver_review;charset=utf8mb4','driver_review',getenv('OFFLINE_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $checks=0;function verify($v,$label){global $checks;if(!$v)throw new RuntimeException($label);$checks++;echo "PASS $label\n";}
+require __DIR__.'/isolate-ready-screen-test.php';isolate_ready_screen_test($db);
 $actorId=3;$actorRole='delivery_driver';function db(){global $db;return $db;}function current_user(){global $actorId;return ['id'=>$actorId];}function current_role_key(){global $actorRole;return $actorRole;}
 $job=$db->query("SELECT * FROM delivery_jobs WHERE driver_employee_id=3 AND source='hambelela' AND status='ready' ORDER BY id LIMIT 1")->fetch();$id=(int)$job['id'];$oid=(int)$job['order_id'];
 $now=new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek'));
@@ -42,7 +43,7 @@ try{
  $pickup=$event('parcel_collected',['driver_id'=>3]);$r=$read();verify($r['delivery']['stage']==='on_route'&&$r['delivery']['lastStageChangedAt']!==null,'real pickup has real on-route timestamp');
  $old=$event('note_added',['note'=>'INTERNAL-SENTINEL payroll'],'2026-11-19 08:00:00');verify(!str_contains(json_encode($read()),'INTERNAL-SENTINEL'),'internal notes never leak into timeline');
  $revised=$event('revised',['driver'=>3]);$r=$read();verify($r['delivery']['stage']==='exception'&&!in_array('parcel_collected',array_column($r['timeline'],'eventType')),'old-driver/past-revision pickup not shown as current');
- $pickup2=$event('parcel_collected',['driver_id'=>3],'2026-11-19 22:30:00');$r=$read();verify(in_array('00:30',array_column($r['timeline'],'timeLabel')),'midnight event uses business timezone');
+ $midnight=$now->setTime(0,30)->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');$pickup2=$event('parcel_collected',['driver_id'=>3],$midnight);$r=$read();verify(in_array('00:30',array_column($r['timeline'],'timeLabel')),'midnight event uses business timezone');
  $failed=$event('failed',[],'2026-11-19 08:00:00');$db->exec("UPDATE delivery_jobs SET status='failed' WHERE id=$id");$r=$read();verify(in_array('19 Nov 2026 · 10:00',array_column($r['timeline'],'timeLabel')),'cross-day events include a date');
  $db->exec("UPDATE delivery_jobs SET driver_employee_id=4 WHERE id=$id");verify($denied(3,$id),'stale reassignment immediately denied');$db->exec("UPDATE delivery_jobs SET driver_employee_id=3,status='cancelled' WHERE id=$id");verify($denied(3,$id),'cancelled assignment immediately denied');
  $db->exec("UPDATE delivery_jobs SET status='ready' WHERE id=$id");$db->exec('UPDATE delivery_driver_profiles SET active=0 WHERE employee_id=3');verify($denied(3,$id),'inactive driver rejected');$db->exec('UPDATE delivery_driver_profiles SET active=1 WHERE employee_id=3');

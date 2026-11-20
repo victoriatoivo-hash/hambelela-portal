@@ -7,6 +7,7 @@ require_once BASE_PATH.'/shared/delivery/DriverErrands.php';
 require_once BASE_PATH.'/shared/delivery/DeliveryDeadline.php';
 require_once BASE_PATH.'/shared/delivery/OrderBalanceAdapter.php';
 require_once BASE_PATH.'/shared/delivery/DriverAssignments.php';
+require_once BASE_PATH.'/shared/delivery/CashHandover.php';
 final class Data {
  public static function read(\PDO $db,int $id):array {
   $actor=\Hambelela\Delivery\EmployeeDriverSession::actor($db,$id);
@@ -22,6 +23,7 @@ final class Data {
   }
   $s=$db->prepare("SELECT COALESCE(SUM(r.order_goods_cents+r.delivery_fee_cents+r.partner_cod_cents),0) FROM delivery_receipts r WHERE r.collected_by_employee_id=? AND LOWER(r.payment_method)='cash' AND r.status='collected' AND NOT EXISTS(SELECT 1 FROM delivery_events e WHERE e.delivery_id=r.delivery_id AND e.event_type='cash_handover' AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.receipt_id'))=CAST(r.id AS CHAR))");
   $s->execute([$id]);$cash=(int)$s->fetchColumn();
+  if(\Hambelela\Delivery\CashHandover::ready($db))$cash=(new \Hambelela\Delivery\CashHandover($db))->summary($id)['due_minor'];
   $inbox=\Hambelela\Delivery\DriverInbox::feed($db,$actor);
   return ['driver'=>['id'=>$id,'firstName'=>preg_split('/\s+/u',$name)[0]?:'Driver','initials'=>mb_strtoupper(mb_substr($name,0,1)),'dutyState'=>'unknown'],'businessDate'=>$date->format('Y-m-d'),'dateLabel'=>$date->format('l, j F'),'greeting'=>(int)$date->format('G')<12?'Good morning':((int)$date->format('G')<18?'Good afternoon':'Good evening'),'cityLabel'=>'Windhoek','progress'=>$p,'nextDelivery'=>$next,'quickActions'=>['deliveriesToday'=>$p['assigned'],'openErrands'=>(new \Hambelela\Delivery\DriverErrands($db))->countPending($actor),'cashDueNad'=>$cash/100,'unreadDispatch'=>\Hambelela\Delivery\DispatchChat::ready($db)?(new \Hambelela\Delivery\DispatchChat($db))->unread($id):null],'unreadNotifications'=>(int)$inbox['counts']['all'],'dataStatus'=>$p['assigned']||$next?'live':'empty'];
  }

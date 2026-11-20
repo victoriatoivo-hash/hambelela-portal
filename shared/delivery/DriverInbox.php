@@ -4,6 +4,7 @@ namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
 require_once __DIR__.'/ErrandInbox.php';
 require_once __DIR__.'/DispatchInbox.php';
+require_once __DIR__.'/CashInbox.php';
 final class DriverInbox
 {
     // Both recipient and CURRENT assignment are checked on every read and write.
@@ -22,6 +23,7 @@ final class DriverInbox
     public static function feed(\PDO $db,array $a,int $before=0,string $tab='all'):array {
         $delivery=self::deliveryFeed($db,$a,$before,$tab);$errands=ErrandInbox::feed($db,self::guard($a),$before,$tab);
         $chat=DispatchInbox::feed($db,self::guard($a),$before,$tab);
+        $cash=CashInbox::feed($db,self::guard($a),$before,$tab);$chat['items']=array_merge($chat['items'],$cash['items']);$chat['more']=$chat['more']||$cash['more'];$chat['through']=max($chat['through'],$cash['through']);foreach($chat['counts'] as $k=>$v)$chat['counts'][$k]+=$cash['counts'][$k];
         $errands['items']=array_merge($errands['items'],$chat['items']);$errands['more']=$errands['more']||$chat['more'];$errands['through']=max($errands['through'],$chat['through']);foreach($errands['counts'] as $k=>$v)$errands['counts'][$k]+=$chat['counts'][$k];
         $items=array_merge($delivery['items'],$errands['items']);usort($items,static fn($a,$b)=>(int)$b['id']<=>(int)$a['id']);
         $delivery['more']=$delivery['more']||$errands['more']||count($items)>40;$delivery['items']=array_slice($items,0,40);
@@ -47,6 +49,7 @@ final class DriverInbox
     }
     public static function mark(\PDO $db,array $a,int $id,bool $all):void {
         ErrandInbox::mark($db,self::guard($a),$id,$all);
+        CashInbox::mark($db,self::guard($a),$id,$all);
         $actor=self::guard($a);if($id<1)throw new \DomainException('Notification required.');
         $s=$db->prepare("UPDATE notification_recipients r JOIN notifications n ON n.id=r.notification_id JOIN delivery_jobs j ON j.id=n.related_id SET r.read_at=UTC_TIMESTAMP() WHERE r.read_at IS NULL AND r.cleared_at IS NULL AND r.employee_id=? AND j.driver_employee_id=? AND n.module='delivery' AND n.related_type='delivery_job' AND n.id".($all?'<=?':'=?'));$s->execute([$actor,$actor,$id]);
     }

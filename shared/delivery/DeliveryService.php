@@ -7,6 +7,7 @@ require_once __DIR__.'/DeliveryDeadline.php';
 require_once __DIR__.'/ProofSubmission.php';
 require_once __DIR__.'/DeliveryIssueState.php';
 require_once __DIR__.'/FrontSession.php';
+require_once __DIR__.'/CashHandover.php';
 
 /** Internal service; not an HTTP endpoint. Adapters must verify session and CSRF. */
 final class DeliveryService
@@ -294,6 +295,7 @@ final class DeliveryService
         return $this->command($actor,$id,$uuid,'cash_handover',[$receipt,$amount],function($j)use($actor){
             if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_reconcile'))throw new \DomainException('Reconciliation permission required.');
         },function($j)use($id,$receipt,$amount){
+            if(CashHandover::ready($this->db)&&(new CashHandover($this->db))->hasAllocations($receipt))throw new \DomainException('Review this driver submission in Cash handover; do not count it twice.');
             $r=$this->row('SELECT * FROM delivery_receipts WHERE delivery_id=? AND id=? FOR UPDATE',[$id,$receipt]);
             if(!$r||$r['status']!=='collected'||strtolower($r['payment_method'])!=='cash')throw new \DomainException('This cash receipt is not awaiting handover.');
             $old=$this->row("SELECT id FROM delivery_events WHERE delivery_id=? AND event_type='cash_handover' AND JSON_UNQUOTE(JSON_EXTRACT(metadata_json,'$.receipt_id'))=? LIMIT 1",[$id,$receipt]);
@@ -375,6 +377,7 @@ final class DeliveryService
         },function($j)use($actor,$id,$receiptId,$applyOrderPayment){
             $r=$this->row('SELECT * FROM delivery_receipts WHERE id=? AND delivery_id=? FOR UPDATE',[$receiptId,$id]);
             if(!$r||$r['status']!=='collected')throw new \DomainException('Receipt is not awaiting reconciliation.');
+            if(strtolower((string)$r['payment_method'])==='cash'&&CashHandover::ready($this->db)&&(new CashHandover($this->db))->hasAllocations($receiptId)&&!(new CashHandover($this->db))->received((int)$r['collected_by_employee_id'],$receiptId))throw new \DomainException('Cash handover is pending, partial, disputed or reversed. Confirm full shop receipt first.');
             if($j['source']==='hambelela'&&strtolower((string)$r['payment_method'])==='cash'){
                 $a=$this->row("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id LIMIT 1",[$id]);
                 $meta=json_decode((string)($a['metadata_json']??''),true);
