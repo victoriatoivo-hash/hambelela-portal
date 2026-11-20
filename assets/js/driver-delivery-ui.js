@@ -108,7 +108,7 @@
   tray.hidden=true;tray.className='df-option-controls';trigger.type='button';trigger.className='df-options-trigger';trigger.setAttribute('aria-haspopup','dialog');trigger.setAttribute('aria-label','Delivery options');trigger.innerHTML=icon('filter');tools.append(tray,trigger);if(errands)tray.append(errands);if(actions)tray.append(actions);
   const map=document.createElement('button');map.type='button';map.innerHTML=icon('pin')+'Delivery map';map.onclick=()=>nav.querySelector('[data-destination=Map]').click();tray.append(map);
   trigger.onclick=()=>{
-   const labels={active:'All',progress:'In progress',completed:'Completed',cancelled:'Cancelled'};
+   const labels={active:'Active',progress:'In progress',completed:'Completed',cancelled:'Cancelled'};
    const d=modal('Delivery options','<fieldset class="df-option-list"><legend>Show deliveries</legend>'+Object.entries(labels).map(([key,label])=>'<button type="button" data-filter-tab="'+key+'" aria-pressed="'+(key===currentTab)+'">'+esc(label)+'<span aria-hidden="true">'+(key===currentTab?'✓':'')+'</span></button>').join('')+'</fieldset>');
    d.classList.add('df-options-sheet');tray.hidden=false;d.querySelector('.driver-app-sheet-body').append(tray);
    d.addEventListener('close',()=>{tray.hidden=true;tools.prepend(tray);if(!dialog?.open)trigger.focus();},{once:true});
@@ -122,21 +122,25 @@
    if(dest==='Profile'){if(preview){modal('Driver profile','<p>'+esc(document.querySelector('#delivery-driver')?.selectedOptions[0]?.textContent||'No driver selected')+'</p><p>Owner preview · Read-only</p>');}else location.assign((document.body.dataset.base||'')+'/profile.php');}
   };noticeBadge(head.querySelector('.df-bell'));
  }
+ // The same categories drive the visible rows, filter totals and notification targets.
+ const jobGroup=j=>j.status==='cancelled'?'cancelled':closed(j)?'completed':j.status==='out_for_delivery'?'progress':'ready';
+ const errandGroup=j=>j.state==='cancelled'?'cancelled':j.collected_at?'completed':j.state==='started'?'progress':j.state==='blocked'?'blocked':'ready';
+ const belongs=(group,tab)=>tab==='active'?['ready','progress','blocked'].includes(group):group===tab;
  let errandRows=[],openErrand,currentTab='active',term='';
  function render(data,send,tab){currentTab=tab;
   if(preview){errandRows=data.preview_errands||[];openErrand=j=>modal('Errand #'+Number(j.id),'<section><h3>Pickup</h3><p>'+esc(j.place)+' · '+esc(j.contact_name)+'</p><p>'+esc(j.contents)+'</p></section><section><h3>Payment</h3><p>'+esc(j.payment_state==='paid'?'Paid':'Not paid')+(j.amount!=null?' · N$ '+esc(j.amount):'')+'</p><p>'+esc(j.payer||'')+'</p></section><p>'+esc(j.note||'')+'</p>');}
   board=data;command=send;document.body.classList.add('driver-compact-app');
-  const list=document.querySelector('#jobs'),rows=board.jobs.filter(j=>tab==='completed'?['completed','awaiting_reconciliation'].includes(j.status):tab==='progress'?j.status==='out_for_delivery':tab==='cancelled'?j.status==='cancelled':true);
+  const list=document.querySelector('#jobs'),rows=board.jobs.filter(j=>belongs(jobGroup(j),tab));
   const needle=term.toLowerCase().trim();const filtered=rows.filter(j=>[ref(j),j.area,j.customer_name,j.customer_mobile].some(v=>String(v||'').toLowerCase().includes(needle)));
   const existing=new Map([...list.children].map(el=>[el.dataset.jobId,el]));
   filtered.forEach((j,index)=>{let el=existing.get(String(j.id));existing.delete(String(j.id));const fingerprint=JSON.stringify(j);if(!el||el.dataset.fingerprint!==fingerprint){const t=document.createElement('template');t.innerHTML=card(j);const fresh=t.content.firstElementChild;fresh.dataset.fingerprint=fingerprint;if(el)el.replaceWith(fresh);el=fresh;}if(list.children[index]!==el)list.insertBefore(el,list.children[index]||null);});
   let count=filtered.length;
-  for(const j of errandRows){const state=j.state==='cancelled'?'cancelled':j.collected_at?'completed':j.state==='started'?'progress':'ready';if((tab!=='active'&&tab!==state)||!('err-'+j.id+' '+j.place+' '+j.contact_name).toLowerCase().includes(needle))continue;
+  for(const j of errandRows){const state=errandGroup(j);if(!belongs(state,tab)||!('err-'+j.id+' '+j.place+' '+j.contact_name).toLowerCase().includes(needle))continue;
    const key='err-'+j.id,old=existing.get(key),fingerprint=JSON.stringify(j);existing.delete(key);if(old?.dataset.fingerprint===fingerprint){if(list.children[count]!==old)list.insertBefore(old,list.children[count]||null);count++;continue;}const btn=document.createElement('button');btn.type='button';btn.className='df-row';btn.innerHTML='<span class="df-box">'+icon('box')+'</span><span class="df-title"><strong>ERR-'+Number(j.id)+'</strong><small>'+esc(j.place)+'</small></span><span class="df-status"><span class="df-badge df-progress">Errand</span><small>'+esc(state==='progress'?'In progress':state==='ready'?'Ready':state)+' · '+(j.payment_state==='paid'?'Paid':'Not paid')+'</small></span>'+icon('chevron');btn.onclick=()=>openErrand?.(j);const article=document.createElement('article');article.className='driver-app-card is-progress';article.dataset.jobId=key;article.dataset.fingerprint=fingerprint;article.append(btn);if(old)old.replaceWith(article);if(list.children[count]!==article)list.insertBefore(article,list.children[count]||null);count++;
   }
   for(const el of existing.values())el.remove();
-  const states=[...board.jobs.map(j=>closed(j)?j.status==='cancelled'?'cancelled':'completed':j.status==='out_for_delivery'?'progress':'ready'),...errandRows.map(j=>j.state==='cancelled'?'cancelled':j.collected_at?'completed':j.state==='started'?'progress':'ready')];for(const b of document.querySelectorAll('.delivery-primary-tabs [data-tab]')){let n=b.querySelector('span');if(!n){n=document.createElement('span');b.append(' ',n);}n.textContent=b.dataset.tab==='active'?states.length:states.filter(t=>t===b.dataset.tab).length;}
-  if(!count)list.innerHTML='<p class="empty-state">No deliveries in this view.</p>';bind(list);
+  const states=[...board.jobs.map(jobGroup),...errandRows.map(errandGroup)];for(const b of document.querySelectorAll('.delivery-primary-tabs [data-tab]')){let n=b.querySelector('span');if(!n){n=document.createElement('span');b.append(' ',n);}n.textContent=states.filter(t=>belongs(t,b.dataset.tab)).length;}
+  if(!count)list.innerHTML='<p class="empty-state">'+(term?'No matches in this view.':tab==='active'?'No active deliveries or errands.':'No deliveries or errands in this view.')+'</p>';bind(list);
   const head=document.querySelector('.pagehead');if(!head.querySelector('.df-bell')){head.querySelector('h1').innerHTML=icon('truck')+' Deliveries';const bell=document.createElement('a');bell.className='df-bell';bell.href=(document.body.dataset.base||'')+'/notifications.php';bell.setAttribute('aria-label','Notifications');bell.innerHTML=icon('bell');head.append(bell);
    const tools=document.createElement('div');tools.className='df-tools';head.after(tools);const search=document.createElement('input');search.type='search';search.placeholder='Search order or customer…';search.setAttribute('aria-label','Search orders, customers or errands');search.oninput=()=>{term=search.value;render(board,command,currentTab);};tools.prepend(search);const errands=head.querySelector('a[href*="errands="]');if(errands)tools.append(errands);tools.append(head.querySelector('.actions'));appNav(head,tools);}
   document.querySelectorAll('.df-nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.destination===(currentTab==='completed'?'History':'Deliveries')?'page':'false'));
@@ -146,5 +150,5 @@
   soundButton.innerHTML=icon('sound');soundButton.setAttribute('aria-pressed',String(sounds));soundButton.setAttribute('aria-label',sounds?'Turn delivery sounds off':'Turn delivery sounds on');
  }
  setInterval(()=>{if(document.hidden||!board)return;document.querySelectorAll('[data-driver-timer]').forEach(el=>{const j=board.jobs.find(j=>Number(j.id)===Number(el.dataset.driverTimer));if(j){const t=elapsed(j);if(el.textContent!==t)el.textContent=t;}});},1000);
- window.DriverDeliveryUI={render,showCompletion(data,send,j){if(preview)return;board=data;command=send;finish(j);},showDetails(data,send,j){board=data;command=send;details(j);},errands(rows,open){openErrand=open;if(JSON.stringify(rows)===JSON.stringify(errandRows))return;errandRows=rows;if(board&&!document.querySelector('dialog[open]'))render(board,command,currentTab);}};
+ window.DriverDeliveryUI={render,jobGroup,showCompletion(data,send,j){if(preview)return;board=data;command=send;finish(j);},showDetails(data,send,j){board=data;command=send;details(j);},errands(rows,open){openErrand=open;if(JSON.stringify(rows)===JSON.stringify(errandRows))return;errandRows=rows;if(board)render(board,command,currentTab);}};
 })();
