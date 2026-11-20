@@ -4462,6 +4462,10 @@
     };
     const sectionIcons = {'Order summary':'clipboard-list',Customer:'user-round',Fulfilment:'package-check',Payment:'wallet'};
     panelDetails.innerHTML = documentCard + cards.map(([title, fields]) => `<section class="order-panel-card"><h3><i data-lucide="${sectionIcons[title]}" aria-hidden="true"></i>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${detailValue(label,value)}</span></div>`).join('')}</div></section>`).join('') + `<section class="order-panel-card"><h3><i data-lucide="sticky-note" aria-hidden="true"></i>Notes</h3><p class="orders-note-copy">${esc(currentOrder.notes || 'No notes recorded.')}</p><button type="button" class="orders-tools-button" data-orders-notes-edit>Add an update</button></section>`;
+    if (collectionMode(currentOrder)) {
+      panelDetails.insertAdjacentHTML('afterbegin', '<section class="order-panel-card"><h3><i data-lucide="truck" aria-hidden="true"></i>Delivery</h3><button type="button" class="orders-tools-button" data-delivery-shortcut>Arrange Delivery / View Tracking</button></section>');
+      panelDetails.querySelector('[data-delivery-shortcut]').onclick = () => panel.querySelector('[data-panel-tab="delivery"]')?.click();
+    }
     window.lucide?.createIcons?.({ strokeWidth:2 });
     if (hasWebsiteDocuments) hydrateOrderDocumentAvailability(currentOrder.id);
   }
@@ -4498,7 +4502,7 @@
   }
   var collectionModule, collectionTimer;
   function loadCollectionModule(){
-    return collectionModule ||= import('../js/order-collection-ui.js?v=20261120d').catch(e=>{collectionModule=null;throw e;});
+    return collectionModule ||= import('../js/order-collection-ui.js?v=20261120e').catch(e=>{collectionModule=null;throw e;});
   }
   function scheduleCollectionStatus(fresh=false){
     if(fresh&&currentOrder)panelDetails?.querySelector('[data-collection-order]')?.setAttribute('data-collection-fresh','');

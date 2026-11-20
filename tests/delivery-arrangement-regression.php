@@ -97,7 +97,7 @@ try{
  $duplicate=$body;$duplicate['uuid']=requestId();denied(fn()=>$core->command($front,$duplicate),'second request cannot create duplicate arrangement');
  ok((int)$db->query('SELECT COUNT(*) FROM delivery_jobs')->fetchColumn()===1,'one order has one delivery record');
  $saved=$db->query('SELECT * FROM delivery_jobs')->fetch();
- ok(strpos($saved['notes'],'2 × Test bottle')!==false&&strpos($saved['notes'],'Cash on delivery')!==false,'assigned driver receives order quantities and payment instructions');
+ ok(strpos($saved['notes'],'2 × Test bottle')!==false&&strpos($saved['notes'],'Collect remaining balance on delivery')!==false,'assigned driver receives order quantities and payment instructions');
  $pickup=['action'=>'parcel_collected','id'=>$jobId,'driver'=>3,'uuid'=>requestId()];
  denied(fn()=>$core->command($driver,$pickup),'driver cannot record front desk pickup');
  $picked=$core->command($front,$pickup);ok(isset($picked['front_cod_due_utc'])&&sameResponse($core->command($front,$pickup),$picked),'pickup starts one front desk COD clock');

@@ -16,10 +16,12 @@ final class OrderBalanceAdapter
         }
         if($job['source']!=='hambelela')throw new \DomainException('Unknown delivery source.');
         $lock=$db->inTransaction()?' FOR UPDATE':'';
-        $s=$db->prepare('SELECT id,total_amount,payment_status FROM ops_orders WHERE id=?'.$lock);$s->execute([$job['order_id']]);$order=$s->fetch(\PDO::FETCH_ASSOC);
+        $s=$db->prepare('SELECT * FROM ops_orders WHERE id=?'.$lock);$s->execute([$job['order_id']]);$order=$s->fetch(\PDO::FETCH_ASSOC);
         if(!$order)throw new \DomainException('Order unavailable.');
         $s=$db->prepare("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id LIMIT 1");$s->execute([$job['id']]);$metadata=json_decode((string)$s->fetchColumn(),true);
         if(!empty($metadata['order_dispatch'])){
+            // Existing dispatches retain their original payment interpretation.
+            if(($metadata['order_dispatch']['payment_policy']??'')!=='portal_cash_confirmation')unset($order['portal_paid_confirmed']);
             $s=$db->prepare("SELECT COALESCE(SUM(delivery_fee_cents),0) FROM delivery_receipts WHERE delivery_id=? AND status='reconciled'");$s->execute([$job['id']]);
             $balance=OrderDispatchBalance::read($db,$order,(int)$job['fee_cents'],(int)$s->fetchColumn());
             if($balance['total_cents']!==(int)$metadata['order_dispatch']['total_cents'])throw new \DomainException('Order total changed after dispatch. Review before collection.');

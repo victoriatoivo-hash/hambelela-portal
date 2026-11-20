@@ -1,0 +1,41 @@
+<?php
+// Synthetic fixture: imported cash is not received until Paid is confirmed.
+use Hambelela\Delivery\OrderDispatchBalance;
+use Hambelela\Delivery\OrderBalanceAdapter;
+$db->exec("INSERT INTO ops_orders(id,order_number,woo_order_id,total_amount,payment_status,payment_method,payment_source,customer_name,customer_contact,notes,fulfilment_mode,status,portal_paid_confirmed) VALUES(103,'TEST-CASH-DUE',103,120,'paid','Cash','pos','Synthetic cash expectation','0810000000','Shipping address: Test street','delivery','in_progress',0);
+INSERT INTO order_payment_allocations(order_id,payment_method,amount_cents,source) VALUES(103,'cash',12000,'pos');
+INSERT INTO ops_order_items VALUES(4,103,'Test cash item',1)");
+$remote['id']=103;
+$q=$core->command($owner,['action'=>'quote','source_order'=>true,'order'=>103]);
+ok($q['paid_cents']===0&&$q['collect_cents']===12000,'Unticked POS cash is collectible, not paid');
+$cash=$core->command($owner,array_merge($new,['order'=>103,'verification'=>$q['verification'],'uuid'=>requestId()]));
+$cid=(int)$cash['id'];
+ok((int)$db->query('SELECT SUM(amount_cents) FROM order_payment_allocations WHERE order_id=103')->fetchColumn()===12000,'Arranging never deletes imported allocations');
+ok($core->board($driver,['id'=>$cid])['jobs'][0]['remaining']===['order_goods'=>8000,'delivery_fee'=>4000,'partner_cod'=>0],'Driver sees full unpaid amount including shipping once');
+$db->exec("UPDATE delivery_events SET metadata_json=JSON_REMOVE(metadata_json,'$.order_dispatch.payment_policy') WHERE delivery_id=$cid AND event_type='arranged'");
+ok(array_sum($core->board($driver,['id'=>$cid])['jobs'][0]['remaining'])===0,'Older dispatches retain their original payment interpretation');
+$db->exec("UPDATE delivery_events SET metadata_json=JSON_SET(metadata_json,'$.order_dispatch.payment_policy','portal_cash_confirmation') WHERE delivery_id=$cid AND event_type='arranged'");
+$core->command($driver,['action'=>'accept','id'=>$cid,'uuid'=>requestId()]);
+$core->command($front,['action'=>'parcel_collected','id'=>$cid,'driver'=>3,'parcel_count'=>1,'uuid'=>requestId()]);
+$core->command($driver,['action'=>'confirm_pickup','id'=>$cid,'uuid'=>requestId()]);
+$core->command($driver,['action'=>'start','id'=>$cid,'uuid'=>requestId()]);
+$core->command($driver,['action'=>'collect','id'=>$cid,'uuid'=>requestId(),'goods'=>'80.00','fee'=>'40.00','method'=>'cash']);
+$core->command($driver,array_merge($complete,['id'=>$cid,'uuid'=>requestId()]));
+$receiptId=(int)$db->query('SELECT id FROM delivery_receipts WHERE delivery_id='.$cid)->fetchColumn();
+$core->command($front,['action'=>'cash_handover','id'=>$cid,'receipt'=>$receiptId,'amount'=>'120.00','uuid'=>requestId()]);
+$core->command($owner,['action'=>'reconcile','id'=>$cid,'receipt'=>$receiptId,'uuid'=>requestId()]);
+$rows=$db->query('SELECT * FROM order_payment_allocations WHERE order_id=103')->fetchAll();
+ok(count($rows)===1&&(int)$rows[0]['amount_cents']===12000&&$rows[0]['source']==='delivery','Reconciled cash replaces expectation, never doubles it');
+$audit=$db->query('SELECT previous_allocations_json,new_allocations_json FROM order_payment_allocation_audit WHERE order_id=103 ORDER BY id DESC LIMIT 1')->fetch();
+ok(json_decode($audit['previous_allocations_json'],true)[0]['source']==='pos'&&json_decode($audit['new_allocations_json'],true)[0]['source']==='delivery','Expected and received cash retained in payment audit');
+$j=$db->query('SELECT * FROM delivery_jobs WHERE id='.$cid)->fetch();
+ok(array_sum((new OrderBalanceAdapter())->read($db,$j))===0,'Reconciled receipt remains paid even while Board tick is off');
+ok((int)$db->query('SELECT portal_paid_confirmed FROM ops_orders WHERE id=103')->fetchColumn()===0,'No silent Board Paid mutation');
+// Mixed tender: genuinely confirmed non-cash is not discarded.
+$o=['id'=>104,'total_amount'=>'120.00','payment_status'=>'paid','payment_method'=>'Cash / Card','portal_paid_confirmed'=>0];
+$db->exec("INSERT INTO order_payment_allocations(order_id,payment_method,amount_cents,source) VALUES(104,'cash',8000,'pos'),(104,'card_swipe',4000,'pos')");
+$b=OrderDispatchBalance::read($db,$o,4000);ok($b['paid_cents']===4000&&$b['collect_cents']===8000,'Mixed payment preserves non-cash funds');
+$o['portal_paid_confirmed']=1;$b=OrderDispatchBalance::read($db,$o,4000);ok($b['collect_cents']===0,'Paid tick prevents further collection');
+$o['portal_paid_confirmed']=0;$o['payment_status']='unpaid';$o['payment_method']='Cash';
+$db->exec('DELETE FROM order_payment_allocations WHERE order_id=104');
+$o['portal_paid_confirmed']=1;ok(OrderDispatchBalance::read($db,$o,4000)['collect_cents']===0,'Paid tick works without imported allocations');

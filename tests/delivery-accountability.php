@@ -51,8 +51,15 @@ ok($read()['status']==='completed','Normal reconciliation completes tracked job'
 $db->exec("INSERT INTO ops_orders(id,order_number,woo_order_id,total_amount,payment_status,payment_method,customer_name,customer_contact,notes,fulfilment_mode,status,portal_paid_confirmed) VALUES(102,'TEST-PAID',102,120,'paid','Cash','Synthetic prepaid','0810000000','Shipping address: Test street','delivery','new',0);INSERT INTO ops_order_items VALUES(3,102,'Test prepaid item',1)");
 $remote['id']=102;$quote=$core->command($front,['action'=>'quote','source_order'=>true,'order'=>102]);
 $paid=array_merge($new,['order'=>102,'board_terms'=>'verified','verification'=>$quote['verification'],'uuid'=>requestId()]);
-denied(fn()=>$core->command($front,$paid),'Financial paid but board unticked requires verification');
-$db->exec('UPDATE ops_orders SET portal_paid_confirmed=1 WHERE id=102');$p=$core->command($front,$paid);$pid=(int)$p['id'];
+// Paid checkbox is authoritative even if POS imported an old cash expectation.
+$db->exec('UPDATE ops_orders SET portal_paid_confirmed=1 WHERE id=102');
+denied(fn()=>$core->command($owner,$paid),'A real payment change still rejects an outdated quote');
+$paid['verification']=$core->command($front,['action'=>'quote','source_order'=>true,'order'=>102])['verification'];
+// COD with a recorded full payment must not block dispatch or collect twice.
+$paid['board_terms']='cod';$p=$core->command($owner,$paid);$pid=(int)$p['id'];
+$balance=(new \Hambelela\Delivery\OrderBalanceAdapter())->read($db,$db->query('SELECT * FROM delivery_jobs WHERE id='.$pid)->fetch());
+ok($balance['order_goods']===0&&$balance['delivery_fee']===0,'Admin arranges COD without popup restriction or double collection');
+ok((int)$db->query('SELECT portal_paid_confirmed FROM ops_orders WHERE id=102')->fetchColumn()===1,'Arrangement never changes the Orders Paid tick');
 $core->command($driver,['action'=>'accept','id'=>$pid,'uuid'=>requestId()]);
 $pj=$core->board($front,['id'=>$pid])['jobs'][0];
 $core->command($front,['action'=>'inline','id'=>$pid,'uuid'=>requestId(),'version'=>$pj['version'],'field'=>'driver','value'=>4]);
@@ -64,4 +71,5 @@ $core->command($other,['action'=>'start','id'=>$pid,'uuid'=>requestId()]);
 $core->command($front,array_merge($complete['confirmation'],['action'=>'front_complete','id'=>$pid,'uuid'=>requestId(),'reason'=>'Synthetic customer independently confirmed receipt']));
 ok($core->board($front,['id'=>$pid])['jobs'][0]['status']==='completed','Paid delivery supports recorded exception and manual confirmation without extra collection');
 ok($tracking->packing(102)['state']==='Not Yet Packed','Assignee/new order never invents packing evidence');
+require __DIR__.'/delivery-payment-confirmation.php';
 echo "PASS accountability, custody, paid/unpaid, proof, manual exception and COD watchdog tests\n";

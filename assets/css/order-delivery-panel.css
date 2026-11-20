@@ -47,13 +47,12 @@
 #order-delivery-pane .oc-redesign .oc-entry p {white-space:pre-wrap;margin:3px 0}
 #order-delivery-pane .oc-redesign .oc-link {display:inline-block;margin-top:10px;color:var(--orders-600,#94630e)}
 #order-delivery-pane .oc-redesign [data-error]:empty {display:none}
-.oc-payment-confirm {font-family:var(--font-family,'Jost',sans-serif);color:#1C2118;font-size:10.5px;max-width:390px;width:calc(100% - 40px);box-sizing:border-box;padding:18px;border:1px solid #d9dcce;border-radius:14px;box-shadow:0 16px 50px #1c211833}
-.oc-payment-confirm::backdrop {background:#1c211860}
-.oc-payment-confirm h3 {font:500 10.5px/normal inherit;font-size:10.5px;font-weight:500}
-.oc-payment-confirm p {color:#747A70;font-weight:300;line-height:1.5}
-.oc-payment-confirm>div {display:flex;gap:6px;flex-wrap:wrap}
-.oc-payment-confirm button {font-family:inherit;font-size:10.5px;font-weight:400;border:1px solid #d9dcce;background:white;border-radius:7px;padding:8px}
-.oc-payment-confirm [data-choice=verify] {background:#59694a;color:white}
+/* The shared popup is portaled to body: scope by its select variant, not its ancestor. */
+body #portal-select-popup[data-portal-select-variant="orders-delivery"] {font-family:'Jost',sans-serif;border:1px solid #d9dcce;border-radius:10px;background:#fff;box-shadow:0 12px 32px #1c21181a;color:#1c2118}
+body #portal-select-popup[data-portal-select-variant="orders-delivery"] .portal-select-option {font-family:inherit;font-size:10.5px;font-weight:400;color:#1c2118;background:#fff;border:0;border-radius:7px;min-height:34px}
+body #portal-select-popup[data-portal-select-variant="orders-delivery"] .portal-select-option:is(:hover,:focus,[aria-selected=true]) {background:#f4eedf;color:#805411;outline-color:#94630e}
+#order-delivery-pane .oc-redesign .portal-custom-select-trigger {color:#1c2118;background:#fff;border-color:#d9dcce}
+#order-delivery-pane .oc-redesign .portal-custom-select-chevron {color:#94630e}
 @container (min-width:650px) {
  #order-delivery-pane .oc-redesign .oc-layout {grid-template-columns:1fr 1fr}
  #order-delivery-pane .oc-redesign .oc-top {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px}

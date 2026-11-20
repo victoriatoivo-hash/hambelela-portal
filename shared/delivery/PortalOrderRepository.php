@@ -65,13 +65,15 @@ final class PortalOrderRepository
             $prepaid=$money['collect_cents']===0;
             if(isset($input['board_terms'])){
                 $terms=$input['board_terms'];
-                if(!empty($input['tracking_version'])&&$terms==='verified'&&array_key_exists('portal_paid_confirmed',$order)&&$order['portal_paid_confirmed']!==null&&!(bool)$order['portal_paid_confirmed'])throw new \DomainException('Verify the Order Board paid confirmation before dispatch.');
-                if(($terms==='verified')!==$prepaid)throw new \DomainException('Payment changed. Check the saved order payment and review again.');
+                // COD means collect the remaining verified balance, not collect the
+                // order total again. A zero balance is safe and must not block dispatch.
+                if(!in_array($terms,['verified','cod'],true))throw new \DomainException('Select Paid or Collect on delivery.');
+                if($terms==='verified'&&!$prepaid)throw new \DomainException('The saved payment still has an outstanding balance. Use Collect on delivery or correct the payment in Orders.');
                 $items=$db->prepare('SELECT product_name,quantity FROM ops_order_items WHERE order_id=? ORDER BY id');
                 $items->execute([$id]);$lines=[];
                 foreach($items->fetchAll(\PDO::FETCH_ASSOC) as $item)$lines[]=($item['quantity']??'?').' × '.$item['product_name'];
                 $notes=implode("\n",array_filter(['Contents: '.($lines?implode('; ',$lines):'No item lines recorded'),
-                    'Payment: '.['verified'=>'Already paid (verified)','pending'=>'Payment pending','cod'=>'Cash on delivery','other'=>'Other payment arrangement'][$terms].' · '.($order['payment_method']??'Method not recorded'),
+                    'Payment: '.($prepaid?'Paid — no further collection':'Collect remaining balance on delivery').' · '.($order['payment_method']??'Method not recorded'),
                     $notes],static fn($v)=>$v!==''));
                 if(strlen($notes)>4000)throw new \DomainException('Item list and instructions exceed the driver note limit. Review before dispatch.');
             }
