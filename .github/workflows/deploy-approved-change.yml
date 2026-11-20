@@ -37,6 +37,7 @@ jobs:
           for p in apps/delivery/order-collection.php shared/delivery/{DeliveryService,CoreApi,DeliveryArrangement,PortalOrderRepository}.php; do php -l "$p"; done
           php tests/delivery-arrangement-regression.php
           COLLECTION_SHORT_TEST=1 php tests/delivery-arrangement-regression.php
+          for scenario in short extra zero mobile prepaid-extra prepaid-zero; do DRIVER_DECLARATION_CASE=$scenario php tests/delivery-arrangement-regression.php; done
           node --check assets/js/orders-board.js
           for p in shared/delivery/{DriverErrands,ErrandView,ErrandDriverBar,CoreView}.php apps/{delivery/index,operations/orders-board}.php; do php -l "$p"; done
           node --check assets/js/driver-errands.js
@@ -50,7 +51,9 @@ jobs:
           node "$RUNNER_TEMP/collection-ui/node_modules/playwright/cli.js" install --with-deps chromium
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/order-collection-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-errand-popup.cjs
+          NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-phone-layout.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-ui.cjs
+          NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-custody-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-integration.cjs
       - name: Publish guarded Order Board integration
         env:

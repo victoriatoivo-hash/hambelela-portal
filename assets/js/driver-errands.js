@@ -144,6 +144,11 @@
         if(!data.errand||String(data.errand.id)!==String(notice.id)||Number(data.errand.revision)!==Number(notice.revision)){dialog?.close();}
         else{const lease=await command(notice,'claim',{claim_key:claimKey});if(!lease.result?.claimed)dialog?.close();}
       }else if(data.errand)await popup(data.errand);
+      if(isDriver&&!root&&document.body.classList.contains('driver-compact-app')&&!document.querySelector('dialog[open]')){
+        const feed=new URL(url,location.href);feed.searchParams.set('errands','data');const all=[];
+        for(const filter of ['open','collected','cancelled']){let batch,p=0;do{feed.searchParams.set('show',filter);feed.searchParams.set('page',String(p++));batch=await request(feed.href);all.push(...batch.entries);}while(batch.more);}
+        window.DriverDeliveryUI?.errands(all,j=>{if(dialog)return;const box=modal('Errand #'+j.id);box.append(compactCard(j),button('Close',()=>box.close()));box.showModal();const cardEl=box.querySelector('.driver-errand-card');cardEl.addEventListener('click',e=>{if(e.target.closest('button')){dialog=null;box.close();}},true);});
+      }
     }catch(e){status(navigator.onLine===false?'Offline · showing last loaded errands':e.message);}
     finally{busy=false;if(version!==generation)void poll();}
   }

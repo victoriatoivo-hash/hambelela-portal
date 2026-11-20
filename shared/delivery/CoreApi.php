@@ -81,10 +81,8 @@ final class CoreApi
             case 'start': return $service->start($actor,$id,$uuid);
             case 'collect': return $service->collect($actor,$id,$uuid,['order_goods'=>DeliveryPolicy::cents((string)($body['goods']??'0')),'delivery_fee'=>DeliveryPolicy::cents((string)($body['fee']??'0')),'partner_cod'=>DeliveryPolicy::cents((string)($body['cod']??'0'))],(string)($body['method']??''),(string)($body['reference']??''));
             case 'complete':
-                if(array_key_exists('confirmation',$body)&&!is_array($body['confirmation']))throw new \DomainException('Invalid delivery confirmation.');
-                $confirmation=$body['confirmation']??(isset($body['confirmed'])?$body:null);
-                if(!isset($body['confirmation'])&&$confirmation!==null)$confirmation['confirmed']=in_array($confirmation['confirmed'],[true,'1'],true);
-                return $service->complete($actor,$id,$uuid,null,$confirmation);
+                if(!is_array($body['confirmation']??null))throw new \DomainException('Reopen Deliveries and confirm the payment method and actual amount before completing.');
+                return $service->complete($actor,$id,$uuid,null,$body['confirmation']??null);
             case 'reconcile': return $service->reconcile($actor,$id,$uuid,(int)($body['receipt']??0),$apply);
             default: throw new \DomainException('Unsupported Delivery action.');
         }
@@ -149,13 +147,16 @@ final class CoreApi
                 catch(\PDOException $e){if($e->getCode()!=='42S02')throw $e;}
             }
             $j['deadline']=DeliveryDeadline::present(DeliveryDeadline::latest($this->db,(int)$j['id']),$j);
-            if($j['source']==='hambelela'){$s=$this->db->prepare('SELECT * FROM ops_orders WHERE id=?');$s->execute([$j['order_id']]);$o=$s->fetch(\PDO::FETCH_ASSOC);$j['order_number']=$o['order_number']??('#'.($o['woo_order_id']??$j['order_id']));$j['order_payment_status']=$o['payment_status']??'';$j['order_payment_method']=$o['payment_method']??'';}
+            if($j['source']==='hambelela'){$s=$this->db->prepare('SELECT * FROM ops_orders WHERE id=?');$s->execute([$j['order_id']]);$o=$s->fetch(\PDO::FETCH_ASSOC);$j['order_number']=$o['order_number']??('#'.($o['woo_order_id']??$j['order_id']));$j['order_payment_status']=$o['payment_status']??'';$j['order_payment_method']=$o['payment_method']??'';$j['order_total']=$o['total_amount']??null;}
             $s=$this->db->prepare('SELECT r.id,r.payment_method,r.transaction_reference,r.order_goods_cents,r.delivery_fee_cents,r.partner_cod_cents,r.status,r.reconciled_at,c.full_name collected_by,n.full_name reconciled_by FROM delivery_receipts r LEFT JOIN ops_employees c ON c.id=r.collected_by_employee_id LEFT JOIN ops_employees n ON n.id=r.reconciled_by_employee_id WHERE r.delivery_id=? ORDER BY r.id');$s->execute([$j['id']]);$j['receipts']=$s->fetchAll(\PDO::FETCH_ASSOC);
             $s=$this->db->prepare('SELECT v.event_type,v.created_at,v.metadata_json,COALESCE(e.full_name,p.display_name) actor_name FROM delivery_events v LEFT JOIN ops_employees e ON e.id=v.employee_id LEFT JOIN delivery_partner_users p ON p.id=v.partner_user_id WHERE v.delivery_id=? ORDER BY v.id DESC LIMIT 30');$s->execute([$j['id']]);$j['history']=array_map(static function($e){$m=json_decode($e['metadata_json'],true);return ['type'=>$e['event_type'],'at'=>$e['created_at'],'actor'=>!empty($m['system_generated'])?'Scheduled follow-up':$e['actor_name'],'note'=>$m['note']??'','reason'=>$m['reason']??'','deadline'=>is_array($m['deadline']??null)?DeliveryDeadline::label($m['deadline']):($m['deadline']??null)];},$s->fetchAll(\PDO::FETCH_ASSOC));
             try{$remaining=$balance->read($this->db,$j);foreach($j['receipts'] as $r)if(in_array($r['status'],['collected','issue'],true)){$remaining['order_goods']-=(int)$r['order_goods_cents'];$remaining['delivery_fee']-=(int)$r['delivery_fee_cents'];$remaining['partner_cod']-=(int)$r['partner_cod_cents'];}if(min($remaining)<0)throw new \DomainException('Payment changed; review required.');$j['remaining']=$remaining;}
             catch(\DomainException $e){$j['remaining']=null;$j['review_message']=$e->getMessage();}
+            $meta=null;if($j['delivered_at']){$decl=$this->db->prepare("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='delivered' ORDER BY id DESC LIMIT 1");$decl->execute([$j['id']]);$meta=json_decode((string)$decl->fetchColumn(),true);}
+            $j['declaration']=is_array($meta)&&isset($meta['declared_cents'])?array_intersect_key($meta,array_flip(['declared_cents','expected_cents','difference_cents','declared_method','declaration_review'])):null;
             $states=array_column($j['receipts'],'status');
             $j['collection_state']=in_array('issue',$states,true)?'Shortfall / issue':($j['remaining']===null?'Payment review required':(array_sum($j['remaining'])>0?'Due':(in_array('collected',$states,true)?'Collected by Driver':(in_array('reconciled',$states,true)?'Received / reconciled':'Not required'))));
+            if(!empty($j['declaration']['declaration_review']))$j['collection_state']='Shortfall / issue';
         }unset($j);
         $drivers=[];if(DeliveryPolicy::can($actor,'delivery_arrange'))$drivers=$this->db->query("SELECT e.id,e.full_name FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id JOIN delivery_driver_profiles p ON p.employee_id=e.id WHERE e.status='active' AND r.role_key='delivery_driver' AND p.active=1 ORDER BY e.full_name")->fetchAll(\PDO::FETCH_ASSOC);
         $profile=null;if($driver){$s=$this->db->prepare('SELECT e.id,e.full_name,c.mobile FROM ops_employees e LEFT JOIN delivery_driver_credentials c ON c.employee_id=e.id WHERE e.id=?');$s->execute([$actor['id']]);$profile=$s->fetch(\PDO::FETCH_ASSOC)?:null;}

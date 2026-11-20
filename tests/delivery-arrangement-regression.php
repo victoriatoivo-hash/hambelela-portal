@@ -118,12 +118,31 @@ try{
  ok(\Hambelela\Delivery\EmployeeDriverSession::allowedPath('/api/notifications.php'),'Driver can use existing account-scoped polling API');
  foreach(['/apps/delivery/front-api.php','/apps/accounts/payment-reconciliation.php','/settings.php'] as $path)ok(!\Hambelela\Delivery\EmployeeDriverSession::allowedPath($path),'Driver remains restricted from '.$path);
  $core->command($driver,['action'=>'start','id'=>$jobId,'uuid'=>requestId()]);
- $core->command($driver,['action'=>'collect','id'=>$jobId,'uuid'=>requestId(),'goods'=>'80.00','fee'=>'40.00','method'=>'cash']);
+
  denied(fn()=>$core->command($driver,['action'=>'complete','id'=>$jobId,'uuid'=>requestId(),'confirmation'=>['confirmed'=>false,'note'=>'Delivered']]),'Explicit completion confirmation required');
- denied(fn()=>$core->command($driver,['action'=>'complete','id'=>$jobId,'uuid'=>requestId(),'confirmation'=>['confirmed'=>true,'note'=>'  ']]),'Blank completion note rejected');
- $finish=['action'=>'complete','id'=>$jobId,'uuid'=>requestId(),'confirmation'=>['confirmed'=>true,'note'=>'Handed to synthetic customer']];
+ denied(fn()=>$core->command($driver,['action'=>'complete','id'=>$jobId,'uuid'=>requestId(),'confirmation'=>['confirmed'=>true,'note'=>'  ']]),'Method and actual amount mandatory even with confirmation');
+ $variant=getenv('DRIVER_DECLARATION_CASE');$amount='120.00';$method='cash';$expected=12000;
+ if(in_array($variant,['prepaid-extra','prepaid-zero'],true)){
+   $db->exec("UPDATE ops_orders SET payment_status='paid' WHERE id=100");
+   // The authoritative adapter verifies actual allocations; seed the same ledger used by Front.
+   $db->exec("INSERT INTO order_payment_allocations(order_id,payment_method,amount_cents) VALUES(100,'cash',12000)");
+   $expected=0;
+ }
+ if($variant==='short')$amount='100.00';if($variant==='extra')$amount='130.00';if($variant==='prepaid-extra')$amount='10.00';
+ if($variant==='zero'||$variant==='prepaid-zero'){$amount='0.00';$method=$expected?'no_payment':'already_paid';}
+ if($variant==='mobile')$method='mobile';
+ $finish=['action'=>'complete','id'=>$jobId,'uuid'=>requestId(),'confirmation'=>['confirmed'=>true,'amount'=>$amount,'method'=>$method,'note'=>'']];
  $finished=$core->command($driver,$finish);ok(sameResponse($finished,$core->command($driver,$finish)),'Completion retry is idempotent');
- ok($finished['note']==='Handed to synthetic customer'&&$finished['delivery_payment_confirmed']===true,'Completion note and confirmation retained in event');
+ ok($finished['note']===''&&$finished['delivery_payment_confirmed']===true,'Completion note and confirmation retained in event');
+ ok($finished['expected_cents']===$expected&&$finished['declared_cents']===\Hambelela\Delivery\DeliveryPolicy::cents($amount),'Saved actual and expected integer cents');
+ if($variant){
+   $review=$variant!=='prepaid-zero';
+   ok($finished['declaration_review']===$review,'Discrepant or unspecified-channel money is held for review');
+   ok((int)$db->query('SELECT COUNT(*) FROM delivery_receipts')->fetchColumn()===0,'no automatic or duplicate allocated receipt');
+   ok($db->query('SELECT delivered_at FROM delivery_jobs')->fetchColumn()!==null,'actual completion time recorded');
+   $read=$core->board($driver,['state'=>'driver_completed']);ok($read['jobs'][0]['declaration']['declared_cents']===$finished['declared_cents'],'delivered job exposes saved declaration');
+   return;
+ }
  $receipt=(int)$db->query('SELECT id FROM delivery_receipts')->fetchColumn();
  ok($db->query("SELECT payment_status FROM ops_orders WHERE id=100")->fetchColumn()==='unpaid','dispatch, customer receipt and delivery do not mark order paid');
  ok($db->query("SELECT status FROM delivery_jobs")->fetchColumn()==='awaiting_reconciliation','delivered independently from cash reconciliation');

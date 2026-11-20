@@ -13,6 +13,7 @@ function driverControl(j){if(driver||!board.can_arrange||!['ready','failed'].inc
 function displayDate(v){if(!v)return '—';const d=new Date(v.replace(' ','T')+'Z');return Number.isNaN(d.valueOf())?v:new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Windhoek',dateStyle:'medium',timeStyle:'short'}).format(d);}
 function paymentDetails(j){
  const total=sum(j.remaining),receipts=j.receipts||[],r=receipts.at(-1);
+ if(j.declaration?.declaration_review)return '<div class="payment-box" role="status"><strong>Payment declaration needs reconciliation</strong><p>Declared '+money(j.declaration.declared_cents)+' · '+esc(j.declaration.declared_method)+' · Expected '+money(j.declaration.expected_cents)+' · Difference '+money(j.declaration.difference_cents)+'</p></div>';
  if(total===null)return '<div class="payment-box" role="alert">'+esc(j.review_message||'Payment review required')+'</div>';
  const collected=receipts.filter(r=>['collected','issue','reconciled'].includes(r.status)).reduce((v,r)=>v+Number(r.order_goods_cents)+Number(r.delivery_fee_cents)+Number(r.partner_cod_cents),0);
  return '<div class="payment-box"><span class="eyebrow">'+(total>0?'Collect from customer':collected?'Collected by Driver':'Paid')+'</span><strong>'+money(total>0?total:collected)+'</strong>'+
@@ -34,6 +35,7 @@ function jobCard(j){
 // This presentation opt-in is supplied by the authenticated PHP shell, not a URL parameter.
 const driverMobileMedia=matchMedia('(max-width: 767px)');
 const compactDriver=driver&&!oversight&&!!window.DriverDeliveryUI&&new URLSearchParams(location.search).get('view')!=='day';
+if(compactDriver)document.body.classList.add('driver-compact-app');
 const mobileProfile=driver&&!oversight&&document.body.classList.contains('is-driver-mobile');
 const driverMobileActive=()=>mobileProfile&&driverMobileMedia.matches;
 const driverDayRequested=new URLSearchParams(location.search).get('view')==='day';
@@ -62,6 +64,7 @@ function driverCompactRow(j){
 }
 function openMobileDelivery(id){
  const j=board.jobs.find(job=>Number(job.id)===Number(id));if(!j)return;
+ if(driver&&!oversight&&window.DriverDeliveryUI){window.DriverDeliveryUI.showDetails(board,command,j);return;}
  mobileDetailId=Number(id);
  const content=$('#delivery-details-content');content.innerHTML=jobCard(j);
  detailsDialog.classList.add('driver-detail-sheet');
@@ -113,7 +116,7 @@ function visibleBoardSnapshot(data){return JSON.stringify(['jobs','methods','dri
 let backgroundLoading=false;
 async function load(quiet=false){
  const seq=++loadSequence;
- const state=compactDriver?(primaryTab==='completed'?'driver_completed':'all'):(primaryTab==='completed'?(driver?'driver_completed':'completed'):(driver?'for_delivery':$('#delivery-view').value));
+ const state=compactDriver?'all':(primaryTab==='completed'?(driver?'driver_completed':'completed'):(driver?'for_delivery':$('#delivery-view').value));
  const query={view:'board',state,source:$('#delivery-source').value,payment:$('#delivery-payment').value,q:$('#delivery-search').value,page:String(boardPage),limit:driver?'20':'50',id:String(focusedJob),driver_id:$('#delivery-driver')?.value||'',area:$('#delivery-area')?.value||'',urgent:$('#delivery-urgent')?.checked?'1':''};
  query.sort=$('#delivery-sort')?.value||'';
  if(compactDriver){query.page='1';query.limit='200';}
@@ -131,7 +134,7 @@ async function load(quiet=false){
  // Do not repaint an unchanged board every fifteen seconds, or disturb an active form.
  if(quiet&&(busy||document.hidden||document.querySelector('dialog[open]')||document.activeElement?.matches('input,textarea,select,[contenteditable=true]')))return;
  if(quiet&&board&&visibleBoardSnapshot(data)===visibleBoardSnapshot(board)){board=data;return;}
- const removed=[...document.querySelectorAll('#jobs [data-job-id]')].filter(c=>!data.jobs.some(j=>Number(j.id)===Number(c.dataset.jobId)));
+ const removed=[...document.querySelectorAll('#jobs [data-job-id]')].filter(c=>!c.dataset.jobId.startsWith('err-')&&!data.jobs.some(j=>Number(j.id)===Number(c.dataset.jobId)));
  if(removed.length&&!matchMedia('(prefers-reduced-motion: reduce)').matches){removed.forEach(c=>c.classList.add('is-departing'));await new Promise(resolve=>setTimeout(resolve,160));if(seq!==loadSequence)return;}
  board=data;
  if(oversight&&!$('#delivery-driver').value&&board.drivers.length){$('#delivery-driver').innerHTML=board.drivers.map(d=>'<option value="'+Number(d.id)+'">'+esc(d.full_name)+'</option>').join('');return load();}
@@ -212,7 +215,7 @@ if(!driver){
 
 
 const tabs=document.createElement('nav');tabs.className='delivery-primary-tabs';tabs.setAttribute('aria-label',driver?'Driver delivery sections':'Front delivery sections');tabs.innerHTML='<button type="button" data-tab="active" aria-pressed="true">'+(driver?'FOR DELIVERY':'ACTIVE DELIVERIES')+' <span id="active-count"></span></button><button type="button" data-tab="completed" aria-pressed="false">COMPLETED <span id="completed-count"></span></button>';$('#jobs').before(tabs);
-if(compactDriver)tabs.innerHTML='<button type="button" data-tab="active" aria-pressed="true">All <span id="active-count"></span></button><button type="button" data-tab="completed" aria-pressed="false">Completed <span id="completed-count"></span></button><button type="button" data-tab="cancelled" aria-pressed="false">Cancelled</button>';
+if(compactDriver)tabs.innerHTML='<button type="button" data-tab="active" aria-pressed="true">All <span id="active-count"></span></button><button type="button" data-tab="progress" aria-pressed="false">In Progress</button><button type="button" data-tab="completed" aria-pressed="false">Completed <span id="completed-count"></span></button><button type="button" data-tab="cancelled" aria-pressed="false">Cancelled</button>';
 const viewBar=document.createElement('section');viewBar.className='toolbar delivery-filters';viewBar.innerHTML=
  (driver?'':'<label>Status<select id="delivery-view"><option value="active">All active</option><option value="urgent">Urgent</option><option value="ready">Ready</option><option value="out_for_delivery">Out for Delivery</option><option value="awaiting_reconciliation">Awaiting Reconciliation</option><option value="failed">Delivery Issue</option><option value="all">All records</option></select></label>')+
  ((!driver||oversight)?'<label>Driver<select id="delivery-driver"><option value="">'+(oversight?'Choose Driver':'All Drivers')+'</option></select></label>':'')+
@@ -281,7 +284,7 @@ $('#cancel-handover').onclick=()=>{if(!busy)handoverDialog.close();};
 $('#handover-form').onsubmit=async e=>{e.preventDefault();try{await command({action:'reconcile',id:Number(selectedJob.id),receipt:handoverReceipt});handoverDialog.close();}catch(err){e.target.querySelector('.form-error').textContent=err.message;}};
 const extraDialog=document.createElement('dialog');extraDialog.id='job-action-dialog';extraDialog.innerHTML='<form id="job-action-form"><h2></h2><div id="job-action-fields"></div><p class="form-error" role="alert"></p><div class="modalactions"><button type="button" class="secondary" id="close-job-action">Cancel</button><button class="primary">Save</button></div></form>';document.body.append(extraDialog);let modalAction;
 $('#close-job-action').onclick=()=>{if(!busy)extraDialog.close();};
-function openJobAction(type){modalAction=type;const j=selectedJob;$('#job-action-form h2').textContent={complete:'Confirm delivery',deadline:'Customer delivery time',note:'Add delivery note',fail:'Unable to deliver',revise:'Edit / reschedule',cancel:'Cancel delivery',receipt_issue:'Collection shortfall / issue',resolve_receipt_issue:'Verify collection issue resolved'}[type];let html='';
+function openJobAction(type){if(type==='complete'&&driver&&window.DriverDeliveryUI){window.DriverDeliveryUI.showCompletion(board,command,selectedJob);return;}modalAction=type;const j=selectedJob;$('#job-action-form h2').textContent={complete:'Confirm delivery',deadline:'Customer delivery time',note:'Add delivery note',fail:'Unable to deliver',revise:'Edit / reschedule',cancel:'Cancel delivery',receipt_issue:'Collection shortfall / issue',resolve_receipt_issue:'Verify collection issue resolved'}[type];let html='';
 if(type==='complete')html='<label>Received by<input name="received_by" maxlength="190" required></label><label>Confirmation method<select name="confirmation_method"><option value="recipient_confirmation">Recipient confirmation</option><option value="signed_receipt">Signed receipt</option><option value="photo_reference">Photo reference</option><option value="customer_call">Customer call</option></select></label><label>Proof reference (required for photo/receipt)<input name="proof_reference" maxlength="500"></label><label>Completion note<textarea name="note" maxlength="2000" required></textarea></label><label class="check"><input type="checkbox" name="confirmed" value="1" required> I confirm delivery and the recorded payment arrangement.</label>';
 if(type==='deadline')html=preferenceFields(j.deadline);
 if(type==='note')html='<label>Note<textarea name="note" maxlength="2000" required></textarea></label>';

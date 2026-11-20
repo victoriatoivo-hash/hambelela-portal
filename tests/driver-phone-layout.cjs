@@ -1,0 +1,13 @@
+// Exercise the real stylesheet and native dialogs with synthetic data only.
+const {chromium}=require('playwright-core'),assert=require('node:assert/strict'),{spawn}=require('node:child_process');
+(async()=>{const server=spawn(process.execPath,['tests/driver-compact-preview.cjs'],{stdio:['ignore','pipe','inherit']});let browser;
+try{const url=await new Promise((resolve,reject)=>{server.stdout.once('data',s=>resolve(String(s).trim()));server.once('error',reject);});
+browser=await chromium.launch({channel:'chrome',headless:true});
+for(const [width,height] of [[375,667],[390,844],[360,800],[412,915]]){
+const page=await browser.newPage({viewport:{width,height},isMobile:true,hasTouch:true,reducedMotion:'reduce'});await page.goto(url);const cards=page.locator('.driver-app-card');await cards.first().waitFor();assert.equal(await cards.count(),3);
+assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'no horizontal overflow '+width);
+await cards.nth(1).locator('button').click();await page.getByRole('button',{name:'Complete delivery',exact:true}).click();
+const sheet=page.locator('dialog[open]');await sheet.getByLabel('Already paid').check();assert.equal(await sheet.locator('[name=amount]').inputValue(),'0.00');await sheet.getByRole('button',{name:'Confirm Completion'}).scrollIntoViewIfNeeded();
+const bounds=await sheet.boundingBox();assert.ok(bounds.x>=-1&&bounds.x+bounds.width<=width+1&&bounds.height<=height+1,'sheet fits '+width);await sheet.getByRole('button',{name:'Close',exact:true}).click();await page.close();
+console.log('PASS responsive driver list, details and mandatory payment sheet',width,height);
+}}finally{if(browser)await browser.close();server.kill();}})().catch(e=>{console.error(e);process.exitCode=1;});

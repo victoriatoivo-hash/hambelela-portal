@@ -38,7 +38,7 @@ $breach=json_decode($db->query("SELECT metadata_json FROM delivery_events WHERE 
 ok($breach['front_coordinator_id']===2&&$breach['excluded_from_automatic_scoring']===true,'COD flags Front coordination, never penalises independent driver');
 $core->command($driver,['action'=>'collect','id'=>$tid,'uuid'=>requestId(),'goods'=>'80.00','fee'=>'40.00','method'=>'cash']);
 denied(fn()=>$core->command($driver,['action'=>'complete','id'=>$tid,'uuid'=>requestId()]),'Tracked completion needs recipient and confirmation');
-$complete=['action'=>'complete','id'=>$tid,'uuid'=>requestId(),'received_by'=>'Synthetic recipient','confirmation_method'=>'signed_receipt','proof_reference'=>'TEST-ONLY receipt','confirmed'=>true,'note'=>'Synthetic parcel delivered'];
+$complete=['action'=>'complete','id'=>$tid,'uuid'=>requestId(),'confirmation'=>['method'=>'already_paid','amount'=>'0.00','received_by'=>'Synthetic recipient','confirmation_method'=>'signed_receipt','proof_reference'=>'TEST-ONLY receipt','confirmed'=>true,'note'=>'Synthetic parcel delivered']];
 $core->command($driver,$complete);$t=$read();ok($t['delivery_confirmation']['data']['received_by']==='Synthetic recipient'&&$t['status']==='awaiting_reconciliation','Delivery evidence does not reconcile cash');
 ok($db->query('SELECT payment_status FROM ops_orders WHERE id=101')->fetchColumn()==='unpaid','Completion does not mark unpaid order paid');
 $receipt=(int)$db->query('SELECT id FROM delivery_receipts WHERE delivery_id='.$tid)->fetchColumn();
@@ -61,7 +61,7 @@ denied(fn()=>$core->command($driver,['action'=>'start','id'=>$pid,'uuid'=>reques
 $core->command($other,['action'=>'accept','id'=>$pid,'uuid'=>requestId()]);
 $core->command($front,['action'=>'handover_exception','id'=>$pid,'uuid'=>requestId(),'reason'=>'Synthetic authorised direct pickup exception']);
 $core->command($other,['action'=>'start','id'=>$pid,'uuid'=>requestId()]);
-$core->command($front,array_merge($complete,['action'=>'front_complete','id'=>$pid,'uuid'=>requestId(),'reason'=>'Synthetic customer independently confirmed receipt']));
+$core->command($front,array_merge($complete['confirmation'],['action'=>'front_complete','id'=>$pid,'uuid'=>requestId(),'reason'=>'Synthetic customer independently confirmed receipt']));
 ok($core->board($front,['id'=>$pid])['jobs'][0]['status']==='completed','Paid delivery supports recorded exception and manual confirmation without extra collection');
 ok($tracking->packing(102)['state']==='Not Yet Packed','Assignee/new order never invents packing evidence');
 echo "PASS accountability, custody, paid/unpaid, proof, manual exception and COD watchdog tests\n";
