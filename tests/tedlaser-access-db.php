@@ -141,6 +141,22 @@ try{
  }
  denied(function()use($auth,$profile){$auth->authenticate($profile['email'],'80625319','127.0.0.5');},'staff PIN cannot open owner account');
  denied(function()use($access,$a){$access->password('72051839','',$a,'51794206','admin');},'cannot enrol another profile');
+ check($access->canIssueAdminPassword($a),'Toivo has the delegated password control');
+ $opsSession=$auth->authenticate('a@example.test','80625319','127.0.0.5');$ops=$auth->actor($opsSession);
+ check(!$access->canIssueAdminPassword($ops)&&!$access->canIssueAdminPassword($access->identity(3)),'staff and other tenants have no control');
+ $forged=$ops;$forged['role']='partner_admin';
+ denied(function()use($access,$forged){$access->issueAdminPassword($forged,'80625319','127.0.0.6');},'staff cannot issue by changing its claimed role');
+ denied(function()use($access,$a){$access->issueAdminPassword($a,'wrong','127.0.0.6');},'Toivo must reauthenticate');
+ $first=$access->issueAdminPassword($a,'51794206','127.0.0.6');
+ $second=$access->issueAdminPassword($a,'51794206','127.0.0.6');
+ denied(function()use($auth,&$opsSession){$auth->actor($opsSession);},'issuance revokes Admin sessions');
+ denied(function()use($auth,$first){$auth->authenticate('a@example.test',$first,'127.0.0.7');},'only latest Admin temporary password is valid');
+ $t=$auth->authenticate('a@example.test',$second,'127.0.0.7');$ta=$auth->actor($t,true);
+ check($ta['must_change_password']&&$auth->actor($s)['id']===$a['id'],'Admin must choose private PIN; Toivo session unaffected');
+ $access->password('65384910','',$ta,$second,'admin');
+ $t=$auth->authenticate('a@example.test','65384910','127.0.0.7');check($auth->actor($t)['role']==='partner_staff','Admin PIN setup preserves delivery-entry role');
+ $event=$db->query("SELECT metadata_json FROM ops_security_events WHERE event_type='tedlaser_admin_temporary_password' ORDER BY id DESC LIMIT 1")->fetchColumn();
+ check(json_decode($event,true)['target_partner_user_id']===1&&strpos($event,$second)===false,'audit names target but never contains password');
  $access->manage($owner,['action'=>'deactivate','id'=>1]);denied(function()use($service,$staff){$service->board($staff);},'deactivated staff access denied');
  denied(function()use($access){$access->pinProfile('admin');},'inactive profile cannot be used');
  check((int)$db->query('SELECT COUNT(*) FROM ops_employees')->fetchColumn()===2,'employee records preserved');

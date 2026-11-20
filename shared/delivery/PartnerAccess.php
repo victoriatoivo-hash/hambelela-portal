@@ -93,15 +93,62 @@ final class PartnerAccess
             $this->db->prepare('UPDATE delivery_partner_users SET session_version=session_version+1 WHERE id=?')->execute([$id]);
             $this->db->prepare('DELETE FROM delivery_partner_reset_tokens WHERE user_id=?')->execute([$id]);
             if($action==='temporary'||($action==='create'&&($b['credential_mode']??'')==='temporary')){
-                $temporary=bin2hex(random_bytes(12));
-                $this->db->prepare('INSERT INTO delivery_partner_temporary_passwords(user_id,password_hash,expires_at) VALUES(?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 24 HOUR)) ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash),expires_at=VALUES(expires_at),used_at=NULL,created_at=UTC_TIMESTAMP()')->execute([$id,password_hash($temporary,PASSWORD_DEFAULT)]);
-                $this->db->prepare('UPDATE delivery_partner_users SET failed_attempts=0,locked_until=NULL WHERE id=?')->execute([$id]);
+                $temporary=$this->storeTemporary($id);
             }elseif($action==='create'||$action==='reset'){
                 $v=$this->db->prepare('SELECT session_version FROM delivery_partner_users WHERE id=?');$v->execute([$id]);$issuedVersion=(int)$v->fetchColumn();
                 $token=bin2hex(random_bytes(32));$this->db->prepare('INSERT INTO delivery_partner_reset_tokens(user_id,token_hash,expires_at) VALUES(?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 60 MINUTE))')->execute([$id,hash('sha256',hash('sha256',$token).':'.$issuedVersion)]);
             }
             $this->db->prepare('INSERT INTO ops_security_events(event_type,employee_id,metadata_json) VALUES(?,?,?)')->execute(['delivery_partner_'.$action,$owner['id'],json_encode(['partner_user_id'=>$id,'sessions_revoked'=>true,'shared_delivery_read'=>isset($shared)?(bool)$shared:null],JSON_THROW_ON_ERROR)]);
             $this->db->commit();return ['id'=>$id,'token'=>$token,'temporary_password'=>$temporary];
+        }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
+    }
+    private function storeTemporary(int $id):string
+    {
+        $temporary=bin2hex(random_bytes(12));
+        $this->db->prepare('INSERT INTO delivery_partner_temporary_passwords(user_id,password_hash,expires_at) VALUES(?,?,DATE_ADD(UTC_TIMESTAMP(),INTERVAL 24 HOUR)) ON DUPLICATE KEY UPDATE password_hash=VALUES(password_hash),expires_at=VALUES(expires_at),used_at=NULL,created_at=UTC_TIMESTAMP()')->execute([$id,password_hash($temporary,PASSWORD_DEFAULT)]);
+        $this->db->prepare('UPDATE delivery_partner_users SET failed_attempts=0,locked_until=NULL WHERE id=?')->execute([$id]);
+        return $temporary;
+    }
+    /** Bind the exact existing pair once; never follow an alias to a replacement account. */
+    private function adminPasswordGrant():array
+    {
+        $read='SELECT issuer,target,company FROM delivery_tedlaser_password_grant WHERE slot=1';
+        try{$s=$this->db->query($read);}catch(\PDOException $e){
+            if($e->getCode()!=='42S02'||$this->db->inTransaction())throw $e;
+            $this->db->exec("CREATE TABLE IF NOT EXISTS delivery_tedlaser_password_grant (slot TINYINT UNSIGNED NOT NULL PRIMARY KEY,issuer BIGINT UNSIGNED NOT NULL,target BIGINT UNSIGNED NOT NULL,company BIGINT UNSIGNED NOT NULL) ENGINE=InnoDB AS SELECT 1 AS slot,MIN(i.id) AS issuer,MIN(t.id) AS target,MIN(p.id) AS company FROM delivery_partners p JOIN delivery_partner_users i ON i.partner_id=p.id AND i.active=1 AND i.display_name='Toivo' JOIN delivery_partner_access a ON a.user_id=i.id AND a.role_key='partner_admin' JOIN delivery_partner_users t ON t.partner_id=p.id AND t.active=1 AND t.display_name='Tedlaser Operations' LEFT JOIN delivery_partner_access b ON b.user_id=t.id WHERE p.active=1 AND (LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name)) IN ('tedlaser','tedlaser and engraving')) AND COALESCE(b.role_key,'partner_staff')='partner_staff' HAVING COUNT(*)=1");
+            $s=$this->db->query($read);
+        }
+        return $s->fetch(\PDO::FETCH_ASSOC)?:[];
+    }
+    private function delegatedTarget(array $actor,bool $lock=false):int
+    {
+        if(($actor['kind']??'')!=='partner'||($actor['role']??'')!=='partner_admin'||empty($actor['active'])||!empty($actor['must_change_password'])||empty($actor['id']))throw new \DomainException('Toivo sign-in required.');
+        $grant=$this->adminPasswordGrant();
+        if((int)($grant['issuer']??0)!==(int)$actor['id']||(int)$grant['company']!==(int)($actor['partner_id']??0))throw new \DomainException('Toivo sign-in required.');
+        $from=$this->identity((int)$grant['issuer'],$lock);$to=$this->identity((int)$grant['target'],$lock);
+        if($from['role']!=='partner_admin'||$from['must_change_password']||(int)$from['session_version']!==(int)($actor['session_version']??-1)||$to['role']!=='partner_staff'||$from['partner_id']!==$to['partner_id']||$from['partner_id']!==(int)$grant['company']||(int)$this->pinProfile('toivo')['id']!==$from['id']||(int)$this->pinProfile('admin')['id']!==$to['id'])throw new \DomainException('Tedlaser Admin password management is unavailable.');
+        return $to['id'];
+    }
+    public function canIssueAdminPassword(array $actor):bool
+    {
+        try{$this->delegatedTarget($actor);return true;}catch(\DomainException $e){return false;}
+    }
+    /** The caller cannot supply a target, role or company. Re-authenticate before issuing. */
+    public function issueAdminPassword(array $actor,string $credential,string $ip):string
+    {
+        $this->delegatedTarget($actor);
+        $from=$this->identity((int)$actor['id']);
+        $auth=new PartnerAuth($this->db);$confirmed=$auth->authenticate($from['email'],$credential,$ip);
+        $verified=$auth->actor($confirmed);
+        if($from['id']!==$verified['id']||(int)$actor['session_version']!==(int)$verified['session_version'])throw new \DomainException('Please sign in again.');
+        $this->db->beginTransaction();
+        try{
+            $id=$this->delegatedTarget($verified,true);
+            $this->db->prepare('UPDATE delivery_partner_users SET session_version=session_version+1 WHERE id=?')->execute([$id]);
+            $this->db->prepare('DELETE FROM delivery_partner_reset_tokens WHERE user_id=?')->execute([$id]);
+            $secret=$this->storeTemporary($id);
+            $this->db->prepare('INSERT INTO ops_security_events(event_type,employee_id,metadata_json) VALUES(?,NULL,?)')->execute(['tedlaser_admin_temporary_password',json_encode(['issuer_partner_user_id'=>$verified['id'],'target_partner_user_id'=>$id,'partner_id'=>$verified['partner_id']],JSON_THROW_ON_ERROR)]);
+            $this->db->commit();return $secret;
         }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
     /** Public aliases are labels only. Resolve exactly one active, correctly scoped identity. */

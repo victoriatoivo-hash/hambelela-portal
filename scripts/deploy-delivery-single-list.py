@@ -1,7 +1,7 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
 import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, socket, ssl
 from pathlib import Path
-FILES = ('shared/delivery/PartnerAccess.php','apps/delivery/partner/login.php')
+FILES = ('shared/delivery/PartnerAccess.php','shared/delivery/WorkspaceApps.php','apps/delivery/partner/workspace.php')
 READ_ONLY = ()
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')

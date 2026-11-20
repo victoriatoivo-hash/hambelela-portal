@@ -15,6 +15,7 @@ final class WorkspaceApps
             $apps[]=['index.php','partner','Tedlaser','Create and manage your company’s deliveries.','Open Tedlaser','boxes'];
             if(PartnerAccess::can($actor,'accounting'))$apps[]=['accounting.php','accounting','Delivery Accounting',$shared?'View shared Delivery income, expenses, collections and balances.':'View Tedlaser delivery fees, collections and settlements.','Open Delivery Accounting','wallet'];
             if($shared)$apps[]=['pricing.php','pricing','Delivery Pricing','View current delivery areas and fees.','View Pricing','map-pin'];
+            if(!empty($actor['can_issue_admin_password']))$apps[]=['workspace.php?admin-access=1','partner','Admin login password','Generate a one-time password for your delivery-entry account.','Manage Admin access','boxes'];
             return $apps;
         }
         $owner=($actor['role']??'')==='owner_admin';
