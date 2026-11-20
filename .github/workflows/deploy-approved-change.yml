@@ -40,6 +40,7 @@ jobs:
           node --check assets/js/orders-board.js
           for p in shared/delivery/{DriverErrands,ErrandView,ErrandDriverBar,CoreView}.php apps/{delivery/index,operations/orders-board}.php; do php -l "$p"; done
           node --check assets/js/driver-errands.js
+          node --check assets/js/delivery-core.js
           node --input-type=module --check < assets/js/order-collection-ui.js
           node tests/delivery-notification-ui.mjs
           node tests/delivery-pwa.cjs

@@ -1,4 +1,4 @@
-"""Narrow, baseline-checked FTPS release. The Order Board entry point is published last."""
+"""Narrow baseline-checked errand/quiet-refresh release; preserve unrelated live pages."""
 import ftplib
 import io
 import os
@@ -8,10 +8,11 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "3c58f792"
-new_paths = ["shared/delivery/DriverErrands.php","assets/js/driver-errands.js","shared/delivery/ErrandDriverBar.php","shared/delivery/ErrandView.php"]
+base = "75e59c8f0f3d991ee47284f44d904e16a0a81478"
+new_paths = ["assets/css/driver-errands.css"]
 paths = [
-    *new_paths, "apps/delivery/index.php","shared/delivery/CoreView.php","apps/operations/orders-board.php",
+    *new_paths, "shared/delivery/DriverErrands.php", "assets/js/driver-errands.js",
+    "shared/delivery/ErrandDriverBar.php", "shared/delivery/ErrandView.php", "assets/js/delivery-core.js",
 ]
 def original(p):
     if p in new_paths:return None
@@ -61,10 +62,9 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             try:ftp.delete(tmp)
             except ftplib.error_perm:pass
     before={p:read(p) for p in paths};desired={p:Path(p).read_bytes() for p in paths}
-    board='apps/operations/orders-board.php'
-    desired[board]=board_delta(before[board],desired[board],original(board))
-    subprocess.run(['php','-l'],input=desired[board],check=True)
-    bad=[p for p in paths if p!=board and norm(before[p]) not in (norm(original(p)),norm(desired[p]))]
+    for p in paths:
+        if p.endswith('.php'):subprocess.run(['php','-l'],input=desired[p],check=True)
+    bad=[p for p in paths if norm(before[p]) not in (norm(original(p)),norm(desired[p]))]
     for p in bad:print("Unrecognised live baseline:",p,digest(before[p]))
     if bad:raise RuntimeError("No files published; resolve differences first.")
     for p in ["apps/delivery/front-api.php","shared/epi/BusinessTimeEngine.php","shared/epi/Support.php"]:

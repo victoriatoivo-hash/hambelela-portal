@@ -108,7 +108,9 @@ if(mobileProfile){
  });
 }
 
-async function load(){
+function visibleBoardSnapshot(data){return JSON.stringify(['jobs','methods','drivers','metrics','today','has_more','page','total','can_arrange','can_reconcile'].map(k=>data?.[k]));}
+let backgroundLoading=false;
+async function load(quiet=false){
  const seq=++loadSequence;
  const state=primaryTab==='completed'?(driver?'driver_completed':'completed'):(driver?'for_delivery':$('#delivery-view').value);
  const query={view:'board',state,source:$('#delivery-source').value,payment:$('#delivery-payment').value,q:$('#delivery-search').value,page:String(boardPage),limit:driver?'20':'50',id:String(focusedJob),driver_id:$('#delivery-driver')?.value||'',area:$('#delivery-area')?.value||'',urgent:$('#delivery-urgent')?.checked?'1':''};
@@ -124,6 +126,9 @@ async function load(){
   while(batch.has_more){query.page=String(Number(query.page)+1);batch=await json(api+'?'+new URLSearchParams(query));if(seq!==loadSequence)return;data.jobs.push(...batch.jobs);}
   data.page=1;data.has_more=false;
  }
+ // Do not repaint an unchanged board every fifteen seconds, or disturb an active form.
+ if(quiet&&(busy||document.hidden||document.querySelector('dialog[open]')||document.activeElement?.matches('input,textarea,select,[contenteditable=true]')))return;
+ if(quiet&&board&&visibleBoardSnapshot(data)===visibleBoardSnapshot(board)){board=data;return;}
  const removed=[...document.querySelectorAll('#jobs [data-job-id]')].filter(c=>!data.jobs.some(j=>Number(j.id)===Number(c.dataset.jobId)));
  if(removed.length&&!matchMedia('(prefers-reduced-motion: reduce)').matches){removed.forEach(c=>c.classList.add('is-departing'));await new Promise(resolve=>setTimeout(resolve,160));if(seq!==loadSequence)return;}
  board=data;
@@ -297,5 +302,5 @@ load().then(()=>{
  if(!driver&&board.can_accounting){const a=document.createElement('a');a.href='accounting.php';a.className='secondary';a.textContent='Accounting';document.querySelector('.pagehead .actions').append(a);}
  if(!driver&&board.can_manage_access){const more=document.createElement('details');more.className='delivery-more';more.innerHTML='<summary class="secondary">More</summary><nav aria-label="Delivery management">'+[['pricing.php','Delivery pricing'],['reviews.php','Payment reviews'],['driver-view.php','Driver oversight'],['tedlaser.php','Tedlaser submissions']].map(([path,label])=>'<a href="'+path+'">'+label+'</a>').join('')+'</nav>';document.querySelector('.pagehead .actions').append(more);}
 }).catch(e=>$('#message').textContent=e.message);
-function refreshWhenIdle(){if(driverMobileActive()&&driverDayRequested&&Date.now()-lastDayRefresh<60000)return;if(!document.hidden&&!busy&&!document.querySelector('dialog[open]')&&!document.activeElement?.matches('[data-inline]'))load().catch(e=>$('#message').textContent=e.message);}window.addEventListener('focus',refreshWhenIdle);window.addEventListener('storage',e=>{if(e.key==='delivery-board-changed')refreshWhenIdle();});document.addEventListener('visibilitychange',refreshWhenIdle);setInterval(refreshWhenIdle,15000);
+function refreshWhenIdle(){if(driverMobileActive()&&driverDayRequested&&Date.now()-lastDayRefresh<60000)return;if(!backgroundLoading&&!document.hidden&&!busy&&!document.querySelector('dialog[open]')&&!document.activeElement?.matches('input,textarea,select,[contenteditable=true]')){backgroundLoading=true;load(true).catch(e=>$('#message').textContent=e.message).finally(()=>backgroundLoading=false);}}window.addEventListener('focus',refreshWhenIdle);window.addEventListener('storage',e=>{if(e.key==='delivery-board-changed')refreshWhenIdle();});document.addEventListener('visibilitychange',refreshWhenIdle);setInterval(refreshWhenIdle,15000);
 })();
