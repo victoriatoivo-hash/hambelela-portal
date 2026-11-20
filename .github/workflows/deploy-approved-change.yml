@@ -46,9 +46,10 @@ jobs:
           node --input-type=module --check < assets/js/order-collection-ui.js
           node tests/delivery-notification-ui.mjs
           node tests/delivery-pwa.cjs
-          npm install --prefix "$RUNNER_TEMP/collection-ui" --ignore-scripts --no-audit --no-fund jsdom@24.1.3
+          npm install --prefix "$RUNNER_TEMP/collection-ui" --ignore-scripts --no-audit --no-fund jsdom@24.1.3 playwright-core@1.55.0
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/order-collection-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-errand-popup.cjs
+          NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-phone-layout.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-integration.cjs
       - name: Publish guarded Order Board integration
@@ -343,3 +344,4 @@ jobs:
             packing-deployment-backup.zip
             packing-deployment-report.json
           if-no-files-found: warn
+          for scenario in short extra zero mobile prepaid-extra prepaid-zero; do DRIVER_DECLARATION_CASE=$scenario php tests/delivery-arrangement-regression.php; done

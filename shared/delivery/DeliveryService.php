@@ -244,19 +244,35 @@ final class DeliveryService
 
     public function complete(array $actor,int $id,string $uuid,?string $frontReason=null,?array $confirmation=null): array
     {
+        if($frontReason===null&&$confirmation===null)throw new \DomainException('Driver payment confirmation required.');
         if($confirmation!==null){
             $note=trim((string)($confirmation['note']??''));
-            if(($confirmation['confirmed']??false)!==true||$note===''||mb_strlen($note)>2000)throw new \DomainException('Confirm the delivery and payment, and add a completion note (up to 2,000 characters).');
-            $confirmation=['confirmed'=>true,'note'=>$note];
+            if(($confirmation['confirmed']??false)!==true||mb_strlen($note)>2000)throw new \DomainException('Confirm the delivery and payment. Optional notes may contain up to 2,000 characters.');
+            $declared=DeliveryPolicy::cents((string)($confirmation['amount']??''));
+            $method=(string)($confirmation['method']??'');
+            if(!in_array($method,array_merge($this->methods,['already_paid','no_payment','cash','eft','mobile','other']),true)||(($declared===0)!==in_array($method,['already_paid','no_payment'],true)))throw new \DomainException('Confirm the actual amount and a matching payment method.');
+            $confirmation=['confirmed'=>true,'note'=>$note,'amount_cents'=>$declared,'method'=>$method];
         }
         $request=$frontReason===null?[]:[$frontReason];if($confirmation!==null)$request[]=$confirmation;
         return $this->command($actor,$id,$uuid,'delivered',$request,function($j)use($actor,$frontReason){
             if($frontReason===null){$this->assigned($actor,$j);return;}
             if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange')||strlen($frontReason)<10||strlen($frontReason)>500)throw new \DomainException('An authorised employee and a confirmation reason (10–500 characters) are required.');
-        },function($j)use($actor,$id,$frontReason,$confirmation){
+        },function($j)use($actor,$id,$frontReason,$confirmation,$uuid){
             $held=$this->row("SELECT COALESCE(SUM(order_goods_cents+delivery_fee_cents+partner_cod_cents),0) amount FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue')",[$id]);
-            $due=array_sum($this->remaining($j));
-            if($frontReason===null)$status=DeliveryPolicy::completionStatus($actor,$j,$due,(int)$held['amount']);
+            $remaining=$this->remaining($j);$due=array_sum($remaining);$declaration=[];
+            if($confirmation!==null){
+                if($j['status']!=='out_for_delivery')throw new \DomainException('Start delivery before confirming completion.');
+                $amount=$confirmation['amount_cents'];$method=$confirmation['method'];
+                if($method==='already_paid'&&$due>0)throw new \DomainException('There is a balance due. Select No payment received if nothing was collected.');
+                $review=$amount!==$due||($amount>0&&!in_array($method,$this->methods,true));
+                $declaration=['declared_cents'=>$amount,'expected_cents'=>$due,'difference_cents'=>$amount-$due,'declared_method'=>$method,'declaration_review'=>$review];
+                if($amount>0&&!DeliveryPolicy::can($actor,'delivery_collect'))throw new \DomainException('Collection forbidden.');
+                if(!$review&&$amount>0){
+                    DeliveryPolicy::validateCollection($j,$remaining,$remaining,$method,$this->methods);
+                    $this->exec("INSERT INTO delivery_receipts(delivery_id,collection_uuid,payment_method,transaction_reference,order_goods_cents,delivery_fee_cents,partner_cod_cents,collected_by_employee_id) VALUES(?,?,?,'',?,?,?,?)",[$id,$uuid,$method,$remaining['order_goods'],$remaining['delivery_fee'],$remaining['partner_cod'],$actor['id']]);
+                }
+                $status=$review||$amount>0||(int)$held['amount']>0?'awaiting_reconciliation':'completed';
+            }elseif($frontReason===null)$status=DeliveryPolicy::completionStatus($actor,$j,$due,(int)$held['amount']);
             else{
                 if($j['status']!=='out_for_delivery'||$due!==0)throw new \DomainException('Start delivery and resolve required customer collection first.');
                 $status=(int)$held['amount']>0?'awaiting_reconciliation':'completed';
@@ -268,9 +284,9 @@ final class DeliveryService
             $event=$this->row("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id LIMIT 1",[$id]);$metadata=json_decode((string)($event['metadata_json']??''),true);
             if(!empty($metadata['order_dispatch'])){
                 $collected=$this->row("SELECT COALESCE(SUM(delivery_fee_cents),0) fee FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue','reconciled')",[$id]);
-                $this->ledger('prepaid:'.$id,$j,'fee_received',max(0,(int)$j['fee_cents']-(int)$collected['fee']),$actor['id']);
+                $this->ledger('prepaid:'.$id,$j,'fee_received',max(0,(int)$j['fee_cents']-(int)$collected['fee']-(!empty($declaration['declaration_review'])?$remaining['delivery_fee']:0)),$actor['id']);
             }elseif($j['fee_payer']==='already_paid')$this->ledger('prepaid:'.$id,$j,'fee_received',(int)$j['fee_cents'],$actor['id']);
-            return ['id'=>$id,'status'=>$status]+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true])+($confirmation===null?[]:['note'=>$confirmation['note'],'delivery_payment_confirmed'=>true]);
+            return ['id'=>$id,'status'=>$status]+$declaration+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true])+($confirmation===null?[]:['note'=>$confirmation['note'],'delivery_payment_confirmed'=>true]);
         });
     }
 
@@ -294,7 +310,7 @@ final class DeliveryService
                 $this->ledger('receipt:'.$receiptId.':'.$account,$j,$account,(int)$r[$column],$actor['id'],$receiptId);
             $pending=$this->row("SELECT COUNT(*) n FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue')",[$id]);
             $status=$j['status'];
-            if($status==='awaiting_reconciliation'&&(int)$pending['n']===0){
+            if($status==='awaiting_reconciliation'&&(int)$pending['n']===0&&!$this->row("SELECT id FROM delivery_events WHERE delivery_id=? AND event_type='delivered' AND JSON_EXTRACT(metadata_json,'$.declaration_review')=true LIMIT 1",[$id])){
                 $status='completed';$this->exec("UPDATE delivery_jobs SET status='completed',completed_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),version=version+1 WHERE id=?",[$id]);
             }
             return ['id'=>$id,'receipt_id'=>$receiptId,'status'=>$status];
