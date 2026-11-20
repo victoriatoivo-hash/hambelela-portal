@@ -8,9 +8,9 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "e00125a9d6eb11c24ae14b492f0e5d9d2492af97"
-new_paths = ["shared/delivery/ErrandLanding.php"]
-paths = [*new_paths, "apps/delivery/index.php", "apps/delivery/workspace.php"]
+base = "0c58ce18c11c21b122ad4990b67be661b271123b"
+new_paths = []
+paths = ["shared/delivery/DriverErrands.php","assets/css/driver-delivery-ui.css","assets/js/driver-delivery-ui.js","assets/js/delivery-core.js","shared/delivery/CoreView.php","apps/delivery/driver-view.php"]
 def original(p):
     if p in new_paths:return None
     return subprocess.check_output(["git","show",base+":"+p])

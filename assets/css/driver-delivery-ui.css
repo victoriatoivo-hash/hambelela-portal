@@ -50,3 +50,4 @@ body.driver-compact-app .df-row svg,.df-primary svg,.df-counter svg{width:18px;h
 @media(prefers-reduced-motion:reduce){.df-primary button:active,.df-row:active{transform:none}}
 .driver-compact-app .delivery-primary-tabs span{display:inline-block;min-width:14px;padding:1px 3px;border-radius:12px;background:#81857424;font-size:10px}.driver-compact-app .delivery-primary-tabs [aria-pressed=true] span{background:#ffffff35}
 .driver-app-sheet{max-height:90vh;max-height:90dvh;overflow-y:auto;overscroll-behavior:contain}.driver-compact-app .delivery-main{box-sizing:border-box;width:100%}
+.driver-preview-picker{order:-4;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 4px 12px;color:#495544;font:500 12px Jost,sans-serif}.driver-preview-picker label{display:flex;align-items:center;gap:7px}.driver-preview-picker select{padding:7px 10px;border-radius:10px;border:1px solid #d8e0d0;font:inherit}

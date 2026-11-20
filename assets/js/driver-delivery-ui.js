@@ -9,6 +9,7 @@
  const stamp=s=>{if(!s)return 'Not recorded';const d=new Date(String(s).replace(' ','T')+'Z');return Number.isNaN(+d)?'Not recorded':new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Windhoek',dateStyle:'medium',timeStyle:'short'}).format(d);};
  const seconds=j=>{if(!j.started_at)return null;const start=Date.parse(j.started_at.replace(' ','T')+'Z'),end=j.delivered_at||j.completed_at;return Math.max(0,Math.floor(((end?Date.parse(end.replace(' ','T')+'Z'):Date.now())-start)/1000));};
  const elapsed=j=>{const s=seconds(j);return s===null?'Not started':[Math.floor(s/3600),Math.floor(s/60)%60,s%60].map(v=>String(v).padStart(2,'0')).join(':');};
+ const preview=document.body.dataset.oversight==='true';
  let board,command,dialog=null,saving=false,sounds=true,audio,returnFocus;
  try{sounds=localStorage.getItem('driver-delivery-sounds')!=='off';}catch(_){}
  function sound(complete){if(!sounds)return;try{audio??=new(window.AudioContext||window.webkitAudioContext)();void audio.resume();(complete?[660,880,1100]:[440,660]).forEach((hz,i)=>{const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime+i*.11;o.frequency.value=hz;g.gain.setValueAtTime(.0001,t);g.gain.exponentialRampToValueAtTime(.06,t+.01);g.gain.exponentialRampToValueAtTime(.0001,t+.14);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+.15);});}catch(_){} }
@@ -22,7 +23,7 @@
   d.addEventListener('cancel',e=>{e.preventDefault();close();});d.addEventListener('close',()=>{d.remove();if(dialog===d){dialog=null;returnFocus?.focus();}});d.showModal();return d;
  }
  function heading(j){return '<div class="driver-app-summary"><strong>'+esc(ref(j))+'</strong><span>'+esc(j.customer_name)+'</span></div>';}
- function button(action,label,j,ico){return '<button type="button" data-driver-action="'+action+'" data-id="'+Number(j.id)+'">'+icon(ico)+esc(label)+'</button>';}
+ function button(action,label,j,ico){if(preview&&action!=='navigate')return '';return '<button type="button" data-driver-action="'+action+'" data-id="'+Number(j.id)+'">'+icon(ico)+esc(label)+'</button>';}
  function toneClass(j){return j.status==='cancelled'?'cancelled':j.remaining===null||j.collection_state==='Shortfall / issue'?'review':due(j)>0?'unpaid':'paid';}
  function card(j){
   const state=toneClass(j),ip=j.status==='out_for_delivery',cancel=j.status==='cancelled',urgent=Number(j.urgent)>0&&!closed(j);
@@ -36,7 +37,7 @@
   const body=d.querySelector('.driver-app-sheet-body');if(Number(j.urgent))body.insertAdjacentHTML('afterbegin','<p class="df-badge df-cancel">Urgent delivery</p>');
   if(j.started_at)body.insertAdjacentHTML('beforeend','<p class="df-counter">'+icon('clock')+' '+(closed(j)?'Delivery time':'In progress')+' · <time data-driver-timer="'+Number(j.id)+'">'+elapsed(j)+'</time></p>');
   if(j.declaration)body.insertAdjacentHTML('beforeend','<p>Declared: '+money(j.declaration.declared_cents)+' · '+esc(j.declaration.declared_method)+(j.declaration.declaration_review?' · Difference '+money(j.declaration.difference_cents)+' — pending reconciliation':'')+'</p>');
-  if(['ready','out_for_delivery'].includes(j.status))body.insertAdjacentHTML('beforeend','<div class="df-primary">'+button(j.status==='ready'?'start':'finish',j.status==='ready'?'Start delivery':'Complete delivery',j,j.status==='ready'?'play':'check')+'</div>');
+  if(!preview&&['ready','out_for_delivery'].includes(j.status))body.insertAdjacentHTML('beforeend','<div class="df-primary">'+button(j.status==='ready'?'start':'finish',j.status==='ready'?'Start delivery':'Complete delivery',j,j.status==='ready'?'play':'check')+'</div>');
   bind(d);
  }
  function navigate(j){
@@ -62,9 +63,10 @@
   f.addEventListener('input',sync);sync();
  }
  function note(j,fail){form(fail?'Unable to deliver':'Add delivery note',j,(fail?'<label>Reason<select name="reason"><option>Customer unavailable</option><option>Wrong address</option><option>Payment issue</option><option>Vehicle issue</option><option>Other</option></select></label>':'')+'<label>Note<textarea name="note" required maxlength="2000" rows="3"></textarea></label>',async data=>{if(!String(data.get('note')).trim())throw Error('Enter a note.');await command({action:fail?'fail':'note',id:Number(j.id),note:data.get('note'),...(fail?{reason:data.get('reason')}:{})});});}
- function bind(root){root.onclick=e=>{const b=e.target.closest('[data-driver-action]');if(!b||saving)return;const j=board.jobs.find(j=>Number(j.id)===Number(b.dataset.id));if(!j)return;({details,navigate,start,finish,note,fail:j=>note(j,true)})[b.dataset.driverAction]?.(j);};}
+ function bind(root){root.onclick=e=>{const b=e.target.closest('[data-driver-action]');if(!b||saving||(preview&&!['details','navigate'].includes(b.dataset.driverAction)))return;const j=board.jobs.find(j=>Number(j.id)===Number(b.dataset.id));if(!j)return;({details,navigate,start,finish,note,fail:j=>note(j,true)})[b.dataset.driverAction]?.(j);};}
  let errandRows=[],openErrand,currentTab='active',term='';
  function render(data,send,tab){currentTab=tab;
+  if(preview){errandRows=data.preview_errands||[];openErrand=j=>modal('Errand #'+Number(j.id),'<section><h3>Pickup</h3><p>'+esc(j.place)+' · '+esc(j.contact_name)+'</p><p>'+esc(j.contents)+'</p></section><section><h3>Payment</h3><p>'+esc(j.payment_state==='paid'?'Paid':'Not paid')+(j.amount!=null?' · N$ '+esc(j.amount):'')+'</p><p>'+esc(j.payer||'')+'</p></section><p>'+esc(j.note||'')+'</p>');}
   board=data;command=send;document.body.classList.add('driver-compact-app');
   const list=document.querySelector('#jobs'),rows=board.jobs.filter(j=>tab==='completed'?['completed','awaiting_reconciliation'].includes(j.status):tab==='progress'?j.status==='out_for_delivery':tab==='cancelled'?j.status==='cancelled':true);
   const needle=term.toLowerCase().trim();const filtered=rows.filter(j=>[ref(j),j.area,j.customer_name,j.customer_mobile].some(v=>String(v||'').toLowerCase().includes(needle)));
@@ -80,6 +82,7 @@
   const head=document.querySelector('.pagehead');if(!head.querySelector('.df-bell')){head.querySelector('h1').innerHTML=icon('truck')+' Deliveries';const bell=document.createElement('a');bell.className='df-bell';bell.href=(document.body.dataset.base||'')+'/notifications.php';bell.setAttribute('aria-label','Notifications');bell.innerHTML=icon('bell');head.append(bell);
    const tools=document.createElement('div');tools.className='df-tools';head.after(tools);const search=document.createElement('input');search.type='search';search.placeholder='Search order or customer…';search.setAttribute('aria-label','Search orders, customers or errands');search.oninput=()=>{term=search.value;render(board,command,currentTab);};tools.prepend(search);const errands=head.querySelector('a[href*="errands="]');if(errands)tools.append(errands);tools.append(head.querySelector('.actions'));}
 
+  if(preview)return;
   let soundButton=document.querySelector('[data-driver-sound]');if(!soundButton){soundButton=document.createElement('button');soundButton.type='button';soundButton.className='driver-app-sound';soundButton.dataset.driverSound='';document.querySelector('.df-tools .actions').append(soundButton);soundButton.onclick=()=>{sounds=!sounds;try{localStorage.setItem('driver-delivery-sounds',sounds?'on':'off');}catch(_){}soundButton.setAttribute('aria-pressed',String(sounds));soundButton.setAttribute('aria-label',sounds?'Turn delivery sounds off':'Turn delivery sounds on');if(sounds)sound(false);};}
   soundButton.innerHTML=icon('sound');soundButton.setAttribute('aria-pressed',String(sounds));soundButton.setAttribute('aria-label',sounds?'Turn delivery sounds off':'Turn delivery sounds on');
  }

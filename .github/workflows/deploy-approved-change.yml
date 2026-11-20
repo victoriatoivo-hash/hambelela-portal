@@ -54,6 +54,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-phone-layout.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-integration.cjs
+          DRIVER_PREVIEW_TEST=1 NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-integration.cjs
       - name: Publish guarded Order Board integration
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

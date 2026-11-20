@@ -41,6 +41,8 @@ try{
  denied(fn()=>$errands->send($front,array_merge($errand,['payment_state'=>''])),'Payment status required');
  denied(fn()=>$errands->send($front,array_merge($errand,['driver_id'=>5])),'Non-driver cannot be assigned');
  $eid=$errands->send($front,$errand);ok($eid>0&&$errands->send($front,$errand)===$eid,'Double submission creates one errand');
+ ok(count($errands->previewForDriver($owner,3))===1&&$errands->previewForDriver($owner,(int)$other['id'])===[],'Owner preview reads only the selected driver errands');
+ denied(fn()=>$errands->previewForDriver($front,3),'Front cannot access owner errand preview');
  $startedId=$errands->send($front,array_merge($errand,['request_key'=>bin2hex(random_bytes(16))]));
  denied(fn()=>$errands->change($other,$startedId,1,'started',[]),'Other driver cannot start errand');
  $errands->change($driver,$startedId,1,'started',[]);$startedAgain=$errands->change($driver,$startedId,1,'started',[]);

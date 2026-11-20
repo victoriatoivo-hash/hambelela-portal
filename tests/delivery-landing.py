@@ -11,7 +11,7 @@ with TemporaryDirectory() as tmp:
         f = root / path
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(content, encoding="utf-8")
-    for p in ("apps/delivery/index.php", "apps/delivery/workspace.php", "shared/delivery/DeliveryPolicy.php", "shared/delivery/ErrandLanding.php"):
+    for p in ("apps/delivery/index.php", "apps/delivery/workspace.php", "apps/delivery/driver-view.php", "shared/delivery/DeliveryPolicy.php", "shared/delivery/ErrandLanding.php"):
         (root / p).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(p, root / p)
     put("config.php", "<?php define('BASE_PATH',__DIR__); define('BASE_URL',''); define('DELIVERY_ENABLED',true);")
@@ -51,6 +51,16 @@ function current_role_key(){return $_SERVER['HTTP_X_TEST_ROLE'];} function curre
         assert request("owner_admin")== (200,None,"WorkspaceView")
         assert request("owner_admin","?delivery=12",page="workspace.php")== (200,None,"CoreView")
         assert request("delivery_driver")== (200,None,"CoreView")
+        assert request("owner_admin",method="POST",page="driver-view.php")[0]==405
+        assert request("front_desk_admin",page="driver-view.php")[0]==403
+        assert request("delivery_driver",page="driver-view.php")[0]==403
+        shutil.copyfile("shared/delivery/CoreView.php", root / "shared/delivery/CoreView.php")
+        for p in ("assets/js/delivery-core.js","assets/js/driver-delivery-ui.js","assets/css/driver-delivery-ui.css"):
+            put(p,"")
+        code,_,preview=request("owner_admin",page="driver-view.php")
+        assert code==200 and 'data-oversight="true"' in preview and 'data-api="driver-view.php"' in preview
+        assert '/assets/js/driver-delivery-ui.js?' in preview and '/assets/css/driver-delivery-ui.css?' in preview
+        assert 'data-errand-notices' not in preview
         print("PASS front desk and marketing errand landing, driver and owner landing, explicit delivery and errand API routes")
     finally:
         server.terminate()

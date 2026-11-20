@@ -34,7 +34,7 @@ function jobCard(j){
 }
 // This presentation opt-in is supplied by the authenticated PHP shell, not a URL parameter.
 const driverMobileMedia=matchMedia('(max-width: 767px)');
-const compactDriver=driver&&!oversight&&!!window.DriverDeliveryUI&&new URLSearchParams(location.search).get('view')!=='day';
+const compactDriver=driver&&!!window.DriverDeliveryUI&&(oversight||new URLSearchParams(location.search).get('view')!=='day');
 if(compactDriver)document.body.classList.add('driver-compact-app');
 const mobileProfile=driver&&!oversight&&document.body.classList.contains('is-driver-mobile');
 const driverMobileActive=()=>mobileProfile&&driverMobileMedia.matches;
@@ -112,7 +112,7 @@ if(mobileProfile){
  });
 }
 
-function visibleBoardSnapshot(data){return JSON.stringify(['jobs','methods','drivers','metrics','today','has_more','page','total','can_arrange','can_reconcile'].map(k=>data?.[k]));}
+function visibleBoardSnapshot(data){return JSON.stringify(['jobs','preview_errands','methods','drivers','metrics','today','has_more','page','total','can_arrange','can_reconcile'].map(k=>data?.[k]));}
 let backgroundLoading=false;
 async function load(quiet=false){
  const seq=++loadSequence;
@@ -137,7 +137,7 @@ async function load(quiet=false){
  const removed=[...document.querySelectorAll('#jobs [data-job-id]')].filter(c=>!c.dataset.jobId.startsWith('err-')&&!data.jobs.some(j=>Number(j.id)===Number(c.dataset.jobId)));
  if(removed.length&&!matchMedia('(prefers-reduced-motion: reduce)').matches){removed.forEach(c=>c.classList.add('is-departing'));await new Promise(resolve=>setTimeout(resolve,160));if(seq!==loadSequence)return;}
  board=data;
- if(oversight&&!$('#delivery-driver').value&&board.drivers.length){$('#delivery-driver').innerHTML=board.drivers.map(d=>'<option value="'+Number(d.id)+'">'+esc(d.full_name)+'</option>').join('');return load();}
+ if(oversight&&!board.drivers.some(d=>String(d.id)===$('#delivery-driver').value)&&board.drivers.length){$('#delivery-driver').innerHTML=board.drivers.map(d=>'<option value="'+Number(d.id)+'">'+esc(d.full_name)+'</option>').join('');return load();}
  if(!compactDriver)$('#jobs').innerHTML=(oversight&&!$('#delivery-driver').value?'':board.jobs.filter(matchesView).map(jobCard).join(''))||'<p class="empty-state">'+(oversight&&!$('#delivery-driver').value?'No verified active Drivers. Add them in Employees and Roles.':'No deliveries in this view.')+'</p>';
  $('#collect select').innerHTML=Object.entries(board.methods).map(([v,t])=>'<option value="'+esc(v)+'">'+esc(t)+'</option>').join('');
  renderBoardDetails();
@@ -224,7 +224,7 @@ const viewBar=document.createElement('section');viewBar.className='toolbar deliv
  (!driver?'<label>Sort<select id="delivery-sort"><option value="">Default</option><option value="oldest">Oldest first</option><option value="newest">Newest first</option><option value="customer">Customer</option><option value="updated">Recently updated</option></select></label>':'')+
  (!driver?'<label>Area<input id="delivery-area" placeholder="Exact area" maxlength="190"></label><label class="check"><input id="delivery-urgent" type="checkbox">Urgent</label>':'')+
  '<label class="board-search">Search deliveries<input id="delivery-search" type="search" maxlength="120" placeholder="Reference, customer, mobile or address"></label><button type="button" class="secondary" id="clear-delivery-filters">Clear filters</button>';$('#jobs').before(viewBar);
-if(oversight){const note=document.createElement('p');note.className='notice';note.textContent='Owner oversight · Same Driver view, read-only. Select a Driver; your account identity stays unchanged.';tabs.before(note);}
+if(oversight){const note=document.createElement('div');note.className='driver-preview-picker';note.innerHTML='<span>Owner preview · Read-only</span>';note.append($('#delivery-driver').closest('label'));tabs.before(note);$('#delivery-driver').onchange=()=>{if(board)window.DriverDeliveryUI.render({...board,jobs:[],preview_errands:[]},null,primaryTab);focusedJob=0;boardPage=1;load().catch(showError);};}
 tabs.onclick=e=>{const b=e.target.closest('[data-tab]');if(!b)return;primaryTab=b.dataset.tab;boardPage=1;focusedJob=0;load().catch(showError);};
 function showError(e){$('#message').textContent=e.message;}
 function matchesView(j){const p=$('#delivery-payment').value,due=sum(j.remaining);return !p||p==='collect'&&due>0||p==='paid'&&due===0&&j.collection_state!=='Shortfall / issue'||p==='review'&&(due===null||j.collection_state==='Shortfall / issue');}

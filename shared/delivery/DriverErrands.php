@@ -70,6 +70,12 @@ final class DriverErrands
         $sql=self::SELECT_SQL.' WHERE '.($cancelled?"COALESCE(d.state,'open')='cancelled'":"COALESCE(d.state,'open')<>'cancelled' AND j.collected_at IS ".($done?'NOT NULL':'NULL')).($driver?' AND j.driver_id=?':'').' ORDER BY j.id DESC LIMIT 21 OFFSET '.(20*max(0,min(100000,$page)));
         $s=$this->db->prepare($sql);$s->execute($driver?[$a['id']]:[]);return $s->fetchAll(\PDO::FETCH_ASSOC);
     }
+    public function previewForDriver(array $actor,int $driverId):array
+    {
+        if(($actor['role']??'')!=='owner_admin'||!DeliveryPolicy::can($actor,'delivery_view')||$driverId<=0)throw new \DomainException('Owner preview required.');
+        $s=$this->db->prepare(self::SELECT_SQL.' WHERE j.driver_id=? ORDER BY j.id DESC');$s->execute([$driverId]);
+        return array_map(static function($j){return array_intersect_key($j,array_flip(['id','driver_id','place','contact_name','contents','state','payment_state','amount','payer','started_at','collected_at','note']));},$s->fetchAll(\PDO::FETCH_ASSOC));
+    }
     private const SELECT_SQL="SELECT j.*,e.full_name driver_name,c.full_name creator_name,COALESCE(d.revision,1) revision,COALESCE(d.state,'open') state,d.amount,COALESCE(d.payer,'') payer,COALESCE(d.note,'') note,d.updated_at,(SELECT MAX(ev.created_at) FROM delivery_errand_events ev WHERE ev.errand_id=j.id AND ev.action='started' AND ev.id>COALESCE((SELECT MAX(reset_ev.id) FROM delivery_errand_events reset_ev WHERE reset_ev.errand_id=j.id AND reset_ev.action IN ('edit','reopen')),0)) started_at FROM delivery_errands j JOIN ops_employees e ON e.id=j.driver_id LEFT JOIN ops_employees c ON c.id=j.created_by LEFT JOIN delivery_errand_details d ON d.errand_id=j.id";
     private function get(int $id):?array{$s=$this->db->prepare(self::SELECT_SQL.' WHERE j.id=?');$s->execute([$id]);return $s->fetch(\PDO::FETCH_ASSOC)?:null;}
     private function payment(array $v):array{
