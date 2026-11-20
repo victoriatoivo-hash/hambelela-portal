@@ -5,16 +5,6 @@ namespace Hambelela\Delivery;
 /** Domain policy only. Actor must be constructed from server-verified session data. */
 final class DeliveryPolicy
 {
-    /** Management of errands is role-restricted; delivery grants do not widen it. */
-    public static function canManageErrands(array $actor): bool
-    {
-        return !empty($actor['active']) && (int)($actor['id'] ?? 0) > 0
-            && ($actor['kind'] ?? '') === 'employee'
-            && in_array($actor['role'] ?? '', [
-                'owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'marketing_sales',
-            ], true);
-    }
-
     public static function can(array $actor, string $permission): bool
     {
         if (empty($actor['active']) || (int)($actor['id']??0)<1) return false;

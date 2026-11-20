@@ -5,10 +5,11 @@ require_once BASE_PATH.'/shared/delivery/ReleaseFlags.php';
 if(!defined('DELIVERY_ENABLED')||DELIVERY_ENABLED!==true){http_response_code(503);exit('Delivery is not enabled.');}
 require_once BASE_PATH.'/apps/operations/operations.php';require_login();
 require_once BASE_PATH.'/shared/delivery/FrontSession.php';
+require_once BASE_PATH.'/shared/delivery/ErrandManagementAccess.php';
 header('Cache-Control: no-store');
 try {
     $deliveryActor=\Hambelela\Delivery\FrontSession::actor(db(),(int)(current_user()['id']??0));
-    if(!\Hambelela\Delivery\DeliveryPolicy::canManageErrands($deliveryActor))throw new DomainException();
+    if(!\Hambelela\Delivery\ErrandManagementAccess::allowed($deliveryActor))throw new DomainException();
 } catch(DomainException $e) {
     http_response_code(403);
     exit('Front Operations access denied.');

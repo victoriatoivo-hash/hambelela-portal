@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
+require_once __DIR__.'/ErrandManagementAccess.php';
 final class DriverErrands
 {
     private \PDO $db;
@@ -32,7 +33,7 @@ final class DriverErrands
           KEY errand_history(errand_id,id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
-    private function front(array $a):void{if(!DeliveryPolicy::canManageErrands($a))throw new \DomainException('Errand management access required.');}
+    private function front(array $a):void{if(!ErrandManagementAccess::allowed($a))throw new \DomainException('Errand management access required.');}
     private function driver(array $a):void{if(($a['role']??'')!=='delivery_driver'||!DeliveryPolicy::can($a,'delivery_drive'))throw new \DomainException('Assigned driver access required.');}
     private const DRIVERS="SELECT e.id,e.full_name FROM delivery_driver_profiles p JOIN ops_employees e ON e.id=p.employee_id JOIN ops_roles r ON r.id=e.role_id WHERE p.active=1 AND e.status='active' AND r.role_key='delivery_driver'";
     public function drivers(array $a):array{$this->front($a);return $this->db->query(self::DRIVERS.' ORDER BY e.full_name')->fetchAll(\PDO::FETCH_ASSOC);}

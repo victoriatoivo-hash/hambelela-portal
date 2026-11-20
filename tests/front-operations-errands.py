@@ -13,7 +13,7 @@ with TemporaryDirectory() as tmp:
         p.write_text(body, encoding='utf-8')
     for p in ['apps/delivery/workspace.php', 'shared/delivery/DeliveryPolicy.php',
               'shared/delivery/ErrandView.php', 'shared/delivery/DriverErrands.php',
-              'shared/delivery/WorkspaceApps.php']:
+              'shared/delivery/WorkspaceApps.php', 'shared/delivery/ErrandManagementAccess.php']:
         (root / p).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(p, root / p)
     put('config.php', "<?php define('BASE_PATH',__DIR__);define('BASE_URL','');define('DELIVERY_ENABLED',true);")
@@ -34,7 +34,7 @@ class FrontSession { static function actor($db,$id){return ['id'=>$id,'role'=>$_
 require 'shared/delivery/DriverErrands.php';
 $a=['id'=>42,'kind'=>'employee','active'=>empty($_SERVER['HTTP_X_INACTIVE']),
 'role'=>$_SERVER['HTTP_X_TEST_ROLE'],'grants'=>['delivery_arrange','delivery_view']];
-$allowed=\\Hambelela\\Delivery\\DeliveryPolicy::canManageErrands($a);
+$allowed=\\Hambelela\\Delivery\\ErrandManagementAccess::allowed($a);
 $links=\\Hambelela\\Delivery\\WorkspaceApps::forActor($a);
 $front=array_values(array_filter($links,function($l){return $l[2]==='Front Operations';}));
 // Exercise the service guard directly without invoking a database query.

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
+require_once __DIR__.'/ErrandManagementAccess.php';
 require_once __DIR__.'/PartnerAccess.php';
 final class WorkspaceApps
 {
@@ -20,7 +21,7 @@ final class WorkspaceApps
         }
         $owner=($actor['role']??'')==='owner_admin';
         $apps=[];
-        if(DeliveryPolicy::canManageErrands($actor))$apps[]=['index.php?errands=1','front','Front Operations','Arrange and manage driver errands, pickups and collections.','Open Front Operations','clipboard-list'];
+        if(ErrandManagementAccess::allowed($actor))$apps[]=['index.php?errands=1','front','Front Operations','Arrange and manage driver errands, pickups and collections.','Open Front Operations','clipboard-list'];
         if($owner||DeliveryPolicy::can($actor,'delivery_view_assigned'))$apps[]=[$owner?'driver-view.php':'index.php','driver','Driver',"View the Driver’s delivery queue, collections and completed deliveries.",'Open Driver View','bike'];
         if($owner)$apps[]=['tedlaser.php','partner','Tedlaser','Create and monitor Tedlaser deliveries handled by the Hambelela Driver.','Open Tedlaser','boxes'];
         if(DeliveryPolicy::can($actor,'delivery_accounting_view'))$apps[]=['accounting.php','accounting','Delivery Accounting','Track delivery fees, expenses, collections and partner balances.','Open Delivery Accounting','wallet'];
