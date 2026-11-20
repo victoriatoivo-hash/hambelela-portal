@@ -44,10 +44,10 @@ export async function refresh(){
     finally{chunk.forEach(id=>pending.delete(id));paint();}
   }
 }
-function startStyle(){if(document.querySelector('link[data-order-collection-style]'))return;const l=document.createElement('link');l.rel='stylesheet';l.href=new URL('../css/order-collection.css?v=20261120e',import.meta.url);l.dataset.orderCollectionStyle='';document.head.append(l);}
+function startStyle(){if(document.querySelector('link[data-order-collection-style]'))return;const l=document.createElement('link');l.rel='stylesheet';l.href=new URL('../css/order-collection.css?v=20261120f',import.meta.url);l.dataset.orderCollectionStyle='';document.head.append(l);}
 export async function open(order,editPayment,host){
   startStyle();
-  if(!document.querySelector('link[data-delivery-panel-style]')){const link=document.createElement('link');link.rel='stylesheet';link.dataset.deliveryPanelStyle='';link.href=new URL('../css/order-delivery-panel.css?v=20261120e',import.meta.url);document.head.append(link);}
-  const {renderDelivery}=await import('./order-delivery-panel.js?v=20261120e');
+  if(!document.querySelector('link[data-delivery-panel-style]')){const link=document.createElement('link');link.rel='stylesheet';link.dataset.deliveryPanelStyle='';link.href=new URL('../css/order-delivery-panel.css?v=20261120f',import.meta.url);document.head.append(link);}
+  const {renderDelivery}=await import('./order-delivery-panel.js?v=20261120f');
   return renderDelivery(order,editPayment,host,api,remember,paint);
 }
