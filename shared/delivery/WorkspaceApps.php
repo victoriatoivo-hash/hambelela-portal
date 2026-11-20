@@ -26,6 +26,7 @@ final class WorkspaceApps
         if(DeliveryPolicy::can($actor,'delivery_accounting_view'))$apps[]=['accounting.php','accounting','Delivery Accounting','Track delivery fees, expenses, collections and partner balances.','Open Delivery Accounting','wallet'];
         if($owner)$apps[]=['pricing.php','pricing','Delivery Pricing','Manage delivery areas and standard delivery fees.','Manage Pricing','map-pin'];
         if($owner)$apps[]=['settings.php','pricing','Delivery Settings','Manage delivery accounts, partner access, drivers and system preferences.','Manage Settings','settings'];
+        if($owner)$apps[]=['tracking.php','pricing','Driver Tracking','Company-phone location, device setup and road estimates.','Open Driver Tracking','map-pin'];
         return $apps;
     }
 }

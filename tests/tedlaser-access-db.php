@@ -35,7 +35,7 @@ try{
  $staff=$access->identity(1);$other=$access->identity(3);
  check(count(WorkspaceApps::forActor($admin))===3,'administrator has three application cards');
  check(WorkspaceApps::forActor($staff)===[],'staff has no administrator workspace');
- check(count(WorkspaceApps::forActor($owner))===6,'owner retains five apps and gains Settings');
+ check(count(WorkspaceApps::forActor($owner))===7,'owner retains existing settings and tracking apps');
  $db->exec("INSERT INTO ops_security_events(event_type,employee_id,metadata_json) VALUES('delivery_partner_routing',1,'{\"partner_id\":1,\"driver_id\":2}'),('delivery_partner_routing',1,'{\"partner_id\":2,\"driver_id\":2}')");
  $service=new PartnerService($db);$b=['customer_name'=>'Test customer','mobile'=>'+264811234567','address'=>'Test street','zone_id'=>1,'date'=>date('Y-m-d'),'fee_payer'=>'partner','cod'=>'15.00'];
  $jobs=[];foreach([$staff,$access->identity(2),$other] as $i=>$a){$b['reference']='TEST-'.$i;$jobs[]=$service->arrange($a,'00000000-0000-4000-8000-00000000000'.$i,$b)['id'];}
