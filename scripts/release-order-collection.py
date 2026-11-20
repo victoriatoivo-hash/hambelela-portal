@@ -8,9 +8,9 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "9bea183e71126a138ece662fa93fded0fb13764a"
+base = "75acc6553fa22433f52a7c00c7d779a5cc17f18c"
 new_paths = []
-paths = ["assets/css/driver-delivery-ui.css","assets/js/driver-delivery-ui.js"]
+paths = ["assets/css/driver-delivery-ui.css","assets/js/driver-delivery-ui.js","shared/ess-mobile-navigation.php"]
 def original(p):
     if p in new_paths:return None
     return subprocess.check_output(["git","show",base+":"+p])
@@ -59,9 +59,20 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             try:ftp.delete(tmp)
             except ftplib.error_perm:pass
     before={p:read(p) for p in paths};desired={p:Path(p).read_bytes() for p in paths}
+    # Merge only the reviewed navigation fragment; never replace other live dashboard links.
+    nav="shared/ess-mobile-navigation.php"
+    def nav_segment(b):
+        a=b.index(b"$essMobileApp = "); z=b.index(b'</nav>',a)+6
+        return b[a:z]
+    orig=nav_segment(norm(original(nav))); new=nav_segment(norm(desired[nav])); live=norm(before[nav])
+    if live.count(new)==1: desired[nav]=before[nav]
+    elif live.count(orig)==1:
+        desired[nav]=live.replace(orig,new,1)
+        if b'\r\n' in before[nav] and b'\n' not in before[nav].replace(b'\r\n',b''):desired[nav]=desired[nav].replace(b'\n',b'\r\n')
+    else: raise RuntimeError("Mobile navigation fragment differs; no files written.")
     for p in paths:
         if p.endswith('.php'):subprocess.run(['php','-l'],input=desired[p],check=True)
-    bad=[p for p in paths if digest(before[p]) not in (digest(original(p)),digest(desired[p]))]
+    bad=[p for p in paths if p!=nav and digest(before[p]) not in (digest(original(p)),digest(desired[p]))]
     for p in bad:print("Unrecognised live baseline:",p,digest(before[p]))
     if bad:raise RuntimeError("No files published; resolve differences first.")
     for p in ["apps/delivery/front-api.php","shared/epi/BusinessTimeEngine.php","shared/epi/Support.php"]:

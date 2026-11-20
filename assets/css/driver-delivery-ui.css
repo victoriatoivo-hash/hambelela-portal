@@ -106,3 +106,23 @@ body.driver-compact-app .df-options-sheet #refresh{display:flex!important}
  body.driver-compact-app dialog.driver-app-sheet.df-leaving[open]{animation:driverSheetSlideDown .14s ease-in both!important}
 }
 @media(prefers-reduced-motion:reduce){body.driver-compact-app dialog:is(.driver-app-sheet,.errand-dialog)[open]{animation:none!important;transition:none!important}}
+/* Order detail composition follows the approved compact driver screen. */
+body.driver-compact-app dialog.df-details-sheet[open]{height:auto;min-height:min(610px,94dvh);padding:8px 12px max(12px,env(safe-area-inset-bottom));background:linear-gradient(145deg,#fcf9f6,#fffdfa 65%,#faf9f5)}
+body.driver-compact-app dialog.df-details-sheet header .df-stage{margin-left:auto;order:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;width:auto;min-height:30px;padding:4px 10px;border:0;border-radius:22px;font:600 11px Jost,sans-serif}
+.df-stage svg{width:12px;height:12px}.df-details-sheet .df-destination strong{flex:1}.df-details-sheet .df-destination{border:1px solid #f1eee8}
+body.driver-compact-app .df-destination .df-address{padding:0}
+body.driver-compact-app .df-address [data-driver-action=navigate]{display:flex;width:100%;gap:10px;padding:10px 12px;justify-content:flex-start;text-align:left;margin:0;background:none;color:#313632;font-weight:400}
+.df-detail-row summary span small{display:block;font-size:12px;color:#444c45;line-height:1.2}.df-details-sheet .df-detail-row summary>svg:first-child{width:17px;height:17px}
+body.driver-compact-app .df-details-sheet .df-metrics>div{padding:10px 8px;border-radius:16px;border:1px solid #f1efe9}
+.df-details-sheet .df-metrics small svg{box-sizing:content-box;background:#fff5df;border-radius:50%;padding:4px}.df-details-sheet .df-metrics strong{padding-left:4px}
+body.driver-compact-app .df-details-sheet .df-urgent{gap:10px}.df-urgent span{padding:3px 10px;background:#ffe1df;border-radius:18px;color:#9c1816}.df-urgent svg{box-sizing:content-box;padding:4px;background:#ffdfdc;border-radius:50%}
+body.driver-compact-app .df-details-sheet .df-trip{margin:12px 0 3px;min-height:88px;padding:12px;border-radius:18px}
+body.driver-compact-app .df-trip>svg{box-sizing:content-box;width:22px;height:22px;padding:10px;background:#e5cffb;border-radius:50%}
+.df-trip>div{flex:1}.df-trip time{line-height:1.25}.df-trip small{font-size:12px}.df-trip [data-trip-history]{border:2px solid #9751e2;border-radius:50%;width:42px;height:42px;display:grid;place-items:center;background:#fbf7ff;color:#60349a}.df-trip [data-trip-history] svg{width:19px;height:19px}
+body.driver-compact-app dialog.df-details-sheet .driver-app-sheet-body{display:flex;flex-direction:column;gap:4px}.df-details-sheet .driver-app-sheet-body>*{flex-shrink:0}
+@media(max-width:767px){
+ body.driver-compact-app:has(.ess-mobile-nav) .df-nav{display:none}
+ body.driver-compact-app:not(.is-driver-mobile) .ess-mobile-nav:not(.driver-mobile-nav),body.driver-compact-app.is-driver-mobile .ess-mobile-nav.driver-mobile-nav,body.driver-compact-app.is-driver-mobile:not(:has(.driver-mobile-nav)) .ess-mobile-nav{display:flex!important}
+ body.driver-compact-app #ess-more-dialog[open]{position:fixed!important;inset:auto 0 0!important;margin:0 auto!important;width:min(100%,510px);max-height:88dvh;overflow:auto;border-radius:26px 26px 0 0}
+}
+@media(max-width:767px) and (prefers-reduced-motion:no-preference){body.driver-compact-app #ess-more-dialog[open]{animation:driverSheetSlideUp .29s cubic-bezier(.2,.78,.22,1) both!important}}
