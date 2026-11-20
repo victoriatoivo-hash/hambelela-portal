@@ -8,12 +8,13 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "4e2bcb8e"
+base = "3c58f792"
+new_paths = ["shared/delivery/DriverErrands.php","assets/js/driver-errands.js","shared/delivery/ErrandDriverBar.php","shared/delivery/ErrandView.php"]
 paths = [
-    "assets/css/order-collection.css",
-    "assets/js/order-collection-ui.js", "assets/js/orders-board.js",
+    *new_paths, "apps/delivery/index.php","shared/delivery/CoreView.php","apps/operations/orders-board.php",
 ]
 def original(p):
+    if p in new_paths:return None
     return subprocess.check_output(["git","show",base+":"+p])
 def norm(b):
     return None if b is None else b.replace(b"\r\n",b"\n")
@@ -59,4 +60,4 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             if before[p] is None:ftp.delete(p)
             else:put(p,before[p],desired[p])
         raise
-    print("Verified live bytes for", len(paths), "allowlisted files; no schema or customer data writes.")
+    print("Verified live bytes for", len(paths), "allowlisted files; no live errands submitted.")

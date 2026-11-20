@@ -9,6 +9,7 @@ $driverPage=current_role_key()==='delivery_driver';
 require_once BASE_PATH.'/shared/delivery/EmployeeDriverSession.php';
 try{$deliveryActor=$driverPage?\Hambelela\Delivery\EmployeeDriverSession::actor(db(),(int)(current_user()['id']??0)):\Hambelela\Delivery\FrontSession::actor(db(),(int)(current_user()['id']??0));}catch(DomainException $e){http_response_code(403);exit('Delivery access denied.');}
 header('Cache-Control: no-store');$endpoint=BASE_URL.'/apps/delivery/'.($driverPage?'driver/api.php':'front-api.php');
+if(isset($_GET['errands'])){require BASE_PATH.'/shared/delivery/ErrandView.php';exit;}
 require_once BASE_PATH.'/shared/delivery/PortalShell.php';
 \Hambelela\Delivery\PortalShell::begin(true, $driverPage);
 require BASE_PATH.'/shared/delivery/'.($driverPage?'CoreView.php':'WorkspaceView.php');

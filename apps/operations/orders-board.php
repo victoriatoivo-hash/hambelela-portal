@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 
 require_login();
+require_once BASE_PATH.'/shared/delivery/ReleaseFlags.php';
 
 $pageTitle = 'Live Orders Board | ' . APP_NAME;
 $activeApp = 'operations';
@@ -48,6 +49,9 @@ include BASE_PATH . '/shared/ess-sidebar.php';
                 <div><h1>Hambelela Orders</h1><p>Manage and fulfil customer orders in one place.</p></div>
             </div>
             <div class="monday-board-head-actions orders-header-actions">
+                <?php if(defined('DELIVERY_ENABLED') && DELIVERY_ENABLED && $ready){require_once BASE_PATH.'/shared/delivery/FrontSession.php';try{$errandActor=\Hambelela\Delivery\FrontSession::actor(db(),(int)current_user()['id']);$canLogErrand=\Hambelela\Delivery\DeliveryPolicy::can($errandActor,'delivery_arrange');}catch(Throwable $e){$canLogErrand=false;}if($canLogErrand):?>
+                <a class="orders-tools-button" href="<?=htmlspecialchars(BASE_URL,ENT_QUOTES)?>/apps/delivery/index.php?errands=1"><i data-lucide="clipboard-list" aria-hidden="true"></i> Driver errands</a>
+                <?php endif;}?>
                 <?php if ($canOpenOrdersTools): ?>
                 <button type="button" class="orders-tools-trigger" data-orders-tools-open><i data-lucide="wrench"></i><span>Orders tools</span></button>
                 <?php endif; ?>
