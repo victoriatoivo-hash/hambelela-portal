@@ -22,6 +22,7 @@ final class ProofContext
         $operationalReason=$reason;
         $paid=$assignment&&$assignment['paymentVerified'];
         if(!$reason&&!$paid)$reason='Payment or cash reconciliation needs dispatch review before completion.';
+        if(DeliveryIssueState::latest($db,$id)['blocking']??false)$reason=$operationalReason='Issue reported. Await dispatch approval before confirming arrival or delivery.';
         if($job['delivered_at']||$receipt)$reason='Delivery handover is already recorded. Do not submit it again.';
         $order=self::row($db,'SELECT order_number FROM ops_orders WHERE id=?',[$job['order_id']]);
         return ['job'=>$job,'reference'=>$order['order_number']??$job['public_reference'],'name'=>$job['customer_name'],
@@ -31,7 +32,7 @@ final class ProofContext
     }
     public static function revision(\PDO $db,int $id):int
     {
-        $r=self::row($db,"SELECT MAX(id) id FROM delivery_events WHERE delivery_id=? AND (event_type IN ('arranged','partner_arranged','revised') OR (event_type='dispatch_updated' AND JSON_UNQUOTE(JSON_EXTRACT(metadata_json,'$.field'))='driver'))",[$id]);return (int)($r['id']??0);
+        $r=self::row($db,"SELECT MAX(id) id FROM delivery_events WHERE delivery_id=? AND (event_type IN ('arranged','partner_arranged','revised','delivery_issue_reported') OR (event_type='dispatch_updated' AND JSON_UNQUOTE(JSON_EXTRACT(metadata_json,'$.field'))='driver'))",[$id]);return (int)($r['id']??0);
     }
     public static function receipt(\PDO $db,int $id):?array
     {

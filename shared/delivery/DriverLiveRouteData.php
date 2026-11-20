@@ -14,7 +14,8 @@ final class DriverLiveRouteData
         if($ownTransaction){$db->exec('SET TRANSACTION ISOLATION LEVEL REPEATABLE READ');$db->beginTransaction();}
         try{
             $list=DriverAssignments::read($db,$employeeId,$now);
-            $q=$db->prepare("SELECT id,version,status,address,area,updated_at FROM delivery_jobs WHERE driver_employee_id=? AND scheduled_date=? AND status<>'cancelled' ORDER BY id");
+            $pendingIssue=DeliveryIssueState::pendingPredicate();
+            $q=$db->prepare("SELECT id,version,status,address,area,updated_at FROM delivery_jobs j WHERE driver_employee_id=? AND (scheduled_date=? OR $pendingIssue) AND status<>'cancelled' ORDER BY id");
             $q->execute([$employeeId,$list['businessDate']]);$jobs=[];
             foreach($q->fetchAll(\PDO::FETCH_ASSOC) as $job)$jobs[(int)$job['id']]=$job;
             $stops=[];$held=[];$revisions=[];
@@ -24,7 +25,7 @@ final class DriverLiveRouteData
                 // Physical handover already happened even if payment reconciliation is pending.
                 if(in_array($job['status'],['delivered','awaiting_reconciliation','completed'],true)||$summary['stage']==='done')continue;
                 $street=self::address((string)$job['address'],(string)$job['area']);
-                $row=['stop_id'=>'delivery-'.$id,'assignment_id'=>$id,'order_reference'=>$summary['orderNumber'],
+                $row=['issue'=>$summary['issue']??null,'stop_id'=>'delivery-'.$id,'assignment_id'=>$id,'order_reference'=>$summary['orderNumber'],
                     'customer_display_name'=>$summary['customerDisplayName'],'area'=>$summary['deliveryArea'],
                     'address_display'=>$street,'coordinates'=>null,'status'=>$summary['stage'],
                     'status_label'=>$summary['displayStatus'],'review_reason'=>$summary['reviewReason'],

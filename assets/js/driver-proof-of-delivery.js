@@ -45,8 +45,9 @@
     if (!form.elements.recipient_name.value.trim()) {feedback('Enter the actual recipient name.');return false;}
     if (form.elements.recipient_type.value==='representative' && root.dataset.representative!=='relationship') {feedback('Representative handover needs dispatch approval.');return false;}
     const photo=$('proof-photo').files[0];
+    if(root.dataset.policy==='signature'&&!signature){feedback('The recipient signature is required. A photo alone is not sufficient.');return false;}
     if ((!photo&&!signature)||(root.dataset.policy==='both'&&(!photo||!signature))) {feedback(root.dataset.policy==='both'?'Attach a photo and the recipient signature.':'Attach a photo or the recipient signature.');return false;}
-    if (!['one','both'].includes(root.dataset.policy)) {feedback('Owner approval of the evidence policy is pending.');return false;}
+    if (!['one','both','signature'].includes(root.dataset.policy)) {feedback('Owner approval of the evidence policy is pending.');return false;}
     return true;
   };
   form.addEventListener('submit', e => {e.preventDefault();if(busy||!validate())return;feedback('');$('confirmation-recipient').textContent='Received by '+form.elements.recipient_name.value.trim()+' · '+form.elements.recipient_type.value+(form.elements.relationship.required?' · '+form.elements.relationship.value.trim():'');$('proof-confirmation').showModal();});

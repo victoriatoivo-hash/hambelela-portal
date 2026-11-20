@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/EmployeeDriverSession.php';
 require_once __DIR__.'/OrderBalanceAdapter.php';
+require_once __DIR__.'/DeliveryIssueState.php';
 
 /** Read-only, current Windhoek-day selector shared by the driver Dashboard and Deliveries. */
 final class DriverAssignments
@@ -14,8 +15,9 @@ final class DriverAssignments
         $date=$now->format('Y-m-d');
         $orderColumns=$db->query('SHOW COLUMNS FROM ops_orders')->fetchAll(\PDO::FETCH_COLUMN);
         $refundColumn=in_array('refund_total',$orderColumns,true)?'o.refund_total':'NULL';
+        $archiveColumn=in_array('archived_at',$orderColumns,true)?'o.archived_at':'NULL';$pendingIssue=DeliveryIssueState::pendingPredicate();
         $assignmentWhere=$assignmentId===null?'':' AND j.id=?';
-        $q=$db->prepare("SELECT j.*,o.id linked_order,o.order_number,o.status order_status,o.payment_status,o.payment_method,o.total_amount,o.deleted_at,$refundColumn refund_total,
+        $q=$db->prepare("SELECT j.*,o.id linked_order,o.order_number,o.status order_status,o.payment_status,o.payment_method,o.total_amount,o.deleted_at,$archiveColumn archived_at,$refundColumn refund_total,
             (SELECT COUNT(*) FROM ops_order_items i WHERE i.order_id=j.order_id) item_count,
             (SELECT MAX(e.id) FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type IN ('arranged','partner_arranged')) release_event,
             (SELECT e.metadata_json FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type IN ('arranged','partner_arranged') ORDER BY e.id DESC LIMIT 1) release_json,
@@ -27,7 +29,7 @@ final class DriverAssignments
             (SELECT COUNT(*) FROM delivery_receipts r WHERE r.delivery_id=j.id AND r.status IN ('collected','issue')) pending_receipts,
             (SELECT COUNT(*) FROM delivery_receipts r WHERE r.delivery_id=j.id AND r.status='reversed') reversed_receipts
             FROM delivery_jobs j LEFT JOIN ops_orders o ON o.id=j.order_id
-            WHERE j.driver_employee_id=? AND j.scheduled_date=? AND j.status<>'cancelled' $assignmentWhere ORDER BY j.id");
+            WHERE j.driver_employee_id=? AND (j.scheduled_date=? OR $pendingIssue) AND j.status<>'cancelled' $assignmentWhere ORDER BY j.id");
         $params=[$employeeId,$date];if($assignmentId!==null)$params[]=$assignmentId;
         $q->execute($params);$deliveries=[];
         foreach($q->fetchAll(\PDO::FETCH_ASSOC) as $row){
@@ -66,7 +68,7 @@ final class DriverAssignments
         elseif($r['status']==='ready'){$stage='to_collect';$label='At store';$reason='';}
         elseif($r['status']==='out_for_delivery'){$label='Pickup unconfirmed';$reason='Delivery was started, but shop handover to this driver is not recorded.';}
         if($r['source']==='partner'&&$stage==='to_collect'){$stage='exception';$label='Partner pickup unconfirmed';$reason='A verified partner pickup source is not available. This is not a collection from the Hambelela shop.';}
-        if((int)$r['reversed_receipts']>0||($r['source']==='hambelela'&&(!$r['linked_order']||$r['deleted_at']||(float)$r['refund_total']>0||in_array(strtolower((string)$r['order_status']),['cancelled','canceled','refunded','failed','trash','deleted'],true)||in_array(strtolower((string)$r['payment_status']),['refunded','reversed'],true)))){
+        if((int)$r['reversed_receipts']>0||($r['source']==='hambelela'&&(!$r['linked_order']||$r['deleted_at']||$r['archived_at']||(float)$r['refund_total']>0||in_array(strtolower((string)$r['order_status']),['cancelled','canceled','refunded','failed','trash','deleted'],true)||in_array(strtolower((string)$r['payment_status']),['refunded','reversed'],true)))){
             $stage='exception';$label='Order needs review';$reason='The source order was removed, cancelled, refunded or failed. Check with dispatch before proceeding.';
         }
         $scheduled=null;$sort=null;
@@ -80,7 +82,9 @@ final class DriverAssignments
         $parts=preg_split('/\s+/u',trim((string)$r['customer_name']));$customer=$parts[0]?:'Customer';if(count($parts)>1)$customer.=' '.mb_substr(end($parts),0,1).'.';
         $payment=self::payment($db,$r,$release);
         if(($stage==='done'&&!$payment['paymentVerified'])||(in_array($stage,['to_collect','on_route'],true)&&!$payment['paymentVerified']&&$payment['codAmountDueNad']===null)){$stage='exception';$label='Payment needs review';$reason='Payment or an authorised cash collection arrangement needs confirmation before dispatch.';}
-        return ['assignmentId'=>(int)$r['id'],'orderId'=>$r['order_id']?(int)$r['order_id']:null,'orderNumber'=>$r['order_number']?:($r['partner_reference']?:$r['public_reference']),
+        $issue=DeliveryIssueState::latest($db,(int)$r['id']);
+        if($issue&&$issue['blocking']){$stage='exception';$label='Issue reported · Awaiting dispatch';$reason=$issue['latest_decision']['instruction']??'Dispatch must approve the next step. The order remains open.';}
+        return ['issue'=>$issue?['reference'=>$issue['incident_id'],'blocking'=>$issue['blocking'],'instruction'=>$issue['latest_decision']['instruction']??null]:null,'assignmentId'=>(int)$r['id'],'orderId'=>$r['order_id']?(int)$r['order_id']:null,'orderNumber'=>$r['order_number']?:($r['partner_reference']?:$r['public_reference']),
             'customerDisplayName'=>$customer,'deliveryArea'=>trim((string)$r['area'])?:'Area not recorded','itemCount'=>$r['source']==='hambelela'?(int)$r['item_count']:null,
             'stage'=>$stage,'displayStatus'=>$label,'reviewReason'=>$reason,'dispatchPriority'=>!empty($r['urgent'])?1:null,'routeSequence'=>null,'isNextStop'=>false,
             'scheduledTimeLocal'=>$scheduled,'scheduledSort'=>$sort,'distanceKm'=>null,'collectedAt'=>$picked?$r['pickup_at']:null,'deliveredAt'=>$r['delivered_at'],

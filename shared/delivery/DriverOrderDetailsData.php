@@ -12,8 +12,9 @@ final class DriverOrderDetailsData
         $list=DriverAssignments::read($db,$employeeId,$now,$assignmentId);
         try{$summary=DriverAssignments::find($list,$assignmentId);}
         catch(\DomainException $e){throw new \OutOfBoundsException('Delivery unavailable.');}
-        $q=$db->prepare("SELECT id,source,order_id,customer_mobile,address,area,status,driver_employee_id,additional_delivery FROM delivery_jobs WHERE id=? AND driver_employee_id=? AND scheduled_date=? AND status<>'cancelled'");
-        $q->execute([$assignmentId,$employeeId,$list['businessDate']]);$job=$q->fetch(\PDO::FETCH_ASSOC);
+        // The shared authorized selector also retains unresolved issues from earlier days.
+        $q=$db->prepare("SELECT id,source,order_id,customer_mobile,address,area,status,driver_employee_id,additional_delivery FROM delivery_jobs WHERE id=? AND driver_employee_id=? AND status<>'cancelled'");
+        $q->execute([$assignmentId,$employeeId]);$job=$q->fetch(\PDO::FETCH_ASSOC);
         if(!$job)throw new \OutOfBoundsException('Delivery unavailable.');
         $q=$db->prepare('SELECT id,event_type,employee_id,metadata_json,created_at FROM delivery_events WHERE delivery_id=? ORDER BY id');
         $q->execute([$assignmentId]);$events=$q->fetchAll(\PDO::FETCH_ASSOC);
@@ -66,7 +67,7 @@ final class DriverOrderDetailsData
         if($summary['displayStatus']==='Order needs review'){
             $paymentStatus='unknown';$summary['paymentVerified']=false;$summary['codAmountDueNad']=null;$summary['paymentLabel']='Payment needs review';
         }
-        return ['assignmentId'=>$assignmentId,'orderId'=>$summary['orderId'],'orderNumber'=>$summary['orderNumber'],'driverId'=>$employeeId,'timezone'=>'Africa/Windhoek','dataStatus'=>'live',
+        return ['issue'=>$summary['issue']??null,'assignmentId'=>$assignmentId,'orderId'=>$summary['orderId'],'orderNumber'=>$summary['orderNumber'],'driverId'=>$employeeId,'timezone'=>'Africa/Windhoek','dataStatus'=>'live',
             'customer'=>['displayName'=>$summary['customerDisplayName'],'initials'=>$initials?:'C','phone'=>$phone,'messagingContact'=>null],
             'payment'=>['method'=>$summary['paymentMethod'],'status'=>$paymentStatus,'verified'=>$summary['paymentVerified'],'label'=>$paymentStatus==='split'?'Split payment · verified':$summary['paymentLabel'],'codAmountDueNad'=>$summary['codAmountDueNad']],
             'delivery'=>['stage'=>$summary['stage'],'label'=>$summary['displayStatus'],'reviewReason'=>$summary['reviewReason'],'lastStageChangedAt'=>$stageAt,
@@ -100,6 +101,7 @@ final class DriverOrderDetailsData
         elseif($summary['stage']==='done')$currentType=['delivered','reconciled'];
         // Payment/source exceptions have no trustworthy delivery-stage timestamp.
         elseif($summary['displayStatus']==='Delivery exception')$currentType=['failed'];
+        elseif(!empty($summary['issue']['blocking']))$currentType=['delivery_issue_reported','dispatch_resolution_recorded'];
         elseif(in_array($summary['displayStatus'],['Handover under review','Handover unconfirmed'],true))$currentType=['delivered'];
         $currentIndex=null;
         foreach($events as $e){
@@ -115,6 +117,9 @@ final class DriverOrderDetailsData
             }
             elseif($type==='reconciled'){$label='Reconciliation recorded';$detail='Dispatch recorded a reconciliation event.';}
             elseif($type==='failed'){$label='Delivery exception';$detail='Contact dispatch before proceeding.';}
+            elseif($type==='delivery_issue_reported'){$label='Issue reported';$detail='Incident '.($m['incident_id']??'').' · Awaiting dispatch review.';}
+            elseif($type==='dispatch_issue_acknowledged'){$label='Dispatch acknowledged issue';$detail='Review recorded by dispatch.';}
+            elseif($type==='dispatch_resolution_recorded'){$label=DeliveryIssueState::DECISIONS[$m['decision']]??'Dispatch response';$detail=$m['instruction']??'';}
             if(!$label)continue;
             $at=self::timestamp($e['created_at']);$time=$at?(new \DateTimeImmutable($at))->format(substr($at,0,10)===$day?'H:i':'j M Y · H:i'):'Time not recorded';
             $rows[]=['eventId'=>(int)$e['id'],'eventType'=>$type,'label'=>$label,'detail'=>$detail,'occurredAt'=>$at,'timeLabel'=>$time,'state'=>'complete'];

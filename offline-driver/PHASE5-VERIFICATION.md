@@ -1,5 +1,9 @@
 # Phase 05 — Proof of delivery review
 
+## Owner decision applied during Phase 06 (20 November 2026)
+
+Recipient signature is now mandatory; parcel photo is optional. A representative's recorded name and relationship are sufficient without prior dispatch approval. The approved defaults, server validation and screen wording have been updated in the Phase 06 review branch. The new integration suite verifies signature-only completion after issue resolution. The original Phase 05 record below describes its earlier pending-policy state; no production deployment has occurred.
+
 Local implementation, 20 November 2026. Branch: `codex/driver-phase5-proof-of-delivery` (parent `8daa9bb2`). No deployment, production database migration, live order change or Phase 06 work.
 
 ## Status

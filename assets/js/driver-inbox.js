@@ -35,6 +35,7 @@
  function broadcast(){try{localStorage.setItem('driver-inbox-read',String(Date.now()));}catch(_){}}
  function display(x,data,j){const d=ui.showAssignment(data,command,j,noticeTitle(x));detail={x,job:x.job,version:JSON.stringify(j),sheet:d};d.addEventListener('close',()=>{if(detail?.sheet===d)detail=null;},{once:true});}
  async function open(x){
+  if(x.kind==='issue_decision'){try{if(!x.read_at){await post('read',x.id);broadcast();}location.assign(b.dataset.base+'/apps/delivery/index.php?issue='+Number(x.job));}catch(e){status.textContent=e.message;}return;}
   const run=++opening;try{const [data,j]=await fresh(x.job);if(run!==opening||invalid)return;display(x,data,j);
    if(!x.read_at){await post('read',x.id);broadcast();await load(true);}
   }catch(e){if(!invalid){status.textContent=e.message;if(detail?.sheet?.open){const p=el('p','driver-app-error','Read status could not be saved. Reopen to retry.');detail.sheet.append(p);}}}
