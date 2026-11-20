@@ -104,13 +104,29 @@ final class PartnerAccess
             $this->db->commit();return ['id'=>$id,'token'=>$token,'temporary_password'=>$temporary];
         }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
     }
-    public function password(string $new,string $token,?array $actor=null,string $current=''):void
+    /** Public aliases are labels only. Resolve exactly one active, correctly scoped identity. */
+    public function pinProfile(string $alias):array
     {
-        if(strlen($new)<16||strlen($new)>72||trim($new)==='')throw new \DomainException('Use a password of 16–72 bytes.');
+        $profiles=['toivo'=>['Toivo','partner_admin'],'admin'=>['Tedlaser Operations','partner_staff']];
+        if(!isset($profiles[$alias]))throw new \DomainException('Select a Tedlaser profile.');
+        $s=$this->db->prepare("SELECT u.id,u.email FROM delivery_partner_users u JOIN delivery_partners p ON p.id=u.partner_id LEFT JOIN delivery_partner_access a ON a.user_id=u.id WHERE u.active=1 AND p.active=1 AND (LOWER(p.code)='tedlaser' OR LOWER(TRIM(p.name)) IN ('tedlaser','tedlaser and engraving')) AND u.display_name=? AND COALESCE(a.role_key,'partner_staff')=? LIMIT 2");
+        $s->execute($profiles[$alias]);$rows=$s->fetchAll(\PDO::FETCH_ASSOC);
+        if(count($rows)!==1)throw new \DomainException('Profile unavailable. Contact the Hambelela Owner.');
+        return $rows[0];
+    }
+    public static function validatePin(string $pin):void
+    {
+        if(!preg_match('/^[0-9]{8,12}$/D',$pin)||preg_match('/^(.)\1+$/D',$pin)||strpos('012345678901234567890',$pin)!==false||strpos('98765432109876543210',$pin)!==false)throw new \DomainException('Choose 8–12 digits, not repeated or consecutive digits.');
+    }
+    public function password(string $new,string $token,?array $actor=null,string $current='',string $pinProfile=''):void
+    {
+        if($pinProfile!==''){if(!$actor||$token!=='')throw new \DomainException('Sign in before setting a PIN.');self::validatePin($new);}
+        elseif(strlen($new)<16||strlen($new)>72||trim($new)==='')throw new \DomainException('Use a password of 16–72 bytes.');
         $this->db->beginTransaction();
         try{
             if($actor){
                 $fresh=$this->identity((int)$actor['id'],true);
+                if($pinProfile!==''&&(int)$this->pinProfile($pinProfile)['id']!==$fresh['id'])throw new \DomainException('Profile changed. Sign in again.');
                 if((int)$fresh['session_version']!==(int)($actor['session_version']??0))throw new \DomainException('Please sign in again.');$id=$fresh['id'];
                 $s=$this->db->prepare('SELECT password_hash,failed_attempts,locked_until FROM delivery_partner_users WHERE id=? FOR UPDATE');$s->execute([$id]);$credentials=$s->fetch(\PDO::FETCH_ASSOC);
                 $t=$this->db->prepare('SELECT password_hash,expires_at FROM delivery_partner_temporary_passwords WHERE user_id=? FOR UPDATE');$t->execute([$id]);$temporaryRow=$t->fetch(\PDO::FETCH_ASSOC);

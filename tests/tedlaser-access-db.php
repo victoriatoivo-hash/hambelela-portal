@@ -128,7 +128,21 @@ try{
   $db->exec('UPDATE delivery_partner_temporary_passwords SET expires_at=DATE_SUB(UTC_TIMESTAMP(),INTERVAL 1 SECOND) WHERE user_id='.$tempId);
   denied(function()use($auth,$email,$expired){$auth->authenticate($email,$expired['temporary_password'],'127.0.0.2');},'expired temporary password denied');
  }
+ foreach(['00000000','12345678','1234','not-a-pin'] as $bad)denied(function()use($bad){PartnerAccess::validatePin($bad);},'weak or invalid PIN rejected');
+ foreach([[1,'Tedlaser Operations','admin','partner_staff'],[$id,'Toivo','toivo','partner_admin']] as [$uid,$display,$alias,$role]){
+  $access->manage($owner,['action'=>'permissions','id'=>$uid,'name'=>$display,'role'=>$role,'can_create'=>1,'can_accounting'=>1]);
+  $profile=$access->pinProfile($alias);check((int)$profile['id']===$uid,'dropdown alias resolves to intended ID');
+  $one=$access->manage($owner,['action'=>'temporary','id'=>$uid])['temporary_password'];
+  $s=$auth->authenticate($profile['email'],$one,'127.0.0.5');$a=$auth->actor($s,true);
+  $pin=$uid===1?'80625319':'51794206';
+  $access->password($pin,'',$a,$one,$alias);
+  $s=$auth->authenticate($profile['email'],$pin,'127.0.0.5');$a=$auth->actor($s);
+  check($a['role']===$role && PartnerAccess::can($a,'accounting')===($role==='partner_admin'),'PIN keeps original role and accounting boundaries');
+ }
+ denied(function()use($auth,$profile){$auth->authenticate($profile['email'],'80625319','127.0.0.5');},'staff PIN cannot open owner account');
+ denied(function()use($access,$a){$access->password('72051839','',$a,'51794206','admin');},'cannot enrol another profile');
  $access->manage($owner,['action'=>'deactivate','id'=>1]);denied(function()use($service,$staff){$service->board($staff);},'deactivated staff access denied');
+ denied(function()use($access){$access->pinProfile('admin');},'inactive profile cannot be used');
  check((int)$db->query('SELECT COUNT(*) FROM ops_employees')->fetchColumn()===2,'employee records preserved');
  echo "All Tedlaser database tests passed.\n";
 }finally{$db->exec('DROP DATABASE '.$name);}

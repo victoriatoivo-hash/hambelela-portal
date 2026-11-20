@@ -1,12 +1,4 @@
 {
-  "shared/delivery/PartnerAccess.php": "3620de12767caac5a5819495d6275e89a61d12bbe2502abf2ce40d964d3fb966",
-  "shared/delivery/PartnerAuth.php": "a56c5bd95f491855536870b126328c612d0c8ea6ff0aad89e47a61fa28da9bd5",
-  "apps/delivery/partner/bootstrap.php": "8cf12dc600107e5e59d5b4a41818f54f5948b88e531f1201709caf2bc021c8a4",
-  "apps/delivery/partner/login.php": "5187900793dec37a1a6a497d4b03a5b429ea513fbb837037ac0093df3ad07a76",
-  "apps/delivery/partner/password.php": "c8528ebba9a15e1dfc9f6f8334391db93b47acb18b6aa3a39076e4daf2191288",
-  "apps/delivery/settings.php": "e7e46a8d880d568c2db24a5be18467fd324e41e0071435de35fa9695e12860b4",
-  "shared/delivery/PartnerService.php": "3113419b3a37985fd546083746856fb386e96653d3e776dc2451809367ccab41",
-  "shared/delivery/PartnerAdminService.php": "4d0ab074f8d7d37e89b33d8ad62bd5ec7a2aaeffdf1426396c0485c88db96772",
-  "shared/delivery/AccountingService.php": "bc5fe8f68128b2273d33c61df9cedf0d3fabe9f06f0b00abf29b3a3fb99d3454",
-  "assets/js/delivery-partner-reset.js": "ade3c6e8d4ff0f3aa1171ffaa255d6339183d24bdcaf748169a081913c82f8bd"
+  "shared/delivery/PartnerAccess.php": "3f4909730dec56d00fb7d8205475a3934fef2c5a89c472948f3f279398c09f47",
+  "apps/delivery/partner/login.php": "718e788995e4918a89d9a3b7ba0f6053307afd873b047c25893f78b2f1e8dfb3"
 }

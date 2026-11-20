@@ -1,15 +1,19 @@
 """Source capture and hash-guarded Orders search and selection delta release."""
-import ftplib, hashlib, io, json, os, subprocess, sys, zipfile
+import ftplib, hashlib, io, json, os, subprocess, sys, zipfile, socket, ssl
 from pathlib import Path
-FILES = ('shared/delivery/PartnerAccess.php', 'shared/delivery/PartnerAuth.php', 'apps/delivery/partner/bootstrap.php', 'apps/delivery/partner/login.php', 'apps/delivery/partner/password.php', 'apps/delivery/settings.php')
-READ_ONLY = ('shared/delivery/PartnerService.php', 'shared/delivery/PartnerAdminService.php', 'shared/delivery/AccountingService.php', 'assets/js/delivery-partner-reset.js')
+FILES = ('shared/delivery/PartnerAccess.php','apps/delivery/partner/login.php')
+READ_ONLY = ()
 mode, approved_sha = sys.argv[1:3]
 if mode not in ('export','preflight','deploy'): raise SystemExit('Invalid mode')
 sha = subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
 if approved_sha != sha: raise SystemExit('Exact checkout SHA required')
 def digest(data): return hashlib.sha256(data).hexdigest() if data is not None else None
-ftp = ftplib.FTP(os.environ['FTP_SERVER'],timeout=45)
+host=os.environ['FTP_SERVER']
+canonical='s11745.sgp1.stableserver.net'
+if set(socket.gethostbyname_ex(host)[2]) & set(socket.gethostbyname_ex(canonical)[2]): host=canonical
+ftp = ftplib.FTP_TLS(host,timeout=45,context=ssl.create_default_context())
 ftp.login(os.environ['FTP_USERNAME'],os.environ['FTP_PASSWORD'])
+ftp.prot_p()
 report = {'mode':mode,'sha':sha,'files':list(FILES),'state':'checking','ftp_root':ftp.pwd()}
 def read(path):
     out=io.BytesIO()
