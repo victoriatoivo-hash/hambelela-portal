@@ -1,0 +1,34 @@
+const {JSDOM}=require('jsdom'),fs=require('node:fs'),assert=require('node:assert/strict');
+const source=fs.readFileSync('assets/js/driver-delivery-ui.js','utf8'),tick=()=>new Promise(r=>setImmediate(r));
+const j={id:1,order_number:'WEB-1',source:'hambelela',customer_name:'Test <script>',customer_mobile:'+264 81 123 4567',address:'Windhoek',area:'Central',status:'ready',remaining:{order_goods:8000,delivery_fee:4000,partner_cod:0},receipts:[],history:[],items:[{product_name:'Oil <test>',quantity:'2'}]};
+(async()=>{
+const dom=new JSDOM('<header class="pagehead"><h1></h1><p></p><div class="actions"></div></header><div id="jobs"></div>',{url:'https://portal.example.test',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,d=w.document;
+w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};w.HTMLDialogElement.prototype.close=function(){this.open=false;this.dispatchEvent(new w.Event('close'));};w.setInterval=()=>0;
+let data={jobs:[structuredClone(j),{...j,id:2,order_number:'WEB-2',status:'completed',started_at:'2026-11-20 08:00:00',delivered_at:'2026-11-20 08:15:00',remaining:{order_goods:0,delivery_fee:0,partner_cod:0}},{...j,id:3,status:'cancelled'}],methods:{cash:'Cash',eft:'EFT'}},calls=[],failComplete=true;
+async function command(body){calls.push(body);const job=data.jobs.find(j=>j.id===body.id);if(body.action==='start'){job.status='out_for_delivery';job.started_at='2026-11-20 09:00:00';}if(body.action==='collect'){job.remaining={order_goods:0,delivery_fee:0,partner_cod:0};}if(body.action==='complete'){if(failComplete){failComplete=false;throw Error('Synthetic connection failure');}job.status='awaiting_reconciliation';}w.DriverDeliveryUI.render(data,command,'active');return {};}
+w.eval(source);w.DriverDeliveryUI.render(data,command,'active');
+assert.equal(d.querySelectorAll('.driver-app-card').length,3);assert.equal(d.querySelector('script'),null);assert.ok(d.querySelector('[data-driver-action=start] svg'));assert.equal(d.querySelector('a').getAttribute('href'),'tel:+264811234567');
+let first=d.querySelector('.driver-app-card');w.DriverDeliveryUI.render(data,command,'active');assert.equal(d.querySelector('.driver-app-card'),first,'unchanged cards retain DOM');
+d.querySelector('[data-driver-action=details]').click();assert.ok(d.querySelector('dialog').textContent.includes('Oil <test>'));assert.equal(d.querySelector('test'),null);assert.equal(calls.length,0,'details is read only');d.querySelector('[data-driver-close]').click();
+d.querySelector('[data-driver-action=start]').click();d.querySelector('form button').click();await tick();assert.equal(calls.length,1);assert.equal(calls[0].action,'start');assert.ok(d.querySelector('[data-driver-timer]'));
+d.querySelector('[data-driver-action=finish]').click();let f=d.querySelector('form');f.elements.method.value='cash';f.elements.amount.value='100';f.elements.confirmed.checked=true;f.elements.note.value='Handed to customer';f.querySelector('button').click();await tick();assert.equal(calls.length,1);assert.match(f.textContent,/exact amount/);
+f.elements.amount.value='120';f.querySelector('button').click();await tick();assert.equal(calls.filter(c=>c.action==='collect').length,1);assert.equal(d.querySelector('dialog').open,true,'failure keeps confirmation open');assert.equal(f.elements.amount.disabled,true);assert.equal(f.elements.note.value,'Handed to customer');
+f.querySelector('button').click();await tick();assert.equal(calls.filter(c=>c.action==='collect').length,1,'retry never recollects an already saved receipt');assert.equal(calls.at(-1).confirmation.confirmed,true);assert.equal(calls.at(-1).confirmation.note,'Handed to customer');assert.equal(d.querySelector('dialog'),null);
+w.DriverDeliveryUI.render(data,command,'completed');assert.equal(d.querySelectorAll('.driver-app-card').length,2);assert.equal(d.querySelectorAll('[data-driver-action=start],[data-driver-action=finish]').length,0);
+w.DriverDeliveryUI.render(data,command,'cancelled');assert.equal(d.querySelectorAll('.driver-app-card').length,1);assert.ok(d.querySelector('.is-cancelled'));
+// Prepaid confirmation is explicit and never collects again.
+data.jobs=[{...j,status:'out_for_delivery',remaining:{order_goods:0,delivery_fee:0,partner_cod:0}}];calls=[];w.DriverDeliveryUI.render(data,command,'active');d.querySelector('[data-driver-action=finish]').click();f=d.querySelector('form');assert.equal(f.elements.amount,undefined);f.elements.note.value='Paid order handed over';f.querySelector('button').click();await tick();assert.equal(calls.length,0);f.elements.confirmed.checked=true;f.querySelector('button').click();await tick();assert.deepEqual(calls.map(c=>c.action),['complete']);
+// Tracked arrangements retain the compact design while requiring custody and recipient evidence.
+data.jobs=[{...j,custody:{tracking_version:1,acceptance:null,handover:null,collection:null,exception:null}}];calls=[];
+w.DriverDeliveryUI.render(data,command,'active');assert.equal(d.querySelector('[data-driver-action=start]'),null);
+d.querySelector('[data-driver-action=accept]').click();d.querySelector('form button').click();await tick();assert.equal(calls.at(-1).action,'accept');
+data.jobs[0].custody.acceptance={};w.DriverDeliveryUI.render(data,command,'active');assert.match(d.querySelector('#jobs').textContent,/Awaiting Front Desk handover/);
+data.jobs[0].custody.handover={data:{parcel_count:2}};w.DriverDeliveryUI.render(data,command,'active');
+d.querySelector('[data-driver-action=confirm_pickup]').click();assert.match(d.querySelector('form').textContent,/2 parcels/);d.querySelector('form button').click();await tick();assert.equal(calls.at(-1).action,'confirm_pickup');
+data.jobs[0].custody.collection={};w.DriverDeliveryUI.render(data,command,'active');assert.ok(d.querySelector('[data-driver-action=start]'));
+data.jobs[0].status='out_for_delivery';data.jobs[0].remaining={order_goods:0,delivery_fee:0,partner_cod:0};w.DriverDeliveryUI.render(data,command,'active');
+d.querySelector('[data-driver-action=finish]').click();f=d.querySelector('form');f.elements.confirmed.checked=true;f.elements.note.value='Delivered';const before=calls.length;f.querySelector('button').click();await tick();assert.equal(calls.length,before,'missing recipient cannot complete');
+f.elements.received_by.value='Synthetic recipient';f.elements.confirmation_method.value='photo_reference';f.querySelector('button').click();await tick();assert.equal(calls.length,before,'photo proof required');
+f.elements.proof_reference.value='Synthetic proof 1';f.querySelector('button').click();await tick();assert.equal(calls.at(-1).confirmation.received_by,'Synthetic recipient');assert.equal(calls.at(-1).confirmation.proof_reference,'Synthetic proof 1');
+dom.window.close();console.log('PASS compact cards, safe text, stable DOM, collection retry, legacy confirmation and tracked acceptance / handover / recipient-proof controls');
+})();

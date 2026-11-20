@@ -41,6 +41,12 @@ try{
  denied(fn()=>$errands->send($front,array_merge($errand,['payment_state'=>''])),'Payment status required');
  denied(fn()=>$errands->send($front,array_merge($errand,['driver_id'=>5])),'Non-driver cannot be assigned');
  $eid=$errands->send($front,$errand);ok($eid>0&&$errands->send($front,$errand)===$eid,'Double submission creates one errand');
+ $startedId=$errands->send($front,array_merge($errand,['request_key'=>bin2hex(random_bytes(16))]));
+ denied(fn()=>$errands->change($other,$startedId,1,'started',[]),'Other driver cannot start errand');
+ $errands->change($driver,$startedId,1,'started',[]);$startedAgain=$errands->change($driver,$startedId,1,'started',[]);
+ ok($startedAgain['state']==='started'&&$startedAgain['started_at']!==null,'Errand start is timed and repeat safe');
+ ok((int)$db->query("SELECT COUNT(*) FROM delivery_errand_events WHERE errand_id=$startedId AND action='started'")->fetchColumn()===1,'Repeated start creates one audit event');
+ $errands->change($front,$startedId,2,'cancel',['note'=>'Synthetic test completed']);
  denied(fn()=>$errands->send($front,array_merge($errand,['contents'=>'different'])),'Changed payload never reuses an earlier send');
  ok($errands->next($driver)['payment_state']==='unpaid'&&$errands->next($other)===null,'Popup only reaches assigned driver with payment instructions');
  denied(fn()=>$errands->mark($other,$eid,true),'Other driver cannot mark collected');
@@ -66,7 +72,7 @@ try{
  $errands->change($other,$eid,4,'blocked',['note'=>'Supplier closed']);
  ok($errands->entries($front,false,0)[0]['state']==='blocked','Unable-to-collect remains visible to front');
  $errands->change($front,$eid,5,'cancel',['note'=>'No longer needed']);
- ok(!$errands->next($other)&&$errands->countPending($other)===0&&count($errands->entries($front,false,0,true))===1,'Cancelled errand retained but removed from driver workload');
+ ok(!$errands->next($other)&&$errands->countPending($other)===0&&count($errands->entries($front,false,0,true))===2,'Cancelled errand retained but removed from driver workload');
  denied(fn()=>$errands->change($other,$eid,6,'collected',['note'=>'Late action','confirmed'=>'1']),'Cancelled errand cannot be collected');
  $history=$errands->history($owner,$eid);ok(count($history)===8&&$history[0]['action']==='cancel','Audit preserves sent, seen, collected, reopened, deferred, reassigned, blocked and cancelled');
  $saved=json_decode($history[0]['after_json'],true);ok($saved['amount']==='150.50'&&$saved['payer']==='Front desk pays supplier','Payment details preserved in audit');
@@ -113,7 +119,11 @@ try{
  foreach(['/apps/delivery/front-api.php','/apps/accounts/payment-reconciliation.php','/settings.php'] as $path)ok(!\Hambelela\Delivery\EmployeeDriverSession::allowedPath($path),'Driver remains restricted from '.$path);
  $core->command($driver,['action'=>'start','id'=>$jobId,'uuid'=>requestId()]);
  $core->command($driver,['action'=>'collect','id'=>$jobId,'uuid'=>requestId(),'goods'=>'80.00','fee'=>'40.00','method'=>'cash']);
- $core->command($driver,['action'=>'complete','id'=>$jobId,'uuid'=>requestId()]);
+ denied(fn()=>$core->command($driver,['action'=>'complete','id'=>$jobId,'uuid'=>requestId(),'confirmation'=>['confirmed'=>false,'note'=>'Delivered']]),'Explicit completion confirmation required');
+ denied(fn()=>$core->command($driver,['action'=>'complete','id'=>$jobId,'uuid'=>requestId(),'confirmation'=>['confirmed'=>true,'note'=>'  ']]),'Blank completion note rejected');
+ $finish=['action'=>'complete','id'=>$jobId,'uuid'=>requestId(),'confirmation'=>['confirmed'=>true,'note'=>'Handed to synthetic customer']];
+ $finished=$core->command($driver,$finish);ok(sameResponse($finished,$core->command($driver,$finish)),'Completion retry is idempotent');
+ ok($finished['note']==='Handed to synthetic customer'&&$finished['delivery_payment_confirmed']===true,'Completion note and confirmation retained in event');
  $receipt=(int)$db->query('SELECT id FROM delivery_receipts')->fetchColumn();
  ok($db->query("SELECT payment_status FROM ops_orders WHERE id=100")->fetchColumn()==='unpaid','dispatch, customer receipt and delivery do not mark order paid');
  ok($db->query("SELECT status FROM delivery_jobs")->fetchColumn()==='awaiting_reconciliation','delivered independently from cash reconciliation');

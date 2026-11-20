@@ -291,7 +291,14 @@ final class DeliveryService
 
     public function complete(array $actor,int $id,string $uuid,?string $frontReason=null,?array $confirmation=null): array
     {
-        return $this->command($actor,$id,$uuid,'delivered',$confirmation===null?($frontReason===null?[]:[$frontReason]):[$frontReason,$confirmation],function($j)use($actor,$frontReason){
+        if($confirmation!==null){
+            $note=trim((string)($confirmation['note']??''));
+            if(($confirmation['confirmed']??false)!==true||$note===''||mb_strlen($note)>2000)throw new \DomainException('Confirm the delivery and payment, and add a completion note (up to 2,000 characters).');
+            $confirmation['note']=$note;
+        }
+        // Keep the already-live request hash for legacy confirmation retries.
+        $request=$frontReason===null?[]:[$frontReason];if($confirmation!==null)$request[]=$confirmation;
+        return $this->command($actor,$id,$uuid,'delivered',$request,function($j)use($actor,$frontReason){
             if($frontReason===null){$this->assigned($actor,$j);return;}
             if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange')||strlen($frontReason)<10||strlen($frontReason)>500)throw new \DomainException('An authorised employee and a confirmation reason (10–500 characters) are required.');
         },function($j)use($actor,$id,$frontReason,$confirmation){
@@ -302,7 +309,7 @@ final class DeliveryService
                 if(in_array($method,['signed_receipt','photo_reference'],true)&&$reference==='')throw new \DomainException('A proof reference is required for this confirmation method.');
                 $proof=['received_by'=>$recipient,'confirmation_method'=>$method,'proof_reference'=>$reference];
             }
-            if($confirmation!==null){$note=trim((string)($confirmation['note']??''));if(empty($confirmation['confirmed'])||$note===''||strlen($note)>2000)throw new \DomainException('Confirm delivery and enter a completion note.');$proof+=['note'=>$note,'delivery_payment_confirmed'=>true];}
+            if($confirmation!==null)$proof+=['note'=>$confirmation['note'],'delivery_payment_confirmed'=>true];
             $held=$this->row("SELECT COALESCE(SUM(order_goods_cents+delivery_fee_cents+partner_cod_cents),0) amount FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue')",[$id]);
             $due=array_sum($this->remaining($j));
             if($frontReason===null)$status=DeliveryPolicy::completionStatus($actor,$j,$due,(int)$held['amount']);

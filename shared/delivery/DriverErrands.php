@@ -70,7 +70,7 @@ final class DriverErrands
         $sql=self::SELECT_SQL.' WHERE '.($cancelled?"COALESCE(d.state,'open')='cancelled'":"COALESCE(d.state,'open')<>'cancelled' AND j.collected_at IS ".($done?'NOT NULL':'NULL')).($driver?' AND j.driver_id=?':'').' ORDER BY j.id DESC LIMIT 21 OFFSET '.(20*max(0,min(100000,$page)));
         $s=$this->db->prepare($sql);$s->execute($driver?[$a['id']]:[]);return $s->fetchAll(\PDO::FETCH_ASSOC);
     }
-    private const SELECT_SQL="SELECT j.*,e.full_name driver_name,c.full_name creator_name,COALESCE(d.revision,1) revision,COALESCE(d.state,'open') state,d.amount,COALESCE(d.payer,'') payer,COALESCE(d.note,'') note,d.updated_at FROM delivery_errands j JOIN ops_employees e ON e.id=j.driver_id LEFT JOIN ops_employees c ON c.id=j.created_by LEFT JOIN delivery_errand_details d ON d.errand_id=j.id";
+    private const SELECT_SQL="SELECT j.*,e.full_name driver_name,c.full_name creator_name,COALESCE(d.revision,1) revision,COALESCE(d.state,'open') state,d.amount,COALESCE(d.payer,'') payer,COALESCE(d.note,'') note,d.updated_at,(SELECT MAX(ev.created_at) FROM delivery_errand_events ev WHERE ev.errand_id=j.id AND ev.action='started' AND ev.id>COALESCE((SELECT MAX(reset_ev.id) FROM delivery_errand_events reset_ev WHERE reset_ev.errand_id=j.id AND reset_ev.action IN ('edit','reopen')),0)) started_at FROM delivery_errands j JOIN ops_employees e ON e.id=j.driver_id LEFT JOIN ops_employees c ON c.id=j.created_by LEFT JOIN delivery_errand_details d ON d.errand_id=j.id";
     private function get(int $id):?array{$s=$this->db->prepare(self::SELECT_SQL.' WHERE j.id=?');$s->execute([$id]);return $s->fetch(\PDO::FETCH_ASSOC)?:null;}
     private function payment(array $v):array{
         $raw=trim((string)($v['amount']??''));$payer=trim((string)($v['payer']??''));
@@ -91,12 +91,13 @@ final class DriverErrands
     }
     public function change(array $a,int $id,int $revision,string $action,array $v):array{
         $isDriver=($a['role']??'')==='delivery_driver';if($isDriver)$this->driver($a);else $this->front($a);
-        if(!in_array($action,$isDriver?['seen','claim','later','collected','blocked']:['edit','cancel','reopen'],true))throw new \DomainException('Action not permitted.');
+        if(!in_array($action,$isDriver?['seen','claim','later','started','collected','blocked']:['edit','cancel','reopen'],true))throw new \DomainException('Action not permitted.');
         $this->db->beginTransaction();
         try{
             $s=$this->db->prepare('SELECT id FROM delivery_errands WHERE id=? FOR UPDATE');$s->execute([$id]);if(!$s->fetchColumn())throw new \DomainException('Errand unavailable.');
             $j=$this->get($id);
             if($isDriver&&(int)$j['driver_id']!==(int)$a['id'])throw new \DomainException('Errand unavailable.');
+            if($isDriver&&$action==='started'&&$j['state']==='started'&&(int)$j['revision']===$revision+1){$this->db->commit();return $j;}
             if((int)$j['revision']!==$revision)throw new \DomainException('This errand changed on another screen. Close this form and review the latest details.');
             if($j['state']==='cancelled'||($j['collected_at']&&$action!=='reopen'))throw new \DomainException('This errand is already closed.');
             $s=$this->db->prepare('INSERT IGNORE INTO delivery_errand_details(errand_id) VALUES(?)');$s->execute([$id]);
@@ -111,6 +112,11 @@ final class DriverErrands
                 $s=$this->db->prepare('UPDATE delivery_errand_details SET snooze_until=DATE_ADD(UTC_TIMESTAMP(),INTERVAL 5 MINUTE),claim_key=NULL,claim_until=NULL WHERE errand_id=?');$s->execute([$id]);
             }elseif($action==='seen'){
                 $s=$this->db->prepare('UPDATE delivery_errands SET seen_at=COALESCE(seen_at,UTC_TIMESTAMP()) WHERE id=?');$s->execute([$id]);
+            }elseif($action==='started'){
+                if($j['state']==='started'){$this->db->commit();return $j;}
+                if($j['state']!=='open')throw new \DomainException('Ask Front Desk to reopen this errand before starting.');
+                $s=$this->db->prepare("UPDATE delivery_errand_details SET state='started',revision=revision+1,updated_at=UTC_TIMESTAMP(),claim_key=NULL,claim_until=NULL,snooze_until=NULL WHERE errand_id=?");$s->execute([$id]);
+                $s=$this->db->prepare('UPDATE delivery_errands SET seen_at=COALESCE(seen_at,UTC_TIMESTAMP()) WHERE id=?');$s->execute([$id]);
             }else{
                 $note=trim((string)($v['note']??''));if($note===''||mb_strlen($note)>1500)throw new \DomainException('Add a note explaining this update (up to 1,500 characters).');
                 $state=$j['state'];
@@ -118,7 +124,7 @@ final class DriverErrands
                     if(!in_array($v['payment_state']??'',['paid','unpaid'],true))throw new \DomainException('Choose Paid or Not paid.');
                     foreach(['place'=>255,'contact_name'=>190,'contents'=>1500] as $field=>$max){$v[$field]=trim((string)($v[$field]??''));if($v[$field]===''||mb_strlen($v[$field])>$max)throw new \DomainException('Fill in the pickup, contact and collection details.');}
                     $s=$this->db->prepare(self::DRIVERS.' AND e.id=? FOR UPDATE');$s->execute([(int)($v['driver_id']??0)]);if(!$s->fetch())throw new \DomainException('Choose an active driver.');
-                    [$amount,$payer]=$this->payment($v);
+                    [$amount,$payer]=$this->payment($v);$state='open';
                     $s=$this->db->prepare('UPDATE delivery_errands SET place=?,contact_name=?,contents=?,driver_id=?,payment_state=?,seen_at=NULL WHERE id=?');$s->execute([$v['place'],$v['contact_name'],$v['contents'],$v['driver_id'],$v['payment_state'],$id]);
                     $s=$this->db->prepare('UPDATE delivery_errand_details SET amount=?,payer=? WHERE errand_id=?');$s->execute([$amount,$payer,$id]);
                 }elseif($action==='collected'){

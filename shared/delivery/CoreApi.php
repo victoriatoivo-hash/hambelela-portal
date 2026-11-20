@@ -80,7 +80,11 @@ final class CoreApi
             case 'confirm_pickup':return $service->confirmPickup($actor,$id,$uuid);
             case 'start': return $service->start($actor,$id,$uuid);
             case 'collect': return $service->collect($actor,$id,$uuid,['order_goods'=>DeliveryPolicy::cents((string)($body['goods']??'0')),'delivery_fee'=>DeliveryPolicy::cents((string)($body['fee']??'0')),'partner_cod'=>DeliveryPolicy::cents((string)($body['cod']??'0'))],(string)($body['method']??''),(string)($body['reference']??''));
-            case 'complete': return $service->complete($actor,$id,$uuid,null,isset($body['confirmed'])?$body:null);
+            case 'complete':
+                if(array_key_exists('confirmation',$body)&&!is_array($body['confirmation']))throw new \DomainException('Invalid delivery confirmation.');
+                $confirmation=$body['confirmation']??(isset($body['confirmed'])?$body:null);
+                if(!isset($body['confirmation'])&&$confirmation!==null)$confirmation['confirmed']=in_array($confirmation['confirmed'],[true,'1'],true);
+                return $service->complete($actor,$id,$uuid,null,$confirmation);
             case 'reconcile': return $service->reconcile($actor,$id,$uuid,(int)($body['receipt']??0),$apply);
             default: throw new \DomainException('Unsupported Delivery action.');
         }
@@ -139,6 +143,11 @@ final class CoreApi
         }
         foreach($jobs as &$j){
             $j['custody']=DeliveryCustody::read($this->db,$j);
+            $j['items']=[];
+            if($j['source']==='hambelela'){
+                try{$items=$this->db->prepare('SELECT product_name,quantity FROM ops_order_items WHERE order_id=? ORDER BY id');$items->execute([$j['order_id']]);$j['items']=$items->fetchAll(\PDO::FETCH_ASSOC);}
+                catch(\PDOException $e){if($e->getCode()!=='42S02')throw $e;}
+            }
             $j['deadline']=DeliveryDeadline::present(DeliveryDeadline::latest($this->db,(int)$j['id']),$j);
             if($j['source']==='hambelela'){$s=$this->db->prepare('SELECT * FROM ops_orders WHERE id=?');$s->execute([$j['order_id']]);$o=$s->fetch(\PDO::FETCH_ASSOC);$j['order_number']=$o['order_number']??('#'.($o['woo_order_id']??$j['order_id']));$j['order_payment_status']=$o['payment_status']??'';$j['order_payment_method']=$o['payment_method']??'';}
             $s=$this->db->prepare('SELECT r.id,r.payment_method,r.transaction_reference,r.order_goods_cents,r.delivery_fee_cents,r.partner_cod_cents,r.status,r.reconciled_at,c.full_name collected_by,n.full_name reconciled_by FROM delivery_receipts r LEFT JOIN ops_employees c ON c.id=r.collected_by_employee_id LEFT JOIN ops_employees n ON n.id=r.reconciled_by_employee_id WHERE r.delivery_id=? ORDER BY r.id');$s->execute([$j['id']]);$j['receipts']=$s->fetchAll(\PDO::FETCH_ASSOC);
