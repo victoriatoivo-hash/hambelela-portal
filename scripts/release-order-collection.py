@@ -8,7 +8,7 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "45cd9503"
+base = "4e2bcb8e"
 paths = [
     "assets/css/order-collection.css",
     "assets/js/order-collection-ui.js", "assets/js/orders-board.js",

@@ -21,6 +21,9 @@ async function test(conflict){
  const host=w.document.createElement('div');w.document.body.append(host);
  await api.open(order,()=>{},host);
  const f=w.document.querySelector('form');assert.match(f.textContent,/2 × Test oil/);assert.equal(f.elements.driver.value,'18');
+ assert.deepEqual(Array.from(f.querySelectorAll('h4'),n=>n.textContent),['Order summary','Delivery details','Driver instructions']);
+ assert.equal(f.querySelectorAll('select[data-portal-custom-select]').length,2);
+ assert.equal(f.querySelectorAll('select:not([data-portal-custom-select-native])').length,0,'Orders enhancer must not add a second dropdown');
  if(conflict)f.elements.driver.value='3';
  const event={preventDefault(){}};const submit=f.onsubmit(event);await tick();await f.onsubmit(event);assert.equal(sends,1);release();await submit;
  assert.equal(w.document.querySelector('#oc-title').textContent,'Delivery arranged');assert.equal(w.document.querySelector('[type=submit]'),null);

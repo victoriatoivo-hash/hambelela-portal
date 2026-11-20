@@ -17,3 +17,15 @@
 #order-delivery-pane ul {margin:4px 0;padding-inline-start:20px}
 #order-delivery-pane .oc-entry {padding-block:6px;border-bottom:1px solid var(--border,#e3e5db)}
 #order-delivery-pane [role=alert] {color:var(--danger,#95372c)}
+#order-delivery-pane .oc-request {padding:0;border:0;border-radius:0;box-shadow:none;background:none}
+#order-delivery-pane .oc-request > h3 {margin:0 0 12px;font-size:15px}
+#order-delivery-pane .oc-request .order-panel-card {margin:0}
+#order-delivery-pane .oc-request h4 {font-family:inherit;font-weight:600;font-size:12px;line-height:1.4;margin:0 0 10px;color:var(--text-primary)}
+#order-delivery-pane .oc-overview details {margin:6px 0;color:var(--text-muted)}
+#order-delivery-pane .oc-overview summary {cursor:pointer}
+#order-delivery-pane .oc-totals {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin:10px 0;padding:9px 10px;border-radius:8px;background:var(--cream,#f7f7f2)}
+#order-delivery-pane .oc-totals dt {font-size:10px;color:var(--text-muted)}
+#order-delivery-pane .oc-totals dd {margin:2px 0 0;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+#order-delivery-pane .oc-method {display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap}
+#order-delivery-pane .oc-request .oc-actions button {background:var(--orders-600,#94630e);border-color:var(--orders-600,#94630e);color:#fff;padding:8px 14px}
+#order-delivery-pane .oc-request .oc-actions button:disabled {opacity:.65}

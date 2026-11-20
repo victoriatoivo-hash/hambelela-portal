@@ -44,7 +44,7 @@ export async function refresh(){
     finally{chunk.forEach(id=>pending.delete(id));paint();}
   }
 }
-function startStyle(){if(document.querySelector('link[data-order-collection-style]'))return;const l=document.createElement('link');l.rel='stylesheet';l.href=new URL('../css/order-collection.css?v=20261120b',import.meta.url);l.dataset.orderCollectionStyle='';document.head.append(l);}
+function startStyle(){if(document.querySelector('link[data-order-collection-style]'))return;const l=document.createElement('link');l.rel='stylesheet';l.href=new URL('../css/order-collection.css?v=20261120c',import.meta.url);l.dataset.orderCollectionStyle='';document.head.append(l);}
 function hist(rows){return (rows||[]).map(e=>'<div class="oc-entry"><strong>'+safe(e.event_type.replaceAll('_',' '))+'</strong> · '+safe(e.actor||'System')+' · '+safe(e.created_at)+' UTC'+(e.detail?.difference_cents!=null?'<br>Handover difference: '+amount(e.detail.difference_cents):'')+(e.detail?.front_cod_due_utc?'<br>Front desk COD follow-up: '+safe(e.detail.front_cod_due_utc)+' UTC':'')+(e.detail?.reason?'<br>'+safe(e.detail.reason):'')+'</div>').join('');}
 export async function open(order,editPayment,host){
   startStyle();const id=String(order.id),dlg=document.createElement('section');
@@ -59,6 +59,7 @@ export async function open(order,editPayment,host){
     job=state.jobs[id];remember(id,job,state.can_arrange);paint();foot.innerHTML='';
     if(!state.can_arrange){main.textContent='You do not have permission to arrange this delivery.';return;}
     if(job){
+      dlg.classList.remove('oc-request');
       heading.textContent='Delivery arranged';before=state.events?.at(-1)?.id;
       main.innerHTML='<div><strong>'+safe(label(job))+'</strong> · '+safe(job.public_reference)+'<br>Driver: '+safe(job.driver_name)+'</div>'+
         (!Number(job.picked_up)&&['ready','out_for_delivery'].includes(job.status)?control('Confirm parcel collected by '+job.driver_name,'data-pickup'):'')+
@@ -70,16 +71,17 @@ export async function open(order,editPayment,host){
     quote=(await api('front-api.php',{action:'quote',order:order.id},state.csrf)).result;if(!dlg.isConnected)return;
     const q=quote,paid=q.collect_cents===0,items=order.items||[];
     heading.textContent='Arrange Delivery';
-    main.innerHTML='<div class="oc-summary"><span>'+safe(q.order_number)+' · '+safe(q.customer_name)+'</span><small>'+safe(order.shipping_method||order.order_type||'Delivery')+' · '+safe(q.customer_mobile||'Contact needed')+'</small></div>'+
+    dlg.classList.add('oc-request');
+    main.innerHTML='<section class="order-panel-card oc-overview"><h4>Order summary</h4><div class="oc-summary"><span>'+safe(q.order_number)+' · '+safe(q.customer_name)+'</span></div>'+
       '<details><summary>Order contents ('+items.length+')</summary>'+(items.length?'<ul>'+items.map(i=>'<li>'+safe(i.quantity??'?')+' × '+safe(i.product_name)+'</li>').join('')+'</ul>':'No item lines recorded')+'</details>'+
-      '<div class="oc-payment">'+amount(q.total_cents)+' total · '+amount(q.paid_cents)+' paid · '+amount(q.collect_cents)+' to collect<br>'+safe(q.payment_method||'Payment method not recorded')+' '+(order.can_edit_payment?control('Edit / verify payment','data-payment'):'')+'</div>'+
-      '<div class="oc-fields"><label>Driver<select required name="driver" aria-label="Driver" data-portal-custom-select><option value="">Select driver</option>'+state.drivers.map(d=>'<option value="'+Number(d.id)+'"'+(Number(d.id)===18?' selected':'')+'>'+safe(d.full_name)+'</option>').join('')+'</select></label>'+
+      '<dl class="oc-totals">'+[['Order total',q.total_cents],['Paid',q.paid_cents],['To collect',q.collect_cents]].map(([k,v])=>'<div><dt>'+k+'</dt><dd>'+amount(v)+'</dd></div>').join('')+'</dl><div class="oc-method"><span>'+safe(q.payment_method||'Payment method not recorded')+'</span>'+(order.can_edit_payment?control('Edit / verify payment','data-payment'):'')+'</div></section>'+
+      '<section class="order-panel-card"><h4>Delivery details</h4><div class="oc-fields"><label>Driver<select required name="driver" aria-label="Driver" data-portal-custom-select data-portal-custom-select-native><option value="">Select driver</option>'+state.drivers.map(d=>'<option value="'+Number(d.id)+'"'+(Number(d.id)===18?' selected':'')+'>'+safe(d.full_name)+'</option>').join('')+'</select></label>'+
       '<label>Delivery date<input type="date" required name="date" min="'+today()+'" value="'+today()+'"></label>'+
       '<label>Contact number<input type="tel" required name="mobile" value="'+safe(q.customer_mobile)+'" '+(q.customer_mobile?'readonly':'')+'></label>'+
-      '<label>Payment arrangement<select name="terms" data-portal-custom-select>'+(paid?'<option value="verified">Already paid · verified</option>':'<option value="pending">Payment pending</option><option value="cod">Cash on delivery</option><option value="other">Other arrangement</option>')+'</select></label>'+
+      '<label>Payment arrangement<select name="terms" aria-label="Payment arrangement" data-portal-custom-select data-portal-custom-select-native>'+(paid?'<option value="verified">Already paid · verified</option>':'<option value="pending">Payment pending</option><option value="cod">Cash on delivery</option><option value="other">Other arrangement</option>')+'</select></label>'+
       '<label class="oc-wide">Delivery address<textarea required name="address" maxlength="2000">'+safe(q.address)+'</textarea></label>'+
-      '<label>Deliver before (customer preference)<input type="time" name="preference"></label><label class="oc-check"><input type="checkbox" name="urgent"> Urgent</label>'+
-      '<label class="oc-wide">Instructions for the driver<textarea name="notes" maxlength="4000">'+safe(String(q.customer_instructions||'').replace(/^(?:\\n|\s)+/,'').trim())+'</textarea></label></div>';
+      '</div></section><section class="order-panel-card"><h4>Driver instructions</h4><div class="oc-fields"><label>Deliver before (optional)<input type="time" name="preference"></label><label class="oc-check"><input type="checkbox" name="urgent"> Urgent delivery</label>'+
+      '<label class="oc-wide">Notes for the driver<textarea name="notes" maxlength="4000">'+safe(String(q.customer_instructions||'').replace(/^(?:\\n|\s)+/,'').trim())+'</textarea></label></div></section>';
     foot.innerHTML=state.drivers.length?'<button type="submit" class="orders-tools-button">Send to driver</button>':'No eligible drivers are available.';
   }
   dlg.onclick=async e=>{
