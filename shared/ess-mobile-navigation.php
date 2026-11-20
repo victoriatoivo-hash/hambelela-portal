@@ -5,6 +5,9 @@ if (function_exists('current_role_key') && current_role_key() !== 'owner_admin')
 }
 $essDeliveryShortcut = function_exists('current_role_key') && in_array(current_role_key(), ['delivery_driver','owner_admin'], true);
 $essDeliveryPath = BASE_URL.'/apps/delivery/index.php';
+foreach (($essShellApps ?? $apps ?? []) as $essAllowedApp) {
+    if (rtrim((string)($essAllowedApp['href'] ?? ''), '/') === $essDeliveryPath) { $essDeliveryShortcut=true; break; }
+}
 $essMobileIsDelivery = $essDeliveryShortcut && rtrim((string)($essMobileApp['href'] ?? ''), '/') === $essDeliveryPath;
 if ($essMobileIsDelivery) { $essMobileApp['name']='Deliveries'; $essMobileApp['icon']='truck'; }
 $essOnDelivery = in_array(basename((string)($_SERVER['SCRIPT_NAME'] ?? '')), ['index.php','driver-view.php'], true) && strpos((string)($_SERVER['SCRIPT_NAME'] ?? ''), '/apps/delivery/') !== false;
