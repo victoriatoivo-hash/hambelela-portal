@@ -2,6 +2,7 @@
 declare(strict_types=1);
 if(!defined('BASE_PATH')){http_response_code(404);exit;}
 if(current_role_key()!=='delivery_driver'){http_response_code(403);exit('Driver access required.');}
+if(isset($_GET['proof'])){require __DIR__.'/DriverProofOfDelivery.php';return;}
 if(isset($_GET['route'])){require __DIR__.'/DriverLiveRoute.php';return;}
 if(isset($_GET['delivery'])){require __DIR__.'/DriverOrderDetails.php';return;}
 require_once __DIR__.'/DriverAssignments.php';

@@ -4,6 +4,7 @@ namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
 require_once __DIR__.'/NotificationOutbox.php';
 require_once __DIR__.'/DeliveryDeadline.php';
+require_once __DIR__.'/ProofSubmission.php';
 
 /** Internal service; not an HTTP endpoint. Adapters must verify session and CSRF. */
 final class DeliveryService
@@ -41,6 +42,7 @@ final class DeliveryService
             $this->exec('INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json) VALUES(?,?,?,?)',
                 [$id,$action,$actor['id'],json_encode($result,JSON_THROW_ON_ERROR)]);
             $event=(int)$this->db->lastInsertId();
+            if($action==='delivered'&&isset($result['proof']))NotificationOutbox::notifyFront($this->db,$id,'proof:'.$event,'proof_completed');
             if($action==='failed'||($action==='delivered'&&($result['status']??'')==='awaiting_reconciliation'))NotificationOutbox::notifyFront($this->db,$id,'event:'.$event,$action==='failed'?'failed':'reconciliation');
             $noticeKind=['started'=>'started','delivered'=>'completed','cancelled'=>'cancelled','collected'=>'payment','receipt_issue'=>'payment','receipt_issue_resolved'=>'payment','failed'=>'failed'][$action]??null;
             if($action==='note_added'&&($actor['role']??'')!=='delivery_driver')$noticeKind='instructions';
@@ -56,6 +58,8 @@ final class DeliveryService
     private function assigned(array $actor,array $job): void
     {
         DeliveryPolicy::requireAssignedDriver($actor,$job);
+        $employee=$this->row('SELECT status FROM ops_employees WHERE id=? FOR UPDATE',[$actor['id']]);
+        if(!$employee||$employee['status']!=='active')throw new \DomainException('Driver employee inactive.');
         $driver=$this->row('SELECT active FROM delivery_driver_profiles WHERE employee_id=? FOR UPDATE',[$actor['id']]);
         if(!$driver||(int)$driver['active']!==1)throw new \DomainException('Driver profile inactive.');
     }
@@ -246,8 +250,20 @@ final class DeliveryService
         });
     }
 
-    public function complete(array $actor,int $id,string $uuid,?string $frontReason=null,?array $confirmation=null): array
+    public function arrive(array $actor,int $id,string $uuid,int $version):array
     {
+        return $this->command($actor,$id,$uuid,'arrived',[$version],function($j)use($actor){$this->assigned($actor,$j);EmployeeDriverSession::actor($this->db,(int)$actor['id']);},function($j)use($actor,$id,$version){
+            ProofContext::assertLocked($this->db,$j,$actor,$version,false);
+            $prior=ProofContext::read($this->db,(int)$actor['id'],$id);
+            if($prior['arrival'])throw new \DomainException('Arrival is already recorded. Refresh this screen.');
+            $this->exec('UPDATE delivery_jobs SET version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?',[$id]);
+            return ['driver_id'=>(int)$actor['id'],'assignment_revision'=>ProofContext::revision($this->db,$id),'recorded_by'=>'driver_confirmation'];
+        });
+    }
+
+    public function complete(array $actor,int $id,string $uuid,?string $frontReason=null,?array $confirmation=null,?ProofSubmission $proof=null): array
+    {
+        if($frontReason===null&&ProofPolicy::enabled()&&$proof===null)throw new \DomainException('Open Proof of delivery and submit the required evidence.');
         if($frontReason===null&&$confirmation===null)throw new \DomainException('Driver payment confirmation required.');
         if($confirmation!==null){
             $note=trim((string)($confirmation['note']??''));
@@ -258,10 +274,12 @@ final class DeliveryService
             $confirmation=['confirmed'=>true,'note'=>$note,'amount_cents'=>$declared,'method'=>$method];
         }
         $request=$frontReason===null?[]:[$frontReason];if($confirmation!==null)$request[]=$confirmation;
-        return $this->command($actor,$id,$uuid,'delivered',$request,function($j)use($actor,$frontReason){
-            if($frontReason===null){$this->assigned($actor,$j);return;}
+        if($proof)$request[]=$proof->fingerprint();
+        return $this->command($actor,$id,$uuid,'delivered',$request,function($j)use($actor,$frontReason,$proof){
+            if($frontReason===null){$this->assigned($actor,$j);if($proof)EmployeeDriverSession::actor($this->db,(int)$actor['id']);return;}
             if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange')||strlen($frontReason)<10||strlen($frontReason)>500)throw new \DomainException('An authorised employee and a confirmation reason (10–500 characters) are required.');
-        },function($j)use($actor,$id,$frontReason,$confirmation,$uuid){
+        },function($j)use($actor,$id,$frontReason,$confirmation,$uuid,$proof){
+            $proofResult=$proof?['proof'=>$proof->record($this->db,$j,$actor),'dispatch_notification'=>'queued']:[];
             $held=$this->row("SELECT COALESCE(SUM(order_goods_cents+delivery_fee_cents+partner_cod_cents),0) amount FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue')",[$id]);
             $remaining=$this->remaining($j);$due=array_sum($remaining);$declaration=[];
             if($confirmation!==null){
@@ -290,7 +308,7 @@ final class DeliveryService
                 $collected=$this->row("SELECT COALESCE(SUM(delivery_fee_cents),0) fee FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue','reconciled')",[$id]);
                 $this->ledger('prepaid:'.$id,$j,'fee_received',max(0,(int)$j['fee_cents']-(int)$collected['fee']-(!empty($declaration['declaration_review'])?$remaining['delivery_fee']:0)),$actor['id']);
             }elseif($j['fee_payer']==='already_paid')$this->ledger('prepaid:'.$id,$j,'fee_received',(int)$j['fee_cents'],$actor['id']);
-            return ['id'=>$id,'status'=>$status]+$declaration+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true])+($confirmation===null?[]:['note'=>$confirmation['note'],'delivery_payment_confirmed'=>true]);
+            return ['id'=>$id,'status'=>$status]+$proofResult+$declaration+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true])+($confirmation===null?[]:['note'=>$confirmation['note'],'delivery_payment_confirmed'=>true]);
         });
     }
 
