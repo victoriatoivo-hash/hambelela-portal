@@ -4498,7 +4498,7 @@
   }
   var collectionModule, collectionTimer;
   function loadCollectionModule(){
-    return collectionModule ||= import('../js/order-collection-ui.js?v=20261120c').catch(e=>{collectionModule=null;throw e;});
+    return collectionModule ||= import('../js/order-collection-ui.js?v=20261120d').catch(e=>{collectionModule=null;throw e;});
   }
   function scheduleCollectionStatus(fresh=false){
     if(fresh&&currentOrder)panelDetails?.querySelector('[data-collection-order]')?.setAttribute('data-collection-fresh','');

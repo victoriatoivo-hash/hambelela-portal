@@ -50,7 +50,8 @@ final class PortalOrderRepository
             if(!empty($input['additional_delivery']))throw new \DomainException('An additional trip requires separate authorized review.');
             if($shippingEvidence!==null){WooShippingSource::assertCurrent($order,$shippingEvidence);$fee=(int)$shippingEvidence['included_cents'];}
             else $fee=self::shippingComponent($order);
-            $address=self::usableAddress(trim((string)($shippingEvidence['address']??''))?:self::shippingAddress((string)($order['notes']??'')));
+            $originalAddress=self::usableAddress(trim((string)($shippingEvidence['address']??''))?:self::shippingAddress((string)($order['notes']??'')));
+            $address=$originalAddress;
             if(trim((string)($input['address']??''))!=='')$address=self::usableAddress((string)$input['address']);
             if(strlen($address)>2000)throw new \DomainException('Address is too long.');
             if($address===''&&empty($input['preview']))throw new \DomainException('Delivery address missing. Add an address before dispatch.');
@@ -64,6 +65,7 @@ final class PortalOrderRepository
             $prepaid=$money['collect_cents']===0;
             if(isset($input['board_terms'])){
                 $terms=$input['board_terms'];
+                if(!empty($input['tracking_version'])&&$terms==='verified'&&array_key_exists('portal_paid_confirmed',$order)&&$order['portal_paid_confirmed']!==null&&!(bool)$order['portal_paid_confirmed'])throw new \DomainException('Verify the Order Board paid confirmation before dispatch.');
                 if(($terms==='verified')!==$prepaid)throw new \DomainException('Payment changed. Check the saved order payment and review again.');
                 $items=$db->prepare('SELECT product_name,quantity FROM ops_order_items WHERE order_id=? ORDER BY id');
                 $items->execute([$id]);$lines=[];
@@ -77,7 +79,8 @@ final class PortalOrderRepository
                 'order_number'=>$order['order_number']??('#'.$id),'payment_method'=>$order['payment_method']??'',
                 'fee_cents'=>$fee,'included_fee_cents'=>$fee,'zone_id'=>null,'manual_rate_reason'=>null,
                 'fee_payer'=>$prepaid?'already_paid':'customer','prepaid_reference'=>$prepaid?'order:'.$id:null,
-                'contact_snapshot'=>$storedMobile,'urgent'=>!empty($input['urgent'])?1:0,'notes'=>$notes,'customer_instructions'=>trim((string)($shippingEvidence['customer_instructions']??'').'\n'.(string)($order['notes']??'')),'shipping_evidence'=>$shippingEvidence,'source_order'=>true];
+                'customer_instructions_clean'=>trim((string)($shippingEvidence['customer_instructions']??'')."\n".preg_replace('/^Shipping address:[^\\r\\n]*(?:\\r?\\n|$)/mi','',str_replace('\\n',"\n",(string)($order['notes']??'')))),
+                'original_address'=>$originalAddress,'contact_snapshot'=>$storedMobile,'urgent'=>!empty($input['urgent'])?1:0,'notes'=>$notes,'customer_instructions'=>trim((string)($shippingEvidence['customer_instructions']??'').'\n'.(string)($order['notes']??'')),'shipping_evidence'=>$shippingEvidence,'source_order'=>true];
         }
         $address=trim((string)($input['address']??''));if($address==='')$address=self::shippingAddress((string)($order['notes']??''));
         if($address===''||strlen($address)>2000)throw new \DomainException('Confirm the delivery address.');

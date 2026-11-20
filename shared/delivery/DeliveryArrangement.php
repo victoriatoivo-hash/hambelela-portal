@@ -59,7 +59,7 @@ final class DeliveryArrangement
             $deadline=$details['deadline']??['mode'=>'none','start_at'=>null,'end_at'=>null];
             $this->db->prepare("INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json) VALUES(?,'deadline_updated',?,?)")->execute([$id,$actor['id'],json_encode(['deadline'=>$deadline],JSON_THROW_ON_ERROR)]);
             $result=['id'=>$id,'reference'=>$ref,'status'=>'ready','deadline'=>DeliveryDeadline::label($deadline)];$json=json_encode($result,JSON_THROW_ON_ERROR);
-            $metadata=$result;$metadata['additional_delivery']=$additional;$metadata['additional_reason']=$additionalReason;if(!empty($order['shipping_evidence']))$metadata['shipping_verification']=$order['shipping_evidence'];
+            $metadata=$result;if(!empty($details['tracking_version'])){$metadata['tracking_version']=1;$metadata['original_address']=$order['original_address']??null;$metadata['address']=$order['address'];}$metadata['additional_delivery']=$additional;$metadata['additional_reason']=$additionalReason;if(!empty($order['shipping_evidence']))$metadata['shipping_verification']=$order['shipping_evidence'];
             if(!empty($order['source_order']))$metadata['order_dispatch']=['version'=>1,'fee_snapshot_cents'=>$order['fee_cents'],'total_cents'=>$order['total_cents'],'paid_cents'=>$order['paid_cents'],'allocation_policy'=>'goods_first'];
             if(isset($details['board_terms']))$metadata['payment_arrangement']=$details['board_terms'];
             $this->db->prepare("INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json) VALUES(?,'arranged',?,?)")->execute([$id,$actor['id'],json_encode($metadata,JSON_THROW_ON_ERROR)]);

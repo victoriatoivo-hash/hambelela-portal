@@ -136,5 +136,6 @@ try{
  $remote['billing']['phone']='264811234567';$quote=$core->command($front,['action'=>'quote','source_order'=>true,'order'=>100]);
  ok($quote['customer_mobile']==='+264811234567','valid saved billing phone is reused automatically');
  ok($quote['collect_cents']===0&&$quote['fee_due']===0,'paid orders do not charge shipping again');
+ if(getenv('DELIVERY_ACCOUNTABILITY_TEST')==='1')require __DIR__.'/delivery-accountability.php';
  echo "PASS complete authenticated-role arrangement lifecycle on synthetic database only\n";
 }finally{$db->exec('DROP DATABASE '.$name);}

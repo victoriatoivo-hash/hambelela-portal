@@ -1,0 +1,68 @@
+/* Scoped to the existing Arrange Delivery tab. Uses the portal's inherited Jost font. */
+#order-delivery-pane {container-type:inline-size}
+#order-delivery-pane .oc-redesign {color:#1C2118;font-size:10.5px;line-height:normal;display:grid;gap:10px}
+#order-delivery-pane .oc-redesign form {margin:0;min-width:0}
+#order-delivery-pane .oc-redesign .order-panel-card {margin:0 0 10px;padding:12px;border:1px solid #e2e4db;border-radius:12px;background:#fff;box-shadow:0 2px 5px #1c211805;min-width:0}
+#order-delivery-pane .oc-redesign h4 {display:flex;align-items:center;gap:8px;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid #e2e4db;font:500 10.5px/normal inherit;font-size:10.5px;font-weight:500;color:#1C2118}
+#order-delivery-pane .oc-redesign svg {width:16px;height:16px;flex-shrink:0;color:var(--orders-600,#94630e)}
+#order-delivery-pane .oc-redesign :is(label,dt) {font-size:9.5px;font-weight:400;color:#1C2118}
+#order-delivery-pane .oc-redesign :is(input,select,textarea,button) {font-size:10.5px!important;font-weight:400!important;font-family:inherit!important;line-height:normal}
+#order-delivery-pane .oc-redesign :is(input:not([type=checkbox]),select,textarea) {min-height:32px;padding:6px 8px;border:1px solid #d9dcce;border-radius:7px;color:#1C2118;background:#fff}
+#order-delivery-pane .oc-redesign textarea {min-height:62px;resize:vertical}
+#order-delivery-pane .oc-redesign :is(input,select,textarea,button):focus-visible {outline:2px solid var(--orders-600,#94630e);outline-offset:2px}
+#order-delivery-pane .oc-redesign input[readonly],#order-delivery-pane .oc-redesign textarea[readonly] {background:#f8f8f4}
+#order-delivery-pane .oc-redesign .oc-secondary {color:#747A70;font-weight:300;line-height:normal}
+#order-delivery-pane .oc-redesign .oc-payment-line {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:5px}
+#order-delivery-pane .oc-redesign .oc-check {min-height:28px;align-self:center;display:flex;align-items:center;gap:6px}
+#order-delivery-pane .oc-redesign input[type=checkbox] {appearance:auto;accent-color:#59694a;width:14px;height:14px;flex:0 0 14px;margin:0}
+#order-delivery-pane .oc-redesign .oc-badge {background:#faf2e3;color:#805411;border-radius:20px;padding:3px 7px;font-size:9px}
+#order-delivery-pane .oc-redesign .is-green {background:#edf3e1;color:#42592c}
+#order-delivery-pane .oc-redesign .oc-totals {margin:8px 0;background:#f8f8f4;gap:8px}
+#order-delivery-pane .oc-redesign .oc-totals dd {font-size:13px;font-weight:500;margin:4px 0 0}
+#order-delivery-pane .oc-redesign .oc-accountability {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding:9px 12px;border-radius:10px;background:#f5f4ee;margin-top:-10px;margin-bottom:2px}
+#order-delivery-pane .oc-redesign .oc-accountability>div {display:flex;align-items:center;gap:7px;overflow-wrap:anywhere;font-size:9.5px;font-weight:300}
+#order-delivery-pane .oc-redesign strong {font-weight:500}
+#order-delivery-pane .oc-redesign .oc-layout {display:grid;gap:10px}
+#order-delivery-pane .oc-redesign .oc-fields {grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+#order-delivery-pane .oc-redesign .oc-progress {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));list-style:none;margin:12px 0;padding:0}
+#order-delivery-pane .oc-redesign .oc-progress li {position:relative;text-align:center;font-size:9.5px;padding:0 3px;color:#747A70;overflow-wrap:anywhere}
+#order-delivery-pane .oc-redesign .oc-progress li:before {content:'';position:absolute;height:1px;background:#d2d5cb;top:7px;left:0;width:100%}
+#order-delivery-pane .oc-redesign .oc-progress li:first-child:before {left:50%;width:50%}
+#order-delivery-pane .oc-redesign .oc-progress li:last-child:before {width:50%}
+#order-delivery-pane .oc-redesign .oc-progress li>span {display:block;position:relative;width:14px;height:14px;border-radius:50%;border:1px solid #bfc5b8;background:white;margin:0 auto 8px;box-sizing:border-box}
+#order-delivery-pane .oc-redesign .oc-progress .is-reached>span {background:var(--orders-600,#94630e);border-color:var(--orders-600,#94630e)}
+#order-delivery-pane .oc-redesign .oc-progress .is-current {color:var(--orders-600,#94630e);font-weight:500}
+#order-delivery-pane .oc-redesign .oc-progress .is-current>span {box-shadow:0 0 0 3px #94630e22}
+#order-delivery-pane .oc-redesign .oc-tracking {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0}
+#order-delivery-pane .oc-redesign .oc-tracking dd {margin:3px 0 0;color:#747A70;font-weight:300;overflow-wrap:anywhere}
+#order-delivery-pane .oc-redesign .oc-next {background:#f6f4ee;border-radius:8px;padding:9px;margin:10px 0}
+#order-delivery-pane .oc-redesign :is(.oc-inline,.oc-actions) {display:flex;align-items:end;gap:8px;flex-wrap:wrap}
+#order-delivery-pane .oc-redesign button {min-height:32px;border:1px solid #d9dcce;border-radius:7px;padding:6px 10px;background:#fff;white-space:normal;height:auto}
+#order-delivery-pane .oc-redesign button.oc-primary {background:var(--orders-600,#94630e);color:white;border-color:var(--orders-600,#94630e)}
+#order-delivery-pane .oc-redesign button:hover {filter:brightness(.96)}
+#order-delivery-pane .oc-redesign button:disabled {opacity:.55;cursor:wait}
+#order-delivery-pane .oc-redesign summary {cursor:pointer;font-weight:400;font-size:9.5px}
+#order-delivery-pane .oc-redesign details {margin-top:8px}
+#order-delivery-pane .oc-redesign .oc-entry {font-size:9.5px;overflow-wrap:anywhere}
+#order-delivery-pane .oc-redesign .oc-entry p {white-space:pre-wrap;margin:3px 0}
+#order-delivery-pane .oc-redesign .oc-link {display:inline-block;margin-top:10px;color:var(--orders-600,#94630e)}
+#order-delivery-pane .oc-redesign [data-error]:empty {display:none}
+.oc-payment-confirm {font-family:var(--font-family,'Jost',sans-serif);color:#1C2118;font-size:10.5px;max-width:390px;width:calc(100% - 40px);box-sizing:border-box;padding:18px;border:1px solid #d9dcce;border-radius:14px;box-shadow:0 16px 50px #1c211833}
+.oc-payment-confirm::backdrop {background:#1c211860}
+.oc-payment-confirm h3 {font:500 10.5px/normal inherit;font-size:10.5px;font-weight:500}
+.oc-payment-confirm p {color:#747A70;font-weight:300;line-height:1.5}
+.oc-payment-confirm>div {display:flex;gap:6px;flex-wrap:wrap}
+.oc-payment-confirm button {font-family:inherit;font-size:10.5px;font-weight:400;border:1px solid #d9dcce;background:white;border-radius:7px;padding:8px}
+.oc-payment-confirm [data-choice=verify] {background:#59694a;color:white}
+@container (min-width:650px) {
+ #order-delivery-pane .oc-redesign .oc-layout {grid-template-columns:1fr 1fr}
+ #order-delivery-pane .oc-redesign .oc-top {display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:8px}
+ #order-delivery-pane .oc-redesign .oc-top>button {grid-column:2;justify-self:end}
+ #order-delivery-pane .oc-redesign .oc-tracking {grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@container (max-width:340px) {
+ #order-delivery-pane .oc-redesign :is(.oc-fields,.oc-accountability) {grid-template-columns:1fr}
+}
+@media(max-width:767px) {
+ #order-delivery-pane .oc-redesign :is(input:not([type=checkbox]),select,button) {min-height:38px}
+}
