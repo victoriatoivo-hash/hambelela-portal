@@ -101,6 +101,17 @@
   let customColumns = [];
   let rowDragState = null;
   const selectedOrders = new Set();
+  const selectedOrderRecords = new Map();
+  let listPage = 1;
+  let listPagination = {page:1, pages:1, total:0, hidden_matches:0};
+  let appliedListQuery = '';
+  let listRequestQueued = false;
+  let selectionReadSequence = 0;
+  let selectionReadTimer = null;
+  let selectionReadError = '';
+  let selectionExpanded = false;
+  const listFilterKeys = ['person','mode','payment','status','paid','minAmount','maxAmount','createdAfter','createdBefore','sortColumn','sortDirection'];
+
   let bulkTrashInProgress = false;
   const paidUpdatesInProgress = new Set();
   let paidMutationRevision = 0;
@@ -167,12 +178,12 @@
   let paymentLabels = [
     ['Cash', '#bdbdbd'], ['Swipe', '#333333'], ['EFT', '#7b4bd3'], ['FNB eWallet', '#1b5e20'],
     ['EasyWallet', '#a648d9'], ['Blue Wallet', '#00845f'], ['Nedbank', '#07c66b'],
-    ['NetBank Wallet', '#2b5797'], ['Pay2Cell', '#c03456'], ['PayToday', '#4dc3bd'], ['DPO', '#2563EB']
+    ['NetBank Wallet', '#2b5797'], ['Pay2Cell', '#c03456'], ['PayToday', '#4dc3bd'], ['DPO payment', '#2563EB']
   ];
   const PAYMENT_METHODS = [
     ['cash','Cash'], ['card_swipe','Swipe'], ['eft','EFT'], ['fnb_ewallet','FNB eWallet'],
     ['easywallet','EasyWallet'], ['blue_wallet','Blue Wallet'], ['nedbank','Nedbank'],
-    ['netbank_wallet','NetBank Wallet'], ['pay2cell','Pay2Cell'], ['paytoday','PayToday'], ['dpo','DPO']
+    ['netbank_wallet','NetBank Wallet'], ['pay2cell','Pay2Cell'], ['paytoday','PayToday'], ['dpo','DPO payment']
   ];
 
   function syncPaymentFilterOptions() {
@@ -242,6 +253,7 @@
   let panelReturnPosition = null;
   let panelReturnTrigger = null;
   let activeOrderMutationCount = 0;
+  let orderMutationRevision = 0;
   const ordersInlineEditSessions = new Map();
   const ordersInlineConfirmedUntil = new Map();
   const ordersInlineFieldDefinitions = {
@@ -255,6 +267,161 @@
   })[char]);
   const selectorEsc = (value) => window.CSS && CSS.escape ? CSS.escape(String(value)) : String(value).replace(/["\\]/g, '\\$&');
 
+  function ordersListQueryKey() {
+    return JSON.stringify([activeDateRange(), boardState.search.trim(), ...listFilterKeys.map((key) => boardState[key])]);
+  }
+
+  async function requestOrdersList(resetPage = true) {
+    if (resetPage) listPage = 1;
+    if (listRequestQueued) return;
+    listRequestQueued = true;
+    try {
+      if (refreshInFlight) await refreshInFlight.catch(() => {});
+      await refresh(null, {preservePosition:true});
+    } catch (error) { showError(error); }
+    finally {
+      listRequestQueued = false;
+      if (appliedListQuery !== ordersListQueryKey() || listPage !== listPagination.page) {
+        // Only retry automatically when a newer query superseded this request.
+        if (!liveFailures) requestOrdersList(false);
+      }
+    }
+  }
+
+  function renderOrdersPagination() {
+    // The filter toolbar leads directly into the date groups; keep the summary at the end only.
+    document.getElementById('orders-list-pagination')?.remove();
+    const p = listPagination;
+    const range = globalOrderSearch() ? null : activeDateRange();
+    showOrderMatches(ordersCache);
+    const dateLabel = value => new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',year:'numeric',timeZone:'Africa/Windhoek'}).format(new Date(`${value}T12:00:00+02:00`));
+    const dates = ordersCache.map(order=>String(orderDisplayDateTime(order)).slice(0,10)).filter(value=>/^\d{4}-\d{2}-\d{2}$/.test(value)).sort();
+    const scope = range ? `${dateLabel(range.from)} – ${dateLabel(range.to)}` : 'All dates';
+    const shown = dates.length ? `Order dates: ${dateLabel(dates[0])} – ${dateLabel(dates[dates.length-1])}` : '';
+    for (const position of ['bottom']) {
+      const id = 'orders-list-pagination-bottom';
+      let controls = document.getElementById(id);
+      if (!controls) { controls=document.createElement('section');controls.id=id;controls.className='orders-list-pagination'; }
+      controls.setAttribute('aria-label',`Orders list summary · ${position}`);
+      if (!controls.isConnected) (document.getElementById('orders-board-cards') || document.querySelector('.orders-date-groups')).after(controls);
+      const markup = `<div class="orders-list-page-summary"><strong>${esc(scope)}</strong><span role="status">${ordersCache.length ? `${ordersCache.length} orders · One continuous list` : 'No matching orders'}</span><small>${esc(shown)}</small></div>
+        ${p.hidden_matches ? `<p class="orders-list-filter-notice">${p.hidden_matches} matching order${p.hidden_matches===1?' is':'s are'} hidden by the date or other filters. Adjust filters to include them.</p>` : ''}`;
+      if (controls.innerHTML !== markup) controls.innerHTML = markup;
+    }
+  }
+
+  const selectionCurrency = (cents) => `N$${(cents/100).toLocaleString('en-NA',{minimumFractionDigits:2, maximumFractionDigits:2})}`;
+
+  function renderSelectionMoney(bar) {
+    let total = 0, paid = 0, outstanding = 0, unknown = 0, missing = 0;
+    selectedOrders.forEach((id) => {
+      const money = selectedOrderRecords.get(id)?.selection_money;
+      if (!money || !Number.isSafeInteger(money.total_cents)) missing++;
+      else total += money.total_cents;
+      if (!money?.payment_verified) unknown++;
+      else { paid += money.paid_cents; outstanding += money.outstanding_cents; }
+    });
+    bar.querySelectorAll('[data-mobile-selection-total]').forEach((node) => { node.textContent = `${selectedOrders.size} order${selectedOrders.size === 1 ? '' : 's'} selected · ${missing ? 'Verifying…' : selectionCurrency(total)}`; });
+    bar.querySelector('[data-selection-total]').textContent = `Total Order Value: ${missing ? 'Verifying…' : selectionCurrency(total)}`;
+    bar.querySelector('[data-selection-paid]').textContent = `Amount Paid: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(paid)}`;
+    bar.querySelector('[data-selection-outstanding]').textContent = `Outstanding: ${unknown || selectionReadError ? 'Not verified' : selectionCurrency(outstanding)}`;
+    bar.querySelector('[data-selection-warning]').textContent = selectionReadError || (unknown ? `${unknown} selected order${unknown===1?' has':'s have'} incomplete or inconsistent payment records. Paid/outstanding totals are withheld.` : 'Verified payment records · includes delivery in the order total.');
+    bar.classList.toggle('has-unverified-selection', Boolean(unknown || selectionReadError));
+    page.classList.toggle('has-orders-selection', selectedOrders.size > 0);
+  }
+
+  async function refreshSelectedOrderRecords() {
+    const ids = [...selectedOrders];
+    const sequence = ++selectionReadSequence;
+    if (!ids.length) return true;
+    try {
+      const records = new Map();
+      for (let offset = 0; offset < ids.length; offset += 250) {
+        const response = await fetch(`${config.dataUrl}?paged=1&list_action=selection`, {
+          method:'POST', credentials:'same-origin', cache:'no-store',
+          headers:{'Content-Type':'application/json', Accept:'application/json'},
+          body:JSON.stringify({ids:ids.slice(offset,offset+250)})
+        });
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'Could not verify selection');
+        result.orders.forEach((order) => records.set(String(order.id), order));
+      }
+      if (sequence !== selectionReadSequence || ids.join(',') !== [...selectedOrders].join(',')) return false;
+      let missing = 0;
+      ids.forEach((id) => { if (records.has(id)) selectedOrderRecords.set(id, records.get(id)); else { selectedOrderRecords.delete(id); missing++; } });
+      selectionReadError = missing ? `${missing} selected order(s) are no longer available. Clear the selection and select active orders.` : '';
+      const bar = document.getElementById('orders-bulk-action-bar');
+      if (bar) renderSelectionMoney(bar);
+      return !missing;
+    } catch (error) {
+      if (sequence === selectionReadSequence) {
+        selectionReadError = 'Could not refresh selected amounts. Retry before using these totals.';
+        const bar = document.getElementById('orders-bulk-action-bar');
+        if (bar) renderSelectionMoney(bar);
+      }
+      return false;
+    }
+  }
+
+  document.addEventListener('click', async (event) => {
+    if (event.target.closest('[data-search-clear]')) { scheduleOrdersSearch(''); return; }
+    const target = event.target.closest('[data-list-select-page], [data-list-select-matching], [data-selection-toggle]');
+    if (!target) return;
+    if (target.hasAttribute('data-selection-toggle')) {
+      selectionExpanded = !selectionExpanded;
+      updateBulkActionBar();
+    } else if (target.hasAttribute('data-list-select-page')) {
+      ordersCache.forEach((order) => selectedOrders.add(String(order.id)));
+      updateSelectionBar();
+    } else {
+      target.disabled = true;
+      const queryKey = ordersListQueryKey();
+      const params = boardDataParams(); params.set('list_action','matching_ids');
+      try {
+        const response = await fetch(`${config.dataUrl}?${params}`, {credentials:'same-origin',cache:'no-store'});
+        const result = await response.json();
+        if (!response.ok || !result.ok) throw new Error(result.message || 'Could not select matching orders');
+        if (queryKey !== ordersListQueryKey()) throw new Error('Filters changed. Please select the matching results again.');
+        result.ids.forEach((id) => selectedOrders.add(String(id)));
+        updateSelectionBar();
+      } catch (error) { showError(error); }
+      finally { target.disabled = false; }
+    }
+  });
+
+  function globalOrderSearch() {
+    return Array.from(boardState.search.trim().replace(/^#\s*/, '')).length >= 3;
+  }
+
+  function showOrderMatches(orders) {
+    const input = document.querySelector('[data-board-search]');
+    if (!input) return;
+    let panel = document.getElementById('orders-quick-matches');
+    if (!globalOrderSearch()) { panel?.remove(); return; }
+    if (!panel) {
+      panel = document.createElement('section');
+      panel.id = 'orders-quick-matches';
+      panel.setAttribute('aria-label', 'Order search suggestions');
+      const info = document.createElement('span');
+      info.setAttribute('role','status');
+      panel.append(info, document.createElement('div'));
+      input.closest('section')?.after(panel);
+      panel.addEventListener('click', event => {
+        const button = event.target.closest('button[data-match-id]');
+        if (button) openPanel(button.dataset.matchId, 'details', button);
+      });
+    }
+    const summary = orders === null ? 'Searching…' : orders.length + (orders.length === 1 ? ' match' : ' matches');
+    const label = summary + ' · All active orders · Filters paused while searching';
+    if (panel.firstChild.textContent !== label) panel.firstChild.textContent = label;
+    const top = (orders || []).slice(0,6);
+    const markup = top.map(o => `<button type="button" class="portal-toolbar-action" data-match-id="${esc(o.id)}">${esc(formatOrderInvoiceReference(o.order_number))} · ${esc(o.customer_name || 'Customer')}</button>`).join('');
+    if (panel.dataset.rendered !== markup) {
+      panel.lastChild.innerHTML = markup;
+      panel.dataset.rendered = markup;
+    }
+  }
+
   function scheduleOrdersSearch(value, source = null) {
     const nextValue = String(value ?? '');
     const valueChanged = boardState.search !== nextValue;
@@ -265,11 +432,12 @@
     });
 
     if (!valueChanged) return;
+    showOrderMatches(null);
     window.clearTimeout(ordersSearchTimer);
     ordersSearchTimer = window.setTimeout(() => {
       ordersSearchTimer = null;
-      renderOrders(ordersCache);
-    }, 180);
+      requestOrdersList();
+    }, !nextValue ? 0 : 250);
   }
 
   function closeOrdersFilterMenu() {
@@ -366,9 +534,8 @@
   } catch (error) {
     storedDateFilter = {};
   }
-  let boardDateScope = ['today', 'week', 'month', 'custom', 'all'].includes(storedDateFilter.preset)
-    ? storedDateFilter.preset
-    : 'today';
+  // Remember custom date inputs, but start every page load in the current month.
+  let boardDateScope = 'month';
   let boardMonth = todayKey().slice(0, 7);
   if (datePreset) datePreset.value = boardDateScope;
   if (dateFromFilter && /^\d{4}-\d{2}-\d{2}$/.test(storedDateFilter.from || '')) dateFromFilter.value = storedDateFilter.from;
@@ -441,7 +608,6 @@
 
   function persistDateFilter() {
     sessionStorage.setItem(dateFilterStorageKey, JSON.stringify({
-      preset: boardDateScope,
       from: dateFromFilter?.value || '',
       to: dateToFilter?.value || ''
     }));
@@ -464,11 +630,18 @@
 
   function boardDataParams() {
     const params = new URLSearchParams();
-    const range = activeDateRange();
+    const global = globalOrderSearch();
+    const range = global ? null : activeDateRange();
     if (range) {
       params.set('date_from', range.from);
       params.set('date_to', range.to);
     }
+    params.set('paged', '1');
+    params.set('continuous', '1');
+    params.set('q', boardState.search.trim());
+    listFilterKeys.filter(key => !global || key === 'sortColumn' || key === 'sortDirection')
+      .forEach((key) => params.set(key, boardState[key] || ''));
+    params.set('page', String(listPage));
     params.set('t', String(Date.now()));
     return params;
   }
@@ -1009,7 +1182,7 @@
 
   function setMetric(key, value) {
     const node = [...metricNodes].find((item) => item.dataset.workMetric === key);
-    if (node) node.textContent = value;
+    if (node && node.textContent !== String(value)) node.textContent = value;
   }
 
   function setUndo(changes) {
@@ -1061,7 +1234,33 @@
     });
   }
 
+  const mobileOrdersViewport = window.matchMedia('(max-width: 767px)');
+  let mobileOrdersPointerDown = false;
+  let mobileOrdersScrollUntil = 0;
+  function mobileOrdersScrolling() {
+    return mobileOrdersViewport.matches && (mobileOrdersPointerDown || Date.now() < mobileOrdersScrollUntil);
+  }
+  // Observe gestures and momentum without cancelling native vertical page scrolling.
+  page.addEventListener('pointerdown', () => {
+    if (mobileOrdersViewport.matches) mobileOrdersPointerDown = true;
+  }, { passive: true });
+  const endMobileOrdersGesture = () => {
+    if (mobileOrdersPointerDown) mobileOrdersScrollUntil = Date.now() + 250;
+    mobileOrdersPointerDown = false;
+  };
+  window.addEventListener('pointerup', endMobileOrdersGesture, { passive: true });
+  window.addEventListener('pointercancel', endMobileOrdersGesture, { passive: true });
+  window.addEventListener('blur', endMobileOrdersGesture);
+  window.addEventListener('scroll', () => {
+    if (mobileOrdersViewport.matches) mobileOrdersScrollUntil = Date.now() + 250;
+  }, { capture: true, passive: true });
+
   function getOrdersScrollContainer(element) {
+    if (mobileOrdersViewport.matches) {
+      return element?.closest?.('.orders-table-surface')
+        || element?.closest?.('[data-group-card]')?.querySelector('.orders-table-surface')
+        || null;
+    }
     return element?.closest?.('[data-orders-board-scroll]') || document.querySelector('.orders-grid-scroll[data-orders-board-scroll]');
   }
 
@@ -1070,7 +1269,7 @@
     const row = source?.closest?.('.monday-order-row')
       || (orderId ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"]`) : null);
     const group = row?.closest?.('[data-group-card]') || source?.closest?.('[data-group-card]');
-    const table = getOrdersScrollContainer(source) || group?.querySelector('[data-orders-board-scroll], .orders-table-scroll');
+    const table = getOrdersScrollContainer(source) || group?.querySelector(mobileOrdersViewport.matches ? '.orders-table-surface' : '[data-orders-board-scroll], .orders-table-scroll');
 
     return {
       groupKey: group?.dataset.groupCard || '',
@@ -1084,6 +1283,16 @@
 
   function restoreOrdersTablePosition(position) {
     if (!position) return;
+    if (mobileOrdersViewport.matches) {
+      // Surviving surfaces already have the latest position. Restore only replaced groups,
+      // synchronously, without writing vertical positions or queuing a stale animation frame.
+      if (position.table?.isConnected || mobileOrdersScrolling()) return;
+      const group = [...body.querySelectorAll('[data-group-card]')]
+        .find((node) => node.dataset.groupCard === position.groupKey);
+      const table = group?.querySelector('.orders-table-surface');
+      if (table && table.scrollLeft !== position.tableLeft) table.scrollLeft = position.tableLeft;
+      return;
+    }
     const apply = () => {
       const table = position.table?.isConnected
         ? position.table
@@ -1097,32 +1306,38 @@
       }
     };
     apply();
-    window.requestAnimationFrame(apply);
+    // Do not replay an old position after the user's next scroll or menu action.
   }
 
   function captureOrdersBoardPositions() {
+    if (!mobileOrdersViewport.matches) {
+      const table = getOrdersScrollContainer(body);
+      return table ? [{ table, tableLeft: table.scrollLeft, tableTop: table.scrollTop }] : [];
+    }
     return [...body.querySelectorAll('[data-group-card]')].map((group) => {
-      const table = getOrdersScrollContainer(group);
-      return { groupKey: group.dataset.groupCard || '', tableLeft: table?.scrollLeft || 0, tableTop: table?.scrollTop || 0 };
+      const table = group.querySelector('.orders-table-surface');
+      return { table, groupKey: group.dataset.groupCard || '', tableLeft: table?.scrollLeft || 0, tableTop: table?.scrollTop || 0 };
     });
   }
 
   function restoreOrdersBoardPositions(positions) {
     (positions || []).forEach((position) => restoreOrdersTablePosition({
       ...position,
-      table: null,
       windowX: window.scrollX,
       windowY: window.scrollY
     }));
   }
 
   function ordersInteractionInProgress() {
-    return activeOrderMutationCount > 0
+    return mobileOrdersScrolling()
+      || activeOrderMutationCount > 0
       || Boolean(body.querySelector('.is-editing'))
       || Boolean(personPopup?.classList.contains('is-open'))
       || Boolean(labelMenu && !labelMenu.hidden)
       || Boolean(panel?.classList.contains('is-open'))
-      || Boolean(getOrdersScrollContainer(document.activeElement));
+      || Boolean(document.activeElement?.matches?.('textarea, select, [contenteditable="true"], input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"])')
+        && document.activeElement.closest('.orders-table-surface, [data-orders-board-scroll]'))
+      || Boolean(document.querySelector('.portal-sticky-horizontal-scrollbar.is-scrollbar-active'));
   }
 
   function focusInlineEditorAtEnd(control) {
@@ -1174,7 +1389,7 @@
         if (orderIds.length !== 1) throw new Error('Move courier orders individually to record boxes and courier.');
         const order=ordersCache.find(item=>String(item.id)===String(orderIds[0]));
         const details=await courierDispatchDetails(order);
-        if (!details) return;
+        if (!details) return [];
         const now=new Date(),serviceDate=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
         requestMetadata={...requestMetadata,dispatch_courier:details.courier,dispatch_package:details.packageDetail,dispatch_boxes:1,dispatch_date:serviceDate};
       }
@@ -1183,6 +1398,7 @@
     const sourceRow = ids[0] ? document.querySelector(`.monday-order-row[data-order-id="${selectorEsc(ids[0])}"]`) : null;
     const position = ordersTablePosition(sourceRow, ids[0] || '');
     activeOrderMutationCount += 1;
+    orderMutationRevision += 1;
     const changes = ids.map((id) => {
       const order = ordersCache.find((item) => String(item.id) === id);
       return { id, field, value: orderFieldValue(order, field) };
@@ -1248,6 +1464,7 @@
       rows.forEach((row) => row.classList.remove('is-saving'));
       restoreOrdersTablePosition(position);
       activeOrderMutationCount = Math.max(0, activeOrderMutationCount - 1);
+      orderMutationRevision += 1;
     }
 
     const savedChanges = changes.filter((change) => savedIds.includes(change.id));
@@ -1305,6 +1522,7 @@
   async function updateRichLabelValue(orderId, field, value, requestMetadata = {}) {
     const orderIds = requestMetadata.correction_reason ? [String(orderId)] : currentSelectedIdsFor(orderId);
     const changes = await updateOrdersField(orderIds, field, value, requestMetadata);
+    if (!changes.length) return false; // Cancelled courier prompt: do not paint an unsaved status.
     closeLabelMenu();
     const groupingField = { status: 'status', order_type: 'mode', assigned_packer_id: 'packer' }[field];
     if (groupingField && boardState.groupBy === groupingField) {
@@ -1312,7 +1530,7 @@
     } else {
       const options = field === 'order_type' ? modeLabels : field === 'payment_method' ? paymentLabels : statusLabels;
       const cellClass = field === 'order_type' ? 'col-mode' : field === 'payment_method' ? 'col-payment' : 'col-status';
-      orderIds.forEach((id) => {
+      changes.map((change) => change.id).forEach((id) => {
         const order = ordersCache.find((item) => String(item.id) === String(id));
         const row = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(id)}"]`);
         if (!order || !row) return;
@@ -1338,7 +1556,7 @@
       updateWorkMetrics(visibleOrders());
     }
     if (field === 'status') playCompleteConfettiForChanges(changes, value);
-    if (window.matchMedia('(max-width: 767px)').matches) renderMobileCards(visibleOrders());
+    return true;
   }
 
   async function undoLastChange() {
@@ -1594,6 +1812,13 @@
 
   function updateWorkMetrics(metricOrders = ordersCache) {
     const serverMetrics = window.HambelelaBoardMetrics || null;
+    if (serverMetrics?.paged) {
+      ['total_orders','new_today','in_progress_today','completed_all','unassigned_orders','overdue_orders','my_orders','pending_orders','completed_today'].forEach((key) => setMetric(key,String(serverMetrics[key] || 0)));
+      setMetric('in_progress',String(serverMetrics.in_progress_today || 0));
+      setMetric('total_revenue',money(serverMetrics.total_revenue || 0));
+      setMetric('today_revenue',money(serverMetrics.today_revenue || 0));
+      return;
+    }
     if (serverMetrics && currentUser && ['owner_admin', 'supervisor_manager'].includes(currentUser.role_key)) {
       const validRevenue = metricOrders.filter(isValidRevenueOrder).reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
       setMetric('total_orders', String(metricOrders.length));
@@ -1628,33 +1853,7 @@
   }
 
   function visibleOrders() {
-    const search = boardState.search.toLowerCase();
-    let orders = ordersCache.filter((order) => {
-      const haystack = [
-        order.order_number, formatOrderInvoiceReference(order.order_number), order.customer_name, order.customer_contact, order.payment_method,
-        order.order_type, order.status, order.packer_name, order.notes
-      ].join(' ').toLowerCase();
-
-      if (search && !haystack.includes(search)) return false;
-      if (boardState.person === '__me__' && String(order.assigned_packer_id || '') !== String(currentUser.id || '')) return false;
-      if (boardState.person && boardState.person !== '__me__' && (order.packer_name || 'Unassigned') !== boardState.person) return false;
-      if (boardState.mode && normalize(order.order_type) !== normalize(boardState.mode)) return false;
-      if (boardState.payment) {
-        const requestedPayment = normalize(boardState.payment);
-        const paymentMatches = normalize(order.payment_method) === requestedPayment
-          || (Array.isArray(order.payments) && order.payments.some((payment) => normalize(payment.label || payment.method) === requestedPayment));
-        if (!paymentMatches) return false;
-      }
-      if (boardState.status && normalize(order.status) !== normalize(boardState.status)) return false;
-      if (boardState.paid && (order.payment_status === 'paid' ? 'paid' : 'unpaid') !== boardState.paid) return false;
-      const amount = Number(order.total_amount || 0);
-      if (boardState.minAmount !== '' && amount < Number(boardState.minAmount)) return false;
-      if (boardState.maxAmount !== '' && amount > Number(boardState.maxAmount)) return false;
-      const created = dateKey(orderDisplayDateTime(order));
-      if (boardState.createdAfter && created < boardState.createdAfter) return false;
-      if (boardState.createdBefore && created > boardState.createdBefore) return false;
-      return true;
-    });
+    let orders = ordersCache; // The server applies every filter before pagination.
 
     const sortValue = (order, column) => {
       if (column === 'task') return order.order_number || order.customer_name || '';
@@ -1698,7 +1897,8 @@
     body.querySelectorAll('.monday-grid').forEach((row) => {
       Object.entries(map).forEach(([key, className]) => {
         row.querySelectorAll(`.${className}`).forEach((cell) => {
-          cell.style.display = boardState.hidden.has(key) ? 'none' : '';
+          const display = boardState.hidden.has(key) ? 'none' : '';
+          if (cell.style.display !== display) cell.style.display = display;
         });
       });
     });
@@ -1905,7 +2105,7 @@
     ordersToolsPanel.setAttribute('aria-hidden', 'false');
     document.body.classList.add('orders-tools-open');
     restoreOrdersBoardPositions(ordersToolsBoardPositions);
-    window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    if (!mobileOrdersViewport.matches) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
     const ordersToolsCloseButton = ordersToolsPanel.querySelector('[data-orders-tools-close]');
     ordersToolsCloseButton?.focus({ preventScroll: true });
     window.setTimeout(() => ordersToolsCloseButton?.focus({ preventScroll: true }), 0);
@@ -1921,7 +2121,7 @@
     ordersToolsPanel.setAttribute('aria-hidden', 'true');
     document.body.classList.remove('orders-tools-open');
     restoreOrdersBoardPositions(ordersToolsBoardPositions);
-    if (ordersToolsWindowPosition) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
+    if (!mobileOrdersViewport.matches && ordersToolsWindowPosition) window.scrollTo({ left: ordersToolsWindowPosition.x, top: ordersToolsWindowPosition.y, behavior: 'instant' });
     ordersToolsReturnFocus?.focus?.({ preventScroll: true });
     ordersToolsCloseTimer = window.setTimeout(() => {
       if (!ordersToolsPanel.classList.contains('is-open') && ordersToolsBackdrop) ordersToolsBackdrop.hidden = true;
@@ -1933,9 +2133,9 @@
     const orderIds = Array.isArray(ids) ? ids : [ids];
     const map = { 'restore-trash':'restore_trashed_orders', 'restore-archive':'restore_archived_orders', 'delete-forever':'delete_orders_forever', 'archive-selected':'archive_orders', 'trash-selected':'trash_orders' };
     if (action === 'export-selected') { exportSelectedOrders(); return; }
-    if (action === 'delete-forever' && !window.confirm('Delete this order forever?\n\nThis permanently removes the portal record and cannot be undone. The WooCommerce source order will not be deleted.')) return;
-    if (action === 'archive-selected' && !window.confirm(`Archive ${orderIds.length} selected order(s)?`)) return;
-    if (action === 'trash-selected' && !window.confirm(`Move ${orderIds.length} selected order(s) to Trash?`)) return;
+    if (action === 'delete-forever' && !await window.PortalNotice.confirm('Delete this order forever?\n\nThis permanently removes the portal record and cannot be undone. The WooCommerce source order will not be deleted.')) return;
+    if (action === 'archive-selected' && !await window.PortalNotice.confirm(`Archive ${orderIds.length} selected order(s)?`)) return;
+    if (action === 'trash-selected' && !await window.PortalNotice.confirm(`Move ${orderIds.length} selected order(s) to Trash?`)) return;
     await post(map[action], { order_ids: orderIds.join(',') });
     orderIds.forEach((id) => selectedOrders.delete(String(id)));
     await refresh(null, { preservePosition: true });
@@ -1993,7 +2193,7 @@
 
   function legacyPaymentCode(value) {
     const normalized = normalize(value).replace(/[^a-z0-9]+/g, '_');
-    const aliases = {card:'card_swipe',swipe:'card_swipe',card_swipe:'card_swipe',bacs:'eft',bank_transfer:'eft',bluewallet:'blue_wallet',dpo_pay:'dpo',dpo_paygate:'dpo',paygate:'dpo'};
+    const aliases = {card:'card_swipe',swipe:'card_swipe',card_swipe:'card_swipe',bacs:'eft',bank_transfer:'eft',bluewallet:'blue_wallet',dpo_payment:'dpo',woocommerce_dpo:'dpo',dpo_pay:'dpo',dpo_paygate:'dpo',paygate:'dpo'};
     return aliases[normalized] || (PAYMENT_METHODS.some(([code]) => code === normalized) ? normalized : '');
   }
 
@@ -2025,23 +2225,26 @@
     modal.id = 'order-payment-editor';
     modal.className = 'payment-editor orders-payment-modal';
     modal.dataset.orderId = String(order.id);
-    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title" data-payment-order-reference>${esc(formatOrderInvoiceReference(order.order_number || order.id))}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header><label class="payment-editor__type">Payment type<select data-payment-type ${editable?'':'disabled'}><option value="single">Single Payment</option><option value="split" ${payments.length>1?'selected':''}>Split Payment</option></select></label><div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable&&payments.length>1?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save Payment</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
+    modal.innerHTML = `<button type="button" class="payment-editor__backdrop" data-payment-editor-close aria-label="Close payment editor"></button><section class="payment-editor__dialog" role="dialog" aria-modal="true" aria-labelledby="payment-editor-title"><header><div><span>Order payment</span><h2 id="payment-editor-title" data-payment-order-reference>${esc(formatOrderInvoiceReference(order.order_number || order.id))}</h2></div><button type="button" data-payment-editor-close aria-label="Close">×</button></header><label class="payment-editor__type">Payment type<select data-payment-type data-portal-custom-select data-portal-custom-select-native ${editable?'':'disabled'}><option value="single">Single Payment</option><option value="split" ${payments.length>1?'selected':''}>Split Payment</option></select></label><div class="payment-editor__rows" data-payment-editor-rows></div><button type="button" class="payment-editor__add" data-payment-add ${editable&&payments.length>1?'':'hidden'}>+ Add payment method</button><div class="payment-editor__totals"><span>Order total <strong>${esc(money(order.total_amount))}</strong></span><span>Collected <strong data-payment-collected></strong></span><span>Due <strong data-payment-due></strong></span></div><footer><button type="button" data-payment-editor-close>Cancel</button>${editable?'<button type="button" class="primary" data-payment-save>Save Payment</button>':''}</footer><p class="payment-editor__error" data-payment-error aria-live="polite"></p></section>`;
     document.body.appendChild(modal);
+    window.PortalCustomSelect?.initialise(modal);
     const rows = modal.querySelector('[data-payment-editor-rows]');
+    let saving = false;
     const updateTotals = () => {
       const collected = payments.reduce((sum,payment)=>sum+Number(payment.amount_cents||0),0);
       modal.querySelector('[data-payment-collected]').textContent = money(collected/100);
       modal.querySelector('[data-payment-due]').textContent = money((Math.round(Number(order.total_amount||0)*100)-collected)/100);
     };
     const renderRows = () => {
-      rows.innerHTML = payments.map((payment,index)=>`<div class="payment-editor__row"><select data-payment-method-index="${index}" data-portal-custom-select data-portal-select-variant="payment-method" aria-label="Payment method ${index + 1}" ${editable?'':'disabled'}>${PAYMENT_METHODS.map(([code,label])=>`<option value="${code}" data-payment-option="${esc(normaliseOrderColourKey(code))}" ${code===payment.method?'selected':''}>${esc(label)}</option>`).join('')}</select><label>N$<input type="number" min="0" step="0.01" value="${(Number(payment.amount_cents||0)/100).toFixed(2)}" data-payment-amount-index="${index}" ${editable?'':'disabled'}></label>${editable&&payments.length>1?`<button type="button" data-payment-remove="${index}" aria-label="Remove payment">×</button>`:''}</div>`).join('');
+      rows.innerHTML = payments.map((payment,index)=>`<div class="payment-editor__row"><div class="payment-editor__method"><span class="payment-editor__field-title">Payment method</span><select data-payment-method-index="${index}" data-portal-custom-select data-portal-custom-select-native data-portal-select-variant="payment-method" aria-label="Payment method ${index + 1}" ${editable?'':'disabled'}>${PAYMENT_METHODS.map(([code,label])=>`<option value="${code}" data-payment-option="${esc(normaliseOrderColourKey(code))}" ${code===payment.method?'selected':''}>${esc(label)}</option>`).join('')}</select></div><div class="payment-editor__kind"><span class="payment-editor__field-title">Payment type</span><output data-payment-kind="${index}">${esc(PAYMENT_METHODS.find(([code])=>code===payment.method)?.[1] || payment.method)}</output></div><div class="payment-editor__amount"><span class="payment-editor__field-title">Amount</span><label>N$<input aria-label="Amount for payment ${index+1}" type="number" inputmode="decimal" min="0" step="0.01" value="${(Number(payment.amount_cents||0)/100).toFixed(2)}" data-payment-amount-index="${index}" ${editable?'':'disabled'}></label></div><button type="button" data-payment-remove="${index}" aria-label="Remove payment ${index+1}" ${editable&&payments.length>1?'':'disabled'}>×</button></div>`).join('');
       window.PortalCustomSelect?.initialise(rows);
       updateTotals();
     };
     renderRows();
     modal.addEventListener('input',(event)=>{const index=Number(event.target.dataset.paymentAmountIndex);if(Number.isInteger(index)&&payments[index]){payments[index].amount_cents=Math.round(Number(event.target.value||0)*100);updateTotals();}});
-    modal.addEventListener('change',(event)=>{if(event.target.matches('[data-payment-type]')){if(event.target.value==='single'){payments.splice(1);modal.querySelector('[data-payment-add]').hidden=true;}else{if(payments.length<2)payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'eft',amount_cents:0});modal.querySelector('[data-payment-add]').hidden=false;}renderRows();return;}const index=Number(event.target.dataset.paymentMethodIndex);if(Number.isInteger(index)&&payments[index]){payments[index].method=event.target.value;updateTotals();}});
+    modal.addEventListener('change',(event)=>{if(event.target.matches('[data-payment-type]')){if(event.target.value==='single'){payments.splice(1);modal.querySelector('[data-payment-add]').hidden=true;}else{if(payments.length<2)payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'eft',amount_cents:0});modal.querySelector('[data-payment-add]').hidden=false;}renderRows();return;}const index=Number(event.target.dataset.paymentMethodIndex);if(Number.isInteger(index)&&payments[index]){payments[index].method=event.target.value;modal.querySelector(`[data-payment-kind="${index}"]`).textContent=PAYMENT_METHODS.find(([code])=>code===event.target.value)?.[1]||event.target.value;updateTotals();}});
     modal.addEventListener('click',async(event)=>{
+      if (saving) return;
       if(event.target.closest('[data-payment-editor-close]')) return closePaymentEditor();
       if(event.target.closest('[data-payment-add]')){payments.push({method:PAYMENT_METHODS.find(([code])=>!payments.some(p=>p.method===code))?.[0]||'cash',amount_cents:0});renderRows();return;}
       const remove=event.target.closest('[data-payment-remove]');if(remove){payments.splice(Number(remove.dataset.paymentRemove),1);if(payments.length===1){modal.querySelector('[data-payment-type]').value='single';modal.querySelector('[data-payment-add]').hidden=true;}renderRows();return;}
@@ -2049,10 +2252,10 @@
       const errorNode=modal.querySelector('[data-payment-error]');errorNode.textContent='';
       if(new Set(payments.map(p=>p.method)).size!==payments.length){errorNode.textContent='A payment method cannot appear twice.';return;}
       if(modal.querySelector('[data-payment-type]').value==='split'&&payments.length<2){errorNode.textContent='A split payment requires at least two methods.';return;}
-      if(payments.some(p=>Number(p.amount_cents)<=0)){errorNode.textContent='Every payment amount must be greater than zero.';return;}
+      if(payments.some(p=>!Number.isFinite(Number(p.amount_cents))||Number(p.amount_cents)<0||(payments.length>1&&Number(p.amount_cents)===0))){errorNode.textContent='Use zero only for a single unpaid method. Split amounts must be positive.';return;}
       if(payments.reduce((sum,p)=>sum+Number(p.amount_cents||0),0)>Math.round(Number(order.total_amount||0)*100)){errorNode.textContent='Collected payment cannot exceed the order total.';return;}
-      save.disabled=true;save.textContent='Saving…';
-      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_source_of_truth=data.source;order.payment_method=data.payment_method;order.financial_payment_status=data.financial_payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row)row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);closePaymentEditor();if(syncState)syncState.textContent=data.sync_warning?`Payment saved locally. ${data.sync_warning}`:'Payment saved.';}catch(error){errorNode.textContent=error.message;save.disabled=false;save.textContent='Save Payment';}
+      saving=true;save.disabled=true;save.textContent='Saving…';
+      try{const data=await post('save_payment_allocations',{order_id:order.id,payments:JSON.stringify(payments),version:order.payment_version||''});order.payments=data.payments;order.payment_version=data.version;order.payment_source_of_truth=data.source;order.payment_method=data.payment_method;order.financial_payment_status=data.financial_payment_status;const row=body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(order.id)}"]`);if(row)row.querySelector('.col-payment').innerHTML=renderPaymentBadge(order);closePaymentEditor();if(syncState)syncState.textContent=data.sync_warning?`Payment saved locally. ${data.sync_warning}`:'Payment saved.';}catch(error){saving=false;errorNode.textContent=error.message;save.disabled=false;save.textContent='Save Payment';}
     });
   }
 
@@ -2115,42 +2318,6 @@
     bar.dataset.filterCount = String(count);
     const clear = document.querySelector('[data-clear-board-filters]');
     if (clear) clear.hidden = count === 0;
-  }
-
-  function ensureMobileList() {
-    let list = document.getElementById('orders-board-cards');
-    if (!list) {
-      list = document.createElement('div');
-      list.id = 'orders-board-cards';
-      list.className = 'board-card-list';
-      const desktopList = document.querySelector('.orders-date-groups');
-      if (desktopList) desktopList.after(list);
-      else page.appendChild(list);
-    }
-    return list;
-  }
-
-  function renderMobileCards(orders) {
-    const list = ensureMobileList();
-    list.innerHTML = orders.map((order) => `
-      <article class="board-mobile-card" data-mobile-order-id="${esc(order.id)}">
-        <header class="board-mobile-card__top">
-          <strong class="editable-cell" data-editable-order-field="task_name" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_name || '')}" tabindex="0" aria-label="Edit task"><span class="orders-inline-cell-trigger task-name">${esc(buildOrderTaskName(order) || 'Customer not recorded')}</span></strong>
-          ${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}
-        </header>
-        <div class="board-mobile-card__grid">
-          <div><span class="orders-mobile-label">Date</span><span class="orders-mobile-value">${esc(prettyDate(orderDisplayDateTime(order)))}</span></div>
-          <div><span class="orders-mobile-label">Mobile number</span><span class="orders-mobile-value editable-cell" data-editable-order-field="mobile_number" data-order-id="${esc(order.id)}" data-value="${esc(order.customer_contact || '')}" tabindex="0" aria-label="Edit mobile number"><span class="orders-inline-cell-trigger">${esc(order.customer_contact || 'Not recorded')}</span></span></div>
-          <div><span class="orders-mobile-label">Mode</span>${renderLabelCell(order, 'order_type', order.order_type || 'collection', modeLabels, 'mode-label')}</div>
-          <div><span class="orders-mobile-label">Amount</span><span class="orders-mobile-value">${esc(money(order.total_amount))}</span></div>
-          <div><span class="orders-mobile-label">Payment</span>${renderPaymentBadge(order)}</div>
-          <div><span class="orders-mobile-label">Paid</span><span class="orders-mobile-value">${order.payment_status === 'paid' ? 'Paid ✓' : 'Unpaid'}</span></div>
-          <div><span class="orders-mobile-label">Shipping</span><span class="orders-mobile-value">${esc(order.dispatch_courier ? `${order.dispatch_courier}${order.dispatch_box_count ? ` · ${order.dispatch_box_count} box${Number(order.dispatch_box_count) === 1 ? '' : 'es'}` : ''}` : findText(modeLabels, order.order_type || 'collection'))}</span></div>
-        </div>
-        <div class="board-mobile-card__packer"><span class="orders-mobile-label">Packed By</span>${renderPackerCell(order)}</div>
-        <div class="board-mobile-card__actions"><button type="button" data-order-panel-open data-order-id="${esc(order.id)}">View Order</button><button type="button" class="orders-task-menu-trigger" data-order-row-menu data-order-id="${esc(order.id)}" aria-label="More order actions" aria-haspopup="menu" aria-expanded="false"><span></span><span></span><span></span></button></div>
-      </article>
-    `).join('');
   }
 
   function renderCustomCell(column) {
@@ -2304,17 +2471,40 @@
     URL.revokeObjectURL(link.href);
   }
 
-  function exportSelectedOrders() {
-    const rows = ordersCache.filter((order) => selectedOrders.has(String(order.id)));
+  async function exportSelectedOrders() {
+    if (!await refreshSelectedOrderRecords()) return;
+    const rows = [...selectedOrders].map((id) => selectedOrderRecords.get(id)).filter(Boolean);
     exportOrders(rows, `hambelela-selected-orders-${new Date().toISOString().slice(0, 10)}.csv`);
   }
+
+  let mobileBulkDismissed = false;
+  let mobileBulkExpanded = false;
+  let mobileBulkSelectionKey = '';
+  document.addEventListener('click', (event) => {
+    if (!mobileOrdersViewport.matches || !mobileBulkExpanded) return;
+    const bar = document.getElementById('orders-bulk-action-bar');
+    if (!bar || bar.contains(event.target)) return;
+    // Consume just this outside click so dismissing cannot also toggle an order.
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    mobileBulkExpanded = false;
+    updateBulkActionBar();
+  }, true);
+  document.addEventListener('keydown', (event) => {
+    if (event.key !== 'Escape' || !mobileOrdersViewport.matches || !selectedOrders.size || mobileBulkDismissed) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (mobileBulkExpanded) mobileBulkExpanded = false;
+    else mobileBulkDismissed = true;
+    updateBulkActionBar();
+  }, true);
 
   function ensureBulkActionBar() {
     let bar = document.getElementById('orders-bulk-action-bar');
     if (!bar) {
       bar = document.createElement('div');
       bar.id = 'orders-bulk-action-bar';
-      bar.className = 'orders-packing-bulk-bar';
+      bar.className = 'orders-packing-bulk-bar orders-selection-bar';
       bar.dataset.ordersBulkActions = '';
       bar.setAttribute('role', 'toolbar');
       bar.setAttribute('aria-label', 'Selected orders actions');
@@ -2322,7 +2512,15 @@
       (page || document.body).appendChild(bar);
     }
     bar.innerHTML = `
-      <div class="orders-packing-bulk-selection"><span class="orders-packing-bulk-count" data-bulk-count>0</span><strong class="orders-packing-bulk-label" data-bulk-label>items selected</strong></div>
+      <div class="orders-mobile-bulk-heading"><span data-mobile-selection-total></span><button type="button" data-order-bulk-action="mobile-actions" aria-expanded="${mobileBulkExpanded}">Actions</button></div>
+      <button type="button" class="orders-bulk-collapsed-trigger" data-order-bulk-action="mobile-reopen" aria-label="Reopen selected orders toolbar"><span data-mobile-selection-total></span></button>
+      <div class="orders-selection-finances">
+        <div class="orders-selection-total" data-selection-total aria-live="polite">Total: —</div>
+        <button type="button" class="orders-selection-clear orders-selection-toggle" data-selection-toggle aria-controls="orders-selection-payment-details" aria-expanded="${selectionExpanded}">Payment details <span aria-hidden="true">${selectionExpanded ? '⌃' : '⌄'}</span></button>
+        <div id="orders-selection-payment-details" class="orders-selection-meta" data-selection-breakdown ${selectionExpanded ? '' : 'data-collapsed'}><span data-selection-paid></span><span data-selection-outstanding></span><span data-selection-warning role="status"></span></div>
+      </div>
+      <button type="button" class="orders-selection-clear orders-selection-dismiss" data-order-bulk-action="clear-selection" aria-label="Clear selection" title="Clear selection"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="1.7"/></svg></button>
+      <div class="orders-packing-bulk-selection orders-selection-count"><span class="orders-packing-bulk-count" data-bulk-count>0</span><strong class="orders-packing-bulk-label" data-bulk-label>items selected</strong></div>
       <div class="orders-packing-bulk-divider" aria-hidden="true"></div>
       <div class="orders-packing-bulk-actions">
         <button type="button" class="orders-packing-bulk-action" data-bulk-action="duplicate" data-order-bulk-action="duplicate" data-needs-manage><i data-lucide="copy"></i><span>Duplicate</span></button>
@@ -2330,7 +2528,7 @@
         <button type="button" class="orders-packing-bulk-action" data-bulk-action="archive" data-order-bulk-action="archive" data-needs-manage><i data-lucide="archive"></i><span>Archive</span></button>
         <button type="button" class="orders-packing-bulk-action orders-packing-bulk-action--danger" data-bulk-action="delete" data-order-bulk-action="delete" data-needs-delete><i data-lucide="trash-2"></i><span>Delete</span></button>
       </div>
-      <button type="button" class="orders-packing-bulk-close" data-order-bulk-action="close" aria-label="Close selected bar"><i data-lucide="x"></i></button>
+      <button type="button" class="orders-packing-bulk-close" data-order-bulk-action="close" aria-label="Close selected bar"><svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2"/></svg></button>
     `;
     return bar;
   }
@@ -2338,10 +2536,20 @@
   function updateBulkActionBar() {
     const bar = ensureBulkActionBar();
     const count = selectedOrders.size;
+    const selectionKey = [...selectedOrders].sort().join(',');
+    if (selectionKey !== mobileBulkSelectionKey) {
+      mobileBulkSelectionKey = selectionKey;
+      mobileBulkDismissed = false;
+      mobileBulkExpanded = false;
+    }
+    bar.classList.toggle('is-mobile-dismissed', mobileBulkDismissed);
+    bar.classList.toggle('is-mobile-expanded', mobileBulkExpanded);
+    bar.querySelector('[data-order-bulk-action="mobile-actions"]').setAttribute('aria-expanded', String(mobileBulkExpanded));
     bar.hidden = count === 0;
     bar.classList.toggle('is-visible', count > 0);
     bar.querySelector('[data-bulk-count]').textContent = String(count);
-    bar.querySelector('[data-bulk-label]').textContent = count === 1 ? 'item selected' : 'items selected';
+    bar.querySelector('[data-bulk-label]').textContent = count === 1 ? 'order selected' : 'orders selected';
+    renderSelectionMoney(bar);
     bar.querySelectorAll('[data-needs-manage]').forEach((button) => {
       button.hidden = !currentUser.can_bulk_manage;
     });
@@ -2353,11 +2561,21 @@
 
   function clearOrderSelection() {
     selectedOrders.clear();
+    selectedOrderRecords.clear();
+    selectionReadSequence++;
+    selectionReadError = '';
     updateSelectionBar();
   }
 
   async function runOrderBulkAction(action) {
-    if (action === 'close') {
+    if (mobileOrdersViewport.matches && ['close','mobile-actions','mobile-reopen'].includes(action)) {
+      if (action === 'close') { mobileBulkDismissed = true; mobileBulkExpanded = false; }
+      if (action === 'mobile-actions') mobileBulkExpanded = !mobileBulkExpanded;
+      if (action === 'mobile-reopen') { mobileBulkDismissed = false; mobileBulkExpanded = false; }
+      updateBulkActionBar();
+      return;
+    }
+    if (action === 'close' || action === 'clear-selection') {
       clearOrderSelection();
       return;
     }
@@ -2366,8 +2584,8 @@
       exportSelectedOrders();
       return;
     }
-    if (action === 'archive' && !window.confirm(`Archive ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'}?`)) return;
-    if (action === 'delete' && !window.confirm(`Move ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'} to Trash?\n\nThe ${selectedOrders.size === 1 ? 'item' : 'items'} will be removed from the active Order page and can be restored later.`)) return;
+    if (action === 'archive' && !await window.PortalNotice.confirm(`Archive ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'}?`)) return;
+    if (action === 'delete' && !await window.PortalNotice.confirm(`Move ${selectedOrders.size} selected item${selectedOrders.size === 1 ? '' : 's'} to Trash?\n\nThe ${selectedOrders.size === 1 ? 'item' : 'items'} will be removed from the active Order page and can be restored later.`)) return;
     const actionMap = { duplicate: 'bulk_duplicate', archive: 'bulk_archive', delete: 'bulk_delete' };
     if (!actionMap[action]) return;
     if (action === 'delete' && bulkTrashInProgress) return;
@@ -2699,37 +2917,22 @@
       const current = body.querySelector(`[data-group-card="${selectorEsc(key)}"]`);
       if (!current) return;
       const template = document.createElement('template');
-      template.innerHTML = renderGroup(key, groups[key], Object.keys(groups).indexOf(key));
+      template.innerHTML = renderGroup(key, groups[key], Object.keys(groups).indexOf(key), false);
       const next = template.content.querySelector('[data-group-card]');
       const nextSummary = next?.querySelector('.monday-group-summary');
       const nextFooter = next?.querySelector('.ob-group-footer');
-      if (nextSummary) current.querySelector('.monday-group-summary')?.replaceWith(nextSummary);
+      if (nextSummary) patchOrdersPaint(current.querySelector('.monday-group-summary'), nextSummary);
       const currentFooter = current.querySelector('.ob-group-footer');
-      if (currentFooter && nextFooter) currentFooter.replaceWith(nextFooter);
+      if (currentFooter && nextFooter) patchOrdersPaint(currentFooter, nextFooter);
     });
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
   }
 
+  let paidFeedback = null;
   function showPaidFeedback(message, isError = false, saving = false) {
-    let notice = document.getElementById('orders-paid-feedback');
-    if (!notice) {
-      notice = document.createElement('div');
-      notice.id = 'orders-paid-feedback';
-      notice.className = 'orders-paid-feedback';
-      const text = document.createElement('span');
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.textContent = '×';
-      dismiss.setAttribute('aria-label', 'Dismiss Paid confirmation message');
-      dismiss.addEventListener('click', () => { notice.hidden = true; });
-      notice.append(text, dismiss);
-      document.body.appendChild(notice);
-    }
-    notice.firstElementChild.textContent = message;
-    notice.setAttribute('role', isError ? 'alert' : 'status');
-    notice.classList.toggle('is-error', isError);
-    notice.lastElementChild.hidden = saving;
-    notice.hidden = false;
+    paidFeedback?.close();
+    paidFeedback = window.showPortalToast({title:saving?'Saving Paid confirmation':'Paid confirmation',message,type:isError?'error':'success',module:'orders',duration:0});
+    paidFeedback.toast.querySelector('.portal-toast-close').hidden=saving;
   }
 
   async function togglePaidCell(paidCell) {
@@ -2794,7 +2997,7 @@
     }
   }
 
-  function renderGroup(key, orders, index) {
+  function renderGroup(key, orders, index, includeRows = true) {
     const total = orders.reduce((sum, order) => sum + Number(order.total_amount || 0), 0);
     const paid = orders.filter((order) => order.payment_status === 'paid').length;
     const colour = groupColours[index % groupColours.length];
@@ -2833,7 +3036,8 @@
       </div>
     ` : '';
 
-    const rows = orders.map((order, rowIndex) => {
+    // Keep every date in the continuous list, but only mount rows for open dates.
+    const rows = (isOpen && includeRows ? orders : []).map((order, rowIndex) => {
       const stripClass = `${rowIndex === 0 ? 'is-group-first' : ''} ${rowIndex === orders.length - 1 ? 'is-group-last-visible' : ''}`.trim();
       return `
         <div data-order-id="${esc(order.id)}" data-group-row="${esc(key)}" data-group-date="${esc(key)}" class="orders-grid-row monday-grid monday-order-row board-row ob-data-row order-row ${stripClass} ${!previousOrderIds.has(String(order.id)) && hasRenderedOnce ? 'row-new' : ''} ${selectedOrders.has(String(order.id)) ? 'is-selected' : ''}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
@@ -2866,7 +3070,7 @@
               <span class="orders-date-summary-block orders-date-summary-block--paid"><span class="orders-summary-label">Paid</span><strong class="orders-summary-value">${paid}/${orders.length}</strong></span>
               <span class="orders-date-summary-block orders-date-summary-block--status"><span class="orders-summary-label">Status</span>${packingStyleSummaryBar(statusCounts, statusColours, 'ob-status-bar', 'Status distribution')}</span>
         </button>
-        <div class="orders-date-content monday-group-orders" data-orders-date-content${hiddenAttrs}>
+        ${isOpen ? `<div class="orders-date-content monday-group-orders" data-orders-date-content>
             <div class="orders-table-surface">
               <div class="orders-table-grid">
             <div class="orders-grid-header monday-grid monday-column-header ob-col-header-row" data-group="${esc(key)}" style="--ob-group-colour:${esc(colour)}"${hiddenAttrs}>
@@ -2878,30 +3082,39 @@
             ${footerRow}
               </div>
             </div>
-        </div>
+        </div>` : ''}
       </section>
     `;
   }
 
   function renderOrders(orders) {
+    if (appliedListQuery && appliedListQuery !== ordersListQueryKey()) {
+      requestOrdersList();
+      return;
+    }
+    if (hasRenderedOnce && mobileOrdersScrolling()) {
+      [...ordersCache, ...orders].forEach((order) => livePendingGroupKeys.add(groupKey(order)));
+      ordersCache = orders;
+      liveRenderPending = true;
+      return;
+    }
     const savedBoardPositions = hasRenderedOnce ? captureOrdersBoardPositions() : [];
     const savedWindowPosition = { x: window.scrollX, y: window.scrollY };
     ordersCache = orders;
     syncPaymentFilterOptions();
     syncOrdersGridColumns();
-    const knownIds = new Set(ordersCache.map((order) => String(order.id)));
-    [...selectedOrders].forEach((id) => {
-      if (!knownIds.has(id)) selectedOrders.delete(id);
-    });
+    ordersCache.forEach((order) => { if (selectedOrders.has(String(order.id))) selectedOrderRecords.set(String(order.id), order); });
+    renderOrdersPagination();
     const visible = visibleOrders();
     updateWorkMetrics(visible);
     updateFilterBadge();
     renderMoreFilterChips();
     if (!visible.length) {
-      body.innerHTML = hasClientFilters()
-        ? '<div class="board-empty-state orders-filter-empty"><strong>No orders match these filters.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
+      body.innerHTML = globalOrderSearch()
+        ? '<div class="board-empty-state"><strong>No matching active orders.</strong><p>Try a shorter name, phone number, amount or order reference.</p></div>'
+        : hasClientFilters()
+        ? '<div class="board-empty-state orders-filter-empty"><strong>No matching orders.</strong><p>Try adjusting or clearing your filters.</p><div class="board-empty-actions"><button type="button" data-clear-board-filters>Clear filters</button></div></div>'
         : '<div class="board-empty-state orders-data-empty"><strong>No orders found.</strong><p>There are currently no orders in this view.</p></div>';
-      renderMobileCards([]);
       updateSelectionBar();
       previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
       hasRenderedOnce = true;
@@ -2915,15 +3128,15 @@
     }
     renderCustomHeaders();
     body.innerHTML = groupKeys.map((key, index) => renderGroup(key, groups[key], index)).join('');
+    rememberOrdersPaint(body);
     bindOrdersColumnResizers();
-    renderMobileCards(visible);
     if (groupLabelNode) groupLabelNode.textContent = `Grouped by ${boardState.groupBy}`;
     applyHiddenColumns();
     updateSelectionBar();
     if (window.lucide) window.lucide.createIcons({ strokeWidth: 2 });
     animateBoardRows();
     restoreOrdersBoardPositions(savedBoardPositions);
-    if (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y) {
+    if (!mobileOrdersViewport.matches && (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y)) {
       window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
     }
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
@@ -2945,6 +3158,7 @@
     livePendingGroupKeys.clear();
 
     ordersCache = nextOrders;
+    if (!affected.size) return; // An unchanged poll must not rebuild controls or restore scroll.
     syncPaymentFilterOptions();
     const visible = visibleOrders();
     const groups = groupedOrders(visible);
@@ -2965,7 +3179,12 @@
       const replacement = template.content.firstElementChild;
       if (!replacement) return;
       if (existing) {
-        existing.replaceWith(replacement);
+        if (existing.classList.contains('is-open') !== replacement.classList.contains('is-open')) {
+          rememberOrdersPaint(replacement);
+          existing.replaceWith(replacement);
+        } else {
+          patchOrdersDateGroup(existing, replacement);
+        }
         return;
       }
 
@@ -2975,6 +3194,7 @@
       const laterGroup = laterKey
         ? body.querySelector(`[data-orders-date-group][data-date-key="${selectorEsc(laterKey)}"]`)
         : null;
+      rememberOrdersPaint(replacement);
       if (laterGroup) laterGroup.before(replacement);
       else body.appendChild(replacement);
     });
@@ -2983,15 +3203,55 @@
     updateFilterBadge();
     renderMoreFilterChips();
     bindOrdersColumnResizers();
-    renderMobileCards(visible);
     applyHiddenColumns();
     updateSelectionBar();
     if (window.lucide) window.lucide.createIcons({ strokeWidth:2 });
     restoreOrdersBoardPositions(savedBoardPositions);
-    if (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y) {
+    if (!mobileOrdersViewport.matches && (window.scrollX !== savedWindowPosition.x || window.scrollY !== savedWindowPosition.y)) {
       window.scrollTo({ left:savedWindowPosition.x, top:savedWindowPosition.y, behavior:'instant' });
     }
     previousOrderIds = new Set(ordersCache.map((order) => String(order.id)));
+  }
+
+  function rememberOrdersPaint(root) {
+    // Compare generated markup, not icon-enhanced DOM. Identical polls do no DOM writes.
+    const signatures = rememberOrdersPaint.signatures ||= new WeakMap();
+    root.querySelectorAll('.orders-grid-cell, .monday-group-summary, .ob-group-footer').forEach((node) => signatures.set(node, node.outerHTML));
+  }
+
+  function patchOrdersPaint(current, next) {
+    if (!current || !next) return;
+    const signatures = rememberOrdersPaint.signatures ||= new WeakMap();
+    const signature = next.outerHTML;
+    if ((signatures.get(current) || current.outerHTML) === signature) return;
+    signatures.set(next, signature);
+    current.replaceWith(next);
+  }
+
+  function patchOrdersDateGroup(current, next) {
+    patchOrdersPaint(current.querySelector('.monday-group-summary'), next.querySelector('.monday-group-summary'));
+    patchOrdersPaint(current.querySelector('.ob-group-footer'), next.querySelector('.ob-group-footer'));
+    const currentBody = current.querySelector('.orders-grid-body');
+    const nextBody = next.querySelector('.orders-grid-body');
+    if (!currentBody || !nextBody) return;
+    const rows = new Map([...currentBody.children].map((row) => [row.dataset.orderId, row]));
+    const nextIds = new Set([...nextBody.children].map((row) => row.dataset.orderId));
+    rows.forEach((row, id) => { if (!nextIds.has(id)) row.remove(); });
+    [...nextBody.children].forEach((incoming, index) => {
+      const row = rows.get(incoming.dataset.orderId);
+      if (!row) {
+        rememberOrdersPaint(incoming);
+        currentBody.insertBefore(incoming, currentBody.children[index] || null);
+        return;
+      }
+      // Only changed cells are replaced. Keep other rows, controls and focus in place.
+      const cells = [...row.children];
+      [...incoming.children].forEach((cell, i) => patchOrdersPaint(cells[i], cell));
+      ['is-group-first', 'is-group-last-visible', 'is-selected'].forEach((name) => {
+        if (row.classList.contains(name) !== incoming.classList.contains(name)) row.classList.toggle(name, incoming.classList.contains(name));
+      });
+      if (row !== currentBody.children[index]) currentBody.insertBefore(row, currentBody.children[index] || null);
+    });
   }
 
   function enhanceOrderTaskCells() {
@@ -3008,6 +3268,9 @@
   }
 
   function updateSelectionBar() {
+    ordersCache.forEach((order) => { if (selectedOrders.has(String(order.id))) selectedOrderRecords.set(String(order.id), order); });
+    window.clearTimeout(selectionReadTimer);
+    if (selectedOrders.size) selectionReadTimer = window.setTimeout(refreshSelectedOrderRecords, 120);
     const selectAllOrders = document.querySelectorAll('[data-select-all-orders]');
     if (selectAllOrders.length) {
       const visibleIds = visibleOrders().map((order) => String(order.id));
@@ -3060,7 +3323,8 @@
   }
 
   function renderRichLabelPicker(field) {
-    const options = richLabelOptions(field);
+    // Assigned is an internal alias of New Order, not a second selectable status.
+    const options = richLabelOptions(field).filter((item) => field !== 'status' || item[0] !== 'assigned');
     return `
       <div class="mode-label-grid seven-per-row${field === 'payment_method' ? ' portal-payment-options' : ''}">
         ${options.map((item) => `
@@ -3070,6 +3334,7 @@
       <div class="mode-label-actions">
         ${field === 'payment_method' ? '' : '<button type="button" class="mode-edit-labels-button" data-rich-edit-labels><span class="orders-label-utility-icon"><i data-lucide="pencil"></i></span><span>Edit Labels</span></button>'}
       </div>
+      <p data-label-save-feedback role="status" aria-live="polite" hidden></p>
     `;
   }
 
@@ -3101,13 +3366,32 @@
   }
 
   function bindRichLabelPicker() {
+    const orderId = labelMenu.dataset.richLabelOrder || '';
+    const field = labelMenu.dataset.richLabelField || 'order_type';
+    let saving = false;
     labelMenu.querySelectorAll('[data-rich-label-value]').forEach((button) => {
       button.addEventListener('click', async (event) => {
         event.preventDefault();
         event.stopPropagation();
-        const orderId = labelMenu.dataset.richLabelOrder || '';
-        const field = labelMenu.dataset.richLabelField || 'order_type';
-        await updateRichLabelValue(orderId, field, button.dataset.richLabelValue);
+        if (saving) return;
+        saving = true;
+        const buttons = [...labelMenu.querySelectorAll('button')];
+        const feedback = labelMenu.querySelector('[data-label-save-feedback]');
+        buttons.forEach((item) => { item.disabled = true; });
+        if (feedback) { feedback.hidden = false; feedback.textContent = 'Saving…'; }
+        try {
+          const saved = await updateRichLabelValue(orderId, field, button.dataset.richLabelValue);
+          if (saved && syncState) syncState.textContent = `${richLabelFieldTitle(field)} saved.`;
+          if (!saved && feedback) feedback.hidden = true;
+        } catch (error) {
+          const message = String(error?.message || 'Could not save. Please try again.');
+          if (feedback) { feedback.hidden = false; feedback.textContent = message; }
+          showError(error);
+          window.showPortalToast?.({title:`${richLabelFieldTitle(field)} not saved`,message,type:'error',module:'orders',duration:0});
+        } finally {
+          saving = false;
+          buttons.forEach((item) => { item.disabled = false; });
+        }
       });
     });
 
@@ -4155,7 +4439,7 @@
         `}
       </section>`;
     const cards = [
-      ['Order summary', [['Order', formatOrderInvoiceReference(currentOrder.order_number)], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
+      ['Order summary', [['Order', formatOrderInvoiceReference(currentOrder.order_number)], ['Created by', currentOrder.creator_name || 'Not recorded'], ['Date', prettyDate(orderDisplayDateTime(currentOrder))], ['Status', findText(statusLabels, currentOrder.status || '')]]],
       ['Customer', [['Name', currentOrder.customer_name || ''], ['Mobile number', currentOrder.customer_contact || '']]],
       ['Fulfilment', [['Mode', findText(modeLabels, currentOrder.order_type || '')], ['Packed by', currentOrder.packer_name || 'Unassigned'], ...(currentOrder.dispatch_courier ? [['Courier type', currentOrder.dispatch_courier], ['EasyBox / parcel details', currentOrder.dispatch_package_detail || 'Not recorded'], ['Recorded service date', currentOrder.dispatch_service_date || ''], ['Waybill upload', currentOrder.dispatch_waybill_linked ? 'Linked' : 'Awaiting upload']] : [])]],
       ['Payment', [['Amount', money(currentOrder.total_amount)], ['Method', currentOrder.payment_method || ''], ['Paid', currentOrder.is_paid ? 'Yes' : 'No']]]
@@ -4537,6 +4821,7 @@
     const panelBody = panel.querySelector('.order-panel-body');
     if (panelBody) panelBody.scrollTop = 0;
     panel.scrollTop = 0;
+    panel.dispatchEvent(new CustomEvent('orders:opened',{detail:{orderId:currentOrder.id}}));
     restoreOrdersTablePosition(panelReturnPosition);
   }
 
@@ -4565,15 +4850,17 @@
   async function refresh(trigger = null, options = {}) {
     if (refreshInFlight) return refreshInFlight;
     const paidRevisionAtRequest = paidMutationRevision;
+    const orderRevisionAtRequest = orderMutationRevision;
     const requestSequence = ++refreshSequence;
     const background = options.background === true;
     const run = async () => {
     setButtonBusy(trigger, true);
     if (!hasInitialOrdersLoadCompleted) showInitialLoadingState();
-    if (background && hasInitialOrdersLoadCompleted) page.classList.add('is-background-updating');
     try {
+      if (appliedListQuery && appliedListQuery !== ordersListQueryKey()) listPage = 1;
       const params = boardDataParams();
-      if (background && hasRenderedOnce && liveCursor) params.set('since', liveCursor);
+      const requestedListKey = ordersListQueryKey();
+      const requestedPage = listPage;
       const response = await fetch(`${config.dataUrl}?${params.toString()}`, {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
@@ -4596,12 +4883,17 @@
       // A read started before/during a Paid save can contain the old confirmation.
       // Do not advance the cursor: the next refresh must retrieve those changes.
       if (paidUpdatesInProgress.size || paidRevisionAtRequest !== paidMutationRevision) return data;
+      // Do not merge a read begun before/during a status, person or inline save.
+      // Leave the cursor unchanged so the next poll reads the committed values.
+      if (activeOrderMutationCount || orderRevisionAtRequest !== orderMutationRevision) return data;
       if (requestSequence < appliedRefreshSequence) return data;
+      if (requestedListKey !== ordersListQueryKey() || requestedPage !== listPage) return data;
       appliedRefreshSequence = requestSequence;
+      appliedListQuery = requestedListKey;
       const payload = data.data && typeof data.data === 'object' ? data.data : {};
       const responseMode = String(payload.mode || data.mode || (data.incremental ? 'delta' : 'snapshot'));
       liveCursor = String(payload.cursor || data.cursor || data.serverTime || liveCursor);
-      if (background && hasRenderedOnce && responseMode !== 'delta') {
+      if (background && hasRenderedOnce && responseMode !== 'delta' && !payload.pagination) {
         throw new Error('Background Orders refresh did not return an incremental update.');
       }
       liveFailures = 0;
@@ -4673,14 +4965,28 @@
         const currentById = new Map(ordersCache.map((order) => [String(order.id), order]));
         snapshotOrders = snapshotOrders.map((order) => preserveInlineFieldsFromCurrent(order, currentById));
         hasInitialOrdersLoadCompleted = true;
-        renderOrders(snapshotOrders);
+        listPagination = payload.pagination || listPagination;
+        listPage = listPagination.page;
+        if (background && hasRenderedOnce) {
+          const nextIds = new Set(snapshotOrders.map((order) => String(order.id)));
+          const removed = new Set(ordersCache.filter((order) => !nextIds.has(String(order.id))).map((order) => String(order.id)));
+          const changed = snapshotOrders.filter((order) => JSON.stringify(currentById.get(String(order.id))) !== JSON.stringify(order));
+          if (!ordersInteractionInProgress()) patchLiveOrderGroups(ordersCache, snapshotOrders, changed, removed);
+          else {
+            changed.forEach((order) => { const old = currentById.get(String(order.id)); if (old) livePendingGroupKeys.add(groupKey(old)); livePendingGroupKeys.add(groupKey(order)); });
+            removed.forEach((id) => { const old = currentById.get(id); if (old) livePendingGroupKeys.add(groupKey(old)); });
+            ordersCache = snapshotOrders; liveRenderPending = true;
+          }
+          renderOrdersPagination();
+          refreshSelectedOrderRecords();
+        } else renderOrders(snapshotOrders);
       } else {
         throw new Error(`Board returned an unsupported response mode: ${responseMode || 'unknown'}.`);
       }
       if (syncState && !lastSyncMessage) {
         const count = ordersCache.length;
         const range = activeDateRange();
-        const suffix = boardDateScope === 'all'
+        const suffix = globalOrderSearch() || boardDateScope === 'all'
           ? ' across all dates'
           : range ? ` from ${range.from} to ${range.to}` : '';
         syncState.textContent = `Loaded ${count} orders${suffix} at ${new Date().toLocaleTimeString()}`;
@@ -4688,6 +4994,8 @@
       return data;
     } catch (error) {
       liveFailures += 1;
+      const searchStatus = document.querySelector('#orders-quick-matches [role=status]');
+      if (searchStatus && globalOrderSearch()) searchStatus.textContent = 'Could not refresh search results. Use Refresh to retry.';
       if (!hasInitialOrdersLoadCompleted) {
         renderInitialLoadError(error);
       } else if (syncState) {
@@ -4695,7 +5003,6 @@
       }
       throw error;
     } finally {
-      page.classList.remove('is-background-updating');
       setButtonBusy(trigger, false);
     }
     };
@@ -4777,7 +5084,10 @@
       setButtonBusy(trigger, true);
       try {
         if (refreshInFlight) await refreshInFlight.catch(() => {});
-        if (syncSource) {
+        if (syncSource && background) {
+          // The source import must not hold up cross-employee board updates.
+          if (!syncInFlight) void syncWebsite(true, null, false).catch(showError);
+        } else if (syncSource) {
           try {
             await syncWebsite(!manual, null, manual);
           } catch (error) {
@@ -4917,11 +5227,13 @@
   });
 
   document.addEventListener('pointerdown', (event) => {
-    if (event.target.closest('.portal-column-resizer')) {
+    if (mobileOrdersViewport.matches || event.target.closest('.portal-column-resizer')) {
       pendingOrdersInteractionPosition = null;
       return;
     }
-    const table = getOrdersScrollContainer(event.target);
+    // The desktop fallback is for restoration, not hit testing. In particular,
+    // dragging the bottom scrollbar must never capture/replay its starting offset.
+    const table = event.target.closest('.monday-order-row') ? getOrdersScrollContainer(event.target) : null;
     pendingOrdersInteractionPosition = table ? ordersTablePosition(event.target) : null;
   }, true);
 
@@ -4984,11 +5296,10 @@
         const cell = body.querySelector(`.monday-order-row[data-order-id="${selectorEsc(orderId)}"] [data-editable-order-field="task_name"]`);
         if (cell) beginEditableCell(cell);
       } else if (action === 'archive' || action === 'trash') {
-        if (!window.confirm(action === 'archive' ? 'Archive this order?' : 'Move this order to Trash?')) return;
+        if (!await window.PortalNotice.confirm(action === 'archive' ? 'Archive this order?' : 'Move this order to Trash?')) return;
         await post(action === 'archive' ? 'archive_orders' : 'trash_orders', { order_ids: orderId });
         await refresh(null, { preservePosition: true });
       }
-      return data;
       return;
     }
 
@@ -5525,7 +5836,7 @@
       const deleteFile = event.target.closest('[data-order-file-delete]');
       if (deleteFile && currentOrder) {
         event.preventDefault();
-        if (!window.confirm(`Delete ${deleteFile.dataset.fileName || 'this file'}? The file will be removed from this order.`)) return;
+        if (!await window.PortalNotice.confirm(`Delete ${deleteFile.dataset.fileName || 'this file'}? The file will be removed from this order.`)) return;
         deleteFile.disabled = true;
         try {
           await post('delete_order_file', { order_id: currentOrder.id, file_id: deleteFile.dataset.orderFileDelete });
@@ -5545,7 +5856,8 @@
         } else {
           expandedGroups.add(key);
         }
-        renderOrders(ordersCache);
+        livePendingGroupKeys.add(key);
+        patchLiveOrderGroups(ordersCache, ordersCache, [], new Set());
         return;
       }
 
