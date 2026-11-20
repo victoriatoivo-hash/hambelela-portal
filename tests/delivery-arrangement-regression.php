@@ -12,6 +12,8 @@ require __DIR__.'/../shared/delivery/DriverNotices.php';
 require __DIR__.'/../shared/delivery/AccountingService.php';
 function ok($value,string $label):void{if(!$value)throw new RuntimeException($label);echo "PASS $label\n";}
 function requestId():string{return bin2hex(random_bytes(4)).'-aaaa-4aaa-8aaa-'.bin2hex(random_bytes(6));}
+// MySQL binary JSON may return object keys in storage order; object member order is not part of the API.
+function sameResponse(array $a,array $b):bool{ksort($a);ksort($b);return $a===$b;}
 function denied(callable $fn,string $label):void{try{$fn();}catch(DomainException $e){ok(true,$label);return;}throw new RuntimeException('Unexpected acceptance: '.$label);}
 try{
  $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(60));
@@ -45,14 +47,14 @@ try{
  $db->exec("CREATE TABLE ops_order_items(id INT PRIMARY KEY,order_id INT,product_name VARCHAR(190),quantity INT);INSERT INTO ops_order_items VALUES(1,100,'Test bottle',2)");
  $body['board_terms']='cod';
  $job=$core->command($front,$body);$jobId=(int)$job['id'];
- ok($core->command($front,$body)===$job,'retry replays same delivery');
+ ok(sameResponse($core->command($front,$body),$job),'retry replays same delivery');
  $duplicate=$body;$duplicate['uuid']=requestId();denied(fn()=>$core->command($front,$duplicate),'second request cannot create duplicate arrangement');
  ok((int)$db->query('SELECT COUNT(*) FROM delivery_jobs')->fetchColumn()===1,'one order has one delivery record');
  $saved=$db->query('SELECT * FROM delivery_jobs')->fetch();
  ok(strpos($saved['notes'],'2 × Test bottle')!==false&&strpos($saved['notes'],'Cash on delivery')!==false,'assigned driver receives order quantities and payment instructions');
  $pickup=['action'=>'parcel_collected','id'=>$jobId,'driver'=>3,'uuid'=>requestId()];
  denied(fn()=>$core->command($driver,$pickup),'driver cannot record front desk pickup');
- $picked=$core->command($front,$pickup);ok(isset($picked['front_cod_due_utc'])&&$core->command($front,$pickup)===$picked,'pickup starts one front desk COD clock');
+ $picked=$core->command($front,$pickup);ok(isset($picked['front_cod_due_utc'])&&sameResponse($core->command($front,$pickup),$picked),'pickup starts one front desk COD clock');
  $otherPickup=$pickup;$otherPickup['uuid']=requestId();denied(fn()=>$core->command($owner,$otherPickup),'other employee cannot record duplicate pickup');
  ok($saved['customer_mobile']==='+264810000000'&&(int)$saved['urgent']===1,'confirmed missing contact and urgent flag persist on delivery');
  ok($db->query('SELECT customer_contact FROM ops_orders WHERE id=100')->fetchColumn()==='55','arrangement preserves original order record');
@@ -85,7 +87,7 @@ try{
    ok((int)$db->query('SELECT COUNT(*) FROM order_payment_allocations')->fetchColumn()===0,'no allocation posted for disputed cash');
    return;
  }
- $counted=$core->command($owner,$count);ok($counted['difference_cents']===0&&$counted===$core->command($owner,$count),'owner can count cash without double booking');
+ $counted=$core->command($owner,$count);ok($counted['difference_cents']===0&&sameResponse($counted,$core->command($owner,$count)),'owner can count cash without double booking');
  $core->command($front,['action'=>'reconcile','id'=>$jobId,'uuid'=>requestId(),'receipt'=>$receipt]);
  ok((int)$db->query('SELECT SUM(amount_cents) FROM order_payment_allocations')->fetchColumn()===12000,'reconciliation credits original total once');
  ok((int)$db->query("SELECT SUM(amount_cents) FROM delivery_ledger WHERE account='fee_received'")->fetchColumn()===4000,'delivery-fee income remains separate');
