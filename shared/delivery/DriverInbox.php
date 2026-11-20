@@ -11,7 +11,7 @@ final class DriverInbox
         return (int)$a['id'];
     }
     private static function kind():string {
-        return "CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(o.payload_json,'$.kind'))='assignment' AND o.event_key LIKE 'assigned:%:%' THEN 'reassigned' ELSE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(o.payload_json,'$.kind')),'info') END";
+        return "CASE WHEN JSON_UNQUOTE(JSON_EXTRACT(o.payload_json,'$.kind'))='assignment' AND o.event_key LIKE 'assigned:%:%' THEN 'reassigned' WHEN o.event_key=CONCAT('assigned:',j.id) THEN 'assignment' ELSE COALESCE(JSON_UNQUOTE(JSON_EXTRACT(o.payload_json,'$.kind')),'info') END";
     }
     public static function bucket(string $kind,bool $urgent):string {
         if($urgent||in_array($kind,['cancelled','failed','deadline_late'],true))return 'alerts';
