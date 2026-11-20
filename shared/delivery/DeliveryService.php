@@ -206,11 +206,55 @@ final class DeliveryService
             [$key,$job['id'],$receipt,$job['partner_id'],$account,$amount,$employee]);
     }
 
-    public function complete(array $actor,int $id,string $uuid): array
+    public function pickup(array $actor,int $id,string $uuid,int $driver):array
     {
-        return $this->command($actor,$id,$uuid,'delivered',[],fn($j)=>$this->assigned($actor,$j),function($j)use($actor,$id){
+        return $this->command($actor,$id,$uuid,'parcel_collected',[$driver],function($j)use($actor){
+            if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange'))throw new \DomainException('Collection confirmation forbidden.');
+        },function($j)use($id,$driver,$actor){
+            if((int)$j['driver_employee_id']!==$driver||!in_array($j['status'],['ready','out_for_delivery'],true))throw new \DomainException('Driver or delivery status changed. Refresh before confirming.');
+            if($this->row("SELECT id FROM delivery_events WHERE delivery_id=? AND event_type='parcel_collected' LIMIT 1",[$id]))throw new \DomainException('Parcel pickup is already recorded.');
+            $a=$this->row("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id DESC LIMIT 1",[$id]);
+            $m=json_decode((string)($a['metadata_json']??''),true);
+            $now=new \DateTimeImmutable('now',new \DateTimeZone('UTC'));
+            $result=['driver_id'=>$driver,'recorded_by'=>$actor['id'],'dispatch_at'=>$now->format('Y-m-d H:i:s'),'expected_cents'=>array_sum($this->remaining($j)),'payment_arrangement'=>$m['payment_arrangement']??'not recorded'];
+            if($result['payment_arrangement']==='cod'){
+                require_once dirname(__DIR__).'/epi/Support.php';require_once dirname(__DIR__).'/epi/BusinessTimeEngine.php';
+                $local=$now->setTimezone(new \DateTimeZone('Africa/Windhoek'));
+                $due=(new \Hambelela\EPI\BusinessTimeEngine($this->db))->addWorkingMinutes($local->format('Y-m-d H:i:s'),480);
+                $result['front_cod_due_utc']=$due->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+            }
+            return $result;
+        });
+    }
+
+    public function handover(array $actor,int $id,string $uuid,int $receipt,int $amount):array
+    {
+        return $this->command($actor,$id,$uuid,'cash_handover',[$receipt,$amount],function($j)use($actor){
+            if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_reconcile'))throw new \DomainException('Reconciliation permission required.');
+        },function($j)use($id,$receipt,$amount){
+            $r=$this->row('SELECT * FROM delivery_receipts WHERE delivery_id=? AND id=? FOR UPDATE',[$id,$receipt]);
+            if(!$r||$r['status']!=='collected'||strtolower($r['payment_method'])!=='cash')throw new \DomainException('This cash receipt is not awaiting handover.');
+            $old=$this->row("SELECT id FROM delivery_events WHERE delivery_id=? AND event_type='cash_handover' AND JSON_UNQUOTE(JSON_EXTRACT(metadata_json,'$.receipt_id'))=? LIMIT 1",[$id,$receipt]);
+            if($old)throw new \DomainException('Handover is already recorded. Review the receipt.');
+            $expected=(int)$r['order_goods_cents']+(int)$r['delivery_fee_cents']+(int)$r['partner_cod_cents'];
+            if($amount!==$expected)$this->exec("UPDATE delivery_receipts SET status='issue',issue_reason=? WHERE id=?",['Cash handover differs from driver receipt. Review required.',$receipt]);
+            return ['receipt_id'=>$receipt,'expected_cents'=>$expected,'counted_cents'=>$amount,'difference_cents'=>$amount-$expected];
+        });
+    }
+
+    public function complete(array $actor,int $id,string $uuid,?string $frontReason=null): array
+    {
+        return $this->command($actor,$id,$uuid,'delivered',$frontReason===null?[]:[$frontReason],function($j)use($actor,$frontReason){
+            if($frontReason===null){$this->assigned($actor,$j);return;}
+            if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange')||strlen($frontReason)<10||strlen($frontReason)>500)throw new \DomainException('An authorised employee and a confirmation reason (10–500 characters) are required.');
+        },function($j)use($actor,$id,$frontReason){
             $held=$this->row("SELECT COALESCE(SUM(order_goods_cents+delivery_fee_cents+partner_cod_cents),0) amount FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue')",[$id]);
-            $status=DeliveryPolicy::completionStatus($actor,$j,array_sum($this->remaining($j)),(int)$held['amount']);
+            $due=array_sum($this->remaining($j));
+            if($frontReason===null)$status=DeliveryPolicy::completionStatus($actor,$j,$due,(int)$held['amount']);
+            else{
+                if($j['status']!=='out_for_delivery'||$due!==0)throw new \DomainException('Start delivery and resolve required customer collection first.');
+                $status=(int)$held['amount']>0?'awaiting_reconciliation':'completed';
+            }
             // Prepaid receipts need a verified settlement reference, not a UI flag.
             if($j['fee_payer']==='already_paid'&&(int)$j['fee_cents']>0&&trim((string)$j['prepaid_reference'])==='')throw new \DomainException('Prepaid fee evidence required.');
             $this->exec('UPDATE delivery_jobs SET status=?,delivered_at=UTC_TIMESTAMP(),completed_at=IF(?="completed",UTC_TIMESTAMP(),NULL),updated_at=UTC_TIMESTAMP(),version=version+1 WHERE id=?',[$status,$status,$id]);
@@ -220,7 +264,7 @@ final class DeliveryService
                 $collected=$this->row("SELECT COALESCE(SUM(delivery_fee_cents),0) fee FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue','reconciled')",[$id]);
                 $this->ledger('prepaid:'.$id,$j,'fee_received',max(0,(int)$j['fee_cents']-(int)$collected['fee']),$actor['id']);
             }elseif($j['fee_payer']==='already_paid')$this->ledger('prepaid:'.$id,$j,'fee_received',(int)$j['fee_cents'],$actor['id']);
-            return ['id'=>$id,'status'=>$status];
+            return ['id'=>$id,'status'=>$status]+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true]);
         });
     }
 
@@ -232,6 +276,12 @@ final class DeliveryService
         },function($j)use($actor,$id,$receiptId,$applyOrderPayment){
             $r=$this->row('SELECT * FROM delivery_receipts WHERE id=? AND delivery_id=? FOR UPDATE',[$receiptId,$id]);
             if(!$r||$r['status']!=='collected')throw new \DomainException('Receipt is not awaiting reconciliation.');
+            if($j['source']==='hambelela'&&strtolower((string)$r['payment_method'])==='cash'){
+                $a=$this->row("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id LIMIT 1",[$id]);
+                $meta=json_decode((string)($a['metadata_json']??''),true);
+                if(isset($meta['payment_arrangement'])&&!$this->row("SELECT id FROM delivery_events WHERE delivery_id=? AND event_type='cash_handover' AND JSON_UNQUOTE(JSON_EXTRACT(metadata_json,'$.receipt_id'))=? LIMIT 1",[$id,$receiptId]))
+                    throw new \DomainException('Count and record the returned cash in Order Details before reconciliation.');
+            }
             if($j['source']==='hambelela')$applyOrderPayment($this->db,$j,$r,$actor);
             $this->exec("UPDATE delivery_receipts SET status='reconciled',reconciled_by_employee_id=?,reconciled_at=UTC_TIMESTAMP(),order_allocation_applied_at=IF(?='hambelela',UTC_TIMESTAMP(),NULL) WHERE id=?",[$actor['id'],$j['source'],$receiptId]);
             foreach(['order_goods_cents'=>'order_funds_received','delivery_fee_cents'=>'fee_received','partner_cod_cents'=>'partner_cod_held'] as $column=>$account)

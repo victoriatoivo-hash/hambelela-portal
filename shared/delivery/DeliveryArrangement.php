@@ -61,6 +61,7 @@ final class DeliveryArrangement
             $result=['id'=>$id,'reference'=>$ref,'status'=>'ready','deadline'=>DeliveryDeadline::label($deadline)];$json=json_encode($result,JSON_THROW_ON_ERROR);
             $metadata=$result;$metadata['additional_delivery']=$additional;$metadata['additional_reason']=$additionalReason;if(!empty($order['shipping_evidence']))$metadata['shipping_verification']=$order['shipping_evidence'];
             if(!empty($order['source_order']))$metadata['order_dispatch']=['version'=>1,'fee_snapshot_cents'=>$order['fee_cents'],'total_cents'=>$order['total_cents'],'paid_cents'=>$order['paid_cents'],'allocation_policy'=>'goods_first'];
+            if(isset($details['board_terms']))$metadata['payment_arrangement']=$details['board_terms'];
             $this->db->prepare("INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json) VALUES(?,'arranged',?,?)")->execute([$id,$actor['id'],json_encode($metadata,JSON_THROW_ON_ERROR)]);
             $this->db->prepare("INSERT INTO delivery_requests(actor_key,request_uuid,action,request_hash,response_json) VALUES(?,?,'arranged',?,?)")->execute([$actorKey,$uuid,$hash,$json]);
             $this->db->prepare('INSERT INTO delivery_outbox(event_key,delivery_id,recipient_employee_id,payload_json,next_attempt_at) VALUES(?,?,?,?,UTC_TIMESTAMP())')->execute(['assigned:'.$id,$id,$driverId,$json]);

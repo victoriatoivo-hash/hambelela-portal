@@ -25,9 +25,12 @@ final class CoreApi
                 unset($result['shipping_evidence']);$this->db->rollBack();return $result;
             }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
         }
-        if(in_array($action,['deadline','inline','note','fail','revise','cancel','receipt_issue','resolve_receipt_issue'],true)){
+        if(in_array($action,['parcel_collected','cash_handover','front_complete','deadline','inline','note','fail','revise','cancel','receipt_issue','resolve_receipt_issue'],true)){
             $balance=new OrderBalanceAdapter();$service=new DeliveryService($this->db,array_keys($this->methods),static function($db,$job)use($balance){return $balance->read($db,$job);});
             switch($action){
+                case 'parcel_collected':return $service->pickup($actor,$id,$uuid,(int)($body['driver']??0));
+                case 'cash_handover':return $service->handover($actor,$id,$uuid,(int)($body['receipt']??0),DeliveryPolicy::cents((string)($body['amount']??'')));
+                case 'front_complete':return $service->complete($actor,$id,$uuid,trim((string)($body['reason']??'')));
                 case 'deadline':return $service->deadline($actor,$id,$uuid,$body);
                 case 'inline':return $service->inlineUpdate($actor,$id,$uuid,$body);
                 case 'note':return $service->note($actor,$id,$uuid,(string)($body['note']??''));
@@ -43,6 +46,11 @@ final class CoreApi
             $details['additional_delivery']=!empty($body['additional_delivery']);$details['additional_reason']=trim((string)($body['additional_reason']??''));
             if(!empty($body['source_order'])){$details['source_order']=true;$details['verification']=(string)($body['verification']??'');}
             $details['deadline']=DeliveryDeadline::normalize($body);
+            if(isset($body['board_terms'])&&!empty($details['source_order'])){
+                $terms=(string)$body['board_terms'];
+                if(!in_array($terms,['verified','pending','cod','other'],true))throw new \DomainException('Choose a valid payment arrangement.');
+                $details['board_terms']=$terms;
+            }
             $driverId=(int)($body['driver']??0);
             $replay=DeliveryArrangement::replay($this->db,$actor,(int)($body['order']??0),$driverId,(string)($body['date']??''),$uuid,$details);
             if($replay!==null)return $replay;

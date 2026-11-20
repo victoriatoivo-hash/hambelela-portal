@@ -51,7 +51,7 @@ final class PortalOrderRepository
             if($shippingEvidence!==null){WooShippingSource::assertCurrent($order,$shippingEvidence);$fee=(int)$shippingEvidence['included_cents'];}
             else $fee=self::shippingComponent($order);
             $address=self::usableAddress(trim((string)($shippingEvidence['address']??''))?:self::shippingAddress((string)($order['notes']??'')));
-            if($address==='')$address=self::usableAddress((string)($input['address']??''));
+            if(trim((string)($input['address']??''))!=='')$address=self::usableAddress((string)$input['address']);
             if(strlen($address)>2000)throw new \DomainException('Address is too long.');
             if($address===''&&empty($input['preview']))throw new \DomainException('Delivery address missing. Add an address before dispatch.');
             $storedMobile=self::customerMobile([$order['customer_contact']??'', $shippingEvidence['mobile']??'']);
@@ -62,6 +62,17 @@ final class PortalOrderRepository
             $area=trim((string)($shippingEvidence['area']??''))?:mb_substr($address,0,190);
             $money=OrderDispatchBalance::read($db,$order,$fee);
             $prepaid=$money['collect_cents']===0;
+            if(isset($input['board_terms'])){
+                $terms=$input['board_terms'];
+                if(($terms==='verified')!==$prepaid)throw new \DomainException('Payment changed. Check the saved order payment and review again.');
+                $items=$db->prepare('SELECT product_name,quantity FROM ops_order_items WHERE order_id=? ORDER BY id');
+                $items->execute([$id]);$lines=[];
+                foreach($items->fetchAll(\PDO::FETCH_ASSOC) as $item)$lines[]=($item['quantity']??'?').' × '.$item['product_name'];
+                $notes=implode("\n",array_filter(['Contents: '.($lines?implode('; ',$lines):'No item lines recorded'),
+                    'Payment: '.['verified'=>'Already paid (verified)','pending'=>'Payment pending','cod'=>'Cash on delivery','other'=>'Other payment arrangement'][$terms].' · '.($order['payment_method']??'Method not recorded'),
+                    $notes],static fn($v)=>$v!==''));
+                if(strlen($notes)>4000)throw new \DomainException('Item list and instructions exceed the driver note limit. Review before dispatch.');
+            }
             return $money+['customer_name'=>$order['customer_name'],'customer_mobile'=>$mobile,'address'=>$address,'area'=>$area,
                 'order_number'=>$order['order_number']??('#'.$id),'payment_method'=>$order['payment_method']??'',
                 'fee_cents'=>$fee,'included_fee_cents'=>$fee,'zone_id'=>null,'manual_rate_reason'=>null,

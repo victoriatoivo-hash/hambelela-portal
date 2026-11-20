@@ -1,0 +1,13 @@
+.oc-dialog{box-sizing:border-box;width:min(38rem,calc(100vw - 2rem));max-height:88dvh;border:1px solid var(--border,#dcdfd2);border-radius:14px;padding:0;color:inherit;background:var(--surface,#fff);font:inherit;box-shadow:0 18px 60px #20282030}
+.oc-dialog::backdrop{background:#20282066}
+.oc-dialog header,.oc-dialog footer{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border,#dcdfd2)}
+.oc-dialog footer{justify-content:flex-end;border-top:1px solid var(--border,#dcdfd2);border-bottom:0}
+.oc-dialog h3,.oc-dialog h4,.oc-dialog p{margin:0}
+.oc-dialog main{display:grid;gap:14px;padding:16px 18px}
+.oc-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.oc-wide{grid-column:1/-1}
+.oc-dialog label:not(.oc-check){display:grid;gap:4px}
+.oc-dialog input:not([type=checkbox]),.oc-dialog textarea,.oc-dialog select{width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border,#dcdfd2);border-radius:7px;background:white;color:inherit;font:inherit;font-weight:400}
+.oc-dialog textarea{min-height:3.2rem}.oc-dialog ul{margin:4px 0;padding-inline-start:20px}.oc-dialog [role=alert]{color:var(--danger,#95372c)}
+.oc-dialog button,.oc-trigger{font-family:inherit}.oc-dialog dl{margin:0}.oc-dialog dd{margin:0}.oc-dialog .oc-entry{padding-block:7px;border-bottom:1px solid var(--border,#dcdfd2)}
+@media(max-width:540px){.oc-fields{grid-template-columns:1fr}}

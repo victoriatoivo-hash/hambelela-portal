@@ -156,6 +156,7 @@
     { key: 'paid', column: 'paid', label: 'Paid', cssClass: 'col-paid col-header-paid' },
     { key: 'status', column: 'status', label: 'Status', cssClass: 'col-status' },
     { key: 'packer', column: 'packedBy', label: 'Packed By', cssClass: 'col-packedby' },
+    { key: 'delivery', column: 'delivery', label: 'Delivery', cssClass: 'col-delivery', resizable: false },
     { key: 'text', column: 'text', label: 'Text', cssClass: 'col-text' }
   ];
   const columns = ordersColumns.map(({ key, label }) => [key, label || 'Select']);
@@ -171,6 +172,7 @@
     paid: 'PAID',
     status: 'Status',
     packer: 'Packed by',
+    delivery: 'Delivery',
     text: 'Text'
   };
   let columnLabels = { ...defaultColumnLabels };
@@ -1879,6 +1881,7 @@
   }
 
   function applyHiddenColumns() {
+    scheduleCollectionStatus();
     const map = {
       select: 'col-checkbox',
       task: 'col-task',
@@ -1891,6 +1894,7 @@
       paid: 'col-paid',
       status: 'col-status',
       packer: 'col-packedby',
+      delivery: 'col-delivery',
       text: 'col-text'
     };
 
@@ -2339,7 +2343,7 @@
       'var(--orders-col-select,var(--orders-selection-column-width,42px))', 'var(--orders-col-task,280px)', 'var(--orders-col-updates,58px)',
       'var(--orders-col-date,180px)', 'var(--orders-col-mobile,190px)', 'var(--orders-col-mode,150px)',
       'var(--orders-col-amount,160px)', 'var(--orders-col-payment,190px)', 'var(--orders-col-paid,90px)',
-      'var(--orders-col-status,160px)', 'var(--orders-col-packed-by,180px)', 'var(--orders-col-text,260px)'
+      'var(--orders-col-status,160px)', 'var(--orders-col-packed-by,180px)', '160px', 'var(--orders-col-text,260px)'
     ];
     const custom = customColumns.map(() => '140px');
     body.style.setProperty('--orders-columns', [...fixed, ...custom, 'var(--orders-col-add,42px)'].join(' '));
@@ -3030,6 +3034,7 @@
         <div class="orders-grid-cell orders-grid-cell--paid monday-cell ob-group-paid-cell col-paid"><span class="ob-paid-fraction">${paid}/${orders.length}</span></div>
         <div class="orders-grid-cell orders-grid-cell--status monday-cell ob-group-bar-cell col-status">${packingStyleSummaryBar(statusCounts, statusColours, 'ob-status-bar', 'Status distribution')}</div>
         <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby"></div>
+        <div class="orders-grid-cell monday-cell col-delivery"></div>
         <div class="orders-grid-cell orders-grid-cell--text monday-cell col-text"></div>
         ${customColumns.map(() => '<div class="orders-grid-cell orders-grid-cell--custom monday-cell col-custom"></div>').join('')}
         <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
@@ -3052,6 +3057,7 @@
           <div class="orders-grid-cell orders-grid-cell--paid monday-cell col-paid">${renderPaidCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--status monday-cell col-status"${labelCellStyle(statusLabels, order.status || 'new_order')}>${renderLabelCell(order, 'status', order.status || 'new_order', statusLabels, 'status-label')}</div>
           <div class="orders-grid-cell orders-grid-cell--packer monday-cell col-packedby">${renderPackerCell(order)}</div>
+          <div class="orders-grid-cell monday-cell col-delivery">${collectionCell(order)}</div>
           <div class="orders-grid-cell orders-grid-cell--text orders-text-cell monday-cell editable-cell col-text" data-editable-order-field="notes" data-order-id="${esc(order.id)}" data-value="${esc(order.notes || '')}" tabindex="0"><span class="orders-inline-cell-trigger">${esc(order.notes || '')}</span></div>
           ${renderCustomCells()}
           <div class="orders-grid-cell orders-grid-cell--add monday-cell add-column-cell"></div>
@@ -4458,7 +4464,35 @@
     panelDetails.innerHTML = documentCard + cards.map(([title, fields]) => `<section class="order-panel-card"><h3><i data-lucide="${sectionIcons[title]}" aria-hidden="true"></i>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${detailValue(label,value)}</span></div>`).join('')}</div></section>`).join('') + `<section class="order-panel-card"><h3><i data-lucide="sticky-note" aria-hidden="true"></i>Notes</h3><p class="orders-note-copy">${esc(currentOrder.notes || 'No notes recorded.')}</p><button type="button" class="orders-tools-button" data-orders-notes-edit>Add an update</button></section>`;
     window.lucide?.createIcons?.({ strokeWidth:2 });
     if (hasWebsiteDocuments) hydrateOrderDocumentAvailability(currentOrder.id);
+    if (collectionMode(currentOrder)) {
+      panelDetails.insertAdjacentHTML('afterbegin','<section class="order-panel-card"><h3>Arrange Collection</h3>'+collectionCell(currentOrder,true)+'</section>');
+      scheduleCollectionStatus(true);
+    }
   }
+
+  function collectionMode(order) {return String(order.fulfilment_mode || order.order_type || '').toLowerCase()==='delivery';}
+  function collectionCell(order,detail=false) {
+    if(!collectionMode(order))return '—';
+    return '<span data-collection-order="'+esc(order.id)+'"'+(detail?' data-collection-detail':'')+'>Checking delivery…</span>';
+  }
+  var collectionModule, collectionTimer;
+  function loadCollectionModule(){
+    return collectionModule ||= import('../js/order-collection-ui.js?v=20261120a').catch(e=>{collectionModule=null;throw e;});
+  }
+  function scheduleCollectionStatus(fresh=false){
+    if(fresh&&currentOrder)panelDetails?.querySelector('[data-collection-order]')?.setAttribute('data-collection-fresh','');
+    clearTimeout(collectionTimer);
+    collectionTimer=setTimeout(async()=>{
+      if(!page.querySelector('[data-collection-order]')&&!panelDetails?.querySelector('[data-collection-order]'))return;
+      try{(await loadCollectionModule()).refresh();}catch{document.querySelectorAll('[data-collection-order]').forEach(n=>n.textContent='Delivery status unavailable');}
+    },40);
+  }
+  document.addEventListener('click',async e=>{
+    const button=e.target.closest('[data-order-collection-open]');if(!button)return;
+    e.preventDefault();e.stopPropagation();
+    const order=ordersCache.find(o=>String(o.id)===button.dataset.orderCollectionOpen);
+    if(order)(await loadCollectionModule()).open(order,openPaymentEditor,button);
+  },true);
 
   function orderDocumentUrl(orderId, documentType, action) {
     const url = new URL('orders-board-document.php', window.location.href);

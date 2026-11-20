@@ -42,11 +42,18 @@ try{
  $body+=['address'=>'Synthetic test street','mobile'=>'+264810000000','urgent'=>true];
  $bad=$body;$bad['mobile']='55';denied(fn()=>$core->command($front,$bad),'invalid corrected customer number cannot dispatch');
  denied(fn()=>$core->command($driver,$body),'Driver cannot arrange deliveries');
+ $db->exec("CREATE TABLE ops_order_items(id INT PRIMARY KEY,order_id INT,product_name VARCHAR(190),quantity INT);INSERT INTO ops_order_items VALUES(1,100,'Test bottle',2)");
+ $body['board_terms']='cod';
  $job=$core->command($front,$body);$jobId=(int)$job['id'];
  ok($core->command($front,$body)===$job,'retry replays same delivery');
  $duplicate=$body;$duplicate['uuid']=requestId();denied(fn()=>$core->command($front,$duplicate),'second request cannot create duplicate arrangement');
  ok((int)$db->query('SELECT COUNT(*) FROM delivery_jobs')->fetchColumn()===1,'one order has one delivery record');
  $saved=$db->query('SELECT * FROM delivery_jobs')->fetch();
+ ok(strpos($saved['notes'],'2 × Test bottle')!==false&&strpos($saved['notes'],'Cash on delivery')!==false,'assigned driver receives order quantities and payment instructions');
+ $pickup=['action'=>'parcel_collected','id'=>$jobId,'driver'=>3,'uuid'=>requestId()];
+ denied(fn()=>$core->command($driver,$pickup),'driver cannot record front desk pickup');
+ $picked=$core->command($front,$pickup);ok(isset($picked['front_cod_due_utc'])&&$core->command($front,$pickup)===$picked,'pickup starts one front desk COD clock');
+ $otherPickup=$pickup;$otherPickup['uuid']=requestId();denied(fn()=>$core->command($owner,$otherPickup),'other employee cannot record duplicate pickup');
  ok($saved['customer_mobile']==='+264810000000'&&(int)$saved['urgent']===1,'confirmed missing contact and urgent flag persist on delivery');
  ok($db->query('SELECT customer_contact FROM ops_orders WHERE id=100')->fetchColumn()==='55','arrangement preserves original order record');
  foreach([$front,$owner,$driver] as $actor){$board=$core->board($actor,['state'=>'for_delivery']);ok((int)$board['jobs'][0]['id']===$jobId,'Front/Owner/Driver query same persisted delivery');}
@@ -66,6 +73,19 @@ try{
  $core->command($driver,['action'=>'collect','id'=>$jobId,'uuid'=>requestId(),'goods'=>'80.00','fee'=>'40.00','method'=>'cash']);
  $core->command($driver,['action'=>'complete','id'=>$jobId,'uuid'=>requestId()]);
  $receipt=(int)$db->query('SELECT id FROM delivery_receipts')->fetchColumn();
+ ok($db->query("SELECT payment_status FROM ops_orders WHERE id=100")->fetchColumn()==='unpaid','dispatch, customer receipt and delivery do not mark order paid');
+ ok($db->query("SELECT status FROM delivery_jobs")->fetchColumn()==='awaiting_reconciliation','delivered independently from cash reconciliation');
+ denied(fn()=>$core->command($front,['action'=>'reconcile','id'=>$jobId,'uuid'=>requestId(),'receipt'=>$receipt]),'cash cannot be posted before handover');
+ $count=['action'=>'cash_handover','id'=>$jobId,'receipt'=>$receipt,'amount'=>'120.00','uuid'=>requestId()];
+ denied(fn()=>$core->command($driver,$count),'driver cannot reconcile own handover');
+ if(getenv('COLLECTION_SHORT_TEST')==='1'){
+   $count['amount']='115.00';$result=$core->command($owner,$count);
+   ok($result['difference_cents']===-500&&$db->query('SELECT status FROM delivery_receipts')->fetchColumn()==='issue','short handover is held for review');
+   denied(fn()=>$core->command($front,['action'=>'reconcile','id'=>$jobId,'uuid'=>requestId(),'receipt'=>$receipt]),'short handover cannot be posted');
+   ok((int)$db->query('SELECT COUNT(*) FROM order_payment_allocations')->fetchColumn()===0,'no allocation posted for disputed cash');
+   return;
+ }
+ $counted=$core->command($owner,$count);ok($counted['difference_cents']===0&&$counted===$core->command($owner,$count),'owner can count cash without double booking');
  $core->command($front,['action'=>'reconcile','id'=>$jobId,'uuid'=>requestId(),'receipt'=>$receipt]);
  ok((int)$db->query('SELECT SUM(amount_cents) FROM order_payment_allocations')->fetchColumn()===12000,'reconciliation credits original total once');
  ok((int)$db->query("SELECT SUM(amount_cents) FROM delivery_ledger WHERE account='fee_received'")->fetchColumn()===4000,'delivery-fee income remains separate');
