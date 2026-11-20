@@ -8,16 +8,13 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "4235bbdf"
+base = "45cd9503"
 paths = [
-    "shared/delivery/DeliveryService.php", "shared/delivery/DeliveryArrangement.php",
-    "shared/delivery/PortalOrderRepository.php", "shared/delivery/CoreApi.php",
-    "apps/delivery/order-collection.php", "assets/css/order-collection.css",
+    "assets/css/order-collection.css",
     "assets/js/order-collection-ui.js", "assets/js/orders-board.js",
 ]
-new = set(paths[4:7])
 def original(p):
-    return None if p in new else subprocess.check_output(["git","show",base+":"+p])
+    return subprocess.check_output(["git","show",base+":"+p])
 def norm(b):
     return None if b is None else b.replace(b"\r\n",b"\n")
 def digest(b):

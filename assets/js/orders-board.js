@@ -4464,10 +4464,31 @@
     panelDetails.innerHTML = documentCard + cards.map(([title, fields]) => `<section class="order-panel-card"><h3><i data-lucide="${sectionIcons[title]}" aria-hidden="true"></i>${esc(title)}</h3><div class="order-details-grid">${fields.map(([label, value]) => `<div class="order-detail-field"><span class="order-detail-label">${esc(label)}</span><span class="order-detail-value">${detailValue(label,value)}</span></div>`).join('')}</div></section>`).join('') + `<section class="order-panel-card"><h3><i data-lucide="sticky-note" aria-hidden="true"></i>Notes</h3><p class="orders-note-copy">${esc(currentOrder.notes || 'No notes recorded.')}</p><button type="button" class="orders-tools-button" data-orders-notes-edit>Add an update</button></section>`;
     window.lucide?.createIcons?.({ strokeWidth:2 });
     if (hasWebsiteDocuments) hydrateOrderDocumentAvailability(currentOrder.id);
-    if (collectionMode(currentOrder)) {
-      panelDetails.insertAdjacentHTML('afterbegin','<section class="order-panel-card"><h3>Arrange Collection</h3>'+collectionCell(currentOrder,true)+'</section>');
-      scheduleCollectionStatus(true);
+  }
+
+  function prepareDeliveryTab(order){
+    const items=panel.querySelector('[data-panel-tab="items"]'),itemsPage=panel.querySelector('[data-panel-name="items"]');
+    let tab=panel.querySelector('[data-panel-tab="delivery"]'),section=panel.querySelector('[data-panel-name="delivery"]');
+    if(!items||!itemsPage)return;
+    if(!tab){
+      tab=document.createElement('button');tab.type='button';tab.className=items.className.replace(/\b(is-active|active)\b/g,'').trim();
+      tab.dataset.panelTab='delivery';tab.setAttribute('role','tab');tab.setAttribute('aria-selected','false');tab.setAttribute('aria-controls','order-delivery-pane');
+      tab.innerHTML='<i data-lucide="truck" aria-hidden="true"></i><span>Arrange Delivery</span>';items.before(tab);
+      section=document.createElement('section');section.id='order-delivery-pane';section.dataset.panelName='delivery';
+      section.className=itemsPage.className.replace(/\bactive\b/g,'').trim();section.setAttribute('role','tabpanel');section.setAttribute('aria-label','Arrange Delivery');itemsPage.before(section);
     }
+    tab.hidden=!collectionMode(order);tab.style.display=tab.hidden?'none':'';
+    const name=tab.querySelector('span');
+    name.textContent='Arrange Delivery';delete name.dataset.collectionOrder;
+    if(!tab.hidden){name.dataset.collectionOrder=String(order.id);name.dataset.collectionTab='';name.setAttribute('data-collection-fresh','');scheduleCollectionStatus();}
+    section.replaceChildren();
+  }
+  async function showDeliveryTab(){
+    const order=currentOrder,section=panel.querySelector('[data-panel-name="delivery"]');
+    if(!order||!section||!collectionMode(order))return;
+    const host=document.createElement('div');section.replaceChildren(host);host.textContent='Checking saved delivery…';
+    try{const mod=await loadCollectionModule();if(host.isConnected)await mod.open(order,openPaymentEditor,host);}
+    catch{if(host.isConnected)host.textContent='Delivery could not be loaded. Select Arrange Delivery to retry.';}
   }
 
   function collectionMode(order) {return String(order.fulfilment_mode || order.order_type || '').toLowerCase()==='delivery';}
@@ -4477,7 +4498,7 @@
   }
   var collectionModule, collectionTimer;
   function loadCollectionModule(){
-    return collectionModule ||= import('../js/order-collection-ui.js?v=20261120a').catch(e=>{collectionModule=null;throw e;});
+    return collectionModule ||= import('../js/order-collection-ui.js?v=20261120b').catch(e=>{collectionModule=null;throw e;});
   }
   function scheduleCollectionStatus(fresh=false){
     if(fresh&&currentOrder)panelDetails?.querySelector('[data-collection-order]')?.setAttribute('data-collection-fresh','');
@@ -4487,12 +4508,6 @@
       try{(await loadCollectionModule()).refresh();}catch{document.querySelectorAll('[data-collection-order]').forEach(n=>n.textContent='Delivery status unavailable');}
     },40);
   }
-  document.addEventListener('click',async e=>{
-    const button=e.target.closest('[data-order-collection-open]');if(!button)return;
-    e.preventDefault();e.stopPropagation();
-    const order=ordersCache.find(o=>String(o.id)===button.dataset.orderCollectionOpen);
-    if(order)(await loadCollectionModule()).open(order,openPaymentEditor,button);
-  },true);
 
   function orderDocumentUrl(orderId, documentType, action) {
     const url = new URL('orders-board-document.php', window.location.href);
@@ -4828,6 +4843,7 @@
     panelReturnPosition = ordersTablePosition(sourceElement, orderId);
     panelReturnTrigger = sourceElement instanceof HTMLElement ? sourceElement : null;
     renderOrderPanelIdentity(currentOrder);
+    prepareDeliveryTab(currentOrder);
     panel.querySelectorAll('[data-panel-tab]').forEach((button) => {
       button.classList.remove('active', 'is-active');
       button.setAttribute('aria-selected', 'false');
@@ -4847,6 +4863,7 @@
     }
     renderPanelActivity();
     if (requestedTab === 'files') loadOrderFiles();
+    if (requestedTab === 'delivery') showDeliveryTab();
     panel.classList.add('open', 'is-open');
     panel.setAttribute('aria-hidden', 'false');
     backdrop.hidden = false;
@@ -5845,6 +5862,7 @@
         tab.setAttribute('aria-selected', 'true');
         panel?.querySelector(`[data-panel-name="${tab.dataset.panelTab}"]`)?.classList.add('active');
         if (tab.dataset.panelTab === 'files') loadOrderFiles();
+        if (tab.dataset.panelTab === 'delivery') showDeliveryTab();
       }
 
       const chooseFiles = event.target.closest('[data-order-files-choose]');

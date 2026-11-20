@@ -1,5 +1,5 @@
 const root=new URL('../../apps/delivery/',import.meta.url), cache=new Map(), pending=new Set();
-let current=null, denied=false;
+let denied=false;
 const safe=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const amount=c=>'N$ '+(Number(c)/100).toFixed(2);
 const today=()=>new Intl.DateTimeFormat('sv-SE',{timeZone:'Africa/Windhoek'}).format(new Date());
@@ -15,6 +15,11 @@ async function api(path,body,csrf){
 function paint(){
   document.querySelectorAll('[data-collection-order]').forEach(n=>{
     const id=n.dataset.collectionOrder,v=cache.get(id);
+    if(n.hasAttribute('data-collection-tab')){
+      if(denied||v&&!v.can&&!v.error){const tab=n.closest('[role=tab]');if(tab){tab.hidden=true;tab.style.display='none';}}
+      else n.textContent=v?.job?'Delivery arranged':'Arrange Delivery';
+      return;
+    }
     if(denied){n.textContent='—';if(n.hasAttribute('data-collection-detail'))n.closest('section').hidden=true;return;}
     if(!v)return;
     const detail=n.hasAttribute('data-collection-detail');
@@ -39,22 +44,18 @@ export async function refresh(){
     finally{chunk.forEach(id=>pending.delete(id));paint();}
   }
 }
-function startStyle(){if(document.querySelector('link[data-order-collection-style]'))return;const l=document.createElement('link');l.rel='stylesheet';l.href=new URL('../css/order-collection.css',import.meta.url);l.dataset.orderCollectionStyle='';document.head.append(l);}
+function startStyle(){if(document.querySelector('link[data-order-collection-style]'))return;const l=document.createElement('link');l.rel='stylesheet';l.href=new URL('../css/order-collection.css?v=20261120b',import.meta.url);l.dataset.orderCollectionStyle='';document.head.append(l);}
 function hist(rows){return (rows||[]).map(e=>'<div class="oc-entry"><strong>'+safe(e.event_type.replaceAll('_',' '))+'</strong> · '+safe(e.actor||'System')+' · '+safe(e.created_at)+' UTC'+(e.detail?.difference_cents!=null?'<br>Handover difference: '+amount(e.detail.difference_cents):'')+(e.detail?.front_cod_due_utc?'<br>Front desk COD follow-up: '+safe(e.detail.front_cod_due_utc)+' UTC':'')+(e.detail?.reason?'<br>'+safe(e.detail.reason):'')+'</div>').join('');}
-export async function open(order,editPayment,trigger){
-  if(current)return;
-  startStyle();const id=String(order.id),dlg=document.createElement('dialog');current=dlg;
-  dlg.className='oc-dialog';dlg.setAttribute('aria-labelledby','oc-title');(document.querySelector('.ops-board-page')||document.body).append(dlg);
-  dlg.innerHTML='<header><h3 id="oc-title">Arrange Collection</h3>'+control('×','data-close aria-label="Close"')+'</header><form><main aria-live="polite">Checking saved delivery…</main><footer></footer></form>';
-  const form=dlg.querySelector('form'),main=dlg.querySelector('main'),foot=dlg.querySelector('footer'),heading=dlg.querySelector('h3');
+export async function open(order,editPayment,host){
+  startStyle();const id=String(order.id),dlg=document.createElement('section');
+  dlg.className='order-panel-card oc-page';host.replaceChildren(dlg);
+  dlg.innerHTML='<h3 id="oc-title">Arrange Delivery</h3><form><div class="oc-content" aria-live="polite">Checking saved delivery…</div><div class="oc-actions"></div></form>';
+  const form=dlg.querySelector('form'),main=dlg.querySelector('.oc-content'),foot=dlg.querySelector('.oc-actions'),heading=dlg.querySelector('h3');
   let state,job,quote,busy=false,uuid=crypto.randomUUID(),before;
-  dlg.addEventListener('cancel',e=>{if(busy)e.preventDefault();});
-  dlg.addEventListener('close',()=>{current=null;dlg.remove();if(trigger?.isConnected)trigger.focus();},{once:true});
-  dlg.showModal();
   const err=msg=>{let el=main.querySelector('[role=alert]');if(!el){el=document.createElement('p');el.setAttribute('role','alert');main.append(el);}el.textContent=msg;};
   const call=async(action,extra)=>api('front-api.php',{action,uuid:crypto.randomUUID(),id:job?.id,...extra},state.csrf);
   async function load(){
-    state=await api('order-collection.php?review=1&ids='+id);if(!dlg.open)return;
+    state=await api('order-collection.php?review=1&ids='+id);if(!dlg.isConnected)return;
     job=state.jobs[id];remember(id,job,state.can_arrange);paint();foot.innerHTML='';
     if(!state.can_arrange){main.textContent='You do not have permission to arrange this delivery.';return;}
     if(job){
@@ -66,26 +67,25 @@ export async function open(order,editPayment,trigger){
         '<details><summary>Delivery history</summary><div data-history>'+hist(state.events)+'</div>'+(state.more?control('Earlier events','data-more'):'')+'</details>';
       return;
     }
-    quote=(await api('front-api.php',{action:'quote',order:order.id},state.csrf)).result;if(!dlg.open)return;
+    quote=(await api('front-api.php',{action:'quote',order:order.id},state.csrf)).result;if(!dlg.isConnected)return;
     const q=quote,paid=q.collect_cents===0,items=order.items||[];
-    heading.textContent='Arrange Collection';
-    main.innerHTML='<div><strong>'+safe(q.order_number)+' · '+safe(q.customer_name)+'</strong><br>'+safe(q.customer_mobile||'Contact needed')+' · '+safe(order.shipping_method||order.order_type||'Delivery')+'</div>'+
-      '<div><strong>Order contents</strong>'+(items.length?'<ul>'+items.map(i=>'<li>'+safe(i.quantity??'?')+' × '+safe(i.product_name)+'</li>').join('')+'</ul>':' · No item lines recorded')+'</div>'+
-      '<div><strong>'+amount(q.total_cents)+'</strong> total · '+amount(q.paid_cents)+' paid · '+amount(q.collect_cents)+' to collect<br>Payment method: '+safe(q.payment_method||'Not recorded')+' '+(order.can_edit_payment?control('Edit / verify order payment','data-payment'):'')+'</div>'+
-      '<div class="oc-fields"><label>Driver<select required name="driver"><option value="">Select driver</option>'+state.drivers.map(d=>'<option value="'+Number(d.id)+'">'+safe(d.full_name)+'</option>').join('')+'</select></label>'+
+    heading.textContent='Arrange Delivery';
+    main.innerHTML='<div class="oc-summary"><span>'+safe(q.order_number)+' · '+safe(q.customer_name)+'</span><small>'+safe(order.shipping_method||order.order_type||'Delivery')+' · '+safe(q.customer_mobile||'Contact needed')+'</small></div>'+
+      '<details><summary>Order contents ('+items.length+')</summary>'+(items.length?'<ul>'+items.map(i=>'<li>'+safe(i.quantity??'?')+' × '+safe(i.product_name)+'</li>').join('')+'</ul>':'No item lines recorded')+'</details>'+
+      '<div class="oc-payment">'+amount(q.total_cents)+' total · '+amount(q.paid_cents)+' paid · '+amount(q.collect_cents)+' to collect<br>'+safe(q.payment_method||'Payment method not recorded')+' '+(order.can_edit_payment?control('Edit / verify payment','data-payment'):'')+'</div>'+
+      '<div class="oc-fields"><label>Driver<select required name="driver" aria-label="Driver" data-portal-custom-select><option value="">Select driver</option>'+state.drivers.map(d=>'<option value="'+Number(d.id)+'"'+(Number(d.id)===18?' selected':'')+'>'+safe(d.full_name)+'</option>').join('')+'</select></label>'+
       '<label>Delivery date<input type="date" required name="date" min="'+today()+'" value="'+today()+'"></label>'+
       '<label>Contact number<input type="tel" required name="mobile" value="'+safe(q.customer_mobile)+'" '+(q.customer_mobile?'readonly':'')+'></label>'+
-      '<label>Payment arrangement<select name="terms">'+(paid?'<option value="verified">Already paid · verified</option>':'<option value="pending">Payment pending</option><option value="cod">Cash on delivery</option><option value="other">Other arrangement</option>')+'</select></label>'+
+      '<label>Payment arrangement<select name="terms" data-portal-custom-select>'+(paid?'<option value="verified">Already paid · verified</option>':'<option value="pending">Payment pending</option><option value="cod">Cash on delivery</option><option value="other">Other arrangement</option>')+'</select></label>'+
       '<label class="oc-wide">Delivery address<textarea required name="address" maxlength="2000">'+safe(q.address)+'</textarea></label>'+
       '<label>Deliver before (customer preference)<input type="time" name="preference"></label><label class="oc-check"><input type="checkbox" name="urgent"> Urgent</label>'+
-      '<label class="oc-wide">Instructions for the driver<textarea name="notes" maxlength="4000">'+safe(q.customer_instructions)+'</textarea></label></div>';
-    foot.innerHTML=control('Cancel','data-close')+'<button type="submit" class="orders-tools-button">Send to driver</button>';
+      '<label class="oc-wide">Instructions for the driver<textarea name="notes" maxlength="4000">'+safe(String(q.customer_instructions||'').replace(/^(?:\\n|\s)+/,'').trim())+'</textarea></label></div>';
+    foot.innerHTML=state.drivers.length?'<button type="submit" class="orders-tools-button">Send to driver</button>':'No eligible drivers are available.';
   }
   dlg.onclick=async e=>{
     const b=e.target.closest('button');if(!b||busy)return;
-    if(b.hasAttribute('data-close')){dlg.close();return;}
-    if(b.hasAttribute('data-payment')){dlg.close();editPayment(order.id);return;}
-    if(b.type==='submit')return;
+    if(b.hasAttribute('data-payment')){editPayment(order.id);return;}
+    if(!b.matches('[data-more],[data-pickup],[data-delivered],[data-count],[data-reconcile]'))return;
     busy=true;b.disabled=true;
     try{
       if(b.hasAttribute('data-more')){const d=await api('order-collection.php?review=1&ids='+id+'&before='+before);main.querySelector('[data-history]').insertAdjacentHTML('beforeend',hist(d.events));before=d.events?.at(-1)?.id;if(!d.more)b.remove();return;}
