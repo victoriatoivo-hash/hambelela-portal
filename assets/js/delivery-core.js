@@ -100,7 +100,7 @@ function renderDriverMobile(){
   jobs.innerHTML=ordered.map(driverCompactRow).join('')||'<p class="empty-state">No deliveries in this view.</p>';
  }
 }
-if(mobileProfile){
+if(mobileProfile&&!compactDriver){
  $('#jobs').addEventListener('click',e=>{const row=e.target.closest('[data-open-mobile-delivery]');if(row&&driverMobileActive())openMobileDelivery(Number(row.dataset.openMobileDelivery));});
  driverMobileMedia.addEventListener('change',()=>{
   if(!driverMobileActive()){
@@ -119,7 +119,7 @@ async function load(quiet=false){
  const state=compactDriver?'all':(primaryTab==='completed'?(driver?'driver_completed':'completed'):(driver?'for_delivery':$('#delivery-view').value));
  const query={view:'board',state,source:$('#delivery-source').value,payment:$('#delivery-payment').value,q:$('#delivery-search').value,page:String(boardPage),limit:driver?'20':'50',id:String(focusedJob),driver_id:$('#delivery-driver')?.value||'',area:$('#delivery-area')?.value||'',urgent:$('#delivery-urgent')?.checked?'1':''};
  query.sort=$('#delivery-sort')?.value||'';
- if(compactDriver){query.page='1';query.limit='200';}
+ if(compactDriver){query.id='0';query.page='1';query.limit='200';}
  if(driverMobileActive()&&!compactDriver){
   query.page='1';query.limit='200';query.source=['hambelela','partner'].includes(mobileFilter)?mobileFilter:'';query.payment=mobileFilter==='collect'?'collect':'';query.urgent=mobileFilter==='urgent'?'1':'';
   if(driverDayRequested){query.state='all';query.source='';query.payment='';query.urgent='';query.q='';}
@@ -132,7 +132,7 @@ async function load(quiet=false){
   data.page=1;data.has_more=false;
  }
  // Do not repaint an unchanged board every fifteen seconds, or disturb an active form.
- if(quiet&&(busy||document.hidden||document.querySelector('dialog[open]')||document.activeElement?.matches('input,textarea,select,[contenteditable=true]')))return;
+ if(quiet&&(busy||document.hidden||document.querySelector('dialog[open]')||(document.activeElement?.matches('input,textarea,select,[contenteditable=true]')&&!(compactDriver&&document.activeElement.closest('.df-tools')))))return;
  if(quiet&&board&&visibleBoardSnapshot(data)===visibleBoardSnapshot(board)){board=data;return;}
  const removed=[...document.querySelectorAll('#jobs [data-job-id]')].filter(c=>!c.dataset.jobId.startsWith('err-')&&!data.jobs.some(j=>Number(j.id)===Number(c.dataset.jobId)));
  if(removed.length&&!matchMedia('(prefers-reduced-motion: reduce)').matches){removed.forEach(c=>c.classList.add('is-departing'));await new Promise(resolve=>setTimeout(resolve,160));if(seq!==loadSequence)return;}
@@ -298,7 +298,7 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{i
 
 const requestedDelivery=Number(new URLSearchParams(location.search).get('delivery'));if(Number.isSafeInteger(requestedDelivery)&&requestedDelivery>0){focusedJob=requestedDelivery;if(!driver)$('#delivery-view').value='all';$('#delivery-source').value='';}
 load().then(()=>{
- if(focusedJob){if(driver){if(compactDriver)$('#jobs [data-driver-action="details"][data-id="'+focusedJob+'"]')?.click();else $('#jobs [data-open-mobile-delivery="'+focusedJob+'"]')?.click();$('#jobs [data-job-id="'+focusedJob+'"]')?.scrollIntoView({block:'start'});}else $('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();}
+ if(focusedJob){if(driver){if(compactDriver){const target=$('#jobs [data-driver-action="details"][data-id="'+focusedJob+'"]');if(target)target.click();else $('#message').textContent='That delivery is not on your assigned list.';}else $('#jobs [data-open-mobile-delivery="'+focusedJob+'"]')?.click();$('#jobs [data-job-id="'+focusedJob+'"]')?.scrollIntoView({block:'start'});}else $('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();}
  if(!driver){
   $('#open-order-search').hidden=!board.can_arrange;
   $('.pagehead h1').textContent='Front Operations';
@@ -310,5 +310,5 @@ load().then(()=>{
  if(!driver&&board.can_accounting){const a=document.createElement('a');a.href='accounting.php';a.className='secondary';a.textContent='Accounting';document.querySelector('.pagehead .actions').append(a);}
  if(!driver&&board.can_manage_access){const more=document.createElement('details');more.className='delivery-more';more.innerHTML='<summary class="secondary">More</summary><nav aria-label="Delivery management">'+[['pricing.php','Delivery pricing'],['reviews.php','Payment reviews'],['driver-view.php','Driver oversight'],['tedlaser.php','Tedlaser submissions']].map(([path,label])=>'<a href="'+path+'">'+label+'</a>').join('')+'</nav>';document.querySelector('.pagehead .actions').append(more);}
 }).catch(e=>$('#message').textContent=e.message);
-function refreshWhenIdle(){if(driverMobileActive()&&driverDayRequested&&Date.now()-lastDayRefresh<60000)return;if(!backgroundLoading&&!document.hidden&&!busy&&!document.querySelector('dialog[open]')&&!document.activeElement?.matches('input,textarea,select,[contenteditable=true]')){backgroundLoading=true;load(true).catch(e=>$('#message').textContent=e.message).finally(()=>backgroundLoading=false);}}window.addEventListener('focus',refreshWhenIdle);window.addEventListener('storage',e=>{if(e.key==='delivery-board-changed')refreshWhenIdle();});document.addEventListener('visibilitychange',refreshWhenIdle);setInterval(refreshWhenIdle,15000);
+function refreshWhenIdle(){if(driverMobileActive()&&driverDayRequested&&Date.now()-lastDayRefresh<60000)return;if(!backgroundLoading&&!document.hidden&&!busy&&!document.querySelector('dialog[open]')&&!(document.activeElement?.matches('input,textarea,select,[contenteditable=true]')&&!(compactDriver&&document.activeElement.closest('.df-tools')))){backgroundLoading=true;load(true).catch(e=>$('#message').textContent=e.message).finally(()=>backgroundLoading=false);}}window.addEventListener('online',refreshWhenIdle);window.addEventListener('focus',refreshWhenIdle);window.addEventListener('storage',e=>{if(e.key==='delivery-board-changed')refreshWhenIdle();});document.addEventListener('visibilitychange',refreshWhenIdle);setInterval(refreshWhenIdle,15000);
 })();

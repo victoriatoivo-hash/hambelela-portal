@@ -8,9 +8,9 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "0c58ce18c11c21b122ad4990b67be661b271123b"
+base = "e6f82c41256a576218a4882179448dac760cdb45"
 new_paths = []
-paths = ["shared/delivery/DriverErrands.php","assets/css/driver-delivery-ui.css","assets/js/driver-delivery-ui.js","assets/js/delivery-core.js","shared/delivery/CoreView.php","apps/delivery/driver-view.php"]
+paths = ["assets/css/driver-delivery-ui.css","assets/js/driver-delivery-ui.js","assets/js/delivery-core.js","apps/delivery/driver/index.php"]
 def original(p):
     if p in new_paths:return None
     return subprocess.check_output(["git","show",base+":"+p])
@@ -61,10 +61,7 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
     before={p:read(p) for p in paths};desired={p:Path(p).read_bytes() for p in paths}
     for p in paths:
         if p.endswith('.php'):subprocess.run(['php','-l'],input=desired[p],check=True)
-    # Two public assets have a newer, verified production release (2d47dc79).
-    # These are exact normalized source hashes; never substitute or ignore a new mismatch.
-    custody_baseline={"assets/js/driver-delivery-ui.js":"2df9e42e1c64d84f735447d563be964369e1f41d5c3c71df61ee22d228fb2417","assets/js/delivery-core.js":"e407f3a747a18f84d41d8c540a3e9c2c82142091d99ba4260736ee624c56eff2"}
-    bad=[p for p in paths if digest(before[p]) not in (custody_baseline.get(p) or digest(original(p)),digest(desired[p]))]
+    bad=[p for p in paths if digest(before[p]) not in (digest(original(p)),digest(desired[p]))]
     for p in bad:print("Unrecognised live baseline:",p,digest(before[p]))
     if bad:raise RuntimeError("No files published; resolve differences first.")
     for p in ["apps/delivery/front-api.php","shared/epi/BusinessTimeEngine.php","shared/epi/Support.php"]:
