@@ -41,12 +41,16 @@ jobs:
           for p in shared/delivery/{DriverErrands,ErrandView,ErrandDriverBar,CoreView}.php apps/{delivery/index,operations/orders-board}.php; do php -l "$p"; done
           node --check assets/js/driver-errands.js
           node --check assets/js/delivery-core.js
+          node --check assets/js/driver-delivery-ui.js
+          php -l shared/delivery/CoreView.php
           node --input-type=module --check < assets/js/order-collection-ui.js
           node tests/delivery-notification-ui.mjs
           node tests/delivery-pwa.cjs
           npm install --prefix "$RUNNER_TEMP/collection-ui" --ignore-scripts --no-audit --no-fund jsdom@24.1.3
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/order-collection-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-errand-popup.cjs
+          NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-ui.cjs
+          NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-integration.cjs
       - name: Publish guarded Order Board integration
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}

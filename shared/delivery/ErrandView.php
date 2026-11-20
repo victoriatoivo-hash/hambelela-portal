@@ -35,7 +35,7 @@ try{$errands->install();$drivers=$driverPage?[]:$errands->drivers($deliveryActor
 catch(Throwable $e){http_response_code(503);exit('Errands are temporarily unavailable. Please try again shortly.');}
 require_once __DIR__.'/PortalShell.php';\Hambelela\Delivery\PortalShell::begin(true,true);
 ?><!doctype html><html lang="en"><head><meta charset="utf-8"><title>Driver errands</title></head><body data-delivery-operations><main class="delivery-main">
-<link rel="stylesheet" href="<?=errand_h(BASE_URL)?>/assets/css/driver-errands.css?v=2">
+<link rel="stylesheet" href="<?=errand_h(BASE_URL)?>/assets/css/driver-errands.css?v=<?=filemtime(BASE_PATH.'/assets/css/driver-errands.css')?>">
 <div class="errands-app" data-errands-app data-driver="<?=$driverPage?'1':'0'?>">
 <header class="pagehead"><div><div class="eyebrow">OPERATIONS · COLLECTIONS</div><h1><?=$driverPage?'My errands':'Driver errands'?></h1><p>Pickups and collections that aren’t customer orders.</p></div><div class="actions"><a class="secondary" href="<?=errand_h(BASE_URL)?>/apps/<?=$driverPage?'delivery/index.php':'operations/orders-board.php'?>"><?=$driverPage?'My deliveries':'Order Board'?></a></div></header>
 <?php if(!$driverPage):?><section class="panel errand-compose"><h2>Log an errand</h2><p class="errand-muted">The assigned driver receives the pickup and payment instructions.</p><form data-errand-send>
@@ -53,5 +53,5 @@ require_once __DIR__.'/PortalShell.php';\Hambelela\Delivery\PortalShell::begin(t
 <section class="panel"><div class="errand-list-heading"><h2>Errand activity</h2><span class="errand-muted" data-refresh-status role="status">Connecting…</span></div>
 <nav class="actions errand-tabs" aria-label="Errand status"><button type="button" class="secondary" data-show="open" aria-pressed="true">Open</button><button type="button" class="secondary" data-show="collected" aria-pressed="false">Collected</button><button type="button" class="secondary" data-show="cancelled" aria-pressed="false">Cancelled</button><button type="button" class="secondary" data-refresh>Refresh</button></nav>
 <div data-errand-list></div><p data-errand-empty hidden>No errands in this view.</p><nav class="actions" aria-label="Errand pages"><button type="button" class="secondary" data-page="-1" disabled>Previous</button><span data-page-label>Page 1</span><button type="button" class="secondary" data-page="1" disabled>Next</button></nav></section>
-</div><script defer src="<?=errand_h(BASE_URL)?>/assets/js/driver-errands.js?v=2" data-errand-notices data-url="<?=errand_h(BASE_URL)?>/apps/delivery/index.php?errands=data" data-csrf="<?=errand_h($token)?>" data-driver="<?=$driverPage?'1':'0'?>"></script>
+</div><script defer src="<?=errand_h(BASE_URL)?>/assets/js/driver-errands.js?v=<?=filemtime(BASE_PATH.'/assets/js/driver-errands.js')?>" data-errand-notices data-url="<?=errand_h(BASE_URL)?>/apps/delivery/index.php?errands=data" data-csrf="<?=errand_h($token)?>" data-driver="<?=$driverPage?'1':'0'?>"></script>
 </main></body></html>

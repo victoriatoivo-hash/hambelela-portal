@@ -33,6 +33,7 @@ function jobCard(j){
 }
 // This presentation opt-in is supplied by the authenticated PHP shell, not a URL parameter.
 const driverMobileMedia=matchMedia('(max-width: 767px)');
+const compactDriver=driver&&!oversight&&!!window.DriverDeliveryUI&&new URLSearchParams(location.search).get('view')!=='day';
 const mobileProfile=driver&&!oversight&&document.body.classList.contains('is-driver-mobile');
 const driverMobileActive=()=>mobileProfile&&driverMobileMedia.matches;
 const driverDayRequested=new URLSearchParams(location.search).get('view')==='day';
@@ -112,16 +113,17 @@ function visibleBoardSnapshot(data){return JSON.stringify(['jobs','methods','dri
 let backgroundLoading=false;
 async function load(quiet=false){
  const seq=++loadSequence;
- const state=primaryTab==='completed'?(driver?'driver_completed':'completed'):(driver?'for_delivery':$('#delivery-view').value);
+ const state=compactDriver?(primaryTab==='completed'?'driver_completed':'all'):(primaryTab==='completed'?(driver?'driver_completed':'completed'):(driver?'for_delivery':$('#delivery-view').value));
  const query={view:'board',state,source:$('#delivery-source').value,payment:$('#delivery-payment').value,q:$('#delivery-search').value,page:String(boardPage),limit:driver?'20':'50',id:String(focusedJob),driver_id:$('#delivery-driver')?.value||'',area:$('#delivery-area')?.value||'',urgent:$('#delivery-urgent')?.checked?'1':''};
  query.sort=$('#delivery-sort')?.value||'';
- if(driverMobileActive()){
+ if(compactDriver){query.page='1';query.limit='200';}
+ if(driverMobileActive()&&!compactDriver){
   query.page='1';query.limit='200';query.source=['hambelela','partner'].includes(mobileFilter)?mobileFilter:'';query.payment=mobileFilter==='collect'?'collect':'';query.urgent=mobileFilter==='urgent'?'1':'';
   if(driverDayRequested){query.state='all';query.source='';query.payment='';query.urgent='';query.q='';}
  }
  const data=await json(api+'?'+new URLSearchParams(query));if(seq!==loadSequence)return;
  // Use the same assignment-restricted endpoint across all pages; urgent sorting must include every assigned job.
- if(driverMobileActive()){
+ if(driverMobileActive()||compactDriver){
   let batch=data;
   while(batch.has_more){query.page=String(Number(query.page)+1);batch=await json(api+'?'+new URLSearchParams(query));if(seq!==loadSequence)return;data.jobs.push(...batch.jobs);}
   data.page=1;data.has_more=false;
@@ -133,7 +135,7 @@ async function load(quiet=false){
  if(removed.length&&!matchMedia('(prefers-reduced-motion: reduce)').matches){removed.forEach(c=>c.classList.add('is-departing'));await new Promise(resolve=>setTimeout(resolve,160));if(seq!==loadSequence)return;}
  board=data;
  if(oversight&&!$('#delivery-driver').value&&board.drivers.length){$('#delivery-driver').innerHTML=board.drivers.map(d=>'<option value="'+Number(d.id)+'">'+esc(d.full_name)+'</option>').join('');return load();}
- $('#jobs').innerHTML=(oversight&&!$('#delivery-driver').value?'':board.jobs.filter(matchesView).map(jobCard).join(''))||'<p class="empty-state">'+(oversight&&!$('#delivery-driver').value?'No verified active Drivers. Add them in Employees and Roles.':'No deliveries in this view.')+'</p>';
+ if(!compactDriver)$('#jobs').innerHTML=(oversight&&!$('#delivery-driver').value?'':board.jobs.filter(matchesView).map(jobCard).join(''))||'<p class="empty-state">'+(oversight&&!$('#delivery-driver').value?'No verified active Drivers. Add them in Employees and Roles.':'No deliveries in this view.')+'</p>';
  $('#collect select').innerHTML=Object.entries(board.methods).map(([v,t])=>'<option value="'+esc(v)+'">'+esc(t)+'</option>').join('');
  renderBoardDetails();
 }
@@ -210,6 +212,7 @@ if(!driver){
 
 
 const tabs=document.createElement('nav');tabs.className='delivery-primary-tabs';tabs.setAttribute('aria-label',driver?'Driver delivery sections':'Front delivery sections');tabs.innerHTML='<button type="button" data-tab="active" aria-pressed="true">'+(driver?'FOR DELIVERY':'ACTIVE DELIVERIES')+' <span id="active-count"></span></button><button type="button" data-tab="completed" aria-pressed="false">COMPLETED <span id="completed-count"></span></button>';$('#jobs').before(tabs);
+if(compactDriver)tabs.innerHTML='<button type="button" data-tab="active" aria-pressed="true">All <span id="active-count"></span></button><button type="button" data-tab="completed" aria-pressed="false">Completed <span id="completed-count"></span></button><button type="button" data-tab="cancelled" aria-pressed="false">Cancelled</button>';
 const viewBar=document.createElement('section');viewBar.className='toolbar delivery-filters';viewBar.innerHTML=
  (driver?'':'<label>Status<select id="delivery-view"><option value="active">All active</option><option value="urgent">Urgent</option><option value="ready">Ready</option><option value="out_for_delivery">Out for Delivery</option><option value="awaiting_reconciliation">Awaiting Reconciliation</option><option value="failed">Delivery Issue</option><option value="all">All records</option></select></label>')+
  ((!driver||oversight)?'<label>Driver<select id="delivery-driver"><option value="">'+(oversight?'Choose Driver':'All Drivers')+'</option></select></label>':'')+
@@ -231,6 +234,7 @@ function renderBoardDetails(){
  if($('#delivery-driver')){const s=$('#delivery-driver'),v=s.value;s.innerHTML='<option value="">'+(oversight?'Choose Driver':'All Drivers')+'</option>'+board.drivers.map(d=>'<option value="'+Number(d.id)+'">'+esc(d.full_name)+'</option>').join('');s.value=v;}
  tabs.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.tab===primaryTab)));
  $('#active-count').textContent=driver?Number(board.metrics?.for_delivery||0):'';$('#completed-count').textContent=driver?Number(board.metrics?.driver_completed||0):'';
+ if(compactDriver){$('#active-count').textContent='';$('#completed-count').textContent='';$('#delivery-page-label').parentElement.hidden=true;window.DriverDeliveryUI.render(board,command,primaryTab);return;}
  let totals=$('#delivery-totals');if(!totals){totals=document.createElement('section');totals.id='delivery-totals';totals.className='delivery-totals';totals.setAttribute('aria-label','Delivery totals');$('.pagehead').after(totals);}
  totals.innerHTML=(driver?[['for_delivery','For Delivery'],['driver_urgent','Urgent'],['driver_completed','Completed']]:[['ready','Ready'],['urgent','Urgent'],['out_for_delivery','Out for Delivery'],['awaiting_reconciliation','Awaiting Reconciliation'],['completed_today','Completed Today']]).map(([key,label])=>'<span class="summary-pill"><span>'+label+'</span><strong>'+Number(board.metrics?.[key]||0)+'</strong></span>').join('');
  if(driverMobileActive()){renderDriverMobile();return;}
@@ -290,7 +294,7 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{i
 
 const requestedDelivery=Number(new URLSearchParams(location.search).get('delivery'));if(Number.isSafeInteger(requestedDelivery)&&requestedDelivery>0){focusedJob=requestedDelivery;if(!driver)$('#delivery-view').value='all';$('#delivery-source').value='';}
 load().then(()=>{
- if(focusedJob){if(driver){$('#jobs [data-open-mobile-delivery="'+focusedJob+'"]')?.click();$('#jobs [data-job-id="'+focusedJob+'"]')?.scrollIntoView({block:'start'});}else $('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();}
+ if(focusedJob){if(driver){if(compactDriver)$('#jobs [data-driver-action="details"][data-id="'+focusedJob+'"]')?.click();else $('#jobs [data-open-mobile-delivery="'+focusedJob+'"]')?.click();$('#jobs [data-job-id="'+focusedJob+'"]')?.scrollIntoView({block:'start'});}else $('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();}
  if(!driver){
   $('#open-order-search').hidden=!board.can_arrange;
   $('.pagehead h1').textContent='Front Operations';

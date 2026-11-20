@@ -8,11 +8,12 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "75e59c8f0f3d991ee47284f44d904e16a0a81478"
-new_paths = ["assets/css/driver-errands.css"]
+base = "f82ee8e12ac8bd663a2c5f3d320e508fc33eb120"
+new_paths = ["assets/css/driver-delivery-ui.css", "assets/js/driver-delivery-ui.js"]
 paths = [
-    *new_paths, "shared/delivery/DriverErrands.php", "assets/js/driver-errands.js",
-    "shared/delivery/ErrandDriverBar.php", "shared/delivery/ErrandView.php", "assets/js/delivery-core.js",
+    *new_paths, "shared/delivery/DeliveryService.php", "shared/delivery/CoreApi.php",
+    "shared/delivery/DriverErrands.php", "assets/css/driver-errands.css", "assets/js/driver-errands.js",
+    "assets/js/delivery-core.js", "shared/delivery/ErrandDriverBar.php", "shared/delivery/ErrandView.php", "shared/delivery/CoreView.php",
 ]
 def original(p):
     if p in new_paths:return None

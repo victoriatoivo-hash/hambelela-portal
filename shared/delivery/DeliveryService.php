@@ -242,12 +242,18 @@ final class DeliveryService
         });
     }
 
-    public function complete(array $actor,int $id,string $uuid,?string $frontReason=null): array
+    public function complete(array $actor,int $id,string $uuid,?string $frontReason=null,?array $confirmation=null): array
     {
-        return $this->command($actor,$id,$uuid,'delivered',$frontReason===null?[]:[$frontReason],function($j)use($actor,$frontReason){
+        if($confirmation!==null){
+            $note=trim((string)($confirmation['note']??''));
+            if(($confirmation['confirmed']??false)!==true||$note===''||mb_strlen($note)>2000)throw new \DomainException('Confirm the delivery and payment, and add a completion note (up to 2,000 characters).');
+            $confirmation=['confirmed'=>true,'note'=>$note];
+        }
+        $request=$frontReason===null?[]:[$frontReason];if($confirmation!==null)$request[]=$confirmation;
+        return $this->command($actor,$id,$uuid,'delivered',$request,function($j)use($actor,$frontReason){
             if($frontReason===null){$this->assigned($actor,$j);return;}
             if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange')||strlen($frontReason)<10||strlen($frontReason)>500)throw new \DomainException('An authorised employee and a confirmation reason (10–500 characters) are required.');
-        },function($j)use($actor,$id,$frontReason){
+        },function($j)use($actor,$id,$frontReason,$confirmation){
             $held=$this->row("SELECT COALESCE(SUM(order_goods_cents+delivery_fee_cents+partner_cod_cents),0) amount FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue')",[$id]);
             $due=array_sum($this->remaining($j));
             if($frontReason===null)$status=DeliveryPolicy::completionStatus($actor,$j,$due,(int)$held['amount']);
@@ -264,7 +270,7 @@ final class DeliveryService
                 $collected=$this->row("SELECT COALESCE(SUM(delivery_fee_cents),0) fee FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue','reconciled')",[$id]);
                 $this->ledger('prepaid:'.$id,$j,'fee_received',max(0,(int)$j['fee_cents']-(int)$collected['fee']),$actor['id']);
             }elseif($j['fee_payer']==='already_paid')$this->ledger('prepaid:'.$id,$j,'fee_received',(int)$j['fee_cents'],$actor['id']);
-            return ['id'=>$id,'status'=>$status]+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true]);
+            return ['id'=>$id,'status'=>$status]+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true])+($confirmation===null?[]:['note'=>$confirmation['note'],'delivery_payment_confirmed'=>true]);
         });
     }
 
