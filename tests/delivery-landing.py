@@ -11,7 +11,7 @@ with TemporaryDirectory() as tmp:
         f = root / path
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(content, encoding="utf-8")
-    for p in ("apps/delivery/index.php", "shared/delivery/DeliveryPolicy.php"):
+    for p in ("apps/delivery/index.php", "apps/delivery/workspace.php", "shared/delivery/DeliveryPolicy.php", "shared/delivery/ErrandLanding.php"):
         (root / p).parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(p, root / p)
     put("config.php", "<?php define('BASE_PATH',__DIR__); define('BASE_URL',''); define('DELIVERY_ENABLED',true);")
@@ -32,9 +32,9 @@ function current_role_key(){return $_SERVER['HTTP_X_TEST_ROLE'];} function curre
             try:
                 with socket.create_connection(("127.0.0.1",port),timeout=.5): break
             except OSError: time.sleep(.05)
-        def request(role,query="",method="GET"):
+        def request(role,query="",method="GET",page="index.php"):
             conn=HTTPConnection("127.0.0.1",port,timeout=3)
-            conn.request(method,"/apps/delivery/index.php"+query,headers={"X-Test-Role":role})
+            conn.request(method,"/apps/delivery/"+page+query,headers={"X-Test-Role":role})
             r=conn.getresponse()
             result=(r.status,r.getheader("Location"),r.read().decode())
             conn.close()
@@ -43,8 +43,13 @@ function current_role_key(){return $_SERVER['HTTP_X_TEST_ROLE'];} function curre
             assert request(role)==(302,"/apps/delivery/index.php?errands=1",""),role
             assert request(role,"?errands=1")== (200,None,"ErrandView")
             assert request(role,"?errands=data","POST")== (200,None,"ErrandView")
-            assert request(role,"?delivery=12")== (200,None,"WorkspaceView")
+            for page in ("index.php","workspace.php"):
+                for query in ("","?delivery=12","?view=completed"):
+                    assert request(role,query,page=page)==(302,"/apps/delivery/index.php?errands=1","")
+                assert request(role,method="POST",page=page)[0]==405
+            assert request(role,"?errands=notice")== (200,None,"ErrandView")
         assert request("owner_admin")== (200,None,"WorkspaceView")
+        assert request("owner_admin","?delivery=12",page="workspace.php")== (200,None,"CoreView")
         assert request("delivery_driver")== (200,None,"CoreView")
         print("PASS front desk and marketing errand landing, driver and owner landing, explicit delivery and errand API routes")
     finally:

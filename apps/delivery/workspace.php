@@ -7,6 +7,8 @@ require_once BASE_PATH.'/apps/operations/operations.php';require_login();
 require_once BASE_PATH.'/shared/delivery/FrontSession.php';
 try{$deliveryActor=\Hambelela\Delivery\FrontSession::actor(db(),(int)(current_user()['id']??0));if(!\Hambelela\Delivery\DeliveryPolicy::can($deliveryActor,'delivery_view'))throw new DomainException();}catch(DomainException $e){http_response_code(403);exit('Front Operations access denied.');}
 header('Cache-Control: no-store');$driverPage=false;$endpoint='front-api.php';
+require_once BASE_PATH.'/shared/delivery/ErrandLanding.php';
+\Hambelela\Delivery\ErrandLanding::enforce($deliveryActor);
 require_once BASE_PATH.'/shared/delivery/PortalShell.php';
 \Hambelela\Delivery\PortalShell::begin(true, true);
 ob_start();
