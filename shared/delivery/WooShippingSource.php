@@ -25,7 +25,19 @@ final class WooShippingSource
     {
         if((int)($order['woo_order_id']??0)<1||(int)($remote['id']??0)!==(int)$order['woo_order_id'])throw new \DomainException('Shipping source does not match this Order.');
         if(($remote['currency']??'')!=='NAD')throw new \DomainException('Delivery requires a verified NAD Order.');
-        if(!in_array($remote['status']??'',['pending','on-hold','processing','completed'],true))throw new \DomainException('Order status requires review before delivery.');
+        // A failed website payment is not a cancelled delivery. The portal can
+        // fulfil it using COD (or a subsequently confirmed payment). Payment
+        // amounts are verified separately; never mark it paid here.
+        $remoteStatus=(string)($remote['status']??'');
+        $mode=strtolower(trim((string)($order['fulfilment_mode']??'')))?:strtolower(trim((string)($order['order_type']??'')));
+        $portalStatus=strtolower(trim((string)($order['status']??'')));
+        $failedPaymentDelivery=$remoteStatus==='failed'&&$mode==='delivery'
+            &&in_array($portalStatus,['new','new_order','in_progress','packed','completed'],true)
+            &&empty($order['deleted_at'])&&empty($order['archived_at']);
+        // Completed is allowed for existing-job reconciliation only. The
+        // arrangement repository still rejects a new dispatch for completed work.
+        if(!in_array($remoteStatus,['pending','on-hold','processing','completed'],true)&&!$failedPaymentDelivery)
+            throw new \DomainException('Website order status requires review before delivery: '.($remoteStatus?:'not recorded').'.');
         if(!isset($remote['refunds'])||!is_array($remote['refunds'])||$remote['refunds'])throw new \DomainException('Refunded or unverified Order requires review before delivery.');
         foreach(['total','shipping_total','shipping_tax'] as $field){
             if(!isset($remote[$field])||!is_string($remote[$field])||$remote[$field]==='')throw new \DomainException('Order shipping breakdown is incomplete.');
@@ -45,7 +57,7 @@ final class WooShippingSource
         return ['address'=>$address,'area'=>(string)($shipping['city']??''),'mobile'=>(string)($remote['billing']['phone']??''),'customer_instructions'=>mb_substr((string)($remote['customer_note']??''),0,4000),'source'=>'woocommerce','woo_order_id'=>(int)$remote['id'],'order_total_cents'=>$total,
             'shipping_cents'=>$net,'shipping_tax_cents'=>$tax,'included_cents'=>$net+$tax,
             'verified_at'=>time(),'portal_fingerprint'=>self::fingerprint($order),
-            'source_modified_gmt'=>(string)($remote['date_modified_gmt']??'')];
+            'source_modified_gmt'=>(string)($remote['date_modified_gmt']??''),'source_order_status'=>$remoteStatus];
     }
     public static function assertCurrent(array $order,array $evidence):void
     {

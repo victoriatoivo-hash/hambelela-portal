@@ -6,9 +6,11 @@ $db->exec("INSERT INTO ops_orders(id,order_number,woo_order_id,total_amount,paym
 INSERT INTO order_payment_allocations(order_id,payment_method,amount_cents,source) VALUES(103,'cash',12000,'pos');
 INSERT INTO ops_order_items VALUES(4,103,'Test cash item',1)");
 $remote['id']=103;
+$remote['status']='failed';
 $q=$core->command($owner,['action'=>'quote','source_order'=>true,'order'=>103]);
 ok($q['paid_cents']===0&&$q['collect_cents']===12000,'Unticked POS cash is collectible, not paid');
 $cash=$core->command($owner,array_merge($new,['order'=>103,'verification'=>$q['verification'],'uuid'=>requestId()]));
+ok($cash['id']>0,'Failed website payment can be arranged as COD without changing payment status');
 $cid=(int)$cash['id'];
 ok((int)$db->query('SELECT SUM(amount_cents) FROM order_payment_allocations WHERE order_id=103')->fetchColumn()===12000,'Arranging never deletes imported allocations');
 ok($core->board($driver,['id'=>$cid])['jobs'][0]['remaining']===['order_goods'=>8000,'delivery_fee'=>4000,'partner_cod'=>0],'Driver sees full unpaid amount including shipping once');
