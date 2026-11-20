@@ -36,6 +36,7 @@ jobs:
         run: |
           for p in apps/delivery/order-collection.php shared/delivery/{DeliveryService,CoreApi,DeliveryArrangement,PortalOrderRepository}.php; do php -l "$p"; done
           php tests/delivery-arrangement-regression.php
+          python3 tests/delivery-landing.py
           COLLECTION_SHORT_TEST=1 php tests/delivery-arrangement-regression.php
           for scenario in short extra zero mobile prepaid-extra prepaid-zero; do DRIVER_DECLARATION_CASE=$scenario php tests/delivery-arrangement-regression.php; done
           node --check assets/js/orders-board.js
