@@ -70,6 +70,10 @@
   const footer=body.querySelector('.df-primary');if(footer)d.append(footer);
   bind(d);
  }
+ function assignmentBody(j){
+  const items=Array.isArray(j.items)?j.items:[],row=(ico,label,value)=>'<div class="dn-row">'+icon(ico)+'<div><small>'+esc(label)+'</small><span>'+value+'</span></div></div>',phone=String(j.customer_mobile||'').replace(/[^+0-9]/g,'');
+  return '<div class="dn-sheet-meta"><strong>'+esc(ref(j))+'</strong>'+(Number(j.urgent)?'<b>Urgent</b>':'')+'</div><div class="dn-sheet-rows">'+row('user','Customer',esc(j.customer_name||'Not recorded'))+row('phone','Contact number',phone?'<a href="tel:'+esc(phone)+'">'+esc(j.customer_mobile)+'</a>':'Not recorded')+row('pin','Delivery address',esc(j.address||j.area||'Not recorded')+((j.address||j.area)?button('navigate','Navigate',j,'map'):''))+row('box','Items',items.length?esc(items.reduce((sum,line)=>sum+Number(line.quantity||0),0)+' items · '+items.length+' lines'):'Not recorded')+row('clock','Deliver before',esc(j.deadline?.label||'No specific time'))+row('note','Delivery notes',esc([j.notes,...(j.history||[]).filter(h=>h.type==='note_added').slice(0,3).map(h=>h.note)].filter(Boolean).join('\n')||'None recorded'))+row('wallet','Payment',esc(j.order_payment_status||'Not recorded')+' · '+(due(j)==null?'Balance needs review':money(due(j))+' outstanding'))+'</div><div class="df-primary">'+(j.status==='ready'?readyAction(j):button('details',j.status==='out_for_delivery'?'Continue Delivery':j.status==='cancelled'?'View Cancelled Delivery':closed(j)?'View Completed Delivery':'View Delivery',j,'chevron'))+'</div>';
+ }
  function navigate(j){
   const address=j.address||j.area;if(!address){modal('Navigate',heading(j)+'<p>No address recorded. Contact Front Desk before leaving.</p>');return;}
   const url='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(address)+'&travelmode=driving';
@@ -96,12 +100,23 @@
  }
  function note(j,fail){form(fail?'Unable to deliver':'Add delivery note',j,(fail?'<label>Reason<select name="reason"><option>Customer unavailable</option><option>Wrong address</option><option>Payment issue</option><option>Vehicle issue</option><option>Other</option></select></label>':'')+'<label>Note<textarea name="note" required maxlength="2000" rows="3"></textarea></label>',async data=>{if(!String(data.get('note')).trim())throw Error('Enter a note.');await command({action:fail?'fail':'note',id:Number(j.id),note:data.get('note'),...(fail?{reason:data.get('reason')}:{})});});}
  function bind(root){root.onclick=e=>{const b=e.target.closest('[data-driver-action]');if(!b||saving||(preview&&!['details','navigate'].includes(b.dataset.driverAction)))return;const j=board.jobs.find(j=>Number(j.id)===Number(b.dataset.id));if(!j)return;({details,navigate,start,finish,note,accept:j=>custody(j,'accept'),confirm_pickup:j=>custody(j,'confirm_pickup'),fail:j=>note(j,true)})[b.dataset.driverAction]?.(j);};}
- // Keep the portal notification inbox as the authority; polling must never mark a notice seen.
+ // The delivery header and inbox use the same recipient-scoped unread count.
+ let lastNotice=null;
+ function observeNotices(data){
+  if(!Array.isArray(data.items)||!Number(data.actor))return;
+  const high=Number(data.through)||0,old=lastNotice;lastNotice={actor:data.actor,high};
+  if(!old||old.actor!==data.actor||high<=old.high||document.hidden)return;
+  const fresh=data.items.filter(x=>Number(x.id)>old.high&&['assignment','reassigned'].includes(x.kind)&&!x.read_at);
+  if(!fresh.length)return;
+  const notify=()=>{try{const key='driver-chime-'+Number(data.actor),n=Math.max(...fresh.map(x=>Number(x.id)));if(Number(localStorage.getItem(key))>=n)return;localStorage.setItem(key,String(n));if(localStorage.getItem('driver-delivery-sounds')==='off'||!audio||audio.state!=='running')return;
+   const o=audio.createOscillator(),g=audio.createGain(),t=audio.currentTime;o.type='sine';o.frequency.setValueAtTime(784,t);o.frequency.exponentialRampToValueAtTime(587,t+.12);g.gain.setValueAtTime(.04,t);g.gain.exponentialRampToValueAtTime(.0001,t+.24);o.connect(g);g.connect(audio.destination);o.start(t);o.stop(t+.25);}catch(_){}};
+  if(navigator.locks)void navigator.locks.request('driver-notice-chime',notify);else notify();
+ }
+ if(!preview)document.addEventListener('pointerdown',unlockSound,{once:true,passive:true});
  function noticeBadge(bell){
   const api=document.body.dataset.api;if(preview||!api||!api.endsWith('/driver/api.php'))return;
-  let pending=false;
-  async function check(){if(pending||document.hidden)return;pending=true;try{const r=await fetch(api+'?view=notifications',{credentials:'same-origin',cache:'no-store'});if(!r.ok)return;const {notifications}=await r.json();if(!Array.isArray(notifications))return;const n=notifications.filter(x=>!x.read_at).length;bell.classList.toggle('df-has-unread',n>0);bell.setAttribute('aria-label',n?'Notifications, unread driver assignments':'Notifications');}catch(_){}finally{pending=false;}}
-  void check();setInterval(check,30000);window.addEventListener('online',check);document.addEventListener('visibilitychange',check);
+  let pending=false;async function check(){if(pending||document.hidden)return;pending=true;try{const r=await fetch((document.body.dataset.base||'')+'/notifications.php?driver_feed=1',{cache:'no-store'});if(!r.ok)return;const data=await r.json();if(!data.counts)return;observeNotices({...data,items:data.latest_assignment?[data.latest_assignment,...data.items]:data.items});const n=Number(data.counts.all);bell.dataset.unread=n>99?'99+':String(n);bell.classList.toggle('df-has-unread',n>0);bell.setAttribute('aria-label','Notifications, '+n+' unread');}catch(_){}finally{pending=false;}}
+  void check();setInterval(check,15000);window.addEventListener('online',check);document.addEventListener('visibilitychange',check);window.addEventListener('focus',check);window.addEventListener('storage',e=>{if(e.key==='driver-inbox-read')check();});
  }
  function appNav(head,tools){
   const actions=tools.querySelector('.actions'),errands=tools.querySelector('a'),tray=document.createElement('div'),trigger=document.createElement('button');
@@ -128,7 +143,7 @@
  const belongs=(group,tab)=>tab==='active'?['ready','progress','blocked'].includes(group):group===tab;
  let errandRows=[],openErrand,currentTab='active',term='';
  function render(data,send,tab){currentTab=tab;
-  if(preview){errandRows=data.preview_errands||[];openErrand=j=>modal('Errand #'+Number(j.id),'<section><h3>Pickup</h3><p>'+esc(j.place)+' · '+esc(j.contact_name)+'</p><p>'+esc(j.contents)+'</p></section><section><h3>Payment</h3><p>'+esc(j.payment_state==='paid'?'Paid':'Not paid')+(j.amount!=null?' · N$ '+esc(j.amount):'')+'</p><p>'+esc(j.payer||'')+'</p></section><p>'+esc(j.note||'')+'</p>');}
+  if(preview){errandRows=data.preview_errands||[];openErrand=j=>modal('ERR-'+Number(j.id),'<div class="er-info">'+[['pin','Pickup location',j.place],['user','Contact person',j.contact_name],['box','What to collect',j.contents],['wallet','Payment arrangement',[j.payment_state==='paid'?'Paid':'Not paid',j.amount!=null?'N$ '+j.amount:'Amount unconfirmed',j.payer].filter(Boolean).join(' · ')],['note','Latest note',j.note]].map(([i,l,v])=>'<div class="er-row"><span class="er-symbol">'+icon(i)+'</span><div><small>'+l+'</small><p>'+esc(v||'Not recorded')+'</p></div></div>').join('')+'</div>');}
   board=data;command=send;document.body.classList.add('driver-compact-app');
   const list=document.querySelector('#jobs'),rows=board.jobs.filter(j=>belongs(jobGroup(j),tab));
   const needle=term.toLowerCase().trim();const filtered=rows.filter(j=>[ref(j),j.area,j.customer_name,j.customer_mobile].some(v=>String(v||'').toLowerCase().includes(needle)));
@@ -150,5 +165,5 @@
   soundButton.innerHTML=icon('sound');soundButton.setAttribute('aria-pressed',String(sounds));soundButton.setAttribute('aria-label',sounds?'Turn delivery sounds off':'Turn delivery sounds on');
  }
  setInterval(()=>{if(document.hidden||!board)return;document.querySelectorAll('[data-driver-timer]').forEach(el=>{const j=board.jobs.find(j=>Number(j.id)===Number(el.dataset.driverTimer));if(j){const t=elapsed(j);if(el.textContent!==t)el.textContent=t;}});},1000);
- window.DriverDeliveryUI={render,jobGroup,showCompletion(data,send,j){if(preview)return;board=data;command=send;finish(j);},showDetails(data,send,j){board=data;command=send;details(j);},errands(rows,open){openErrand=open;if(JSON.stringify(rows)===JSON.stringify(errandRows))return;errandRows=rows;if(board)render(board,command,currentTab);}};
+ window.DriverDeliveryUI={render,jobGroup,icon,modal,close,observeNotices,showAssignment(data,send,j,title){board=data;command=send;const d=modal(title,assignmentBody(j));d.classList.add('df-notice-sheet');bind(d);return d;},showCompletion(data,send,j){if(preview)return;board=data;command=send;finish(j);},showDetails(data,send,j){board=data;command=send;details(j);},errands(rows,open){openErrand=open;if(JSON.stringify(rows)===JSON.stringify(errandRows))return;errandRows=rows;if(board)render(board,command,currentTab);}};
 })();

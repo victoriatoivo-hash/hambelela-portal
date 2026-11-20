@@ -42,7 +42,11 @@ final class DeliveryService
                 [$id,$action,$actor['id'],json_encode($result,JSON_THROW_ON_ERROR)]);
             $event=(int)$this->db->lastInsertId();
             if($action==='failed'||($action==='delivered'&&($result['status']??'')==='awaiting_reconciliation'))NotificationOutbox::notifyFront($this->db,$id,'event:'.$event,$action==='failed'?'failed':'reconciliation');
-            if($action==='revised')NotificationOutbox::queue($this->db,$id,(int)$result['driver'],'event:'.$event.':driver',['kind'=>'assignment']);
+            $noticeKind=['started'=>'started','delivered'=>'completed','cancelled'=>'cancelled','collected'=>'payment','receipt_issue'=>'payment','receipt_issue_resolved'=>'payment','failed'=>'failed'][$action]??null;
+            if($action==='note_added'&&($actor['role']??'')!=='delivery_driver')$noticeKind='instructions';
+            if($action==='revised')$noticeKind=(int)$result['driver']!==(int)$job['driver_employee_id']?'reassigned':($result['date']!==$job['scheduled_date']?'deadline':'instructions');
+            if($action==='dispatch_updated'&&($result['field']??'')==='urgent'&&!empty($result['value'])&&empty($result['previous']))$noticeKind='urgent';
+            if($noticeKind&&!empty($result['driver']??$job['driver_employee_id']))NotificationOutbox::queue($this->db,$id,(int)($result['driver']??$job['driver_employee_id']),'event:'.$event.':driver',['kind'=>$noticeKind]);
             $this->exec('INSERT INTO delivery_requests(actor_key,request_uuid,action,request_hash,response_json) VALUES(?,?,?,?,?)',
                 [$actorKey,$uuid,$action,$hash,json_encode($result,JSON_THROW_ON_ERROR)]);
             $this->db->commit();return $result;

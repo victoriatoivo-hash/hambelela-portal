@@ -26,12 +26,15 @@
   const command=(j,action,values={})=>request(url,{id:j.id,revision:j.revision,action,...values});
   function status(text){const n=root?.querySelector('[data-refresh-status]');if(n&&n.textContent!==text)n.textContent=text;}
   function modal(title){
-    const box=el('dialog','','errand-dialog');const h=el('h2',title);h.id='errand-dialog-title';box.setAttribute('aria-labelledby',h.id);box.append(h);
+    const box=el('dialog','','errand-dialog');const h=el('h2',title);h.id='errand-dialog-title';box.setAttribute('aria-labelledby',h.id);if(isDriver){box.classList.add('errand-driver-sheet');const head=el('header'),handle=el('div','','er-handle'),x=button('×',()=>box.dispatchEvent(new Event('cancel',{cancelable:true}))&&box.close(),'er-x');x.setAttribute('aria-label','Close');head.append(x,h);box.append(handle,head);}else box.append(h);
     document.body.append(box);dialog=box;
     box.addEventListener('close',()=>{box.remove();if(dialog===box){dialog=null;notice=null;}void poll();});
     return box;
   }
   function details(box,j){
+    if(isDriver){const group=el('div','','er-info');const row=(icon,label,value)=>{const r=el('div','','er-row'),i=el('span','','er-symbol'),v=el('div');i.setAttribute('aria-hidden','true');if(window.DriverDeliveryUI?.icon)i.innerHTML=window.DriverDeliveryUI.icon(icon);else i.textContent=({pin:'⌖',user:'○',box:'◇',wallet:'▤'})[icon];v.append(el('small',label),el('p',value));r.append(i,v);return r;};
+     const pickup=row('pin','Pickup location',j.place||'Not recorded');if(j.place){const link=el('a','Navigate');link.href='https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(j.place);link.target='_blank';link.rel='noopener noreferrer';pickup.append(link);}
+     group.append(pickup,row('user','Contact person',j.contact_name||'Not recorded'),row('box','What to collect',j.contents||'Not recorded'),row('wallet','Payment arrangement',(j.payment_state==='paid'?'Paid':'Not paid')+' · '+(j.amount==null?'Amount unconfirmed':'N$ '+j.amount)+(j.payer?' · '+j.payer:'')));box.append(group);return;}
     box.append(el('p','Pickup: '+j.place),el('p','Contact: '+j.contact_name),el('p','Collect: '+j.contents));
     box.append(el('p',(j.payment_state==='paid'?'Paid':'Not paid')+' · '+(j.amount==null?'Amount unconfirmed':'N$ '+j.amount)+(j.payer?' · '+j.payer:'')));
   }
@@ -39,7 +42,7 @@
     if(!isDriver||dialog||document.hidden||document.querySelector('dialog[open]'))return;
     const result=await command(j,'claim',{claim_key:claimKey});if(!result.result?.claimed)return;
     if(document.hidden||document.querySelector('dialog[open]'))return;
-    const box=modal('Driver errand #'+j.id);notice=j;details(box,j);
+    const box=modal('New errand · ERR-'+j.id);notice=j;details(box,j);
     const msg=el('p','','errand-error');msg.setAttribute('role','status');const actions=el('div','','actions');
     async function act(action){
       actions.querySelectorAll('button').forEach(b=>b.disabled=true);
@@ -102,20 +105,27 @@
     }
     actions.append(button('History',()=>history(j)));c.append(actions);return c;
   }
-  function compactCard(j){
-    const c=el('article','','errand-card driver-errand-card');c.dataset.id=String(j.id);c.dataset.fingerprint=JSON.stringify(j);
-    const head=el('div','','errand-card-head');head.append(el('span','Errand #'+j.id),el('span',j.state==='cancelled'?'Cancelled':j.collected_at?'Completed':j.state==='started'?'In progress':j.state==='blocked'?'Needs attention':'Ready','errand-tag'));
-    c.append(head,el('h3',j.place),el('p',j.contact_name,'errand-muted'),el('p',j.payment_state==='paid'?'✓ Paid':('Not paid'+(j.amount==null?' · amount unconfirmed':' · N$ '+j.amount))));
-    if(j.started_at){const t=el('time',timer(j));t.dataset.errandTimer=String(j.id);t.dataset.start=j.started_at;t.dataset.end=j.collected_at||'';c.append(t);}
-    const detail=el('details'),summary=el('summary','View details');detail.append(summary);details(detail,j);if(j.note)detail.append(el('p',j.note));detail.append(el('p','Started: '+stamp(j.started_at)+' · Completed: '+stamp(j.collected_at),'errand-timing'));detail.append(button('History',()=>history(j)));c.append(detail);
+  function errState(j){return j.state==='cancelled'?'Cancelled':j.collected_at?'Completed':j.state==='started'?'In progress':j.state==='blocked'?'Needs attention':'Ready';}
+  function errandDetails(j){
+    if(dialog)return;const box=modal('ERR-'+Number(j.id));box.classList.add('errand-view-sheet');
+    const leave=()=>{dialog=null;box.close();};
+    const tag=el('span','Errand · '+errState(j),'er-chip');box.querySelector('header').append(tag);
+    details(box,j);const facts=el('div','','er-facts');
+    if(j.note){const n=el('section');n.append(el('small','Instructions / latest note'),el('p',j.note));facts.append(n);}
+    if(j.started_at){const trip=el('section','','er-trip'),clock=el('time',timer(j));clock.dataset.errandTimer=String(j.id);clock.dataset.start=j.started_at;clock.dataset.end=j.collected_at||'';trip.append(el('small',j.collected_at?'Errand duration':'Errand in progress'),clock,el('small','Started '+stamp(j.started_at)));facts.append(trip);}
+    facts.append(button('Tracking history',()=>{leave();void history(j);}));box.append(facts);
     const actions=el('div','','actions');
     if(!j.collected_at&&j.state!=='cancelled'){
       if(j.state==='open')actions.append(button('▶ Start errand',()=>{
-        if(dialog)return;const box=modal('Start errand #'+j.id);details(box,j);const error=el('p','','errand-error'),confirm=button('▶ Confirm start',async()=>{unlockSound();confirm.disabled=true;try{await command(j,'started');chime(false);box.close();await poll();}catch(e){error.textContent=e.message;confirm.disabled=false;}},'primary');box.append(error,button('Cancel',()=>box.close()),confirm);box.showModal();
+        leave();const box=modal('Start errand #'+j.id);details(box,j);const error=el('p','','errand-error'),confirm=button('▶ Confirm start',async()=>{unlockSound();confirm.disabled=true;try{await command(j,'started');chime(false);box.close();await poll();}catch(e){error.textContent=e.message;confirm.disabled=false;}},'primary');box.append(error,button('Cancel',()=>box.close()),confirm);box.showModal();
       },'primary'));
-      actions.append(button('✓ Complete',()=>edit(j,'collected'),'primary'),button('Unable to collect',()=>edit(j,'blocked')));
+      actions.append(button('✓ Complete',()=>{leave();edit(j,'collected');},j.state==='open'?'secondary':'primary'),button('Unable to collect',()=>{leave();edit(j,'blocked');}));
     }
-    c.append(actions);return c;
+    box.append(actions);box.showModal();
+  }
+  function compactCard(j){
+    const c=el('article','','errand-card driver-errand-card');c.dataset.id=String(j.id);c.dataset.fingerprint=JSON.stringify(j);const b=button('',()=>errandDetails(j),'er-open');
+    b.append(el('strong','ERR-'+j.id),el('span',j.place),el('small',errState(j)),el('span','›'));c.append(b);return c;
   }
   function render(data){
     if(!list)return;
@@ -147,7 +157,7 @@
       if(isDriver&&!root&&document.body.classList.contains('driver-compact-app')&&!document.querySelector('dialog[open]')){
         const feed=new URL(url,location.href);feed.searchParams.set('errands','data');const all=[];
         for(const filter of ['open','collected','cancelled']){let batch,p=0;do{feed.searchParams.set('show',filter);feed.searchParams.set('page',String(p++));batch=await request(feed.href);all.push(...batch.entries);}while(batch.more);}
-        window.DriverDeliveryUI?.errands(all,j=>{if(dialog)return;const box=modal('Errand #'+j.id);box.append(compactCard(j),button('Close',()=>box.close()));box.showModal();const cardEl=box.querySelector('.driver-errand-card');cardEl.addEventListener('click',e=>{if(e.target.closest('button')){dialog=null;box.close();}},true);});
+        window.DriverDeliveryUI?.errands(all,errandDetails);
       }
     }catch(e){status(navigator.onLine===false?'Offline · showing last loaded errands':e.message);}
     finally{busy=false;if(version!==generation)void poll();}
@@ -161,6 +171,7 @@
   root?.querySelectorAll('[data-show]').forEach(b=>b.onclick=()=>{show=b.dataset.show;page=0;generation++;root.querySelectorAll('[data-show]').forEach(n=>n.setAttribute('aria-pressed',String(n===b)));void poll();});
   root?.querySelectorAll('[data-page]').forEach(b=>b.onclick=()=>{page=Math.max(0,page+Number(b.dataset.page));generation++;void poll();});
   root?.querySelector('[data-refresh]')?.addEventListener('click',()=>{void poll();});
-  setInterval(poll,15000);window.addEventListener('online',poll);document.addEventListener('visibilitychange',poll);window.addEventListener('focus',poll);void poll();
-  if(isDriver&&root){root.classList.add('driver-errands-compact');root.querySelector('[data-page-label]')?.parentElement.setAttribute('hidden','');setInterval(()=>{if(document.hidden)return;root.querySelectorAll('[data-errand-timer]').forEach(t=>{const value=timer({started_at:t.dataset.start,collected_at:t.dataset.end});if(t.textContent!==value)t.textContent=value;});},1000);}
+  window.addEventListener('online',poll);document.addEventListener('visibilitychange',poll);window.addEventListener('focus',poll);void poll();
+  if(isDriver){root?.classList.add('driver-errands-compact');root?.querySelector('[data-page-label]')?.parentElement.setAttribute('hidden','');setInterval(()=>{if(document.hidden)return;document.querySelectorAll('[data-errand-timer]').forEach(t=>{const value=timer({started_at:t.dataset.start,collected_at:t.dataset.end});if(t.textContent!==value)t.textContent=value;});},1000);}
+  setInterval(poll,15000);
 })();

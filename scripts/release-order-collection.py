@@ -8,9 +8,9 @@ import ssl
 import subprocess
 from pathlib import Path
 
-base = "c7899d378bb4aec2b6777c0d571444c26185fa26"
-new_paths = []
-paths = ["assets/js/driver-delivery-ui.js","assets/js/delivery-core.js"]
+base = "ad016fc8b5069c1ca740c8b8146fd7d76d1ec1ea"
+new_paths = ["shared/delivery/DriverInbox.php","shared/delivery/DriverInboxPage.php","assets/css/driver-inbox.css","assets/js/driver-inbox.js"]
+paths = new_paths + ["assets/css/driver-errands.css","assets/css/driver-delivery-ui.css","assets/js/driver-errands.js","shared/delivery/NotificationOutbox.php","shared/delivery/DeliveryService.php","apps/operations/operations.php","notifications.php","assets/js/driver-delivery-ui.js"]
 def original(p):
     if p in new_paths:return None
     return subprocess.check_output(["git","show",base+":"+p])
@@ -19,23 +19,25 @@ def norm(b):
 def digest(b):
     import hashlib
     return "absent" if b is None else hashlib.sha256(norm(b)).hexdigest()
-def board_delta(live, local, stock):
-    # Keep production-only board edits private and intact. Import ONLY our two tested insertions.
+def overlay(path,live):
+    # Production has independent releases of these shared files. Only the one
+    # reviewed hunk is permitted, and its exact structural anchor must be unique.
     import difflib
-    expected="e4c3d367c3bb50cfbfd21b031323777aabb5b72e0366cf161eea64e5b043a4ac"
-    a=norm(stock).splitlines(keepends=True);b=norm(local).splitlines(keepends=True)
-    anchors=[b"require_login();\n",b'            <div class="monday-board-head-actions orders-header-actions">\n']
-    changes=[(op,i,j,b[k:l]) for op,i,j,k,l in difflib.SequenceMatcher(None,a,b,autojunk=False).get_opcodes() if op!='equal']
-    if len(changes)!=2 or any(op!='insert' or a[i-1]!=anchor for (op,i,j,add),anchor in zip(changes,anchors)):raise RuntimeError("Unexpected board patch")
-    if live is None:raise RuntimeError("Missing live board")
-    out=norm(live)
-    for (_,i,j,add),anchor in zip(changes,anchors):
-        block=anchor+b''.join(add)
-        if out.count(block)==1:out=out.replace(block,anchor,1)
-    if digest(out)!=expected:raise RuntimeError("Live board changed again; no files written")
-    for (_,i,j,add),anchor in zip(changes,anchors):
-        if out.count(anchor)!=1:raise RuntimeError("Non-unique board anchor; no files written")
-        out=out.replace(anchor,anchor+b''.join(add),1)
+    anchors={"notifications.php":b"require_login();", "shared/delivery/NotificationOutbox.php":b"if($driver&&$kind==='assignment')$title=", "apps/operations/operations.php":b"db()->prepare('INSERT INTO order_payment_allocation_audit ", "shared/delivery/DeliveryService.php":b"if($action==='revised')NotificationOutbox::queue("}
+    if path not in anchors or not live:return None
+    a=norm(original(path)).splitlines(True); b=norm(Path(path).read_bytes()).splitlines(True)
+    hunks=[(i,j,k,l) for op,i,j,k,l in difflib.SequenceMatcher(None,a,b,autojunk=False).get_opcodes() if op!='equal']
+    if len(hunks)!=1:raise ValueError("Unexpected hunks in "+path)
+    i,j,k,l=hunks[0]; old=b''.join(a[i:j]); new=b''.join(b[k:l]);anchor=anchors[path]
+    if not old:
+        if a[i-1].lstrip().startswith(anchor):old=a[i-1];new=old+new
+        elif a[i].lstrip().startswith(anchor):old=a[i];new=new+old
+        else:raise ValueError("Unexpected insertion in "+path)
+    elif not old.lstrip().startswith(anchor):raise ValueError("Unexpected replacement in "+path)
+    src=norm(live)
+    if src.count(new)==1:return live
+    if src.count(old)!=1:raise ValueError("Live anchor changed: "+path)
+    out=src.replace(old,new,1)
     return out.replace(b'\n',b'\r\n') if b'\r\n' in live and b'\n' not in live.replace(b'\r\n',b'') else out
 host=os.environ["FTP_SERVER"]
 canonical="s11745.sgp1.stableserver.net"
@@ -60,10 +62,12 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             except ftplib.error_perm:pass
     before={p:read(p) for p in paths};desired={p:Path(p).read_bytes() for p in paths}
     for p in paths:
+        if digest(before[p]) not in (digest(original(p)),digest(desired[p])):
+            merged=overlay(p,before[p])
+            if merged is None:raise RuntimeError("Unrecognised live baseline; nothing published: "+p+" "+digest(before[p]))
+            desired[p]=merged
+    for p in paths:
         if p.endswith('.php'):subprocess.run(['php','-l'],input=desired[p],check=True)
-    bad=[p for p in paths if digest(before[p]) not in (digest(original(p)),digest(desired[p]))]
-    for p in bad:print("Unrecognised live baseline:",p,digest(before[p]))
-    if bad:raise RuntimeError("No files published; resolve differences first.")
     for p in ["apps/delivery/front-api.php","shared/epi/BusinessTimeEngine.php","shared/epi/Support.php"]:
         if not read(p):raise RuntimeError("Missing delivery dependency: "+p)
     changed=[]

@@ -9,6 +9,8 @@ require __DIR__.'/../shared/delivery/CoreApi.php';
 require __DIR__.'/../shared/delivery/FrontSession.php';
 require __DIR__.'/../shared/delivery/EmployeeDriverSession.php';
 require __DIR__.'/../shared/delivery/DriverNotices.php';
+require __DIR__.'/../shared/delivery/DriverInbox.php';
+use Hambelela\Delivery\DriverInbox;
 require __DIR__.'/../shared/delivery/AccountingService.php';
 function ok($value,string $label):void{if(!$value)throw new RuntimeException($label);echo "PASS $label\n";}
 function requestId():string{return bin2hex(random_bytes(4)).'-aaaa-4aaa-8aaa-'.bin2hex(random_bytes(6));}
@@ -112,6 +114,19 @@ try{
  ok(\Hambelela\Delivery\NotificationOutbox::assignmentNotice($db,$jobId)===null,'queued notification is not falsely reported as delivered');
  ok(\Hambelela\Delivery\NotificationOutbox::drain($db)===1&&\Hambelela\Delivery\NotificationOutbox::drain($db)===0,'one committed Driver notification, no duplicate');
  ok(\Hambelela\Delivery\NotificationOutbox::assignmentNotice($db,$jobId)!==null,'saved Driver recipient receipt is verified from actual notification tables');
+ $inbox=DriverInbox::feed($db,$driver);ok($inbox['counts']['alerts']===1&&$inbox['items'][0]['kind']==='assignment'&&(int)$inbox['items'][0]['job']===$jobId,'Order Board assign creates one urgent notification for this job');
+ ok(!$inbox['items'][0]['read_at']&&$inbox['items'][0]['ref']==='WEB-SYNTHETIC'&&DriverInbox::feed($db,$other)['items']===[],'correct order reference, reading list does not acknowledge, no other driver access');
+ DriverInbox::mark($db,$other,$inbox['through'],true);ok(DriverInbox::feed($db,$driver)['counts']['all']===1,'another account cannot mark these notifications');
+ if(getenv('DRIVER_NOTICE_EVENTS')){
+   $core->command($front,['action'=>'note','id'=>$jobId,'uuid'=>requestId(),'note'=>'Please use the reception entrance']);
+   $db->beginTransaction();foreach([1,2] as $_)DriverInbox::paymentChanged($db,100,52,[],[['method'=>'eft','amount_cents'=>12000]]);DriverInbox::paymentChanged($db,100,53,[],[]);$db->commit();
+   $version=(int)$db->query("SELECT version FROM delivery_jobs WHERE id=$jobId")->fetchColumn();
+   $core->command($front,['action'=>'cancel','id'=>$jobId,'uuid'=>requestId(),'version'=>$version,'reason'=>'Customer cancelled synthetic fixture']);
+   \Hambelela\Delivery\NotificationOutbox::drain($db,50);$events=DriverInbox::feed($db,$driver);
+   $types=array_count_values(array_column($events['items'],'kind'));ok(($types['payment']??0)===1&&($types['cancelled']??0)===1&&($types['instructions']??0)===1,'real payment-change, instructions and cancellation persisted without duplication');
+   ok($core->board($driver,['state'=>'all','id'=>$jobId])['jobs'][0]['status']==='cancelled','notification resolves latest cancelled delivery by ID');
+   DriverInbox::mark($db,$driver,$inbox['through'],false);ok(DriverInbox::feed($db,$driver)['counts']['all']===3,'individual read persists without consuming later events');return;
+ }
  $notice=$db->query('SELECT * FROM notifications')->fetch();
  ok($notice['title']==='NEW DELIVERY ASSIGNED'&&$notice['priority']==='urgent'&&strpos($notice['message'],'Order: WEB-SYNTHETIC')!==false,'Driver notification includes order, customer, area and urgency');
  ok($notice['action_link']==='/apps/delivery/driver/index.php?delivery='.$jobId,'notification opens exact assigned delivery');
@@ -167,5 +182,10 @@ try{
  $remote['billing']['phone']='264811234567';$quote=$core->command($front,['action'=>'quote','source_order'=>true,'order'=>100]);
  ok($quote['customer_mobile']==='+264811234567','valid saved billing phone is reused automatically');
  ok($quote['collect_cents']===0&&$quote['fee_due']===0,'paid orders do not charge shipping again');
+ \Hambelela\Delivery\NotificationOutbox::drain($db,50);$after=DriverInbox::feed($db,$driver);$types=array_column($after['items'],'kind');
+ ok(in_array('started',$types,true)&&in_array('completed',$types,true)&&count(array_filter($types,fn($v)=>$v==='completed'))===1,'start and repeat-safe completion events reach driver');
+ DriverInbox::mark($db,$driver,$inbox['through'],true);ok(DriverInbox::feed($db,$driver)['counts']['all']>0,'mark all never consumes later arrivals');
+ DriverInbox::mark($db,$driver,$after['through'],true);ok(DriverInbox::feed($db,$driver)['counts']['all']===0&&count(DriverInbox::feed($db,$driver)['items'])===count($types),'mark-all persists and retains history');
+ $db->exec("UPDATE delivery_jobs SET driver_employee_id=4 WHERE id=$jobId");ok(!DriverInbox::feed($db,$driver)['items']&&!DriverInbox::feed($db,$other)['items'],'former driver and new assignee cannot open historical recipient records for another account');
  echo "PASS complete authenticated-role arrangement lifecycle on synthetic database only\n";
 }finally{$db->exec('DROP DATABASE '.$name);}

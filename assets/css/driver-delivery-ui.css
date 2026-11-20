@@ -128,3 +128,4 @@ body.driver-compact-app dialog.df-details-sheet .driver-app-sheet-body{display:f
 @media(max-width:767px) and (prefers-reduced-motion:no-preference){body.driver-compact-app #ess-more-dialog[open]{animation:driverSheetSlideUp .29s cubic-bezier(.2,.78,.22,1) both!important}}
 body.driver-compact-app dialog.df-details-sheet header button.df-stage.df-progress{background:#eee2ff;color:#632ba5}
 @media(max-width:767px){body.driver-compact-app dialog.df-details-sheet[open]{height:94dvh}body.driver-compact-app .df-details-sheet .driver-app-sheet-body{justify-content:safe space-evenly}body.driver-compact-app .df-details-sheet .df-panel summary{min-height:clamp(40px,5.4dvh,52px)}}
+.df-bell.df-has-unread:after{content:attr(data-unread);width:auto;height:auto;min-width:15px;padding:1px 3px;right:0;top:1px;text-align:center;color:white;font:600 9px/13px Jost,sans-serif;border-radius:12px}

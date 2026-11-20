@@ -408,6 +408,12 @@ function ops_replace_order_payment_allocations(int $orderId, array $allocations,
     // changed by a method edit or background sync.
     db()->prepare('UPDATE ops_orders SET payment_method = ?, payment_status = ?, payment_source = ?, payment_updated_at = CURRENT_TIMESTAMP, payment_updated_by_employee_id = ?, payment_version = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?')->execute([$summary, $paid, $source, $employeeId, $version, $orderId]);
     db()->prepare('INSERT INTO order_payment_allocation_audit (order_id, previous_allocations_json, new_allocations_json, changed_by_employee_id, source) VALUES (?, ?, ?, ?, ?)')->execute([$orderId, json_encode($previous, JSON_UNESCAPED_SLASHES), json_encode($allocations, JSON_UNESCAPED_SLASHES), $employeeId, $source]);
+    // Queue only for an existing active assignment, keyed to the immutable payment audit row.
+    if(is_file(BASE_PATH.'/shared/delivery/ReleaseFlags.php'))require_once BASE_PATH.'/shared/delivery/ReleaseFlags.php';
+    if(defined('DELIVERY_ENABLED')&&DELIVERY_ENABLED){
+        require_once BASE_PATH.'/shared/delivery/DriverInbox.php';
+        \Hambelela\Delivery\DriverInbox::paymentChanged(db(),$orderId,(int)db()->lastInsertId(),$previous,$allocations);
+    }
 }
 
 function ops_normalize_fulfilment_mode(?string $value): string

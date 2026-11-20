@@ -7,6 +7,7 @@ require_once BASE_PATH . '/shared/auth.php';
 require_once BASE_PATH . '/apps/operations/operations.php';
 
 require_login();
+if(current_role_key()==='delivery_driver'){require BASE_PATH.'/shared/delivery/DriverInboxPage.php';exit;}
 
 $pageTitle = 'Notifications | ' . APP_NAME;
 $activeApp = 'notifications';
