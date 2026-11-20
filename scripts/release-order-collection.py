@@ -21,6 +21,24 @@ def norm(b):
 def digest(b):
     import hashlib
     return "absent" if b is None else hashlib.sha256(norm(b)).hexdigest()
+def board_delta(live, local, stock):
+    # Keep production-only board edits private and intact. Import ONLY our two tested insertions.
+    import difflib
+    expected="e4c3d367c3bb50cfbfd21b031323777aabb5b72e0366cf161eea64e5b043a4ac"
+    a=norm(stock).splitlines(keepends=True);b=norm(local).splitlines(keepends=True)
+    anchors=[b"require_login();\n",b'            <div class="monday-board-head-actions orders-header-actions">\n']
+    changes=[(op,i,j,b[k:l]) for op,i,j,k,l in difflib.SequenceMatcher(None,a,b,autojunk=False).get_opcodes() if op!='equal']
+    if len(changes)!=2 or any(op!='insert' or a[i-1]!=anchor for (op,i,j,add),anchor in zip(changes,anchors)):raise RuntimeError("Unexpected board patch")
+    if live is None:raise RuntimeError("Missing live board")
+    out=norm(live)
+    for (_,i,j,add),anchor in zip(changes,anchors):
+        block=anchor+b''.join(add)
+        if out.count(block)==1:out=out.replace(block,anchor,1)
+    if digest(out)!=expected:raise RuntimeError("Live board changed again; no files written")
+    for (_,i,j,add),anchor in zip(changes,anchors):
+        if out.count(anchor)!=1:raise RuntimeError("Non-unique board anchor; no files written")
+        out=out.replace(anchor,anchor+b''.join(add),1)
+    return out.replace(b'\n',b'\r\n') if b'\r\n' in live and b'\n' not in live.replace(b'\r\n',b'') else out
 host=os.environ["FTP_SERVER"]
 canonical="s11745.sgp1.stableserver.net"
 if set(socket.gethostbyname_ex(canonical)[2]) & set(socket.gethostbyname_ex(host)[2]):host=canonical
@@ -43,7 +61,10 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             try:ftp.delete(tmp)
             except ftplib.error_perm:pass
     before={p:read(p) for p in paths};desired={p:Path(p).read_bytes() for p in paths}
-    bad=[p for p in paths if norm(before[p]) not in (norm(original(p)),norm(desired[p]))]
+    board='apps/operations/orders-board.php'
+    desired[board]=board_delta(before[board],desired[board],original(board))
+    subprocess.run(['php','-l'],input=desired[board],check=True)
+    bad=[p for p in paths if p!=board and norm(before[p]) not in (norm(original(p)),norm(desired[p]))]
     for p in bad:print("Unrecognised live baseline:",p,digest(before[p]))
     if bad:raise RuntimeError("No files published; resolve differences first.")
     for p in ["apps/delivery/front-api.php","shared/epi/BusinessTimeEngine.php","shared/epi/Support.php"]:
