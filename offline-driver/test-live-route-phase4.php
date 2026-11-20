@@ -6,6 +6,7 @@ require BASE_PATH.'/shared/delivery/DriverLiveRouteData.php';
 use Hambelela\Delivery\DriverLiveRouteData as R;
 $db=new PDO('mysql:host=127.0.0.1;port=43379;dbname=driver_review;charset=utf8mb4','driver_review',getenv('OFFLINE_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $checks=0;function verify($v,$label){global $checks;if(!$v)throw new RuntimeException($label);$checks++;echo "PASS $label\n";}
+require __DIR__.'/isolate-ready-screen-test.php';isolate_ready_screen_test($db);
 $actorId=3;$actorRole='delivery_driver';function db(){global $db;return $db;}function current_user(){global $actorId;return ['id'=>$actorId];}function current_role_key(){global $actorRole;return $actorRole;}
 $now=new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek'));
 $read=fn($driver=3)=>R::read($db,$driver,$now);
