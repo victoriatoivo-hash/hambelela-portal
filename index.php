@@ -14,6 +14,10 @@ $activeApp = 'dashboard';
 $pageUsesPortalSidebar = false;
 $hidePortalSidebar = true;
 $roleKey = current_role_key();
+if ($roleKey === 'delivery_driver') {
+    require __DIR__ . '/shared/delivery/DriverDashboard.php';
+    exit;
+}
 if ($roleKey === 'accountant') {
     header('Location: ' . BASE_URL . '/apps/accounts/index.php', true, 303);
     exit;

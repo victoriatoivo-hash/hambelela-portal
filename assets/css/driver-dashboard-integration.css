@@ -1,0 +1,45 @@
+@font-face{font-family:Inter;src:url('../fonts/driver-inter.ttf') format('truetype');font-style:normal;font-weight:100 900;font-display:block}
+body.ho-driver-page{margin:0;background:#eff1ec}
+.ho-driver-dashboard{height:100dvh;min-height:0}
+.ho-driver-dashboard__hero{min-height:0;padding:calc(12px + env(safe-area-inset-top,0px)) 20px 46px}
+.ho-driver-dashboard__topline{gap:12px;align-items:center;margin-bottom:12px;min-height:0}
+.ho-driver-dashboard__logo-filter{position:absolute;pointer-events:none}
+.ho-driver-dashboard__logo{display:block;width:124px;height:auto;max-width:34%;min-width:0;flex:0 1 auto;filter:url(#hd-white-logo)}
+.ho-driver-dashboard__header-tools{margin-left:auto;flex-shrink:0;display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+.ho-driver-dashboard__head-actions{gap:9px;margin-left:0}
+.ho-driver-dashboard__clock{display:flex;flex-direction:column;gap:3px;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ho-driver-dashboard__date{font-size:10px;line-height:1.2}
+.ho-driver-dashboard__time{font-size:10px;line-height:1.2;color:#fff}
+.ho-driver-dashboard__head-icon .ho-driver-dashboard__icon{width:18px;height:18px}
+.ho-driver-dashboard__hello-row{margin-top:0}
+.ho-driver-dashboard__hello{font-size:21px;letter-spacing:-.65px;margin:0;line-height:1.2}
+.ho-driver-dashboard__progress-card{padding:13px 15px 10px;margin-bottom:14px}
+.ho-driver-dashboard__progress-title{font-size:12.5px}
+.ho-driver-dashboard__progress-card .ho-driver-dashboard__pill{font-size:9.5px;padding:5px 8px}
+.ho-driver-dashboard__track{height:6px;margin:11px 0 12px}
+.ho-driver-dashboard__metric strong{font-size:20px}
+.ho-driver-dashboard__metric span{font-size:9px;font-weight:600;color:#718277}
+.ho-driver-dashboard__metric:not(:last-child)::after{height:25px;top:3px}
+.ho-driver-dashboard__tab{border:0;background:transparent}
+.ho-driver-dashboard .ho-driver-dashboard__brand{font-size:12px;letter-spacing:.9px}
+.ho-driver-dashboard .ho-driver-dashboard__viewall{font-size:11px;color:#587256}
+.ho-driver-dashboard .ho-driver-dashboard__primary{font-size:12.5px}
+.ho-driver-dashboard .ho-driver-dashboard__tab{font-size:10px}
+.ho-driver-dashboard__hello,.ho-driver-dashboard__destination{overflow-wrap:anywhere;min-width:0}
+.ho-driver-dashboard__hello-row>div{min-width:0}
+.ho-driver-dashboard__duty[data-state="unknown"]{white-space:nowrap;max-width:none;padding:4px 7px;margin:0;font-size:9px;font-weight:500;color:#e0e7dd}
+.ho-driver-dashboard__duty[data-state="unknown"] .ho-driver-dashboard__duty-dot{background:#c1cbbf}
+.ho-driver-dashboard__stop-tag{overflow-wrap:anywhere}
+.ho-driver-dashboard__head-icon:before,.ho-driver-dashboard__avatar:before{content:'';position:absolute;inset:-5px}
+.ho-driver-dashboard__avatar{position:relative}
+.ho-driver-dashboard__offline{margin:0;padding:6px 16px;background:#fff0d9;font-size:11px;color:#79572b}
+.ho-driver-dashboard__sheet{position:fixed;inset:auto 0 0;margin:0 auto;border:1px solid var(--hd-border);border-radius:22px 22px 0 0;background:var(--hd-body);color:var(--hd-ink);width:calc(100% - 16px);max-width:500px;max-height:80dvh;padding:20px 20px calc(24px + env(safe-area-inset-bottom));overflow:auto}
+.ho-driver-dashboard__sheet::backdrop{background:#152b2560;backdrop-filter:blur(3px)}
+.ho-driver-dashboard__sheet[open]{animation:hd-sheet .24s ease-out}
+.ho-driver-dashboard__sheet h2{font-size:16px;margin:0}
+.ho-driver-dashboard__sheet p{font-size:13px;line-height:1.5}
+.ho-driver-dashboard__close{display:grid;place-items:center;border:1px solid var(--hd-border);background:white;border-radius:50%;width:44px;height:44px;color:var(--hd-ink)}
+.ho-driver-dashboard__menulink{display:flex;align-items:center;min-height:44px;border-bottom:1px solid var(--hd-border)}
+@keyframes hd-sheet{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+@media(max-width:374px){.ho-driver-dashboard .ho-driver-dashboard__brand{font-size:11px;letter-spacing:.35px}.ho-driver-dashboard .ho-driver-dashboard__tab{font-size:9.5px}}
+@media(prefers-reduced-motion:reduce){.ho-driver-dashboard__sheet[open]{animation:none}}

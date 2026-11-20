@@ -1,0 +1,156 @@
+/*
+ * HAMBELELA ORGANIC — DRIVER APP — PHASE 03: ORDER DETAILS
+ * APPROVED REFERENCE: 03_Order_Details_APPROVED.png
+ * Scope: .ho-driver-dashboard.ho-driver-order-details
+ * LOAD AFTER driver-dashboard.css. Reuse the Phase 01 bottom navigation.
+ * All other selectors are namespaced. Do NOT merge into portal.css, modify
+ * body/:root or introduce a second navigation component.
+ * The image defines exact visual intent; CSS implements responsive geometry.
+ */
+.ho-driver-order-details {
+  --hod-ink: #1d3028;
+  --hod-forest: #355441;
+  --hod-olive: #577356;
+  --hod-soft-green: #e4eee2;
+  --hod-subtle-green: #e7eee4;
+  --hod-background: #f7f9f6;
+  --hod-surface: #ffffff;
+  --hod-muted: #8c9c93;
+  --hod-rule: #e4eae4;
+  --hod-amber: #d0a953;
+  --hod-radius-card: 20px;
+  --hod-card-shadow: 0 8px 22px rgba(33,56,41,.045);
+  background: var(--hod-background);
+  color:var(--hod-ink);
+  font-family: Inter, Arial, sans-serif;
+  --hd-bottom-nav-height: 78px;
+}
+.ho-driver-order-details .ho-driver-dashboard__scroll {background:var(--hod-background);}
+.ho-driver-order-details__device-status {display:none;}
+.ho-driver-order-details__body {padding:0 0 28px;}
+/* Title row (approved header has a small eyebrow above the heading). */
+.ho-driver-order-details__header {display:flex;align-items:center;gap:10px; min-height:103px;padding:14px 19px 10px;}
+.ho-driver-order-details__back,
+.ho-driver-order-details__bell {height:34px;width:34px;min-width:34px;border:1px solid #e2e9e2;border-radius:12px;display:grid;place-items:center;background:#fff;color:#3e6249;padding:0;}
+.ho-driver-order-details__back:hover,.ho-driver-order-details__bell:hover{background:#edf3ec;}
+.ho-driver-order-details__back .ho-driver-dashboard__icon,.ho-driver-order-details__bell .ho-driver-dashboard__icon{height:21px;width:21px;}
+.ho-driver-order-details__titleblock {flex:1;min-width:0;}
+.ho-driver-order-details__eyebrow {margin:0 0 5px;font-size:9px;font-weight:820;line-height:1.3;letter-spacing:1.75px;color:#738b7b;}
+.ho-driver-order-details__eyebrow span{color:#8e9d96;}
+.ho-driver-order-details__title {margin:0;font-size:22px;font-weight:810;letter-spacing:-.85px;line-height:1.13;color:#1c3028;}
+.ho-driver-order-details__number {margin:5px 0 0;font-size:12px;color:#8a9b91;letter-spacing:.05px;line-height:1.2;overflow-wrap:anywhere;}
+/* Green delivery status banner exactly under the title block. */
+.ho-driver-order-details__status {margin:0 19px 14px;min-height:41px;border-radius:14px;padding:10px 13px;background:#e3eee2;display:flex;align-items:center;gap:9px;color:#557358;}
+.ho-driver-order-details__status .ho-driver-dashboard__icon{height:18px;width:18px;stroke-width:2;}
+.ho-driver-order-details__status strong{font-size:12px;font-weight:810;flex:1;line-height:1.15;}
+.ho-driver-order-details__status time{font-size:11px;color:#84978a;white-space:nowrap;}
+.ho-driver-order-details__status[data-tone="warning"]{background:#fff0d8;color:#956a2e;}
+.ho-driver-order-details__status[data-tone="danger"]{background:#fff0ed;color:#a25446;}
+.ho-driver-order-details__status[data-tone="neutral"]{background:#ecf0ee;color:#62766b;}
+/* Main customer card is full-width with rounded white corners and no side margins, per mockup. */
+.ho-driver-order-details__card {background:#fff;border:1px solid #e4eae3;box-shadow:var(--hod-card-shadow);border-radius:20px;}
+.ho-driver-order-details__customer {padding:15px 16px 14px; margin:0 0 18px;}
+.ho-driver-order-details__customer-head{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:28px;}
+.ho-driver-order-details__customer-head h2{font-size:15px;font-weight:810;letter-spacing:-.4px;line-height:1.35;color:#243a2e;margin:0;}
+.ho-driver-order-details__paid-pill{display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:#e5f1e5;color:#3f6247;white-space:nowrap;max-width:52%;font-size:11px;font-weight:800;padding:7px 11px;line-height:1.15;}
+.ho-driver-order-details__paid-pill[data-tone="warning"]{background:#fff0d9;color:#956d38;}
+.ho-driver-order-details__paid-pill[data-tone="danger"]{background:#fff0ed;color:#a14c40;}
+.ho-driver-order-details__paid-pill[data-tone="neutral"]{background:#edf1ef;color:#61766b;}
+.ho-driver-order-details__person{display:flex;align-items:center;gap:10px;padding:14px 0 12px;min-height:70px;}
+.ho-driver-order-details__avatar {height:41px;width:41px;flex:0 0 41px;border-radius:14px;background:#e1eada;color:#587454;display:grid;place-items:center;font-weight:820;font-size:14px;}
+.ho-driver-order-details__person-details{min-width:0;flex:1;}
+.ho-driver-order-details__person-name {display:block;font-size:14px;font-weight:790;line-height:1.3;letter-spacing:-.25px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ho-driver-order-details__person-desc{display:block;color:#91a198;font-size:11px;margin-top:3px;line-height:1.35;}
+.ho-driver-order-details__contact {display:inline-flex;align-items:center;justify-content:center;width:33px;min-width:33px;height:33px;color:#5d7b60;border:1px solid #dfe9df;background:#fff;border-radius:12px;padding:0;}
+.ho-driver-order-details__contact:hover {background:#f1f5ef;}
+.ho-driver-order-details__contact .ho-driver-dashboard__icon{height:19px;width:19px;}
+.ho-driver-order-details__contact[disabled] {opacity:.45;cursor:not-allowed;}
+.ho-driver-order-details__rule {height:1px;background:var(--hod-rule);margin:0 0 13px;}
+.ho-driver-order-details__field-label{margin:0 0 10px;color:#91a298;font-size:10px;line-height:1.3;letter-spacing:1.3px;font-weight:810;}
+.ho-driver-order-details__area {margin:0;color:#1e3229;font-size:16px;line-height:1.3;font-weight:820;letter-spacing:-.45px;overflow-wrap:anywhere;}
+.ho-driver-order-details__street {margin:5px 0 12px;color:#90a095;font-size:12px;line-height:1.45;overflow-wrap:anywhere;}
+.ho-driver-order-details__navigate {min-height:37px;width:100%;border:0;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:8px;background:linear-gradient(105deg,#587656 0%,#314e3c 100%);color:#fff;box-shadow:0 6px 13px rgba(51,75,54,.12);font:780 12.5px/1.2 Inter,Arial,sans-serif;padding:9px 14px;}
+.ho-driver-order-details__navigate .ho-driver-dashboard__icon{height:17px;width:17px;}
+.ho-driver-order-details__navigate:hover{filter:brightness(1.05)}
+.ho-driver-order-details__navigate[disabled] {opacity:.5;cursor:not-allowed;}
+/* Subsequent section titles align left to card edge, as in screenshot. */
+.ho-driver-order-details__section-title{margin:18px 0 10px;padding:0 1px;font-size:15px;line-height:1.3;font-weight:820;letter-spacing:-.4px;color:#263c30;}
+.ho-driver-order-details__items {padding:13px 16px 10px;}
+.ho-driver-order-details__item {display:flex;align-items:center;gap:10px;min-height:51px;padding:8px 0;}
+.ho-driver-order-details__item + .ho-driver-order-details__item {border-top:1px solid #e7ebe6;}
+.ho-driver-order-details__item-thumb {height:35px;width:35px;min-width:35px;border-radius:12px;background:#e5ede2;color:#597457;display:grid;place-items:center;font-size:11px;font-weight:810;}
+.ho-driver-order-details__item-copy{min-width:0;flex:1;}
+.ho-driver-order-details__item-name{display:block;color:#1e3229;font-size:11.5px;font-weight:810;line-height:1.35;overflow-wrap:anywhere;}
+.ho-driver-order-details__item-variant{display:block;color:#90a197;font-size:11.5px;margin-top:2px;line-height:1.35;overflow-wrap:anywhere;}
+.ho-driver-order-details__item-quantity{flex:none;margin-left:8px;color:#1c3229;font-weight:800;font-size:12px;white-space:nowrap;}
+.ho-driver-order-details__section--timeline .ho-driver-order-details__section-title{margin-top:18px;}
+.ho-driver-order-details__timeline{padding:14px 16px 18px;}
+.ho-driver-order-details__event{display:flex;gap:13px;position:relative;min-height:47px;}
+.ho-driver-order-details__event:not(:last-child)::after {content:"";width:1px;border-left:1px dashed #c9d8c7;position:absolute;top:23px;bottom:-4px;left:8px;}
+.ho-driver-order-details__event-mark{position:relative;z-index:1;flex:0 0 17px;width:17px;height:17px;border:2px solid #6e9670;border-radius:50%;background:#f0f7ef;display:grid;place-items:center;margin-top:2px;}
+.ho-driver-order-details__event-mark::after{content:"";height:7px;width:7px;border-radius:50%;background:#6e9670;}
+.ho-driver-order-details__event[data-tone="current"] .ho-driver-order-details__event-mark{border-color:#ceaa58;background:#fff6dd;}
+.ho-driver-order-details__event[data-tone="current"] .ho-driver-order-details__event-mark::after{background:#ceaa58;}
+.ho-driver-order-details__event[data-tone="pending"] .ho-driver-order-details__event-mark{border-color:#ced9cb;background:#fff;}
+.ho-driver-order-details__event[data-tone="pending"] .ho-driver-order-details__event-mark::after{background:transparent;}
+.ho-driver-order-details__event-copy{min-width:0;flex:1;padding-bottom:11px;}
+.ho-driver-order-details__event-header{display:flex;justify-content:space-between;align-items:baseline;gap:5px;}
+.ho-driver-order-details__event-title{font-size:11.5px;color:#21362b;font-weight:790;line-height:1.35;}
+.ho-driver-order-details__event-time{font-size:11.5px;color:#97a59c;white-space:nowrap;flex-shrink:0;}
+.ho-driver-order-details__event-description{color:#92a398;font-size:11.5px;line-height:1.4;margin:2px 0 0;overflow-wrap:anywhere;}
+/* Accessible modal for visual demo only; production should use system routes. */
+.ho-driver-order-details__overlay[hidden],.ho-driver-order-details__toast[hidden]{display:none;}
+.ho-driver-order-details__overlay{position:fixed;inset:0;z-index:100;background:rgba(24,44,33,.49);display:grid;place-items:center;padding:18px;}
+.ho-driver-order-details__dialog {width:min(100%,370px);background:#fff;border-radius:19px;box-shadow:0 20px 55px rgba(18,37,22,.28);padding:18px;color:var(--hod-ink);}
+.ho-driver-order-details__dialog-head{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:15px;}
+.ho-driver-order-details__dialog-head button{height:34px;width:34px;border:0;border-radius:10px;background:#eef4ed;color:#4e6952;font-size:22px;}
+.ho-driver-order-details__dialog p{color:#6d8073;font-size:12px;line-height:1.5;}
+.ho-driver-order-details__dialog-action{width:100%;background:#e6f0e4;color:#416449;border:0;padding:10px 14px;min-height:40px;border-radius:12px;font-weight:750;}
+.ho-driver-order-details__toast {position:fixed;z-index:110;bottom:100px;left:50%;transform:translateX(-50%);max-width:min(90vw,360px);background:#203b2a;color:#fff;font-size:12px;padding:12px 16px;border-radius:12px;text-align:center;box-shadow:0 9px 18px rgba(20,42,27,.2)}
+/* Preview visual frame (NOT for production). */
+.ho-driver-order-preview-stage {box-sizing:border-box;min-height:100vh;display:grid;place-items:center;background:radial-gradient(ellipse at 18% 4%,#dfe6dd,transparent 51%),radial-gradient(ellipse at 94% 90%,#e0e5db,transparent 54%),#eef1eb;padding:24px;}
+.ho-driver-order-preview-note{position:fixed;top:7px;right:12px;padding:8px 11px;border:1px solid #dbe5da;border-radius:11px;background:#ffffffed;color:#677b69;font:500 12px Inter,Arial,sans-serif;}
+.ho-driver-order-preview-phone {box-sizing:border-box;width:420px;height:940px;max-height:calc(100dvh - 48px);border:8px solid #25372e;border-radius:47px;background:#f7f9f6;overflow:hidden;position:relative;box-shadow:0 28px 60px rgba(24,48,30,.18),0 0 0 1px #a1b09f;}
+.ho-driver-order-preview-phone>.ho-driver-dashboard {height:100%;min-height:0;max-width:none;border:0;}
+.ho-driver-order-preview-phone .ho-driver-order-details__device-status {height:38px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:10px 27px 0;font-size:13px;font-weight:800;color:#355341;background:#f7f9f6;}
+.ho-driver-order-preview-phone::after{content:"";position:absolute;bottom:5px;left:50%;transform:translateX(-50%);background:#25382e;width:94px;height:5px;border-radius:99px;z-index:22;}
+/* Preserve preview readability on compact phones and long data. */
+@media(max-width:374px){
+ .ho-driver-order-details__header{padding-inline:12px;gap:8px}
+ .ho-driver-order-details__status{margin-inline:12px}
+ .ho-driver-order-details__customer,.ho-driver-order-details__items,.ho-driver-order-details__timeline{padding-inline:12px}
+ .ho-driver-order-details__person{gap:7px}
+ .ho-driver-order-details__contact{min-width:31px;width:31px}
+ .ho-driver-order-details__title{font-size:21px}
+ .ho-driver-order-details__area{font-size:15px}
+}
+@media(max-width:480px){
+ .ho-driver-order-preview-stage{display:block;padding:0;}
+ .ho-driver-order-preview-phone{width:100%;height:100dvh;max-height:none;border:0;border-radius:0;box-shadow:none;}
+ .ho-driver-order-preview-phone::after,.ho-driver-order-preview-note,.ho-driver-order-preview-phone .ho-driver-order-details__device-status{display:none;}
+}
+@media(prefers-reduced-motion:reduce){.ho-driver-order-details *{scroll-behavior:auto!important;transition:none!important}}
+/* The shared tabs are links on Phase 01/02 and buttons on unfinished routes.
+   Explicitly neutralize browser button chrome without changing nav geometry. */
+.ho-driver-order-details button.ho-driver-dashboard__tab {
+  border:0;background:transparent;appearance:none;padding:5px 4px;
+  color:#84938a;font:650 10px/1.1 Inter,Arial,sans-serif;
+}
+.ho-driver-order-details button.ho-driver-dashboard__tab:hover {background:#f3f6f2;}
+@media(max-width:374px){.ho-driver-order-details button.ho-driver-dashboard__tab{font-size:9.5px;}}
+/* Geometry refinement from original approved 03 phone reference (420px frame):
+   reduce extra whitespace introduced by general-purpose header/card defaults. */
+.ho-driver-order-details__header {min-height:89px;}
+.ho-driver-order-details__status {margin-bottom:8px;}
+.ho-driver-order-details__customer {padding-bottom:10px;}
+.ho-driver-order-details__person {min-height:63px;padding-top:12px;padding-bottom:10px;}
+.ho-driver-order-details__rule {margin-bottom:11px;}
+.ho-driver-order-details__street {margin-bottom:10px;}
+.ho-driver-order-preview-phone .ho-driver-order-details__device-status {height:30px;}
+/* Keep ALL five nav labels the same 10px typography; base anchor reset otherwise
+   inherits larger 14px font and loses fidelity to approved bottom navigation. */
+.ho-driver-order-details .ho-driver-dashboard__bottomnav .ho-driver-dashboard__tab {
+  font:650 10px/1.1 Inter,Arial,sans-serif;
+}
+@media(max-width:374px){.ho-driver-order-details .ho-driver-dashboard__bottomnav .ho-driver-dashboard__tab{font-size:9.5px;}}
+

@@ -10,6 +10,7 @@ require_once BASE_PATH.'/shared/delivery/EmployeeDriverSession.php';
 try{$deliveryActor=$driverPage?\Hambelela\Delivery\EmployeeDriverSession::actor(db(),(int)(current_user()['id']??0)):\Hambelela\Delivery\FrontSession::actor(db(),(int)(current_user()['id']??0));}catch(DomainException $e){http_response_code(403);exit('Delivery access denied.');}
 header('Cache-Control: no-store');$endpoint=BASE_URL.'/apps/delivery/'.($driverPage?'driver/api.php':'front-api.php');
 if(isset($_GET['errands'])){require BASE_PATH.'/shared/delivery/ErrandView.php';exit;}
+if($driverPage){require BASE_PATH.'/shared/delivery/DriverDeliveries.php';exit;}
 require_once BASE_PATH.'/shared/delivery/ErrandLanding.php';
 \Hambelela\Delivery\ErrandLanding::enforce($deliveryActor);
 require_once BASE_PATH.'/shared/delivery/PortalShell.php';

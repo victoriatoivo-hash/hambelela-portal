@@ -1,0 +1,218 @@
+/*
+ * HAMBELELA ORGANIC — DRIVER APP — PHASE 02: DELIVERIES
+ * REFERENCE: 02_Deliveries_APPROVED.png
+ * Load after driver-dashboard.css. Production root:
+ * <main class="ho-driver-dashboard ho-driver-deliveries"> ... </main>
+ * No global selectors. Do not override Portal, Operations or employee styles.
+ * This adds only page-specific styles; the shared root tokens, scroller, icons,
+ * and bottom navigation remain precisely the same as Phase 01.
+ */
+.ho-driver-deliveries {
+  --ho-d-ink: #182923;
+  --ho-d-subheading: #24362d;
+  --ho-d-muted: #8b9a91;
+  --ho-d-muted-2: #82938a;
+  --ho-d-forest: #435e46;
+  --ho-d-body: #f7f9f6;
+  --ho-d-border: #e7ece7;
+  --ho-d-border-light: #ecf0ed;
+  --ho-d-card-shadow: 0 7px 22px rgba(48,76,56,.063);
+  --ho-d-radius-card: 19px;
+  --ho-d-radius-button: 12px;
+  background: var(--ho-d-body);
+  color: var(--ho-d-ink);
+}
+.ho-driver-deliveries .ho-driver-dashboard__scroll {
+  padding-bottom: 0;
+  background: var(--ho-d-body);
+}
+.ho-driver-deliveries__status { display: none; }
+.ho-driver-deliveries__body { padding: 0 0 26px; }
+
+/* Header (mockup: 75px section immediately under the device status strip). */
+.ho-driver-deliveries__header {
+  min-height: 75px; display:flex; align-items:center; gap: 10px;
+  padding: 8px 20px 10px;
+}
+.ho-driver-deliveries__head-control {
+  height:34px; width:34px; flex: 0 0 34px;
+  border: 1px solid #e9eee8; border-radius: 12px;
+  background: #fff; color:#3e5b46;
+  display: inline-flex; align-items:center; justify-content:center;
+  padding:0; cursor:pointer;
+}
+.ho-driver-deliveries__head-control:hover { background: #f2f6f0; }
+.ho-driver-deliveries__head-control .ho-driver-dashboard__icon { width:20px; height:20px; }
+.ho-driver-deliveries__heading-wrap { min-width:0; flex:1; }
+.ho-driver-deliveries__eyebrow {
+  margin:0; color:#66836d; font-size:9px; font-weight:800; letter-spacing:1.8px; line-height:1.35;
+}
+.ho-driver-deliveries__eyebrow span { color:#8b9a91; }
+.ho-driver-deliveries__title {
+  margin:4px 0 2px; color:#182923; font-size:22px;
+  font-weight:790; letter-spacing:-.7px; line-height:1.14;
+}
+.ho-driver-deliveries__subtitle {
+  color:#8b9a91; font-size:12px; font-weight:400;
+  line-height:1.4; margin:0; white-space:normal;
+}
+.ho-driver-deliveries__indicator {position:relative}
+.ho-driver-deliveries__indicator[data-unread="true"]::after {
+  content:""; position:absolute; width:7px; height:7px; top:4px; right:4px;
+  background:#c89245; border:1px solid #fff; border-radius:100%;
+}
+
+/* Full-width search as approved, with a functional real <input>. */
+.ho-driver-deliveries__searchbar {
+  width:100%; min-height:43px; display:flex; align-items:center;
+  gap:12px; padding:0 13px; margin:0 0 12px;
+  background:#fff; border:1px solid #e5ece7; border-radius:13px; color:#90a099;
+}
+.ho-driver-deliveries__searchbar:focus-within {
+  border-color:#87a185; box-shadow:0 0 0 2px rgba(111,146,111,.12);
+}
+.ho-driver-deliveries__searchbar > .ho-driver-dashboard__icon {width:18px;height:18px;color:#90a099}
+.ho-driver-deliveries__searchinput {
+  min-width:0; flex:1; height:42px; border:0; padding:0; outline:0;
+  background:transparent; color:#25382e; font:400 11.5px/1.3 Inter,Arial,sans-serif;
+}
+.ho-driver-deliveries__searchinput::placeholder {color:#90a099;opacity:1}
+.ho-driver-deliveries__searchinput::-webkit-search-cancel-button {cursor:pointer}
+.ho-driver-deliveries__filter-control {
+  display:flex; align-items:center; justify-content:center;
+  border:0; background:transparent; color:#91a397;
+  width:34px; height:36px; padding:6px; border-radius:10px; cursor:pointer;
+}
+.ho-driver-deliveries__filter-control[aria-expanded="true"],
+.ho-driver-deliveries__filter-control:hover { background:#eef3eb; color:#4f6d54; }
+.ho-driver-deliveries__filter-control .ho-driver-dashboard__icon {width:19px;height:19px}
+
+/* Four tab rail: All 8 / To collect 2 / On route 3 / Done 3 */
+.ho-driver-deliveries__tabs {
+  display:grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap:5px; align-items:center;
+  border-radius:14px; background:#eef2ed; padding:4px; margin:5px 0 10px;
+}
+.ho-driver-deliveries__tab {
+  min-width:0; min-height:35px; border:0; padding:10px 3px;
+  background:transparent; color:#82938a; font-family:inherit;
+  font-size:10px; font-weight:730; line-height:1.1; white-space:nowrap;
+  border-radius:10px; text-align:center; cursor:pointer;
+}
+.ho-driver-deliveries__tab[aria-selected="true"] {
+  background:#fff; color:#365340; box-shadow:0 2px 8px rgba(69,94,69,.125);
+}
+.ho-driver-deliveries__tab:hover:not([aria-selected="true"]) {background:rgba(255,255,255,.5);}
+
+/* Group headings and cards. Width is full bleed, as in supplied mockup. */
+.ho-driver-deliveries__section { margin:0; }
+.ho-driver-deliveries__section-title {
+  display:flex; align-items:center; justify-content:space-between;
+  margin:17px 1px 11px;
+  font-size:15px; line-height:1.35; font-weight:770;
+  letter-spacing:-.3px; color:#24362d;
+}
+.ho-driver-deliveries__section[data-group="collect"] .ho-driver-deliveries__section-title {margin-top:17px;}
+.ho-driver-deliveries__card {
+  display:block; width:100%; padding:15px 16px; margin:0 0 12px;
+  border:1px solid #e7ece7; border-radius:19px;
+  box-shadow:var(--ho-d-card-shadow); background:#fff; color:#182923;
+}
+.ho-driver-deliveries__card--tap { cursor:pointer; }
+.ho-driver-deliveries__card--tap:hover { background:#fdfefc; }
+.ho-driver-deliveries__card-head {display:flex; align-items:center; justify-content:space-between; gap:9px;}
+.ho-driver-deliveries__number {font-size:13.5px; font-weight:740; letter-spacing:0; line-height:1.35;}
+.ho-driver-deliveries__pill {
+  display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+  padding:6px 9px; background:#e5f1e5; color:#416647;
+  border-radius:100px; font-size:10.5px; font-weight:780; line-height:1.1; white-space:nowrap;
+}
+.ho-driver-deliveries__pill[data-tone="amber"] {background:#fff0d9;color:#a77435}
+.ho-driver-deliveries__pill[data-tone="slate"] {background:#edf1f3;color:#667d88}
+.ho-driver-deliveries__pill[data-tone="green"] {background:#e5f1e5;color:#416647}
+.ho-driver-deliveries__name-row {
+  font-size:16px; font-weight:800; letter-spacing:-.2px;
+  margin-top:11px; display:flex; align-items:center; justify-content:space-between; gap:7px; line-height:1.27;
+}
+.ho-driver-deliveries__name { min-width:0; overflow-wrap:anywhere; }
+.ho-driver-deliveries__time {font-size:11px; font-weight:700; color:#8d9b90; flex-shrink:0; white-space:nowrap; }
+.ho-driver-deliveries__address {
+  display:flex; align-items:flex-start; gap:5px; margin-top:5px;
+  color:#809187; font-size:11px; line-height:1.4; overflow-wrap:anywhere;
+}
+.ho-driver-deliveries__address .ho-driver-dashboard__icon {width:16px;height:16px;flex:0 0 16px;margin-top:-1px}
+.ho-driver-deliveries__divider {height:1px; background:#ecf0ed; margin:13px 0;}
+.ho-driver-deliveries__meta {display:flex; align-items:center; justify-content:space-between; gap:6px; flex-wrap:wrap; color:#6f8376; font-size:10px; line-height:1.4;}
+.ho-driver-deliveries__meta-item {display:inline-flex; align-items:center; gap:4px; min-width:0;}
+.ho-driver-deliveries__meta-item .ho-driver-dashboard__icon {width:16px;height:16px}
+.ho-driver-deliveries__detailbutton {
+  width:100%; margin-top:12px; min-height:41px; padding:10px 14px;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  background:#eef3eb; color:#4a674c; border:0; border-radius:12px;
+  font:780 12.5px/1.3 Inter,Arial,sans-serif; cursor:pointer;
+}
+.ho-driver-deliveries__detailbutton:hover {background:#e3eddf}
+.ho-driver-deliveries__detailbutton .ho-driver-dashboard__icon {width:16px;height:16px}
+.ho-driver-deliveries__collection-foot {
+  border-top:1px solid #ecf0ec; margin-top:13px; padding-top:11px;
+  font-size:11px; line-height:1.5; color:#6f8477;
+}
+.ho-driver-deliveries__empty, .ho-driver-deliveries__error {
+  padding:22px 20px; border:1px solid #e7ece7; border-radius:17px;
+  background:#fff; margin:8px 0 16px; color:#6f8376; font-size:12px; line-height:1.55;
+}
+.ho-driver-deliveries__error { background:#fff5f0; border-color:#f0d3c5; color:#944f39; }
+.ho-driver-deliveries__retry { display:inline-flex; gap:5px; align-items:center; border:1px solid currentColor; background:transparent; border-radius:9px; padding:8px 12px; margin-top:8px; font:700 11px Inter,Arial,sans-serif; color:inherit; cursor:pointer; }
+
+/* Accessible filter overlay for preview and optional production reuse. */
+.ho-driver-deliveries__filter-panel {
+  margin:-5px 0 12px; background:#fff; padding:14px;
+  border:1px solid #dfe9df; border-radius:14px; box-shadow:0 8px 18px rgba(48,76,56,.08);
+  font-size:12px; color:#314b39;
+}
+.ho-driver-deliveries__filter-panel[hidden] {display:none}
+.ho-driver-deliveries__filter-label {display:flex;align-items:center;justify-content:space-between; gap:12px; margin-bottom:7px}
+.ho-driver-deliveries__filter-label strong {font-size:12px}
+.ho-driver-deliveries__sort {border:1px solid #e3eae2; background:#f7faf6; color:#314b39; border-radius:9px; min-height:36px; padding:4px 9px; font:inherit; }
+.ho-driver-deliveries__filter-note {font-size:10.5px;color:#82938a;margin-top:10px}
+
+/* Preview-only details modal + toast; production must use authenticated order detail route. */
+.ho-driver-deliveries__modal[hidden], .ho-driver-deliveries__toast[hidden] {display:none}
+.ho-driver-deliveries__modal {position:fixed; inset:0; z-index:100; background:rgba(21,40,26,.4); display:grid; place-items:center; padding:20px;}
+.ho-driver-deliveries__modal-card {width:min(100%,380px); background:#fff; border-radius:20px; padding:18px; box-shadow:0 16px 52px rgba(19,46,25,.22);}
+.ho-driver-deliveries__modal-head {display:flex;justify-content:space-between;align-items:center;gap:7px;}
+.ho-driver-deliveries__modal-head strong {font-size:15px}
+.ho-driver-deliveries__modal-close {font-size:23px;border:0;background:#eef3eb;color:#536f54;border-radius:10px;min-width:36px;min-height:36px;cursor:pointer}
+.ho-driver-deliveries__modal-body {font-size:12px;color:#64786a;line-height:1.55}
+.ho-driver-deliveries__toast {position:fixed;z-index:110;bottom:105px;left:50%;transform:translateX(-50%);min-width:190px;max-width:min(350px,90vw);padding:12px 16px;border-radius:13px;background:#263a2e;color:#fff;text-align:center;font-size:12px;box-shadow:0 5px 18px rgba(20,41,26,.3)}
+
+/* Demo device frame only. Real phone OS owns its status bar. */
+.ho-driver-deliveries-preview-stage {box-sizing:border-box; min-height:100vh; display:grid; place-items:center; padding:24px; background:radial-gradient(ellipse at 20% 5%,#dce5de,transparent 48%),radial-gradient(ellipse at 90% 90%,#e4e8e0,transparent 52%),#eff1ec;}
+.ho-driver-deliveries-preview-phone {width:420px;height:940px;max-height:calc(100dvh - 48px);border:8px solid #25372e;border-radius:48px;background:#f7f9f6;overflow:hidden;position:relative;box-shadow:0 26px 55px rgba(25,52,38,.18),0 0 0 1px #96a69c;box-sizing:border-box;}
+.ho-driver-deliveries-preview-phone .ho-driver-dashboard {height:100%;min-height:0;max-width:none;border:0}
+.ho-driver-deliveries-preview-phone .ho-driver-deliveries__status {height:38px;display:flex;align-items:center;justify-content:space-between; flex-shrink:0; padding:10px 27px 0;color:#354c3c;font-size:13px;font-weight:760;letter-spacing:.01em;background:#f7f9f6}
+.ho-driver-deliveries-preview-phone .ho-driver-deliveries__status-signals {font-size:12px;letter-spacing:-1.5px;white-space:nowrap}
+.ho-driver-deliveries-preview-phone::after {content:"";position:absolute;bottom:6px;left:50%;transform:translateX(-50%);width:94px;height:5px;background:#23342b;border-radius:10px;z-index:20}
+.ho-driver-deliveries-preview-note {position:fixed;top:8px;right:12px;border:1px solid #dfe5db;background:#ffffffe9;padding:8px 11px;border-radius:11px;color:#607164;font:500 12px Inter,Arial,sans-serif}
+
+@media(max-width:374px) {
+  .ho-driver-deliveries__header {padding-inline:12px;gap:7px}
+  .ho-driver-deliveries__subtitle {font-size:11px}
+  .ho-driver-deliveries__eyebrow {letter-spacing:1.2px}
+  .ho-driver-deliveries__tabs {gap:3px}
+  .ho-driver-deliveries__tab {padding-inline:1px;font-size:9px}
+  .ho-driver-deliveries__card {padding-inline:13px}
+  .ho-driver-deliveries__meta {font-size:9.5px;gap:4px}
+}
+@media(min-width:600px) {
+  .ho-driver-deliveries {max-width:520px;margin:0 auto}
+}
+@media(max-width:480px) {
+  .ho-driver-deliveries-preview-stage {padding:0;display:block}
+  .ho-driver-deliveries-preview-phone {height:100dvh;max-height:none;width:100%;border:0;border-radius:0;box-shadow:none}
+  .ho-driver-deliveries-preview-phone::after,.ho-driver-deliveries-preview-note,.ho-driver-deliveries-preview-phone .ho-driver-deliveries__status {display:none}
+}
+@media(prefers-reduced-motion:reduce){.ho-driver-deliveries * {scroll-behavior:auto!important;transition:none!important}}
+/* Native buttons in the shared nav must not pick up browser-default borders. */
+.ho-driver-deliveries button.ho-driver-dashboard__tab {border:0;background:transparent;cursor:pointer;}
+.ho-driver-deliveries button.ho-driver-dashboard__tab:hover {background:#f3f6f2;}
+
