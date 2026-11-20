@@ -1,0 +1,121 @@
+/* HAMBELELA ORGANIC — DRIVER APP / PHASE 12 PROFILE
+Reference: 12_Driver_Profile_APPROVED.png.  Driver-only; never edit global portal CSS.
+CSS scoped under .ho-driver-profile; base driver-dashboard.css remains shared.
+Source typography is approximated with Inter in this code preview; Codex must check
+visual differences at each reference width and preserve approved geometry.
+*/
+.ho-driver-profile{
+ --hp-forest:#304d3b;--hp-forest-2:#65825f;--hp-forest-deep:#25372f;
+ --hp-ink:#26382e;--hp-muted:#8c9c91;--hp-border:#e3ebe3;
+ --hp-cream:#f7f9f6;--hp-soft:#e8f0e6;--hp-rose:#fff0ed;
+ width:100%;height:100dvh;max-height:100dvh;min-height:0;overflow:hidden;
+ display:flex;flex-direction:column;background:var(--hp-cream);color:var(--hp-ink);
+ font-family:Inter,Arial,sans-serif;position:relative;isolation:isolate;
+}
+.ho-driver-profile *,.ho-driver-profile *::before,.ho-driver-profile *::after{box-sizing:border-box}
+.ho-driver-profile .hp-icon{height:21px;width:21px;flex:none}
+.ho-driver-profile :is(button,input,select){font-family:inherit}
+.ho-driver-profile button{cursor:pointer}
+.ho-driver-profile button:disabled{opacity:.55;cursor:not-allowed}
+.ho-driver-profile [hidden]{display:none!important}
+.ho-driver-profile :is(button,a,input,select):focus-visible{outline:3px solid #7b9c73;outline-offset:2px}
+.ho-driver-profile .hp-status{height:34px;flex:0 0 34px;display:flex;justify-content:space-between;align-items:center;padding:7px 22px 0;font-size:12px;font-weight:800;color:#35513d}
+.ho-driver-profile .hp-scroll{flex:1 1 0;min-height:0;overflow:auto;overscroll-behavior:contain;scrollbar-width:thin;padding-bottom:22px}
+.ho-driver-profile .hp-top{padding:7px 17px 13px;display:flex;gap:10px;align-items:center}
+.ho-driver-profile .hp-mark{height:37px;width:37px;border-radius:11px;display:grid;place-items:center;color:#fff;background:#4b674e;font-size:23px;font-weight:800;line-height:1}
+.ho-driver-profile .hp-heading{min-width:0;flex:1}
+.ho-driver-profile .hp-eyebrow{text-transform:uppercase;letter-spacing:1.7px;font-size:9px;font-weight:800;color:#65806b;line-height:1.2;white-space:nowrap}
+.ho-driver-profile .hp-eyebrow span{color:#8fa59a}
+.ho-driver-profile .hp-heading h1{font-size:24px;line-height:1.15;letter-spacing:-.85px;margin:4px 0 3px;font-weight:860;color:#1e3428}
+.ho-driver-profile .hp-heading p{margin:0;color:#96a59b;font-size:12.5px;line-height:1.4}
+.ho-driver-profile .hp-settings{height:39px;width:39px;border:1px solid #e5ece4;border-radius:13px;background:white;color:#385c43;display:grid;place-items:center;box-shadow:0 3px 12px rgba(38,59,42,.02)}
+.ho-driver-profile .hp-settings .hp-icon{width:20px;height:20px}
+.ho-driver-profile .hp-hero{background:linear-gradient(111deg,#355743 0%,#456c4e 51%,#6c8862 100%);border-radius:19px;margin:0 0 0;padding:18px 16px 25px;min-height:154px;color:white;display:flex;align-items:flex-start;gap:14px}
+.ho-driver-profile .hp-avatar{width:69px;height:69px;flex:none;background:#c8dabd;border-radius:18px;color:#37543c;display:grid;place-items:center;font-weight:850;font-size:28px;letter-spacing:-1px}
+.ho-driver-profile .hp-person{flex:1;min-width:0;margin-top:2px}
+.ho-driver-profile .hp-person strong{display:block;font-size:17.5px;line-height:1.22;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:820;letter-spacing:-.3px}
+.ho-driver-profile .hp-person p{font-size:12px;line-height:1.4;color:#dbe5d9;margin:9px 0 11px}
+.ho-driver-profile .hp-duty{display:inline-flex;align-items:center;gap:6px;background:#74927a7a;border-radius:999px;padding:5px 9px;font-weight:780;color:#eaf4e8;font-size:10.5px;line-height:1.2}
+.ho-driver-profile .hp-duty-dot{width:8px;height:8px;flex:none;border-radius:50%;background:#f0fff0}
+.ho-driver-profile .hp-duty[data-duty="off"]{background:#4d5c507a;color:#f5f2e8}
+.ho-driver-profile .hp-duty[data-duty="off"] .hp-duty-dot{background:#f7c5a3}
+.ho-driver-profile .hp-edit{flex:none;align-self:flex-start;display:grid;place-items:center;margin-top:29px;width:30px;height:31px;color:white;background:none;border:0}
+.ho-driver-profile .hp-edit .hp-icon{width:20px;height:20px}
+.ho-driver-profile .hp-stats{position:relative;margin:-12px 0 17px;border:1px solid #e2e9e1;border-radius:17px;box-shadow:0 10px 28px rgba(44,66,46,.08);background:#fff;min-height:72px;padding:15px 11px 12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:3px}
+.ho-driver-profile .hp-stat{text-align:center;display:flex;flex-direction:column;gap:3px;min-width:0}
+.ho-driver-profile .hp-stat strong{font-size:20px;letter-spacing:-.65px;color:#33543d;line-height:1.15;font-weight:850;font-variant-numeric:tabular-nums}
+.ho-driver-profile .hp-stat span{color:#8ca195;font-size:9px;font-weight:750;white-space:nowrap}
+.ho-driver-profile .hp-section{padding:0 0 0;margin-top:18px}
+.ho-driver-profile .hp-section h2{font-size:16px;letter-spacing:-.55px;line-height:1.3;font-weight:830;margin:0 0 12px 1px;color:#2d4535}
+.ho-driver-profile .hp-menu{background:white;border:1px solid #e3ebe2;border-radius:18px;box-shadow:0 9px 25px rgba(42,67,48,.045);padding:9px 16px;overflow:hidden}
+.ho-driver-profile .hp-menu-row{display:flex;align-items:center;gap:12px;width:100%;min-height:65px;border:0;text-align:left;background:white;color:#203b2c;padding:11px 0}
+.ho-driver-profile .hp-menu-row+.hp-menu-row{border-top:1px solid #ecf0eb}
+.ho-driver-profile .hp-menu-row:hover{background:#fbfdfb}
+.ho-driver-profile .hp-menu-ico{display:grid;place-items:center;flex:none;width:36px;height:36px;background:#eaf1e7;color:#5b805e;border-radius:12px}
+.ho-driver-profile .hp-menu-ico .hp-icon{width:20px;height:20px;stroke-width:1.85}
+.ho-driver-profile .hp-menu-copy{min-width:0;flex:1;display:flex;flex-direction:column;gap:4px}
+.ho-driver-profile .hp-menu-copy strong{font-size:12.5px;font-weight:800;line-height:1.14}
+.ho-driver-profile .hp-menu-copy small{color:#93a69a;font-size:11.5px;font-weight:450;line-height:1.19}
+.ho-driver-profile .hp-menu-row>.hp-icon{color:#a1b0a5;width:18px;height:18px}
+.ho-driver-profile .hp-support{margin-top:21px}
+.ho-driver-profile .hp-sign-out{margin:17px 2px 9px;width:calc(100% - 4px);min-height:47px;border-radius:13px;background:var(--hp-rose);border:0;display:flex;align-items:center;justify-content:center;gap:10px;color:#b7745f;font-size:13px;font-weight:800}
+.ho-driver-profile .hp-sign-out:hover{background:#ffe5de}
+.ho-driver-profile .hp-sign-out .hp-icon{width:19px;height:19px}
+.ho-driver-profile .hp-caption{text-align:center;font-size:9px;color:#94a49a;padding:3px 10px 8px}
+.ho-driver-profile .hp-content{padding:0 0 0}
+/* Driver primary navigation must remain IDENTICAL to Phases 01–11. */
+.ho-driver-profile .ho-driver-dashboard__bottomnav{flex:none;border-top:1px solid #e1e7e1;background:white;min-height:76px;padding-top:8px;padding-bottom:max(6px,env(safe-area-inset-bottom))}
+.ho-driver-profile .ho-driver-dashboard__tab{border:0;background:transparent;color:#8b9d91}
+.ho-driver-profile .ho-driver-dashboard__tab[aria-current="page"]{background:#e9f0e6;color:#3d6045}
+.ho-driver-profile .ho-driver-dashboard__tab .ho-driver-dashboard__icon{width:22px;height:22px}
+/* Modal/sheet - shared, accessible with keyboard focus restoration. */
+.ho-driver-profile .hp-overlay{position:absolute;inset:0;z-index:80;background:rgba(15,36,25,.65);display:grid;place-items:center;padding:15px}
+.ho-driver-profile .hp-dialog{width:min(100%,395px);max-height:calc(100dvh - 30px);overflow:auto;background:white;color:#284432;border-radius:20px;border:1px solid #dbe6da;box-shadow:0 24px 68px #10291855;padding:18px}
+.ho-driver-profile .hp-dialog-header{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.ho-driver-profile .hp-dialog-header h2{font-size:18px;font-weight:800;margin:0;letter-spacing:-.35px}
+.ho-driver-profile .hp-dialog-close{width:36px;height:36px;border-radius:10px;border:1px solid #e2eae1;background:#f7faf6;color:#345e41;display:grid;place-items:center}
+.ho-driver-profile .hp-dialog-body{padding-top:8px;font-size:12.5px;line-height:1.5;color:#688171}
+.ho-driver-profile .hp-dialog-body p{margin:10px 0}
+.ho-driver-profile .hp-detail{padding:11px 0;display:flex;justify-content:space-between;gap:14px;border-bottom:1px solid #edf1eb}
+.ho-driver-profile .hp-detail strong{color:#31503b;text-align:right;font-weight:730}
+.ho-driver-profile .hp-dialog-body label{display:flex;flex-direction:column;gap:6px;margin:12px 0;font-size:12.5px;color:#375941;font-weight:700}
+.ho-driver-profile .hp-dialog-body input,.ho-driver-profile .hp-dialog-body select{border:1px solid #d5e4d5;border-radius:10px;padding:11px 12px;min-height:42px;width:100%;background:#fff;color:#213b2d;font-size:13px}
+.ho-driver-profile .hp-toggle-row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:12px 0;border:1px solid #e1e9dd;border-radius:10px;padding:10px}
+.ho-driver-profile .hp-toggle-row>span{color:#375741;font-weight:650;font-size:12.5px}
+.ho-driver-profile .hp-toggle-row input{width:19px;height:19px;accent-color:#5c7e5d;min-height:auto}
+.ho-driver-profile .hp-dialog-actions{display:flex;gap:9px;margin-top:17px}
+.ho-driver-profile .hp-button-secondary,.ho-driver-profile .hp-button-primary{min-height:43px;border-radius:10px;padding:10px 13px;font-size:13px;font-weight:800}
+.ho-driver-profile .hp-button-secondary{border:1px solid #d6e4d5;background:#f7faf5;color:#466449}
+.ho-driver-profile .hp-button-primary{flex:1;border:1px solid #436a4b;background:#436a4b;color:white}
+.ho-driver-profile .hp-message{border-radius:10px;padding:10px 12px;margin:10px 0;color:#386342;background:#eaf5e8;font-size:12px}
+.ho-driver-profile .hp-message--warn{background:#fff4ea;color:#a26842}
+@media (max-width:374px){
+ .ho-driver-profile .hp-top{padding-inline:12px;gap:8px}
+ .ho-driver-profile .hp-heading h1{font-size:22px}
+ .ho-driver-profile .hp-hero{padding-inline:13px;gap:10px}
+ .ho-driver-profile .hp-avatar{height:62px;width:62px}
+ .ho-driver-profile .hp-person strong{font-size:15.5px}
+ .ho-driver-profile .hp-person p{font-size:11px}
+ .ho-driver-profile .hp-stats{padding-inline:6px}
+ .ho-driver-profile .hp-stat span{font-size:8px}
+ .ho-driver-profile .hp-menu{padding-inline:12px}
+ .ho-driver-profile .hp-menu-row{gap:9px}
+}
+@media(min-width:600px){.ho-driver-profile{max-width:520px;margin:auto;border-left:1px solid #e5eae2;border-right:1px solid #e5eae2}}
+@media(prefers-reduced-motion:reduce){.ho-driver-profile *{animation:none!important;transition:none!important}}
+/* Mobile geometry tuned against approved profile reference */
+.ho-driver-profile .hp-status{height:30px;flex-basis:30px}
+.ho-driver-profile .hp-top{padding:4px 16px 9px}
+.ho-driver-profile .hp-hero{min-height:123px;padding:15px 15px 18px;gap:12px}
+.ho-driver-profile .hp-avatar{width:64px;height:64px}
+.ho-driver-profile .hp-person p{margin:6px 0 9px}
+.ho-driver-profile .hp-stats{min-height:61px;padding:10px 10px 9px;margin:-9px 0 12px}
+.ho-driver-profile .hp-stat strong{font-size:19px}
+.ho-driver-profile .hp-section{margin-top:12px}
+.ho-driver-profile .hp-section h2{margin-bottom:9px}
+.ho-driver-profile .hp-menu{padding:6px 15px}
+.ho-driver-profile .hp-menu-row{min-height:52px;padding:7px 0;gap:11px}
+.ho-driver-profile .hp-menu-ico{width:34px;height:34px}
+.ho-driver-profile .hp-support{margin-top:14px}
+.ho-driver-profile .hp-sign-out{min-height:43px;margin:12px 2px 6px}
+.ho-driver-profile .hp-caption{display:none}

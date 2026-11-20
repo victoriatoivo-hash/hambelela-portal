@@ -1,0 +1,19 @@
+.ho-driver-profile{padding-top:env(safe-area-inset-top,0px)}
+.ho-driver-profile .hp-inset{padding:0 16px 12px}
+.ho-driver-profile .hp-person strong{white-space:normal;overflow-wrap:anywhere}
+.ho-driver-profile .hp-menu-row{font-family:inherit;text-decoration:none}
+.ho-driver-profile .hp-state{font-size:.72rem;line-height:1.45;color:#576e5e;margin:4px 0 10px}
+.ho-driver-profile .hp-metric-info{display:block;margin:-5px 0 6px auto;border:0;background:transparent;color:#45654a;font-size:.7rem;padding:5px;text-decoration:underline}
+.ho-driver-profile .hp-stat span{white-space:normal}
+.ho-driver-profile dialog.hp-dialog{position:fixed;inset:0;margin:auto;width:calc(100% - 30px);max-width:395px;animation:hp-open .2s ease-out}
+.ho-driver-profile dialog.hp-dialog::backdrop{background:#0f2419a6}
+.ho-driver-profile .hp-dialog-body a{display:block;padding:10px 0;color:#31563a;text-decoration:underline}
+.ho-driver-profile .hp-detail{overflow-wrap:anywhere}
+.ho-driver-profile .hp-detail strong{max-width:60%}
+.ho-driver-profile .hp-dialog-body p{color:#526c5b}
+.ho-driver-profile .hp-settings,.ho-driver-profile .hp-edit{min-width:40px;min-height:40px}
+.ho-driver-profile [data-duty="unknown"]{background:#ffffff20;color:#f1f3e8}
+@keyframes hp-open{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.ho-driver-profile *{animation:none!important;transition:none!important}}
+@media(max-width:374px){.ho-driver-profile .hp-inset{padding-inline:12px}}
+@media(max-height:500px){.ho-driver-profile .ho-driver-dashboard__bottomnav{height:60px;padding-block:2px}.ho-driver-profile .ho-driver-dashboard__tab{height:54px}}
