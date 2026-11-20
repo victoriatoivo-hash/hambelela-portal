@@ -1,7 +1,7 @@
 <?php
 if(!defined('BASE_PATH')||!isset($deliveryActor))exit;
 require_once __DIR__.'/DriverErrands.php';
-if(!$driverPage&&!\Hambelela\Delivery\DeliveryPolicy::can($deliveryActor,'delivery_arrange')){http_response_code(403);exit('Delivery arrangement access required.');}
+if(!$driverPage&&!\Hambelela\Delivery\DeliveryPolicy::canManageErrands($deliveryActor)){http_response_code(403);exit('Errand management access required.');}
 $errands=new \Hambelela\Delivery\DriverErrands(db());
 $_SESSION['delivery_errand_csrf']??=bin2hex(random_bytes(32));
 $token=$_SESSION['delivery_errand_csrf'];$api=in_array($_GET['errands'],['notice','data'],true);
