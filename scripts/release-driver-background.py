@@ -7,7 +7,7 @@ import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASE = '0ec9379271f04dae04ce7a0ecd8607117be385f4'
-REVIEWED_LIVE = {}
+REVIEWED_LIVE = {'shared/delivery/DriverAssignments.php': 'ab8b6b92ad8d22efcefeee1657de0bc0b3873e3153e1e163298cb62e5894d924'}  # Exact 49376b11 version; preserved, display label only.
 FILES = [
     'shared/delivery/OrderReference.php',
     'shared/delivery/DriverAppActivity.php',

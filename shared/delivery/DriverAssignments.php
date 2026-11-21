@@ -17,9 +17,10 @@ final class DriverAssignments
         $date=$now->format('Y-m-d');
         $orderColumns=$db->query('SHOW COLUMNS FROM ops_orders')->fetchAll(\PDO::FETCH_COLUMN);
         $refundColumn=in_array('refund_total',$orderColumns,true)?'o.refund_total':'NULL';
+        $paidTickColumn=in_array('portal_paid_confirmed',$orderColumns,true)?'o.portal_paid_confirmed':'NULL';
         $archiveColumn=in_array('archived_at',$orderColumns,true)?'o.archived_at':'NULL';$pendingIssue=DeliveryIssueState::pendingPredicate();
         $assignmentWhere=$assignmentId===null?'':' AND j.id=?';
-        $q=$db->prepare("SELECT j.*,o.id linked_order,o.order_number,o.status order_status,o.payment_status,o.payment_method,o.total_amount,o.deleted_at,$archiveColumn archived_at,$refundColumn refund_total,
+        $q=$db->prepare("SELECT j.*,o.id linked_order,o.order_number,o.status order_status,o.payment_status,o.payment_method,o.total_amount,o.deleted_at,$archiveColumn archived_at,$refundColumn refund_total,$paidTickColumn portal_paid_confirmed,
             (SELECT COUNT(*) FROM ops_order_items i WHERE i.order_id=j.order_id) item_count,
             (SELECT MAX(e.id) FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type IN ('arranged','partner_arranged')) release_event,
             (SELECT e.metadata_json FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type IN ('arranged','partner_arranged') ORDER BY e.id DESC LIMIT 1) release_json,
@@ -85,7 +86,9 @@ final class DriverAssignments
         $parts=preg_split('/\s+/u',trim((string)$r['customer_name']));$customer=$parts[0]?:'Customer';if(count($parts)>1)$customer.=' '.mb_substr(end($parts),0,1).'.';
         $payment=self::payment($db,$r,$release);
         if($stage==='done'&&!$payment['paymentVerified']){$label='Delivered · payment review';$reason='Customer handover is recorded; payment review remains with dispatch. Do not deliver again.';}
-        if(in_array($stage,['to_collect','on_route'],true)&&!$payment['paymentVerified']&&$payment['codAmountDueNad']===null){$stage='exception';$label='Payment needs review';$reason='Payment or an authorised cash collection arrangement needs confirmation before dispatch.';}
+        // Dispatch has already released this assignment. Payment uncertainty is
+        // financial information, not a reason to hide acceptance/pickup/start.
+        // Keep source cancellations, custody and explicit operational issues above.
         $issue=DeliveryIssueState::latest($db,(int)$r['id']);
         if($issue&&$issue['blocking']){$stage='exception';$label='Issue reported · Awaiting dispatch';$reason=$issue['latest_decision']['instruction']??'Dispatch must approve the next step. The order remains open.';}
         $action=null;$actionLabel=null;$handoverNotice=null;
@@ -120,7 +123,8 @@ final class DriverAssignments
                 $q=$db->prepare('SELECT amount_cents,payment_method FROM order_payment_allocations WHERE order_id=?');$q->execute([$r['order_id']]);$allocations=$q->fetchAll(\PDO::FETCH_ASSOC);
                 foreach($allocations as $a){if((int)$a['amount_cents']<0)throw new \DomainException('Reversed allocation.');if((int)$a['amount_cents']>0){$allocated+=(int)$a['amount_cents'];$methods[self::method($a['payment_method'])]=true;}}
                 // Do not inherit OrderDispatchBalance's legacy paid-status fallback as verified money.
-                if(!$allocations&&$r['payment_status']==='paid'&&DeliveryPolicy::cents((string)$r['total_amount'])>0)throw new \DomainException('No verified allocation.');
+                if(!$allocations&&$r['payment_status']==='paid'&&DeliveryPolicy::cents((string)$r['total_amount'])>0
+                    &&!(($release['order_dispatch']['payment_policy']??'')==='portal_cash_confirmation'&&!empty($r['portal_paid_confirmed'])))throw new \DomainException('No verified allocation.');
             }
             $due=array_sum((new OrderBalanceAdapter())->read($db,$r));
             if((int)$r['pending_receipts']>0){$result['paymentLabel']='Payment under review';return $result;}
@@ -129,7 +133,7 @@ final class DriverAssignments
                 $method=count($methods)===1?array_key_first($methods):'OTHER';
                 $result['paymentMethod']=$method;
                 $result['paymentLabel']=$allocated>0?(in_array($method,['EFT','DPO','CASH'],true)?($method==='CASH'?'Cash':$method).' paid':'Paid · verified'):'No collection due';
-            }elseif(($release['payment_arrangement']??null)==='cod'&&self::method((string)$r['payment_method'])==='CASH'){
+            }elseif(($release['payment_arrangement']??null)==='cod'){
                 $result['paymentMethod']='CASH';$result['codAmountDueNad']=$due/100;$result['paymentLabel']='Cash N$'.number_format($due/100,2);
             }
         }catch(\DomainException $e){$result['paymentLabel']='Payment needs review';}
