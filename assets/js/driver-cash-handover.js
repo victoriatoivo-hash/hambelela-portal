@@ -9,7 +9,7 @@
  const minor=s=>{if(!/^(0|[1-9]\d{0,7})(?:\.\d{1,2})?$/.test(s))throw Error('Enter NAD with up to two decimal places.');const [a,b='']=s.split('.');const n=Number(a)*100+Number(b.padEnd(2,'0'));if(n<1)throw Error('Enter the amount you handed over.');return n};
  const time=s=>s?new Date(s.replace(' ','T')+'Z').toLocaleString('en-GB',{timeZone:'Africa/Windhoek'}):'Not recorded';
  const labels={driver_recorded:'Handed over — confirmed by driver',awaiting_front_desk_receipt:'Previous submission — awaiting receipt',confirmed:'Confirmed received',disputed:'Previous discrepancy',rejected:'Previous submission rejected',reversed:'Previous receipt reversed'};
- async function api(payload){const u=new URL(root.dataset.endpoint,location.href);if(!payload)u.searchParams.set('feed','1');const c=new AbortController(),timeout=setTimeout(()=>c.abort(),20000);try{
+ async function api(payload){const u=new URL(root.dataset.endpoint,document.baseURI);if(!payload)u.searchParams.set('feed','1');const c=new AbortController(),timeout=setTimeout(()=>c.abort(),20000);try{
   const r=await fetch(u,{method:payload?'POST':'GET',credentials:'same-origin',cache:'no-store',signal:c.signal,...(payload?{body:new URLSearchParams({csrf:root.dataset.csrf,payload:JSON.stringify({...payload,actor})})}:{})});
   if(r.redirected||[401,403].includes(r.status)){purge();throw Error('Session expired or access changed. Sign in again.');}
   let j;try{j=await r.json()}catch{throw Error('No confirmation received. Retry the same handover safely.');}

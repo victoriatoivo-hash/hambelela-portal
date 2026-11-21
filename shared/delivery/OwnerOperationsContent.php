@@ -14,7 +14,7 @@ $icon=static function($name){$paths=['users'=>'<circle cx="9" cy="7" r="3"/><pat
 <?php endforeach?>
 </section>
 <section class="ho-card ho-issues"><div class="ho-panel-header"><h2>Open Issues</h2><button type="button" class="ho-link" data-filter="issues">Deliveries →</button></div><div class="ho-issue-list" id="operations-issues"><p>Loading reports…</p></div><p class="ho-footnote"><a class="ho-link" href="<?=$escape($base)?>/apps/delivery/index.php?errands=1">Open errand reviews →</a></p></section>
-<section class="ho-card ho-drivers"><div class="ho-panel-header"><h2>Live Drivers</h2><span class="ho-muted" id="driver-count">Duty unverified</span></div><div class="ho-driver-row" id="operations-drivers"></div></section>
+<section class="ho-card ho-drivers"><div class="ho-panel-header"><h2>Live Drivers</h2><span class="ho-muted" id="driver-count">Duty unverified</span><a class="ho-link" id="operations-owner-view" href="<?=$escape($base)?>/apps/operations/view-as-driver.php">View as Driver</a></div><div class="ho-driver-row" id="operations-drivers"></div></section>
 <section class="ho-card ho-actions"><div class="ho-panel-header"><h2>Quick Actions</h2></div><div class="ho-action-grid">
 <a class="ho-action" href="<?=$escape($base)?>/apps/delivery/workspace.php"><?=$icon('box')?>Assign Delivery</a>
 <a class="ho-action" href="<?=$escape($base)?>/apps/delivery/workspace.php" aria-describedby="quick-action-note"><?=$icon('users')?>Reassign Driver</a>
