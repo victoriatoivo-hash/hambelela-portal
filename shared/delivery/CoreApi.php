@@ -78,7 +78,7 @@ final class CoreApi
         switch($action){
             case 'accept':return $service->accept($actor,$id,$uuid);
             case 'confirm_pickup':return $service->confirmPickup($actor,$id,$uuid);
-            case 'start': return $service->start($actor,$id,$uuid);
+            case 'start': return $service->start($actor,$id,$uuid,($body['parcels_received']??false)===true);
             case 'collect': return $service->collect($actor,$id,$uuid,['order_goods'=>DeliveryPolicy::cents((string)($body['goods']??'0')),'delivery_fee'=>DeliveryPolicy::cents((string)($body['fee']??'0')),'partner_cod'=>DeliveryPolicy::cents((string)($body['cod']??'0'))],(string)($body['method']??''),(string)($body['reference']??''));
             case 'complete':
                 if(!is_array($body['confirmation']??null))throw new \DomainException('Reopen Deliveries and confirm the payment method and actual amount before completing.');

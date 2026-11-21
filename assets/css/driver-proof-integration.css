@@ -13,5 +13,8 @@
 .ho-driver-proof__receipt a{display:inline-block;padding:10px;color:#446b4c}
 .ho-driver-proof__arrival[data-pending]{background:#fff0d9;color:#79572b;flex-wrap:wrap}
 .ho-driver-proof__block{margin-top:10px}
+.ho-driver-proof[data-compact="true"] .ho-driver-dashboard__bottomnav,.ho-driver-proof[data-compact="true"] .ho-driver-proof__header{display:none}
+.ho-driver-proof[data-compact="true"] .ho-driver-dashboard__scroll{padding-bottom:0}
+.ho-driver-proof[data-compact="true"] .ho-driver-proof__body{padding-top:12px}
 @keyframes proof-enter{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
 @media(prefers-reduced-motion:reduce){.ho-driver-proof__dialog[open]{animation:none}}

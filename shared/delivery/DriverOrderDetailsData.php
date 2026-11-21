@@ -70,10 +70,9 @@ final class DriverOrderDetailsData
         }
         $custody=DeliveryCustody::read($db,$job);$action=null;$actionLabel=null;$handoverNotice=null;
         if($job['status']==='ready'&&in_array($summary['stage'],['to_collect','on_route'],true)){
-            if($custody['tracking_version']&&!$custody['acceptance']){$action='accept';$actionLabel='Accept delivery';}
-            elseif($custody['tracking_version']&&!$custody['exception']&&!$custody['handover']){$handoverNotice='Ask Front Desk to record the parcel handover before you start.';}
-            elseif($custody['tracking_version']&&!$custody['exception']&&!$custody['collection']){$action='confirm_pickup';$actionLabel='Confirm parcels received';}
-            elseif($custody['handover']||$custody['exception']){$action='start';$actionLabel='Start delivery';}
+            if(!$custody['acceptance']){$action='accept';$actionLabel='Accept order';}
+            elseif(!$custody['handover']){$handoverNotice='Waiting for Front Desk to record the parcel handover. This updates automatically.';}
+            elseif($custody['handover']){$action='start';$actionLabel='Start delivery';}
             else $handoverNotice='Ask Front Desk to record the parcel handover before you start.';
         }
         return ['action'=>$action,'actionLabel'=>$actionLabel,'handoverNotice'=>$handoverNotice,'version'=>(int)$job['version'],'issue'=>$summary['issue']??null,'assignmentId'=>$assignmentId,'orderId'=>$summary['orderId'],'orderNumber'=>$summary['orderNumber'],'driverId'=>$employeeId,'timezone'=>'Africa/Windhoek','dataStatus'=>'live',

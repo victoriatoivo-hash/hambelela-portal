@@ -21,7 +21,8 @@ final class ProofSubmission
     }
     public function record(\PDO $db,array $job,array $actor):array
     {
-        ProofContext::assertLocked($db,$job,$actor,$this->version);
+        // Completion proves the handover, not a separate arrival time.
+        ProofContext::assertLocked($db,$job,$actor,$this->version,false,true);
         $store=ProofStorage::configured();
         foreach($this->files as $file){$path=$store->path($file['id']);if(!is_file($path)||!hash_equals($file['stored_sha256'],hash_file('sha256',$path)))throw new \DomainException('Uploaded evidence is unavailable. Retry without completing the delivery.');}
         $id=bin2hex(random_bytes(16));$at=new \DateTimeImmutable('now',new \DateTimeZone('Africa/Windhoek'));
