@@ -6,18 +6,12 @@ release baseline before replacing anything. Backup and readback are mandatory.
 import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-BASE = '674161586ad232cc672914e2cb5398b365abf2ea'
-# Preserve the live EPI refresh hook from repository commit 9b9ef2b8.
-REVIEWED_LIVE = {'apps/operations/bookkeeping.php': '1763efc5553ceec4d9674722c6fff2ddb5b91b308eefb02bcc1b830e4481e70a'}
+BASE = '0289ef9a0df9a38f320c6a4e2a296b0ed20bef26'
+REVIEWED_LIVE = {}
 FILES = [
-    'shared/delivery/DriverRecordedHandover.php',
-    'assets/js/bookkeeping-driver-handovers.js',
-    'shared/delivery/DriverCashHandover.php',
-    'shared/delivery/dashboard/Data.php',
-    'assets/js/driver-cash-handover.js',
-    'shared/delivery/cash/View.php',
-    'shared/delivery/dashboard/View.php',
-    'apps/operations/bookkeeping.php',
+    'assets/css/driver-more-menu.css',
+    'assets/js/driver-more-menu.js',
+    'shared/delivery/dashboard/BottomNav.php',
 ]
 BACKUP = ROOT / 'driver-background-backup.zip'
 REPORT = ROOT / 'driver-background-report.json'

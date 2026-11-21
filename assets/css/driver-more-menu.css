@@ -1,0 +1,13 @@
+/* One compact, original-style More sheet across all driver screens. */
+body.ho-driver-page dialog.driver-more-sheet{box-sizing:border-box;position:fixed;inset:auto 0 0;margin:0 auto;width:calc(100% - 16px);max-width:500px;max-height:80dvh;overflow:auto;padding:20px 20px calc(24px + env(safe-area-inset-bottom,0px));border:1px solid #dce4da;border-radius:22px 22px 0 0;background:#f7f9f6;color:#20352b;font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.45;text-align:left;box-shadow:0 -8px 32px #152b2514}
+body.ho-driver-page dialog.driver-more-sheet::backdrop{background:#152b2560;backdrop-filter:blur(3px)}
+body.ho-driver-page dialog.driver-more-sheet[open]{display:block;animation:driver-more-rise .24s ease-out}
+body.ho-driver-page dialog.driver-more-sheet header{display:flex;align-items:center;justify-content:space-between;gap:16px;margin:0 0 10px;padding:0;background:transparent}
+body.ho-driver-page dialog.driver-more-sheet h2{margin:0;font-size:16px;font-weight:650;line-height:1.4;color:inherit}
+body.ho-driver-page dialog.driver-more-sheet button{display:grid;place-items:center;flex:0 0 44px;width:44px;height:44px;padding:0;border:1px solid #dce4da;border-radius:50%;background:#fff;color:inherit;font:400 24px/1 Inter,Arial,sans-serif;cursor:pointer}
+body.ho-driver-page dialog.driver-more-sheet nav{display:block;position:static;margin:0;padding:0;background:transparent;border:0;box-shadow:none}
+body.ho-driver-page dialog.driver-more-sheet a{box-sizing:border-box;display:flex;align-items:center;min-height:44px;width:100%;margin:0;padding:10px 0;border:0;border-bottom:1px solid #dce4da;border-radius:0;background:transparent;box-shadow:none;color:inherit;font:400 13px/1.45 Inter,Arial,sans-serif;text-decoration:none;overflow-wrap:anywhere;transition:color .15s,background .15s}
+body.ho-driver-page dialog.driver-more-sheet a:hover{background:#edf2e9;color:#466740}
+body.ho-driver-page dialog.driver-more-sheet :focus-visible{outline:2px solid #587256;outline-offset:2px}
+@keyframes driver-more-rise{from{transform:translateY(30px);opacity:0}to{transform:translateY(0);opacity:1}}
+@media(prefers-reduced-motion:reduce){body.ho-driver-page dialog.driver-more-sheet[open]{animation:none}body.ho-driver-page dialog.driver-more-sheet a{transition:none}}
