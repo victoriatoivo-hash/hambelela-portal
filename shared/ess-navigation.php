@@ -41,6 +41,9 @@ function ess_navigation_children(string $name): array
     ];
     if (!isset($groups[$name])) return [];
     [$directory, $routes] = $groups[$name];
+    if ($name === 'Operations' && function_exists('current_role_key') && current_role_key() === 'owner_admin') {
+        $routes = ['driver-operations-dashboard.php'=>'Driver Operations'] + $routes;
+    }
     $links = [];
     foreach ($routes as $route => $label) $links[] = ['label'=>$label, 'href'=>BASE_URL.'/apps/'.$directory.'/'.$route];
     return $links;
