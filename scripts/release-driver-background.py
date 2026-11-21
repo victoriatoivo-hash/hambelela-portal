@@ -58,7 +58,7 @@ def main(deploy):
     for p,data in wanted.items():
         if not data: raise RuntimeError('Missing release file: '+p)
         if p.endswith('.php'): subprocess.run(['php','-n','-l'],input=data,check=True,stdout=subprocess.DEVNULL)
-        else: subprocess.run(['node','--check',str(ROOT/p)],check=True)
+        elif p.endswith('.js'): subprocess.run(['node','--check',str(ROOT/p)],check=True)
     if not deploy:
         print('PASS:',len(FILES),'allowlisted runtime files; no database migrations.'); return
     host=os.environ['FTP_SERVER'];canonical='s11745.sgp1.stableserver.net'
