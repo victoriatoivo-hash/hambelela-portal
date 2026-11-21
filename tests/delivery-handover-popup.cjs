@@ -2,7 +2,7 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),http=require('n
 const {chromium}=require('playwright'),root=path.resolve(__dirname,'..');
 (async()=>{
  const server=http.createServer((req,res)=>{const p=new URL(req.url,'http://localhost').pathname;
-  if(p==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/assets/css/delivery-handover-popup.css"><h1>Portal test</h1><script>window.HambelelaPortalUser={id:1};</script><script defer data-endpoint="/apps/delivery/front-api.php" src="/assets/js/delivery-handover-popup.js"></script>');return;}
+  if(p==='/'){res.setHeader('Content-Type','text/html');res.end('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="stylesheet" href="/assets/css/delivery-handover-popup.css"><h1>Portal test</h1><script>window.HambelelaPortalUser={id:1};</script><script defer data-endpoint="/apps/delivery/front-api.php" src="/assets/js/delivery-handover-popup.js"></script>');return;}
   const file=path.join(root,p);if(!file.startsWith(root+path.sep)||!fs.existsSync(file)){res.writeHead(404).end();return;}res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript':'text/css');res.end(fs.readFileSync(file));
  });await new Promise(r=>server.listen(0,'127.0.0.1',r));
  const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
@@ -29,6 +29,14 @@ const {chromium}=require('playwright'),root=path.resolve(__dirname,'..');
   await page.reload();await page.waitForTimeout(200);assert.equal(await page.locator('dialog[open]').count(),0,'Confirmed stays closed');
   items=[{id:1,reference:'TEST-NEW',customer:'Synthetic',driver:'Driver',driver_id:2,acceptance_event_id:78,accepted_at:'2026-11-21 10:00:00'}];await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.locator('dialog[open]').waitFor();
   items=[];await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.locator('dialog[open]').waitFor({state:'detached'});assert.equal(posts.length,2,'Remote completion closes without another command');
+  if(width===1280){
+   items=[{id:1,reference:'TEST-TABS',customer:'Synthetic',driver:'Driver',driver_id:2,acceptance_event_id:79,accepted_at:'2026-11-21 10:00:00'}];
+   await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.locator('dialog[open]').waitFor();
+   const second=await context.newPage();await second.goto(url);await second.waitForTimeout(200);
+   assert.equal((await page.locator('dialog[open]').count())+(await second.locator('dialog[open]').count()),1,'Only one reminder across tabs');
+   if(await page.locator('dialog[open]').count())await page.getByRole('button',{name:'Remind me in 15 minutes'}).click();else await second.getByRole('button',{name:'Remind me in 15 minutes'}).click();
+   await second.evaluate(()=>window.dispatchEvent(new Event('focus')));await second.waitForTimeout(200);assert.equal(await second.locator('dialog[open]').count(),0,'Snooze shared across tabs');
+  }
   assert.deepEqual(errors,[]);await context.close();console.log('PASS reminder desktop/mobile '+width+': pending, snooze, escape, failure/retry, confirmation, remote resolution, no overflow');
  }}finally{await browser.close();server.close();}
 })().catch(e=>{console.error(e);process.exitCode=1;});
