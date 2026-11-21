@@ -4,6 +4,7 @@ namespace Hambelela\Delivery;
 require_once __DIR__.'/EmployeeDriverSession.php';
 require_once __DIR__.'/OrderBalanceAdapter.php';
 require_once __DIR__.'/DeliveryIssueState.php';
+require_once __DIR__.'/DeliveryCustody.php';
 
 /** Read-only, current Windhoek-day selector shared by the driver Dashboard and Deliveries. */
 final class DriverAssignments
@@ -64,7 +65,8 @@ final class DriverAssignments
         if($r['status']==='completed'&&$handoverProof&&!empty($r['completed_at'])&&(int)$r['pending_receipts']===0){$stage='done';$label='Delivered';$reason='';}
         elseif(in_array($r['status'],['delivered','awaiting_reconciliation','completed'],true)){$stage=$handoverProof?'done':'exception';$label=$handoverProof?'Delivered · reconciliation pending':'Handover unconfirmed';$reason=$handoverProof?'Customer handover is recorded; financial reconciliation remains separate. Do not deliver again.':'A completed status alone is not proof of customer handover.';}
         elseif($r['status']==='failed'){$label='Delivery exception';$reason='Contact dispatch about the failed or rescheduled delivery.';}
-        elseif(in_array($r['status'],['ready','out_for_delivery'],true)&&$picked){$stage='on_route';$label='Out for delivery';$reason='';}
+        elseif($r['status']==='out_for_delivery'&&$picked){$stage='on_route';$label='Out for delivery';$reason='';}
+        elseif($r['status']==='ready'&&$picked){$stage='to_collect';$label='Ready to start';$reason='';}
         elseif($r['status']==='ready'){$stage='to_collect';$label='At store';$reason='';}
         elseif($r['status']==='out_for_delivery'){$label='Pickup unconfirmed';$reason='Delivery was started, but shop handover to this driver is not recorded.';}
         if($r['source']==='partner'&&$stage==='to_collect'){$stage='exception';$label='Partner pickup unconfirmed';$reason='A verified partner pickup source is not available. This is not a collection from the Hambelela shop.';}
@@ -87,7 +89,14 @@ final class DriverAssignments
         // Keep source cancellations, custody and explicit operational issues above.
         $issue=DeliveryIssueState::latest($db,(int)$r['id']);
         if($issue&&$issue['blocking']){$stage='exception';$label='Issue reported · Awaiting dispatch';$reason=$issue['latest_decision']['instruction']??'Dispatch must approve the next step. The order remains open.';}
-        return ['issue'=>$issue?['reference'=>$issue['incident_id'],'blocking'=>$issue['blocking'],'instruction'=>$issue['latest_decision']['instruction']??null]:null,'assignmentId'=>(int)$r['id'],'orderId'=>$r['order_id']?(int)$r['order_id']:null,'orderNumber'=>$r['order_number']?:($r['partner_reference']?:$r['public_reference']),
+        $action=null;$actionLabel=null;$handoverNotice=null;
+        if($r['status']==='ready'&&$stage==='to_collect'){
+            $custody=DeliveryCustody::read($db,$r);
+            if(!$custody['acceptance']){$action='accept';$actionLabel='Accept order';}
+            elseif(!$custody['handover'])$handoverNotice='Waiting for Front Desk to record the parcel handover. This updates automatically.';
+            else{$action='start';$actionLabel='Start delivery';}
+        }
+        return ['action'=>$action,'actionLabel'=>$actionLabel,'handoverNotice'=>$handoverNotice,'issue'=>$issue?['reference'=>$issue['incident_id'],'blocking'=>$issue['blocking'],'instruction'=>$issue['latest_decision']['instruction']??null]:null,'assignmentId'=>(int)$r['id'],'orderId'=>$r['order_id']?(int)$r['order_id']:null,'orderNumber'=>$r['order_number']?:($r['partner_reference']?:$r['public_reference']),
             'customerDisplayName'=>$customer,'deliveryArea'=>trim((string)$r['area'])?:'Area not recorded','itemCount'=>$r['source']==='hambelela'?(int)$r['item_count']:null,
             'stage'=>$stage,'displayStatus'=>$label,'reviewReason'=>$reason,'dispatchPriority'=>!empty($r['urgent'])?1:null,'routeSequence'=>null,'isNextStop'=>false,
             'scheduledTimeLocal'=>$scheduled,'scheduledSort'=>$sort,'distanceKm'=>null,'collectedAt'=>$picked?$r['pickup_at']:null,'deliveredAt'=>$r['delivered_at'],
