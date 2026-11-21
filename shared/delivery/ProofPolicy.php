@@ -7,8 +7,8 @@ final class ProofPolicy
 {
     public static function configured():array
     {
-        // Owner approved on 20 November 2026: recipient signature; representative name/relationship.
-        return ['evidence'=>getenv('HO_DRIVER_PROOF_POLICY')?:'signature',
+        // Owner updated 21 November 2026: either parcel photo OR recipient signature.
+        return ['evidence'=>getenv('HO_DRIVER_PROOF_POLICY')?:'one',
             'representative'=>getenv('HO_DRIVER_PROOF_REPRESENTATIVE')?:'relationship'];
     }
     public static function enabled():bool {return in_array(self::configured()['evidence'],['one','both','signature'],true);}

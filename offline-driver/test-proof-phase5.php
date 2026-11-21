@@ -18,6 +18,7 @@ foreach(['ops_roles','ops_employees','delivery_driver_profiles','delivery_jobs',
     foreach($rows as $row){$cols=array_keys($row);$db->prepare('INSERT INTO '.$table.' (`'.implode('`,`',$cols).'`) VALUES ('.implode(',',array_fill(0,count($cols),'?')).')')->execute(array_values($row));}
 }
 $checks=0;function verify($v,$label){global $checks;if(!$v)throw new RuntimeException($label);$checks++;echo "PASS $label\n";}
+verify(ProofPolicy::configured()['evidence']==='one','owner-approved default accepts photo or signature');
 function rejects(callable $run,string $label){try{$run();}catch(LogicException $e){verify(true,$label);return;}throw new RuntimeException('NOT BLOCKED: '.$label);}
 function uuid5(){return sprintf('%s-%s-4%s-a%s-%s',bin2hex(random_bytes(4)),bin2hex(random_bytes(2)),bin2hex(random_bytes(2))[0].substr(bin2hex(random_bytes(2)),0,2),substr(bin2hex(random_bytes(2)),0,3),bin2hex(random_bytes(6)));}
 $actor=EmployeeDriverSession::actor($db,3);$job=$db->query("SELECT * FROM delivery_jobs WHERE driver_employee_id=3 AND status='ready' ORDER BY id LIMIT 1")->fetch();$id=(int)$job['id'];$order=(int)$job['order_id'];
@@ -28,7 +29,7 @@ $db->exec("UPDATE ops_orders SET payment_status='paid',payment_method='EFT',stat
 $db->exec("DELETE FROM order_payment_allocations WHERE order_id=$order");$db->exec("INSERT INTO order_payment_allocations(order_id,payment_method,amount_cents,source) VALUES($order,'EFT',12000,'pos')");
 $today=(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d');$db->prepare("UPDATE delivery_jobs SET scheduled_date=?,status='out_for_delivery',delivered_at=NULL,completed_at=NULL,version=10 WHERE id=?")->execute([$today,$id]);
 $service=new DeliveryService($db,['Cash','EFT'],static fn($d,$j)=>(new OrderBalanceAdapter())->read($d,$j));
-$policy=['evidence'=>'one','representative'=>'relationship'];$fields=['recipient_name'=>'Synthetic Test Recipient','recipient_type'=>'customer','relationship'=>'','acknowledged'=>'1'];
+$policy=ProofPolicy::configured();$fields=['recipient_name'=>'Synthetic Test Recipient','recipient_type'=>'customer','relationship'=>'','acknowledged'=>'1'];
 $root=dirname(BASE_PATH).'/driver-proof-phase5-test';if(!is_dir($root))mkdir($root,0700);$storage=new ProofStorage($root);$created=[];$fixtures=[];
 putenv('HO_DRIVER_PROOF_DIR='.$root);
 try{
@@ -121,8 +122,8 @@ try{
     $db->exec("UPDATE ops_orders SET payment_status='unpaid',payment_method='Cash' WHERE id=$order");
     $event('arranged',['payment_arrangement'=>'cod']);$event('parcel_collected',['driver_id'=>3]);
     verify(ProofContext::read($db,3,$id)['reason']===null,'authorized unpaid COD can enter proof flow');
-    $codProof=new ProofSubmission($fields,['signature'=>$signature],20,['evidence'=>'signature','representative'=>'relationship']);
-    rejects(fn()=>new ProofSubmission($fields,['photo'=>$file],20,['evidence'=>'signature','representative'=>'relationship']),'simplified completion still requires signature');
+    $codProof=new ProofSubmission($fields,['signature'=>$signature],20,ProofPolicy::configured());
+    rejects(fn()=>new ProofSubmission($fields,['photo'=>$file],20,['evidence'=>'signature','representative'=>'relationship']),'explicit stricter signature override still enforced');
     $codKey=uuid5();$codPayment=['confirmed'=>true,'amount'=>'120.00','method'=>'Cash','note'=>''];
     $cod=$service->complete($actor,$id,$codKey,null,$codPayment,$codProof);$service->complete($actor,$id,$codKey,null,$codPayment,$codProof);
     verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='arrived'")->fetchColumn()===0,'completion does not invent an arrival timestamp');

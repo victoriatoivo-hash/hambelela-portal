@@ -1,11 +1,33 @@
 (() => {
   'use strict';
+  async function preparePhoto(file) {
+    if(!file||file.size>25000000)throw Error('Choose a photo smaller than 25 MB. It will be resized before upload.');
+    if(!/^image\/(jpeg|png|webp|heic|heif)$/i.test(file.type)&&!(file.type===''&&/\.(jpe?g|png|webp|heic|heif)$/i.test(file.name||'')))throw Error('Choose a camera photo (JPEG, PNG or WebP).');
+    let image,objectUrl;
+    try{
+      if(typeof createImageBitmap==='function'){
+        try{image=await createImageBitmap(file,{imageOrientation:'from-image'});}catch(_){/* Use the browser image decoder as a compatibility fallback. */}
+      }
+      if(!image){objectUrl=URL.createObjectURL(file);image=await new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('This phone could not read the photo. Take another photo or select JPEG; you can also use a signature.'));img.src=objectUrl;});}
+      const width=image.naturalWidth||image.width,height=image.naturalHeight||image.height;
+      if(width<20||height<20||width*height>80000000)throw Error('Photo dimensions are unsupported. Take a smaller photo or use a signature.');
+      const scale=Math.min(1,1600/Math.max(width,height)),surface=document.createElement('canvas');
+      surface.width=Math.max(20,Math.round(width*scale));surface.height=Math.max(20,Math.round(height*scale));
+      const context=surface.getContext('2d');if(!context)throw Error('Photo preparation is unavailable. Please use a signature.');
+      context.fillStyle='#fff';context.fillRect(0,0,surface.width,surface.height);context.drawImage(image,0,0,surface.width,surface.height);
+      for(const quality of [.82,.65,.45]){
+        const blob=await new Promise(resolve=>surface.toBlob(resolve,'image/jpeg',quality));
+        if(blob&&blob.size>32&&blob.size<=2000000)return blob;
+      }
+      throw Error('Photo could not be reduced for upload. Take another photo or use a signature.');
+    }finally{image?.close?.();if(objectUrl)URL.revokeObjectURL(objectUrl);}
+  }
   window.hambelelaInitProof = (root,onComplete) => {
   const $ = id => root.querySelector('#'+id);
   root.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
   root.querySelectorAll('[data-hd-dialog]').forEach(b => b.addEventListener('click', () => $('hd-' + b.dataset.hdDialog).showModal()));
   const form = $('proof-form'); if (!form) return;
-  let signature = null, photoUrl = null, signatureUrl = null, dirty = false, busy = false, requestId = null;
+  let signature = null, photo = null, photoUrl = null, signatureUrl = null, dirty = false, busy = false, requestId = null, photoPreparing = false, photoSequence = 0, disposed = false;
   const feedback = text => { $('proof-feedback').textContent = text; $('proof-feedback').hidden = !text; };
   const changed = () => {dirty = true; requestId = null;};
   form.addEventListener('input', changed);
@@ -15,25 +37,33 @@
     const rep = b.dataset.type === 'representative'; $('representative-extra').hidden = !rep; form.elements.relationship.required = rep; changed();
   }));
   $('photo-tile').addEventListener('click', () => $('proof-photo').click());
-  const removePhoto = () => { if(photoUrl) URL.revokeObjectURL(photoUrl); photoUrl = null; $('proof-photo').value = ''; $('photo-preview').hidden = true; $('photo-image').removeAttribute('src'); $('photo-tile').dataset.attached = 'false'; changed(); };
-  $('proof-photo').addEventListener('change', () => {
-    if (photoUrl) URL.revokeObjectURL(photoUrl);
-    const file = $('proof-photo').files[0]; if (!file) {removePhoto(); return;}
-    if (!['image/jpeg','image/png','image/webp'].includes(file.type) || file.size > 2000000) {removePhoto(); feedback('Use a JPEG, PNG or WebP photo smaller than 2 MB.'); return;}
-    photoUrl = URL.createObjectURL(file); $('photo-image').src = photoUrl; $('photo-preview').hidden = false; $('photo-tile').dataset.attached = 'true'; changed(); feedback('');
+  const removePhoto = () => {photoSequence++;photoPreparing=false;photo=null;if(photoUrl) URL.revokeObjectURL(photoUrl); photoUrl = null; $('proof-photo').value = ''; $('photo-preview').hidden = true; $('photo-image').removeAttribute('src'); $('photo-tile').dataset.attached = 'false'; changed();};
+  $('proof-photo').addEventListener('change', async () => {
+    const file=$('proof-photo').files[0];if(!file)return; // Cancelling the camera keeps the previous attachment.
+    const token=++photoSequence;photoPreparing=true;dirty=true;feedback('Preparing photo…');
+    try{
+      const prepared=await preparePhoto(file);if(disposed||token!==photoSequence)return;
+      if(photoUrl)URL.revokeObjectURL(photoUrl);photo=prepared;photoUrl=URL.createObjectURL(photo);
+      $('photo-image').src=photoUrl;$('photo-preview').hidden=false;$('photo-tile').dataset.attached='true';changed();feedback('Photo attached. Press Confirm delivery to save it with the order.');
+    }catch(error){if(!disposed&&token===photoSequence)feedback(error.message+(photo?' Your previous attached photo is still kept.':''));}
+    finally{if(token===photoSequence)photoPreparing=false;}
   });
   $('photo-remove').addEventListener('click', removePhoto);
-  const canvas = $('signature-canvas'), ctx = canvas.getContext('2d'); let drawing = false, strokes = 0, distance = 0, previous = null;
-  const clear = () => {ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); strokes = distance = 0; $('signature-error').textContent = '';}; clear();
+  const canvas = $('signature-canvas'), ctx = canvas.getContext('2d'); let drawing = false, strokes = 0, distance = 0, previous = null, bounds = null, pointer = null, frame = null, queue = [];
+  ctx.strokeStyle='#24362d';ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';
+  const draw = () => {frame=null;if(!queue.length)return;ctx.beginPath();for(const [from,to] of queue){ctx.moveTo(...from);ctx.lineTo(...to);}ctx.stroke();queue=[];};
+  const flushInk = () => {if(frame!==null)cancelAnimationFrame(frame);draw();};
+  const clear = () => {if(frame!==null)cancelAnimationFrame(frame);frame=null;queue=[];drawing=false;pointer=null;ctx.fillStyle = '#fff'; ctx.fillRect(0,0,canvas.width,canvas.height); strokes = distance = 0; $('signature-error').textContent = '';}; clear();
   $('signature-tile').addEventListener('click', () => $('proof-signature').showModal());
-  const point = e => {const r = canvas.getBoundingClientRect(); return [(e.clientX-r.left)*canvas.width/r.width,(e.clientY-r.top)*canvas.height/r.height];};
-  canvas.addEventListener('pointerdown', e => { drawing = true; strokes++; previous = point(e); canvas.setPointerCapture(e.pointerId); });
-  canvas.addEventListener('pointermove', e => {if (!drawing) return; const next = point(e); ctx.strokeStyle='#24362d';ctx.lineWidth=3;ctx.lineCap='round';ctx.beginPath();ctx.moveTo(...previous);ctx.lineTo(...next);ctx.stroke();distance+=Math.hypot(next[0]-previous[0],next[1]-previous[1]);previous=next;});
-  ['pointerup','pointercancel','lostpointercapture'].forEach(type => canvas.addEventListener(type, () => {drawing=false;}));
+  const point = e => [(e.clientX-bounds.left)*canvas.width/bounds.width,(e.clientY-bounds.top)*canvas.height/bounds.height];
+  canvas.addEventListener('pointerdown', e => {if(drawing||e.isPrimary===false)return;e.preventDefault();bounds=canvas.getBoundingClientRect();if(!bounds.width||!bounds.height)return;drawing=true;pointer=e.pointerId;strokes++;previous=point(e);dirty=true;canvas.setPointerCapture(e.pointerId);},{passive:false});
+  canvas.addEventListener('pointermove', e => {if(!drawing||e.pointerId!==pointer)return;e.preventDefault();const samples=e.getCoalescedEvents?.()||[];for(const sample of samples.length?samples:[e]){const next=point(sample);queue.push([previous,next]);distance+=Math.hypot(next[0]-previous[0],next[1]-previous[1]);previous=next;}if(frame===null)frame=requestAnimationFrame(draw);},{passive:false});
+  ['pointerup','pointercancel','lostpointercapture'].forEach(type => canvas.addEventListener(type,e=>{if(e.pointerId!==pointer)return;flushInk();drawing=false;pointer=null;}));
   $('signature-clear').addEventListener('click', clear);
   $('signature-save').addEventListener('click', () => {
+    flushInk();
     if (!strokes || distance<35) {$('signature-error').textContent='Ask the recipient to sign before saving.';return;}
-    canvas.toBlob(blob => {if(!blob)return;if(signatureUrl)URL.revokeObjectURL(signatureUrl);signature=blob;signatureUrl=URL.createObjectURL(blob);$('signature-image').src=signatureUrl;$('signature-preview').hidden=false;$('signature-tile').dataset.attached='true';$('proof-signature').close();changed();},'image/png');
+    canvas.toBlob(blob => {if(disposed||!blob)return;if(signatureUrl)URL.revokeObjectURL(signatureUrl);signature=blob;signatureUrl=URL.createObjectURL(blob);$('signature-image').src=signatureUrl;$('signature-preview').hidden=false;$('signature-tile').dataset.attached='true';$('proof-signature').close();changed();},'image/png');
   });
   $('signature-remove').addEventListener('click', () => {signature=null;if(signatureUrl)URL.revokeObjectURL(signatureUrl);signatureUrl=null;$('signature-image').removeAttribute('src');$('signature-preview').hidden=true;$('signature-tile').dataset.attached='false';clear();changed();});
   const recipientChanged=()=>{if(signature){$('signature-remove').click();feedback('Recipient changed. Please ask the actual recipient to sign again.');}};
@@ -44,7 +74,7 @@
     if (!form.reportValidity()) return false;
     if (!form.elements.recipient_name.value.trim()) {feedback('Enter the actual recipient name.');return false;}
     if (form.elements.recipient_type.value==='representative' && root.dataset.representative!=='relationship') {feedback('Representative handover needs dispatch approval.');return false;}
-    const photo=$('proof-photo').files[0];
+    if(photoPreparing){feedback('Please wait while the photo is prepared.');return false;}
     if(root.dataset.policy==='signature'&&!signature){feedback('The recipient signature is required. A photo alone is not sufficient.');return false;}
     if ((!photo&&!signature)||(root.dataset.policy==='both'&&(!photo||!signature))) {feedback(root.dataset.policy==='both'?'Attach a photo and the recipient signature.':'Attach a photo or the recipient signature.');return false;}
     if (!['one','both','signature'].includes(root.dataset.policy)) {feedback('Owner approval of the evidence policy is pending.');return false;}
@@ -56,6 +86,7 @@
     busy=true;const originalDisabled=$('proof-submit').disabled;
     // Freeze editable controls during upload; values were captured first.
     const data=new FormData(form);data.set('action','complete');
+    data.delete('photo');if(photo)data.set('photo',photo,'delivery-photo.jpg');
     requestId ||= crypto.randomUUID();data.set('request_id',requestId);if(signature)data.set('signature',signature,'signature.png');
     const controls=[...form.querySelectorAll('input,button,select,textarea')];const disabled=controls.map(x=>x.disabled);controls.forEach(x=>x.disabled=true);
     $('proof-transfer').textContent='Uploading and checking with the server…';feedback('');
@@ -72,7 +103,7 @@
   }
   const beforeUnload=e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}};
   window.addEventListener('beforeunload',beforeUnload);
-  return {canClose(){if(busy){feedback('Please wait for the server confirmation before closing.');return false;}return !dirty||window.confirm('Discard the unsent signature and payment details?');},dispose(){window.removeEventListener('beforeunload',beforeUnload);if(photoUrl)URL.revokeObjectURL(photoUrl);if(signatureUrl)URL.revokeObjectURL(signatureUrl);root.querySelectorAll('dialog[open]').forEach(d=>d.close());}};
+  return {canClose(){if(busy){feedback('Please wait for the server confirmation before closing.');return false;}return !dirty||window.confirm('Discard the unsent photo, signature and payment details?');},dispose(){disposed=true;photoSequence++;if(frame!==null)cancelAnimationFrame(frame);window.removeEventListener('beforeunload',beforeUnload);if(photoUrl)URL.revokeObjectURL(photoUrl);if(signatureUrl)URL.revokeObjectURL(signatureUrl);root.querySelectorAll('dialog[open]').forEach(d=>d.close());}};
   };
   const root=document.querySelector('[data-proof]');if(root)window.hambelelaInitProof(root);
 })();
