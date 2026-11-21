@@ -8,10 +8,10 @@ $cases=[['new_order','delivery'],['ready_for_delivery','delivery'],['packed','de
 $ids=[];
 foreach($cases as $n=>$c){$oid=random_int(100000000,900000000);$ids[]=$oid;$db->prepare('INSERT INTO ops_orders(id,order_number,total_amount,status,fulfilment_mode,notes) VALUES(?,?,450,?,?,?)')->execute([$oid,$prefix.'-'.$n,$c[0],$c[1],'Shipping address: Synthetic street']);}
 $rows=\Hambelela\Delivery\OrderSuggestions::search($db,$prefix,true);
-ok(count($rows)===3&&$rows[0]['id']==$ids[1]&&$rows[1]['id']==$ids[2],'suggestions exclude collection/closed/dispatched and rank readiness');
+ok(count($rows)===4&&$rows[0]['id']==$ids[1]&&$rows[1]['id']==$ids[2],'suggestions include completed orders but exclude collection/cancelled/dispatched and rank readiness');
 $core->command($front,array_merge($body,['order'=>$ids[1],'uuid'=>uid()]));
 $rows=\Hambelela\Delivery\OrderSuggestions::search($db,$prefix,true);
-ok(count($rows)===2,'active delivery omitted from suggestions');
+ok(count($rows)===3,'active delivery omitted from suggestions');
 $search=\Hambelela\Delivery\OrderSuggestions::search($db,$prefix.'-1',false);
 ok(count($search)===1&&$search[0]['active_delivery_id'],'search still opens already-arranged delivery');
 echo "Suggestion eligibility tests passed.\n";

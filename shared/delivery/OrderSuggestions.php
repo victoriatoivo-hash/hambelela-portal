@@ -9,7 +9,7 @@ final class OrderSuggestions
         $where="o.deleted_at IS NULL AND o.archived_at IS NULL";$sort="o.id DESC";
         if($suggest){
             $where.=" AND COALESCE(NULLIF(o.fulfilment_mode,''),o.order_type)='delivery'
-                AND o.status NOT IN ('completed','cancelled','canceled','refunded','dispatched','out_for_delivery','delivered','ready_for_collection','ready_for_courier')
+                AND o.status NOT IN ('cancelled','canceled','refunded','dispatched','out_for_delivery','delivered','ready_for_collection','ready_for_courier')
                 AND NOT EXISTS(SELECT 1 FROM delivery_jobs d WHERE d.order_id=o.id AND d.status<>'cancelled')";
             $sort="CASE WHEN o.status='ready_for_delivery' THEN 0 WHEN o.status IN ('verified','packed') THEN 1 ELSE 2 END,o.id ASC";
         }

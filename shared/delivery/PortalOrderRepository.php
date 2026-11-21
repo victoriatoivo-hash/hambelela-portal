@@ -46,7 +46,9 @@ final class PortalOrderRepository
         if(!empty($input['source_order'])){
             $mode=strtolower(trim((string)($order['fulfilment_mode']??'')))?:strtolower(trim((string)($order['order_type']??'')));
             if($mode!==''&&$mode!=='delivery')throw new \DomainException('Only Delivery-mode orders can be arranged here.');
-            if(in_array(strtolower((string)($order['status']??'')),['completed','cancelled','canceled','refunded','dispatched','out_for_delivery','delivered'],true))throw new \DomainException('This Order is completed, cancelled or already dispatched.');
+            // Portal completion is not proof of driver collection or delivery.
+            // DeliveryArrangement checks actual active/completed delivery jobs.
+            if(in_array(strtolower((string)($order['status']??'')),['cancelled','canceled','refunded','dispatched','out_for_delivery','delivered'],true))throw new \DomainException('This Order is cancelled, refunded or already dispatched.');
             if(!empty($input['additional_delivery']))throw new \DomainException('An additional trip requires separate authorized review.');
             if($shippingEvidence!==null){WooShippingSource::assertCurrent($order,$shippingEvidence);$fee=(int)$shippingEvidence['included_cents'];}
             else $fee=self::shippingComponent($order);

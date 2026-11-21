@@ -34,8 +34,8 @@ final class WooShippingSource
         $failedPaymentDelivery=$remoteStatus==='failed'&&$mode==='delivery'
             &&in_array($portalStatus,['new','new_order','in_progress','packed','completed'],true)
             &&empty($order['deleted_at'])&&empty($order['archived_at']);
-        // Completed is allowed for existing-job reconciliation only. The
-        // arrangement repository still rejects a new dispatch for completed work.
+        // Portal completion does not prove physical delivery. Actual delivery
+        // records independently prevent duplicate dispatches.
         if(!in_array($remoteStatus,['pending','on-hold','processing','completed'],true)&&!$failedPaymentDelivery)
             throw new \DomainException('Website order status requires review before delivery: '.($remoteStatus?:'not recorded').'.');
         if(!isset($remote['refunds'])||!is_array($remote['refunds'])||$remote['refunds'])throw new \DomainException('Refunded or unverified Order requires review before delivery.');

@@ -41,3 +41,4 @@ $o['portal_paid_confirmed']=1;$b=OrderDispatchBalance::read($db,$o,4000);ok($b['
 $o['portal_paid_confirmed']=0;$o['payment_status']='unpaid';$o['payment_method']='Cash';
 $db->exec('DELETE FROM order_payment_allocations WHERE order_id=104');
 $o['portal_paid_confirmed']=1;ok(OrderDispatchBalance::read($db,$o,4000)['collect_cents']===0,'Paid tick works without imported allocations');
+require __DIR__.'/delivery-completed-orders.php';
