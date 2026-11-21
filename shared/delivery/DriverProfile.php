@@ -16,8 +16,11 @@ try{
         if(!is_string($_POST['payload']??null)||strlen($_POST['payload'])>1000)throw new DomainException('Invalid profile request.');
         $payload=json_decode($_POST['payload'],true,8,JSON_THROW_ON_ERROR);
         if(!is_array($payload)||array_diff(array_keys($payload),['action','actor'])||(int)($payload['actor']??0)!==$actor['id'])throw new DomainException('Account changed or unsupported fields. Reload.',403);
-        if(($payload['action']??'')!=='read')throw new DomainException('Profile changes are not enabled. Contact dispatch.',405);
-        $result=(new DriverProfileData(db()))->read($actor['id']);
+        if(($payload['action']??'')==='app_open'){
+            require_once __DIR__.'/DriverAppActivity.php';
+            $result=\Hambelela\Delivery\DriverAppActivity::record(db(),$actor['id']);
+        }elseif(($payload['action']??'')==='read')$result=(new DriverProfileData(db()))->read($actor['id']);
+        else throw new DomainException('Profile changes are not enabled. Contact dispatch.',405);
         header('Content-Type: application/json; charset=utf-8');echo json_encode(['ok'=>true,'actor'=>$actor['id'],'data'=>$result],JSON_THROW_ON_ERROR);return;
     }
     if($method!=='GET')throw new DomainException('Method not allowed.',405);

@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Delivery;
+require_once __DIR__.'/OrderReference.php';
 require_once __DIR__.'/EmployeeDriverSession.php';
 require_once __DIR__.'/OrderBalanceAdapter.php';
 require_once __DIR__.'/DeliveryIssueState.php';
@@ -94,7 +95,7 @@ final class DriverAssignments
             elseif(!$custody['handover'])$handoverNotice='Waiting for Front Desk to record the parcel handover. This updates automatically.';
             else{$action='start';$actionLabel='Start delivery';}
         }
-        return ['action'=>$action,'actionLabel'=>$actionLabel,'handoverNotice'=>$handoverNotice,'issue'=>$issue?['reference'=>$issue['incident_id'],'blocking'=>$issue['blocking'],'instruction'=>$issue['latest_decision']['instruction']??null]:null,'assignmentId'=>(int)$r['id'],'orderId'=>$r['order_id']?(int)$r['order_id']:null,'orderNumber'=>$r['order_number']?:($r['partner_reference']?:$r['public_reference']),
+        return ['action'=>$action,'actionLabel'=>$actionLabel,'handoverNotice'=>$handoverNotice,'issue'=>$issue?['reference'=>$issue['incident_id'],'blocking'=>$issue['blocking'],'instruction'=>$issue['latest_decision']['instruction']??null]:null,'assignmentId'=>(int)$r['id'],'orderId'=>$r['order_id']?(int)$r['order_id']:null,'orderNumber'=>OrderReference::display($r['order_number']?:($r['partner_reference']?:$r['public_reference'])),
             'customerDisplayName'=>$customer,'deliveryArea'=>trim((string)$r['area'])?:'Area not recorded','itemCount'=>$r['source']==='hambelela'?(int)$r['item_count']:null,
             'stage'=>$stage,'displayStatus'=>$label,'reviewReason'=>$reason,'dispatchPriority'=>!empty($r['urgent'])?1:null,'routeSequence'=>null,'isNextStop'=>false,
             'scheduledTimeLocal'=>$scheduled,'scheduledSort'=>$sort,'distanceKm'=>null,'collectedAt'=>$picked?$r['pickup_at']:null,'deliveredAt'=>$r['delivered_at'],

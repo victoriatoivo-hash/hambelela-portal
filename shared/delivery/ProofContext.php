@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Delivery;
+require_once __DIR__.'/OrderReference.php';
 require_once __DIR__.'/DriverAssignments.php';
 require_once __DIR__.'/ProofPolicy.php';
 
@@ -25,7 +26,7 @@ final class ProofContext
         if(DeliveryIssueState::latest($db,$id)['blocking']??false)$reason=$operationalReason='Issue reported. Await dispatch approval before confirming arrival or delivery.';
         if($job['delivered_at']||$receipt)$reason='Delivery handover is already recorded. Do not submit it again.';
         $order=self::row($db,'SELECT order_number FROM ops_orders WHERE id=?',[$job['order_id']]);
-        return ['job'=>$job,'reference'=>$order['order_number']??$job['public_reference'],'name'=>$job['customer_name'],
+        return ['job'=>$job,'reference'=>OrderReference::display($order['order_number']??$job['public_reference']),'name'=>$job['customer_name'],
             'version'=>(int)$job['version'],'arrival'=>$arrival['created_at']??null,'payment_verified'=>(bool)$paid,
             'payment_label'=>$assignment['paymentLabel']??'Payment needs review','due'=>$assignment['codAmountDueNad']??null,
             'reason'=>$reason,'operational_reason'=>$operationalReason,'receipt'=>$receipt,'policy'=>ProofPolicy::configured()];

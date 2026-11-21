@@ -27,6 +27,42 @@ final class DriverRouteMaps
         if($ok===false||$status!==200)throw new \DomainException('Google routing unavailable. Check key restrictions and billing in Google Cloud.');
         $result=json_decode($output,true,32,JSON_THROW_ON_ERROR);if(!is_array($result))throw new \DomainException('Invalid map response.');return $result;
     }
+    /** Bounded, driver-scoped destinations; no GPS stored and no route ordering changed. */
+    public function nearby(int $driver,array $point,string $revision):array
+    {
+        EmployeeDriverSession::actor($this->db,$driver);
+        $snapshot=DriverLiveRouteData::read($this->db,$driver);
+        if(!hash_equals($snapshot['revision_token'],$revision))throw new \DomainException('Assignments changed. Locate again.');
+        $now=time();$fix=TrackingPolicy::point($point,$now);
+        if($now-$fix['recorded_at']>120||$fix['accuracy']>250)throw new \DomainException('Location is stale or inaccurate. Try outdoors.');
+        $limit=TrackingPolicy::settings([])['route_daily_limit'];
+        foreach($this->rows('SELECT settings_json FROM delivery_tracking_devices WHERE employee_id=? AND active=1',[$driver]) as $device)$limit=min($limit,TrackingPolicy::settings(json_decode($device['settings_json'],true)??[])['route_daily_limit']);
+        $points=[];$unavailable=0;$attempts=0;$deadline=microtime(true)+8;
+        foreach($snapshot['stops'] as $stop){
+            if(!$stop['address_display']){$unavailable++;continue;}
+            $id=(int)$stop['assignment_id'];$jobs=$this->rows("SELECT address FROM delivery_jobs WHERE id=? AND driver_employee_id=? AND status IN('ready','assigned','accepted','out_for_delivery')",[$id,$driver]);
+            if(!$jobs){$unavailable++;continue;}
+            $address=trim((string)$jobs[0]['address']);$hash=hash('sha256',$address);
+            $this->run('INSERT IGNORE INTO delivery_tracking_routes(delivery_id,address_hash) VALUES(?,?)',[$id,$hash]);
+            $cache=$this->rows('SELECT * FROM delivery_tracking_routes WHERE delivery_id=?',[$id])[0];
+            if($cache['address_hash']!==$hash||$cache['destination_lat']===null||$now-(int)$cache['geocoded_at']>86400*29){
+                if($this->key===''||$attempts>=3||microtime(true)>$deadline||!$this->run('UPDATE delivery_tracking_routes SET route_lock_until=? WHERE delivery_id=? AND route_lock_until<=?',[$now+45,$id,$now])){$unavailable++;continue;}
+                $attempts++;
+                try{
+                    $this->allowance('geocoding',min(30,$limit));
+                    $geo=$this->request('https://maps.googleapis.com/maps/api/geocode/json?'.http_build_query(['address'=>$address,'components'=>'country:NA','key'=>$this->key]),null);
+                    $rows=$geo['results']??[];$p=$rows[0]['geometry']['location']??[];
+                    if(($geo['status']??'')!=='OK'||count($rows)!==1||!empty($rows[0]['partial_match'])||!isset($p['lat'],$p['lng'])||!is_numeric($p['lat'])||!is_numeric($p['lng'])||abs((float)$p['lat'])>90||abs((float)$p['lng'])>180)throw new \DomainException('Address needs review.');
+                    $cache['destination_lat']=(float)$p['lat'];$cache['destination_lon']=(float)$p['lng'];
+                    $this->run('UPDATE delivery_tracking_routes SET address_hash=?,destination_lat=?,destination_lon=?,geocoded_at=?,calculated_at=NULL,route_lock_until=0 WHERE delivery_id=?',[$hash,$p['lat'],$p['lng'],$now,$id]);
+                }catch(\Throwable $e){$this->run('UPDATE delivery_tracking_routes SET route_lock_until=? WHERE delivery_id=?',[$now+180,$id]);$unavailable++;continue;}
+            }
+            $points[]=['assignment_id'=>$id,'reference'=>$stop['order_reference'],'lat'=>(float)$cache['destination_lat'],'lng'=>(float)$cache['destination_lon']];
+        }
+        $fresh=DriverLiveRouteData::read($this->db,$driver);
+        if(!hash_equals($fresh['revision_token'],$revision))throw new \DomainException('Assignments changed. Locate again.');
+        return ['driver_id'=>$driver,'route_revision'=>$revision,'stops'=>$points,'unavailable'=>$unavailable];
+    }
     public function route(int $driver,int $delivery,array $point,string $revision):array
     {
         EmployeeDriverSession::actor($this->db,$driver);

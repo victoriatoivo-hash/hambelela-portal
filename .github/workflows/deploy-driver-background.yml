@@ -32,6 +32,8 @@ jobs:
           node offline-driver/test-order-details-refresh.cjs
           node offline-driver/test-live-route-refresh.cjs
           node offline-driver/test-route-map-client.cjs
+          node offline-driver/test-route-nearby-client.cjs
+          node offline-driver/test-app-activity.cjs
           node offline-driver/test-errand-client.cjs
           node offline-driver/test-issue-client.cjs
           node offline-driver/test-dispatch-client.cjs

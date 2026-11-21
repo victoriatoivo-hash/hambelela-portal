@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Delivery;
+require_once __DIR__.'/OrderReference.php';
 require_once __DIR__.'/EmployeeDriverSession.php';
 require_once __DIR__.'/FrontSession.php';
 
@@ -48,7 +49,14 @@ final class CashHandover
             if($r['source']==='hambelela'&&!$r['order_number'])$blocked='Source order is unavailable; cash remains recorded.';
             if($total<0||$confirmed+$pending>$total)throw new \DomainException('Cash allocation balances need review. No amount has been guessed.');
             $name=trim((string)$r['customer_name']);$parts=preg_split('/\s+/u',$name);$name=($parts[0]??'Customer').(count($parts)>1?' '.mb_substr(end($parts),0,1).'.':'');
-            $out[]=['id'=>$id,'event_ref'=>$r['collection_uuid'],'delivery_id'=>(int)$r['delivery_id'],'order_id'=>$r['order_id']?(int)$r['order_id']:null,'reference'=>$r['order_number']?:$r['public_reference'],'customer'=>(int)$r['driver_employee_id']===$driver?$name:'Previous assignment','area'=>(int)$r['driver_employee_id']===$driver?$r['area']:'','collected_minor'=>$total,'collected_at'=>$r['collected_at'],'payment_source'=>$r['source'],'status'=>$r['status'],'confirmed_minor'=>$confirmed,'pending_minor'=>$pending,'due_minor'=>$total-$confirmed,'available_minor'=>$total-$confirmed-$pending,'eligible'=>$blocked===null&&$r['status']==='collected','review'=>$blocked,'correction_of'=>$correction,'history'=>$history];
+            $out[]=['id'=>$id,'event_ref'=>$r['collection_uuid'],'delivery_id'=>(int)$r['delivery_id'],'order_id'=>$r['order_id']?(int)$r['order_id']:null,'reference'=>OrderReference::display($r['order_number']?:$r['public_reference']),'customer'=>(int)$r['driver_employee_id']===$driver?$name:'Previous assignment','area'=>(int)$r['driver_employee_id']===$driver?$r['area']:'','collected_minor'=>$total,'collected_at'=>$r['collected_at'],'payment_source'=>$r['source'],'status'=>$r['status'],'confirmed_minor'=>$confirmed,'pending_minor'=>$pending,'due_minor'=>$total-$confirmed,'available_minor'=>$total-$confirmed-$pending,'eligible'=>$blocked===null&&$r['status']==='collected','review'=>$blocked,'correction_of'=>$correction,'history'=>$history];
+        }return $out;
+    }
+    /** Cash declared at completion with a variance is not an allocated payment receipt. */
+    public function declarations(int $driver):array {
+        $rows=$this->rows("SELECT e.id,e.created_at,e.metadata_json,j.id delivery_id,j.public_reference,j.customer_name,o.order_number FROM delivery_events e JOIN delivery_jobs j ON j.id=e.delivery_id LEFT JOIN ops_orders o ON o.id=j.order_id WHERE e.employee_id=? AND e.event_type='delivered' AND j.status='awaiting_reconciliation' AND NOT EXISTS(SELECT 1 FROM delivery_events newer WHERE newer.delivery_id=e.delivery_id AND newer.event_type='delivered' AND newer.id>e.id) AND NOT EXISTS(SELECT 1 FROM delivery_receipts r WHERE r.delivery_id=e.delivery_id AND r.collected_at>=e.created_at AND r.status<>'reversed') ORDER BY e.id DESC",[$driver]);$out=[];
+        foreach($rows as $r){$m=json_decode($r['metadata_json'],true);if(empty($m['declaration_review'])||strtolower(trim((string)($m['declared_method']??'')))!=='cash'||!is_int($m['declared_cents']??null)||$m['declared_cents']<=0)continue;
+            $out[]=['event_id'=>(int)$r['id'],'delivery_id'=>(int)$r['delivery_id'],'reference'=>OrderReference::display($r['order_number']?:$r['public_reference']),'declared_minor'=>$m['declared_cents'],'expected_minor'=>(int)($m['expected_cents']??0),'difference_minor'=>(int)($m['difference_cents']??0),'recorded_at'=>$r['created_at']];
         }return $out;
     }
     public function summary(int $employee,int $requested=0):array {
@@ -57,6 +65,8 @@ final class CashHandover
         foreach($this->collections($driver) as $r){$date=(new \DateTimeImmutable($r['collected_at'],new \DateTimeZone('UTC')))->setTimezone(new \DateTimeZone('Africa/Windhoek'))->format('Y-m-d');if($date===$today&&$r['collected_minor']>0){$out['collected_today_minor']+=$r['collected_minor'];$out['today_count']++;}
             $out['due_minor']+=$r['due_minor'];$out['pending_minor']+=$r['pending_minor'];if($r['eligible'])$out['unsubmitted_minor']+=$r['available_minor'];if($r['review'])$out['review_minor']+=$r['due_minor'];if($r['due_minor']>0||$date===$today)$out['collections'][]=$r;
         }
+        $out['declarations']=$this->declarations($driver);$out['declared_review_minor']=0;$out['declared_today_minor']=0;
+        foreach($out['declarations'] as $d){$out['declared_review_minor']+=$d['declared_minor'];if((new \DateTimeImmutable($d['recorded_at'],new \DateTimeZone('UTC')))->setTimezone(new \DateTimeZone('Africa/Windhoek'))->format('Y-m-d')===$today)$out['declared_today_minor']+=$d['declared_minor'];}
         if(self::ready($this->db))$out['handovers']=array_map(fn($h)=>$this->details($h),$this->rows('SELECT id,state,expected_minor,declared_minor,counted_minor,note,correction_of,created_at,received_at FROM delivery_cash_handovers WHERE driver_id=? ORDER BY id DESC LIMIT 100',[$driver]));
         return $out;
     }
