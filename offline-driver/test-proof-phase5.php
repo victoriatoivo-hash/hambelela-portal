@@ -56,7 +56,14 @@ try{
     verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='driver_accepted'")->fetchColumn()===1,'accept is repeat safe');
     rejects(fn()=>$service->confirmPickup($actor,$id,uuid5()),'driver cannot invent front desk handover');
     rejects(fn()=>$service->start($actor,$id,uuid5(),true),'combined start cannot invent front desk handover');
-    $event('parcel_collected',['driver_id'=>3]);
+    $front=\Hambelela\Delivery\FrontSession::actor($db,2);
+    $acceptance=(int)$db->query("SELECT id FROM delivery_events WHERE delivery_id=$id AND event_type='driver_accepted' ORDER BY id DESC LIMIT 1")->fetchColumn();
+    rejects(fn()=>$service->pickup($front,$id,uuid5(),3,['confirmed'=>true,'acceptance_event_id'=>$acceptance+1]),'preserved live handover rejects stale acceptance');
+    rejects(fn()=>$service->pickup($front,$id,uuid5(),3,['confirmed'=>false,'acceptance_event_id'=>$acceptance]),'preserved live handover requires explicit confirmation');
+    rejects(fn()=>$service->pickup($front,$id,uuid5(),3,['confirmed'=>true,'acceptance_event_id'=>$acceptance,'parcel_count'=>0]),'preserved live handover rejects invalid count');
+    $pickupKey=uuid5();$pickupDetails=['confirmed'=>true,'acceptance_event_id'=>$acceptance];
+    $handover=$service->pickup($front,$id,$pickupKey,3,$pickupDetails);$service->pickup($front,$id,$pickupKey,3,$pickupDetails);
+    verify($handover['parcel_count']===null&&(int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='parcel_collected'")->fetchColumn()===1,'live confirmation-only handover stays truthful and repeat safe');
     rejects(fn()=>$service->start($actor,$id,uuid5()),'start requires driver pickup confirmation');
     $service->confirmPickup($actor,$id,uuid5());$startKey=uuid5();$service->start($actor,$id,$startKey);$service->start($actor,$id,$startKey);
     verify($db->query("SELECT status FROM delivery_jobs WHERE id=$id")->fetchColumn()==='out_for_delivery','accepted and confirmed delivery starts');

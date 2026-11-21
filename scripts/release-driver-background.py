@@ -3,10 +3,13 @@
 Uses the existing portal deployment credentials and verifies the installed driver
 release baseline before replacing anything. Backup and readback are mandatory.
 """
-import argparse, difflib, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
+import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASE = '21c916e6911fec3a8afcab98643a512f4e1ba77b'
+# Owner-approved comparison, run 44890830990: current Front Desk handover checks
+# are preserved in the desired source, not overwritten with the older git copy.
+REVIEWED_LIVE = {'shared/delivery/DeliveryService.php': '37b843cdef2247851842894a43246573b1671bd720a8db95a8c310cfa48bcc0b'}
 FILES = [
     'assets/css/driver-completion-dialog.css',
     'assets/css/driver-proof-integration.css',
@@ -73,11 +76,8 @@ def main(deploy):
         before={p:read(ftp,p) for p in FILES}
         unknown=[]
         for p,data in before.items():
-            if digest(data) not in [digest(blob(BASE,p)),digest(wanted[p])]:
+            if digest(data) not in [REVIEWED_LIVE.get(p,digest(blob(BASE,p))),digest(wanted[p])]:
                 unknown.append(p)
-                print('LIVE SOURCE DIFFERENCE '+p+' sha256='+str(digest(data)),flush=True)
-                if p == 'shared/delivery/DeliveryService.php':
-                    print(''.join(difflib.unified_diff((blob(BASE,p) or b'').decode('utf-8').splitlines(True),(data or b'').decode('utf-8').splitlines(True),fromfile='baseline/'+p,tofile='live/'+p)),flush=True)
         if unknown:raise RuntimeError('Unknown live baselines; nothing changed: '+', '.join(unknown))
         with zipfile.ZipFile(BACKUP,'w',zipfile.ZIP_DEFLATED) as z:
             for p,data in before.items():
