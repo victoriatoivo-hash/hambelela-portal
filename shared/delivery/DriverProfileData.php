@@ -7,7 +7,8 @@ require_once __DIR__.'/DeliveryHistory.php';
 /** Self-only, read-only projection. No new employee registry or performance ledger. */
 final class DriverProfileData
 {
-    public function __construct(private \PDO $db) {}
+    private \PDO $db;
+    public function __construct(\PDO $db) {$this->db=$db;}
     public static function initials(string $name):string
     {
         $parts=preg_split('/\s+/u',trim($name),-1,PREG_SPLIT_NO_EMPTY)?:[];
@@ -22,6 +23,9 @@ final class DriverProfileData
         $metrics=['deliveries'=>null,'completion_rate'=>null,'errands'=>null,'errands_needs_review'=>null,'needs_review'=>null,'from'=>$week['from'],'to'=>$week['to'],'timezone'=>'Africa/Windhoek'];
         try {$history=(new DeliveryHistory($this->db))->page($employee,['period'=>'week'],$now);$metrics['deliveries']=$history['totals']['completed'];$metrics['needs_review']=$history['totals']['needs_review'];}
         catch(\PDOException $e){error_log('Driver profile delivery totals unavailable.');}
+        $metrics['rate_assigned']=null;$metrics['rate_completed']=null;
+        try {$rate=(new DeliveryHistory($this->db))->weeklyCompletion($employee,$now);$metrics['completion_rate']=$rate['rate'];$metrics['rate_assigned']=$rate['assigned'];$metrics['rate_completed']=$rate['completed'];}
+        catch(\PDOException $e){error_log('Driver profile completion rate unavailable.');}
         try {
             // Count a current, completed errand once, attributed to its actual completion actor.
             // Reopen/cancel clears eligibility; repeated completion signals do not multiply work.

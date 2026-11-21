@@ -7,7 +7,7 @@ final class DispatchFiles
 {
     public const MAX_BYTES=2000000; // Existing portal upload ceiling; UI and API agree.
     public static function root():string {
-        $root=(string)getenv('HO_DRIVER_PROOF_DIR');new ProofStorage($root);return (string)realpath($root);
+        $root=ProofStorage::directory();new ProofStorage($root);return (string)realpath($root);
     }
     public static function policy():array {
         $p=self::root().'/dispatch-policy.json';return is_file($p)?json_decode((string)file_get_contents($p),true,16,JSON_THROW_ON_ERROR):[];
@@ -35,7 +35,7 @@ final class DispatchFiles
         if(in_array($mime,['image/jpeg','image/png','image/webp'],true)){$f=(new ProofStorage(self::root()))->prepare($upload,'photo',$test);$mime='image/png';$name='Image.png';$extension='.png';}
         elseif($mime==='application/pdf'){
             $data=file_get_contents($path);$decoded=preg_replace_callback('/#([0-9a-fA-F]{2})/',static fn($m)=>chr(hexdec($m[1])),$data);
-            if(!str_starts_with($data,'%PDF-')||!preg_match('/%%EOF\s*$/',$data)||preg_match('~/(JavaScript|JS|Launch|EmbeddedFile|OpenAction|AA|RichMedia|XFA)\b~i',$decoded))throw new \DomainException('Use a standard PDF without scripts, embedded files or automatic actions.');
+            if(strpos($data,'%PDF-')!==0||!preg_match('/%%EOF\s*$/',$data)||preg_match('~/(JavaScript|JS|Launch|EmbeddedFile|OpenAction|AA|RichMedia|XFA)\b~i',$decoded))throw new \DomainException('Use a standard PDF without scripts, embedded files or automatic actions.');
             if(empty($policy['pdfInfoBinary']))throw new \DomainException('PDF checking is not configured. Please use a photo for now.');self::check($policy['pdfInfoBinary'],[$path]);
             $f=['id'=>bin2hex(random_bytes(24)),'sha256'=>$sourceHash];$target=self::root().'/'.$f['id'].'.pdf';if(!copy($path,$target))throw new \DomainException('Attachment could not be saved.');@chmod($target,0600);$f['stored_sha256']=hash_file('sha256',$target);$name='Document.pdf';$extension='.pdf';
         }else throw new \DomainException('Only JPEG, PNG, WebP images and PDF documents are accepted.');

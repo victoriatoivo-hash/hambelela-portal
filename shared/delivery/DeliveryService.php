@@ -4,6 +4,7 @@ namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
 require_once __DIR__.'/NotificationOutbox.php';
 require_once __DIR__.'/DeliveryDeadline.php';
+require_once __DIR__.'/DeliveryCustody.php';
 require_once __DIR__.'/ProofSubmission.php';
 require_once __DIR__.'/DeliveryIssueState.php';
 require_once __DIR__.'/FrontSession.php';
@@ -69,14 +70,58 @@ final class DeliveryService
         if(!$driver||(int)$driver['active']!==1)throw new \DomainException('Driver profile inactive.');
     }
 
+    public function accept(array $actor,int $id,string $uuid):array
+    {
+        return $this->command($actor,$id,$uuid,'driver_accepted',[],fn($j)=>$this->assigned($actor,$j),function($j){
+            if($j['status']!=='ready')throw new \DomainException('Only a ready assignment can be accepted.');
+            if(DeliveryCustody::read($this->db,$j)['acceptance'])throw new \DomainException('Assignment already accepted.');
+            return ['driver_id'=>(int)$j['driver_employee_id']];
+        });
+    }
+
+    public function confirmPickup(array $actor,int $id,string $uuid):array
+    {
+        return $this->command($actor,$id,$uuid,'driver_collection_confirmed',[],fn($j)=>$this->assigned($actor,$j),function($j){
+            $c=DeliveryCustody::read($this->db,$j);
+            if(!in_array($j['status'],['ready','out_for_delivery'],true)||!$c['acceptance']||!$c['handover'])throw new \DomainException('Accept the assignment and ask Front Desk to record the actual handover first.');
+            if($c['collection'])throw new \DomainException('Collection already confirmed.');
+            return ['driver_id'=>(int)$j['driver_employee_id'],'handover_event_id'=>(int)$c['handover']['id'],'parcel_count'=>$c['handover']['data']['parcel_count']??null];
+        });
+    }
+
+    public function pickupException(array $actor,int $id,string $uuid,string $reason):array
+    {
+        $reason=trim($reason);if(strlen($reason)<10||strlen($reason)>500)throw new \DomainException('Explain the handover exception (10–500 characters).');
+        return $this->command($actor,$id,$uuid,'handover_exception',[$reason],function($j)use($actor){
+            if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange')||!DeliveryPolicy::canView($actor,$j))throw new \DomainException('Arrangement permission required.');
+        },function($j)use($reason){
+            if($j['status']!=='ready')throw new \DomainException('Only a ready delivery can receive a handover exception.');
+            if(DeliveryCustody::read($this->db,$j)['exception'])throw new \DomainException('Exception already authorised.');
+            return ['driver_id'=>(int)$j['driver_employee_id'],'reason'=>$reason,'authorised_without_handover'=>true];
+        });
+    }
+
     public function start(array $actor,int $id,string $uuid): array
     {
         return $this->command($actor,$id,$uuid,'started',[],fn($j)=>$this->assigned($actor,$j),function($j)use($id){
             DeliveryIssueState::assertClear($this->db,$id);
             if($j['status']!=='ready')throw new \DomainException('Delivery is not ready.');
             $this->remaining($j);
+            $c=DeliveryCustody::read($this->db,$j);
+            if($c['tracking_version']&&!$c['acceptance'])throw new \DomainException('Accept this delivery first.');
+            if($c['tracking_version']&&!$c['exception']&&(!$c['handover']||!$c['collection']))throw new \DomainException('Parcel handover and driver collection confirmation are required before starting.');
             $this->exec("UPDATE delivery_jobs SET status='out_for_delivery',started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),version=version+1 WHERE id=?",[$id]);
-            return ['id'=>$id,'status'=>'out_for_delivery'];
+            $result=['id'=>$id,'status'=>'out_for_delivery'];
+            if($c['tracking_version']&&$c['exception']&&!$c['handover']){
+                $a=$this->row("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id LIMIT 1",[$id]);$m=json_decode((string)$a['metadata_json'],true);
+                if(($m['payment_arrangement']??'')==='cod'){
+                    require_once dirname(__DIR__).'/epi/Support.php';require_once dirname(__DIR__).'/epi/BusinessTimeEngine.php';
+                    $local=new \DateTimeImmutable('now',new \DateTimeZone('Africa/Windhoek'));
+                    $result['front_cod_due_utc']=(new \Hambelela\EPI\BusinessTimeEngine($this->db))->addWorkingMinutes($local->format('Y-m-d H:i:s'),480)->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s');
+                    $result['front_coordinator_id']=(int)$c['exception']['employee_id'];$result['exception_event_id']=(int)$c['exception']['id'];
+                }
+            }
+            return $result;
         });
     }
 
@@ -177,6 +222,7 @@ final class DeliveryService
         },function($j)use($id,$d,$version){
             if((int)$j['version']!==$version||!in_array($j['status'],['ready','failed','out_for_delivery'],true))throw new \DomainException('Delivery changed or completed. Refresh before editing its deadline.');
             $previous=DeliveryDeadline::latest($this->db,$id);
+            if(!empty($previous['requested_only'])||DeliveryCustody::read($this->db,$j)['tracking_version'])$d['requested_only']=true;
             $this->exec('UPDATE delivery_jobs SET version=version+1,updated_at=UTC_TIMESTAMP() WHERE id=?',[$id]);
             NotificationOutbox::queue($this->db,$id,(int)$j['driver_employee_id'],'deadline-change:'.$id.':'.($version+1),['kind'=>'deadline','deadline'=>DeliveryDeadline::label($d)]);
             return ['id'=>$id,'deadline'=>$d,'previous'=>$previous,'note'=>DeliveryDeadline::label($d)];
@@ -269,18 +315,21 @@ final class DeliveryService
             [$key,$job['id'],$receipt,$job['partner_id'],$account,$amount,$employee]);
     }
 
-    public function pickup(array $actor,int $id,string $uuid,int $driver):array
+    public function pickup(array $actor,int $id,string $uuid,int $driver,array $details=[]):array
     {
-        return $this->command($actor,$id,$uuid,'parcel_collected',[$driver],function($j)use($actor){
+        return $this->command($actor,$id,$uuid,'parcel_collected',isset($details['parcel_count'])?[$driver,(int)$details['parcel_count']]:[$driver],function($j)use($actor){
             if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange'))throw new \DomainException('Collection confirmation forbidden.');
-        },function($j)use($id,$driver,$actor){
+        },function($j)use($id,$driver,$actor,$details){
             if((int)$j['driver_employee_id']!==$driver||!in_array($j['status'],['ready','out_for_delivery'],true))throw new \DomainException('Driver or delivery status changed. Refresh before confirming.');
-            if($this->row("SELECT id FROM delivery_events WHERE delivery_id=? AND event_type='parcel_collected' LIMIT 1",[$id]))throw new \DomainException('Parcel pickup is already recorded.');
+            $custody=DeliveryCustody::read($this->db,$j);
+            if($custody['handover'])throw new \DomainException('Parcel pickup is already recorded.');
+            $count=filter_var($details['parcel_count']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>1000]]);
+            if($custody['tracking_version']&&$count===false)throw new \DomainException('Record the actual parcel count (1–1,000).');
             $a=$this->row("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id DESC LIMIT 1",[$id]);
             $m=json_decode((string)($a['metadata_json']??''),true);
             $now=new \DateTimeImmutable('now',new \DateTimeZone('UTC'));
-            $result=['driver_id'=>$driver,'recorded_by'=>$actor['id'],'dispatch_at'=>$now->format('Y-m-d H:i:s'),'expected_cents'=>array_sum($this->remaining($j)),'payment_arrangement'=>$m['payment_arrangement']??'not recorded'];
-            if($result['payment_arrangement']==='cod'){
+            $result=['parcel_count'=>$count===false?null:$count,'driver_id'=>$driver,'recorded_by'=>$actor['id'],'dispatch_at'=>$now->format('Y-m-d H:i:s'),'expected_cents'=>array_sum($this->remaining($j)),'payment_arrangement'=>$m['payment_arrangement']??'not recorded'];
+            if($result['payment_arrangement']==='cod'&&!$this->row("SELECT id FROM delivery_events WHERE delivery_id=? AND event_type='started' AND JSON_EXTRACT(metadata_json,'$.front_cod_due_utc') IS NOT NULL LIMIT 1",[$id])){
                 require_once dirname(__DIR__).'/epi/Support.php';require_once dirname(__DIR__).'/epi/BusinessTimeEngine.php';
                 $local=$now->setTimezone(new \DateTimeZone('Africa/Windhoek'));
                 $due=(new \Hambelela\EPI\BusinessTimeEngine($this->db))->addWorkingMinutes($local->format('Y-m-d H:i:s'),480);
@@ -324,11 +373,15 @@ final class DeliveryService
         if($confirmation!==null){
             $note=trim((string)($confirmation['note']??''));
             if(($confirmation['confirmed']??false)!==true||mb_strlen($note)>2000)throw new \DomainException('Confirm the delivery and payment. Optional notes may contain up to 2,000 characters.');
+            $proofInput=array_intersect_key($confirmation,array_flip(['received_by','confirmation_method','proof_reference']));
+            if($frontReason===null){
             $declared=DeliveryPolicy::cents((string)($confirmation['amount']??''));
             $method=(string)($confirmation['method']??'');
             if(!in_array($method,array_merge($this->methods,['already_paid','no_payment','cash','eft','mobile','other']),true)||(($declared===0)!==in_array($method,['already_paid','no_payment'],true)))throw new \DomainException('Confirm the actual amount and a matching payment method.');
-            $confirmation=['confirmed'=>true,'note'=>$note,'amount_cents'=>$declared,'method'=>$method];
+            $confirmation=['confirmed'=>true,'note'=>$note,'amount_cents'=>$declared,'method'=>$method]+$proofInput;
+            }else{$confirmation=['confirmed'=>true,'note'=>$note]+$proofInput;}
         }
+        // Keep the already-live request hash for legacy confirmation retries.
         $request=$frontReason===null?[]:[$frontReason];if($confirmation!==null)$request[]=$confirmation;
         if($proof)$request[]=$proof->fingerprint();
         return $this->command($actor,$id,$uuid,'delivered',$request,function($j)use($actor,$frontReason,$proof){
@@ -337,9 +390,16 @@ final class DeliveryService
         },function($j)use($actor,$id,$frontReason,$confirmation,$uuid,$proof){
             DeliveryIssueState::assertClear($this->db,$id);
             $proofResult=$proof?['proof'=>$proof->record($this->db,$j,$actor),'dispatch_notification'=>'queued']:[];
+            $custody=DeliveryCustody::read($this->db,$j);$legacyProof=[];
+            if($custody['tracking_version']&&!$proof){
+                $recipient=trim((string)($confirmation['received_by']??''));$method=(string)($confirmation['confirmation_method']??'');$reference=trim((string)($confirmation['proof_reference']??''));
+                if($recipient===''||strlen($recipient)>190||!in_array($method,['recipient_confirmation','signed_receipt','photo_reference','customer_call'],true)||strlen($reference)>500)throw new \DomainException('Record who received the parcel and how delivery was confirmed.');
+                if(in_array($method,['signed_receipt','photo_reference'],true)&&$reference==='')throw new \DomainException('A proof reference is required for this confirmation method.');
+                $legacyProof=['received_by'=>$recipient,'confirmation_method'=>$method,'proof_reference'=>$reference];
+            }
             $held=$this->row("SELECT COALESCE(SUM(order_goods_cents+delivery_fee_cents+partner_cod_cents),0) amount FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue')",[$id]);
             $remaining=$this->remaining($j);$due=array_sum($remaining);$declaration=[];
-            if($confirmation!==null){
+            if($confirmation!==null&&$frontReason===null){
                 if($j['status']!=='out_for_delivery')throw new \DomainException('Start delivery before confirming completion.');
                 $amount=$confirmation['amount_cents'];$method=$confirmation['method'];
                 if($method==='already_paid'&&$due>0)throw new \DomainException('There is a balance due. Select No payment received if nothing was collected.');
@@ -365,11 +425,12 @@ final class DeliveryService
                 $collected=$this->row("SELECT COALESCE(SUM(delivery_fee_cents),0) fee FROM delivery_receipts WHERE delivery_id=? AND status IN ('collected','issue','reconciled')",[$id]);
                 $this->ledger('prepaid:'.$id,$j,'fee_received',max(0,(int)$j['fee_cents']-(int)$collected['fee']-(!empty($declaration['declaration_review'])?$remaining['delivery_fee']:0)),$actor['id']);
             }elseif($j['fee_payer']==='already_paid')$this->ledger('prepaid:'.$id,$j,'fee_received',(int)$j['fee_cents'],$actor['id']);
-            return ['id'=>$id,'status'=>$status]+$proofResult+$declaration+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true])+($confirmation===null?[]:['note'=>$confirmation['note'],'delivery_payment_confirmed'=>true]);
+            return ['id'=>$id,'status'=>$status]+$proofResult+$declaration+$legacyProof+($frontReason===null?[]:['reason'=>$frontReason,'manual'=>true])+($confirmation===null?[]:['note'=>$confirmation['note'],'delivery_payment_confirmed'=>true]);
         });
     }
 
     /** Adapter merges existing Order payments within this SAME transaction; no DDL or network. */
+
     public function reconcile(array $actor,int $id,string $uuid,int $receiptId,\Closure $applyOrderPayment): array
     {
         return $this->command($actor,$id,$uuid,'reconciled',[$receiptId],function($j)use($actor){

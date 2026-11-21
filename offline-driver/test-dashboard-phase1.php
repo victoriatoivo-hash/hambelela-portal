@@ -36,7 +36,7 @@ check(strpos($html,'href="#"')===false,'no dummy navigation links');
 check(strpos($html,'hambelela-logo.jpg')!==false&&strpos($html,'id="hd-white-logo"')!==false,'original business logo rendered in white');
 check(strpos($html,'Local preview · practice data only')===false&&strpos($html,' · Windhoek')===false,'removed preview subtitle and location text');
 check(strpos($html,'data-hd-date')!==false&&strpos($html,'data-hd-time')!==false&&strpos($html,'data-hd-date')<strpos($html,'aria-label="Notifications'),'live clock placed before notification icon');
-check(strpos($html,'Duty status unavailable')<strpos($html,'class="ho-driver-dashboard__head-actions"'),'honest duty indicator above header icons');
+check(strpos($html,'Duty status not recorded')<strpos($html,'class="ho-driver-dashboard__head-actions"'),'honest duty indicator above header icons');
 $dashboard=['dataStatus'=>'error'];ob_start();require BASE_PATH.'/shared/delivery/dashboard/View.php';$html=ob_get_clean();
 check(strpos($html,'Unable to load deliveries')!==false&&strpos($html,'ho-driver-dashboard__metric"')===false,'error state does not fabricate zero totals');
 $dashboard=$other;ob_start();require BASE_PATH.'/shared/delivery/dashboard/View.php';$html=ob_get_clean();

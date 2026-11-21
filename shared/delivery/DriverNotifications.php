@@ -15,7 +15,9 @@ try {
         if(!is_string($_POST['payload']??null)||strlen($_POST['payload'])>2000)throw new DomainException('Invalid request.');
         $p=json_decode($_POST['payload'],true,8,JSON_THROW_ON_ERROR);
         if(!is_array($p)||(int)($p['actor']??0)!==$actor['id'])throw new DomainException('Account changed. Reload.',403);
-        $action=$p['action']??'';$allowed=match($action){'list'=>['filter','cursor'],'open'=>['id'],'read_all'=>['token'],'preferences'=>[],'sound'=>['enabled'],default=>throw new DomainException('Method not allowed.',405)};
+        $action=$p['action']??'';$actions=['list'=>['filter','cursor'],'open'=>['id'],'read_all'=>['token'],'preferences'=>[],'sound'=>['enabled']];
+        if(!is_string($action)||!isset($actions[$action]))throw new DomainException('Method not allowed.',405);
+        $allowed=$actions[$action];
         if(array_diff(array_keys($p),array_merge(['actor','action'],$allowed)))throw new DomainException('Unsupported fields.',403);
         $svc=new DriverNotificationsData(db(),$_SESSION['driver_notifications_key']);$id=$actor['id'];
         if($action==='list')$result=$svc->page($id,(string)($p['filter']??'all'),(string)($p['cursor']??''));

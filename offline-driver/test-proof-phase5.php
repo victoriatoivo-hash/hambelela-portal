@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/test-php74-assertions.php';
 if(PHP_SAPI!=='cli')exit(1);
 ob_start();
 define('BASE_PATH',dirname(__DIR__));define('BASE_URL','');define('DRIVER_OFFLINE_LAB',true);
@@ -47,6 +48,18 @@ try{
     rejects(fn()=>new ProofSubmission(array_replace($fields,['acknowledged'=>'0']),['photo'=>$file],10,$policy),'unchecked handover blocked');
     rejects(fn()=>new ProofSubmission($fields,['photo'=>$file],10,['evidence'=>'both','representative'=>'relationship']),'stricter both policy blocks one');
     new ProofSubmission($fields,['photo'=>$file,'signature'=>$signature],10,['evidence'=>'both','representative'=>'relationship']);verify(true,'both proofs accepted');
+    $db->exec("UPDATE delivery_jobs SET status='ready',started_at=NULL WHERE id=$id");
+    $event('arranged',['tracking_version'=>1,'payment_arrangement'=>'paid']);
+    rejects(fn()=>$service->start($actor,$id,uuid5()),'start requires accepted assignment');
+    $acceptKey=uuid5();$service->accept($actor,$id,$acceptKey);$service->accept($actor,$id,$acceptKey);
+    verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='driver_accepted'")->fetchColumn()===1,'accept is repeat safe');
+    rejects(fn()=>$service->confirmPickup($actor,$id,uuid5()),'driver cannot invent front desk handover');
+    $event('parcel_collected',['driver_id'=>3]);
+    rejects(fn()=>$service->start($actor,$id,uuid5()),'start requires driver pickup confirmation');
+    $service->confirmPickup($actor,$id,uuid5());$startKey=uuid5();$service->start($actor,$id,$startKey);$service->start($actor,$id,$startKey);
+    verify($db->query("SELECT status FROM delivery_jobs WHERE id=$id")->fetchColumn()==='out_for_delivery','accepted and confirmed delivery starts');
+    verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='started'")->fetchColumn()===1,'start retry records one timer event');
+    $db->exec("DELETE FROM delivery_events WHERE delivery_id=$id AND event_type NOT IN ('arranged')");$db->exec("UPDATE delivery_jobs SET version=10 WHERE id=$id");
     $rep=array_replace($fields,['recipient_type'=>'representative']);rejects(fn()=>new ProofSubmission($rep,['photo'=>$file],10,$policy),'representative requires relationship');
     $rep['relationship']='Recipient-authorized colleague';new ProofSubmission($rep,['photo'=>$file],10,$policy);verify(true,'representative relationship retained');
     rejects(fn()=>new ProofSubmission($rep,['photo'=>$file],10,['evidence'=>'one','representative'=>'pending']),'unapproved representative policy blocked');
@@ -76,19 +89,34 @@ try{
     rejects(fn()=>$complete(uuid5(),$proof),'second completion with new key rejected');
     verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='delivered'")->fetchColumn()===1,'exactly one completed audit event');
     verify(ProofContext::receipt($db,$id)===$result['proof'],'receipt persisted in immutable event');
-    [$code,$html]=proofRequest(['proof'=>(string)$id]);verify($code===200&&str_contains($html,'Evidence receipt '.$result['proof']['receipt']),'actual controller displays saved receipt after refresh');
+    [$code,$html]=proofRequest(['proof'=>(string)$id]);verify($code===200&&test_contains($html,'Evidence receipt '.$result['proof']['receipt']),'actual controller displays saved receipt after refresh');
     [$code,$png]=proofRequest(['proof'=>(string)$id,'evidence'=>$file['id']]);verify($code===200&&hash('sha256',$png)===$file['stored_sha256'],'authorized controller streams re-encoded evidence');
-    [$code,$html]=proofRequest(['proof'=>(string)$id,'evidence'=>'../outside']);verify($code!==200&&!str_starts_with($html,"\x89PNG"),'controller rejects arbitrary file requests');
+    [$code,$html]=proofRequest(['proof'=>(string)$id,'evidence'=>'../outside']);verify($code!==200&&!test_starts_with($html,"\x89PNG"),'controller rejects arbitrary file requests');
     $_SESSION['csrf']='test-only-csrf';[$code,$json]=proofRequest(['proof'=>(string)$id],'POST',['csrf'=>'wrong','version'=>'11','action'=>'complete']);verify($code!==200&&json_decode($json,true)['ok']===false,'controller rejects bad CSRF with JSON error');
-    $testActor=1;$testRole='owner_admin';[$code,$html]=proofRequest(['proof'=>(string)$id]);verify($code===200&&str_contains($html,'View photo'),'Owner can review authorized evidence');
+    $testActor=1;$testRole='owner_admin';[$code,$html]=proofRequest(['proof'=>(string)$id]);verify($code===200&&test_contains($html,'View photo'),'Owner can review authorized evidence');
     $testActor=3;$testRole='delivery_driver';
     verify($moneyBefore===$db->query("SELECT amount_cents,source FROM order_payment_allocations WHERE order_id=$order")->fetchAll(),'order money allocations unchanged');
     verify((int)$db->query("SELECT COUNT(*) FROM delivery_receipts WHERE delivery_id=$id")->fetchColumn()===0,'no duplicate collected money');
     verify((int)$db->query("SELECT COUNT(*) FROM delivery_outbox WHERE event_key LIKE 'proof:%'")->fetchColumn()>0,'dispatch queued atomically');
     NotificationOutbox::drain($db);verify((int)$db->query("SELECT COUNT(*) FROM delivery_outbox WHERE event_key LIKE 'proof:%' AND delivered_at IS NOT NULL")->fetchColumn()>0,'committed dispatch notifications drain successfully');
+    // A separate synthetic COD lifecycle: actual payment plus signature, then financial review.
+    $db->exec("DELETE FROM delivery_ledger WHERE delivery_id=$id");
+    $db->exec("UPDATE delivery_jobs SET status='out_for_delivery',delivered_at=NULL,completed_at=NULL,version=20 WHERE id=$id");
+    $db->exec("DELETE FROM delivery_events WHERE delivery_id=$id");$db->exec("DELETE FROM order_payment_allocations WHERE order_id=$order");
+    $db->exec("UPDATE ops_orders SET payment_status='unpaid',payment_method='Cash' WHERE id=$order");
+    $event('arranged',['payment_arrangement'=>'cod']);$event('parcel_collected',['driver_id'=>3]);
+    verify(ProofContext::read($db,3,$id)['reason']===null,'authorized unpaid COD can enter proof flow');
+    $service->arrive($actor,$id,uuid5(),20);$codProof=new ProofSubmission($fields,['signature'=>$signature],21,['evidence'=>'signature','representative'=>'relationship']);
+    $codKey=uuid5();$codPayment=['confirmed'=>true,'amount'=>'120.00','method'=>'Cash','note'=>''];
+    $cod=$service->complete($actor,$id,$codKey,null,$codPayment,$codProof);$service->complete($actor,$id,$codKey,null,$codPayment,$codProof);
+    verify($cod['status']==='awaiting_reconciliation','COD handover is physically complete but not financially reconciled');
+    verify((int)$db->query("SELECT COUNT(*) FROM delivery_receipts WHERE delivery_id=$id")->fetchColumn()===1,'COD retry creates one recorded collection');
+    verify((int)$db->query("SELECT SUM(order_goods_cents+delivery_fee_cents) FROM delivery_receipts WHERE delivery_id=$id")->fetchColumn()===12000,'actual recorded COD receipt is N$120');
+    $done=\Hambelela\Delivery\DriverAssignments::find(\Hambelela\Delivery\DriverAssignments::read($db,3),$id);
+    verify($done['stage']==='done'&&!$done['paymentVerified'],'physically delivered COD removed from active while payment review remains visible');
     $db->exec("UPDATE delivery_jobs SET driver_employee_id=4 WHERE id=$id");rejects(fn()=>$complete($key,$proof),'replay authorization rechecked after reassignment');
     verify(!DeliveryPolicy::canView($actor,$db->query("SELECT * FROM delivery_jobs WHERE id=$id")->fetch()),'former driver loses evidence access');
-    [$code,$html]=proofRequest(['proof'=>(string)$id,'evidence'=>$file['id']]);verify($code!==200&&!str_starts_with($html,"\x89PNG"),'former driver cannot retrieve evidence from controller');
+    [$code,$html]=proofRequest(['proof'=>(string)$id,'evidence'=>$file['id']]);verify($code!==200&&!test_starts_with($html,"\x89PNG"),'former driver cannot retrieve evidence from controller');
     $clean=new PDO($dsn,'driver_review',getenv('OFFLINE_PASS'),[PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);verify($original===$clean->query('SELECT id,status,version FROM delivery_jobs ORDER BY id')->fetchAll(),'practice records untouched by all test commits');
     echo "TOTAL $checks proof checks passed\n";ob_end_flush();
 }finally{$storage->discard($created);foreach($fixtures as $path)if(is_file($path)&&!(in_array('--keep-photo',$argv,true)&&$path===$photo))unlink($path);putenv('HO_DRIVER_PROOF_POLICY');putenv('HO_DRIVER_PROOF_DIR');}

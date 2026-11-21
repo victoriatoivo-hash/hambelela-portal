@@ -21,7 +21,7 @@ final class ProofContext
         if(!$reason&&$assignment['stage']!=='on_route')$reason=$assignment['reviewReason']?:'Delivery requires dispatch review.';
         $operationalReason=$reason;
         $paid=$assignment&&$assignment['paymentVerified'];
-        if(!$reason&&!$paid)$reason='Payment or cash reconciliation needs dispatch review before completion.';
+        if(!$reason&&!$paid&&($assignment['codAmountDueNad']??null)===null)$reason='Payment or cash reconciliation needs dispatch review before completion.';
         if(DeliveryIssueState::latest($db,$id)['blocking']??false)$reason=$operationalReason='Issue reported. Await dispatch approval before confirming arrival or delivery.';
         if($job['delivered_at']||$receipt)$reason='Delivery handover is already recorded. Do not submit it again.';
         $order=self::row($db,'SELECT order_number FROM ops_orders WHERE id=?',[$job['order_id']]);

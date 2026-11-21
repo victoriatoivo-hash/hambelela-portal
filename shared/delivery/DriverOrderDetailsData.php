@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DriverAssignments.php';
+require_once __DIR__.'/DeliveryCustody.php';
 
 /** Phase 03 read model. No writes, external lookups, or customer-note disclosure. */
 final class DriverOrderDetailsData
@@ -13,7 +14,7 @@ final class DriverOrderDetailsData
         try{$summary=DriverAssignments::find($list,$assignmentId);}
         catch(\DomainException $e){throw new \OutOfBoundsException('Delivery unavailable.');}
         // The shared authorized selector also retains unresolved issues from earlier days.
-        $q=$db->prepare("SELECT id,source,order_id,customer_mobile,address,area,status,driver_employee_id,additional_delivery FROM delivery_jobs WHERE id=? AND driver_employee_id=? AND status<>'cancelled'");
+        $q=$db->prepare("SELECT id,version,source,order_id,customer_mobile,address,area,status,driver_employee_id,additional_delivery FROM delivery_jobs WHERE id=? AND driver_employee_id=? AND status<>'cancelled'");
         $q->execute([$assignmentId,$employeeId]);$job=$q->fetch(\PDO::FETCH_ASSOC);
         if(!$job)throw new \OutOfBoundsException('Delivery unavailable.');
         $q=$db->prepare('SELECT id,event_type,employee_id,metadata_json,created_at FROM delivery_events WHERE delivery_id=? ORDER BY id');
@@ -67,7 +68,15 @@ final class DriverOrderDetailsData
         if($summary['displayStatus']==='Order needs review'){
             $paymentStatus='unknown';$summary['paymentVerified']=false;$summary['codAmountDueNad']=null;$summary['paymentLabel']='Payment needs review';
         }
-        return ['issue'=>$summary['issue']??null,'assignmentId'=>$assignmentId,'orderId'=>$summary['orderId'],'orderNumber'=>$summary['orderNumber'],'driverId'=>$employeeId,'timezone'=>'Africa/Windhoek','dataStatus'=>'live',
+        $custody=DeliveryCustody::read($db,$job);$action=null;$actionLabel=null;$handoverNotice=null;
+        if($job['status']==='ready'&&in_array($summary['stage'],['to_collect','on_route'],true)){
+            if($custody['tracking_version']&&!$custody['acceptance']){$action='accept';$actionLabel='Accept delivery';}
+            elseif($custody['tracking_version']&&!$custody['exception']&&!$custody['handover']){$handoverNotice='Ask Front Desk to record the parcel handover before you start.';}
+            elseif($custody['tracking_version']&&!$custody['exception']&&!$custody['collection']){$action='confirm_pickup';$actionLabel='Confirm parcels received';}
+            elseif($custody['handover']||$custody['exception']){$action='start';$actionLabel='Start delivery';}
+            else $handoverNotice='Ask Front Desk to record the parcel handover before you start.';
+        }
+        return ['action'=>$action,'actionLabel'=>$actionLabel,'handoverNotice'=>$handoverNotice,'version'=>(int)$job['version'],'issue'=>$summary['issue']??null,'assignmentId'=>$assignmentId,'orderId'=>$summary['orderId'],'orderNumber'=>$summary['orderNumber'],'driverId'=>$employeeId,'timezone'=>'Africa/Windhoek','dataStatus'=>'live',
             'customer'=>['displayName'=>$summary['customerDisplayName'],'initials'=>$initials?:'C','phone'=>$phone,'messagingContact'=>null],
             'payment'=>['method'=>$summary['paymentMethod'],'status'=>$paymentStatus,'verified'=>$summary['paymentVerified'],'label'=>$paymentStatus==='split'?'Split payment · verified':$summary['paymentLabel'],'codAmountDueNad'=>$summary['codAmountDueNad']],
             'delivery'=>['stage'=>$summary['stage'],'label'=>$summary['displayStatus'],'reviewReason'=>$summary['reviewReason'],'lastStageChangedAt'=>$stageAt,

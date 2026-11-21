@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/test-php74-assertions.php';
 if(PHP_SAPI!=='cli')exit(1);
 ob_start();define('BASE_PATH',dirname(__DIR__));define('BASE_URL','');define('DRIVER_OFFLINE_LAB',true);
 require BASE_PATH.'/shared/delivery/DriverLiveRouteData.php';
@@ -47,9 +48,9 @@ try{
  $data=$read();$data['stops'][0]['area']='<script>alert(1)</script>';$data['stops'][0]['customer_display_name']='<img src=x onerror=alert(1)>';
  $driverId=3;$local=true;$base='';$error=null;require BASE_PATH.'/shared/delivery/live-route/Helpers.php';
  ob_start();require BASE_PATH.'/shared/delivery/live-route/View.php';$html=ob_get_clean();
- verify(str_contains($html,'&lt;script&gt;')&&!str_contains($html,'<img src=x'),'customer and address output escaped');
- verify(substr_count($html,'aria-current="page"')===1&&str_contains($html,'href="/apps/delivery/index.php?route=1" aria-current="page"'),'shared nav selects Map only');
- verify(!str_contains($html,'sample-route-map')&&!str_contains($html,'maps.googleapis.com'),'real preview never displays illustration or loads billed SDK');
+ verify(test_contains($html,'&lt;script&gt;')&&!test_contains($html,'<img src=x'),'customer and address output escaped');
+ verify(substr_count($html,'aria-current="page"')===1&&test_contains($html,'href="/apps/delivery/index.php?route=1" aria-current="page"'),'shared nav selects Map only');
+ verify(!test_contains($html,'sample-route-map')&&!test_contains($html,'maps.googleapis.com'),'real preview never displays illustration or loads billed SDK');
  $db->exec('UPDATE delivery_driver_profiles SET active=0 WHERE employee_id=3');$denied=false;try{$read();}catch(DomainException $e){$denied=true;}verify($denied,'inactive current driver loses route');
 }finally{$db->rollBack();}
 verify($read()['revision_token']===$initial['revision_token'],'all fixtures restored by rollback');
@@ -61,7 +62,7 @@ function requestRoute($params=[],$role='delivery_driver',$driver=3,$method='GET'
 [$code,$body]=requestRoute(['view'=>'route-data','driver_id'=>'4','employee_id'=>'4','route_id'=>'other']);verify($code===200&&json_decode($body,true)['route']['driver_id']===3,'query parameters cannot select someone else');
 [$code,$body]=requestRoute(['view'=>'route-data'],'front',2);verify($code===403&&json_decode($body,true)['route']===null,'front/admin role cannot use driver endpoint');
 [$code,$body]=requestRoute(['view'=>'route-data'],'delivery_driver',4);verify($code===200&&json_decode($body,true)['route']['needs_review']===[],'other driver receives no private rows');
-[$code,$body]=requestRoute(['view'=>'route-data'],'delivery_driver',3,'POST');verify($code===405&&json_decode($body,true)['route']===null,'POST cannot reorder or optimise');
+[$code,$body]=requestRoute(['view'=>'route-data'],'delivery_driver',3,'POST');verify($code===403&&json_decode($body,true)['ok']===false,'POST without CSRF cannot request maps or reorder');
 foreach(['1900-01-01',['2026-11-20'],'invalid'] as $date){[$code,$body]=requestRoute(['date'=>$date]);verify($code===422,'unsupported or tampered date rejected');}
 [$code,$body]=requestRoute(['view'=>'route-data','action'=>'navigate']);verify($code===409&&json_decode($body,true)['route']===null,'no direct navigation without approved next stop');
 echo "TOTAL $checks route checks passed\n";ob_end_flush();

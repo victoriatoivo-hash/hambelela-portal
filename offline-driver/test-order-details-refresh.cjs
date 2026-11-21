@@ -18,6 +18,7 @@ const flush=()=>new Promise(r=>setImmediate(r));const retry=async()=>{handlers.c
  result={...good,driverId:4};await retry();assert.match(error.textContent,/account or assignment/);result={...good,assignmentId:2};await retry();assert.match(error.textContent,/account or assignment/);
  result=good;type='text/html';await retry();assert.match(error.textContent,/Could not verify/);type='application/json';await retry();
  windows.pagehide();assert.equal(content.innerHTML,'');assert.equal(content.hidden,true);windows.pageshow({persisted:true});await flush();assert.equal(content.innerHTML,good.html);
- const source=fs.readFileSync('assets/js/driver-order-details.js','utf8');assert.doesNotMatch(source,/localStorage|sessionStorage|console\.|method:\s*['"]POST/);
- console.log('PASS details refresh: stable DOM, scroll, offline purge/recovery, foreground reauthorization, network failure, 401/403/404, redirect, identity mismatch, malformed response, bfcache privacy, no persistent PII or writes.');
+ const source=fs.readFileSync('assets/js/driver-order-details.js','utf8');assert.doesNotMatch(source,/localStorage|sessionStorage|console\./);
+ assert.match(source,/data-driver-action/);assert.match(source,/request_id/);assert.match(source,/crypto\.randomUUID/);assert.match(source,/saving/);
+ console.log('PASS details refresh: stable DOM, scroll, offline purge/recovery, foreground reauthorization, network failure, 401/403/404, redirect, identity mismatch, malformed response, bfcache privacy, no persistent PII; explicit idempotent action form.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

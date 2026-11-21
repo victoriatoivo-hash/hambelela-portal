@@ -31,7 +31,8 @@ try{
         if($version===false||$version===null)throw new DomainException('Refresh the delivery details.');
         $shipping=null;
         if(!$local){require_once BASE_PATH.'/shared/woocommerce.php';require_once __DIR__.'/WooShippingSource.php';$shipping=WooShippingSource::forJob(db(),$actor,$assignmentId,'complete',static fn($path)=>wc_get($path,[],8));}
-        $service=new DeliveryService(db(),[],static function($db,$j)use($shipping){if($shipping)WooShippingSource::assertLockedJob($db,$j,$shipping);return (new OrderBalanceAdapter())->read($db,$j);});
+        $methods=function_exists('ops_payment_method_map')?ops_payment_method_map():['Cash'=>'Cash','EFT'=>'EFT'];
+        $service=new DeliveryService(db(),array_keys($methods),static function($db,$j)use($shipping){if($shipping)WooShippingSource::assertLockedJob($db,$j,$shipping);return (new OrderBalanceAdapter())->read($db,$j);});
         if(($_POST['action']??'')==='arrive'){
             $service->arrive($actor,$assignmentId,$uuid,$version);$result=['arrival_recorded'=>true,'context'=>ProofContext::read(db(),$actor['id'],$assignmentId)];
             unset($result['context']['job']);
@@ -40,7 +41,7 @@ try{
             $storage=ProofStorage::configured();
             foreach(['photo','signature'] as $kind)if(isset($_FILES[$kind])&&($_FILES[$kind]['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_NO_FILE)$files[$kind]=$storage->prepare($_FILES[$kind],$kind);
             $proof=new ProofSubmission($_POST,$files,$version);
-            $result=$service->complete($actor,$assignmentId,$uuid,null,['confirmed'=>true,'amount'=>'0','method'=>'already_paid','note'=>''],$proof);
+            $result=$service->complete($actor,$assignmentId,$uuid,null,['confirmed'=>($_POST['payment_confirmed']??'')==='1','amount'=>$_POST['amount']??'','method'=>$_POST['payment_method']??'','note'=>$_POST['payment_note']??''],$proof);
             $kept=array_column($result['proof']['evidence'],'id');
             // Commit succeeded. Queue status is truthful even if asynchronous delivery needs retry.
             NotificationOutbox::attempt(db());

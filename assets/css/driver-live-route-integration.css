@@ -26,4 +26,6 @@
 .ho-driver-live-route .ho-driver-route__recenter{position:absolute}
 .ho-driver-live-route .ho-driver-route__filter::before,.ho-driver-live-route .ho-driver-route__recenter::before{content:'';position:absolute;inset:-5px}
 .ho-driver-live-route .ho-driver-route__sheet{padding-bottom:30px}
+.ho-driver-live-route .ho-driver-route__selection{display:block;width:100%;margin:5px 0 14px;padding:11px;border:1px solid #e4eae3;border-radius:12px;background:white;color:#24362d;font:400 12px Inter,Arial,sans-serif}
+.ho-driver-live-route .ho-driver-route__map-canvas{width:100%;height:100%}
 @media(prefers-reduced-motion:reduce){.ho-driver-live-route .ho-driver-route__stop{transition:none;transform:none}}

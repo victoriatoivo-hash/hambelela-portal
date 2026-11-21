@@ -12,10 +12,11 @@ final class ProofStorage
         $real=realpath($root);$web=realpath(defined('BASE_PATH')?BASE_PATH:dirname(__DIR__,2));
         if(!$real||!is_dir($real)||!is_writable($real)||!$web)throw new \DomainException('Private evidence storage is not configured. Contact dispatch.');
         $norm=static fn($v)=>strtolower(str_replace('\\','/',rtrim($v,'/\\'))).'/';
-        if(str_starts_with($norm($real),$norm($web)))throw new \LogicException('Evidence storage must be outside the web root.');
+        if(strpos($norm($real),$norm($web))===0)throw new \LogicException('Evidence storage must be outside the web root.');
         $this->root=$real;
     }
-    public static function configured():self {return new self((string)getenv('HO_DRIVER_PROOF_DIR'));}
+    public static function directory():string {return getenv('HO_DRIVER_PROOF_DIR')?:dirname(defined('BASE_PATH')?BASE_PATH:dirname(__DIR__,2)).'/.hambelela-driver-evidence';}
+    public static function configured():self {return new self(self::directory());}
     public function prepare(array $upload,string $kind,bool $testFile=false):array
     {
         if(!in_array($kind,['photo','signature'],true))throw new \DomainException('Unknown evidence type.');

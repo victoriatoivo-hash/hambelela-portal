@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/test-php74-assertions.php';
 if(PHP_SAPI!=='cli')exit(1);ob_start();define('BASE_PATH',dirname(__DIR__));define('BASE_URL','');
 require BASE_PATH.'/shared/delivery/DispatchChat.php';require BASE_PATH.'/shared/delivery/DriverInbox.php';
 use Hambelela\Delivery\{DispatchChat,DispatchFiles,DriverInbox,EmployeeDriverSession};
@@ -7,7 +8,7 @@ $dsn='mysql:host=127.0.0.1;port=43379;dbname=driver_review;charset=utf8mb4';$db=
 putenv('HO_DRIVER_PROOF_DIR='.dirname(BASE_PATH).'/driver-proof-private-review');
 $before=[];foreach(['delivery_chat_messages','delivery_chat_threads','delivery_chat_receipts','delivery_chat_audit','ops_orders','delivery_jobs','delivery_ledger','delivery_errands','notifications','notification_recipients'] as $t)$before[$t]=$db->query('SELECT * FROM '.$t)->fetchAll();
 foreach(['delivery_chat_receipts','delivery_chat_audit','delivery_chat_messages','delivery_chat_threads','notifications','notification_recipients','ops_employees','ops_roles','delivery_driver_profiles','delivery_employee_grants','ops_permissions','delivery_jobs','delivery_errands'] as $t){
- $rows=str_starts_with($t,'ops_')||in_array($t,['delivery_driver_profiles','delivery_employee_grants','delivery_jobs','delivery_errands'])?$db->query('SELECT * FROM '.$t)->fetchAll():[];
+ $rows=test_starts_with($t,'ops_')||in_array($t,['delivery_driver_profiles','delivery_employee_grants','delivery_jobs','delivery_errands'])?$db->query('SELECT * FROM '.$t)->fetchAll():[];
  $ddl=$db->query('SHOW CREATE TABLE '.$t)->fetch(PDO::FETCH_NUM)[1];$ddl=preg_replace('/^CREATE TABLE/','CREATE TEMPORARY TABLE',$ddl);$ddl=preg_replace('/^\s*CONSTRAINT[^\n]*FOREIGN KEY[^\n]*\n/m','',$ddl);$ddl=preg_replace('/,\s*\) ENGINE/',"\n) ENGINE",$ddl);$db->exec($ddl);
  foreach($rows as $r)$db->prepare('INSERT INTO '.$t.' (`'.implode('`,`',array_keys($r)).'`) VALUES('.implode(',',array_fill(0,count($r),'?')).')')->execute(array_values($r));
 }
@@ -25,7 +26,7 @@ try{
  no8(fn()=>$s->send(3,4,message8()),'driver cannot send as another driver');no8(fn()=>$s->send(3,0,message8('   ')),'blank send refused');no8(fn()=>$s->send(3,0,message8(str_repeat('a',2001))),'2001 characters refused');
  $v=message8('<script>alert("x")</script> & private');$r=$s->send(3,0,$v);$id=$r['id'];ok8($r['state']==='accepted','send is accepted not fabricated read');$again=$s->send(3,0,$v);ok8($again['id']===$id&&$again['replayed'],'same actor UUID replays once');
  no8(fn()=>$s->send(3,0,array_replace($v,['body'=>'Changed'])),'retry payload substitution refused');ok8((int)$db->query('SELECT COUNT(*) FROM notifications')->fetchColumn()===1,'one notification per idempotent send');
- ok8(!str_contains($db->query('SELECT message FROM notifications LIMIT 1')->fetchColumn(),'<script>'),'notification contains no message body');
+ ok8(!test_contains($db->query('SELECT message FROM notifications LIMIT 1')->fetchColumn(),'<script>'),'notification contains no message body');
  $feed=$s->feed(2,3);ok8($feed['messages'][0]['body']===$v['body'],'body kept as data for text-only rendering');ok8($s->unread(2,3)===1,'fetch alone does not mark read');
  no8(fn()=>$s->receipt(4,0,[$id],'read'),'other driver receipt denied');ok8($s->feed(3)['messages'][0]['state']==='accepted','other driver receipt cannot affect message');
  $s->receipt(2,3,[$id],'delivered');ok8($s->feed(3)['messages'][0]['state']==='delivered','device receipt establishes delivered only');ok8($s->unread(2,3)===1,'delivered does not mean read');
@@ -43,7 +44,7 @@ try{
  $f=DispatchFiles::prepare(['error'=>0,'tmp_name'=>$pdf],true);$files[]=$f;ok8($f['mime']==='application/pdf','structurally parsed PDF accepted as private download');file_put_contents($pdf,str_replace('/Catalog','/Catalog /OpenAction /JavaScript',$data));no8(fn()=>DispatchFiles::prepare(['error'=>0,'tmp_name'=>$pdf],true),'active PDF refused');file_put_contents($pdf,"%PDF-1.4\nnot valid\n%%EOF");no8(fn()=>DispatchFiles::prepare(['error'=>0,'tmp_name'=>$pdf],true),'MIME-correct malformed PDF refused by parser');
  $expired=array_replace($attachment,['expires_at'=>'2000-01-01 00:00:00']);no8(fn()=>DispatchFiles::path($expired),'retention expiry enforced');ok8(DispatchFiles::phone()===null,'no invented dispatch phone');
  $db->exec("UPDATE ops_employees SET status='inactive' WHERE id=3");no8(fn()=>$s->feed(3),'inactive driver denied');$db->exec("UPDATE ops_employees SET status='active' WHERE id=3");
- [$code,$html]=http8(['dispatch'=>1]);ok8($code===200&&str_contains($html,'data-chat'),'real driver HTML renders');[$code,$j]=http8(['dispatch'=>1,'feed'=>1,'driver'=>4]);ok8($code===403&&!json_decode($j,true)['ok'],'HTTP cross-driver read refused');
+ [$code,$html]=http8(['dispatch'=>1]);ok8($code===200&&test_contains($html,'data-chat'),'real driver HTML renders');[$code,$j]=http8(['dispatch'=>1,'feed'=>1,'driver'=>4]);ok8($code===403&&!json_decode($j,true)['ok'],'HTTP cross-driver read refused');
  [$code,$j]=http8(['dispatch'=>1],'POST',['csrf'=>'wrong','payload'=>'{}']);ok8($code===403&&!json_decode($j,true)['ok'],'HTTP CSRF refused');
  $payload=message8('Controller message')+['actor'=>3,'action'=>'send'];[$code,$j]=http8(['dispatch'=>1],'POST',['csrf'=>'test-csrf','payload'=>json_encode($payload)]);ok8($code===200&&json_decode($j,true)['result']['id']>0,'real controller send persists');$payload['actor']=4;[$code,$j]=http8(['dispatch'=>1],'POST',['csrf'=>'test-csrf','payload'=>json_encode($payload)]);ok8($code===403,'actor mismatch refused');
  // Notifications are in the same transaction. Break ONLY the temporary recipient table.

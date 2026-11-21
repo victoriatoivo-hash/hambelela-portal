@@ -7,7 +7,9 @@ require_once __DIR__.'/DriverInbox.php';
 /** A presentation adapter for the existing inbox, not another notification store. */
 final class DriverNotificationsData
 {
-    public function __construct(private \PDO $db,private string $key) {if(strlen($key)<32)throw new \LogicException('Cursor key required.');}
+    private \PDO $db;
+    private string $key;
+    public function __construct(\PDO $db,string $key) {$this->db=$db;$this->key=$key;if(strlen($key)<32)throw new \LogicException('Cursor key required.');}
     private function rows(string $sql,array $args=[]):array {$q=$this->db->prepare($sql);$q->execute($args);return $q->fetchAll(\PDO::FETCH_ASSOC);}
     private function token(int $employee,string $filter,int $before,int $through,string $purpose):string {
         $v=base64_encode(json_encode([$employee,$filter,$before,$through,$purpose,time()+1800],JSON_THROW_ON_ERROR));
@@ -29,8 +31,10 @@ final class DriverNotificationsData
         $kind=$row['kind'];$category=in_array($kind,['errand','errand_request'],true)?'errands':(in_array($kind,['dispatch_chat','cash_handover'],true)?'other':'deliveries');
         $icon=$category==='errands'?'bag':($kind==='dispatch_chat'?'message':($kind==='cash_handover'?'card':($kind==='proof_completed'?'check':'box')));
         // Do not echo private chat text, payment values, arbitrary action_link or unverified route claims.
-        $description=match($kind){'dispatch_chat'=>'New update in your private dispatch conversation.','cash_handover'=>'Review your recorded cash handover.','assignment','reassigned'=>$row['ref'].' assigned to you.','errand','errand_request'=>$row['ref'].' · View the recorded instructions.',default=>$row['ref'].' · View the recorded update.'};
-        $title=match($kind){'assignment'=>'New delivery assigned','reassigned'=>'Delivery reassigned to you','completed'=>'Delivery status updated','dispatch_chat'=>'Dispatch message',default=>$row['title']};
+        $descriptions=['dispatch_chat'=>'New update in your private dispatch conversation.','cash_handover'=>'Review your recorded cash handover.','assignment'=>$row['ref'].' assigned to you.','reassigned'=>$row['ref'].' assigned to you.','errand'=>$row['ref'].' · View the recorded instructions.','errand_request'=>$row['ref'].' · View the recorded instructions.'];
+        $description=$descriptions[$kind]??($row['ref'].' · View the recorded update.');
+        $titles=['assignment'=>'New delivery assigned','reassigned'=>'Delivery reassigned to you','completed'=>'Delivery status updated','dispatch_chat'=>'Dispatch message'];
+        $title=$titles[$kind]??$row['title'];
         return ['id'=>(int)$row['id'],'title'=>$title,'description'=>$description,'category'=>$category,'icon'=>$icon,'unread'=>!$read,'group'=>$group,'time'=>$time,'created_at'=>$stamp->format('Y-m-d\TH:i:s\Z'),'urgent'=>$row['priority']==='urgent'];
     }
     public function page(int $employee,string $filter='all',string $cursor=''):array {
@@ -62,12 +66,13 @@ final class DriverNotificationsData
             $a=EmployeeDriverSession::actor($this->db,$employee);
             $r=$this->rows('SELECT n.related_type,n.related_id FROM notifications n JOIN notification_recipients r ON r.notification_id=n.id WHERE n.id=? AND r.employee_id=? AND r.cleared_at IS NULL FOR UPDATE',[$notice,$employee]);
             if(!$r)throw new \DomainException('Notification unavailable.',404);
-            $source=$r[0];$table=match($source['related_type']){'delivery_job'=>['delivery_jobs','id'],'delivery_errand'=>['delivery_errands','id'],'delivery_errand_request'=>['delivery_errand_requests','id'],'delivery_chat'=>['delivery_chat_messages','id'],'delivery_cash_handover'=>['delivery_cash_handovers','id'],default=>null};
+            $source=$r[0];$tables=['delivery_job'=>['delivery_jobs','id'],'delivery_errand'=>['delivery_errands','id'],'delivery_errand_request'=>['delivery_errand_requests','id'],'delivery_chat'=>['delivery_chat_messages','id'],'delivery_cash_handover'=>['delivery_cash_handovers','id']];$table=$tables[$source['related_type']]??null;
             if(!$table)throw new \DomainException('Notification unavailable.',404);
             $this->rows('SELECT id FROM '.$table[0].' WHERE id=? FOR UPDATE',[$source['related_id']]);
             $feed=DriverInbox::feed($this->db,$a,$notice+1);$item=null;foreach($feed['items'] as $v)if((int)$v['id']===$notice)$item=$v;
             if(!$item)throw new \DomainException('This update is no longer available to your account.',404);
-            $target=match($source['related_type']){'delivery_job'=>'/apps/delivery/index.php?'.(in_array($item['kind'],['issue_reported','issue_decision'],true)?'issue':'delivery').'='.(int)$item['job'],'delivery_errand'=>'/apps/delivery/index.php?errands=1','delivery_errand_request'=>'/apps/delivery/index.php?errands=1','delivery_chat'=>'/apps/delivery/index.php?dispatch=1','delivery_cash_handover'=>'/apps/delivery/index.php?cash=1'};
+            $targets=['delivery_errand'=>'/apps/delivery/index.php?errands=1','delivery_errand_request'=>'/apps/delivery/index.php?errands=1','delivery_chat'=>'/apps/delivery/index.php?dispatch=1','delivery_cash_handover'=>'/apps/delivery/index.php?cash=1'];
+            $target=$source['related_type']==='delivery_job'?'/apps/delivery/index.php?'.(in_array($item['kind'],['issue_reported','issue_decision'],true)?'issue':'delivery').'='.(int)$item['job']:$targets[$source['related_type']];
             DriverInbox::mark($this->db,$a,$notice,false);$this->audit($employee,$notice,0,'read');$this->audit($employee,$notice,0,'target_requested');
             $this->db->commit();return ['target'=>$target];
         }catch(\Throwable $e){$this->db->rollBack();throw $e;}

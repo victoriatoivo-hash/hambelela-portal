@@ -25,12 +25,13 @@ final class CoreApi
                 unset($result['shipping_evidence']);$this->db->rollBack();return $result;
             }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
         }
-        if(in_array($action,['parcel_collected','cash_handover','front_complete','deadline','inline','note','fail','revise','cancel','receipt_issue','resolve_receipt_issue'],true)){
+        if(in_array($action,['handover_exception','parcel_collected','cash_handover','front_complete','deadline','inline','note','fail','revise','cancel','receipt_issue','resolve_receipt_issue'],true)){
             $balance=new OrderBalanceAdapter();$service=new DeliveryService($this->db,array_keys($this->methods),static function($db,$job)use($balance){return $balance->read($db,$job);});
             switch($action){
-                case 'parcel_collected':return $service->pickup($actor,$id,$uuid,(int)($body['driver']??0));
+                case 'handover_exception':return $service->pickupException($actor,$id,$uuid,(string)($body['reason']??''));
+                case 'parcel_collected':return $service->pickup($actor,$id,$uuid,(int)($body['driver']??0),$body);
                 case 'cash_handover':return $service->handover($actor,$id,$uuid,(int)($body['receipt']??0),DeliveryPolicy::cents((string)($body['amount']??'')));
-                case 'front_complete':return $service->complete($actor,$id,$uuid,trim((string)($body['reason']??'')));
+                case 'front_complete':return $service->complete($actor,$id,$uuid,trim((string)($body['reason']??'')),isset($body['confirmed'])?$body:null);
                 case 'deadline':return $service->deadline($actor,$id,$uuid,$body);
                 case 'inline':return $service->inlineUpdate($actor,$id,$uuid,$body);
                 case 'note':return $service->note($actor,$id,$uuid,(string)($body['note']??''));
@@ -46,6 +47,7 @@ final class CoreApi
             $details['additional_delivery']=!empty($body['additional_delivery']);$details['additional_reason']=trim((string)($body['additional_reason']??''));
             if(!empty($body['source_order'])){$details['source_order']=true;$details['verification']=(string)($body['verification']??'');}
             $details['deadline']=DeliveryDeadline::normalize($body);
+            if(($body['tracking_version']??0)==1){$details['tracking_version']=1;$details['deadline']['requested_only']=true;if(!in_array($body['board_terms']??'',['verified','cod'],true))throw new \DomainException('Verify payment or confirm Collect on Delivery.');}
             if(isset($body['board_terms'])&&!empty($details['source_order'])){
                 $terms=(string)$body['board_terms'];
                 if(!in_array($terms,['verified','pending','cod','other'],true))throw new \DomainException('Choose a valid payment arrangement.');
@@ -67,13 +69,15 @@ final class CoreApi
             });
             return $service->arrange($actor,(int)($body['order']??0),(int)($body['driver']??0),(string)($body['date']??''),$uuid,$details);
         }
-        if(!in_array($action,['start','collect','complete','reconcile'],true))throw new \DomainException('Unsupported Delivery action.');
-        $evidence=$this->shippingSource?WooShippingSource::forJob($this->db,$actor,$id,$action,$this->shippingSource):null;
+        if(!in_array($action,['accept','confirm_pickup','start','collect','complete','reconcile'],true))throw new \DomainException('Unsupported Delivery action.');
+        $evidence=$this->shippingSource&&!in_array($action,['accept','confirm_pickup'],true)?WooShippingSource::forJob($this->db,$actor,$id,$action,$this->shippingSource):null;
         $balance=new OrderBalanceAdapter();$payment=new OrderPaymentAdapter($this->methods);
         $read=static function($db,$job)use($balance,$evidence){if($evidence!==null)WooShippingSource::assertLockedJob($db,$job,$evidence);return $balance->read($db,$job);};
         $apply=static function($db,$job,$receipt,$actor)use($payment,$evidence){if($evidence!==null)WooShippingSource::assertLockedJob($db,$job,$evidence);$payment->apply($db,$job,$receipt,$actor);};
         $service=new DeliveryService($this->db,array_keys($this->methods),$read);
         switch($action){
+            case 'accept':return $service->accept($actor,$id,$uuid);
+            case 'confirm_pickup':return $service->confirmPickup($actor,$id,$uuid);
             case 'start': return $service->start($actor,$id,$uuid);
             case 'collect': return $service->collect($actor,$id,$uuid,['order_goods'=>DeliveryPolicy::cents((string)($body['goods']??'0')),'delivery_fee'=>DeliveryPolicy::cents((string)($body['fee']??'0')),'partner_cod'=>DeliveryPolicy::cents((string)($body['cod']??'0'))],(string)($body['method']??''),(string)($body['reference']??''));
             case 'complete':
@@ -136,6 +140,7 @@ final class CoreApi
             $s=$this->db->prepare("SELECT COUNT(CASE WHEN status IN ('ready','out_for_delivery','failed') THEN 1 END) for_delivery,COUNT(CASE WHEN status IN ('completed','awaiting_reconciliation') THEN 1 END) driver_completed,COUNT(CASE WHEN urgent=1 AND status IN ('ready','out_for_delivery','failed') THEN 1 END) driver_urgent FROM delivery_jobs WHERE driver_employee_id=?");$s->execute([$scope]);$metrics=array_merge($metrics,array_map('intval',$s->fetch(\PDO::FETCH_ASSOC)));
         }
         foreach($jobs as &$j){
+            $j['custody']=DeliveryCustody::read($this->db,$j);
             $j['items']=[];
             if($j['source']==='hambelela'){
                 try{$items=$this->db->prepare('SELECT product_name,quantity FROM ops_order_items WHERE order_id=? ORDER BY id');$items->execute([$j['order_id']]);$j['items']=$items->fetchAll(\PDO::FETCH_ASSOC);}
@@ -144,7 +149,7 @@ final class CoreApi
             $j['deadline']=DeliveryDeadline::present(DeliveryDeadline::latest($this->db,(int)$j['id']),$j);
             if($j['source']==='hambelela'){$s=$this->db->prepare('SELECT * FROM ops_orders WHERE id=?');$s->execute([$j['order_id']]);$o=$s->fetch(\PDO::FETCH_ASSOC);$j['order_number']=$o['order_number']??('#'.($o['woo_order_id']??$j['order_id']));$j['order_payment_status']=$o['payment_status']??'';$j['order_payment_method']=$o['payment_method']??'';$j['order_total']=$o['total_amount']??null;}
             $s=$this->db->prepare('SELECT r.id,r.payment_method,r.transaction_reference,r.order_goods_cents,r.delivery_fee_cents,r.partner_cod_cents,r.status,r.reconciled_at,c.full_name collected_by,n.full_name reconciled_by FROM delivery_receipts r LEFT JOIN ops_employees c ON c.id=r.collected_by_employee_id LEFT JOIN ops_employees n ON n.id=r.reconciled_by_employee_id WHERE r.delivery_id=? ORDER BY r.id');$s->execute([$j['id']]);$j['receipts']=$s->fetchAll(\PDO::FETCH_ASSOC);
-            $s=$this->db->prepare('SELECT v.event_type,v.created_at,v.metadata_json,COALESCE(e.full_name,p.display_name) actor_name FROM delivery_events v LEFT JOIN ops_employees e ON e.id=v.employee_id LEFT JOIN delivery_partner_users p ON p.id=v.partner_user_id WHERE v.delivery_id=? ORDER BY v.id DESC LIMIT 30');$s->execute([$j['id']]);$j['history']=array_map(static function($e){$m=json_decode($e['metadata_json'],true);return ['type'=>$e['event_type'],'at'=>$e['created_at'],'actor'=>$e['actor_name'],'note'=>$m['note']??'','reason'=>$m['reason']??'','deadline'=>is_array($m['deadline']??null)?DeliveryDeadline::label($m['deadline']):($m['deadline']??null)];},$s->fetchAll(\PDO::FETCH_ASSOC));
+            $s=$this->db->prepare('SELECT v.event_type,v.created_at,v.metadata_json,COALESCE(e.full_name,p.display_name) actor_name FROM delivery_events v LEFT JOIN ops_employees e ON e.id=v.employee_id LEFT JOIN delivery_partner_users p ON p.id=v.partner_user_id WHERE v.delivery_id=? ORDER BY v.id DESC LIMIT 30');$s->execute([$j['id']]);$j['history']=array_map(static function($e){$m=json_decode($e['metadata_json'],true);return ['type'=>$e['event_type'],'at'=>$e['created_at'],'actor'=>!empty($m['system_generated'])?'Scheduled follow-up':$e['actor_name'],'note'=>$m['note']??'','reason'=>$m['reason']??'','deadline'=>is_array($m['deadline']??null)?DeliveryDeadline::label($m['deadline']):($m['deadline']??null)];},$s->fetchAll(\PDO::FETCH_ASSOC));
             try{$remaining=$balance->read($this->db,$j);foreach($j['receipts'] as $r)if(in_array($r['status'],['collected','issue'],true)){$remaining['order_goods']-=(int)$r['order_goods_cents'];$remaining['delivery_fee']-=(int)$r['delivery_fee_cents'];$remaining['partner_cod']-=(int)$r['partner_cod_cents'];}if(min($remaining)<0)throw new \DomainException('Payment changed; review required.');$j['remaining']=$remaining;}
             catch(\DomainException $e){$j['remaining']=null;$j['review_message']=$e->getMessage();}
             $meta=null;if($j['delivered_at']){$decl=$this->db->prepare("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='delivered' ORDER BY id DESC LIMIT 1");$decl->execute([$j['id']]);$meta=json_decode((string)$decl->fetchColumn(),true);}

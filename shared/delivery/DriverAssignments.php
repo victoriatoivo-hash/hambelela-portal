@@ -62,7 +62,7 @@ final class DriverAssignments
         $handoverProof=!empty($r['delivered_at'])&&(!empty($handover['delivery_payment_confirmed'])||(!empty($handover['manual'])&&mb_strlen((string)($handover['reason']??''))>=10));
         $stage='exception';$label='Needs dispatch review';$reason='Assignment state needs confirmation.';
         if($r['status']==='completed'&&$handoverProof&&!empty($r['completed_at'])&&(int)$r['pending_receipts']===0){$stage='done';$label='Delivered';$reason='';}
-        elseif(in_array($r['status'],['delivered','awaiting_reconciliation','completed'],true)){$label=$handoverProof?'Handover under review':'Handover unconfirmed';$reason=$handoverProof?'Customer handover is recorded; reconciliation still needs confirmation.':'A completed status alone is not proof of customer handover.';}
+        elseif(in_array($r['status'],['delivered','awaiting_reconciliation','completed'],true)){$stage=$handoverProof?'done':'exception';$label=$handoverProof?'Delivered · reconciliation pending':'Handover unconfirmed';$reason=$handoverProof?'Customer handover is recorded; financial reconciliation remains separate. Do not deliver again.':'A completed status alone is not proof of customer handover.';}
         elseif($r['status']==='failed'){$label='Delivery exception';$reason='Contact dispatch about the failed or rescheduled delivery.';}
         elseif(in_array($r['status'],['ready','out_for_delivery'],true)&&$picked){$stage='on_route';$label='Out for delivery';$reason='';}
         elseif($r['status']==='ready'){$stage='to_collect';$label='At store';$reason='';}
@@ -81,14 +81,15 @@ final class DriverAssignments
         }catch(\Exception $e){$scheduled=null;$sort=null;}
         $parts=preg_split('/\s+/u',trim((string)$r['customer_name']));$customer=$parts[0]?:'Customer';if(count($parts)>1)$customer.=' '.mb_substr(end($parts),0,1).'.';
         $payment=self::payment($db,$r,$release);
-        if(($stage==='done'&&!$payment['paymentVerified'])||(in_array($stage,['to_collect','on_route'],true)&&!$payment['paymentVerified']&&$payment['codAmountDueNad']===null)){$stage='exception';$label='Payment needs review';$reason='Payment or an authorised cash collection arrangement needs confirmation before dispatch.';}
+        if($stage==='done'&&!$payment['paymentVerified']){$label='Delivered · payment review';$reason='Customer handover is recorded; payment review remains with dispatch. Do not deliver again.';}
+        if(in_array($stage,['to_collect','on_route'],true)&&!$payment['paymentVerified']&&$payment['codAmountDueNad']===null){$stage='exception';$label='Payment needs review';$reason='Payment or an authorised cash collection arrangement needs confirmation before dispatch.';}
         $issue=DeliveryIssueState::latest($db,(int)$r['id']);
         if($issue&&$issue['blocking']){$stage='exception';$label='Issue reported · Awaiting dispatch';$reason=$issue['latest_decision']['instruction']??'Dispatch must approve the next step. The order remains open.';}
         return ['issue'=>$issue?['reference'=>$issue['incident_id'],'blocking'=>$issue['blocking'],'instruction'=>$issue['latest_decision']['instruction']??null]:null,'assignmentId'=>(int)$r['id'],'orderId'=>$r['order_id']?(int)$r['order_id']:null,'orderNumber'=>$r['order_number']?:($r['partner_reference']?:$r['public_reference']),
             'customerDisplayName'=>$customer,'deliveryArea'=>trim((string)$r['area'])?:'Area not recorded','itemCount'=>$r['source']==='hambelela'?(int)$r['item_count']:null,
             'stage'=>$stage,'displayStatus'=>$label,'reviewReason'=>$reason,'dispatchPriority'=>!empty($r['urgent'])?1:null,'routeSequence'=>null,'isNextStop'=>false,
             'scheduledTimeLocal'=>$scheduled,'scheduledSort'=>$sort,'distanceKm'=>null,'collectedAt'=>$picked?$r['pickup_at']:null,'deliveredAt'=>$r['delivered_at'],
-            'proofOfDeliveryStatus'=>$stage==='done'?'verified':($handoverProof?'pending_review':'missing')]+$payment;
+            'proofOfDeliveryStatus'=>$handoverProof?'recorded':'missing']+$payment;
     }
 
     private static function method(string $method):string

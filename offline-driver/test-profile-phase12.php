@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/test-php74-assertions.php';
 if(PHP_SAPI!=='cli')exit(1);ob_start();define('BASE_PATH',dirname(__DIR__));define('BASE_URL','');
 require BASE_PATH.'/shared/delivery/DriverProfileData.php';
 use Hambelela\Delivery\DriverProfileData;
@@ -40,15 +41,34 @@ $db->exec("UPDATE delivery_errand_details SET state='cancelled' WHERE errand_id=
 $db->exec("UPDATE delivery_errand_details SET state='open' WHERE errand_id=$eid");$db->exec("UPDATE delivery_errands SET collected_at=NULL WHERE id=$eid");yes12($svc->read(3,$now)['metrics']['errands']===0,'reopened errand not completed');
 $db->exec("UPDATE delivery_errands SET collected_at='2026-11-20 12:00:00' WHERE id=$eid");$db->prepare("INSERT INTO delivery_errand_events(errand_id,actor_id,action,after_json,created_at) VALUES(?,2,'reopen','{}','2026-11-21 12:00:00')")->execute([$eid]);yes12($svc->read(3,$now)['metrics']['errands']===0,'reopen audit prevents stale collected timestamp credit');
 $db->exec('INSERT INTO notification_preferences VALUES(3,0,1),(4,1,0)');yes12($svc->read(3,$now)['preferences']['sound_enabled']===true&&$svc->read(3,$now)['preferences']['desktop_enabled']===false,'canonical saved preferences self-only');
+// Owner-approved weekly rate, using connection-local copies only.
+$db->exec('DELETE FROM delivery_events');
+$jid2=(int)$before['delivery_jobs'][1]['id'];
+$db->exec("UPDATE delivery_jobs SET driver_employee_id=3,scheduled_date='2026-11-20',status='delivered' WHERE id=$jid");
+$db->exec("UPDATE delivery_jobs SET driver_employee_id=3,scheduled_date='2026-11-20',status='ready' WHERE id=$jid2");
+$db->exec("UPDATE ops_orders SET deleted_at=NULL,status='completed' WHERE id IN(SELECT order_id FROM delivery_jobs WHERE id IN($jid,$jid2))");
+foreach([$jid,$jid2] as $id)$db->prepare("INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json,created_at) VALUES(?,'arranged',2,'{}','2026-11-20 08:00:00')")->execute([$id]);
+event12($proof,'2026-11-20 12:00:00');event12($proof,'2026-11-20 12:00:00');
+$rate=$svc->read(3,$now)['metrics'];yes12($rate['rate_assigned']===2&&$rate['rate_completed']===1&&$rate['completion_rate']===50.0,'weekly unresolved assignment in denominator and duplicate signed receipt counted once');
+$db->exec("UPDATE delivery_jobs SET status='cancelled' WHERE id=$jid2");yes12($svc->read(3,$now)['metrics']['completion_rate']===100.0,'cancelled assignment excluded');
+$db->exec("UPDATE delivery_jobs SET status='ready',scheduled_date='2026-11-23' WHERE id=$jid2");yes12($svc->read(3,$now)['metrics']['rate_assigned']===1,'next week assignment excluded');
+$db->exec("UPDATE delivery_jobs SET scheduled_date='2026-11-20',driver_employee_id=4 WHERE id=$jid2");yes12($svc->read(3,$now)['metrics']['rate_assigned']===1&&$svc->read(4,$now)['metrics']['completion_rate']===0.0,'other driver denominator isolated');
+$db->exec("UPDATE delivery_jobs SET status='ready' WHERE id=$jid");yes12($svc->read(3,$now)['metrics']['completion_rate']===0.0,'reopened delivery not counted completed from old receipt');
+$db->exec("UPDATE delivery_jobs SET status='delivered' WHERE id=$jid");
+$db->exec("UPDATE delivery_events SET created_at='2026-11-15 21:59:59' WHERE event_type='delivered'");yes12($svc->read(3,$now)['metrics']['completion_rate']===0.0,'completion before Monday Windhoek excluded');
+$db->exec("UPDATE delivery_events SET created_at='2026-11-22 21:59:59' WHERE event_type='delivered'");yes12($svc->read(3,$now)['metrics']['completion_rate']===100.0,'Sunday final second included in rate');
+$db->exec("UPDATE delivery_events SET created_at='2026-11-22 22:00:00' WHERE event_type='delivered'");yes12($svc->read(3,$now)['metrics']['completion_rate']===0.0,'next Monday completion excluded');
+$db->exec("UPDATE delivery_events SET created_at='2026-11-20 12:00:00',metadata_json='{}' WHERE event_type='delivered'");yes12($svc->read(3,$now)['metrics']['completion_rate']===0.0,'unsigned status never substitutes for verified signature');
+$db->exec("UPDATE delivery_jobs SET status='cancelled' WHERE id=$jid");yes12($svc->read(3,$now)['metrics']['completion_rate']===null,'no eligible assignments gives unavailable not perfect rate');
 [$status,$out]=http12();yes12($status===200&&json_decode($out,true)['actor']===3,'actual controller returns signed-in actor');
 foreach([['action'=>'edit','actor'=>3],['action'=>'save_preferences','actor'=>3],['action'=>'read','actor'=>3,'role'=>'owner_admin'],['action'=>'read','actor'=>4]] as $payload){[$status]=http12($payload);yes12(in_array($status,[403,405]),'unapproved mutations and spoofed payload refused');}
 [$status]=http12(['action'=>'read','actor'=>3],'POST',['profile'=>1],'wrong');yes12($status===403,'CSRF rejected');
 foreach(['driver','employee','employee_id','user_id'] as $key){[$status]=http12(['action'=>'read','actor'=>3],'GET',['profile'=>1,$key=>4]);yes12($status===403,'caller identity forbidden '.$key);}
 [$status]=http12([],'DELETE');yes12($status===405,'delete forbidden');
 $who=4;[$status,$out]=http12(['action'=>'read','actor'=>4]);yes12($status===200&&json_decode($out,true)['data']['metrics']['deliveries']===0,'other profile controller only returns its own activity');$who=3;
-[$status,$html]=http12([],'GET');yes12($status===200&&str_contains($html,'/apps/delivery/driver/logout.php')&&str_contains($html,'method="post"'),'real existing POST logout form, no fake logout');
+[$status,$html]=http12([],'GET');yes12($status===200&&test_contains($html,'/apps/delivery/driver/logout.php')&&test_contains($html,'method="post"'),'real existing POST logout form, no fake logout');
 yes12(substr_count($html,'class="hp-menu-row"')===6&&substr_count($html,'class="ho-driver-dashboard__tab"')===5,'six rows and five shared navigation tabs');
-$bad='<img src=x onerror=alert(1)>'; $db->prepare('UPDATE ops_employees SET full_name=? WHERE id=3')->execute([$bad]);[$status,$html]=http12([],'GET');yes12(!str_contains($html,$bad),'name not interpolated into HTML shell');yes12($svc->read(3,$now)['driver']['display_name']===$bad,'API preserves name for safe textContent rendering');
+$bad='<img src=x onerror=alert(1)>'; $db->prepare('UPDATE ops_employees SET full_name=? WHERE id=3')->execute([$bad]);[$status,$html]=http12([],'GET');yes12(!test_contains($html,$bad),'name not interpolated into HTML shell');yes12($svc->read(3,$now)['driver']['display_name']===$bad,'API preserves name for safe textContent rendering');
 yes12(DriverProfileData::initials('  Anna   Test Person ')==='AP'&&DriverProfileData::initials('')==='DR'&&DriverProfileData::initials('Éva')==='É','Unicode initials and missing photo fallback');
 $db->exec('UPDATE delivery_driver_profiles SET active=0 WHERE employee_id=3');[$status]=http12();yes12($status===403,'driver profile revocation immediately denied');$db->exec('UPDATE delivery_driver_profiles SET active=1 WHERE employee_id=3');
 $db->exec("UPDATE ops_employees SET status='inactive' WHERE id=3");[$status]=http12();yes12($status===403,'inactive employee immediately denied');

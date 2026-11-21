@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/test-php74-assertions.php';
 if(PHP_SAPI!=='cli')exit(1);ob_start();define('BASE_PATH',dirname(__DIR__));define('BASE_URL','');
 require BASE_PATH.'/shared/delivery/DeliveryHistory.php';
 use Hambelela\Delivery\DeliveryHistory;
@@ -22,7 +23,7 @@ ok10($h->page(3,['status'=>'delivered'],$now)['totals']['issues_raised']===0,'st
 ok10($h->page(3,['search'=>'Prac'],$now)['totals']['total_outcomes']===2,'partial recipient search');ok10($h->page(3,['search'=>'test area'],$now)['totals']['total_deliveries']===1,'area search');ok10($h->page(3,['search'=>"%' OR 1=1 --"],$now)['totals']['total_deliveries']===0,'bound literal search cannot inject SQL');
 $ref=$r['items'][0]['reference'];ok10($h->page(3,['search'=>'#'.$ref],$now)['totals']['total_deliveries']===1,'leading hash ignored');
 no10(fn()=>$h->detail(4,$did),'second driver cannot read first proof');ok10($h->page(4,[],$now)['totals']['total_deliveries']===0,'second driver sees no first-driver totals');foreach([1,2,5,99999] as $actor)no10(fn()=>$h->page($actor,[],$now),'non-driver denied '.$actor);
-$detail=$h->detail(3,$iid);ok10(count($detail['decisions'])===1&&$detail['local_date']==='2026-11-19','later decision preserves original issue time');ok10(!str_contains(json_encode($detail),'customer_mobile')&&!str_contains(json_encode($detail),'address'),'read-only detail excludes phone and address');ok10(!$h->detail(3,$did)['evidence'][0]['available'],'missing stored attachment shown unavailable');no10(fn()=>$h->evidence(3,$did,0),'missing proof file never exposed');
+$detail=$h->detail(3,$iid);ok10(count($detail['decisions'])===1&&$detail['local_date']==='2026-11-19','later decision preserves original issue time');ok10(!test_contains(json_encode($detail),'customer_mobile')&&!test_contains(json_encode($detail),'address'),'read-only detail excludes phone and address');ok10(!$h->detail(3,$did)['evidence'][0]['available'],'missing stored attachment shown unavailable');no10(fn()=>$h->evidence(3,$did,0),'missing proof file never exposed');
 
 // Real synthetic signature already ingested by Section05, read without changing the source.
 $synthetic=null;foreach($before['delivery_events'] as $source){$v=json_decode($source['metadata_json'],true);if(isset($v['proof']['evidence'][0])&&$source['event_type']==='delivered'){$synthetic=$v['proof']['evidence'];break;}}
@@ -33,7 +34,7 @@ $db->prepare('UPDATE delivery_events SET metadata_json=? WHERE id=?')->execute([
 ok10($h->detail(3,$did)['evidence'][0]['available'],'canonical stored signature available');
 [$code,$png]=http10([],['history'=>'1','evidence'=>(string)$did,'part'=>'0'],'GET');
 ok10($code===200&&hash('sha256',$png)===$synthetic[0]['stored_sha256'],'actual history endpoint streams only authorized re-encoded PNG');
-$who=4;[$code,$out]=http10([],['history'=>'1','evidence'=>(string)$did,'part'=>'0'],'GET');ok10($code===404&&!str_starts_with($out,"\\x89PNG"),'other driver evidence endpoint denied');$who=3;
+$who=4;[$code,$out]=http10([],['history'=>'1','evidence'=>(string)$did,'part'=>'0'],'GET');ok10($code===404&&!test_starts_with($out,"\\x89PNG"),'other driver evidence endpoint denied');$who=3;
 $withFile['evidence'][0]['stored_sha256']=str_repeat('0',64);$db->prepare('UPDATE delivery_events SET metadata_json=? WHERE id=?')->execute([json_encode(['proof'=>$withFile]),$did]);
 no10(fn()=>$h->evidence(3,$did,0),'hash mismatch denies attachment');
 $db->prepare('UPDATE delivery_events SET metadata_json=? WHERE id=?')->execute([json_encode(['proof'=>$proof]),$did]);
@@ -46,7 +47,7 @@ event10('cancelled',[]);event10('dispatch_updated',['field'=>'driver']);ok10($h-
 $db->exec("UPDATE delivery_jobs SET driver_employee_id=4 WHERE id=$jid");$redacted=$h->detail(3,$did);ok10(!$redacted['context_visible']&&$redacted['reference']===null&&$redacted['customer']==='Previous assignment'&&$redacted['evidence']===[],'reassigned event redacted but audit retained');ok10($h->page(3,['search'=>'Practice'],$now)['totals']['total_deliveries']===0,'cannot search old customer after reassignment');no10(fn()=>$h->evidence(3,$did,0),'reassigned evidence denied');ok10($h->page(4,[],$now)['totals']['total_deliveries']===0,'new driver cannot read former driver event');$db->exec("UPDATE delivery_jobs SET driver_employee_id=3 WHERE id=$jid");
 $oid=(int)$job['order_id'];$db->exec("UPDATE ops_orders SET deleted_at=UTC_TIMESTAMP() WHERE id=$oid");ok10(!$h->detail(3,$did)['context_visible'],'deleted source retains only redacted audit');$db->exec("UPDATE ops_orders SET deleted_at=NULL,archived_at=UTC_TIMESTAMP() WHERE id=$oid");
 ok10(!$h->detail(3,$did)['context_visible'],'archived source redacted independently of cancellation');
-$db->exec("UPDATE ops_orders SET archived_at=NULL WHERE id=$oid");$db->exec("UPDATE delivery_jobs SET status='cancelled' WHERE id=$jid");ok10(str_contains($h->detail(3,$did)['warning'],'cancelled'),'later cancellation distinguished from original delivery');
+$db->exec("UPDATE ops_orders SET archived_at=NULL WHERE id=$oid");$db->exec("UPDATE delivery_jobs SET status='cancelled' WHERE id=$jid");ok10(test_contains($h->detail(3,$did)['warning'],'cancelled'),'later cancellation distinguished from original delivery');
 $f=DeliveryHistory::filters(['period'=>'week'],$now);ok10($f['from_utc']==='2026-11-15 22:00:00'&&$f['to_utc']==='2026-11-22 22:00:00','Monday through Sunday Windhoek week');ok10(DeliveryHistory::filters(['period'=>'seven'],$now)['from']==='2026-11-15','last seven days includes today');ok10(DeliveryHistory::filters(['period'=>'month'],$now)['to']==='2026-11-30','calendar month boundaries');
 event10('failed',[],'2026-11-20 21:59:59');$mid=event10('failed',[],'2026-11-20 22:00:00');$r=$h->page(3,['period'=>'today'],$now);ok10($r['totals']['total_outcomes']===2,'Windhoek midnight precise inclusion');ok10($h->detail(3,$mid)['local_time']==='00:00','local event time formatted server-side');
 foreach([['period'=>'custom','from'=>'2026-02-30','to'=>'2026-03-01'],['period'=>'custom','from'=>'2026-12-01','to'=>'2026-11-01'],['period'=>'custom','from'=>'2020-01-01','to'=>'2026-01-01'],['search'=>str_repeat('x',101)],['status'=>'cancelled'],['cursor'=>'malformed']] as $p)no10(fn()=>$h->page(3,$p,$now),'invalid filter refused '.json_encode(array_keys($p)));

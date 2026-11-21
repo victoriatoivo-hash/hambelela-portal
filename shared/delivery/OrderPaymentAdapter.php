@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
+require_once __DIR__.'/OrderCollectionPayment.php';
 
 /** Draft integration adapter. Install sync/write guards before production use.
  * Called ONLY by DeliveryService::reconcile inside its owned transaction.
@@ -22,8 +23,11 @@ final class OrderPaymentAdapter
         if(!isset($this->methodLabels[$method]))throw new \DomainException('Unapproved payment method.');
         $goods=(int)$receipt['order_goods_cents'];$fee=(int)$receipt['delivery_fee_cents'];
         if($goods<0||$fee<0)throw new \DomainException('Invalid receipt amounts.');
-        $s=$db->prepare('SELECT total_amount,payment_status FROM ops_orders WHERE id=? FOR UPDATE');$s->execute([$job['order_id']]);$order=$s->fetch(\PDO::FETCH_ASSOC);
+        $s=$db->prepare('SELECT * FROM ops_orders WHERE id=? FOR UPDATE');$s->execute([$job['order_id']]);$order=$s->fetch(\PDO::FETCH_ASSOC);
         if(!$order)throw new \DomainException('Order unavailable.');
+        $s=$db->prepare("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id LIMIT 1");$s->execute([$job['id']]);
+        $dispatch=json_decode((string)$s->fetchColumn(),true);
+        if(($dispatch['order_dispatch']['payment_policy']??'')!=='portal_cash_confirmation')unset($order['portal_paid_confirmed']);
         $total=DeliveryPolicy::cents((string)$order['total_amount']);
         $component=(int)$job['fee_order_component_cents'];
         if($component<0||$component>(int)$job['fee_cents']||$component>$total)throw new \DomainException('Shipping component needs review.');
@@ -33,10 +37,16 @@ final class OrderPaymentAdapter
         $includedFee=min($fee,max(0,$component-$previousFee));$credit=$goods+$includedFee;
         if($credit===0)return; // A separately charged delivery fee is not product payment.
         $s=$db->prepare('SELECT * FROM order_payment_allocations WHERE order_id=? ORDER BY id FOR UPDATE');$s->execute([$job['order_id']]);$previous=$s->fetchAll(\PDO::FETCH_ASSOC);
-        $paid=0;$existing=null;
-        foreach($previous as $r){if((int)$r['amount_cents']<0)throw new \DomainException('Order allocations need review.');$paid+=(int)$r['amount_cents'];if($r['payment_method']===$method)$existing=$r;}
-        if($order['payment_status']==='paid' && !$previous)throw new \DomainException('Legacy paid order requires verified allocations.');
+        $paid=OrderCollectionPayment::paid($order,$previous,$total);$existing=null;$expectations=[];
+        foreach($previous as $r){
+            if(OrderCollectionPayment::unconfirmedCash($order,$r)){$expectations[]=(int)$r['id'];continue;}
+            if($r['payment_method']===$method)$existing=$r;
+        }
         if($paid+$credit>$total)throw new \DomainException('Order balance changed. Review collection before reconciliation.');
+        // Only now, after an actual driver receipt and management reconciliation,
+        // replace the expected cash tender. The unchanged previous snapshot below
+        // preserves it in the audit. Never add the receipt on top of expected cash.
+        foreach($expectations as $allocationId)$db->prepare('DELETE FROM order_payment_allocations WHERE id=? AND order_id=?')->execute([$allocationId,$job['order_id']]);
         $version='delivery-receipt:'.(int)$receipt['id'];
         if($existing){
             // Preserve previous reference/source provenance in the audit; never replace other methods.

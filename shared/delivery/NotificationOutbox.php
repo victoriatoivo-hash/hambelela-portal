@@ -35,7 +35,7 @@ final class NotificationOutbox
     $payload=json_decode($o['payload_json'],true);$kind=$payload['kind']??'assignment';
     if($kind==='issue_reported')$allowed=$r&&$r['status']==='active'&&$r['role_key']!=='delivery_driver'&&(in_array($r['role_key'],['owner_admin','front_desk_admin','front_desk_admin_employee','marketing_sales'],true)||((bool)$r['can_arrange']&&(bool)$r['can_view']));
     if($allowed){
-     $title=['reconciliation'=>'Delivery collection ready for handover','failed'=>'Delivery needs attention','partner'=>'New partner delivery request','assignment'=>'Delivery assignment updated','deadline'=>'Customer delivery time updated','deadline_late'=>'Customer delivery deadline passed'][$kind]??'Delivery update';
+     $title=['reconciliation'=>'Delivery collection ready for handover','failed'=>'Delivery needs attention','partner'=>'New partner delivery request','assignment'=>'Delivery assignment updated','deadline'=>'Customer delivery time updated','deadline_late'=>'Customer delivery deadline passed','cod_followup_overdue'=>'Front Desk: COD payment follow-up overdue'][$kind]??'Delivery update';
      $title=['started'=>'Delivery Started','completed'=>'Delivery Completed','cancelled'=>'Delivery Cancelled','instructions'=>'Delivery Instructions Updated','payment'=>'Payment Update','reassigned'=>'Delivery Assignment Updated'][$kind]??$title;
      if($kind==='proof_completed')$title='Delivery completed · proof ready to review';
      if($driver&&$kind==='assignment')$title='NEW DELIVERY ASSIGNED';

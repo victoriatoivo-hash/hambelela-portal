@@ -17,7 +17,10 @@ assert.match(operations, /function ops_replace_order_payment_allocations/);
 assert.match(operations, /'dpo_paygate' => 'dpo'/);
 assert.doesNotMatch(action, /\['Split Payment',/);
 assert.match(action, /unset\(\$saved\['payment_method'\]\)/);
-assert.match(action, /CASE WHEN VALUES\(payment_method\) <> '' THEN VALUES\(payment_method\) ELSE payment_method END/);
+// Driver receipts are authoritative: a website snapshot must not overwrite them.
+for (const source of [action, manualSync]) {
+  assert.ok(source.includes("CASE WHEN payment_source = 'delivery' THEN payment_method WHEN VALUES(payment_method) <> '' THEN VALUES(payment_method) ELSE payment_method END"), 'Sync preserves driver receipt methods and ignores empty external methods.');
+}
 assert.match(manualSync, /ops_wc_payment_method\(\$order\)/);
 assert.match(board, /function syncPaymentFilterOptions\(\)/);
 assert.match(board, /ordersCache\.forEach\(\(order\) =>/);

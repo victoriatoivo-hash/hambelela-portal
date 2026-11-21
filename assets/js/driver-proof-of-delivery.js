@@ -58,7 +58,7 @@
     const data=new FormData(form);data.set('action',action);
     if(action==='complete'){requestId ||= crypto.randomUUID();data.set('request_id',requestId);if(signature)data.set('signature',signature,'signature.png');}
     else {arrivalId ||= crypto.randomUUID();data.set('request_id',arrivalId);data.delete('photo');}
-    const controls=[...form.querySelectorAll('input,button')];const disabled=controls.map(x=>x.disabled);controls.forEach(x=>x.disabled=true);
+    const controls=[...form.querySelectorAll('input,button,select,textarea')];const disabled=controls.map(x=>x.disabled);controls.forEach(x=>x.disabled=true);
     $('proof-approve').disabled=true;$('proof-confirmation').close();$('proof-transfer').textContent='Uploading and checking with the server…';feedback('');
     try {
       const response=await fetch(root.dataset.endpoint,{method:'POST',body:data,credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});

@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/test-php74-assertions.php';
 if(PHP_SAPI!=='cli')exit(1);
 ob_start();
 define('BASE_PATH',dirname(__DIR__));define('BASE_URL','');define('DRIVER_OFFLINE_LAB',true);
@@ -35,13 +36,13 @@ try{
  $r=$read();verify($r['payment']['status']==='split'&&$r['payment']['label']==='Split payment · verified','split paid methods explicitly identified');
  verify($r['delivery']['navigationAvailable'],'approved address navigation allowed after verified payment');
  $db->exec("UPDATE ops_orders SET status='refunded' WHERE id=$oid");$r=$read();verify(!$r['payment']['verified']&&$r['payment']['label']==='Payment needs review','refunded source cannot retain a green paid pill');$db->exec("UPDATE ops_orders SET status='in_progress' WHERE id=$oid");$r=$read();
- verify($r['dispatchedQuantityTotal']===null&&str_contains($r['itemsNotice'],'partial handover'),'additional trip does not inherit full order as its parcel');
+ verify($r['dispatchedQuantityTotal']===null&&test_contains($r['itemsNotice'],'partial handover'),'additional trip does not inherit full order as its parcel');
  $db->exec("UPDATE delivery_jobs SET address='KH, NA',customer_mobile='email@example.com' WHERE id=$id");$r=$read();verify($r['delivery']['address']['street']===null&&!$r['delivery']['navigationAvailable']&&$r['customer']['phone']===null,'missing or incomplete address/phone disable actions');
  $db->exec("UPDATE delivery_jobs SET address=area WHERE id=$id");verify(!$read()['delivery']['navigationAvailable'],'area-only location not treated as exact destination');
  $db->exec("UPDATE delivery_jobs SET status='out_for_delivery',started_at=UTC_TIMESTAMP() WHERE id=$id");$started=$event('started',[]);
  verify($read()['delivery']['stage']==='exception','start alone cannot claim physical pickup');
  $pickup=$event('parcel_collected',['driver_id'=>3]);$r=$read();verify($r['delivery']['stage']==='on_route'&&$r['delivery']['lastStageChangedAt']!==null,'real pickup has real on-route timestamp');
- $old=$event('note_added',['note'=>'INTERNAL-SENTINEL payroll'],'2026-11-19 08:00:00');verify(!str_contains(json_encode($read()),'INTERNAL-SENTINEL'),'internal notes never leak into timeline');
+ $old=$event('note_added',['note'=>'INTERNAL-SENTINEL payroll'],'2026-11-19 08:00:00');verify(!test_contains(json_encode($read()),'INTERNAL-SENTINEL'),'internal notes never leak into timeline');
  $revised=$event('revised',['driver'=>3]);$r=$read();verify($r['delivery']['stage']==='exception'&&!in_array('parcel_collected',array_column($r['timeline'],'eventType')),'old-driver/past-revision pickup not shown as current');
  $midnight=$now->setTime(0,30)->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s');$pickup2=$event('parcel_collected',['driver_id'=>3],$midnight);$r=$read();verify(in_array('00:30',array_column($r['timeline'],'timeLabel')),'midnight event uses business timezone');
  $failed=$event('failed',[],'2026-11-19 08:00:00');$db->exec("UPDATE delivery_jobs SET status='failed' WHERE id=$id");$r=$read();verify(in_array('19 Nov 2026 · 10:00',array_column($r['timeline'],'timeLabel')),'cross-day events include a date');
@@ -52,9 +53,9 @@ try{
  $r=$read();verify(count($r['items'])===25&&$r['dispatchedQuantityTotal']===null,'25 product lines retained without fake parcel sum');
  $data=$r;$data['customer']['displayName']='<script>alert(1)</script>';$data['items'][0]['name']='<img src=x onerror=alert(1)>';$error=null;$local=true;$base='';$driverId=3;$assignmentId=$id;
  require BASE_PATH.'/shared/delivery/order-details/Helpers.php';ob_start();require BASE_PATH.'/shared/delivery/order-details/View.php';$html=ob_get_clean();
- verify(!str_contains($html,'<img src=x')&&!str_contains($html,'<script>alert')&&str_contains($html,'&lt;img'),'all customer and item strings escaped');
- verify(substr_count($html,'aria-current="page"')===1&&str_contains($html,'data-order-back'),'one shared navigation and list back button');
- verify(!str_contains($html,'Complete delivery')&&!str_contains($html,'method="post"')&&!str_contains($html,'tel:'),'read-only local page cannot call, complete or charge');
+ verify(!test_contains($html,'<img src=x')&&!test_contains($html,'<script>alert')&&test_contains($html,'&lt;img'),'all customer and item strings escaped');
+ verify(substr_count($html,'aria-current="page"')===1&&test_contains($html,'data-order-back'),'one shared navigation and list back button');
+ verify(!test_contains($html,'Complete delivery')&&!test_contains($html,'tel:')&&test_contains($html,'data-driver-action'),'detail screen offers guarded assignment action, not a call or unproved completion');
 }finally{$db->rollBack();}
 verify($read()===$original,'all transactional changes rolled back; original entries intact');
 function requestDetails($params,$role='delivery_driver',$driver=3,$method='GET'){
@@ -62,9 +63,9 @@ function requestDetails($params,$role='delivery_driver',$driver=3,$method='GET')
  ob_start();require BASE_PATH.'/shared/delivery/DriverOrderDetails.php';$html=ob_get_clean();return [http_response_code(),$html];
 }
 [$code,$html]=requestDetails(['delivery'=>(string)$id,'view'=>'order-details-data']);verify($code===200&&json_decode($html,true)['dataStatus']==='live','authenticated JSON endpoint succeeds');
-foreach([['delivery'=>['1']],['delivery'=>'1 OR 1=1'],['delivery'=>'0'],['delivery'=>'999999']] as $params){[$code,$html]=requestDetails($params);verify($code===404&&!str_contains($html,$original['customer']['displayName']),'tampered IDs return safe 404');}
-[$code,$html]=requestDetails(['delivery'=>(string)$id],'front',2);verify($code===403&&!str_contains($html,$original['customer']['displayName']),'non-driver controller returns 403 without details');
+foreach([['delivery'=>['1']],['delivery'=>'1 OR 1=1'],['delivery'=>'0'],['delivery'=>'999999']] as $params){[$code,$html]=requestDetails($params);verify($code===404&&!test_contains($html,$original['customer']['displayName']),'tampered IDs return safe 404');}
+[$code,$html]=requestDetails(['delivery'=>(string)$id],'front',2);verify($code===403&&!test_contains($html,$original['customer']['displayName']),'non-driver controller returns 403 without details');
 [$code,$html]=requestDetails(['delivery'=>(string)$id],'delivery_driver',4);verify($code===404,'controller rejects cross-driver assignment');
-[$code,$html]=requestDetails(['delivery'=>(string)$id],'delivery_driver',3,'POST');verify($code===405,'POST cannot mutate detail view');
-[$code,$html]=requestDetails(['delivery'=>(string)$id,'contact'=>'navigate']);verify($code===409&&!str_contains($html,'https://www.google.com'),'local navigation cannot open practice customer destination');
+[$code,$html]=requestDetails(['delivery'=>(string)$id],'delivery_driver',3,'POST');verify($code===403,'POST without CSRF cannot mutate delivery');
+[$code,$html]=requestDetails(['delivery'=>(string)$id,'contact'=>'navigate']);verify($code===409&&!test_contains($html,'https://www.google.com'),'local navigation cannot open practice customer destination');
 echo "TOTAL $checks checks passed\n";ob_end_flush();

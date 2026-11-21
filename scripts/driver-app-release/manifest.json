@@ -1,0 +1,444 @@
+{
+  "files": {
+    "assets/css/driver-cash-handover.css": {
+      "before": null,
+      "after": "51495e1f9fd91c410b7aeb5a0f912a7080acdfeb1cf7e92c48ec8f088c323df9"
+    },
+    "assets/css/driver-cash-integration.css": {
+      "before": null,
+      "after": "b996bd35a577244e7b10faa665d968debcf6387dc5ad19d186fc60a2111e7038"
+    },
+    "assets/css/driver-dashboard-integration.css": {
+      "before": null,
+      "after": "e87144363b3a8a33066097b5be6aa80c28435545e3f922f67e40012b05d63e86"
+    },
+    "assets/css/driver-dashboard.css": {
+      "before": null,
+      "after": "1e652647ac9c7dfe12f65fdad56eb10bbc9aeda85c37eaf797519cda9814347e"
+    },
+    "assets/css/driver-deliveries-integration.css": {
+      "before": null,
+      "after": "0b73a7a0c8dab51e14ad9e7f6284666c0e60027f772a891be20b4f4ce5d90efc"
+    },
+    "assets/css/driver-deliveries.css": {
+      "before": null,
+      "after": "bf490815ea762ca4c1935f481dc4db509e5d5b462e82eb39285a77b18ab1acf7"
+    },
+    "assets/css/driver-delivery-history.css": {
+      "before": null,
+      "after": "e5a7e5a36d27cc3ff2650e17436e3de7ab9afbf0e3f75b777ca6ed011e7079ad"
+    },
+    "assets/css/driver-delivery-issue.css": {
+      "before": null,
+      "after": "ed1109729291bbf07ad3144a33a4b62b157866ecab7f4ccc440470f85d388b1e"
+    },
+    "assets/css/driver-dispatch-integration.css": {
+      "before": null,
+      "after": "f9a7a9669feff007fc56dd124a85f96a635110a36abce811e0687cbacfbc65d1"
+    },
+    "assets/css/driver-dispatch-messages.css": {
+      "before": null,
+      "after": "5751936488371efd6548d11b098363099bace9fab7bafa0e032a8a46de5a87f3"
+    },
+    "assets/css/driver-errands-integration.css": {
+      "before": null,
+      "after": "e6faa724300bc3d3e6468fc2a5377ab4e24a5c34358c81a1e87024d301364b78"
+    },
+    "assets/css/driver-errands-phase7.css": {
+      "before": null,
+      "after": "05f87343a01ec0fdbd02eefb9e849b6e69a5dbacc3c398e6af21e6d847a3cebf"
+    },
+    "assets/css/driver-history-integration.css": {
+      "before": null,
+      "after": "6e26182c84f2def58481802952c3408b13b6edc8f42e25cce5ea7c07226269ec"
+    },
+    "assets/css/driver-issue-integration.css": {
+      "before": null,
+      "after": "d00c5ce0b3818505dceb72141eb7837f0f7b247aa3bf83eb4533033eafc3e12e"
+    },
+    "assets/css/driver-live-route-integration.css": {
+      "before": null,
+      "after": "fc73171c9425cdd233926a730626533e092311a27f6b074c1eaa4ffe9b719f0f"
+    },
+    "assets/css/driver-live-route.css": {
+      "before": null,
+      "after": "cd84fbfda2f6004f64bb858026773a29423fbe8589894133654ccf66d876c252"
+    },
+    "assets/css/driver-notifications-integration.css": {
+      "before": null,
+      "after": "cc513596c179eaf2decbf2d543f900911e344c03ab3a0ffe5e19b11703cd62b8"
+    },
+    "assets/css/driver-notifications.css": {
+      "before": null,
+      "after": "80a42081f83e2df39c35a36115b8b57ab828ee239a7a46d0e7354ad20592b2ce"
+    },
+    "assets/css/driver-order-details-integration.css": {
+      "before": null,
+      "after": "d9cf612d0a815ced771e2d41151f0b32c3b20478341953861f9833cb78cc4d78"
+    },
+    "assets/css/driver-order-details.css": {
+      "before": null,
+      "after": "e511e06c780546e90a6fcd0a34e191b055795eb7e36f0cba253f06dcf7ecbaac"
+    },
+    "assets/css/driver-profile-integration.css": {
+      "before": null,
+      "after": "a9c27fd9e19875599eaeb07a48b76337c042f4a0d714f0f0ec1f69f35297b038"
+    },
+    "assets/css/driver-profile.css": {
+      "before": null,
+      "after": "9c04db607338dc8f29efb062730f14bec4da2f14f8a89aa193c48bdd72e63286"
+    },
+    "assets/css/driver-proof-integration.css": {
+      "before": null,
+      "after": "be4e66d958b67f139165511e5b9d6349dd053be5591eca5df9226ba2618e48a7"
+    },
+    "assets/css/driver-proof-of-delivery.css": {
+      "before": null,
+      "after": "65088d7b22543eff5a88042b816bd87830defa9155f96f5c56d606417623e143"
+    },
+    "assets/fonts/driver-inter-LICENSE.txt": {
+      "before": null,
+      "after": "6e6410f2892d61813f54654098dc9654d0a3af2e92172999bee07eec13b0a75a"
+    },
+    "assets/fonts/driver-inter.ttf": {
+      "before": null,
+      "after": "bddaeebab240fa13eff6321c0ce2e7d82e1748739f4437de28590184f9dd7728"
+    },
+    "assets/js/driver-cash-handover.js": {
+      "before": null,
+      "after": "c5cd2c0e45cb1cbd7e4d7249eb614e216e7b3ef9828a16725836fd3bb76a270d"
+    },
+    "assets/js/driver-dashboard.js": {
+      "before": null,
+      "after": "d30800a3111839964d78ea5e710968758581512756778a0b59d40091dfaeae8c"
+    },
+    "assets/js/driver-deliveries.js": {
+      "before": null,
+      "after": "f47dbd9478398f1c6109a7bfec3b3fe743bc4577b9bd9c6bc97979772fff51a9"
+    },
+    "assets/js/driver-delivery-history.js": {
+      "before": null,
+      "after": "7275efe2b430cb53d42bd1ba8809a37ef10b17f43ab224de809141a90543204a"
+    },
+    "assets/js/driver-delivery-issue.js": {
+      "before": null,
+      "after": "e9ea5ce6972c90e25a4caf68951139489943f86125e16a7b9f5d00f566d6ca12"
+    },
+    "assets/js/driver-dispatch-messages.js": {
+      "before": null,
+      "after": "d805f42517db5eb6d3ad101e642d29c3f10196976e358c999f02c463f7173a45"
+    },
+    "assets/js/driver-errands-phase7.js": {
+      "before": null,
+      "after": "9f7406e47c9df384889354a66c3e48bd93eeeedc801be6c2c3492499638f31d6"
+    },
+    "assets/js/driver-errands.js": {
+      "before": "3fa1d0a4c7a742cdbade9b9ca813ad15f1fa76788fd53ea5335507a910c66f09",
+      "after": "7f806b4d1febf168e9833838c2cce3da30d81b5e0ecfafd981026348f94e8fdf"
+    },
+    "assets/js/driver-inbox.js": {
+      "before": "db9e432666dee738dbd5f14c30d3213fec65fbbd04e707bb9d1927778313dc04",
+      "after": "ad35be8868f9b1e408133563b9b3530c0b03a7effa37ce2b329b56322429f0b1"
+    },
+    "assets/js/driver-live-route.js": {
+      "before": null,
+      "after": "d8a4810c5a5d75dffa0fb7a393d706331d741a23863382e95b752c75c6182396"
+    },
+    "assets/js/driver-notifications.js": {
+      "before": null,
+      "after": "3c68694ff228a5e48cc4053ee231efdf3a35109acec1e5880c4e3b32b4f1a35e"
+    },
+    "assets/js/driver-order-details.js": {
+      "before": null,
+      "after": "0932b143b7344fbdba271c3ef4a5f1eb4313d8817a1e47806a8e0f816bfd862c"
+    },
+    "assets/js/driver-profile.js": {
+      "before": null,
+      "after": "786732ecf5e2f33d2424dd5d244d034e8862c187f14eb1156d78b3dbf9f04c68"
+    },
+    "assets/js/driver-proof-of-delivery.js": {
+      "before": null,
+      "after": "bcf8fc735aa84e4f5ca348fad250abc598d1b78a9d9c7941afd145b204663632"
+    },
+    "shared/delivery/CashHandover.php": {
+      "before": null,
+      "after": "d9e934d6e653b0e1d1c455e925e2d1bcb56952b0cf169b87d63f2846af3fd3f0"
+    },
+    "shared/delivery/CashInbox.php": {
+      "before": null,
+      "after": "fe3e96d3bfc87cd8b166d558da8e60ef7bf723ae432a872ac3301e0227761322"
+    },
+    "shared/delivery/DeliveryHistory.php": {
+      "before": null,
+      "after": "8f1630f5c9eeaad07d02a7cf7c64aaca1e41aab5f06acc8c26d6c6f5d30a2f17"
+    },
+    "shared/delivery/DeliveryIssueState.php": {
+      "before": null,
+      "after": "f320e94acdd19f90c0b4216898d548649587ab46d3b5e38f629c19c0b6b6888d"
+    },
+    "shared/delivery/DeliveryService.php": {
+      "before": "42708313d4dc9bafef4a36e6a6458bdce075383a845004e91c0af80d38ae5742",
+      "after": "98e29b1070f6d86c2c0a02abe90d058ab3904edd888e88d733754086963e24f2"
+    },
+    "shared/delivery/DispatchChat.php": {
+      "before": null,
+      "after": "4dbfe62582b4e3c6ab9dcc66f2da54614ef920d82ca3798be9233ca3a46445d7"
+    },
+    "shared/delivery/DispatchFiles.php": {
+      "before": null,
+      "after": "635e656bb39ca5dc66f214a275e03ce442b29c0409d772be9d540ffe8580a74e"
+    },
+    "shared/delivery/DispatchInbox.php": {
+      "before": null,
+      "after": "c826c419de5886aebcd5fc3c9fd358c854de54ad49b0d422f28f9fa621a0946c"
+    },
+    "shared/delivery/DriverAssignments.php": {
+      "before": null,
+      "after": "c2a60e435622fef23ee29c5c9020640d7b174308f95d1f276c46965ec0563ca7"
+    },
+    "shared/delivery/DriverCashHandover.php": {
+      "before": null,
+      "after": "0bc7a1eaf1fd262ce982c7a3c240f52bb8513c58338170df0c4fa2ce15145aaf"
+    },
+    "shared/delivery/DriverDashboard.php": {
+      "before": null,
+      "after": "3c61d489ca4c609dc55f68139af0265ab5be98da221dbf178568a13e2876cf05"
+    },
+    "shared/delivery/DriverDeliveries.php": {
+      "before": null,
+      "after": "ae25d833fd94799c8415e81928f92b7c5e14181260f525dcd6fdd02d786bd976"
+    },
+    "shared/delivery/DriverDeliveryHistory.php": {
+      "before": null,
+      "after": "5b0f3cea4ded67fc60a52dcf99af41752da16284cca46375b1d3f1cc2d833e83"
+    },
+    "shared/delivery/DriverDeliveryIssue.php": {
+      "before": null,
+      "after": "49dfad05d288d945816e921f6f8bc64ee6ad560c2e6c6a747d2df22391cbd796"
+    },
+    "shared/delivery/DriverDispatchMessages.php": {
+      "before": null,
+      "after": "824c04353f926b2c5b8806b8115ace964368481f50224377a9ff636832b295fd"
+    },
+    "shared/delivery/DriverErrands.php": {
+      "before": "dab762bc3f4ea6fa7536d32302ae230600c8cd9c45fd0f6b7f5b51e5a290c3ff",
+      "after": "cf414ce5e4191631f31e89e65fe0bb1ff3ce52ea741b965ca9bba4ea8b2cb6ad"
+    },
+    "shared/delivery/DriverErrandsPhase7.php": {
+      "before": null,
+      "after": "977f2acbb50db84302d55d8ead166b801ee5612bcf3a92c542e1642c55b3974a"
+    },
+    "shared/delivery/DriverInbox.php": {
+      "before": "bf94133bd9039a4682ba7828f67c1f6d663a5403b71107dc5eb826df680ff0ee",
+      "after": "c384599cc6772f414543d7acb244665c1e2e3782538bc645cd1bdd8bc728204e"
+    },
+    "shared/delivery/DriverInboxPage.php": {
+      "before": "3d1b56f133bbc0e27932835de347266c8b1ec755261af36ae5b1807e1889f043",
+      "after": "ee6dbb219cd4f21bb7b39645e0da319dd3c6f2b8e9011a3342261699a0af75df"
+    },
+    "shared/delivery/DriverLiveRoute.php": {
+      "before": null,
+      "after": "adcfb3678e33a20754e4a90e5b0680962d1f6af1113cc0d87fd04adea3689ca6"
+    },
+    "shared/delivery/DriverLiveRouteData.php": {
+      "before": null,
+      "after": "67fe8b2c38b6d37784edece6974904301b5605ffa83f4077300a001f8c4a8aa2"
+    },
+    "shared/delivery/DriverNotifications.php": {
+      "before": null,
+      "after": "608ddbf9a716be28ab69d56ca1ffecb5efdfef7df371bf9df4af5cb80a8963ed"
+    },
+    "shared/delivery/DriverNotificationsData.php": {
+      "before": null,
+      "after": "c81cbd2fc4c92f66928264fe98e75ea7ab0f1759cb601441804b443c62b1f9a2"
+    },
+    "shared/delivery/DriverOrderDetails.php": {
+      "before": null,
+      "after": "1f6f8eaa1381fb1560da3bd9763d3461405e5b765b563983d91c51d205fb1070"
+    },
+    "shared/delivery/DriverOrderDetailsData.php": {
+      "before": null,
+      "after": "bb063d51ae9408983866a9a2343882d16d3a089769ffa3bbf7dc63ceadc223b5"
+    },
+    "shared/delivery/DriverProfile.php": {
+      "before": null,
+      "after": "a7fe81c1189a96e50d1ed33b18d30d993163fb8ff4b949d15276be43e81e6bb6"
+    },
+    "shared/delivery/DriverProfileData.php": {
+      "before": null,
+      "after": "44e8ce186c99396d2c1b6a2f25a5905ab05be2907c2ed74fc25c4af94ec10fe0"
+    },
+    "shared/delivery/DriverProofOfDelivery.php": {
+      "before": null,
+      "after": "4804f3938044eb654025f7d40f7d73ce789c33258f1ceb75a28ccaa02f18e828"
+    },
+    "shared/delivery/ErrandData.php": {
+      "before": null,
+      "after": "d3b665cd7cace828a149f77bf7992904c673065ddb25b0e559224a1604752953"
+    },
+    "shared/delivery/ErrandInbox.php": {
+      "before": null,
+      "after": "22fb57bbbf5aaf190f185e421b613ba403cd0c023338a736766c3ae55acda084"
+    },
+    "shared/delivery/ErrandPolicy.php": {
+      "before": null,
+      "after": "2a1d145a045ba5d087a520513ea85d0114c6d06e2d973892e2a0c815c8aebc7d"
+    },
+    "shared/delivery/ErrandView.php": {
+      "before": "6ee99e7101bd106fd648202d327513167fff5f780bc85c088799cfc43de1acee",
+      "after": "4a92f943195f3684fdb157ce74202895a49e5d8e1f1f09c76cc61581ee83d926"
+    },
+    "shared/delivery/ErrandWorkflow.php": {
+      "before": null,
+      "after": "bed4b6df8eac0c9f391119143e9960b50aa3578ee5085b8d3fd4ed5b75e1a712"
+    },
+    "shared/delivery/IssueContext.php": {
+      "before": null,
+      "after": "9a467eee47bfb7fd1ba02eb1df41c7f4f26fcbc81a6ca7733ee70c9ef8ca0d76"
+    },
+    "shared/delivery/NotificationOutbox.php": {
+      "before": "27e02936f8d26f29eb09e31377a5c2f4643bc0c29998b05ccb8e01638577bde4",
+      "after": "d19f25f8f54a08692c85b03e398fbc654038933ae8dbe2950e0e5d28d394578a"
+    },
+    "shared/delivery/ProofContext.php": {
+      "before": null,
+      "after": "a804ad53c9604f41ee70b0582d3d4352e76c2aab03f542b3720d0e96dfc17031"
+    },
+    "shared/delivery/ProofPolicy.php": {
+      "before": null,
+      "after": "00c05302ebb389c5634007f42ed4ea9b03902a82e8873c34b6b91ee17463ff86"
+    },
+    "shared/delivery/ProofStorage.php": {
+      "before": null,
+      "after": "ad06d8011a16bcc49996cc38c294f75241962a87c1fd0a5a83fc94d7573f3f01"
+    },
+    "shared/delivery/ProofSubmission.php": {
+      "before": null,
+      "after": "4d5004e295fd406ef38febf1d4d7594e61dd43e2c402c99aa264475c4c569049"
+    },
+    "shared/delivery/cash/View.php": {
+      "before": null,
+      "after": "09d5193152f4645e70521e7942c78afaeb45027f5f79ea2f051a5e3e8368d786"
+    },
+    "shared/delivery/dashboard/BottomNav.php": {
+      "before": null,
+      "after": "99d9b0529f8ae2f17d4c8c671776ce8a181ee970a93828ffe821e36e8959326f"
+    },
+    "shared/delivery/dashboard/Data.php": {
+      "before": null,
+      "after": "7348552e749a55a069f7edfc85ca04e58a902b2250b9e14dc656c9c817a83efe"
+    },
+    "shared/delivery/dashboard/View.php": {
+      "before": null,
+      "after": "d0a4f1140446f13fa4a3c73d4d238679f32915924b26e066a65d290de23abfb4"
+    },
+    "shared/delivery/deliveries/View.php": {
+      "before": null,
+      "after": "bcb5a26f9fbd1064dd1aaa2fb2f0939e8666ee2404605ad850625a2501a237a7"
+    },
+    "shared/delivery/dispatch/View.php": {
+      "before": null,
+      "after": "5c0cc0756bf1655143ef745d1d4ccdf39486d19a0aa78484928b2fbbedf829c0"
+    },
+    "shared/delivery/errands/View.php": {
+      "before": null,
+      "after": "ce5c9d9ccf10a6a8eeba7fa5466785cefb6421db36b379e378df6cbd5cd08608"
+    },
+    "shared/delivery/history/View.php": {
+      "before": null,
+      "after": "2a08727888b7cd628aac706c73ddf4b7dab0d33ff1e401792d84dc44143672bc"
+    },
+    "shared/delivery/issues/Helpers.php": {
+      "before": null,
+      "after": "eb85551e256f687e6989d44bf55577369708e10ee939c04cc70b66bd9809dad6"
+    },
+    "shared/delivery/issues/Receipt.php": {
+      "before": null,
+      "after": "8d381b7a049d15c02b611660fdd88456e4d00407897994aed990c41e955176f2"
+    },
+    "shared/delivery/issues/View.php": {
+      "before": null,
+      "after": "ff15cc2eb5a4d45b1b442adfca19991be7552f25b93bd340518dd247c839193d"
+    },
+    "shared/delivery/live-route/Content.php": {
+      "before": null,
+      "after": "8e357e70e7f1052385c51d3c6bd5b5ec2f503c4657b9860af80be713606f674c"
+    },
+    "shared/delivery/live-route/Helpers.php": {
+      "before": null,
+      "after": "e600cc3591a5aa5d650c26fd2116a12e7eb75f225a111cae763f0b3e994e5e03"
+    },
+    "shared/delivery/live-route/View.php": {
+      "before": null,
+      "after": "a3aa4a3a1f60261c97ed006e565ae64d7f94969daefa19d5316b5a51ad69898a"
+    },
+    "shared/delivery/notifications/View.php": {
+      "before": null,
+      "after": "8d16d3677e7595d97d1ed9e279ee4079074e90f460318a0aaf419ac7fb840d32"
+    },
+    "shared/delivery/order-details/Content.php": {
+      "before": null,
+      "after": "cae69634603ad31e8470e81769f7bf3fc12410233d398d66d1cd541a49fd226f"
+    },
+    "shared/delivery/order-details/Helpers.php": {
+      "before": null,
+      "after": "041199c67b27f0d8b148d696fddbd8dae14ea71af51f8224a1af5569d145ea2d"
+    },
+    "shared/delivery/order-details/View.php": {
+      "before": null,
+      "after": "a88463bb7d1da3c0eecbf277bb8153b8509b39a3a1c9bf83c68df0f3681709d3"
+    },
+    "shared/delivery/profile/View.php": {
+      "before": null,
+      "after": "7ba5cdbe12c60fe958e016d237f645053e238dc1289ab239b9158665c01cd9b3"
+    },
+    "shared/delivery/proof/Helpers.php": {
+      "before": null,
+      "after": "44f4039fb6939f4464169dfaab1bf6660ce9ba80144a724e5cf41500106a7a6d"
+    },
+    "shared/delivery/proof/View.php": {
+      "before": null,
+      "after": "8f5d0f82f365b3376ba3068842e791f15ce4ca2d1ec0cb5abeefaba8c99fba94"
+    },
+    "apps/delivery/index.php": {
+      "before": "5c9811ea553b17b3c421ada34e3736576fe8795ed8e9d81ddfbe366fce54b0ca",
+      "after": "19ad4d005935ad1d4da57f9f4a4de2806d79d2c388675bf43ce813b7fd5e5f33"
+    },
+    "apps/delivery/driver/index.php": {
+      "before": "05b14c49410c32cd137f6b36e7fcad76c89f9d20acfaeb94c9b7890793f9c061",
+      "after": "fae6b941243ec6bc794e259dfb9b74ccbfa0f042a6887620b252ce54cd0e9f27"
+    },
+    "index.php": {
+      "before": "93e8ebfa063c6d94bea030a8a97a3ce6b7912a353b23e770ee458cfeed477e86",
+      "after": "4fc70f284a6cfac048c0cd20933edff5175b12f95ac07430cfabc5bf87267a08"
+    },
+    "shared/delivery/DriverRouteMaps.php": {
+      "before": null,
+      "after": "9d55afddde2fb68b8c91571b7f4a5ce9c12804b1b6c84def1547b0ece4db8397"
+    },
+    "assets/js/driver-route-map.js": {
+      "before": null,
+      "after": "01e22348688fcbe0d58305055e17bca3b66a1c2b36ff6d8d1d8e4abcd95b3037"
+    }
+  },
+  "operations_patches": [
+    {
+      "old": "        'Card/Swipe',",
+      "new": "        'Swipe',"
+    },
+    {
+      "old": "        'Card/Swipe' => '/\\bcard\\s*\\/\\s*swipe\\b|\\bcard\\b|\\bswipe\\b/i',",
+      "new": "        'Swipe' => '/\\bcard\\s*\\/\\s*swipe\\b|\\bcard\\b|\\bswipe\\b/i',"
+    },
+    {
+      "old": "            'Cash' => '/\\bcash\\b/i', 'Card/Swipe' => '/\\bcard\\b|\\bswipe\\b/i',",
+      "new": "            'Cash' => '/\\bcash\\b/i', 'Swipe' => '/\\bcard\\b|\\bswipe\\b/i',"
+    }
+  ],
+  "migrations": {
+    "database/delivery/007-errand-requests-proposed.sql": "20dd7d172bac61591f21d9df9660ea1676355edecb224ef12fdf2fd82727d479",
+    "database/delivery/008-dispatch-messages-proposed.sql": "edec71a2dac38c6b65038577980f136d0c978daa26103272834ec110c2086bbc",
+    "database/delivery/009-notification-access-proposed.sql": "c1f54c6c29278a52d8d96cb3904460da0ba1611cd2d1bf92ec306f11391d67d0",
+    "database/delivery/011-cash-handover-proposed.sql": "4fbe758cff99ae67d987e5c9e70326cb987d618b4d4f2681a42fd4eb671c8c65"
+  }
+}

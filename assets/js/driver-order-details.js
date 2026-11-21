@@ -6,7 +6,7 @@
   const notice = root.querySelector('[data-order-notice]');
   const scroll = root.querySelector('.ho-driver-dashboard__scroll');
   const driverId = Number(root.dataset.driverId), assignmentId = Number(root.dataset.assignmentId);
-  let lastHTML = null, sequence = 0, activeRequest = null, stopped = false, previousFocus = null;
+  let lastHTML = null, sequence = 0, activeRequest = null, stopped = false, previousFocus = null, saving = false;
   function announce(message) { notice.textContent = message; notice.hidden = !message; }
   function clear(message) {
     lastHTML = null;
@@ -16,7 +16,7 @@
     for (const dialog of root.querySelectorAll('dialog[open]')) dialog.close();
   }
   async function refresh(force = false) {
-    if (document.hidden || (stopped && !force) || (activeRequest && !force)) return;
+    if (document.hidden || saving || (stopped && !force) || (activeRequest && !force)) return;
     if (navigator.onLine === false) { clear('You are offline. Reconnect to verify this assignment.'); announce('Offline — current details cannot be verified.'); return; }
     if (activeRequest) activeRequest.abort();
     const request = new AbortController(), token = ++sequence;
@@ -53,6 +53,24 @@
       if (token === sequence) { activeRequest = null; root.setAttribute('aria-busy', 'false'); }
     }
   }
+  root.addEventListener('submit', async event => {
+    const form = event.target.closest('[data-driver-action]');if(!form)return;
+    event.preventDefault();if(saving||stopped||document.hidden)return;
+    saving=true;const token=++sequence;if(activeRequest)activeRequest.abort();activeRequest=null;
+    const button=form.querySelector('button');button.disabled=true;
+    const data=new FormData(form);form.dataset.requestId ||= crypto.randomUUID();data.set('request_id',form.dataset.requestId);
+    announce('Saving your delivery update…');
+    try{
+      const response=await fetch(form.action,{method:'POST',credentials:'same-origin',cache:'no-store',body:data,headers:{Accept:'application/json'}});
+      if(token!==sequence||document.hidden)return;
+      if(response.redirected||[401,403].includes(response.status)){stopped=true;clear('Your access has ended. Sign in again.');return;}
+      const result=await response.json();
+      if(!response.ok||!result.ok)throw new Error(result.error||'Update not confirmed. Retry safely.');
+      if(result.driverId!==driverId||result.assignmentId!==assignmentId){stopped=true;clear('Your account has changed. Open Deliveries again.');return;}
+      saving=false;await refresh(true);
+    }catch(error){if(token===sequence)announce(error.message||'Update not confirmed. Retry safely.');}
+    finally{saving=false;if(button.isConnected)button.disabled=false;}
+  });
   root.addEventListener('click', event => {
     const retry = event.target.closest('[data-order-retry]');
     if (retry) { refresh(true); return; }

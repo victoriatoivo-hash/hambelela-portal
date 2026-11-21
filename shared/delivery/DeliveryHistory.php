@@ -9,7 +9,9 @@ require_once __DIR__.'/ProofStorage.php';
 final class DeliveryHistory
 {
     private bool $hasArchiveColumn;
-    public function __construct(private \PDO $db) {
+    private \PDO $db;
+    public function __construct(\PDO $db) {
+        $this->db=$db;
         $this->hasArchiveColumn=(bool)$db->query("SHOW COLUMNS FROM ops_orders LIKE 'archived_at'")->fetch();
     }
     private function rows(string $sql,array $args=[]):array {$q=$this->db->prepare($sql);$q->execute($args);return $q->fetchAll(\PDO::FETCH_ASSOC);}
@@ -30,7 +32,7 @@ final class DeliveryHistory
             $from=$parse($p['from']??null);$end=$parse($p['to']??null);
             if($from>$end||$from->diff($end)->days>366)throw new \DomainException('From must precede To. Use at most 367 days per custom range, or choose All time.');$to=$end->modify('+1 day');
         }
-        return ['period'=>$period,'status'=>$status,'search'=>ltrim(trim($search),'#'),'from'=>$from?->format('Y-m-d'),'to'=>$to->modify('-1 day')->format('Y-m-d'),'from_utc'=>$from?->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s'),'to_utc'=>$to->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s'),'today'=>$now->format('Y-m-d'),'timezone'=>'Africa/Windhoek'];
+        return ['period'=>$period,'status'=>$status,'search'=>ltrim(trim($search),'#'),'from'=>$from?$from->format('Y-m-d'):null,'to'=>$to->modify('-1 day')->format('Y-m-d'),'from_utc'=>$from?$from->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s'):null,'to_utc'=>$to->setTimezone(new \DateTimeZone('UTC'))->format('Y-m-d H:i:s'),'today'=>$now->format('Y-m-d'),'timezone'=>'Africa/Windhoek'];
     }
     /** Proof validity is based on the server's immutable policy/evidence receipt, not order status. */
     private function projection():string
@@ -80,6 +82,29 @@ final class DeliveryHistory
         try{[$sql,$args]=$this->query($f,$driver,$max);$totals=$this->rows("SELECT COUNT(DISTINCT order_key) total_deliveries,COUNT(DISTINCT CASE WHEN outcome='delivered' THEN order_key END) completed,COALESCE(SUM(outcome='issue'),0) issues_raised,COUNT(*) total_outcomes,COALESCE(SUM(outcome='review'),0) needs_review,COALESCE(SUM(CRC32(CONCAT(id,':',context_visible,':',COALESCE(reference,''),':',COALESCE(customer,''),':',COALESCE(area,'')))),0) context_revision FROM ($sql) totals",$args)[0];
             if($at){$sql.=' AND (created_at<? OR (created_at=? AND id<?))';array_push($args,$at,$at,$last);}$rows=$this->rows($sql.' ORDER BY created_at DESC,id DESC LIMIT 26',$args);$more=count($rows)>25;if($more)array_pop($rows);$next=null;if($more){$r=end($rows);$next=base64_encode(json_encode(['scope'=>$fingerprint,'max'=>$max,'at'=>$r['created_at'],'id'=>(int)$r['id']],JSON_THROW_ON_ERROR));}$this->db->commit();return ['filters'=>$f,'totals'=>array_map('intval',$totals),'items'=>array_map([self::class,'item'],$rows),'cursor_next'=>$next,'snapshot_event_id'=>$max];
         }catch(\Throwable $e){if($this->db->inTransaction())$this->db->rollBack();throw $e;}
+    }
+    /** Owner-approved weekly rate: current released assignments scheduled this week,
+     * signed completions this week / non-cancelled assignments, including unresolved work.
+     * Historical totals stay independent; later reassignment/cancellation does not erase audit. */
+    public function weeklyCompletion(int $driver,?\DateTimeImmutable $now=null):array
+    {
+        EmployeeDriverSession::actor($this->db,$driver);
+        $f=self::filters(['period'=>'week'],$now);
+        $archive=$this->hasArchiveColumn?' AND o.archived_at IS NULL':'';
+        $sql="SELECT COUNT(DISTINCT j.id) assigned,
+          COUNT(DISTINCT CASE WHEN h.outcome='delivered' AND h.created_at>=? AND h.created_at<?
+            AND j.status IN ('delivered','awaiting_reconciliation','completed')
+            AND (JSON_UNQUOTE(JSON_EXTRACT(h.metadata_json,'$.proof.evidence[0].kind'))='signature'
+              OR JSON_UNQUOTE(JSON_EXTRACT(h.metadata_json,'$.proof.evidence[1].kind'))='signature')
+            THEN j.id END) completed
+          FROM delivery_jobs j LEFT JOIN ops_orders o ON o.id=j.order_id
+          LEFT JOIN (".$this->projection().") h ON h.delivery_id=j.id
+          WHERE j.driver_employee_id=? AND j.scheduled_date>=? AND j.scheduled_date<=? AND j.status<>'cancelled'
+            AND EXISTS(SELECT 1 FROM delivery_events released WHERE released.delivery_id=j.id AND released.event_type IN ('arranged','partner_arranged'))
+            AND (j.source<>'hambelela' OR (o.id IS NOT NULL AND o.deleted_at IS NULL $archive AND o.status NOT IN ('cancelled','canceled','deleted','trash','archived','refunded')))";
+        $r=$this->rows($sql,[$f['from_utc'],$f['to_utc'],$driver,$driver,$f['from'],$f['to']])[0];
+        $assigned=(int)$r['assigned'];$completed=(int)$r['completed'];
+        return ['assigned'=>$assigned,'completed'=>$completed,'rate'=>$assigned?round(100*$completed/$assigned,1):null];
     }
     public function detail(int $driver,int $event):array
     {

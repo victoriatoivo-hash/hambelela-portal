@@ -7,7 +7,8 @@ require_once __DIR__.'/FrontSession.php';
 /** Custody only. Never edits order payments, VAT, receipts or accounting ledger. */
 final class CashHandover
 {
-    public function __construct(private \PDO $db) {}
+    private \PDO $db;
+    public function __construct(\PDO $db) {$this->db=$db;}
     private function rows(string $sql,array $v=[]):array {$s=$this->db->prepare($sql);$s->execute($v);return $s->fetchAll(\PDO::FETCH_ASSOC);}
     private function exec(string $sql,array $v=[]):void {$this->db->prepare($sql)->execute($v);}
     public static function ready(\PDO $db):bool {try{$db->query('SELECT id FROM delivery_cash_handovers LIMIT 0');return true;}catch(\PDOException $e){if($e->getCode()==='42S02')return false;throw $e;}}
@@ -16,8 +17,8 @@ final class CashHandover
         $a=FrontSession::actor($db,$id);if(!DeliveryPolicy::can($a,'delivery_reconcile'))throw new \DomainException('Cash receipt permission required.');return $a;
     }
     public static function money(int $minor):string {return ($minor<0?'-':'').'N$'.number_format(intdiv(abs($minor),100),0,'.',',').'.'.str_pad((string)(abs($minor)%100),2,'0',STR_PAD_LEFT);}
-    private static function minor(mixed $v,bool $zero=false):int {if(!is_int($v)||$v<($zero?0:1)||$v>9999999999)throw new \DomainException('Use a valid NAD amount in whole cents.');return $v;}
-    private static function note(mixed $v,bool $required=false):string {if(!is_string($v)||!mb_check_encoding($v,'UTF-8'))throw new \DomainException('Invalid note.');$v=trim($v);if(mb_strlen($v)>2000||($required&&mb_strlen($v)<10)||preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f]/',$v))throw new \DomainException('Explain the difference or correction in 10–2,000 characters.');return $v;}
+    private static function minor($v,bool $zero=false):int {if(!is_int($v)||$v<($zero?0:1)||$v>9999999999)throw new \DomainException('Use a valid NAD amount in whole cents.');return $v;}
+    private static function note($v,bool $required=false):string {if(!is_string($v)||!mb_check_encoding($v,'UTF-8'))throw new \DomainException('Invalid note.');$v=trim($v);if(mb_strlen($v)>2000||($required&&mb_strlen($v)<10)||preg_match('/[\x00-\x08\x0b\x0c\x0e-\x1f]/',$v))throw new \DomainException('Explain the difference or correction in 10–2,000 characters.');return $v;}
     private function scope(int $employee,int $requested=0):array {
         $a=self::actor($this->db,$employee);$driver=$a['role']==='delivery_driver';
         if($driver&&$requested!==0&&$requested!==$employee)throw new \DomainException('Cash records are private to their driver.');

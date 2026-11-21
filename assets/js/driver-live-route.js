@@ -9,6 +9,7 @@
   function applyFilter() { const held = content.querySelector('[data-route-held]'); if (held) held.hidden = !showHeld; }
   function closeDialogs() { for (const dialog of root.querySelectorAll('dialog[open]')) dialog.close(); }
   function clear(text) {
+    window.hambelelaRouteMap?.clear();
     closeDialogs(); lastHTML = null;
     content.innerHTML = '<section class="ho-driver-route__sheet"><h1>Route unavailable</h1><p class="ho-driver-route__empty" data-route-error></p><button class="ho-driver-route__navigate" type="button" data-route-refresh>Retry</button></section>';
     content.querySelector('[data-route-error]').textContent = text; content.hidden = false;
@@ -38,6 +39,8 @@
         if (label) for (const node of content.querySelectorAll('[aria-label]')) if (node.getAttribute('aria-label') === label) { node.focus({ preventScroll: true }); break; }
       }
       stopped = false; content.hidden = false; announce('');
+      if(typeof result.csrf==='string')root.dataset.csrf=result.csrf;
+      window.hambelelaRouteMap?.snapshot(result.route);
     } catch (e) {
       if (token === sequence) { clear('Could not verify assigned stops. Please reconnect and retry.'); announce('Connection interrupted.'); }
     } finally { clearTimeout(timeout); if (token === sequence) { active = null; root.setAttribute('aria-busy', 'false'); } }

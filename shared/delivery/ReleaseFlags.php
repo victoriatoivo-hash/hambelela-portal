@@ -6,4 +6,6 @@ $deliveryFlagsFile=BASE_PATH.'/storage/delivery-release-flags.json';
 $deliveryFlags=is_file($deliveryFlagsFile)?json_decode((string)file_get_contents($deliveryFlagsFile),true):[];
 if(!defined('DELIVERY_ENABLED'))define('DELIVERY_ENABLED',($deliveryFlags['delivery_enabled']??false)===true);
 if(!defined('DELIVERY_SETUP_ENABLED'))define('DELIVERY_SETUP_ENABLED',($deliveryFlags['setup_enabled']??false)===true);
+// Enable only after two successful scheduled worker runs have been verified.
+if(!defined('DELIVERY_COD_FOLLOWUP_ENABLED'))define('DELIVERY_COD_FOLLOWUP_ENABLED',($deliveryFlags['cod_followup_enabled']??false)===true);
 unset($deliveryFlags,$deliveryFlagsFile);

@@ -7,7 +7,8 @@ require_once __DIR__.'/DispatchFiles.php';
 /** Dispatch-only scope. Never reads or changes private Owner assistance/acknowledgements. */
 final class DispatchChat
 {
-    public function __construct(private \PDO $db) {}
+    private \PDO $db;
+    public function __construct(\PDO $db) {$this->db=$db;}
     private function rows(string $sql,array $v=[]):array {return ErrandData::query($this->db,$sql,$v);}
     private function exec(string $sql,array $v=[]):void {$this->db->prepare($sql)->execute($v);}
     public static function actor(\PDO $db,int $id):array {return ErrandData::actor($db,$id);}

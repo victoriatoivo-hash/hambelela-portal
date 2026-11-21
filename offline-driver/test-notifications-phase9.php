@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__.'/test-php74-assertions.php';
 if(PHP_SAPI!=='cli')exit(1);ob_start();define('BASE_PATH',dirname(__DIR__));define('BASE_URL','');
 require BASE_PATH.'/shared/delivery/DriverNotificationsData.php';
 use Hambelela\Delivery\{DriverNotificationsData,DriverInbox,EmployeeDriverSession,DispatchChat};
@@ -43,7 +44,7 @@ yes9($svc->preferences(3)['state']==='not_saved','unsaved preference explicitly 
 foreach([['action'=>'list','actor'=>4],['action'=>'list','actor'=>3,'driver'=>4],['action'=>'send','actor'=>3],['action'=>'sound','actor'=>3,'enabled'=>'yes'],['action'=>'open','actor'=>3,'id'=>-1]] as $p){[$status]=http9($p);yes9($status>=400,'spoofed or invalid action rejected');}
 [$status]=http9(['action'=>'list','actor'=>3],'notice-test','POST',['driver'=>4]);yes9($status===403,'query identity override rejected');
 [$status]=http9([],'notice-test','DELETE');yes9($status===405,'delete method rejected');$who=1;[$status]=http9();yes9($status===403,'owner cannot masquerade as driver');$who=3;
-[$status,$html]=http9([],'notice-test','GET',[]);yes9($status===200&&substr_count($html,'class="ho-driver-dashboard__tab"')===5,'actual shell reuses five-tab navigation');yes9(!str_contains($html,'demo-1')&&!str_contains($html,'9:41'),'shell contains no demo IDs or fake status bar');
+[$status,$html]=http9([],'notice-test','GET',[]);yes9($status===200&&substr_count($html,'class="ho-driver-dashboard__tab"')===5,'actual shell reuses five-tab navigation');yes9(!test_contains($html,'demo-1')&&!test_contains($html,'9:41'),'shell contains no demo IDs or fake status bar');
 $now=(new DateTimeImmutable('2026-11-21T22:01:00Z'))->getTimestamp();$row=['id'=>1,'title'=>'Example','kind'=>'completed','ref'=>'TEST','priority'=>'normal','read_at'=>'2026-11-21 20:00:00','created_at'=>'2026-11-21 21:59:00'];$d=DriverNotificationsData::display($row,$now);yes9($d['group']==='Yesterday'&&$d['time']==='23:59','Windhoek midnight uses server UTC time');yes9($d['title']==='Delivery status updated','legacy completion alert does not falsely claim verified POD');$row['created_at']='2026-11-21 22:00:00';yes9(DriverNotificationsData::display($row,$now)['group']==='Earlier today','local new day grouping');$row['read_at']=null;yes9(DriverNotificationsData::display($row,$now)['time']==='1 min ago','relative time uses server time');
 $db->exec('UPDATE delivery_driver_profiles SET active=0 WHERE employee_id=3');[$status]=http9();yes9($status===403,'driver deactivation immediately denied');$db->exec('UPDATE delivery_driver_profiles SET active=1 WHERE employee_id=3');
 require BASE_PATH.'/shared/delivery/NotificationOutbox.php';

@@ -76,7 +76,7 @@ final class ErrandWorkflow
                 $this->exec('UPDATE delivery_errand_requests SET status=?,revision=revision+1,errand_id=? WHERE id=?',[$action==='approve'?'approved':'rejected',$created['id']??null,$id]);
                 $event=$this->requestEvent($id,$employee,$action,['notes'=>$note,'errand_id'=>$created['id']??null]);
                 // A requester who is no longer active does not receive private updates; the audit remains.
-                try{EmployeeDriverSession::actor($this->db,(int)$r['requested_by']);$this->notify('delivery_errand_request',$id,$event,'Your errand request was reviewed','Open Errands to view the dispatch decision.',(int)$r['requested_by']);}catch(\DomainException $e){if(!str_contains($e->getMessage(),'Active Driver'))throw $e;}
+                try{EmployeeDriverSession::actor($this->db,(int)$r['requested_by']);$this->notify('delivery_errand_request',$id,$event,'Your errand request was reviewed','Open Errands to view the dispatch decision.',(int)$r['requested_by']);}catch(\DomainException $e){if(strpos($e->getMessage(),'Active Driver')===false)throw $e;}
                 $result=['request_id'=>$id,'status'=>$action==='approve'?'approved':'rejected','errand_id'=>$created['id']??null,'receipt'=>$event,'evidence'=>[]];
             }else{
                 if((int)$j['revision']!==$version)throw new \DomainException('This errand changed. Close the form and review the latest details.');

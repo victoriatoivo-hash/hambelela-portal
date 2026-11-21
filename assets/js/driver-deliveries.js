@@ -1,13 +1,13 @@
 (() => {
   'use strict';
-  const countKeys={all:'all',to_collect:'toCollect',on_route:'onRoute',done:'done'};
+  const countKeys={active:'active',all:'all',to_collect:'toCollect',on_route:'onRoute',done:'done'};
   const normalize=value=>String(value??'').normalize('NFKC').toLocaleLowerCase().replace(/#/g,'').replace(/\s+/g,' ').trim();
-  function model(data,query='',tab='all',sort='priority'){
+  function model(data,query='',tab='active',sort='priority'){
     const terms=normalize(query).split(' ').filter(Boolean);
     const searched=data.deliveries.filter(d=>terms.every(term=>normalize([d.orderNumber,d.customerDisplayName,d.deliveryArea].join(' ')).includes(term)));
-    const counts={all:searched.length,toCollect:0,onRoute:0,done:0,exceptions:0};
+    const counts={all:searched.length,active:searched.filter(d=>d.stage!=='done').length,toCollect:0,onRoute:0,done:0,exceptions:0};
     searched.forEach(d=>counts[countKeys[d.stage]||'exceptions']++);
-    let rows=searched.filter(d=>tab==='all'||d.stage===tab);
+    let rows=searched.filter(d=>tab==='all'||(tab==='active'?d.stage!=='done':d.stage===tab));
     if(sort==='time')rows.sort((a,b)=>(a.scheduledSort??Infinity)-(b.scheduledSort??Infinity)||a.assignmentId-b.assignmentId);
     if(sort==='customer'||sort==='order'){const key=sort==='customer'?'customerDisplayName':'orderNumber';rows.sort((a,b)=>String(a[key]).localeCompare(String(b[key]),undefined,{numeric:true})||a.assignmentId-b.assignmentId);}
     return {counts,rows};
@@ -15,7 +15,7 @@
   if(typeof module!=='undefined'&&module.exports)module.exports={model,normalize};
   if(typeof document==='undefined')return;
   const root=document.querySelector('[data-driver-deliveries]');if(!root)return;
-  let data=JSON.parse(document.getElementById('driver-deliveries-data').textContent),tab='all',sort='priority',busy=false,expired=false,lastMarkup=null;
+  let data=JSON.parse(document.getElementById('driver-deliveries-data').textContent),tab='active',sort='priority',busy=false,expired=false,lastMarkup=null;
   const isSummary=root.dataset.summary==='1',results=root.querySelector('[data-d-results]'),search=root.querySelector('#driver-search'),notice=root.querySelector('[data-d-connection]');
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const iconPaths={pin:'<path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0z"/><circle cx="12" cy="10" r="2"/>',box:'<path d="m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9M7.5 5.5l9 5"/>',card:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>',arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>'};
@@ -29,7 +29,7 @@
     root.querySelectorAll('[data-d-tab]').forEach(el=>{el.setAttribute('aria-selected',String(el.dataset.dTab===tab));el.tabIndex=el.dataset.dTab===tab?0:-1;});
     results.setAttribute('aria-labelledby','tab-'+tab);
     root.querySelector('[data-d-clear]').hidden=!search.value;
-    const review=root.querySelector('[data-d-review]');review.hidden=failed||!view.counts.exceptions;review.textContent=review.hidden?'':view.counts.exceptions+' assignment'+(view.counts.exceptions===1?' needs':'s need')+' dispatch review · included in All, not Done.';
+    const review=root.querySelector('[data-d-review]');review.hidden=failed||!view.counts.exceptions;review.textContent=review.hidden?'':view.counts.exceptions+' assignment'+(view.counts.exceptions===1?' needs':'s need')+' dispatch review · included in Active, not Done.';
     let html='';
     if(failed)html='<section class="ho-driver-deliveries__error"><p>'+ (expired?'Your session or driver access has expired. Reload to sign in again.':'Could not load your assignments. No totals are shown.')+'</p><button type="button" class="ho-driver-deliveries__retry" data-d-refresh>Retry</button></section>';
     else if(!view.rows.length)html='<p class="ho-driver-deliveries__empty">'+(data.deliveries.length?'No matching deliveries. Clear your search or choose another tab.':'No deliveries assigned for today.')+'</p>';

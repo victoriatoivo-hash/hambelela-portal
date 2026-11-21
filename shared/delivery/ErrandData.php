@@ -3,6 +3,7 @@ declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/EmployeeDriverSession.php';
 require_once __DIR__.'/FrontSession.php';
+require_once __DIR__.'/ErrandManagementAccess.php';
 require_once __DIR__.'/ProofStorage.php';
 
 /** Same three canonical errand tables as the existing front-desk collection workflow. */
@@ -13,7 +14,7 @@ final class ErrandData
         $s=$db->prepare('SELECT r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=?');$s->execute([$id]);
         if($s->fetchColumn()==='delivery_driver')return EmployeeDriverSession::actor($db,$id);
         $a=FrontSession::actor($db,$id);
-        if(!DeliveryPolicy::can($a,'delivery_arrange'))throw new \DomainException('Errand dispatch access required.');
+        if(!ErrandManagementAccess::allowed($a))throw new \DomainException('Errand dispatch access required.');
         return $a;
     }
     public static function query(\PDO $db,string $sql,array $args=[]):array {$s=$db->prepare($sql);$s->execute($args);return $s->fetchAll(\PDO::FETCH_ASSOC);}
