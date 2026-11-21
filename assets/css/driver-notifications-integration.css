@@ -1,0 +1,22 @@
+.ho-driver-notifications{color-scheme:light}
+.ho-driver-notifications .hn-masthead{padding-top:calc(9px + env(safe-area-inset-top,0px))}
+.ho-driver-notifications .hn-settings{min-width:44px;min-height:44px}
+.ho-driver-notifications .hn-heading p{color:#6d8073}
+.ho-driver-notifications .hn-note__description{color:#627b6b}
+.ho-driver-notifications .hn-note__content time{color:#6e8175}
+.ho-driver-notifications .hn-note__content{overflow-wrap:anywhere}
+.ho-driver-notifications .hn-filters button{min-height:40px;color:#61796a}
+.ho-driver-notifications .hn-scroller{padding-bottom:20px}
+.ho-driver-notifications .hn-status{font-size:12px;line-height:1.5;color:#5d715f;padding:10px 14px;margin:0}
+.ho-driver-notifications .hn-status:empty{display:none}
+.ho-driver-notifications .hn-retry,.ho-driver-notifications .hn-older{margin:8px auto;display:block;min-height:44px}
+.ho-driver-notifications .hn-dialog{position:fixed;inset:0;margin:auto;max-height:min(85dvh,650px);width:calc(100% - 30px);max-width:390px;color:#1b3026}
+.ho-driver-notifications .hn-dialog::backdrop{background:#1a2c1f6b}
+.ho-driver-notifications .hn-dialog[open]{animation:hn-rise .2s ease-out}
+.ho-driver-notifications .hn-dialog-close{min-width:44px;min-height:44px}
+.ho-driver-notifications .hn-dialog-action{min-height:44px}
+.ho-driver-notifications .hn-pref input{width:24px;height:24px}
+.ho-driver-notifications .hn-dialog a{display:flex;min-height:44px;align-items:center;color:#3f6745;text-decoration:none;border-bottom:1px solid #e3eae2;font-size:13px}
+.ho-driver-notifications .hn-filters button:disabled,.ho-driver-notifications .hn-note:disabled{cursor:wait;opacity:.7}
+@keyframes hn-rise{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.ho-driver-notifications .hn-dialog[open]{animation:none}}
