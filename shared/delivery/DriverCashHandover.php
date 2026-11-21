@@ -2,6 +2,7 @@
 declare(strict_types=1);
 if(!defined('BASE_PATH')){http_response_code(404);exit;}
 require_once __DIR__.'/CashHandover.php';
+require_once __DIR__.'/DriverRecordedHandover.php';
 require_once __DIR__.'/DriverInbox.php';
 use Hambelela\Delivery\CashHandover;
 header('Cache-Control: private, no-store, max-age=0');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: no-referrer');
@@ -14,12 +15,15 @@ try{
         if(!is_string($_POST['csrf']??null)||!hash_equals($_SESSION['cash_handover_csrf'],$_POST['csrf']))throw new DomainException('Session verification failed. Reload and retry.',403);
         if(!is_string($_POST['payload']??null)||strlen($_POST['payload'])>24000)throw new DomainException('Invalid cash request.');$p=json_decode($_POST['payload'],true,16,JSON_THROW_ON_ERROR);
         if(!is_array($p)||(int)($p['actor']??0)!==$actor['id'])throw new DomainException('Account changed. Reload before submitting.',403);
-        $result=($p['action']??'')==='review'?$cash->review($actor['id'],$p):$cash->command($actor['id'],$p);
+        if($driver&&($p['action']??'')!=='driver_confirm')throw new DomainException('The handover process has been updated. Reopen Cash handover to confirm the amount.');
+        if(($p['action']??'')==='driver_confirm')$result=(new \Hambelela\Delivery\DriverRecordedHandover(db()))->confirm($actor['id'],$p);
+        else $result=($p['action']??'')==='review'?$cash->review($actor['id'],$p):$cash->command($actor['id'],$p);
         header('Content-Type: application/json; charset=utf-8');echo json_encode(['ok'=>true,'actor'=>$actor['id'],'result'=>$result],JSON_THROW_ON_ERROR);return;
     }
     if($method!=='GET')throw new DomainException('Method not allowed.',405);
     if(isset($_GET['feed'])){
-        $data=$driver?$cash->summary($actor['id']):['handovers'=>$cash->inbox($actor['id'])];
+        $recorded=new \Hambelela\Delivery\DriverRecordedHandover(db());
+        $data=$driver?$recorded->summary($actor['id']):['handovers'=>array_merge(\Hambelela\Delivery\DriverRecordedHandover::ready(db())?$recorded->bookkeeping():[],$cash->inbox($actor['id']))];
         if($driver)$data['unread_notifications']=\Hambelela\Delivery\DriverInbox::feed(db(),$actor)['counts']['all'];
         else{$s=db()->prepare('SELECT COUNT(*) FROM notification_recipients WHERE employee_id=? AND read_at IS NULL AND cleared_at IS NULL');$s->execute([$actor['id']]);$data['unread_notifications']=(int)$s->fetchColumn();}
         header('Content-Type: application/json; charset=utf-8');echo json_encode(['ok'=>true,'actor'=>$actor['id'],'data'=>$data],JSON_THROW_ON_ERROR);return;

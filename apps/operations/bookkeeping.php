@@ -15,6 +15,18 @@ $bookkeepingRoleKey = normalise_portal_role((string) ($currentUser['role_key'] ?
 $canOperateBookkeeping = $bookkeepingRoleKey !== 'guest'
     && portal_role_can_access_feature($bookkeepingRoleKey, 'bookkeeping');
 $canManageBookkeeping = $bookkeepingRoleKey === 'owner_admin';
+// Driver statements are a separate custody list, never additional sales/Cash In.
+if (isset($_GET['driver_handovers_feed'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    header('Cache-Control: private, no-store');
+    if (!$canOperateBookkeeping) { http_response_code(403); echo '{"ok":false}'; exit; }
+    try {
+        require_once BASE_PATH . '/shared/delivery/DriverRecordedHandover.php';
+        if (!\Hambelela\Delivery\DriverRecordedHandover::ready(db())) throw new RuntimeException('Not ready');
+        echo json_encode(['ok'=>true,'actor'=>(int)($currentUser['id']??0),'handovers'=>(new \Hambelela\Delivery\DriverRecordedHandover(db()))->bookkeeping()], JSON_THROW_ON_ERROR);
+    } catch (Throwable $e) { http_response_code(503); echo '{"ok":false,"error":"Handover records are temporarily unavailable."}'; }
+    exit;
+}
 $isBookkeepingReadOnly = !$canOperateBookkeeping;
 $canSelectBookkeepingRows = $canOperateBookkeeping;
 $ledgerUserId = (int) ($employeeId ?? 0);
@@ -918,6 +930,13 @@ include BASE_PATH . '/shared/ess-sidebar.php';
             </section>
         <?php endif; ?>
 
+        <?php if ($canOperateBookkeeping): ?>
+        <section class="bk-side-section" data-driver-handovers data-actor="<?= (int)($currentUser['id']??0) ?>" aria-label="Driver cash handovers">
+            <div class="bk-side-head"><span>Driver cash handovers</span></div>
+            <div class="bk-side-body"><p>Amounts handed to Front Desk, confirmed by the driver. Cash Book posting remains manual; these are not new sales.</p><p data-handover-status role="status">Loading handovers…</p><div data-handover-list></div></div>
+        </section>
+        <script src="<?= htmlspecialchars(rtrim(BASE_URL,'/').'/assets/js/bookkeeping-driver-handovers.js?v='.filemtime(BASE_PATH.'/assets/js/bookkeeping-driver-handovers.js'),ENT_QUOTES,'UTF-8') ?>" defer></script>
+        <?php endif; ?>
         <section class="bk-side-section bk-filter-section" data-portal-view-filter aria-label="Cash ledger filters" hidden style="display:none!important">
             <div class="bk-side-head"><span>Filters</span></div>
             <div class="bk-side-body">
