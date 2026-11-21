@@ -7,6 +7,9 @@ import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASE = '21c916e6911fec3a8afcab98643a512f4e1ba77b'
+# Owner-approved comparison, run 44890830990: current Front Desk handover checks
+# are preserved in the desired source, not overwritten with the older git copy.
+REVIEWED_LIVE = {'shared/delivery/DeliveryService.php': '37b843cdef2247851842894a43246573b1671bd720a8db95a8c310cfa48bcc0b'}
 FILES = [
     'assets/css/driver-completion-dialog.css',
     'assets/css/driver-proof-integration.css',
@@ -71,9 +74,11 @@ def main(deploy):
         if b'Require all denied' not in rules or b'Deny from all' not in rules:
             raise RuntimeError('Protected release staging folder is unavailable; nothing changed')
         before={p:read(ftp,p) for p in FILES}
+        unknown=[]
         for p,data in before.items():
-            if digest(data) not in [digest(blob(BASE,p)),digest(wanted[p])]:
-                raise RuntimeError('Unknown live baseline; nothing changed: '+p)
+            if digest(data) not in [REVIEWED_LIVE.get(p,digest(blob(BASE,p))),digest(wanted[p])]:
+                unknown.append(p)
+        if unknown:raise RuntimeError('Unknown live baselines; nothing changed: '+', '.join(unknown))
         with zipfile.ZipFile(BACKUP,'w',zipfile.ZIP_DEFLATED) as z:
             for p,data in before.items():
                 if data is not None:z.writestr(p,data)
