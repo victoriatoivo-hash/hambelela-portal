@@ -16,9 +16,10 @@ final class DriverAssignments
         $date=$now->format('Y-m-d');
         $orderColumns=$db->query('SHOW COLUMNS FROM ops_orders')->fetchAll(\PDO::FETCH_COLUMN);
         $refundColumn=in_array('refund_total',$orderColumns,true)?'o.refund_total':'NULL';
+        $paidTickColumn=in_array('portal_paid_confirmed',$orderColumns,true)?'o.portal_paid_confirmed':'NULL';
         $archiveColumn=in_array('archived_at',$orderColumns,true)?'o.archived_at':'NULL';$pendingIssue=DeliveryIssueState::pendingPredicate();
         $assignmentWhere=$assignmentId===null?'':' AND j.id=?';
-        $q=$db->prepare("SELECT j.*,o.id linked_order,o.order_number,o.status order_status,o.payment_status,o.payment_method,o.total_amount,o.deleted_at,$archiveColumn archived_at,$refundColumn refund_total,
+        $q=$db->prepare("SELECT j.*,o.id linked_order,o.order_number,o.status order_status,o.payment_status,o.payment_method,o.total_amount,o.deleted_at,$archiveColumn archived_at,$refundColumn refund_total,$paidTickColumn portal_paid_confirmed,
             (SELECT COUNT(*) FROM ops_order_items i WHERE i.order_id=j.order_id) item_count,
             (SELECT MAX(e.id) FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type IN ('arranged','partner_arranged')) release_event,
             (SELECT e.metadata_json FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type IN ('arranged','partner_arranged') ORDER BY e.id DESC LIMIT 1) release_json,
@@ -122,7 +123,7 @@ final class DriverAssignments
                 foreach($allocations as $a){if((int)$a['amount_cents']<0)throw new \DomainException('Reversed allocation.');if((int)$a['amount_cents']>0){$allocated+=(int)$a['amount_cents'];$methods[self::method($a['payment_method'])]=true;}}
                 // Do not inherit OrderDispatchBalance's legacy paid-status fallback as verified money.
                 if(!$allocations&&$r['payment_status']==='paid'&&DeliveryPolicy::cents((string)$r['total_amount'])>0
-                    &&($release['order_dispatch']['payment_policy']??'')!=='portal_cash_confirmation')throw new \DomainException('No verified allocation.');
+                    &&!(($release['order_dispatch']['payment_policy']??'')==='portal_cash_confirmation'&&!empty($r['portal_paid_confirmed'])))throw new \DomainException('No verified allocation.');
             }
             $due=array_sum((new OrderBalanceAdapter())->read($db,$r));
             if((int)$r['pending_receipts']>0){$result['paymentLabel']='Payment under review';return $result;}

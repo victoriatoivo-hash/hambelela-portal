@@ -28,6 +28,8 @@ try{
  check($r['payment']['codAmountDueNad']===40&& !$r['payment']['verified'],'Dispatch COD instruction overrides older EFT method without inventing payment');
  $db->exec("UPDATE ops_orders SET payment_status='paid',portal_paid_confirmed=1 WHERE id=1");
  $r=$read();check($r['payment']['verified']&&$r['delivery']['stage']==='to_collect','Approved portal Paid tick is honoured without duplicate allocation requirement');
+ $db->exec("UPDATE ops_orders SET portal_paid_confirmed=0 WHERE id=1");
+ $r=$read();check(!$r['payment']['verified']&&$r['action']==='accept','Unticked legacy paid label does not invent settlement or block acceptance');
  $db->exec("UPDATE ops_orders SET payment_status='partial',portal_paid_confirmed=0 WHERE id=1");
  $r=$read();check(!$r['payment']['verified']&&$r['payment']['codAmountDueNad']===null&&$r['action']==='accept','Unknown balance remains unknown but does not block dispatch');
  $front=['kind'=>'employee','id'=>1,'role'=>'front_desk_admin_employee','active'=>true];
