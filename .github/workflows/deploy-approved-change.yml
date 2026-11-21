@@ -13,6 +13,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  driver-background:
+    if: github.ref == 'refs/heads/codex/driver-background-updates' && inputs.approved_sha == github.sha
+    uses: ./.github/workflows/deploy-driver-background.yml
+    with:
+      approved_sha: ${{ inputs.approved_sha }}
+    secrets: inherit
   stage-driver-app:
     if: inputs.approved_sha == github.sha && (github.ref == 'refs/heads/codex/driver-release-blockers' || github.ref == 'refs/heads/codex/order-board-collection')
     runs-on: ubuntu-latest

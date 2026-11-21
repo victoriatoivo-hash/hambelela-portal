@@ -1,5 +1,5 @@
 <?php if(!defined('BASE_PATH'))exit;$issue=$c['incident'];$decision=$issue['latest_decision'];$when=\Hambelela\Delivery\DeliveryIssueState::localTime($issue['reported_at']);?>
-<section class="ho-driver-issue__receipt" aria-labelledby="issue-receipt-title">
+<section class="ho-driver-issue__receipt" aria-labelledby="issue-receipt-title" data-issue-receipt data-actor="<?=$h($actor['id']??'')?>" data-assignment="<?=$assignmentId?>">
 <h2 id="issue-receipt-title"><?=$issue['blocking']?'Issue reported · Awaiting dispatch':'Dispatch response received'?></h2>
 <p>Report saved <?=$h($when)?> · Africa/Windhoek</p><p>Incident <span class="ho-driver-issue__reference"><?=$h($issue['incident_id'])?></span></p>
 <p>Driver: <?=$h($issue['driver_name'])?></p><p><strong><?=$h(\Hambelela\Delivery\DeliveryIssueState::REASONS[$issue['reason']])?></strong></p><p class="ho-driver-issue__text"><?=$h($issue['notes'])?></p>
