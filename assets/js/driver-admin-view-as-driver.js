@@ -50,10 +50,12 @@
   screen=next;record=id;const seq=++phoneEpoch,generation=epoch;frame?.remove();frame=null;$('device').textContent='Loading selected driver…';
   try{const [r,font]=await Promise.all([scoped({mode:'phone',screen,id}),sharedFont()]);if(seq!==phoneEpoch||generation!==epoch)return;
    const f=document.createElement('iframe'),channel=crypto.randomUUID();f.setAttribute('sandbox','allow-scripts');f.setAttribute('allow',"geolocation 'none'; camera 'none'; microphone 'none'; payment 'none'");f.referrerPolicy='no-referrer';f.title='Selected driver · read-only '+screen;f.dataset.channel=channel;f.srcdoc=prepare(r.html,channel,font);$('device').replaceChildren(f);frame=f;
-   if([...$('screen').options].some(o=>o.value===screen))$('screen').value=screen;
+   for(const option of [...$('screen').options])if(option.dataset.recordScreen)option.remove();
+   if(![...$('screen').options].some(o=>o.value===screen)){const option=new Option(({details:'Order details',proof:'Proof of delivery',issues:'Delivery issue'})[screen]||screen,screen);option.disabled=true;option.dataset.recordScreen='1';$('screen').append(option);}
+   $('screen').value=screen;
   }catch(e){if(seq===phoneEpoch){$('device').textContent=e.message;status(e.message,true);}}
  }
- async function select(){const id=Number($('driver').value);++epoch;blocked=false;clear();cap='';driver=id;if(!id){status('Choose a driver.');return;}const generation=epoch;status('Loading authorized driver records…');try{const r=await api({mode:'open',driver});if(generation!==epoch)return;cap=r.cap;show(r.summary);await phone('home');}catch(e){if(generation===epoch)status(e.message,true);}}
+ async function select(firstScreen='home',firstRecord=null){const id=Number($('driver').value);++epoch;blocked=false;clear();cap='';driver=id;if(!id){status('Choose a driver.');return;}const generation=epoch;status('Loading authorized driver records…');try{const r=await api({mode:'open',driver});if(generation!==epoch)return;cap=r.cap;show(r.summary);await phone(firstScreen,firstRecord);}catch(e){if(generation===epoch)status(e.message,true);}}
  window.addEventListener('message',async e=>{
   const f=frame,m=e.data,generation=epoch;if(!f||e.source!==f.contentWindow||e.origin!=='null'||!m||m.channel!==f.dataset.channel||blocked)return;
   if(m.kind==='navigate'){if(['home','deliveries','details','map','proof','issues','errands','messages','notifications','history','cash','profile'].includes(m.screen))phone(m.screen,m.id??null);return;}
@@ -62,11 +64,11 @@
   try{let data;if(m.mode==='phone'&&['home','details','map'].includes(m.screen))data=await scoped({mode:'phone',screen:m.screen,id:m.id});else data=await scoped({mode:'read',op:m.op,params:JSON.stringify(m.params||{})});if(generation===epoch&&frame===f)f.contentWindow.postMessage({channel:m.channel,request:m.request,ok:true,data},'*');}
   catch(err){if(generation===epoch&&frame===f)f.contentWindow.postMessage({channel:m.channel,request:m.request,ok:false,status:blocked?403:409,error:err.message},'*');}
  });
- $('driver').onchange=select;$('screen').onchange=()=>phone($('screen').value);$('refresh').onclick=()=>cap&&!blocked?refresh(true):select();$('evidence-close').onclick=()=>{$('evidence').close();$('evidence-body').replaceChildren();};
+ $('driver').onchange=()=>select();$('screen').onchange=()=>phone($('screen').value);$('refresh').onclick=()=>cap&&!blocked?refresh(true):select();$('evidence-close').onclick=()=>{$('evidence').close();$('evidence-body').replaceChildren();};
  root.addEventListener('click',e=>{const b=e.target.closest('[data-view-screen]');if(b)phone(b.dataset.viewScreen);});
  $('search').oninput=()=>{const q=$('search').value.trim().toLowerCase();for(const o of $('driver').options)o.hidden=!!o.value&&!o.textContent.toLowerCase().includes(q);};
  async function refresh(manual=false){clearTimeout(timer);if(!cap||blocked||document.hidden)return;try{show(await scoped({mode:'summary'}));if(manual)await phone(screen,record);}catch(e){status('Stale · '+e.message,true);}finally{timer=setTimeout(refresh,30000);}}
  document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
- api({mode:'drivers'}).then(rows=>{drivers=rows;for(const d of rows)$('driver').append(new Option(d.full_name,String(d.id)));const initial=Number(new URL(location.href).searchParams.get('driver'));if(rows.some(d=>Number(d.id)===initial)){$('driver').value=String(initial);select();}else if(!rows.length)status('No active driver profiles.');}).catch(e=>status(e.message,true));
+ api({mode:'drivers'}).then(rows=>{drivers=rows;for(const d of rows)$('driver').append(new Option(d.full_name,String(d.id)));const params=new URL(location.href).searchParams,initial=Number(params.get('driver')),delivery=params.get('id');if(rows.some(d=>Number(d.id)===initial)){$('driver').value=String(initial);const details=params.get('screen')==='details'&&/^[1-9][0-9]{0,9}$/.test(delivery||'');select(details?'details':'home',details?Number(delivery):null);}else if(!rows.length)status('No active driver profiles.');}).catch(e=>status(e.message,true));
  timer=setTimeout(refresh,30000);
 })();
