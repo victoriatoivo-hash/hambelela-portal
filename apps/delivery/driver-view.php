@@ -7,8 +7,27 @@ require_once BASE_PATH.'/shared/delivery/FrontSession.php';
 try{$deliveryActor=\Hambelela\Delivery\FrontSession::actor(db(),(int)(current_user()['id']??0));if($deliveryActor['role']!=='owner_admin')throw new DomainException();}catch(DomainException $e){http_response_code(403);exit('Owner oversight required.');}
 if(!DELIVERY_ENABLED){http_response_code(503);exit('Delivery is not enabled.');}
 header('Cache-Control: no-store');
+if($_SERVER['REQUEST_METHOD']!=='GET'){header('Allow: GET');http_response_code(405);exit;}
+if(isset($_GET['view']) && $_GET['view']==='board'){
+    header('Content-Type: application/json');
+    try{
+        require_once BASE_PATH.'/shared/delivery/DriverErrands.php';
+        require_once BASE_PATH.'/shared/delivery/CoreApi.php';
+        $errands=new \Hambelela\Delivery\DriverErrands(db());
+        $drivers=$errands->drivers($deliveryActor);$id=(int)($_GET['driver_id']??0);
+        // Return just the selector until an active driver is selected. Never query an unfiltered board.
+        $board=['jobs'=>[],'drivers'=>$drivers,'methods'=>[],'metrics'=>[],'total'=>0,'page'=>1,'has_more'=>false,'preview_errands'=>[]];
+        if($id>0&&in_array($id,array_map('intval',array_column($drivers,'id')),true)){
+            $params=['driver_id'=>$id,'state'=>'all','page'=>max(1,(int)($_GET['page']??1)),'limit'=>200];
+            $board=(new \Hambelela\Delivery\CoreApi(db(),ops_payment_method_map()))->board($deliveryActor,$params);
+            if($params['page']===1)$board['preview_errands']=$errands->previewForDriver($deliveryActor,$id);
+        }
+        echo json_encode($board,JSON_THROW_ON_ERROR);
+    }catch(Throwable $e){http_response_code(503);echo '{"error":"Driver preview is temporarily unavailable."}';}
+    exit;
+}
 // Same cards as the Driver, but the Owner remains the actor and cannot operate jobs here.
-$driverPage=true;$driverOversight=true;$endpoint='front-api.php';
+$driverPage=true;$driverOversight=true;$endpoint='driver-view.php';
 require_once BASE_PATH.'/shared/delivery/PortalShell.php';
 \Hambelela\Delivery\PortalShell::begin(true,true);
 require BASE_PATH.'/shared/delivery/CoreView.php';

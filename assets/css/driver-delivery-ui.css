@@ -50,3 +50,82 @@ body.driver-compact-app .df-row svg,.df-primary svg,.df-counter svg{width:18px;h
 @media(prefers-reduced-motion:reduce){.df-primary button:active,.df-row:active{transform:none}}
 .driver-compact-app .delivery-primary-tabs span{display:inline-block;min-width:14px;padding:1px 3px;border-radius:12px;background:#81857424;font-size:10px}.driver-compact-app .delivery-primary-tabs [aria-pressed=true] span{background:#ffffff35}
 .driver-app-sheet{max-height:90vh;max-height:90dvh;overflow-y:auto;overscroll-behavior:contain}.driver-compact-app .delivery-main{box-sizing:border-box;width:100%}
+.driver-preview-picker{order:-4;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 4px 12px;color:#495544;font:500 12px Jost,sans-serif}.driver-preview-picker label{display:flex;align-items:center;gap:7px}.driver-preview-picker select{padding:7px 10px;border-radius:10px;border:1px solid #d8e0d0;font:inherit}
+/* Driver phone shell: same composition in the read-only desktop preview. */
+body.driver-compact-app .delivery-main{position:relative;isolation:isolate;width:100%;max-width:510px;margin:0 auto;padding:0 14px 12px;border-radius:28px;background:#faf8f5;box-shadow:0 10px 40px #142e2017;min-height:min(820px,92dvh)}
+body.driver-compact-app .delivery-main>.pagehead{position:relative;isolation:isolate;border-radius:26px 26px 0 0;margin:0 -14px;padding:18px 19px 34px;background:radial-gradient(ellipse at 15% 135%,#44754a 0 34%,transparent 35%),radial-gradient(ellipse at 90% 170%,#316541 0 56%,transparent 57%),linear-gradient(115deg,#204c30,#0c301c)}
+body.driver-compact-app .delivery-main>.pagehead:after{content:"";position:absolute;bottom:-1px;left:0;right:0;height:18px;border-radius:26px 26px 0 0;background:#faf8f5}
+body.driver-compact-app .pagehead h1{font-size:22px;letter-spacing:-.03em;gap:12px}.df-bell{position:relative}.df-bell.df-has-unread:after{content:"";position:absolute;right:7px;top:6px;width:9px;height:9px;border:2px solid #194d30;border-radius:50%;background:#f15845}
+body.driver-compact-app .delivery-primary-tabs{gap:1px;padding:4px;border:0;box-shadow:0 3px 12px #29272016;margin:0 0 12px}body.driver-compact-app .delivery-primary-tabs button{min-height:34px;font-size:11px;white-space:nowrap}
+.df-tools{position:relative;z-index:2;gap:9px;margin-bottom:15px}.df-tools input[type=search]{height:42px;padding:8px 12px 8px 36px;border:1px solid #e9e6df;border-radius:24px;background:#f2f0ed url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23545e55' stroke-width='2'%3E%3Ccircle cx='10' cy='10' r='6'/%3E%3Cpath d='m15 15 6 6'/%3E%3C/svg%3E") 12px center/16px no-repeat;font:400 13px Jost,sans-serif}
+.df-options{position:relative}.df-options summary{display:grid;place-items:center;border-radius:50%;width:42px;height:42px;background:#fff;box-shadow:0 2px 10px #15291f18;cursor:pointer;list-style:none}.df-options summary::-webkit-details-marker{display:none}.df-options summary svg{width:19px}.df-options>div{position:absolute;right:0;min-width:146px;background:white;border:1px solid #e5e4de;padding:10px;border-radius:15px;box-shadow:0 8px 24px #19211926}.df-options .actions{display:flex;gap:6px}.df-options .actions button{min-height:38px}.df-options .driver-app-sound:after{content:" Sound"}.df-options .driver-app-sound[aria-pressed=false]:after{content:" Muted"}
+body.driver-compact-app #jobs{gap:9px}.driver-compact-app .df-title strong{font-size:14px;letter-spacing:-.02em}.driver-compact-app .df-title small{color:#4c524b;font-size:12px}.driver-compact-app .df-box{border-radius:50%;background:#fff9;padding:9px}.driver-compact-app .df-status time{border-radius:14px;background:#e5f3e4;color:#28642d;padding:2px 6px;font-variant-numeric:tabular-nums}.driver-compact-app .df-status{max-width:44%}.df-paid{background:#d6f1ce;color:#185729}.df-progress{background:#edddff;color:#592ba3}
+.df-nav{order:10;position:sticky;bottom:0;z-index:2;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));background:#fcfaf7f5;backdrop-filter:blur(12px);border-top:1px solid #e8e5df;margin:auto -14px -12px;padding:7px 8px max(9px,env(safe-area-inset-bottom));border-radius:0 0 26px 26px}.df-nav button{display:grid;justify-items:center;gap:3px;background:transparent;color:#343d36;border:0;font:500 11px Jost,sans-serif}.df-nav svg{height:22px;width:48px;padding:2px 12px;box-sizing:border-box}.df-nav [aria-current=page]{color:#20572c}.df-nav [aria-current=page] svg{background:#e3f0db;border-radius:20px}
+.driver-app-sheet{width:min(510px,100%);max-height:94dvh;padding:10px 16px max(15px,env(safe-area-inset-bottom));border-radius:28px 28px 0 0;background:#fcfaf7}.driver-app-sheet header{background:transparent;justify-content:flex-start}.driver-app-sheet header button{order:-1}.driver-app-sheet header .df-badge{margin-left:auto}.driver-app-sheet h2{font-size:18px;font-weight:600;letter-spacing:-.02em}.df-panel,.df-destination,.df-metrics>div,.df-map-stop{background:white;border-radius:17px;box-shadow:0 2px 9px #42332510}.df-destination>div,.df-map-stop{display:flex;align-items:center;gap:9px;padding:12px}.df-destination>div+div{border-top:1px solid #ecebe6}.df-destination a,.df-destination button,.df-map-stop button{display:inline-flex;align-items:center;gap:5px;min-height:36px;margin-left:auto;padding:4px 9px;border-radius:20px;border:0;background:#e4f2dd;color:#21552b;font:500 12px Jost,sans-serif;text-decoration:none}.df-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}.df-metrics>div{padding:10px}.df-metrics small,.df-metrics strong{display:block}.df-metrics small{color:#677267}.df-metrics strong{font-size:14px;overflow-wrap:anywhere}
+.driver-app-sheet .df-detail-row{padding:4px 10px}.df-detail-row summary{display:flex;align-items:center;gap:9px;min-height:40px}.df-detail-row summary svg:last-child{margin-left:auto;width:13px}.df-detail-row[open] summary svg:last-child{transform:rotate(90deg)}.df-urgent{display:flex;gap:7px;align-items:center;padding:12px;color:#a7231b;font-weight:600}.df-trip{display:flex;align-items:center;gap:14px;padding:15px;margin:12px 0;background:linear-gradient(115deg,#f2e8ff,#eee3fa);border-radius:18px;color:#4a2478}.df-trip>svg{width:36px;height:36px}.df-trip time{display:block;font-size:27px;font-weight:600;font-variant-numeric:tabular-nums}.df-primary,.df-payment-sheet [type=submit]{position:sticky;bottom:0}.df-primary button,.driver-app-sheet .driver-app-primary{min-height:48px;background:linear-gradient(110deg,#285d36,#194d30);font:600 14px Jost,sans-serif;border-radius:16px}.df-payment-sheet .driver-app-summary{font-size:11px;flex-direction:row}.df-payment-sheet form{background:#fff;border-radius:19px;padding:12px;margin-top:8px}.df-payment-sheet fieldset{border:none;padding:0;margin:0}.df-payment-sheet legend{padding-bottom:6px}.df-payment-sheet .driver-app-check{align-items:center;min-height:38px}.df-payment-sheet .driver-app-check input{margin:0}
+@media(max-width:767px){body.driver-compact-app :is(.ess-topbar,.ess-mobile-nav,.ess-mobile-navigation,.delivery-breadcrumb,.delivery-breadcrumbs){display:none!important}body.driver-compact-app :is(.delivery-content,.ess-dashboard-main){margin:0!important;padding:0!important;width:100%!important}body.driver-compact-app .delivery-main{border-radius:0;min-height:100dvh;max-width:100%;padding-bottom:80px}body.driver-compact-app .delivery-main>.pagehead{border-radius:0;padding-top:max(14px,env(safe-area-inset-top))}.df-nav{position:fixed;inset:auto 0 0;margin:0;border-radius:0}}
+@media(max-width:767px){body.is-driver-mobile.driver-compact-app .delivery-main{padding:0 14px 80px!important}body.driver-compact-app .delivery-content>nav[aria-label=Breadcrumb],body.is-driver-mobile.driver-compact-app .driver-mobile-nav{display:none!important}}
+/* Outrank the shared desktop dialog/form rules only on the driver's sheets. */
+body.driver-compact-app dialog.driver-app-sheet{position:fixed;inset:auto 0 0;margin:0 auto;box-sizing:border-box;width:min(510px,100%);max-width:100vw;max-height:94dvh;padding:10px 16px max(18px,env(safe-area-inset-bottom));border:0;border-radius:28px 28px 0 0;background:#fcfaf7}
+body.driver-compact-app dialog.driver-app-sheet header{display:flex;justify-content:flex-start;gap:10px;background:transparent;padding:0;margin:0 0 12px}
+body.driver-compact-app dialog.df-payment-sheet header h2{flex:1;text-align:center;padding-right:44px}
+body.driver-compact-app dialog.driver-app-sheet form label{font:400 13px/1.4 Jost,sans-serif;margin:0}
+body.driver-compact-app dialog.df-payment-sheet .driver-app-check{display:flex;flex-direction:row;align-items:center;gap:10px;padding:6px 9px;min-height:40px}
+body.driver-compact-app dialog.df-payment-sheet input[type=radio]{flex:0 0 18px;width:18px;height:18px;min-height:18px;margin:0}
+body.driver-compact-app dialog.df-payment-sheet textarea{min-height:44px}
+body.driver-compact-app dialog.df-payment-sheet [type=submit]{position:static}
+body.driver-compact-app .df-panel .df-detail-row,body.driver-compact-app .df-tools .df-options{margin:0;padding-top:0;border-top:0}
+body.driver-compact-app #message:empty{display:none}
+/* Shared portal rules also position dialogs; the driver's panels are bottom sheets,
+   centred in the viewport on both the handset and the desktop driver preview. */
+body.driver-compact-app dialog:is(.driver-app-sheet,.errand-dialog)[open]{
+  position:fixed!important;inset:auto 0 0!important;margin:0 auto!important;box-sizing:border-box;
+  width:min(100%,510px)!important;max-width:100vw!important;max-height:94dvh;
+  border-radius:28px 28px 0 0!important;box-shadow:0 -10px 40px #14261c25;
+}
+body.driver-compact-app dialog.df-details-sheet[open]{display:flex;flex-direction:column;height:min(92dvh,850px);overflow:hidden}
+body.driver-compact-app .df-details-sheet>.driver-app-handle{flex:none;width:44px;height:4px;background:#c7c6bf}
+body.driver-compact-app dialog.df-details-sheet>header{flex:none;min-height:50px;padding:0 3px 9px;margin:0;border-bottom:1px solid #e9e7e1}
+body.driver-compact-app dialog.df-details-sheet .driver-app-sheet-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain;padding:12px 3px 6px}
+body.driver-compact-app .df-details-sheet .df-primary{position:static;flex:none;padding:12px 0 0;border-top:1px solid #eee9e1}
+body.driver-compact-app .df-metrics small{display:flex;gap:5px;align-items:center;margin-bottom:4px}
+body.driver-compact-app .df-metrics small svg{color:#9b620f;width:15px;height:15px}
+body.driver-compact-app .df-options-trigger{display:grid;place-items:center;background:white;color:#263e2c;border:0;border-radius:50%;min-width:42px;width:42px;height:42px;box-shadow:0 2px 10px #15291f18}
+body.driver-compact-app .df-options-trigger svg{width:18px;height:18px}
+body.driver-compact-app dialog.df-options-sheet header h2{flex:1;text-align:center;padding-right:44px}
+body.driver-compact-app .df-option-list{display:grid;gap:4px;background:white;padding:10px 12px 12px;margin:0;border:1px solid #eae8e2}
+body.driver-compact-app .df-option-list legend{padding:0 5px;color:#505c4e}
+body.driver-compact-app .df-option-list button,.df-option-controls:not([hidden]) :is(a,button){display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:44px;padding:8px 12px;border:0;border-radius:12px;background:#f6f5f1;color:#263c2b;font:500 13px Jost,sans-serif;text-decoration:none}
+body.driver-compact-app .df-option-list button[aria-pressed=true]{background:#e2f0de;color:#1b542c}
+.df-option-controls[hidden]{display:none!important}.df-option-controls:not([hidden]),.df-option-controls:not([hidden]) .actions{display:grid;gap:6px;margin-top:8px}
+body.driver-compact-app .df-options-sheet #refresh{display:flex!important}
+@keyframes driverSheetSlideUp{from{transform:translateY(100%);opacity:.75}to{transform:translateY(0);opacity:1}}
+@keyframes driverSheetSlideDown{to{transform:translateY(100%);opacity:.65}}
+@media(prefers-reduced-motion:no-preference){
+ body.driver-compact-app dialog:is(.driver-app-sheet,.errand-dialog)[open]{animation:driverSheetSlideUp .29s cubic-bezier(.2,.78,.22,1) both!important}
+ body.driver-compact-app dialog.driver-app-sheet.df-leaving[open]{animation:driverSheetSlideDown .14s ease-in both!important}
+}
+@media(prefers-reduced-motion:reduce){body.driver-compact-app dialog:is(.driver-app-sheet,.errand-dialog)[open]{animation:none!important;transition:none!important}}
+/* Order detail composition follows the approved compact driver screen. */
+body.driver-compact-app dialog.df-details-sheet[open]{height:auto;min-height:min(610px,94dvh);padding:8px 12px max(12px,env(safe-area-inset-bottom));background:linear-gradient(145deg,#fcf9f6,#fffdfa 65%,#faf9f5)}
+body.driver-compact-app dialog.df-details-sheet header .df-stage{margin-left:auto;order:1;display:inline-flex;align-items:center;justify-content:center;gap:4px;width:auto;min-height:30px;padding:4px 10px;border:0;border-radius:22px;font:600 11px Jost,sans-serif}
+.df-stage svg{width:12px;height:12px}.df-details-sheet .df-destination strong{flex:1}.df-details-sheet .df-destination{border:1px solid #f1eee8}
+body.driver-compact-app .df-destination .df-address{padding:0}
+body.driver-compact-app .df-address [data-driver-action=navigate]{display:flex;width:100%;gap:10px;padding:10px 12px;justify-content:flex-start;text-align:left;margin:0;background:none;color:#313632;font-weight:400}
+.df-detail-row summary span small{display:block;font-size:12px;color:#444c45;line-height:1.2}.df-details-sheet .df-detail-row summary>svg:first-child{width:17px;height:17px}
+body.driver-compact-app .df-details-sheet .df-metrics>div{padding:10px 8px;border-radius:16px;border:1px solid #f1efe9}
+.df-details-sheet .df-metrics small svg{box-sizing:content-box;background:#fff5df;border-radius:50%;padding:4px}.df-details-sheet .df-metrics strong{padding-left:4px}
+body.driver-compact-app .df-details-sheet .df-urgent{gap:10px}.df-urgent span{padding:3px 10px;background:#ffe1df;border-radius:18px;color:#9c1816}.df-urgent svg{box-sizing:content-box;padding:4px;background:#ffdfdc;border-radius:50%}
+body.driver-compact-app .df-details-sheet .df-trip{margin:12px 0 3px;min-height:88px;padding:12px;border-radius:18px}
+body.driver-compact-app .df-trip>svg{box-sizing:content-box;width:22px;height:22px;padding:10px;background:#e5cffb;border-radius:50%}
+.df-trip>div{flex:1}.df-trip time{line-height:1.25}.df-trip small{font-size:12px}.df-trip [data-trip-history]{border:2px solid #9751e2;border-radius:50%;width:42px;height:42px;display:grid;place-items:center;background:#fbf7ff;color:#60349a}.df-trip [data-trip-history] svg{width:19px;height:19px}
+body.driver-compact-app dialog.df-details-sheet .driver-app-sheet-body{display:flex;flex-direction:column;gap:4px}.df-details-sheet .driver-app-sheet-body>*{flex-shrink:0}
+@media(max-width:767px){
+ body.driver-compact-app:has(.ess-mobile-nav) .df-nav{display:none}
+ body.driver-compact-app:not(.is-driver-mobile) .ess-mobile-nav:not(.driver-mobile-nav),body.driver-compact-app.is-driver-mobile .ess-mobile-nav.driver-mobile-nav,body.driver-compact-app.is-driver-mobile:not(:has(.driver-mobile-nav)) .ess-mobile-nav{display:flex!important}
+ body.driver-compact-app #ess-more-dialog[open]{position:fixed!important;inset:auto 0 0!important;margin:0 auto!important;width:min(100%,510px);max-height:88dvh;overflow:auto;border-radius:26px 26px 0 0}
+}
+@media(max-width:767px) and (prefers-reduced-motion:no-preference){body.driver-compact-app #ess-more-dialog[open]{animation:driverSheetSlideUp .29s cubic-bezier(.2,.78,.22,1) both!important}}
+body.driver-compact-app dialog.df-details-sheet header button.df-stage.df-progress{background:#eee2ff;color:#632ba5}
+@media(max-width:767px){body.driver-compact-app dialog.df-details-sheet[open]{height:94dvh}body.driver-compact-app .df-details-sheet .driver-app-sheet-body{justify-content:safe space-evenly}body.driver-compact-app .df-details-sheet .df-panel summary{min-height:clamp(40px,5.4dvh,52px)}}
+.df-bell.df-has-unread:after{content:attr(data-unread);width:auto;height:auto;min-width:15px;padding:1px 3px;right:0;top:1px;text-align:center;color:white;font:600 9px/13px Jost,sans-serif;border-radius:12px}

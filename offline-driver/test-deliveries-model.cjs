@@ -1,0 +1,16 @@
+const assert=require('node:assert/strict');
+const {model}=require('../assets/js/driver-deliveries.js');
+const deliveries=Array.from({length:104},(_,i)=>({assignmentId:i+1,orderNumber:'#QA-'+(i+1),customerDisplayName:i?'Alex Q.':'A very long customer name',deliveryArea:'Windhoek',stage:['to_collect','on_route','done','exception'][i%4],scheduledSort:i===0?null:i}));
+const data={deliveries};
+assert.equal(model(data).counts.all,104);for(const key of ['toCollect','onRoute','done','exceptions'])assert.equal(model(data).counts[key],26);
+assert.equal(model(data,'#QA-104','all').rows.length,1);
+assert.equal(model(data,'alex Windhoek','done').rows.length,26);
+assert.equal(model(data,'missing').rows.length,0);
+assert.equal(model(data,'').rows.length,78);assert.equal(model(data).counts.active,78);assert.ok(model(data).rows.every(d=>d.stage!=='done'));assert.equal(model(data,'','all').rows.length,104);
+assert.equal(model(data,'qa-1','done').rows.every(d=>d.stage==='done'),true);
+assert.equal(model(data,'','all','time').rows.at(-1).assignmentId,1);
+assert.equal(model(data,'','all','order').rows[0].assignmentId,1);
+assert.equal(model({deliveries:[]}).counts.all,0);
+assert.equal(model({deliveries:[deliveries[0]]}).rows.length,1);
+assert.equal(model(data,'very long').rows.length,1);
+console.log('PASS all four tabs, >99 counts, combined partial search, clear, zero/one result, null time and sorting; no fixture writes.');

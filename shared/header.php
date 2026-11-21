@@ -48,7 +48,7 @@ if ($employeeSidebarUpgrade) {
     $isEssDashboard = true;
     $pageUsesPortalSidebar = false;
     $essShellApps = ess_shell_apps();
-    $essShellApps[] = ['name'=>'Acknowledgments','icon'=>'clipboard-check','href'=>BASE_URL.'/apps/acknowledgments/index.php'];
+    $essShellApps[] = ['name'=>(($headerUser['role_key']??'')==='owner_admin'?'Acknowledgments':'My instructions'),'icon'=>'clipboard-check','href'=>BASE_URL.'/apps/acknowledgments/index.php'];
     $essActiveModule = '';
     $sidebarRequestPath = (string) parse_url($_SERVER['REQUEST_URI'] ?? '', PHP_URL_PATH);
     foreach ($essShellApps as $sidebarApp) {
@@ -119,6 +119,9 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
         ?>
         <link rel="stylesheet" href="<?= BASE_URL ?>/<?= htmlspecialchars($stylesheetHref, ENT_QUOTES, 'UTF-8') ?>?v=<?= htmlspecialchars($stylesheetVersion, ENT_QUOTES, 'UTF-8') ?>">
     <?php endforeach; ?>
+    <?php if (in_array($_SERVER['SCRIPT_NAME'] ?? '', ['/index.php','/apps/marketing/index.php','/apps/operations/kpi-employee.php','/apps/operations/epi-attendance-performance.php','/apps/operations/my-account.php'], true)): ?>
+    <link rel="stylesheet" href="<?=BASE_URL?>/assets/css/section-typography.css?v=<?=filemtime(BASE_PATH.'/assets/css/section-typography.css')?>">
+    <?php endif; ?>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-date-picker.css?v=<?= htmlspecialchars($datePickerCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-sticky-scrollbar.css?v=<?= htmlspecialchars($stickyScrollbarCssVersion, ENT_QUOTES, 'UTF-8') ?>">
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
@@ -138,6 +141,7 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <script defer blocking="render" src="<?= BASE_URL ?>/assets/js/task-essentials.js?v=<?= filemtime(BASE_PATH.'/assets/js/task-essentials.js') ?>"></script>
     <?php endif; ?>
 <?php if ($driverMobileProfile): ?><link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/driver-mobile.css?v=<?= filemtime(BASE_PATH.'/assets/css/driver-mobile.css') ?>"><?php endif; ?>
+<?php if(!empty($headerUser['id'])): ?><link rel="stylesheet" href="<?=BASE_URL?>/assets/css/ack-communication.css?v=<?=filemtime(BASE_PATH.'/assets/css/ack-communication.css')?>"><script defer data-base="<?=htmlspecialchars(BASE_URL,ENT_QUOTES)?>" src="<?=BASE_URL?>/assets/js/ack-communication.js?v=<?=filemtime(BASE_PATH.'/assets/js/ack-communication.js')?>"></script><?php endif; ?>
 </head>
 <body class="<?= !empty($isEssDashboard) ? 'ess-dashboard' : '' ?><?= $driverMobileProfile ? ' is-driver-mobile' : '' ?>">
 <?php if (!empty($user['id'])) { require_once BASE_PATH . '/shared/portal-policy-popup.php'; } ?>
@@ -159,7 +163,18 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
                     </div>
                 </div>
             </div>
-            <div class="portal-notification-control">
+            <?php if(($headerUser['role_key']??'')==='owner_admin'): ?>
+            <a class="portal-header-action portal-header-notifications" href="<?=BASE_URL?>/apps/acknowledgments/index.php" aria-label="Acknowledgements inbox" title="Acknowledgements inbox"><i data-lucide="messages-square" aria-hidden="true"></i></a>
+            <?php else: ?><div class="ack-contact-control">
+                <a class="portal-header-action portal-header-notifications portal-notification-button ack-contact-launch" href="<?=BASE_URL?>/apps/acknowledgments/messages.php" aria-label="Messages and reporting" title="Messages and reporting" aria-controls="ack-contact-options" aria-expanded="false"><i data-lucide="message-circle" aria-hidden="true"></i></a>
+                <span class="ack-contact-tip" hidden></span>
+                <nav id="ack-contact-options" class="ack-contact-options" popover="manual" hidden aria-label="Messages and reporting">
+                    <header><?php if(($headerUser['role_key']??'')==='owner_admin'): ?><span>ACKNOWLEDGMENTS</span><?php endif; ?><strong>Messages &amp; reporting</strong></header>
+                    <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#private"><i data-lucide="messages-square" aria-hidden="true"></i><span><strong>Ask for assistance</strong><small>Private conversation with the Owner.</small></span><span aria-hidden="true">›</span></a>
+                    <a href="<?=BASE_URL?>/apps/acknowledgments/messages.php#anonymous"><i data-lucide="shield-check" aria-hidden="true"></i><span><strong>Send without my name</strong><small>Report to the Owner and check a reply by private code.</small></span><span aria-hidden="true">›</span></a>
+                </nav>
+            </div>
+            <?php endif; ?><div class="portal-notification-control">
             <a class="portal-header-action portal-header-notifications portal-notification-button" data-notification-button href="<?= htmlspecialchars(BASE_URL . '/notifications.php', ENT_QUOTES, 'UTF-8') ?>"
                aria-label="Notifications, <?= (int) $headerNotificationUnread ?> unread" aria-expanded="false" aria-controls="portal-notification-preview">
                 <i data-lucide="bell"></i>

@@ -36,6 +36,12 @@ jobs:
         run: |
           for p in apps/delivery/order-collection.php shared/delivery/{DeliveryService,CoreApi,DeliveryArrangement,PortalOrderRepository}.php; do php -l "$p"; done
           php tests/delivery-arrangement-regression.php
+          php -l shared/delivery/DriverInbox.php
+          php -l shared/delivery/DriverInboxPage.php
+          php -l apps/operations/operations.php
+          DRIVER_NOTICE_EVENTS=1 php tests/delivery-arrangement-regression.php
+          php tests/driver-mobile-nav.php
+          python3 tests/delivery-landing.py
           COLLECTION_SHORT_TEST=1 php tests/delivery-arrangement-regression.php
           for scenario in short extra zero mobile prepaid-extra prepaid-zero; do DRIVER_DECLARATION_CASE=$scenario php tests/delivery-arrangement-regression.php; done
           node --check assets/js/orders-board.js
@@ -51,10 +57,18 @@ jobs:
           node "$RUNNER_TEMP/collection-ui/node_modules/playwright/cli.js" install --with-deps chromium
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/order-collection-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-errand-popup.cjs
+          NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-inbox-phone.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-phone-layout.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-custody-ui.cjs
           NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-integration.cjs
+          DRIVER_PREVIEW_TEST=1 NODE_PATH="$RUNNER_TEMP/collection-ui/node_modules" node tests/driver-compact-integration.cjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: driver-screen-check
+          path: driver-screen-check/*.png
+          retention-days: 3
+          if-no-files-found: error
       - name: Publish guarded Order Board integration
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
