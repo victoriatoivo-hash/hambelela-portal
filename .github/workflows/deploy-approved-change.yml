@@ -13,6 +13,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  stage-driver-app:
+    if: inputs.approved_sha == github.sha && (github.ref == 'refs/heads/codex/driver-release-blockers' || github.ref == 'refs/heads/codex/order-board-collection')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+          extensions: pdo_mysql, mbstring, gd, fileinfo, curl
+          coverage: none
+      - name: Targeted Driver App release gates
+        run: |
+          node offline-driver/test-dashboard-privacy.cjs
+          node offline-driver/test-deliveries-model.cjs
+          node offline-driver/test-deliveries-refresh.cjs
+          node offline-driver/test-route-map-client.cjs
+          node offline-driver/test-profile-client.cjs
+      - name: Stage exact approved Driver App package only
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          UPLOAD_RELEASE: '1'
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+        run: python3 scripts/driver-app-release/package.py
   order-collection:
     if: github.ref == 'refs/heads/codex/order-board-collection' && inputs.approved_sha == github.sha
     runs-on: ubuntu-latest
