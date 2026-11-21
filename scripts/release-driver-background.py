@@ -80,7 +80,7 @@ def main(deploy):
             https=[]
             for p,data in wanted.items():
                 if not p.endswith('.js'):continue
-                req=urllib.request.Request('https://portal.hambelelaorganic.com/'+p+'?v='+sha,headers={'Cache-Control':'no-cache'})
+                req=urllib.request.Request('https://portal.hambelelaorganic.com/'+p+'?v='+sha,headers={'Cache-Control':'no-cache','User-Agent':'Hambelela-Release-Verification/1.0'})
                 with urllib.request.urlopen(req,timeout=30) as r:
                     if r.status!=200 or digest(r.read())!=digest(data):raise RuntimeError('HTTPS asset mismatch: '+p)
                 https.append(p)
