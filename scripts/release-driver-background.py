@@ -81,7 +81,12 @@ def main(deploy):
         for p,data in before.items():
             if digest(data) not in [REVIEWED_LIVE.get(p,digest(blob(BASE,p))),digest(wanted[p])]:
                 unknown.append(p)
-        if unknown:raise RuntimeError('Unknown live baselines; nothing changed: '+', '.join(unknown))
+        if unknown:
+            for path in unknown:
+                refs=subprocess.check_output(['git','log','--all','--format=%H','--',path],cwd=ROOT,text=True).splitlines()
+                matches=[ref for ref in refs if digest(blob(ref,path))==digest(before[path])]
+                print(json.dumps({'baseline_path':path,'live_sha256':digest(before[path]),'matching_repository_commits':matches}),flush=True)
+            raise RuntimeError('Unknown live baselines; nothing changed: '+', '.join(unknown))
         with zipfile.ZipFile(BACKUP,'w',zipfile.ZIP_DEFLATED) as z:
             for p,data in before.items():
                 if data is not None:z.writestr(p,data)
