@@ -6,13 +6,9 @@ release baseline before replacing anything. Backup and readback are mandatory.
 import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-BASE = '9c6e1f6a0a9e994bf84335c47d433940534673b5'
+BASE = '3555e452d23b0f041ca0bb160580bad77fd9196b'
 FILES = [
-    'assets/js/driver-live-updates.js',
-    'assets/js/driver-dashboard.js', 'assets/js/driver-deliveries.js',
-    'assets/js/driver-order-details.js', 'assets/js/driver-live-route.js',
-    'assets/js/driver-errands-phase7.js', 'assets/js/driver-delivery-issue.js',
-    'shared/delivery/issues/Receipt.php', 'shared/delivery/dashboard/BottomNav.php',
+    'assets/js/driver-order-details.js',
 ]
 BACKUP = ROOT / 'driver-background-backup.zip'
 REPORT = ROOT / 'driver-background-report.json'
@@ -49,7 +45,7 @@ def main(deploy):
         if p.endswith('.php'): subprocess.run(['php','-n','-l'],input=data,check=True,stdout=subprocess.DEVNULL)
         else: subprocess.run(['node','--check',str(ROOT/p)],check=True)
     if not deploy:
-        print('PASS: nine allowlisted runtime files; no database migrations.'); return
+        print('PASS:',len(FILES),'allowlisted runtime files; no database migrations.'); return
     host=os.environ['FTP_SERVER'];canonical='s11745.sgp1.stableserver.net'
     if set(socket.gethostbyname_ex(host)[2]) & set(socket.gethostbyname_ex(canonical)[2]): host=canonical
     state={'sha':sha,'baseline':BASE,'files':FILES,'database_changes':False,'state':'preflight'}
