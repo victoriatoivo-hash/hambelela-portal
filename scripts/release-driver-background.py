@@ -7,7 +7,8 @@ import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASE = '674161586ad232cc672914e2cb5398b365abf2ea'
-REVIEWED_LIVE = {}
+# Preserve the live EPI refresh hook from repository commit 9b9ef2b8.
+REVIEWED_LIVE = {'apps/operations/bookkeeping.php': '1763efc5553ceec4d9674722c6fff2ddb5b91b308eefb02bcc1b830e4481e70a'}
 FILES = [
     'shared/delivery/DriverRecordedHandover.php',
     'assets/js/bookkeeping-driver-handovers.js',
