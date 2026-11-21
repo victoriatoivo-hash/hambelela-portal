@@ -18,4 +18,37 @@
  finally{clearTimeout(timeout);busy=false;controls.forEach((x,i)=>x.disabled=states[i]);$('issue-confirm-send').disabled=root.dataset.preview==='true';}}
  if(dispatch){dispatch.addEventListener('input',()=>pendingId=null);dispatch.elements.decision.addEventListener('change',()=>{const needed=dispatch.elements.decision.value==='reschedule';$('issue-reschedule').hidden=!needed;['preference_date','preference_time','customer_confirmed'].forEach(name=>{dispatch.elements[name].required=needed;});});dispatch.addEventListener('submit',e=>{e.preventDefault();if(dispatch.reportValidity())send(dispatch);});}
  window.addEventListener('offline',()=>{if($('issue-transfer'))$('issue-transfer').textContent='Unsent / awaiting network · no receipt confirmed. Retry when connected.';});
+ // A saved driver report must receive dispatch decisions without a page reload.
+ // Never poll/replace a report draft, photo, confirmation or dispatch decision form.
+ if(!form&&!dispatch&&root.dataset.preview!=='true'){
+  const receipt=root.querySelector('[data-issue-receipt]');
+  if(receipt){
+   let reading=false,denied=false,generation=0,request=null;
+   const status=text=>{const n=$('issue-error');n.textContent=text;n.hidden=!text;};
+   const invalidate=()=>{denied=true;receipt.replaceChildren();receipt.hidden=true;status('This report or your access has changed. Return to Deliveries.');};
+   async function refreshReceipt(){
+    if(reading||denied||document.hidden||navigator.onLine===false)return;
+    reading=true;const ticket=++generation,controller=new AbortController();request=controller;
+    const timeout=setTimeout(()=>controller.abort(),12000);
+    try{
+     const r=await fetch(root.dataset.endpoint,{credentials:'same-origin',cache:'no-store',signal:controller.signal});
+     if(ticket!==generation||document.hidden)return;
+     if(r.redirected||[401,403,404,409].includes(r.status)){invalidate();return;}
+     if(!r.ok)throw Error('Unavailable');
+     const html=await r.text();if(ticket!==generation||document.hidden)return;
+     const next=new DOMParser().parseFromString(html,'text/html').querySelector('[data-issue-receipt]');
+     if(!next||!receipt.dataset.actor||next.dataset.actor!==receipt.dataset.actor||next.dataset.assignment!==receipt.dataset.assignment){invalidate();return;}
+     if(window.hambelelaLiveUpdates)window.hambelelaLiveUpdates.sync(receipt,next);else if(receipt.innerHTML!==next.innerHTML)receipt.innerHTML=next.innerHTML;
+     receipt.hidden=false;status('');
+    }catch(e){if(ticket===generation&&!document.hidden)status('Could not check dispatch updates. Retrying automatically when connected.');}
+    finally{clearTimeout(timeout);if(ticket===generation){reading=false;request=null;}}
+   }
+   const conceal=()=>{generation++;request?.abort();request=null;reading=false;receipt.hidden=true;};
+   document.addEventListener('visibilitychange',()=>{if(document.hidden)conceal();else refreshReceipt();});
+   window.addEventListener('pagehide',()=>{conceal();receipt.replaceChildren();});
+   window.addEventListener('pageshow',e=>{if(e.persisted)refreshReceipt();});
+   window.addEventListener('focus',refreshReceipt);window.addEventListener('online',refreshReceipt);
+   setInterval(refreshReceipt,15000);
+  }
+ }
 })();

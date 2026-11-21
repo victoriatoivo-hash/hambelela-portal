@@ -20,7 +20,7 @@
     if (active) active.abort();
     const request = new AbortController(), token = ++sequence; active = request;
     const timeout = setTimeout(() => request.abort(), 12000);
-    root.setAttribute('aria-busy', 'true');
+    if (content.hidden || lastHTML === null) root.setAttribute('aria-busy', 'true');
     if (content.hidden) announce('Checking your assigned stops…');
     try {
       const response = await fetch(root.dataset.endpoint, { credentials: 'same-origin', cache: 'no-store', signal: request.signal, headers: { Accept: 'application/json' } });
@@ -35,7 +35,7 @@
       if (lastHTML !== result.html) {
         const top = scroll.scrollTop, focused = document.activeElement;
         const label = content.contains(focused) ? focused.getAttribute('aria-label') : null;
-        content.innerHTML = result.html; lastHTML = result.html; applyFilter(); scroll.scrollTop = top;
+        if(window.hambelelaLiveUpdates)window.hambelelaLiveUpdates.html(content,result.html);else content.innerHTML = result.html; lastHTML = result.html; applyFilter(); scroll.scrollTop = top;
         if (label) for (const node of content.querySelectorAll('[aria-label]')) if (node.getAttribute('aria-label') === label) { node.focus({ preventScroll: true }); break; }
       }
       stopped = false; content.hidden = false; announce('');
@@ -62,5 +62,6 @@
   window.addEventListener('pageshow', event => { if (event.persisted) refresh(true); });
   window.addEventListener('offline', () => { conceal(); clear('You are offline. Reconnect to verify your current assignments.'); announce('Offline — route information is not current.'); });
   window.addEventListener('online', () => refresh(true));
-  setInterval(() => refresh(), 30000); refresh();
+  window.addEventListener('focus', () => refresh());
+  setInterval(() => refresh(), 15000); refresh();
 })();

@@ -12,11 +12,12 @@ function setup(){
  const window={addEventListener:(k,f)=>wins[k]=f};
  const context={document,window,navigator:{onLine:true},location:{href:'http://localhost/index.php',reload(){}},DOMParser:Parser,AbortController,Intl,Date,console,setTimeout,clearTimeout,setInterval:(f,ms)=>timers.push([f,ms]),BroadcastChannel:class{constructor(){channels.push(this);}},fetch:async(url,options)=>{assert.equal(options.cache,'no-store');count++;return response();}};
  vm.runInNewContext(source,context);
- return {root,document,context,docs,wins,channels,refresh:timers.find(t=>t[1]===30000)[0],respond:f=>response=f,count:()=>count};
+ return {root,document,context,docs,wins,channels,refresh:timers.find(t=>t[1]===15000)[0],respond:f=>response=f,count:()=>count};
 }
 function check(v,label){assert.ok(v,label);checks++;}
 (async()=>{
  let s=setup(),original=s.root.children[0];await s.refresh();check(s.root.children[0]===original,'unchanged DOM is stable');check(s.root.dataset.csrf==='new','fresh token used');
+ s.wins.focus();check(s.root.children[0]===original,'ordinary focus never blanks the dashboard');await new Promise(r=>setImmediate(r));check(s.root.children[0]===original,'verified focus keeps existing nodes');
  for(const status of [401,403,500]){s=setup();s.respond(async()=>({ok:false,status}));await s.refresh();check(!text(s.root).includes('CUSTOMER'),'HTTP '+status+' clears private data');}
  for(const html of ['other','login']){s=setup();s.respond(async()=>({ok:true,status:200,text:async()=>html}));await s.refresh();check(!text(s.root).includes('PRIVATE'),html+' purges private data');await s.refresh();check(s.count()===1,'invalid identity cannot autorestore');}
  s=setup();s.respond(async()=>({ok:true,redirected:true}));await s.refresh();check(!text(s.root).includes('PRIVATE'),'login redirect cleared');

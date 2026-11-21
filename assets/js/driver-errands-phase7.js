@@ -20,8 +20,9 @@
   root.querySelectorAll('[data-tab]').forEach(n=>{n.setAttribute('aria-selected',String(n.dataset.tab===tab));n.tabIndex=n.dataset.tab===tab?0:-1;});$('errands-panel').setAttribute('aria-labelledby','tab-'+tab);
   $('errands-section-title').textContent=tab==='assigned'?'Today · '+data.today:tab==='completed'?'Completed this week':'Errands in progress';
   const shown=data.items.filter(t=>tab==='in_progress'?['in_progress','needs_review'].includes(t.status):t.status===tab);
-  const focused=document.activeElement?.closest('[data-card]')?.dataset.card;list.innerHTML=shown.length?shown.map(card).join(''):'<div class="he-empty"><strong>No '+escape(label(tab).toLowerCase())+' errands</strong>Shop-assigned work appears here. Requests are listed separately below.</div>';
-  if(focused&&!dialog.open)list.querySelector(`[data-view="${Number(focused)}"]`)?.focus({preventScroll:true});
+  const focused=document.activeElement,focusedCard=focused?.closest('[data-card]')?.dataset.card,markup=shown.length?shown.map(card).join(''):'<div class="he-empty"><strong>No '+escape(label(tab).toLowerCase())+' errands</strong>Shop-assigned work appears here. Requests are listed separately below.</div>';
+  if(window.hambelelaLiveUpdates)window.hambelelaLiveUpdates.html(list,markup);else list.innerHTML=markup;
+  if(focusedCard&&!dialog.open&&!focused?.isConnected)list.querySelector(`[data-view="${Number(focusedCard)}"]`)?.focus({preventScroll:true});
   const requests=driver?data.requests:data.requests.filter(r=>r.status==='pending');root.querySelector('[data-request-count]').textContent='('+requests.length+')';
   $('errands-request-list').innerHTML=requests.map(r=>`<article class="he-card"><div class="he-code">REQUEST #${r.id} · ${escape(r.status)}</div><h3 class="he-card-title">${escape(r.title)}</h3><p class="he-card-loc">${escape(r.place)}</p><p class="he-dialog-notes">${escape(r.reason)}</p>${r.history.filter(e=>e.action!=='requested').map(e=>`<p class="he-dialog-notes">Dispatch: ${escape(e.data.notes)}</p>`).join('')}${!driver?`<button class="he-btn he-btn--outline" data-request="${r.id}">Review request</button>`:'<p class="he-tip">A request is not an assigned errand.</p>'}</article>`).join('')||'<p class="he-tip">No requests.</p>';
  }

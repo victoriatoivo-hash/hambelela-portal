@@ -39,7 +39,7 @@
       }
     }
     // Keep stable cards and focused links in place when the background response is unchanged.
-    if(lastMarkup!==html){const focused=document.activeElement,href=focused?.closest('a')?.getAttribute('href');results.innerHTML=html;lastMarkup=html;if(href&&focused!==search){const replacement=Array.from(results.querySelectorAll('a')).find(a=>a.getAttribute('href')===href);replacement?.focus({preventScroll:true});}}
+    if(lastMarkup!==html){const focused=document.activeElement,href=focused?.closest('a')?.getAttribute('href');if(window.hambelelaLiveUpdates)window.hambelelaLiveUpdates.html(results,html);else results.innerHTML=html;lastMarkup=html;if(href&&focused!==search&&!focused?.isConnected){const replacement=Array.from(results.querySelectorAll('a')).find(a=>a.getAttribute('href')===href);replacement?.focus({preventScroll:true});}}
     root.querySelector('[data-d-announcement]').textContent=failed?'Assignments unavailable':view.rows.length+' matching deliveries';
     const bell=root.querySelector('[data-d-bell]');bell.dataset.unread=String(!failed&&data.unreadNotifications>0);bell.setAttribute('aria-label',failed?'Notifications':'Notifications, '+data.unreadNotifications+' unread');
   }
@@ -81,6 +81,7 @@
   });
   search?.addEventListener('input',render);root.querySelector('#driver-sort')?.addEventListener('change',e=>{sort=e.target.value;render();});
   window.addEventListener('offline',network);window.addEventListener('online',()=>refresh());
+  window.addEventListener('focus',()=>refresh());
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
-  render();network();setInterval(()=>refresh(),30000);
+  render();network();setInterval(()=>refresh(),15000);
 })();

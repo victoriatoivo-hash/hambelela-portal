@@ -5,3 +5,4 @@
 <?php else: ?><button class="ho-driver-dashboard__tab" type="button" data-hd-dialog="<?=$key?>" <?=$key===($activeDriverTab??'home')?'aria-current="page"':''?>><?=$icon($key)?><span><?=$label?></span></button><?php endif;?>
 <?php endforeach;?>
 </nav>
+<script src="<?=$h($asset('assets/js/driver-live-updates.js'))?>"></script>

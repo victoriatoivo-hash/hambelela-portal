@@ -6,7 +6,7 @@
   const notice = root.querySelector('[data-order-notice]');
   const scroll = root.querySelector('.ho-driver-dashboard__scroll');
   const driverId = Number(root.dataset.driverId), assignmentId = Number(root.dataset.assignmentId);
-  let lastHTML = null, sequence = 0, activeRequest = null, stopped = false, previousFocus = null, saving = false;
+  let lastHTML = content.innerHTML, sequence = 0, activeRequest = null, stopped = false, previousFocus = null, saving = false;
   function announce(message) { notice.textContent = message; notice.hidden = !message; }
   function clear(message) {
     lastHTML = null;
@@ -22,7 +22,7 @@
     const request = new AbortController(), token = ++sequence;
     activeRequest = request;
     const timeout = setTimeout(() => request.abort(), 12000);
-    root.setAttribute('aria-busy', 'true');
+    if (content.hidden || lastHTML === null) root.setAttribute('aria-busy', 'true');
     if (content.hidden) announce('Checking your current assignment…');
     try {
       const response = await fetch(root.dataset.endpoint, { credentials: 'same-origin', cache: 'no-store', signal: request.signal, headers: { Accept: 'application/json' } });
@@ -40,7 +40,7 @@
         const position = scroll.scrollTop;
         const focus = document.activeElement;
         const label = content.contains(focus) ? focus.getAttribute('aria-label') : null;
-        content.innerHTML = result.html;
+        if(window.hambelelaLiveUpdates)window.hambelelaLiveUpdates.html(content,result.html);else content.innerHTML = result.html;
         lastHTML = result.html;
         scroll.scrollTop = position;
         if (label) for (const control of content.querySelectorAll('[aria-label]')) if (control.getAttribute('aria-label') === label) { control.focus({ preventScroll: true }); break; }
@@ -97,6 +97,7 @@
   window.addEventListener('pageshow', event => { if (event.persisted) refresh(true); });
   window.addEventListener('offline', () => { conceal(); clear('You are offline. Reconnect to verify this assignment.'); announce('Offline — current details cannot be verified.'); });
   window.addEventListener('online', () => refresh(true));
-  setInterval(() => refresh(), 30000);
+  window.addEventListener('focus', () => refresh());
+  setInterval(() => refresh(), 15000);
   refresh();
 })();

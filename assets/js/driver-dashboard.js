@@ -48,7 +48,7 @@
       else if(!root.querySelector('dialog[open]')){
         for(const selector of ['.ho-driver-dashboard__body','.ho-driver-dashboard__head-icon','.ho-driver-dashboard__avatar','.ho-driver-dashboard__hello-row','#hd-cash','#hd-map']){
           const current=root.querySelector(selector),fresh=next.querySelector(selector);
-          if(current&&fresh&&current.outerHTML!==fresh.outerHTML)current.replaceWith(document.importNode(fresh,true));
+          if(current&&fresh&&current.outerHTML!==fresh.outerHTML){if(window.hambelelaLiveUpdates)window.hambelelaLiveUpdates.sync(current,fresh);else current.replaceWith(document.importNode(fresh,true));}
         }
       }
       const notice=root.querySelector('[data-hd-network]');if(notice)notice.hidden=true;updateClock();
@@ -57,13 +57,14 @@
       purge(expired?'Your session or driver access has changed. Reload to sign in.':'Unable to verify your session. Reconnect and retry.');
     }finally{clearTimeout(timer);if(request===controller)request=null;}
   }
-  setInterval(refresh,30000);
+  setInterval(refresh,15000);
   document.addEventListener('visibilitychange',()=>{purge();if(!document.hidden)refresh();});
   window.addEventListener('pagehide',()=>purge());
   window.addEventListener('pageshow',event=>{if(event.persisted){purge();refresh();}});
   window.addEventListener('offline',()=>purge('Offline. Reconnect to verify your session and load deliveries.'));
   window.addEventListener('online',()=>refresh());
-  window.addEventListener('focus',()=>{purge();refresh();});
+  // Ordinary focus is not a logout: verify silently without blanking the screen.
+  window.addEventListener('focus',()=>refresh());
   const channel=typeof BroadcastChannel==='function'?new BroadcastChannel('driver-session'):null;
   if(channel)channel.onmessage=()=>{expired=true;purge('Sign-out requested in another tab. Reload to sign in.');};
   async function presence(){
