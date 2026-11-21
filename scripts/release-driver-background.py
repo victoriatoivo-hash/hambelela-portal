@@ -6,12 +6,11 @@ release baseline before replacing anything. Backup and readback are mandatory.
 import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-BASE = '0289ef9a0df9a38f320c6a4e2a296b0ed20bef26'
+BASE = '1b46951b5a258e2c3adde3487b9f7caf0e6ad205'
 REVIEWED_LIVE = {}
 FILES = [
-    'assets/css/driver-more-menu.css',
-    'assets/js/driver-more-menu.js',
-    'shared/delivery/dashboard/BottomNav.php',
+    'shared/delivery/DriverOrderDetailsData.php',
+    'shared/delivery/order-details/Content.php',
 ]
 BACKUP = ROOT / 'driver-background-backup.zip'
 REPORT = ROOT / 'driver-background-report.json'

@@ -96,6 +96,20 @@ final class DriverOrderDetailsData
         if(!$date||$date->format('Y-m-d H:i:s')!==$value)return null;
         return $date->setTimezone(new \DateTimeZone('Africa/Windhoek'))->format('c');
     }
+    /** Historical driver declaration, not a new payment or proof of settlement. */
+    public static function recordedPayment(array $meta):?array
+    {
+        $amount=$meta['declared_cents']??null;$method=$meta['declared_method']??null;
+        if(!is_int($amount)||$amount<0||!is_string($method)||trim($method)==='')return null;
+        $labels=['cash'=>'Cash','eft'=>'Bank transfer (EFT)','mobile'=>'Mobile payment','other'=>'Other','already_paid'=>'Already paid — no collection','no_payment'=>'No payment received'];
+        $key=strtolower(trim($method));
+        $money=static fn(int $cents):string=>($cents<0?'-':'').'N$'.number_format(abs($cents)/100,2,'.',',');
+        $expected=$meta['expected_cents']??null;
+        return ['method'=>$labels[$key]??mb_substr(trim($method),0,100),'amount'=>$money($amount),
+            'review'=>!empty($meta['declaration_review']),
+            'difference'=>is_int($expected)&&$expected>=0&&$amount!==$expected?$money($amount-$expected):null,
+            'note'=>is_string($meta['note']??null)?mb_substr(trim($meta['note']),0,2000):''];
+    }
     private static function timeline(array $events,array $summary,int $driver,int $cutoff,string $day):array
     {
         $rows=[];$currentType=null;
@@ -125,7 +139,8 @@ final class DriverOrderDetailsData
             elseif($type==='dispatch_resolution_recorded'){$label=DeliveryIssueState::DECISIONS[$m['decision']]??'Dispatch response';$detail=$m['instruction']??'';}
             if(!$label)continue;
             $at=self::timestamp($e['created_at']);$time=$at?(new \DateTimeImmutable($at))->format(substr($at,0,10)===$day?'H:i':'j M Y · H:i'):'Time not recorded';
-            $rows[]=['eventId'=>(int)$e['id'],'eventType'=>$type,'label'=>$label,'detail'=>$detail,'occurredAt'=>$at,'timeLabel'=>$time,'state'=>'complete'];
+            $rows[]=['eventId'=>(int)$e['id'],'eventType'=>$type,'label'=>$label,'detail'=>$detail,'occurredAt'=>$at,'timeLabel'=>$time,'state'=>'complete',
+                'recordedPayment'=>$type==='delivered'?self::recordedPayment($m):null];
             if($currentType&&in_array($type,$currentType,true))$currentIndex=count($rows)-1;
         }
         if($currentIndex!==null)$rows[$currentIndex]['state']='current';
