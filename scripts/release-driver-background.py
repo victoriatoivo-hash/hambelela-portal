@@ -6,13 +6,30 @@ release baseline before replacing anything. Backup and readback are mandatory.
 import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-BASE = '3f6b0abfd24995ec1cfa5d97452d3581484015ef'
+BASE = '0ec9379271f04dae04ce7a0ecd8607117be385f4'
 REVIEWED_LIVE = {}
 FILES = [
-    'assets/css/driver-proof-integration.css',
-    'assets/js/driver-proof-of-delivery.js',
-    'shared/delivery/ProofPolicy.php',
-    'shared/delivery/proof/View.php',
+    'shared/delivery/OrderReference.php',
+    'shared/delivery/DriverAppActivity.php',
+    'assets/js/driver-app-activity.js',
+    'shared/delivery/DriverProfile.php',
+    'shared/delivery/DriverAssignments.php',
+    'shared/delivery/DriverInbox.php',
+    'shared/delivery/ProofContext.php',
+    'shared/delivery/DeliveryHistory.php',
+    'shared/delivery/DispatchChat.php',
+    'shared/delivery/CashHandover.php',
+    'shared/delivery/DriverRouteMaps.php',
+    'shared/delivery/DriverLiveRoute.php',
+    'shared/delivery/dashboard/Data.php',
+    'assets/css/driver-dashboard-integration.css',
+    'assets/js/driver-cash-handover.js',
+    'assets/js/driver-route-map.js',
+    'shared/delivery/live-route/Content.php',
+    'shared/delivery/live-route/View.php',
+    'shared/delivery/dashboard/BottomNav.php',
+    'shared/delivery/dashboard/View.php',
+    'shared/delivery/profile/View.php',
 ]
 BACKUP = ROOT / 'driver-background-backup.zip'
 REPORT = ROOT / 'driver-background-report.json'

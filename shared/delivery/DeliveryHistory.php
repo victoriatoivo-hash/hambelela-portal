@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Delivery;
+require_once __DIR__.'/OrderReference.php';
 require_once __DIR__.'/EmployeeDriverSession.php';
 require_once __DIR__.'/DeliveryIssueState.php';
 require_once __DIR__.'/ProofStorage.php';
@@ -71,7 +72,7 @@ final class DeliveryHistory
     private static function item(array $r):array
     {
         $t=(new \DateTimeImmutable($r['created_at'],new \DateTimeZone('UTC')))->setTimezone(new \DateTimeZone('Africa/Windhoek'));
-        return ['event_id'=>(int)$r['id'],'outcome'=>$r['outcome'],'recorded_at_utc'=>str_replace(' ','T',$r['created_at']).'Z','local_date'=>$t->format('Y-m-d'),'local_time'=>$t->format('H:i'),'day_label'=>$t->format('j F Y'),'reference'=>$r['reference'],'customer'=>(int)$r['context_visible']?self::masked($r['customer']):'Previous assignment','area'=>$r['area']?:((int)$r['context_visible']?'Area not recorded':'Details restricted'),'context_visible'=>(bool)$r['context_visible']];
+        return ['event_id'=>(int)$r['id'],'outcome'=>$r['outcome'],'recorded_at_utc'=>str_replace(' ','T',$r['created_at']).'Z','local_date'=>$t->format('Y-m-d'),'local_time'=>$t->format('H:i'),'day_label'=>$t->format('j F Y'),'reference'=>OrderReference::display($r['reference']),'customer'=>(int)$r['context_visible']?self::masked($r['customer']):'Previous assignment','area'=>$r['area']?:((int)$r['context_visible']?'Area not recorded':'Details restricted'),'context_visible'=>(bool)$r['context_visible']];
     }
     public function page(int $driver,array $p,?\DateTimeImmutable $now=null):array
     {

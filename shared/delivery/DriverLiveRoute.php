@@ -24,12 +24,13 @@ try{
             if(!$mapEnabled)throw new DomainException('Google Maps is unavailable. Open a delivery for external directions or contact dispatch.');
             $action=$_POST['action']??'';
             if($action==='maps_bootstrap')$result=['browser_key'=>$maps['browser_key']];
-            elseif($action==='estimate'){
+            elseif(in_array($action,['estimate','nearby'],true)){
                 if(($_POST['location_consent']??'')!=='1')throw new DomainException('Confirm location sharing for this delivery.');
                 require_once __DIR__.'/DriverRouteMaps.php';
                 $point=json_decode(is_string($_POST['position']??null)?$_POST['position']:'',true,8,JSON_THROW_ON_ERROR);
                 if(!is_array($point)||!is_string($_POST['revision']??null))throw new DomainException('Invalid location request.');
-                $result=(new \Hambelela\Delivery\DriverRouteMaps(db(),$maps['server_key']))->route($driverId,(int)($_POST['delivery']??0),$point,$_POST['revision']);
+                $service=new \Hambelela\Delivery\DriverRouteMaps(db(),$maps['server_key']);
+                $result=$action==='nearby'?$service->nearby($driverId,$point,$_POST['revision']):$service->route($driverId,(int)($_POST['delivery']??0),$point,$_POST['revision']);
             }else throw new DomainException('Route reordering is not enabled.');
             echo json_encode(['ok'=>true,'driver_id'=>$driverId,'result'=>$result],JSON_THROW_ON_ERROR);return;
         }catch(DomainException $e){http_response_code(409);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_THROW_ON_ERROR);return;}

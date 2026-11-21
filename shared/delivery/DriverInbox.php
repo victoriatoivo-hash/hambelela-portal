@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Delivery;
+require_once __DIR__.'/OrderReference.php';
 require_once __DIR__.'/DeliveryPolicy.php';
 require_once __DIR__.'/ErrandInbox.php';
 require_once __DIR__.'/DispatchInbox.php';
@@ -42,6 +43,7 @@ final class DriverInbox
         if($tab==='errands')$where.=' AND 1=0';
         $q=$db->prepare("SELECT n.id,n.related_id job,n.title,n.priority,n.created_at,UNIX_TIMESTAMP(n.created_at) epoch,r.read_at,$k kind,COALESCE(NULLIF((SELECT order_number FROM ops_orders WHERE id=j.order_id),''),j.public_reference) ref".self::SCOPE.$where.' ORDER BY n.id DESC LIMIT 41');
         $q->execute($params);$items=$q->fetchAll(\PDO::FETCH_ASSOC);$more=count($items)>40;if($more)array_pop($items);
+        foreach($items as &$item)$item['ref']=OrderReference::display($item['ref']);unset($item);
         return ['items'=>$items,'more'=>$more,'counts'=>$counts,'through'=>(int)$through,'latest_assignment'=>$assignment?['id'=>(int)$assignment,'kind'=>'assignment','read_at'=>null]:null,'actor'=>$id];
     }
     public static function paymentChanged(\PDO $db,int $order,int $audit,array $previous,array $current):void {

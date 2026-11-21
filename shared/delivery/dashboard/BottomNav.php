@@ -6,3 +6,6 @@
 <?php endforeach;?>
 </nav>
 <script src="<?=$h($asset('assets/js/driver-live-updates.js'))?>"></script>
+<?php if(function_exists('current_role_key')&&current_role_key()==='delivery_driver'): $_SESSION['driver_profile_csrf']??=bin2hex(random_bytes(32)); ?>
+<script src="<?=$h($asset('assets/js/driver-app-activity.js'))?>" data-app-activity-config data-endpoint="<?=$h($base)?>/apps/delivery/index.php?profile=1" data-actor="<?=(int)current_user()['id']?>" data-csrf="<?=$h($_SESSION['driver_profile_csrf'])?>"></script>
+<?php endif; ?>

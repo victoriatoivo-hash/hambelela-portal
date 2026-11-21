@@ -37,6 +37,12 @@ try{
  $cache=$db->query('SELECT * FROM delivery_tracking_routes')->fetch();verify($cache['polyline']===null&&$cache['distance_metres']===null&&$cache['duration_seconds']===null,'route results are not persisted');
  verify($db->query('SELECT COUNT(*) FROM delivery_tracking_api_usage')->fetchColumn()==2,'shared request accounting records both APIs');
  verify(!empty($maps->route(3,$id,$point,$rev)['throttled'])&&count($calls)===2,'rapid repeated request respects existing interval');
+ $near=$maps->nearby(3,$point,$rev);$own=array_values(array_filter($near['stops'],fn($p)=>$p['assignment_id']===$id));
+ verify(count($own)===1&&$own[0]['lat']===-22.57&&$near['driver_id']===3,'nearby map returns verified own cached destination');
+ $reject(fn()=>$maps->nearby(3,$point,'old-revision'),'nearby rejects stale assignment revision');
+ $reject(fn()=>$maps->nearby(4,$point,$rev),'nearby does not reveal another driver destinations');
+ $reject(fn()=>$maps->nearby(3,array_replace($point,['accuracy'=>900]),$rev),'nearby rejects inaccurate position');
+ verify(count($calls)===2,'nearby cached coordinates do not incur another route request');
  $db->exec('UPDATE delivery_tracking_routes SET calculated_at=0');$result=$maps->route(3,$id,$point,$rev);verify($result['available']&&count($calls)===3,'permitted destination cache avoids repeat geocode');
  $db->exec('UPDATE delivery_tracking_routes SET calculated_at=0');verify(!$maps->route(3,$id,$point,$rev)['available']&&count($calls)===3,'existing daily request quota enforced before provider');
  $db->exec('UPDATE delivery_tracking_api_usage SET requests=0');$db->exec('UPDATE delivery_tracking_routes SET calculated_at=0,route_lock_until=0');$mode='reassign';

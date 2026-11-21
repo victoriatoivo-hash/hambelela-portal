@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 namespace Hambelela\Delivery;
+require_once __DIR__.'/OrderReference.php';
 require_once __DIR__.'/ErrandData.php';
 require_once __DIR__.'/DispatchFiles.php';
 
@@ -40,7 +41,7 @@ final class DispatchChat
         if($type==='delivery'){$r=$this->rows('SELECT j.id,COALESCE(NULLIF(o.order_number,\'\'),j.public_reference) label FROM delivery_jobs j LEFT JOIN ops_orders o ON o.id=j.order_id WHERE j.id=? AND j.driver_employee_id=?',[$id,$driver])[0]??null;}
         else {$r=$this->rows('SELECT id,CONCAT(\'Errand ER-\',id) label FROM delivery_errands WHERE id=? AND driver_id=?',[$id,$driver])[0]??null;}
         if(!$r)throw new \DomainException('Assignment is unavailable or has been reassigned.');
-        return ['type'=>$type,'id'=>$id,'label'=>$r['label'],'url'=>'/apps/delivery/index.php?'.($type==='delivery'?'delivery=':'errands=1&errand=').$id];
+        return ['type'=>$type,'id'=>$id,'label'=>$type==='delivery'?OrderReference::display($r['label']):$r['label'],'url'=>'/apps/delivery/index.php?'.($type==='delivery'?'delivery=':'errands=1&errand=').$id];
     }
     public function contexts(int $driver):array {
         $out=[];foreach($this->rows("SELECT id FROM delivery_jobs WHERE driver_employee_id=? AND status IN('ready','out_for_delivery','failed') ORDER BY id DESC LIMIT 50",[$driver]) as $r)$out[]=$this->context($driver,'delivery',(int)$r['id']);
