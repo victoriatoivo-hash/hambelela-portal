@@ -38,6 +38,7 @@ jobs:
           node offline-driver/test-issue-client.cjs
           node offline-driver/test-dispatch-client.cjs
           node offline-driver/test-cash-client.cjs
+          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-bookkeeping-handovers.cjs
           node offline-driver/test-notifications-client.cjs
           node offline-driver/test-profile-client.cjs
       - name: Back up, publish exact delta and verify HTTPS assets
