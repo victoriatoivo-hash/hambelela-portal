@@ -1,0 +1,40 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),{execFileSync}=require('node:child_process'),{JSDOM}=require('jsdom');
+const flush=()=>new Promise(r=>setImmediate(r));
+(async()=>{
+ const html=execFileSync(process.env.TEST_PHP||'php',['offline-driver/render-proof-buttons.php'],{encoding:'utf8'});
+ const dom=new JSDOM(html,{url:'https://driver.test/apps/delivery/index.php?proof=123',runScripts:'outside-only',pretendToBeVisual:true});
+ const w=dom.window,d=w.document,root=d.querySelector('[data-proof]');root.dataset.policy='one';
+ let rectReads=0,draws=0,posts=[],confirmed=0,mode='error',bitmapClosed=0,resize;
+ w.createImageBitmap=async()=>({width:4000,height:3000,close(){bitmapClosed++;}});
+ w.HTMLCanvasElement.prototype.getContext=()=>({fillRect(){},drawImage(img,x,y,width,height){resize=[width,height];},beginPath(){},moveTo(){},lineTo(){},stroke(){draws++;}});
+ w.HTMLCanvasElement.prototype.getBoundingClientRect=()=>{rectReads++;return {left:0,top:0,width:360,height:170}};
+ w.HTMLCanvasElement.prototype.setPointerCapture=()=>{};
+ w.HTMLCanvasElement.prototype.toBlob=function(fn,mime){fn(new w.Blob([new Uint8Array(40000)],{type:mime}));};
+ w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
+ w.URL.createObjectURL=()=> 'blob:prepared';w.URL.revokeObjectURL=()=>{};
+ w.fetch=async(url,opts)=>{posts.push(opts.body);return {ok:mode==='ok',text:async()=>mode==='ok'?JSON.stringify({ok:true}):'<html>Temporary failure</html>'}};
+ // Initialise only once, with an observable completion callback.
+ root.removeAttribute('data-proof');w.eval(fs.readFileSync('assets/js/driver-proof-of-delivery.js','utf8'));root.setAttribute('data-proof','');
+ const api=w.hambelelaInitProof(root,()=>confirmed++),form=d.getElementById('proof-form');
+ form.elements.payment_confirmed.checked=true;form.elements.acknowledged.checked=true;
+ form.requestSubmit();assert.equal(posts.length,0);assert.match(d.getElementById('proof-feedback').textContent,/photo or/);
+ const input=d.getElementById('proof-photo');Object.defineProperty(input,'files',{configurable:true,value:[new w.File([new Uint8Array(5000000)],'camera.jpg',{type:'image/jpeg'})]});
+ input.dispatchEvent(new w.Event('change'));form.requestSubmit();assert.equal(posts.length,0,'cannot submit during photo preparation');
+ await flush();await flush();assert.deepEqual(resize,[1600,1200]);assert.equal(bitmapClosed,1);assert.equal(d.getElementById('photo-preview').hidden,false);
+ Object.defineProperty(input,'files',{configurable:true,value:[]});input.dispatchEvent(new w.Event('change'));await flush();assert.equal(d.getElementById('photo-preview').hidden,false,'camera cancellation preserves attached photo');
+ Object.defineProperty(input,'files',{configurable:true,value:[new w.File(['bad'],'file.txt',{type:'text/plain'})]});input.dispatchEvent(new w.Event('change'));await flush();assert.match(d.getElementById('proof-feedback').textContent,/previous attached photo/);
+ form.elements.payment_confirmed.checked=false;form.requestSubmit();assert.equal(posts.length,0,'photo does not bypass payment confirmation');form.elements.payment_confirmed.checked=true;
+ form.requestSubmit();await flush();assert.equal(posts.length,1,'photo alone submits');assert.equal(posts[0].get('photo').type,'image/jpeg');assert.equal(posts[0].get('photo').size,40000);assert.equal(posts[0].get('signature'),null);
+ assert.equal(confirmed,0,'HTML failure never reports saved');assert.equal(d.getElementById('photo-preview').hidden,false,'failed upload keeps photo');
+ const key=posts[0].get('request_id');mode='ok';form.requestSubmit();await flush();assert.equal(posts[1].get('request_id'),key);assert.equal(confirmed,1);
+ d.getElementById('photo-remove').click();assert.equal(d.getElementById('photo-preview').hidden,true);
+ d.getElementById('signature-tile').click();const canvas=d.getElementById('signature-canvas');
+ canvas.dispatchEvent(new w.MouseEvent('pointerdown',{clientX:10,clientY:10,cancelable:true}));
+ for(let i=0;i<80;i++)canvas.dispatchEvent(new w.MouseEvent('pointermove',{clientX:20+i*3,clientY:20+i,cancelable:true}));
+ assert.equal(rectReads,1,'one layout read per stroke, not per movement');assert.equal(draws,0,'moves batch until animation frame');
+ canvas.dispatchEvent(new w.MouseEvent('pointerup'));assert.equal(draws,1,'pending ink flushed on stroke end');d.getElementById('signature-save').click();
+ form.requestSubmit();await flush();assert.ok(posts[2].get('signature'));assert.equal(posts[2].get('photo'),null,'signature alone sufficient');assert.equal(confirmed,2);
+ // A failed new camera selection cannot silently erase an existing attachment.
+ Object.defineProperty(input,'files',{configurable:true,value:[new w.File(['bad'],'file.txt',{type:'text/plain'})]});input.dispatchEvent(new w.Event('change'));await flush();assert.match(d.getElementById('proof-feedback').textContent,/camera photo/);
+ api.dispose();dom.window.close();console.log('PASS mobile proof: 5MB photo resized, attachment preview, either proof sufficient, none rejected, payment checks kept, failed upload retained, same retry UUID, one layout read per stroke and batched ink.');
+})().catch(e=>{console.error(e);process.exitCode=1});

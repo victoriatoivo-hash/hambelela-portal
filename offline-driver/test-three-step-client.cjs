@@ -3,7 +3,7 @@ const flush=()=>new Promise(r=>setImmediate(r));
 (async()=>{
  const html=execFileSync(process.env.TEST_PHP||'php',['offline-driver/render-proof-buttons.php'],{encoding:'utf8'});
  for(const host of ['details','list']){
- const dom=new JSDOM(`<main ${host==='details'?'data-order-details data-assignment-id="123"':'data-driver-deliveries'}><a data-complete-delivery data-assignment-id="123" href="/apps/delivery/index.php?proof=123">Complete</a></main>`,{url:'https://driver.test/apps/delivery/index.php?delivery=123',runScripts:'outside-only'}),w=dom.window,d=w.document;
+ const dom=new JSDOM(`<main ${host==='details'?'data-order-details data-assignment-id="123"':'data-driver-deliveries'}><a data-complete-delivery data-assignment-id="123" href="/apps/delivery/index.php?proof=123">Complete</a></main>`,{url:'https://driver.test/apps/delivery/index.php?delivery=123',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,d=w.document;
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
  w.HTMLCanvasElement.prototype.getContext=()=>({fillRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){}});
  w.HTMLCanvasElement.prototype.setPointerCapture=()=>{};w.HTMLCanvasElement.prototype.getBoundingClientRect=()=>({left:0,top:0,width:720,height:340});
