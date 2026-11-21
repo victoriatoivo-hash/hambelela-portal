@@ -61,10 +61,15 @@
     const data=new FormData(form);form.dataset.requestId ||= crypto.randomUUID();data.set('request_id',form.dataset.requestId);
     announce('Saving your delivery update…');
     try{
-      const response=await fetch(form.action,{method:'POST',credentials:'same-origin',cache:'no-store',body:data,headers:{Accept:'application/json'}});
+      // The hidden input named "action" shadows HTMLFormElement.action in browsers.
+      // Read the literal URL attribute, never the named form control.
+      const endpoint=form.getAttribute('action');
+      if(!endpoint)throw new Error('Delivery action is unavailable. Reopen this order.');
+      const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',cache:'no-store',body:data,headers:{Accept:'application/json'}});
       if(token!==sequence||document.hidden)return;
       if(response.redirected||[401,403].includes(response.status)){stopped=true;clear('Your access has ended. Sign in again.');return;}
-      const result=await response.json();
+      let result;
+      try{result=await response.json();}catch(_){throw new Error('The server did not confirm this update. Reopen the order to check its status before retrying.');}
       if(!response.ok||!result.ok)throw new Error(result.error||'Update not confirmed. Retry safely.');
       if(result.driverId!==driverId||result.assignmentId!==assignmentId){stopped=true;clear('Your account has changed. Open Deliveries again.');return;}
       saving=false;await refresh(true);
