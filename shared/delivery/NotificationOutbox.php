@@ -33,15 +33,19 @@ final class NotificationOutbox
     // Do not leak former assignments or notify revoked/inactive accounts.
     $driver=$r&&$r['role_key']==='delivery_driver';$allowed=$r&&$r['status']==='active'&&($driver?(int)$r['driver_employee_id']===(int)$o['recipient_employee_id']:(in_array($r['role_key'],['owner_admin','front_desk_admin','front_desk_admin_employee'],true)||(bool)$r['can_reconcile']));
     $payload=json_decode($o['payload_json'],true);$kind=$payload['kind']??'assignment';
+    if($kind==='owner_proof_discrepancy'&&$driver)$allowed=false;
     if($kind==='issue_reported')$allowed=$r&&$r['status']==='active'&&$r['role_key']!=='delivery_driver'&&(in_array($r['role_key'],['owner_admin','front_desk_admin','front_desk_admin_employee','marketing_sales'],true)||((bool)$r['can_arrange']&&(bool)$r['can_view']));
     if($allowed){
      $title=['reconciliation'=>'Delivery collection ready for handover','failed'=>'Delivery needs attention','partner'=>'New partner delivery request','assignment'=>'Delivery assignment updated','deadline'=>'Customer delivery time updated','deadline_late'=>'Customer delivery deadline passed','cod_followup_overdue'=>'Front Desk: COD payment follow-up overdue'][$kind]??'Delivery update';
      $title=['started'=>'Delivery Started','completed'=>'Delivery Completed','cancelled'=>'Delivery Cancelled','instructions'=>'Delivery Instructions Updated','payment'=>'Payment Update','reassigned'=>'Delivery Assignment Updated'][$kind]??$title;
      if($kind==='proof_completed')$title='Delivery completed · proof ready to review';
+     if($kind==='owner_proof_discrepancy')$title='Delivery proof · owner review needs attention';
      if($driver&&$kind==='assignment')$title='NEW DELIVERY ASSIGNED';
      $deadline=DeliveryDeadline::label(DeliveryDeadline::latest($db,(int)$o['delivery_id']));
      $message='Order: '.($r['order_number']?:$r['public_reference'])."\nCustomer: ".$r['customer_name']."\nArea: ".$r['area'].' · '.$deadline.((int)$r['urgent']?' · Urgent':'')."\nView Delivery";
      $link=($kind==='proof_completed'?'/apps/delivery/index.php?proof=':($driver?'/apps/delivery/driver/index.php?delivery=':'/apps/delivery/workspace.php?delivery=')).(int)$o['delivery_id'];
+     if(in_array($kind,['proof_completed','owner_proof_discrepancy'],true)&&$r['role_key']==='owner_admin')$link='/apps/operations/driver-delivery-details.php?delivery_id='.(int)$o['delivery_id'];
+     if($kind==='owner_proof_discrepancy')$message.="\nThe owner has raised a proof review issue. Contact the owner for instructions. Private review notes are not included.";
      if(in_array($kind,['issue_reported','issue_decision'],true)){
       $title=$kind==='issue_reported'?'Delivery issue · dispatch review required':'Dispatch response to your delivery issue';
       $message.="\nIssue: ".($payload['incident_id']??'');
