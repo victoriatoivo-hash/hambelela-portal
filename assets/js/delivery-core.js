@@ -29,7 +29,7 @@ function jobCard(j){
  (finished?'<p>Delivered: '+esc(displayDate(j.delivered_at||j.completed_at))+'</p>':'')+paymentDetails(j)+
  (j.status==='failed'?'<p class="notice">Delivery issue: '+esc((j.history||[]).find(h=>h.type==='failed')?.reason||'Contact Front to rearrange')+'</p>':'')+(j.notes?'<p class="delivery-notes">'+esc(j.notes)+'</p>':'')+
  (!finished?'<div class="actions contact-actions"><a class="secondary" href="tel:'+esc(String(j.customer_mobile).replace(/[^+0-9]/g,''))+'">Call</a><a class="secondary" href="https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(j.address)+'" target="_blank" rel="noopener noreferrer">Navigate</a></div>':'')+
- '<div class="actions">'+controls+front+note+(operational&&['ready','out_for_delivery'].includes(j.status)?action('fail','Could Not Deliver',j.id):'')+
+ '<div class="actions">'+controls+front+note+(board.can_manage_access?'<a class="secondary" href="/apps/operations/driver-delivery-details.php?delivery_id='+Number(j.id)+'">Proof viewer</a>':'')+(operational&&['ready','out_for_delivery'].includes(j.status)?action('fail','Could Not Deliver',j.id):'')+
  (!driver&&board.can_arrange&&['ready','failed'].includes(j.status)?action('revise','Rearrange / Edit Address',j.id)+action('cancel','Cancel Delivery',j.id):'')+'</div><details><summary>Details and activity</summary><ol>'+(j.history||[]).map(h=>'<li>'+esc(h.type.replaceAll('_',' '))+' · '+esc(h.actor||'Recorded actor')+' · '+esc(displayDate(h.at))+'<p>'+esc(h.reason)+' '+esc(h.note)+(h.deadline?' · '+esc(h.deadline):'')+'</p></li>').join('')+'</ol></details></article>';
 }
 // This presentation opt-in is supplied by the authenticated PHP shell, not a URL parameter.
@@ -260,7 +260,7 @@ function deliveryTable(cards){
   const held=(j.receipts||[]).filter(r=>['collected','issue'].includes(r.status)),collected=held.reduce((n,r)=>n+Number(r.order_goods_cents)+Number(r.delivery_fee_cents)+Number(r.partner_cod_cents),0);
   const payment='<span class="pill">'+esc(j.order_payment_method||((j.receipts||[]).at(-1)?.payment_method)||'Unpaid')+'</span><small>'+esc(j.order_payment_status||j.collection_state)+'</small>';
   const collect=due===null?'Review required':collected?'Collected '+money(collected):due>0?money(due):'—';
-  const open='<button type="button" class="secondary" data-open-delivery="'+Number(j.id)+'">Open</button>';
+  const open='<button type="button" class="secondary" data-open-delivery="'+Number(j.id)+'">Open</button>'+(board.can_manage_access?'<a class="secondary" href="/apps/operations/driver-delivery-details.php?delivery_id='+Number(j.id)+'">Proof viewer</a>':'');
   const confirm=board.can_reconcile?held.filter(r=>r.status==='collected').map(r=>action('reconcile','Confirm Receipt',j.id,r.id)).join(''):'';
   const cells=[ref,esc(j.customer_name),'<a href="tel:'+esc(String(j.customer_mobile).replace(/[^+0-9]/g,''))+'">'+esc(j.customer_mobile)+'</a>',
    '<button type="button" class="delivery-address-link" data-open-delivery="'+Number(j.id)+'" title="'+esc(j.address)+'"><svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path d="M12 22s8-8 8-14a8 8 0 0 0-16 0c0 6 8 14 8 14Z" fill="none" stroke="currentColor"/><circle cx="12" cy="8" r="3" fill="none" stroke="currentColor"/></svg>'+esc(j.area)+'</button>',
@@ -297,6 +297,8 @@ $('#job-action-form').onsubmit=async e=>{e.preventDefault();const f=new FormData
 document.querySelectorAll('dialog').forEach(d=>d.addEventListener('cancel',e=>{if(busy)e.preventDefault();}));
 
 const requestedDelivery=Number(new URLSearchParams(location.search).get('delivery'));if(Number.isSafeInteger(requestedDelivery)&&requestedDelivery>0){focusedJob=requestedDelivery;if(!driver)$('#delivery-view').value='all';$('#delivery-source').value='';}
+// A proof-viewer deep link selects a driver without changing the Owner's identity.
+if(oversight){const requestedDriver=Number(new URLSearchParams(location.search).get('driver_id'));if(Number.isSafeInteger(requestedDriver)&&requestedDriver>0){const option=document.createElement('option');option.value=String(requestedDriver);option.textContent='Loading assigned driver…';$('#delivery-driver').append(option);$('#delivery-driver').value=String(requestedDriver);}}
 load().then(()=>{
  if(focusedJob){if(driver){if(compactDriver){const linked=board.jobs.find(j=>Number(j.id)===focusedJob);if(linked){const group=window.DriverDeliveryUI.jobGroup(linked);if(group==='completed'||group==='cancelled'){primaryTab=group;renderBoardDetails();}}const target=$('#jobs [data-driver-action="details"][data-id="'+focusedJob+'"]');if(target)target.click();else $('#message').textContent='That delivery is not on your assigned list.';}else $('#jobs [data-open-mobile-delivery="'+focusedJob+'"]')?.click();$('#jobs [data-job-id="'+focusedJob+'"]')?.scrollIntoView({block:'start'});}else $('#jobs [data-open-delivery="'+focusedJob+'"]')?.click();}
  if(!driver){
