@@ -29,9 +29,9 @@ $email=filter_var($order['customer_email']??'',FILTER_VALIDATE_EMAIL);$map='http
 <symbol id="hp-alert" viewBox="0 0 24 24"><path d="m12 2 10 19H2ZM12 8v6m0 3v1"/></symbol>
 </defs></svg>
 <div class="hodpv-main">
-<nav class="hodpv-breadcrumb" aria-label="Breadcrumb"><a href="<?= $esc($base) ?>/apps/delivery/index.php">Driver Operations</a><span>›</span><a href="<?= $esc($base) ?>/apps/delivery/workspace.php">Deliveries</a><span>›</span><strong>Delivery Details &amp; Proof Viewer</strong></nav>
+<nav class="hodpv-breadcrumb" aria-label="Breadcrumb"><a href="<?= $esc($base) ?>/apps/operations/driver-operations-dashboard.php">Driver Operations</a><span>›</span><a href="<?= $esc($base) ?>/apps/delivery/workspace.php">Deliveries</a><span>›</span><strong>Delivery Details &amp; Proof Viewer</strong></nav>
 <header class="hodpv-pageheading"><div><h1><?= $esc($data['reference']) ?></h1><p>Delivery Details &amp; Proof Viewer</p></div><div class="hodpv-actions">
-<a class="hodpv-btn" href="<?= $esc($base) ?>/apps/delivery/driver-view.php?driver_id=<?= (int)$job['driver_employee_id'] ?>&amp;delivery=<?= $id ?>"><?= $icon('link') ?>Open driver view</a>
+<?php if(!empty($job['driver_employee_id'])): ?><a class="hodpv-btn" href="<?= $esc($base) ?>/apps/operations/view-as-driver.php?driver=<?= (int)$job['driver_employee_id'] ?>&amp;screen=details&amp;id=<?= $id ?>"><?= $icon('link') ?>Open driver view</a><?php else: ?><button class="hodpv-btn" disabled title="No driver assigned">Open driver view</button><?php endif; ?>
 <?php if($proof['files']): ?><a class="hodpv-btn" href="<?= $esc($endpoint) ?>&amp;download=1"><?= $icon('download') ?>Download proof</a><?php else: ?><button class="hodpv-btn" disabled title="No proof uploaded"><?= $icon('download') ?>Download proof</button><?php endif; ?>
 <button class="hodpv-btn hodpv-btn-primary" data-dialog="review" <?= !$data['ready']||$reviewed?'disabled':'' ?>><?= $icon('check') ?><?= $reviewed?'Reviewed':'Mark reviewed' ?></button>
 <button class="hodpv-btn hodpv-btn-danger" data-dialog="discrepancy" <?= !$data['ready']?'disabled':'' ?>><?= $icon('alert') ?>Report discrepancy</button></div></header>

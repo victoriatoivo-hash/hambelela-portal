@@ -8,7 +8,7 @@
  const node=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls||'';if(text!==undefined)n.textContent=text;return n;};
  const dayFormat=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Windhoek',year:'numeric',month:'long',day:'numeric'}),timeFormat=new Intl.DateTimeFormat('en-GB',{timeZone:'Africa/Windhoek',hour:'2-digit',minute:'2-digit'});
  function status(text,error=false){$('status').hidden=!text;$('status').textContent=text;$('retry').hidden=!error;}
- function endpoint(extra={}){const u=new URL(root.dataset.endpoint,location.origin);if(selected)u.searchParams.set('driver',String(selected));Object.entries(extra).forEach(([k,v])=>u.searchParams.set(k,String(v)));return u;}
+ function endpoint(extra={}){const u=new URL(root.dataset.endpoint,document.baseURI);if(selected)u.searchParams.set('driver',String(selected));Object.entries(extra).forEach(([k,v])=>u.searchParams.set(k,String(v)));return u;}
  async function api(url,options={}){
   const c=new AbortController();controllers.add(c);const t=setTimeout(()=>c.abort(),15000);
   try{const r=await fetch(url,{credentials:'same-origin',cache:'no-store',...options,signal:c.signal});let j;try{j=await r.json();}catch{if(r.redirected||r.status===401||r.status===403)purge();throw Error('Connection or sign-in unavailable.');}if(r.status===401||r.status===403){purge();throw Error(j.error||'Sign in again to access this conversation.');}if(!r.ok||!j.ok)throw Error(j.error||'Chat unavailable. Please retry.');if(j.actor!==actor){purge();throw Error('Your account changed. Reload before continuing.');}return j;}
@@ -57,6 +57,7 @@
  }
  function schedule(){clearTimeout(timer);timer=setTimeout(()=>void refresh(),delay);}
  async function receipts(){
+  if(document.documentElement.dataset.ownerReadonly==='1')return;
   if(receiptBusy||document.hidden||!document.hasFocus()||dialog.open||!selected)return;receiptBusy=true;const g=generation;
   try{const incoming=[...messages.values()].filter(m=>!m.outgoing),all=incoming.filter(m=>!delivered.has(m.id)).slice(-200).map(m=>m.id);
    if(all.length){await post({action:'delivered',ids:all});if(g!==generation)return;all.forEach(id=>delivered.add(id));}
