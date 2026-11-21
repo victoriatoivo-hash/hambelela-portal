@@ -6,27 +6,17 @@ release baseline before replacing anything. Backup and readback are mandatory.
 import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-BASE = '21c916e6911fec3a8afcab98643a512f4e1ba77b'
-# Owner-approved comparison, run 44890830990: current Front Desk handover checks
-# are preserved in the desired source, not overwritten with the older git copy.
-REVIEWED_LIVE = {'shared/delivery/DeliveryService.php': '37b843cdef2247851842894a43246573b1671bd720a8db95a8c310cfa48bcc0b'}
+BASE = '97bbfb40158ca469cd50ba6f1446044d64cfdc04'
+REVIEWED_LIVE = {}
 FILES = [
-    'assets/css/driver-completion-dialog.css',
-    'assets/css/driver-proof-integration.css',
-    'assets/js/driver-proof-of-delivery.js',
+    'assets/css/driver-deliveries-integration.css',
+    'assets/js/driver-deliveries.js',
+    'assets/js/driver-delivery-card-actions.js',
+    'assets/js/driver-live-updates.js',
     'assets/js/driver-completion-dialog.js',
-    'assets/js/driver-order-details.js',
-    'shared/delivery/DeliveryService.php',
-    'shared/delivery/CoreApi.php',
-    'shared/delivery/ProofContext.php',
-    'shared/delivery/ProofSubmission.php',
     'shared/delivery/DriverAssignments.php',
-    'shared/delivery/DriverOrderDetails.php',
     'shared/delivery/DriverOrderDetailsData.php',
-    'shared/delivery/proof/Helpers.php',
-    'shared/delivery/proof/View.php',
-    'shared/delivery/order-details/Content.php',
-    'shared/delivery/order-details/View.php',
+    'shared/delivery/deliveries/View.php',
 ]
 BACKUP = ROOT / 'driver-background-backup.zip'
 REPORT = ROOT / 'driver-background-report.json'

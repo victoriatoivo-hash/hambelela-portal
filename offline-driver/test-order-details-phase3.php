@@ -35,6 +35,18 @@ try{
  $db->exec("INSERT INTO order_payment_allocations(order_id,payment_method,amount_cents,source) VALUES($oid,'EFT',6000,'pos'),($oid,'Cash',6000,'pos')");
  $r=$read();verify($r['payment']['status']==='split'&&$r['payment']['label']==='Split payment · verified','split paid methods explicitly identified');
  verify($r['delivery']['navigationAvailable'],'approved address navigation allowed after verified payment');
+ // Existing saved assignments expose the same next step on the list and details.
+ $db->exec("DELETE FROM delivery_events WHERE delivery_id=$id AND event_type IN ('driver_accepted','parcel_collected','driver_collection_confirmed')");
+ verify($read()['action']==='accept','existing unaccepted assignment offers Accept');
+ $event('driver_accepted',[]);
+ verify($read()['action']===null&&test_contains($read()['handoverNotice'],'Front Desk'),'accepted assignment waits for real handover');
+ $event('parcel_collected',['driver_id'=>3]);
+ verify($read()['action']==='start','existing accepted and handed-over assignment offers Start');
+ $event('driver_collection_confirmed',[]);
+ verify($read()['action']==='start','old separate receipt-confirmed assignment also offers Start without reset');
+ $list=\Hambelela\Delivery\DriverAssignments::read($db,3,$now,$id);
+ verify($list['deliveries'][0]['action']===$read()['action'],'list and detail next action agree');
+ $db->exec("DELETE FROM delivery_events WHERE delivery_id=$id AND event_type IN ('driver_accepted','parcel_collected','driver_collection_confirmed')");
  $db->exec("UPDATE ops_orders SET status='refunded' WHERE id=$oid");$r=$read();verify(!$r['payment']['verified']&&$r['payment']['label']==='Payment needs review','refunded source cannot retain a green paid pill');$db->exec("UPDATE ops_orders SET status='in_progress' WHERE id=$oid");$r=$read();
  verify($r['dispatchedQuantityTotal']===null&&test_contains($r['itemsNotice'],'partial handover'),'additional trip does not inherit full order as its parcel');
  $db->exec("UPDATE delivery_jobs SET address='KH, NA',customer_mobile='email@example.com' WHERE id=$id");$r=$read();verify($r['delivery']['address']['street']===null&&!$r['delivery']['navigationAvailable']&&$r['customer']['phone']===null,'missing or incomplete address/phone disable actions');

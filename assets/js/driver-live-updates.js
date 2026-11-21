@@ -2,7 +2,7 @@
  * No polling, storage, identity decisions or business writes live in this helper. */
 (() => {
   'use strict';
-  const key = node => node.nodeType === 1 ? ['id','data-card','data-group','data-live-key','href'].map(name => {
+  const key = node => node.nodeType === 1 ? ['id','data-card','data-delivery-card','data-group','data-live-key','href'].map(name => {
     const value = node.getAttribute(name); return value ? name + ':' + value : '';
   }).find(Boolean) || '' : '';
   const sameType = (a,b) => a.nodeType === b.nodeType && a.nodeName === b.nodeName;

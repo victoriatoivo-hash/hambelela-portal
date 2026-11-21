@@ -38,9 +38,9 @@ const flush=()=>new Promise(r=>setImmediate(r));
  board.w.eval(source('driver-deliveries'));const poll=board.timers.find(t=>t.ms===15000).fn;
  const card=board.d.querySelector('[data-d-results] a'),search=board.d.querySelector('#driver-search');
  search.value='Test';search.dispatchEvent(new board.w.Event('input'));card.focus();
- result={...initial,counts:{all:2},deliveries:[...initial.deliveries,{...initial.deliveries[0],assignmentId:8,orderNumber:'TEST-8'}]};await poll();
- check(board.d.querySelectorAll('[data-d-results] a').length===2,'new assignment appears from timer without manual refresh');
- check(board.d.querySelector('[data-d-results] a')===card&&search.value==='Test'&&board.d.activeElement===card,'new assignment preserves card, search and focus');
+ result={...initial,counts:{all:2},deliveries:[{...initial.deliveries[0],assignmentId:8,orderNumber:'TEST-8'},...initial.deliveries]};await poll();
+ check(board.d.querySelectorAll('[data-delivery-card]').length===2,'new assignment appears from timer without manual refresh');
+ check(board.d.querySelector('[data-delivery-card="7"] a')===card&&search.value==='Test'&&board.d.activeElement===card,'new assignment preserves card, search and focus');
  let resolve;wait=new Promise(r=>resolve=r);const pending=poll(),before=requests;await poll();check(requests===before,'no overlapping refresh requests');resolve();await pending;wait=null;
  result={...result,driverId:4};await poll();check(!board.d.querySelector('[data-d-results] a'),'identity change clears private orders');board.w.close();
 

@@ -6,7 +6,7 @@ for(const key of ['[data-d-results]','#driver-search','[data-d-connection]','[da
 const tabs=['active','to_collect','on_route','done'].map(key=>element({dTab:key})),counts=['active','to_collect','on_route','done'].map(key=>element({dCount:key}));
 root.querySelector=k=>nodes[k]||null;root.querySelectorAll=k=>k==='[data-d-tab]'?tabs:k==='[data-d-count]'?counts:[];root.addEventListener=(k,f)=>handlers[k]=f;
 let response=async()=>({ok:true,status:200,redirected:false,json:async()=>JSON.parse(JSON.stringify(initial))}),requests=0;
-const document={hidden:false,activeElement:nodes['#driver-search'],querySelector:()=>root,getElementById:()=>({textContent:JSON.stringify(initial)}),addEventListener(){}};
+const document={hidden:false,activeElement:nodes['#driver-search'],querySelector:k=>k==='[data-driver-deliveries]'?root:null,getElementById:()=>({textContent:JSON.stringify(initial)}),addEventListener(){}};
 const context={document,window:{addEventListener:(k,f)=>windows[k]=f},navigator:{onLine:true},location:{reload(){}},AbortController,setTimeout,clearTimeout,setInterval:f=>intervals.push(f),fetch:async()=>{requests++;return response();},console};
 vm.runInNewContext(fs.readFileSync('assets/js/driver-deliveries.js','utf8'),context);
 (async()=>{
