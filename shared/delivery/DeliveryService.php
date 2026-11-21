@@ -106,7 +106,8 @@ final class DeliveryService
         return $this->command($actor,$id,$uuid,'started',[],fn($j)=>$this->assigned($actor,$j),function($j)use($id){
             DeliveryIssueState::assertClear($this->db,$id);
             if($j['status']!=='ready')throw new \DomainException('Delivery is not ready.');
-            $this->remaining($j);
+            // Starting transport does not collect money or certify settlement.
+            // Balance validation belongs to payment recording/reconciliation.
             $c=DeliveryCustody::read($this->db,$j);
             if($c['tracking_version']&&!$c['acceptance'])throw new \DomainException('Accept this delivery first.');
             if($c['tracking_version']&&!$c['exception']&&(!$c['handover']||!$c['collection']))throw new \DomainException('Parcel handover and driver collection confirmation are required before starting.');

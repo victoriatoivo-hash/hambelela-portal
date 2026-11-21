@@ -82,7 +82,9 @@ final class DriverAssignments
         $parts=preg_split('/\s+/u',trim((string)$r['customer_name']));$customer=$parts[0]?:'Customer';if(count($parts)>1)$customer.=' '.mb_substr(end($parts),0,1).'.';
         $payment=self::payment($db,$r,$release);
         if($stage==='done'&&!$payment['paymentVerified']){$label='Delivered · payment review';$reason='Customer handover is recorded; payment review remains with dispatch. Do not deliver again.';}
-        if(in_array($stage,['to_collect','on_route'],true)&&!$payment['paymentVerified']&&$payment['codAmountDueNad']===null){$stage='exception';$label='Payment needs review';$reason='Payment or an authorised cash collection arrangement needs confirmation before dispatch.';}
+        // Dispatch has already released this assignment. Payment uncertainty is
+        // financial information, not a reason to hide acceptance/pickup/start.
+        // Keep source cancellations, custody and explicit operational issues above.
         $issue=DeliveryIssueState::latest($db,(int)$r['id']);
         if($issue&&$issue['blocking']){$stage='exception';$label='Issue reported · Awaiting dispatch';$reason=$issue['latest_decision']['instruction']??'Dispatch must approve the next step. The order remains open.';}
         return ['issue'=>$issue?['reference'=>$issue['incident_id'],'blocking'=>$issue['blocking'],'instruction'=>$issue['latest_decision']['instruction']??null]:null,'assignmentId'=>(int)$r['id'],'orderId'=>$r['order_id']?(int)$r['order_id']:null,'orderNumber'=>$r['order_number']?:($r['partner_reference']?:$r['public_reference']),
@@ -110,7 +112,8 @@ final class DriverAssignments
                 $q=$db->prepare('SELECT amount_cents,payment_method FROM order_payment_allocations WHERE order_id=?');$q->execute([$r['order_id']]);$allocations=$q->fetchAll(\PDO::FETCH_ASSOC);
                 foreach($allocations as $a){if((int)$a['amount_cents']<0)throw new \DomainException('Reversed allocation.');if((int)$a['amount_cents']>0){$allocated+=(int)$a['amount_cents'];$methods[self::method($a['payment_method'])]=true;}}
                 // Do not inherit OrderDispatchBalance's legacy paid-status fallback as verified money.
-                if(!$allocations&&$r['payment_status']==='paid'&&DeliveryPolicy::cents((string)$r['total_amount'])>0)throw new \DomainException('No verified allocation.');
+                if(!$allocations&&$r['payment_status']==='paid'&&DeliveryPolicy::cents((string)$r['total_amount'])>0
+                    &&($release['order_dispatch']['payment_policy']??'')!=='portal_cash_confirmation')throw new \DomainException('No verified allocation.');
             }
             $due=array_sum((new OrderBalanceAdapter())->read($db,$r));
             if((int)$r['pending_receipts']>0){$result['paymentLabel']='Payment under review';return $result;}
@@ -119,7 +122,7 @@ final class DriverAssignments
                 $method=count($methods)===1?array_key_first($methods):'OTHER';
                 $result['paymentMethod']=$method;
                 $result['paymentLabel']=$allocated>0?(in_array($method,['EFT','DPO','CASH'],true)?($method==='CASH'?'Cash':$method).' paid':'Paid · verified'):'No collection due';
-            }elseif(($release['payment_arrangement']??null)==='cod'&&self::method((string)$r['payment_method'])==='CASH'){
+            }elseif(($release['payment_arrangement']??null)==='cod'){
                 $result['paymentMethod']='CASH';$result['codAmountDueNad']=$due/100;$result['paymentLabel']='Cash N$'.number_format($due/100,2);
             }
         }catch(\DomainException $e){$result['paymentLabel']='Payment needs review';}

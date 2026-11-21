@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$MariaBin,[Parameter(Mandatory)][string]$PhpDir,[ValidateSet('delivery-arrangement-regression.php','handover-confirmation.php')][string]$TestFile='delivery-arrangement-regression.php')
+param([Parameter(Mandatory)][string]$MariaBin,[Parameter(Mandatory)][string]$PhpDir,[ValidateSet('delivery-arrangement-regression.php','handover-confirmation.php','driver-payment-dispatch.php')][string]$TestFile='delivery-arrangement-regression.php')
 $ErrorActionPreference='Stop'
 $port=13419
 $dir=New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('delivery-accountability-'+[guid]::NewGuid().ToString('N')))
