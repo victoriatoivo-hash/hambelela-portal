@@ -259,7 +259,10 @@ function installMarketingMobileTyping(win, doc) {
 // All Marketing edit/detail surfaces share one dismissal and dirty-state gate.
 (() => {
  const init=()=>{
- const fingerprint=root=>JSON.stringify([...root.querySelectorAll('form')].flatMap(form=>[...new FormData(form)].filter(([key])=>key!=='csrf').map(([key,value])=>[key,value instanceof File?value.name+':'+value.size:value])));
+ // Date pickers enhance after this baseline is captured and append timezone
+ // metadata. That is not an employee edit. Keep the actual date/value fields,
+ // messages and attachments in the snapshot, but ignore automatic metadata.
+ const fingerprint=root=>JSON.stringify([...root.querySelectorAll('form')].flatMap(form=>[...new FormData(form)].filter(([key])=>key!=='csrf'&&key!=='client_timezone'&&!key.endsWith('_client_timezone')).map(([key,value])=>[key,value instanceof File?value.name+':'+value.size:value])));
  const states=new WeakMap();
  const watch=dialog=>{
   if(states.has(dialog)||dialog.matches('.mk4-editor-expanded'))return;
