@@ -68,13 +68,8 @@ final class DriverOrderDetailsData
         if($summary['displayStatus']==='Order needs review'){
             $paymentStatus='unknown';$summary['paymentVerified']=false;$summary['codAmountDueNad']=null;$summary['paymentLabel']='Payment needs review';
         }
-        $custody=DeliveryCustody::read($db,$job);$action=null;$actionLabel=null;$handoverNotice=null;
-        if($job['status']==='ready'&&in_array($summary['stage'],['to_collect','on_route'],true)){
-            if(!$custody['acceptance']){$action='accept';$actionLabel='Accept order';}
-            elseif(!$custody['handover']){$handoverNotice='Waiting for Front Desk to record the parcel handover. This updates automatically.';}
-            elseif($custody['handover']){$action='start';$actionLabel='Start delivery';}
-            else $handoverNotice='Ask Front Desk to record the parcel handover before you start.';
-        }
+        // The list and details use the same verified next step, including older assignments.
+        $action=$summary['action'];$actionLabel=$summary['actionLabel'];$handoverNotice=$summary['handoverNotice'];
         return ['action'=>$action,'actionLabel'=>$actionLabel,'handoverNotice'=>$handoverNotice,'version'=>(int)$job['version'],'issue'=>$summary['issue']??null,'assignmentId'=>$assignmentId,'orderId'=>$summary['orderId'],'orderNumber'=>$summary['orderNumber'],'driverId'=>$employeeId,'timezone'=>'Africa/Windhoek','dataStatus'=>'live',
             'customer'=>['displayName'=>$summary['customerDisplayName'],'initials'=>$initials?:'C','phone'=>$phone,'messagingContact'=>null],
             'payment'=>['method'=>$summary['paymentMethod'],'status'=>$paymentStatus,'verified'=>$summary['paymentVerified'],'label'=>$paymentStatus==='split'?'Split payment · verified':$summary['paymentLabel'],'codAmountDueNad'=>$summary['codAmountDueNad']],

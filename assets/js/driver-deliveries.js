@@ -20,7 +20,15 @@
   const escape=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const iconPaths={pin:'<path d="M19 10c0 5-7 11-7 11S5 15 5 10a7 7 0 1 1 14 0z"/><circle cx="12" cy="10" r="2"/>',box:'<path d="m12 3 9 5v9l-9 5-9-5V8zM3 8l9 5 9-5M12 13v9M7.5 5.5l9 5"/>',card:'<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M3 10h18M7 15h4"/>',arrow:'<path d="M4 12h16m-6-6 6 6-6 6"/>'};
   const icon=key=>'<svg class="ho-driver-dashboard__icon" viewBox="0 0 24 24" aria-hidden="true">'+iconPaths[key]+'</svg>';
-  const card=(d,featured)=>`<a class="ho-driver-deliveries__card ho-driver-deliveries__card--tap" href="${escape(root.dataset.detailBase+Number(d.assignmentId))}"><div class="ho-driver-deliveries__card-head"><strong class="ho-driver-deliveries__number">${escape(d.orderNumber)}</strong><span class="ho-driver-deliveries__pill" data-tone="${d.stage==='exception'?'amber':d.stage==='to_collect'?'slate':'green'}">${escape(d.displayStatus)}</span></div><div class="ho-driver-deliveries__name-row"><span class="ho-driver-deliveries__name">${escape(d.customerDisplayName)}</span><span class="ho-driver-deliveries__time">${escape(d.scheduledTimeLocal)}</span></div><p class="ho-driver-deliveries__address">${icon('pin')}${escape(d.deliveryArea)}</p><div class="ho-driver-deliveries__divider"></div><div class="ho-driver-deliveries__meta"><span class="ho-driver-deliveries__meta-item">${icon('box')}${d.itemCount===null?'Items not recorded':Number(d.itemCount)+' item line'+(Number(d.itemCount)===1?'':'s')}</span><span class="ho-driver-deliveries__meta-item">${icon('card')}${escape(d.paymentLabel)}</span></div>${d.stage==='to_collect'?'<p class="ho-driver-deliveries__collection-foot">Collection from Hambelela Organic</p>':d.reviewReason?'<p class="ho-driver-deliveries__collection-foot">'+escape(d.reviewReason)+'</p>':''}${d.assignmentId===featured?'<span class="ho-driver-deliveries__detailbutton">View order details '+icon('arrow')+'</span>':''}</a>`;
+  const card=d=>{
+    const id=Number(d.assignmentId),details=escape(root.dataset.detailBase+id),proof=escape(root.dataset.proofBase+id);
+    let action='';
+    if(d.stage==='to_collect'&&['accept','start'].includes(d.action)){
+      const start=d.action==='start',label=start?'Start':'Accept';
+      action=`<form data-card-action data-assignment-id="${id}" method="post" action="${details}"><input type="hidden" name="csrf" value="${escape(root.dataset.csrf)}"><input type="hidden" name="actor" value="${escape(root.dataset.driverId)}"><input type="hidden" name="action" value="${d.action}"><button class="ho-driver-deliveries__action" type="submit" aria-label="${label} ${escape(d.orderNumber)}"><svg class="ho-driver-dashboard__icon" viewBox="0 0 24 24" aria-hidden="true">${start?'<path d="m8 4 12 8-12 8z"/>':'<path d="m5 12 4 4L19 6"/>'}</svg>${label}</button></form>`;
+    }else if(d.stage==='on_route')action=`<a class="ho-driver-deliveries__action" data-complete-delivery data-assignment-id="${id}" href="${proof}" aria-label="Complete ${escape(d.orderNumber)}">${icon('box')}Complete</a>`;
+    return `<article class="ho-driver-deliveries__card" data-delivery-card="${id}"><a class="ho-driver-deliveries__card-summary" href="${details}" aria-label="View details for ${escape(d.orderNumber)}"><div class="ho-driver-deliveries__card-head"><strong class="ho-driver-deliveries__number">${escape(d.orderNumber)}</strong><span class="ho-driver-deliveries__pill" data-tone="${d.stage==='exception'?'amber':d.stage==='to_collect'?'slate':'green'}">${escape(d.displayStatus)}</span></div><div class="ho-driver-deliveries__name-row"><span class="ho-driver-deliveries__name">${escape(d.customerDisplayName)}</span><span class="ho-driver-deliveries__time">${escape(d.scheduledTimeLocal)}</span></div><p class="ho-driver-deliveries__address">${icon('pin')}${escape(d.deliveryArea)}</p><div class="ho-driver-deliveries__divider"></div><div class="ho-driver-deliveries__meta"><span class="ho-driver-deliveries__meta-item">${icon('box')}${d.itemCount===null?'Items not recorded':Number(d.itemCount)+' item line'+(Number(d.itemCount)===1?'':'s')}</span><span class="ho-driver-deliveries__meta-item">${icon('card')}${escape(d.paymentLabel)}</span></div></a>${d.handoverNotice||d.reviewReason?'<p class="ho-driver-deliveries__collection-foot">'+escape(d.handoverNotice||d.reviewReason)+'</p>':''}<div class="ho-driver-deliveries__actions"><a class="ho-driver-deliveries__details-link" href="${details}">View details ${icon('arrow')}</a>${action}</div></article>`;
+  };
   function render(){
     if(isSummary)return;
     const failed=data.dataStatus==='error',view=failed?null:model(data,search.value,tab,sort);
@@ -45,7 +53,7 @@
   }
   function network(){notice.hidden=navigator.onLine&&!expired;notice.textContent=expired?'Your session or driver access has expired. Reload to sign in again.':'Offline · showing last loaded information, which may have changed. No changes can be sent.';}
   async function refresh(manual=false){
-    if(busy||document.hidden||!navigator.onLine||root.querySelector('dialog[open]')){network();return;}
+    if(busy||root.dataset.actionSaving==='1'||document.hidden||!navigator.onLine||document.querySelector('.driver-completion-dialog[open]')||root.querySelector('dialog[open]')){network();return;}
     if(expired){if(manual)location.reload();return;}
     busy=true;if(manual){notice.hidden=false;notice.textContent='Updating deliveries…';results?.setAttribute('aria-busy','true');}
     const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),12000);
@@ -59,8 +67,11 @@
       if(isSummary&&JSON.stringify(next.deliveries)!==JSON.stringify(data.deliveries)){
         const content=root.querySelector('.ho-driver-deliveries__content');content.querySelectorAll('section').forEach(el=>el.remove());const p=document.createElement('p');p.className='ho-driver-deliveries__empty';p.textContent='Assignment information changed. Return to Deliveries to view the latest details.';content.append(p);
       }
+      if(root.dataset.actionSaving==='1'||document.querySelector('.driver-completion-dialog[open]'))return;
       data=next;render();notice.hidden=true;
     }catch(e){
+      if(expired)window.hambelelaCloseCompletion?.();
+      if(!expired&&root.dataset.actionSaving==='1')return;
       data={dataStatus:'error'};render();notice.hidden=false;notice.textContent=expired?'Your session or driver access has expired. Reload to sign in again.':'Unable to refresh deliveries. Try again when connected.';
       if(isSummary){root.querySelectorAll('.ho-driver-deliveries__content section').forEach(el=>el.remove());}
     }finally{clearTimeout(timeout);busy=false;results?.removeAttribute('aria-busy');}
@@ -82,6 +93,7 @@
   search?.addEventListener('input',render);root.querySelector('#driver-sort')?.addEventListener('change',e=>{sort=e.target.value;render();});
   window.addEventListener('offline',network);window.addEventListener('online',()=>refresh());
   window.addEventListener('focus',()=>refresh());
+  window.addEventListener('driver-deliveries-refresh',()=>refresh());
   document.addEventListener('visibilitychange',()=>{if(!document.hidden)refresh();});
   render();network();setInterval(()=>refresh(),15000);
 })();

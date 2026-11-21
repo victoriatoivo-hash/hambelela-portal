@@ -2,7 +2,8 @@ const assert=require('node:assert/strict'),fs=require('node:fs'),{execFileSync}=
 const flush=()=>new Promise(r=>setImmediate(r));
 (async()=>{
  const html=execFileSync(process.env.TEST_PHP||'php',['offline-driver/render-proof-buttons.php'],{encoding:'utf8'});
- const dom=new JSDOM('<main data-order-details data-assignment-id="123"><a data-complete-delivery href="/apps/delivery/index.php?proof=123">Complete</a></main>',{url:'https://driver.test/apps/delivery/index.php?delivery=123',runScripts:'outside-only'}),w=dom.window,d=w.document;
+ for(const host of ['details','list']){
+ const dom=new JSDOM(`<main ${host==='details'?'data-order-details data-assignment-id="123"':'data-driver-deliveries'}><a data-complete-delivery data-assignment-id="123" href="/apps/delivery/index.php?proof=123">Complete</a></main>`,{url:'https://driver.test/apps/delivery/index.php?delivery=123',runScripts:'outside-only'}),w=dom.window,d=w.document;
  w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};
  w.HTMLCanvasElement.prototype.getContext=()=>({fillRect(){},beginPath(){},moveTo(){},lineTo(){},stroke(){}});
  w.HTMLCanvasElement.prototype.setPointerCapture=()=>{};w.HTMLCanvasElement.prototype.getBoundingClientRect=()=>({left:0,top:0,width:720,height:340});
@@ -29,5 +30,6 @@ const flush=()=>new Promise(r=>setImmediate(r));
  mode='held';submit();await flush();submit();assert.equal(posts.length,2,'double tap suppressed');assert.equal(posts[1].get('request_id'),key,'retry retains idempotency key');
  d.querySelector('[aria-label="Close completion"]').click();assert.ok(d.querySelector('.driver-completion-dialog'),'cannot close while submitting');
  mode='ok';release();await flush();await flush();assert.equal(d.querySelector('.driver-completion-dialog'),null,'server confirmation closes popup without navigation');assert.equal(w.location.search,'?delivery=123');
- dom.window.close();console.log('PASS three-step real-DOM form: inline popup, signature/payment mandatory, recipient change, HTML failure, draft retention, duplicate taps, retry key, success-only close.');
+ dom.window.close();console.log('PASS '+host+' three-step real-DOM form: inline popup, signature/payment mandatory, recipient change, HTML failure, draft retention, duplicate taps, retry key, success-only close.');
+ }
 })().catch(e=>{console.error(e);process.exitCode=1});
