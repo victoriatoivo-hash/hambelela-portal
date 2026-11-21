@@ -3,7 +3,7 @@
 Uses the existing portal deployment credentials and verifies the installed driver
 release baseline before replacing anything. Backup and readback are mandatory.
 """
-import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
+import argparse, difflib, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASE = '21c916e6911fec3a8afcab98643a512f4e1ba77b'
@@ -71,9 +71,14 @@ def main(deploy):
         if b'Require all denied' not in rules or b'Deny from all' not in rules:
             raise RuntimeError('Protected release staging folder is unavailable; nothing changed')
         before={p:read(ftp,p) for p in FILES}
+        unknown=[]
         for p,data in before.items():
             if digest(data) not in [digest(blob(BASE,p)),digest(wanted[p])]:
-                raise RuntimeError('Unknown live baseline; nothing changed: '+p)
+                unknown.append(p)
+                print('LIVE SOURCE DIFFERENCE '+p+' sha256='+str(digest(data)),flush=True)
+                if p == 'shared/delivery/DeliveryService.php':
+                    print(''.join(difflib.unified_diff((blob(BASE,p) or b'').decode('utf-8').splitlines(True),(data or b'').decode('utf-8').splitlines(True),fromfile='baseline/'+p,tofile='live/'+p)),flush=True)
+        if unknown:raise RuntimeError('Unknown live baselines; nothing changed: '+', '.join(unknown))
         with zipfile.ZipFile(BACKUP,'w',zipfile.ZIP_DEFLATED) as z:
             for p,data in before.items():
                 if data is not None:z.writestr(p,data)
