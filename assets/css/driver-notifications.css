@@ -1,0 +1,80 @@
+/* Hambelela Organic — DRIVER APP, PHASE 09: NOTIFICATIONS
+   Visual authority: 09_Notifications_APPROVED.png
+   Load after driver-dashboard.css. Keep selectors scoped to .ho-driver-notifications.
+   Reuse Phase 01 bottom navigation; DO NOT edit global portal.css or :root.
+   Browser/demo-only styles at the end must not be used inside the actual PWA.
+*/
+.ho-driver-notifications{
+ --hn-ink:#1b3026;--hn-forest:#2b4032;--hn-olive:#4b674c;
+ --hn-body:#f8faf7;--hn-muted:#8fa196;--hn-line:#e3eae2;
+ --hn-unread:#edf5eb;--hn-unread-border:#d7e7d3;
+ --hn-read:#fff;--hn-read-icon:#eff3ef;--hn-chip:#edf1eb;
+ --hn-shadow:0 4px 12px rgba(49,77,57,.018);
+ width:100%;min-height:0;height:100dvh;overflow:hidden;
+ position:relative;display:flex;flex-direction:column;
+ background:var(--hn-body);color:var(--hn-ink);font-family:Inter,Arial,sans-serif;
+}
+.ho-driver-notifications *,.ho-driver-notifications *::before,.ho-driver-notifications *::after{box-sizing:border-box}
+.ho-driver-notifications [hidden]{display:none!important}
+.ho-driver-notifications :is(h1,h2,p){margin:0}
+.ho-driver-notifications button{font-family:inherit;cursor:pointer}
+.ho-driver-notifications :is(a,button,input):focus-visible{outline:3px solid #70946d;outline-offset:2px}
+.ho-driver-notifications .hn-icon{width:22px;height:22px;display:block;flex-shrink:0;stroke-width:1.9}
+.ho-driver-notifications .hn-masthead{flex:0 0 auto;background:#f8faf7;display:flex;align-items:center;gap:12px;padding:9px 18px 10px;min-height:94px}
+.ho-driver-notifications .hn-logo{width:42px;height:42px;flex:0 0 42px;background:#4d674d;color:#fff;display:grid;place-items:center;border-radius:12px;font-size:26px;font-weight:750;letter-spacing:-.8px;line-height:1}
+.ho-driver-notifications .hn-heading{flex:1;min-width:0}
+.ho-driver-notifications .hn-eyebrow{font-size:10.2px;color:#718e75;font-weight:800;letter-spacing:1.5px;margin-bottom:6px;white-space:nowrap}
+.ho-driver-notifications .hn-eyebrow span{color:#a0afa5}
+.ho-driver-notifications .hn-heading h1{font-size:25px;letter-spacing:-.9px;line-height:1.04;font-weight:820;color:#1a3127}
+.ho-driver-notifications .hn-heading p{font-size:13px;color:#93a397;margin-top:7px;line-height:1.25;font-weight:470}
+.ho-driver-notifications .hn-settings{align-self:center;flex:0 0 37px;width:37px;height:37px;border:1px solid #e3eae1;background:#fff;border-radius:13px;display:grid;place-items:center;color:#526b54;box-shadow:0 2px 5px #23352404}
+.ho-driver-notifications .hn-settings .hn-icon{width:21px;height:21px}
+/* Four high-priority category tabs; screenshot uses a single pale sage strip. */
+.ho-driver-notifications .hn-filters{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;align-items:stretch;gap:0;background:#edf1ec;border-radius:15px;padding:4px;margin:0 0 3px;flex:0 0 auto;min-height:45px}
+.ho-driver-notifications .hn-filters button{border:0;border-radius:13px;background:transparent;color:#87998d;font-size:11px;font-weight:750;white-space:nowrap;padding:8px 1px;text-align:center;min-width:0;box-shadow:none;transition:background .15s,color .15s,box-shadow .15s}
+.ho-driver-notifications .hn-filters button[aria-selected="true"]{background:#fff;color:#45644a;box-shadow:0 4px 9px #354a3513}
+.ho-driver-notifications .hn-filters button:not([aria-selected="true"]):hover{background:#f5f7f4}
+.ho-driver-notifications .hn-scroller{flex:1 1 auto;min-height:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior-y:contain;scrollbar-width:none;padding:7px 0 18px}
+.ho-driver-notifications .hn-scroller::-webkit-scrollbar{display:none}
+.ho-driver-notifications .hn-group{margin:0 0 14px}
+.ho-driver-notifications .hn-group h2{font-size:17px;font-weight:780;letter-spacing:-.6px;line-height:1.3;margin:6px 2px 11px;color:#1c3328}
+.ho-driver-notifications .hn-note-stack{display:flex;flex-direction:column;gap:10px}
+.ho-driver-notifications .hn-note{appearance:none;border:1px solid #e5ebe4;background:var(--hn-read);border-radius:16px;display:flex;align-items:flex-start;gap:12px;width:100%;min-height:100px;padding:13px 14px 12px;text-align:left;color:var(--hn-ink);box-shadow:var(--hn-shadow);position:relative;transition:background .15s,border-color .15s}
+.ho-driver-notifications .hn-note--unread{background:var(--hn-unread);border-color:var(--hn-unread-border)}
+.ho-driver-notifications .hn-note:hover{border-color:#bed3b9}
+.ho-driver-notifications .hn-note__icon{flex:0 0 40px;width:40px;height:40px;display:grid;place-items:center;border-radius:13px;background:var(--hn-read-icon);color:#8da392;margin-top:1px}
+.ho-driver-notifications .hn-note--unread .hn-note__icon{background:#dcebd9;color:#5a825a}
+.ho-driver-notifications .hn-note__icon .hn-icon{width:22px;height:22px;stroke-width:1.9}
+.ho-driver-notifications .hn-note__content{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:7px;padding-top:1px}
+.ho-driver-notifications .hn-note__content strong{display:block;font-size:13px;font-weight:780;color:#1f352b;letter-spacing:-.14px;line-height:1.3}
+.ho-driver-notifications .hn-note__description{display:block;color:#85998c;font-size:11.8px;line-height:1.45;font-weight:480;max-width:100%}
+.ho-driver-notifications .hn-note__content time{font-size:11.4px;color:#99a99d;line-height:1.2;font-weight:460;margin-top:2px}
+.ho-driver-notifications .hn-note__end{flex:0 0 14px;height:31px;display:flex;align-items:center;justify-content:center;color:#97a99b;margin-left:auto}
+.ho-driver-notifications .hn-note__end .hn-icon{width:17px;height:17px;stroke-width:2.1}
+.ho-driver-notifications .hn-note__dot{background:#5c875e;height:8px;width:8px;border-radius:50%;display:block;margin-top:-1px}
+.ho-driver-notifications .hn-group--earlier{margin-top:8px}
+.ho-driver-notifications .hn-empty{background:#fff;border-radius:17px;border:1px solid #e3ede0;padding:30px 15px;text-align:center;margin:24px 0}
+.ho-driver-notifications .hn-empty h2{font-size:16px;margin-top:10px}
+.ho-driver-notifications .hn-empty p{font-size:12px;color:#8a9b8e;margin-top:6px}
+.ho-driver-notifications .hn-empty-icon{display:inline-grid;place-items:center;width:46px;height:46px;background:#edf4e9;color:#648565;border-radius:14px}
+.ho-driver-notifications .hn-demo-footnote{font-size:9px;color:#a4b3a6;text-align:center;margin:17px 0 0}
+/* Navigation is inherited from the approved dashboard; More stays selected. */
+.ho-driver-notifications .ho-driver-dashboard__bottomnav{background:#fff;flex:0 0 auto;z-index:3}
+.ho-driver-notifications .ho-driver-dashboard__tab{border:0;background:transparent;color:#84938a;cursor:pointer}
+.ho-driver-notifications .ho-driver-dashboard__tab[aria-current="page"]{background:#e9f0e7;color:#435e46}
+/* Interaction layer: normal screen never has a dialog overlay. */
+.ho-driver-notifications .hn-dialog-layer{position:absolute;inset:0;background:rgba(26,44,31,.42);z-index:40;display:grid;place-items:center;padding:18px}
+.ho-driver-notifications .hn-dialog{background:#fff;border:1px solid #d9e8d6;border-radius:18px;width:min(100%,390px);max-height:85dvh;overflow:auto;padding:17px;box-shadow:0 20px 45px #21362a38}
+.ho-driver-notifications .hn-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.ho-driver-notifications .hn-dialog h2{color:#24402f;font-size:17px;line-height:1.3;font-weight:750}
+.ho-driver-notifications .hn-dialog p{color:#667b68;font-size:12px;line-height:1.55;margin:10px 0}
+.ho-driver-notifications .hn-dialog-close{border:1px solid #e2e9df;background:#f7faf6;border-radius:10px;width:33px;height:33px;display:grid;place-items:center;color:#4c694f;flex:0 0 33px}
+.ho-driver-notifications .hn-dialog-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px;margin-top:15px}
+.ho-driver-notifications .hn-dialog-action{min-height:39px;border:1px solid #d2dfd0;border-radius:10px;padding:9px 13px;background:#f5f8f4;font-size:12px;font-weight:700;color:#3f6745}
+.ho-driver-notifications .hn-dialog-action--primary{background:#526c50;border-color:#526c50;color:#fff}
+.ho-driver-notifications .hn-pref{display:flex;align-items:center;justify-content:space-between;gap:12px;border-top:1px solid #e9efea;padding:13px 0;font-size:12px;font-weight:600;color:#3c5642}
+.ho-driver-notifications .hn-pref input{accent-color:#527650;width:17px;height:17px}
+.ho-driver-notifications .hn-modal-warning{color:#8c783c!important;font-size:10px!important}
+@media(max-width:374px){.ho-driver-notifications .hn-masthead{padding-inline:14px;gap:9px}.ho-driver-notifications .hn-heading h1{font-size:22px}.ho-driver-notifications .hn-note{gap:10px;padding:14px 12px}.ho-driver-notifications .hn-note__description{font-size:11.3px}.ho-driver-notifications .hn-filters button{font-size:10.2px}}
+@media(min-width:600px){.ho-driver-notifications{max-width:520px;margin-inline:auto;border-inline:1px solid #e3eae2}}
+@media(prefers-reduced-motion:reduce){.ho-driver-notifications *{transition:none!important;scroll-behavior:auto!important}}
