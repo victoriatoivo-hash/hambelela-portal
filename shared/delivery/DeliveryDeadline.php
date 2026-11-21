@@ -45,6 +45,7 @@ final class DeliveryDeadline
             if($completed)$status=strtotime($completed.' UTC')<=$end?'Completed On Time':'Completed Late';
             elseif(($job['status']??'')!=='cancelled'&&$now>$end)$status='Late';
         }
+        if(!empty($d['requested_only']))$status='Requested time · not guaranteed';
         return $d+['label'=>self::label($d),'status'=>$status,'eta_status'=>'ETA unavailable'];
     }
     public static function sortExpression():string
@@ -60,7 +61,7 @@ final class DeliveryDeadline
             $s=$db->prepare("SELECT * FROM delivery_jobs WHERE id=? FOR UPDATE");$s->execute([$id]);$j=$s->fetch(\PDO::FETCH_ASSOC);
             if($j&&in_array($j['status'],['ready','out_for_delivery','failed'],true)){
                 $d=self::latest($db,$id);
-                if(self::present($d,$j)['status']==='Late'){
+                if(empty($d['requested_only'])&&self::present($d,$j)['status']==='Late'){
                     $key='deadline-late:'.$id.':'.$d['event_id'];
                     NotificationOutbox::queue($db,$id,(int)$j['driver_employee_id'],$key.':driver:'.$j['driver_employee_id'],['kind'=>'deadline_late','deadline'=>self::label($d)]);
                     NotificationOutbox::notifyFront($db,$id,$key,'deadline_late');

@@ -1,0 +1,181 @@
+/*
+ * HAMBELELA ORGANIC — DRIVER APP — DASHBOARD, PHASE 1
+ * APPROVED visual reference: 01_Dashboard_APPROVED.png
+ * Source fidelity: gradients, geometry, sizing, colors and typography derive
+ * from the CSS used to render the original approved mockup.
+ *
+ * Driver-only styles. DO NOT merge into portal.css or change global :root.
+ * Production markup root: <main class="ho-driver-dashboard"> ... </main>
+ * The optional .ho-driver-preview-* selectors are for local demo ONLY.
+ */
+
+.ho-driver-dashboard {
+  --hd-forest: #2e4a39;
+  --hd-forest-light: #536c4b;
+  --hd-deep: #25372e;
+  --hd-ink: #182923;
+  --hd-ink-2: #24362d;
+  --hd-body: #f7f9f6;
+  --hd-surface: #ffffff;
+  --hd-soft-surface: #eff4ec;
+  --hd-muted: #8b9a91;
+  --hd-muted-2: #92a096;
+  --hd-olive: #6a8e61;
+  --hd-border: #e7ece7;
+  --hd-chip-bg: #e5f1e5;
+  --hd-chip-ink: #416647;
+  --hd-warning-bg: #fff0d9;
+  --hd-warning-ink: #a77435;
+  --hd-focus: #7b9c73;
+  --hd-shadow-card: 0 7px 22px rgba(48,76,56,.063);
+  --hd-shadow-action: 0 5px 10px rgba(82,105,74,.15);
+  --hd-radius-card: 19px;
+  --hd-radius-action: 12px;
+  --hd-bottom-nav-height: 78px;
+  box-sizing: border-box;
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--hd-ink);
+  background: var(--hd-body);
+  font-family: Inter, 'Arial', sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+.ho-driver-dashboard *, .ho-driver-dashboard *::before, .ho-driver-dashboard *::after { box-sizing: border-box; }
+.ho-driver-dashboard :is(h1,h2,h3,p) { margin-top: 0; }
+.ho-driver-dashboard :is(a,button) { font: inherit; -webkit-tap-highlight-color: transparent; }
+.ho-driver-dashboard button { cursor: pointer; }
+.ho-driver-dashboard a { text-decoration: none; color: inherit; }
+.ho-driver-dashboard :is(a,button):focus-visible { outline: 3px solid var(--hd-focus); outline-offset: 3px; }
+.ho-driver-dashboard :is(button,a)[aria-disabled="true"] { cursor: not-allowed; opacity: .55; }
+.ho-driver-dashboard [hidden] { display: none !important; }
+.ho-driver-dashboard__icon { width: 20px; height: 20px; stroke: currentColor; fill: none; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+
+/* Scroll within the app; the bottom navigation never scrolls away. */
+.ho-driver-dashboard__scroll { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior-y: contain; scrollbar-width: none; }
+.ho-driver-dashboard__scroll::-webkit-scrollbar { display: none; }
+
+/* DEVICE STATUS BAR: show only in visual preview; never fake system status in production. */
+.ho-driver-dashboard__demo-status { display: none; }
+
+/* Approved mockup: #2e4a39 to #536c4b diagonal gradient. */
+.ho-driver-dashboard__hero {
+  min-height: 264px;
+  padding: 24px 22px 46px;
+  border-radius: 0 0 28px 28px;
+  background: linear-gradient(133deg,#2e4a39 0%,#536c4b 100%);
+  color: #fff;
+}
+.ho-driver-dashboard__topline { display: flex; align-items: center; gap: 8px; margin-bottom: 21px; min-height: 31px; }
+.ho-driver-dashboard__brandmark { display: inline-flex; justify-content: center; align-items: center; height: 31px; width: 31px; flex: 0 0 31px; border-radius: 9px; background: #789271; border: 1px solid rgba(255,255,255,.21); font-size: 23px; font-weight: 400; line-height: 1; }
+.ho-driver-dashboard__brand { margin: 0; color: #fff; font-size: 12px; font-weight: 820; letter-spacing: .9px; white-space: nowrap; }
+.ho-driver-dashboard__brand span { font-weight: 400; color: #d9e4d3; }
+.ho-driver-dashboard__head-actions { display: flex; gap: 14px; align-items: center; margin-left: auto; }
+.ho-driver-dashboard__head-icon { display: inline-flex; height: 35px; width: 31px; align-items: center; justify-content: center; position: relative; border: 0; color: #fff; background: transparent; border-radius: 10px; }
+.ho-driver-dashboard__head-icon .ho-driver-dashboard__icon { width: 22px; height: 22px; }
+.ho-driver-dashboard__unread { position: absolute; top: 1px; right: -1px; width: 8px; height: 8px; border: 2px solid #3c5740; background: #d99b4d; border-radius: 50%; }
+.ho-driver-dashboard__avatar { display: flex; align-items: center; justify-content: center; height: 29px; width: 29px; flex: 0 0 29px; border-radius: 50%; border: 1px solid rgba(255,255,255,.4); background: #9ab08c; color: #fff; font-size: 12px; font-weight: 700; }
+.ho-driver-dashboard__date { color: #dbe5d9; font-size: 12px; font-weight: 400; margin: 0; }
+.ho-driver-dashboard__hello-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 6px; margin-top: 6px; }
+.ho-driver-dashboard__hello { font-size: 27px; font-weight: 800; letter-spacing: -1.1px; line-height: 1.16; margin: 5px 0 10px; }
+.ho-driver-dashboard__subtitle { color: #dee9d9; font-size: 12px; line-height: 1.4; margin: 0; }
+.ho-driver-dashboard__duty { align-self: flex-end; display: inline-flex; align-items: center; gap: 5px; border: 1px solid rgba(255,255,255,.19); background: rgba(255,255,255,.13); padding: 7px 8px; margin-bottom: -1px; border-radius: 999px; font-size: 10px; font-weight: 740; white-space: nowrap; color: #def6cc; }
+.ho-driver-dashboard__duty-dot { height: 7px; width: 7px; border-radius: 50%; background: #def6cc; }
+.ho-driver-dashboard__duty[data-state="off"] { color: #f8e6ce; }
+.ho-driver-dashboard__duty[data-state="off"] .ho-driver-dashboard__duty-dot { background: #f7c37c; }
+
+/* Overlapping progress card is the defining visual element of the reference. */
+.ho-driver-dashboard__body { position: relative; margin-top: -32px; padding: 0 20px 36px; }
+.ho-driver-dashboard__card { border-radius: var(--hd-radius-card); border: 1px solid var(--hd-border); background: var(--hd-surface); box-shadow: var(--hd-shadow-card); }
+.ho-driver-dashboard__cardhead { display: flex; justify-content: space-between; align-items: center; gap: 9px; }
+.ho-driver-dashboard__progress-card { padding: 17px 17px 11px; margin-bottom: 17px; }
+.ho-driver-dashboard__progress-title { margin: 0; color: var(--hd-ink); font-size: 13.5px; line-height: 1.35; font-weight: 750; }
+.ho-driver-dashboard__pill { display: inline-flex; justify-content: center; align-items: center; border-radius: 999px; padding: 6px 9px; background: var(--hd-chip-bg); color: var(--hd-chip-ink); font-size: 10.5px; font-weight: 780; white-space: nowrap; }
+.ho-driver-dashboard__pill--warning { color: var(--hd-warning-ink); background: var(--hd-warning-bg); }
+.ho-driver-dashboard__track { width: 100%; height: 7px; background: #e5ece1; border-radius: 8px; overflow: hidden; margin: 15px 0 16px; }
+.ho-driver-dashboard__track-fill { display: block; height: 100%; width: 0; background: var(--hd-olive); border-radius: 6px; transition: width .24s ease; }
+.ho-driver-dashboard__metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); align-items: center; }
+.ho-driver-dashboard__metric { position: relative; text-align: center; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ho-driver-dashboard__metric:not(:last-child)::after { content: ''; width: 1px; height: 29px; background: #e9eee8; position: absolute; right: 0; top: 4px; }
+.ho-driver-dashboard__metric strong { font-size: 22px; font-weight: 800; letter-spacing: -.6px; color: #2c4937; line-height: 1.1; }
+.ho-driver-dashboard__metric span { font-size: 10px; font-weight: 660; color: var(--hd-muted-2); }
+
+/* Section headings and next stop card. */
+.ho-driver-dashboard__sectionhead { margin: 17px 1px 11px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.ho-driver-dashboard__sectionhead h2 { font-size: 15px; letter-spacing: -.3px; color: var(--hd-ink-2); font-weight: 770; line-height: 1.3; margin: 0; }
+.ho-driver-dashboard__viewall { display: inline-flex; align-items: center; gap: 3px; min-height: 32px; font-size: 11px; font-weight: 750; color: #587256; }
+.ho-driver-dashboard__viewall .ho-driver-dashboard__icon { height: 14px; width: 14px; }
+.ho-driver-dashboard__next-card { padding: 15px 16px 16px; }
+.ho-driver-dashboard__stop-tag { font-size: 10px; font-weight: 830; letter-spacing: .6px; color: #718971; }
+.ho-driver-dashboard__destination { display: flex; align-items: center; gap: 5px; margin: 11px 0 4px; color: var(--hd-ink); font-size: 20px; font-weight: 790; letter-spacing: -.65px; line-height: 1.2; }
+.ho-driver-dashboard__destination .ho-driver-dashboard__icon { height: 19px; width: 19px; color: #879c90; }
+.ho-driver-dashboard__recipient { color: var(--hd-muted); font-size: 12px; line-height: 1.4; margin: 0; }
+.ho-driver-dashboard__timing { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; padding: 12px 0; color: #687a70; font-size: 11px; }
+.ho-driver-dashboard__timing .ho-driver-dashboard__icon { height: 16px; width: 16px; }
+.ho-driver-dashboard__timing strong { color: #2d4336; }
+.ho-driver-dashboard__dotsep { padding: 0 3px; color: #b7c3b6; }
+.ho-driver-dashboard__primary { display: inline-flex; justify-content: center; align-items: center; gap: 8px; width: 100%; min-height: 41px; border: 0; border-radius: 12px; padding: 10px 14px; background: linear-gradient(95deg,#536e50,#344e3e); color: #fff !important; font-size: 12.5px; font-weight: 780; box-shadow: var(--hd-shadow-action); line-height: 1.3; text-align: center; }
+.ho-driver-dashboard__primary:hover { filter: brightness(1.04); }
+.ho-driver-dashboard__primary .ho-driver-dashboard__icon { width: 18px; height: 18px; }
+.ho-driver-dashboard__empty { padding: 20px 16px; color: #728378; font-size: 12px; line-height: 1.5; }
+
+/* Quick action tiles: EXACT four-column structure at design width. */
+.ho-driver-dashboard__quickgrid { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 9px; }
+.ho-driver-dashboard__quick { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; min-width: 0; min-height: 100px; padding: 12px 4px 13px; gap: 6px; background: #fff; border: 1px solid #e8eee7; border-radius: 17px; box-shadow: 0 4px 14px rgba(48,76,56,.04); color: var(--hd-ink); }
+.ho-driver-dashboard__quick:hover { background: #fbfdf9; }
+.ho-driver-dashboard__quickicon { width: 39px; height: 39px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; border-radius: 13px; background: #eff4ec; color: #557552; }
+.ho-driver-dashboard__quickicon .ho-driver-dashboard__icon { height: 23px; width: 23px; }
+.ho-driver-dashboard__quick strong { font-size: 10.5px; font-weight: 750; line-height: 1.2; white-space: nowrap; }
+.ho-driver-dashboard__quick small { font-size: 10px; color: var(--hd-muted-2); line-height: 1.1; white-space: nowrap; }
+.ho-driver-dashboard__tip { display: flex; align-items: center; gap: 9px; margin: 15px 3px; color: #849589; font-size: 11px; line-height: 1.5; }
+.ho-driver-dashboard__tip .ho-driver-dashboard__icon { color: #6a896c; width: 17px; height: 17px; }
+
+/* SAME bottom bar intended for all 12 pages. Keep this in a reusable shared partial. */
+.ho-driver-dashboard__bottomnav { flex: 0 0 auto; height: calc(var(--hd-bottom-nav-height) + env(safe-area-inset-bottom,0px)); display: flex; justify-content: space-around; align-items: flex-start; gap: 2px; background: #fff; border-top: 1px solid #e8ebe7; padding: 10px 12px calc(16px + env(safe-area-inset-bottom,0px)); z-index: 10; }
+.ho-driver-dashboard__tab { min-width: 0; flex: 1 1 0; height: 56px; padding: 5px 4px; display: flex; flex-direction: column; gap: 5px; align-items: center; justify-content: center; border-radius: 14px; color: #84938a; font-size: 10px; font-weight: 650; line-height: 1.1; }
+.ho-driver-dashboard__tab .ho-driver-dashboard__icon { width: 21px; height: 21px; }
+.ho-driver-dashboard__tab[aria-current="page"] { color: #435e46; background: #e9f0e7; }
+.ho-driver-dashboard__tab:hover:not([aria-current="page"]) { background: #f3f6f2; }
+
+/* Optional states: show real loading/errors, not fake values. */
+.ho-driver-dashboard__notice { border-radius: 12px; border: 1px solid #e4eae0; padding: 12px; background: #f3f6f1; color: #566d59; font-size: 12px; }
+.ho-driver-dashboard__notice--error { background: #fff3ef; border-color: #eecfc6; color: #934b39; }
+.ho-driver-dashboard__skeleton { min-height: 18px; background: linear-gradient(90deg,#e4eae2 15%,#f5f7f3 35%,#e4eae2 60%); background-size: 220% 100%; border-radius: 8px; animation: ho-driver-skeleton 1.2s ease-in-out infinite; }
+@keyframes ho-driver-skeleton { to { background-position-x: -200%; } }
+@media (prefers-reduced-motion: reduce) { .ho-driver-dashboard__track-fill { transition: none; } .ho-driver-dashboard__skeleton { animation: none; } }
+
+/* Compact phones should retain 4 tiles; readable labels take priority over decorative whitespace. */
+@media (max-width: 374px) {
+  .ho-driver-dashboard__hero { padding-inline: 17px; }
+  .ho-driver-dashboard__body { padding-inline: 14px; }
+  .ho-driver-dashboard__brand { font-size: 11px; letter-spacing: .35px; }
+  .ho-driver-dashboard__head-actions { gap: 7px; }
+  .ho-driver-dashboard__hello { font-size: 25px; }
+  .ho-driver-dashboard__quickgrid { gap: 5px; }
+  .ho-driver-dashboard__quick { padding-inline: 1px; }
+  .ho-driver-dashboard__quick strong { font-size: 9.7px; }
+  .ho-driver-dashboard__quick small { font-size: 9px; }
+  .ho-driver-dashboard__bottomnav { padding-inline: 6px; }
+  .ho-driver-dashboard__tab { font-size: 9.5px; }
+}
+@media (min-width: 600px) { .ho-driver-dashboard { max-width: 520px; margin: 0 auto; border-left: 1px solid #e8ebe7; border-right: 1px solid #e8ebe7; } }
+
+/* PREVIEW ONLY: render the reference app inside the original presentation phone dimensions. */
+.ho-driver-preview-stage { box-sizing: border-box; min-height: 100vh; display: grid; place-items: center; padding: 24px; background: radial-gradient(ellipse at 20% 5%,#dce5de,transparent 48%),radial-gradient(ellipse at 90% 90%,#e4e8e0,transparent 52%),#eff1ec; }
+.ho-driver-preview-phone { box-sizing: border-box; width: 420px; height: 940px; max-height: calc(100dvh - 48px); border: 8px solid #25372e; border-radius: 48px; background: #f7f9f6; overflow: hidden; box-shadow: 0 26px 55px rgba(25,52,38,.18),0 0 0 1px #96a69c; position: relative; }
+.ho-driver-preview-phone .ho-driver-dashboard { height: 100%; min-height: 0; max-width: none; border: 0; }
+.ho-driver-preview-phone .ho-driver-dashboard__demo-status { height: 38px; margin: -24px -22px 0; display: flex; align-items: center; justify-content: space-between; padding: 10px 27px 0; background: #2e4a39; color: #fff; font-size: 13px; font-weight: 760; letter-spacing: .01em; }
+.ho-driver-preview-phone .ho-driver-dashboard__hero { padding-top: 24px; }
+.ho-driver-preview-phone::after { content: ''; position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); width: 94px; height: 5px; border-radius: 10px; background: #23342b; z-index: 20; }
+.ho-driver-preview-note { position: fixed; right: 12px; top: 6px; color: #607164; font: 500 12px Inter,Arial,sans-serif; padding: 8px 12px; border-radius: 12px; background: #ffffffdd; border: 1px solid #dfe5db; }
+@media (max-width: 480px) { .ho-driver-preview-stage { padding: 0; display: block; } .ho-driver-preview-phone { width: 100%; height: 100dvh; max-height: none; border: 0; border-radius: 0; box-shadow: none; } .ho-driver-preview-phone::after, .ho-driver-preview-phone .ho-driver-dashboard__demo-status, .ho-driver-preview-note { display: none; } }
+
+/* Standalone preview page reset (not used on production portal pages). */
+body:has(> .ho-driver-preview-stage) { margin: 0; }

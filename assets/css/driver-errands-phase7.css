@@ -1,0 +1,112 @@
+/* Hambelela Organic Driver App — PHASE 07 ERRANDS
+  Source-of-truth: 07_Errands_APPROVED.png (same source mockup generator as 01-06).
+  Load AFTER driver-dashboard.css; do not add selectors to global portal CSS.
+  The phone frame, status bar and demo data are preview-only. Components in production
+  should use the EXISTING app shell, shared icons, and fixed five-item navigation.
+*/
+.ho-driver-errands{
+ --he-ink:#182923;--he-head:#24362d;--he-olive:#4d6649;--he-olive-dark:#344e3e;
+ --he-bg:#f7f9f6;--he-muted:#8b9a91;--he-muted-2:#92a096;
+ --he-border:#e7ece7;--he-soft:#eef2ed;--he-note:#f2f6ef;
+ --he-amber:#fff0d9;--he-amber-ink:#a77435;--he-slate:#edf1f3;--he-slate-ink:#667d88;
+ --he-radius-card:19px;--he-shadow:0 7px 22px rgba(48,76,56,.063);
+ width:100%;min-height:100dvh;background:var(--he-bg);color:var(--he-ink);
+ font-family:Inter,Arial,sans-serif; font-size:14px;
+}
+.ho-driver-errands *{box-sizing:border-box}
+.ho-driver-errands [hidden]{display:none!important}
+.ho-driver-errands :is(h1,h2,h3,h4,p){margin:0}
+.ho-driver-errands :is(button,input,textarea,select){font:inherit}
+.ho-driver-errands :is(a,button,input,textarea,select):focus-visible{outline:3px solid #769b78;outline-offset:3px}
+.ho-driver-errands .ho-driver-dashboard__scroll{background:var(--he-bg);scrollbar-width:none;min-height:0}
+.ho-driver-errands .ho-driver-dashboard__scroll::-webkit-scrollbar{display:none}
+.he-sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.he-statusbar{display:none} /* mobile OS owns statusbar in production */
+/* Masthead as in approved mockup: H mark, eyebrow, page title and plus button. */
+.he-header{display:flex;align-items:center;gap:10px;min-height:87px;padding:12px 20px 10px}
+.he-brand{display:grid;place-items:center;width:34px;height:34px;border-radius:10px;flex:0 0 34px;background:#4d6649;color:#fff;font-size:21px;font-weight:850;line-height:1}
+.he-titlewrap{flex:1;min-width:0}
+.he-eyebrow{font-size:9px;letter-spacing:1.8px;font-weight:800;color:#66836d;line-height:1.3}
+.he-eyebrow span{color:#8b9a91}
+.he-title{margin:5px 0 2px!important;font-size:22px;letter-spacing:-.7px;font-weight:790;line-height:1.1;color:var(--he-ink)}
+.he-subtitle{color:#8b9a91;font-size:12px;line-height:1.35}
+.he-add{width:34px;height:34px;flex:0 0 34px;display:grid;place-items:center;background:#fff;border:1px solid #e9eee8;border-radius:12px;color:#3e5b46;padding:0;cursor:pointer}
+.he-add:hover{background:#f1f6f0}
+.he-add svg{width:21px;height:21px}
+/* Metric band intentionally stretches across content width, unlike inset cards. */
+.he-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:center;width:100%;min-height:70px;padding:12px 6px;margin:0 0 15px;background:#fff;border:1px solid #e7ede6;border-radius:16px;box-shadow:0 6px 18px rgba(43,73,54,.063)}
+.he-metric{display:flex;flex-direction:column;gap:5px;text-align:center;min-width:0}
+.he-metric strong{color:#2c4937;font-size:19px;font-weight:800;letter-spacing:-.5px;line-height:1.05}
+.he-metric span{font-size:9px;font-weight:660;line-height:1.35;color:#92a096}
+/* Segmented control with assigned/in progress/completed states. */
+.he-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;margin:0 0 17px;padding:4px;background:#eef2ed;border-radius:14px}
+.he-tab{min-width:0;min-height:39px;border:0;border-radius:10px;background:transparent;color:#82938a;font-size:10.5px;font-weight:730;white-space:nowrap;padding:8px 3px;cursor:pointer}
+.he-tab[aria-selected="true"]{background:#fff;color:#365340;box-shadow:0 2px 8px rgba(69,94,69,.13)}
+.he-tab:hover:not([aria-selected="true"]){background:#e7eee5}
+.he-content{padding:0 0 35px}
+.he-section-heading{display:flex;align-items:center;gap:8px;justify-content:space-between;margin:15px 1px 11px!important;color:#24362d;font-size:15px;font-weight:780;letter-spacing:-.3px;line-height:1.35}
+.he-section-tag{font-size:10px;color:#8fa094;font-weight:600}
+.he-list{display:grid;gap:13px}
+.he-card{background:#fff;border:1px solid #e7ece7;border-radius:19px;padding:17px 16px 16px;box-shadow:var(--he-shadow);min-width:0}
+.he-card-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.he-code{color:#718971;font-size:10px;font-weight:830;letter-spacing:.6px}
+.he-pill{display:inline-flex;align-items:center;justify-content:center;max-width:50%;border-radius:999px;padding:6px 9px;background:#e5f1e5;color:#416647;font-size:10.5px;font-weight:780;line-height:1.2;text-align:center}
+.he-pill--priority{background:#fff0d9;color:#a77435}
+.he-pill--scheduled{background:#edf1f3;color:#667d88}
+.he-pill--done{background:#e5f1e5;color:#416647}
+.he-pill--progress{background:#e9f2e7;color:#567b59}
+.he-pill--review{background:#fff0d9;color:#a77435}
+.he-card-title{font-size:16px;letter-spacing:-.4px;font-weight:790;line-height:1.25;margin:11px 0 6px!important;overflow-wrap:anywhere}
+.he-card-loc{font-size:12px;color:#8b9a91;line-height:1.4;overflow-wrap:anywhere}
+.he-detail-row{display:flex;align-items:center;flex-wrap:wrap;gap:14px;margin:13px 0 14px;color:#607861;font-size:10.5px;line-height:1.4}
+.he-detail-row span{display:inline-flex;align-items:center;gap:5px}
+.he-detail-row svg{height:16px;width:16px;stroke-width:1.9}
+.he-note{display:flex;align-items:flex-start;gap:9px;border-radius:11px;padding:10px 11px;margin:0 0 13px;background:#f2f6ef;color:#687e6a;font-size:10.5px;line-height:1.42}
+.he-note svg{width:17px;height:17px;flex:0 0 17px}
+.he-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.he-btn{min-width:0;min-height:41px;display:inline-flex;justify-content:center;align-items:center;gap:8px;border-radius:12px;padding:9px 12px;font-size:12.5px;font-weight:780;line-height:1.25;cursor:pointer;text-decoration:none;text-align:center}
+.he-btn--outline{background:#fff;color:#48624a;border:1px solid #cbd9ca}
+.he-btn--outline:hover{background:#f8fbf7}
+.he-btn--primary{background:linear-gradient(95deg,#536e50,#344e3e);color:#fff;border:0;box-shadow:0 5px 10px rgba(82,105,74,.15)}
+.he-btn--primary:hover{filter:brightness(1.04)}
+.he-btn--soft{width:100%;background:#eef3eb;border:0;color:#4a674c;margin-top:13px}
+.he-btn svg{width:16px;height:16px}
+.he-tip{display:flex;gap:9px;align-items:center;margin:17px 3px;color:#849589;font-size:11px;line-height:1.5}
+.he-tip svg{width:17px;height:17px;flex:0 0 17px;color:#6a896c}
+.he-empty{padding:24px 18px;border-radius:17px;border:1px solid #e3ebe1;background:#fff;text-align:center;color:#718477;font-size:12px;line-height:1.5}
+.he-empty strong{display:block;color:#31483a;margin-bottom:6px;font-size:14px}
+.he-note--review{background:#fff5e7;color:#9f783c}
+/* Inherited nav structure from Phase 01. Errands is tab #4. */
+.ho-driver-errands .ho-driver-dashboard__bottomnav{background:#fff;flex:0 0 auto;z-index:5}
+.ho-driver-errands .ho-driver-dashboard__tab{border:0;background:transparent;color:#84938a;cursor:pointer}
+.ho-driver-errands .ho-driver-dashboard__tab[aria-current="page"]{background:#e9f0e7;color:#435e46}
+/* Modal/step dialogs are not part of static approved screenshot; open on explicit action. */
+.he-modal-layer{position:absolute;inset:0;z-index:30;background:rgba(23,42,30,.46);display:flex;align-items:center;justify-content:center;padding:16px}
+.he-dialog{width:100%;max-width:390px;max-height:min(85dvh,700px);overflow:auto;background:#fff;border:1px solid #e3ebe0;border-radius:18px;padding:19px 18px 17px;box-shadow:0 16px 35px rgba(21,36,26,.22)}
+.he-dialog-head{display:flex;justify-content:space-between;align-items:flex-start;gap:15px;margin-bottom:15px}
+.he-dialog h2{font-size:18px;font-weight:800;color:#233b2d;line-height:1.3}
+.he-dialog .he-dialog-sub{font-size:11px;color:#839588;line-height:1.4;margin-top:5px}
+.he-dialog-close{width:31px;height:31px;display:grid;place-items:center;border:1px solid #e0e9df;border-radius:9px;background:#f5f8f3;color:#4f6c52;cursor:pointer;font-size:20px}
+.he-dialog-dl{display:grid;grid-template-columns:102px minmax(0,1fr);gap:10px 9px;font-size:12px;line-height:1.5;margin:0}
+.he-dialog-dl dt{color:#84978a}.he-dialog-dl dd{margin:0;color:#273c2d;font-weight:650;overflow-wrap:anywhere}
+.he-dialog-notes{margin:13px 0;background:#f2f6ef;border-radius:11px;padding:11px;color:#66806a;font-size:12px;line-height:1.5}
+.he-dialog-footer{display:flex;gap:8px;margin-top:15px}.he-dialog-footer>*{flex:1}
+.he-form-row{margin:10px 0}.he-form-row label{display:block;color:#38553e;font-size:11px;font-weight:750;margin-bottom:6px}
+.he-form-row :is(input,textarea,select){display:block;width:100%;max-width:100%;padding:10px 11px;border:1px solid #d7e3d5;border-radius:10px;background:#fff;font-size:13px;color:#243a29;min-height:42px}
+.he-form-row textarea{resize:vertical;min-height:70px}
+.he-checklabel{display:flex;gap:9px;align-items:flex-start;color:#526c56;font-size:12px;line-height:1.5;margin-top:12px}
+.he-checklabel input{accent-color:#527553;width:18px;height:18px;flex:0 0 18px}
+.he-status-message{font-size:11.5px;color:#a14f39;background:#fff1ed;border:1px solid #eed6cf;border-radius:10px;padding:9px 10px;margin:12px 0 0!important}
+.he-status-message--info{color:#41674d;background:#edf6ee;border-color:#d2e3d3}
+.he-demo-label{position:fixed;right:8px;top:8px;z-index:12;color:#657766;font:600 11px Inter,Arial,sans-serif;border:1px solid #d8e1d6;background:#fff;padding:8px 10px;border-radius:9px}
+/* Mobile and short screens. No horizontal scroll, safe-area-aware shared nav. */
+@media(max-width:374px){.he-header{padding-inline:15px}.he-content{padding-inline:15px}.he-title{font-size:21px}.he-tabs{gap:3px}.he-tab{font-size:9.5px;padding-inline:2px}.he-card{padding:15px 13px}.he-actions{gap:7px}.he-btn{font-size:11.5px;padding-inline:8px}.he-metric span{font-size:8.8px}}
+@media(min-width:600px){.ho-driver-errands{max-width:520px;margin-inline:auto;border-inline:1px solid #e7ece7}}
+@media(prefers-reduced-motion:reduce){.he-btn{transition:none}}
+/* Preview-only stage. Phone status bar is decorative and NEVER ships in production. */
+.he-preview-stage{min-height:100vh;display:grid;place-items:center;padding:22px;background:radial-gradient(ellipse at 20% 5%,#dce5de,transparent 48%),radial-gradient(ellipse at 90% 90%,#e4e8e0,transparent 52%),#eff1ec}
+.he-preview-phone{position:relative;width:420px;height:940px;max-height:calc(100dvh - 44px);border:8px solid #25372e;border-radius:48px;background:#f7f9f6;overflow:hidden;box-shadow:0 26px 55px #1934262f,0 0 0 1px #96a69c}
+.he-preview-phone .ho-driver-errands{height:100%;min-height:0;max-width:none;border:0}
+.he-preview-phone::after{content:'';position:absolute;left:50%;transform:translateX(-50%);bottom:6px;width:94px;height:5px;border-radius:10px;background:#23342b;pointer-events:none}
+.he-preview-phone .he-statusbar{height:38px;flex:0 0 38px;display:flex;justify-content:space-between;align-items:center;padding:10px 27px 0;color:#36513d;font-size:13px;font-weight:760}
+@media(max-width:480px){.he-preview-stage{padding:0;display:block}.he-preview-phone{width:100%;height:100dvh;max-height:none;border:0;border-radius:0;box-shadow:none}.he-preview-phone::after{display:none}.he-preview-phone .he-statusbar{display:none}.he-demo-label{display:none}}

@@ -1,0 +1,19 @@
+.ho-driver-history{padding-top:env(safe-area-inset-top,0px)}
+.ho-driver-history .hh-heading h1,.ho-driver-history .hh-heading p{white-space:normal;overflow:visible}
+.ho-driver-history .hh-stat small{white-space:normal}
+.ho-driver-history .hh-card__info strong,.ho-driver-history .hh-card__info span{white-space:normal;overflow-wrap:anywhere}
+.ho-driver-history .hh-card--review .hh-status{background:#f4ede2;color:#876035}
+.ho-driver-history .hh-card--review .hh-card__icon{background:#f4ede2;color:#876035}
+.ho-driver-history .hh-explanation{margin:12px 16px;color:#627d69;font-size:.75rem;line-height:1.5}
+.ho-driver-history .hh-explanation p{margin:8px 0}
+.ho-driver-history .hh-load{display:block;margin:16px auto}
+.ho-driver-history .hh-error{font-size:.8rem;color:#9b4e33;margin:10px 0}
+.ho-driver-history dialog.hh-dialog{position:fixed;inset:0;margin:auto;width:calc(100% - 28px);max-width:385px;max-height:calc(100dvh - 28px);color:var(--hh-ink);animation:hh-open .2s ease-out}
+.ho-driver-history dialog.hh-dialog::backdrop{background:#1d342c77}
+.ho-driver-history .hh-dialog__body input,.ho-driver-history .hh-dialog__body select{font-size:1rem;font-weight:400}
+.ho-driver-history .hh-dialog__body label{font-weight:550}
+.ho-driver-history .hh-dialog__body a{display:block;padding:10px 0;text-decoration:underline;color:#315b3d}
+.ho-driver-history .hh-dialog__body dd{font-weight:500}
+@keyframes hh-open{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.ho-driver-history *{animation:none!important;transition:none!important}}
+@media(max-height:500px){.ho-driver-history .hh-header{min-height:65px}.ho-driver-history .ho-driver-dashboard__bottomnav{height:60px;padding-block:2px}.ho-driver-history .ho-driver-dashboard__tab{height:54px}}

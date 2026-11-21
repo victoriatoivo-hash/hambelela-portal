@@ -1,0 +1,350 @@
+/*
+ * Hambelela Organic — Driver App — PHASE 05 PROOF OF DELIVERY
+ * Design reference: 05_Proof_of_Delivery_APPROVED.png
+ * Uses the exact visual tokens and geometric proportions from the original
+ * approved twelve-screen mockup (source colors and measurements noted below).
+ *
+ * LOAD AFTER driver-dashboard.css. This file is intentionally scoped.
+ * DO NOT merge into global portal.css, :root, body or previous screen CSS.
+ * Required outer app shell: <main class="ho-driver-dashboard ho-driver-proof">
+ */
+.ho-driver-proof{
+  --hp-deep:#25372e;
+  --hp-ink:#182923;
+  --hp-section-ink:#24362d;
+  --hp-muted:#8b9a91;
+  --hp-forest:#536e50;
+  --hp-forest-dark:#344e3e;
+  --hp-olive:#4d6e52;
+  --hp-soft:#e6f1e5;
+  --hp-border:#e7ece7;
+  --hp-bg:#f7f9f6;
+  --hp-focus:#678f68;
+  --hp-radius-card:19px;
+  --hp-radius-tile:17px;
+  --hp-card-shadow:0 7px 22px rgba(48,76,56,.063);
+  --hp-button-shadow:0 5px 10px rgba(82,105,74,.15);
+  min-height:100dvh;
+  color:var(--hp-ink);
+  background:var(--hp-bg);
+  font-family:Inter,Arial,sans-serif;
+  font-size:14px;
+}
+.ho-driver-proof .ho-driver-dashboard__scroll{background:var(--hp-bg);scrollbar-width:none;}
+.ho-driver-proof .ho-driver-dashboard__scroll::-webkit-scrollbar{display:none}
+.ho-driver-proof :is(h1,h2,p){margin-top:0}
+.ho-driver-proof button,
+.ho-driver-proof input{font:inherit}
+.ho-driver-proof :is(input,button,a,canvas):focus-visible{
+  outline:3px solid var(--hp-focus);
+  outline-offset:3px;
+}
+.ho-driver-proof [hidden]{display:none!important}
+
+/* Mocked OS status bar is *preview-only*; the device renders this in production. */
+.ho-driver-proof__statusbar{display:none}
+
+/* Header geometry: 34px control squares + small letterspaced eyebrow. */
+.ho-driver-proof__header{
+  min-height:75px;
+  padding:8px 20px 10px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.ho-driver-proof__header-control{
+  width:34px;height:34px;flex:0 0 34px;
+  border:1px solid #e9eee8;
+  background:#fff;
+  display:grid;place-items:center;
+  border-radius:12px;
+  color:#3e5b46;
+  cursor:pointer;padding:0;
+}
+.ho-driver-proof__header-control .ho-driver-dashboard__icon{width:20px;height:20px}
+.ho-driver-proof__header-control:hover{background:#eff4ed}
+.ho-driver-proof__heading{min-width:0;flex:1}
+.ho-driver-proof__eyebrow{
+  font-size:9px;line-height:1.2;font-weight:800;
+  letter-spacing:1.8px;color:#66836d;margin:0 0 4px;
+}
+.ho-driver-proof__title{
+  font-size:22px;font-weight:790;letter-spacing:-.7px;
+  line-height:1.12;color:#182923;margin:0 0 3px;
+}
+.ho-driver-proof__subtitle{
+  font-size:12px;line-height:1.25;color:#8b9a91;
+  margin:0;overflow-wrap:anywhere;
+}
+
+/* Approved full-width soft green arrival strip. */
+.ho-driver-proof__arrival{
+  border-radius:15px;
+  background:#e6f1e5;color:#4b7051;
+  display:flex;gap:12px;align-items:center;
+  min-height:61px;padding:13px;margin:0 0 11px;
+}
+.ho-driver-proof__arrival > .ho-driver-dashboard__icon{width:22px;height:22px;flex:none}
+.ho-driver-proof__arrival strong{display:block;font-size:13px;font-weight:780;line-height:1.23}
+.ho-driver-proof__arrival p{margin:3px 0 0;font-size:12px;opacity:.8;line-height:1.3}
+
+/* Section headings / vertically stacked design. */
+.ho-driver-proof__content{padding:0 0 28px}
+.ho-driver-proof__section-heading{
+  display:flex;justify-content:space-between;align-items:center;
+  gap:8px;margin:17px 1px 11px;
+  font-size:15px;font-weight:760;letter-spacing:-.3px;
+  color:#24362d;line-height:1.25;
+}
+.ho-driver-proof .ho-driver-proof__section-heading{margin:17px 1px 11px}
+.ho-driver-proof__card{
+  padding:15px 16px;
+  margin:0 0 12px;
+  border:1px solid #e7ece7;
+  border-radius:19px;
+  box-shadow:var(--hp-card-shadow);
+  background:#fff;
+}
+.ho-driver-proof__field-label{
+  display:block;color:#6d8173;
+  font-size:11px;font-weight:760;
+  line-height:1.4;margin:0 0 8px;
+}
+.ho-driver-proof__field-label--second{margin-top:15px}
+.ho-driver-proof__name-wrap{position:relative}
+.ho-driver-proof__name{
+  width:100%;height:38px;
+  padding:10px 39px 10px 12px;
+  border:1px solid #e6ece5;border-radius:10px;
+  background:#f5f8f5;color:var(--hp-ink);
+  font-weight:680;font-size:13px;
+  outline:none;
+}
+.ho-driver-proof__name-wrap > .ho-driver-dashboard__icon{
+  position:absolute;right:11px;top:10px;color:#66876e;width:18px;height:18px;pointer-events:none;
+}
+.ho-driver-proof__recipient-options{display:flex;gap:7px;flex-wrap:wrap}
+.ho-driver-proof__recipient-option{
+  border:1px solid #e5ece5;
+  background:#fff;color:#7c8e80;
+  padding:8px 12px;min-height:32px;
+  line-height:1.15;font-size:11px;font-weight:600;
+  border-radius:9px;cursor:pointer;
+}
+.ho-driver-proof__recipient-option[aria-pressed="true"]{
+  background:#eaf2e8;border-color:#cedfcd;color:#4e6c52;font-weight:740;
+}
+.ho-driver-proof__representative-extra{margin-top:13px}
+.ho-driver-proof__help{color:#788b7d;font-size:10px;line-height:1.5;margin:6px 0 0}
+.ho-driver-proof__inline-error{color:#9b493e;font-size:11px;line-height:1.4;margin:7px 0 0}
+
+/* Approved dashed photo and signature tiles. */
+.ho-driver-proof__proof-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:10px;margin:0;
+}
+.ho-driver-proof__tile{
+  position:relative;
+  min-width:0;min-height:108px;
+  border:1.5px dashed #cad8c7;
+  border-radius:17px;
+  background:#fdfefd;color:#6b896b;
+  padding:12px 8px;
+  display:flex;align-items:center;justify-content:center;
+  flex-direction:column;gap:7px;
+  text-align:center;cursor:pointer;
+}
+.ho-driver-proof__tile .ho-driver-dashboard__icon{width:27px;height:27px}
+.ho-driver-proof__tile strong{font-size:12px;line-height:1.1;color:#4d6e52;font-weight:740}
+.ho-driver-proof__tile small{font-size:10px;color:#98a69d;line-height:1.35}
+.ho-driver-proof__tile[data-attached="true"]{border-style:solid;border-color:#9bb79b;background:#f0f6ef}
+.ho-driver-proof__tile[data-attached="true"] small{color:#46704c}
+.ho-driver-proof__tile:hover{border-color:#829f7c;background:#f6faf5}
+.ho-driver-proof__file{display:none}
+.ho-driver-proof__photo-preview{
+  margin-top:10px;background:#fff;border:1px solid #dce6d9;
+  border-radius:12px;padding:8px;
+  display:flex;align-items:center;gap:10px;
+  color:#566d59;font-size:11px;min-width:0;
+}
+.ho-driver-proof__photo-preview img{height:48px;width:48px;object-fit:cover;border-radius:8px}
+.ho-driver-proof__photo-filename{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ho-driver-proof__small-action{
+  border:1px solid #d6e2d4;background:#fff;color:#536e50;
+  padding:7px 9px;border-radius:8px;font-size:11px;
+  cursor:pointer;
+}
+
+/* Payment row: icon square, title/detail, verified pill. */
+.ho-driver-proof__payment-row{display:flex;align-items:center;gap:10px;min-width:0}
+.ho-driver-proof__payment-icon{
+  display:grid;place-items:center;flex:none;
+  background:#eaf2e8;color:#5a7a58;
+  width:34px;height:34px;border-radius:11px;
+}
+.ho-driver-proof__payment-icon .ho-driver-dashboard__icon{width:20px;height:20px}
+.ho-driver-proof__payment-copy{flex:1;min-width:0}
+.ho-driver-proof__payment-copy strong{display:block;font-size:13.5px;font-weight:720;line-height:1.2}
+.ho-driver-proof__payment-copy p{margin:2px 0 0;color:#8b9a91;font-size:12px;line-height:1.4}
+.ho-driver-proof__verified{
+  flex:0 0 auto;padding:6px 9px;
+  background:#e5f1e5;color:#416647;
+  border-radius:100px;font-size:10.5px;font-weight:780;line-height:1.25;
+}
+.ho-driver-proof__verified[data-status="unverified"]{background:#fff0d9;color:#a77435}
+.ho-driver-proof__verified[data-status="due"]{background:#fff0d9;color:#a77435}
+
+/* Approved affirmation and large olive gradient button. */
+.ho-driver-proof__ack{
+  display:flex;align-items:flex-start;gap:10px;
+  margin:15px 3px;color:#62786a;
+  font-size:11px;line-height:1.5;
+  cursor:pointer;
+}
+.ho-driver-proof__ack input{
+  appearance:none;-webkit-appearance:none;flex:none;
+  height:18px;width:18px;border:1px solid #b3c6b2;
+  border-radius:5px;background:#fff;margin:0;
+  display:grid;place-items:center;
+}
+.ho-driver-proof__ack input:checked{background:#5c815e;border-color:#5c815e}
+.ho-driver-proof__ack input:checked::after{
+  content:"";width:8px;height:5px;border:solid white;border-width:0 0 2px 2px;
+  transform:translateY(-1px) rotate(-45deg);
+}
+.ho-driver-proof__primary{
+  display:flex;width:100%;min-height:48px;
+  align-items:center;justify-content:center;gap:8px;
+  background:linear-gradient(95deg,#536e50,#344e3e);
+  box-shadow:var(--hp-button-shadow);
+  color:#fff;border:0;border-radius:12px;
+  padding:10px 14px;
+  font-size:12.5px;font-weight:780;
+  cursor:pointer;
+}
+.ho-driver-proof__primary .ho-driver-dashboard__icon{width:19px;height:19px}
+.ho-driver-proof__primary:hover{filter:brightness(1.04)}
+.ho-driver-proof__primary:disabled{opacity:.6;cursor:not-allowed}
+.ho-driver-proof__small-note{
+  margin:9px 20px 10px;text-align:center;
+  color:#98a69d;font-size:10.5px;line-height:1.4;
+}
+.ho-driver-proof__feedback{
+  margin:0 0 11px;border-radius:10px;padding:9px 12px;
+  font-size:11px;line-height:1.5;
+  background:#fff0ec;color:#994d42;
+}
+.ho-driver-proof__feedback[data-tone="success"]{background:#eaf4e8;color:#416e45}
+
+/* Signature modal: must remain usable with finger/pointer events. */
+.ho-driver-proof__overlay{
+  position:absolute;inset:0;z-index:30;
+  background:rgba(19,35,24,.46);
+  display:flex;align-items:center;justify-content:center;
+  padding:16px;
+}
+.ho-driver-proof__dialog{
+  width:100%;max-width:440px;
+  background:#fff;border-radius:19px;
+  padding:18px;border:1px solid #dce5d9;
+  box-shadow:0 22px 60px rgba(0,0,0,.18);
+}
+.ho-driver-proof__dialog-header{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.ho-driver-proof__dialog-title{font-size:17px;font-weight:780;color:#24362d;margin:0}
+.ho-driver-proof__dialog-close{
+  width:34px;height:34px;border:1px solid #e5ece5;background:#fff;
+  border-radius:10px;color:#536e50;cursor:pointer;font-size:21px;
+}
+.ho-driver-proof__dialog p{font-size:12px;color:#62786a;line-height:1.55}
+.ho-driver-proof__signature-canvas{
+  display:block;width:100%;height:170px;
+  background:#fdfefd;border:1.5px dashed #cad8c7;
+  border-radius:12px;touch-action:none;
+}
+.ho-driver-proof__dialog-actions{display:flex;gap:10px;margin-top:14px}
+.ho-driver-proof__dialog-actions > *{flex:1}
+.ho-driver-proof__dialog-secondary{
+  min-height:44px;border:1px solid #cbd9ca;background:#fff;color:#48624a;
+  border-radius:11px;padding:9px 12px;font-weight:720;cursor:pointer;
+}
+.ho-driver-proof__dialog-primary{
+  min-height:44px;border:0;border-radius:11px;
+  background:linear-gradient(95deg,#536e50,#344e3e);
+  color:#fff;font-weight:760;cursor:pointer;padding:9px 12px;
+}
+
+/* Successful preview state is explicitly non-persistent. */
+.ho-driver-proof__demo-complete{
+  margin-top:12px;padding:14px;border-radius:14px;
+  border:1px solid #d7e6d5;background:#edf6eb;
+  color:#416d46;text-align:center;
+}
+.ho-driver-proof__demo-complete strong{font-size:13px;display:block}
+.ho-driver-proof__demo-complete p{font-size:11px;line-height:1.5;margin:6px 0 0}
+
+/* Shared Phase 01 bottom navigation, active Deliveries. */
+.ho-driver-proof .ho-driver-dashboard__bottomnav{border-top:1px solid #e8ebe7;}
+.ho-driver-proof .ho-driver-dashboard__tab[aria-current="page"]{background:#e9f0e7;color:#435e46;}
+
+.ho-driver-proof button.ho-driver-dashboard__tab{border:0;background:transparent;padding:5px 4px;color:#84938a;}
+.ho-driver-proof button.ho-driver-dashboard__tab:hover{background:#f3f6f2;}
+/* Container queries aren't required: use true responsive layout. */
+@media (max-width:359px){
+  .ho-driver-proof__header{padding-inline:14px;}
+  .ho-driver-proof__content{padding-left:0;padding-right:0}
+  .ho-driver-proof__section-heading{font-size:14px}
+  .ho-driver-proof__proof-grid{gap:8px}
+  .ho-driver-proof__card{padding:13px}
+}
+@media (max-height:720px){
+  .ho-driver-proof__header{min-height:70px}
+  .ho-driver-proof__content{padding-bottom:20px}
+}
+@media (prefers-reduced-motion:reduce){
+  .ho-driver-proof *, .ho-driver-proof *::before,.ho-driver-proof *::after{animation:none!important;scroll-behavior:auto!important;transition:none!important}
+}
+
+/* Presentation-frame preview only; omit in production markup. */
+.ho-driver-proof-preview-stage{
+  box-sizing:border-box;min-height:100vh;
+  padding:24px;
+  display:grid;place-items:center;
+  background:
+   radial-gradient(ellipse at 20% 5%,#dce5de,transparent 48%),
+   radial-gradient(ellipse at 90% 90%,#e4e8e0,transparent 52%),#eff1ec;
+}
+.ho-driver-proof-preview-phone{
+  position:relative;box-sizing:border-box;
+  width:420px;height:940px;
+  max-height:calc(100dvh - 48px);
+  border:8px solid #25372e;border-radius:48px;
+  background:#f7f9f6;overflow:hidden;
+  box-shadow:0 26px 55px rgba(25,52,38,.18),0 0 0 1px #96a69c;
+}
+.ho-driver-proof-preview-phone::after{
+  position:absolute;content:"";width:94px;height:5px;
+  left:50%;bottom:6px;transform:translateX(-50%);
+  background:#23342b;border-radius:10px;z-index:19;
+}
+.ho-driver-proof-preview-phone .ho-driver-proof{height:100%;min-height:0}
+.ho-driver-proof-preview-phone .ho-driver-proof__statusbar{
+  flex:0 0 38px;display:flex;align-items:center;justify-content:space-between;
+  font-size:13px;font-weight:760;letter-spacing:.01em;
+  padding:10px 27px 0;color:#25372e;
+}
+.ho-driver-proof-preview-phone .ho-driver-dashboard__scroll{flex:1;min-height:0}
+@media(max-width:480px){
+  .ho-driver-proof-preview-stage{padding:0;display:block;background:#f7f9f6}
+  .ho-driver-proof-preview-phone{
+    width:100%;height:100dvh;max-height:none;
+    border:0;border-radius:0;box-shadow:none
+  }
+  .ho-driver-proof-preview-phone::after{display:none}
+  .ho-driver-proof-preview-phone .ho-driver-proof__statusbar{display:none}
+}
+/* A preview note appears outside the mobile app only at large widths. */
+.ho-driver-proof-preview-note{
+  position:absolute;left:16px;top:10px;
+  font-size:11px;color:#64766a;
+}
+@media(max-width:480px){.ho-driver-proof-preview-note{display:none}}

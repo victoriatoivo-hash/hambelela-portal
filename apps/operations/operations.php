@@ -53,7 +53,7 @@ function ops_website_payment_methods(): array
 {
     return [
         'Cash',
-        'Card/Swipe',
+        'Swipe',
         'EFT',
         'FNB eWallet',
         'EasyWallet',
@@ -108,7 +108,7 @@ function ops_normalize_website_payment_method(string $value): string
         'Blue Wallet' => '/\bblue\s*wallet\b|\bbluewallet\b/i',
         'Pay2Cell' => '/\bpay\s*2\s*cell\b/i',
         'PayToday' => '/\bpay\s*today\b/i',
-        'Card/Swipe' => '/\bcard\s*\/\s*swipe\b|\bcard\b|\bswipe\b/i',
+        'Swipe' => '/\bcard\s*\/\s*swipe\b|\bcard\b|\bswipe\b/i',
         'EFT' => '/\beft\b|\bbank transfer\b|\bbacs\b/i',
         'Nedbank' => '/\bnedbank\b/i',
         'Cash' => '/\bcash\b/i',
@@ -174,7 +174,7 @@ function ops_wc_payment_method(array $order): string
     $components = [];
     foreach (ops_website_payment_methods() as $candidate) {
         $candidatePattern = [
-            'Cash' => '/\bcash\b/i', 'Card/Swipe' => '/\bcard\b|\bswipe\b/i',
+            'Cash' => '/\bcash\b/i', 'Swipe' => '/\bcard\b|\bswipe\b/i',
             'EFT' => '/\beft\b|\bbank transfer\b|\bbacs\b/i',
             'FNB eWallet' => '/\bfnb\s*e\s*wallet\b/i', 'EasyWallet' => '/\beasy\s*wallet\b/i',
             'Blue Wallet' => '/\bblue\s*wallet\b|\bbluewallet\b/i', 'Nedbank' => '/\bnedbank\b/i',

@@ -1,0 +1,25 @@
+/* Only integration/accessibility changes; approved Phase 03 base is kept intact. */
+.ho-driver-order-details__header{padding-top:calc(14px + env(safe-area-inset-top,0px))}
+.ho-driver-order-details__person-name{white-space:normal;overflow-wrap:anywhere;text-overflow:clip}
+.ho-driver-order-details__paid-pill{white-space:normal;text-align:center;overflow-wrap:anywhere}
+.ho-driver-order-details__status{flex-wrap:wrap}
+.ho-driver-order-details__status strong{min-width:110px}
+.ho-driver-order-details__event-header{flex-wrap:wrap}
+.ho-driver-order-details__event-time{color:#64796c}
+.ho-driver-order-details__street,.ho-driver-order-details__item-variant,.ho-driver-order-details__event-description,.ho-driver-order-details__person-desc{color:#62796a}
+.ho-driver-order-details__number{color:#62796a}
+.ho-driver-order-details :is(.ho-driver-order-details__back,.ho-driver-order-details__bell,.ho-driver-order-details__contact){position:relative}
+.ho-driver-order-details :is(.ho-driver-order-details__back,.ho-driver-order-details__bell,.ho-driver-order-details__contact)::before{content:'';position:absolute;inset:-5px}
+.ho-driver-order-details__bell[data-unread="true"]::after{content:'';position:absolute;right:1px;top:1px;width:7px;height:7px;border:2px solid white;border-radius:50%;background:#d99b4d}
+.ho-driver-order-details .ho-driver-order-details__navigate{font-size:12.5px;font-weight:780;color:white;min-height:44px}
+.ho-driver-order-details__help{font-size:11px;line-height:1.5;color:#62796a;margin:8px 0;overflow-wrap:anywhere}
+.ho-driver-order-details__notice{padding:11px 14px;margin:8px 12px;border-radius:12px;background:#fff0d9;color:#785525;font-size:12px;line-height:1.5}
+.ho-driver-order-details__notice:empty{display:none}
+.ho-driver-order-details__error{padding:20px 19px;font-size:13px;line-height:1.5}
+.ho-driver-order-details__error h2{font-size:16px}
+.ho-driver-order-details__retry{border:1px solid #d7e1d4;border-radius:12px;background:white;color:#355441;min-height:44px;padding:8px 15px}
+.ho-driver-order-details__section-title{padding-inline:12px}
+.ho-driver-order-details__item-quantity{max-width:25%;white-space:normal;overflow-wrap:anywhere;text-align:right}
+.ho-driver-order-details__body{animation:hod-enter .2s ease-out}
+@keyframes hod-enter{from{opacity:.7;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(prefers-reduced-motion:reduce){.ho-driver-order-details__body{animation:none}}

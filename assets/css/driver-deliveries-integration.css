@@ -1,0 +1,21 @@
+/* Integration-only fixes; the owner's supplied page CSS is preserved separately. */
+.ho-driver-deliveries__header{padding-top:calc(12px + env(safe-area-inset-top,0px));margin-bottom:10px}
+.ho-driver-deliveries__content{padding:0 20px}
+.ho-driver-deliveries__sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.ho-driver-deliveries .ho-driver-deliveries__tab{font-size:10px;font-weight:730;line-height:1.1}
+.ho-driver-deliveries .ho-driver-deliveries__detailbutton{font-size:12.5px;font-weight:780}
+.ho-driver-deliveries .ho-driver-deliveries__retry{font-size:11px;font-weight:700}
+.ho-driver-deliveries__number{overflow-wrap:anywhere;min-width:0}
+.ho-driver-deliveries__address{margin-bottom:0}
+.ho-driver-deliveries__card .ho-driver-deliveries__collection-foot{margin-bottom:0}
+.ho-driver-deliveries__name-row{flex-wrap:wrap}
+.ho-driver-deliveries__name{flex:1 1 125px}
+.ho-driver-deliveries__connection,.ho-driver-deliveries__review-note{font-size:11px;line-height:1.5;color:#6f8376;margin:8px 0}
+.ho-driver-deliveries__connection{padding:10px;border-radius:10px;background:#fff0d9;color:#79572b}
+.ho-driver-deliveries [data-d-results][aria-busy="true"]{opacity:.8}
+.ho-driver-deliveries .ho-driver-deliveries__card{font-family:inherit}
+.ho-driver-deliveries .ho-driver-deliveries__card h3{font-size:16px}
+.ho-driver-deliveries .ho-driver-deliveries__card>p:not([class]){font-size:12px;line-height:1.5}
+.ho-driver-deliveries .ho-driver-dashboard__tab[aria-current="page"]{background:#e9f0e7;color:#435e46}
+@media(max-width:374px){.ho-driver-deliveries__content{padding-inline:14px}.ho-driver-deliveries .ho-driver-deliveries__tab{font-size:9px}}
+@media(prefers-reduced-motion:no-preference){.ho-driver-deliveries__card,.ho-driver-deliveries__tab{transition:background-color .16s,box-shadow .16s}.ho-driver-deliveries__filter-panel:not([hidden]){animation:hd-deliveries-filter .16s ease-out}@keyframes hd-deliveries-filter{from{transform:translateY(-5px);opacity:0}to{transform:none;opacity:1}}}

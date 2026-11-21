@@ -50,7 +50,8 @@ final class PortalOrderRepository
             if(!empty($input['additional_delivery']))throw new \DomainException('An additional trip requires separate authorized review.');
             if($shippingEvidence!==null){WooShippingSource::assertCurrent($order,$shippingEvidence);$fee=(int)$shippingEvidence['included_cents'];}
             else $fee=self::shippingComponent($order);
-            $address=self::usableAddress(trim((string)($shippingEvidence['address']??''))?:self::shippingAddress((string)($order['notes']??'')));
+            $originalAddress=self::usableAddress(trim((string)($shippingEvidence['address']??''))?:self::shippingAddress((string)($order['notes']??'')));
+            $address=$originalAddress;
             if(trim((string)($input['address']??''))!=='')$address=self::usableAddress((string)$input['address']);
             if(strlen($address)>2000)throw new \DomainException('Address is too long.');
             if($address===''&&empty($input['preview']))throw new \DomainException('Delivery address missing. Add an address before dispatch.');
@@ -64,12 +65,15 @@ final class PortalOrderRepository
             $prepaid=$money['collect_cents']===0;
             if(isset($input['board_terms'])){
                 $terms=$input['board_terms'];
-                if(($terms==='verified')!==$prepaid)throw new \DomainException('Payment changed. Check the saved order payment and review again.');
+                // COD means collect the remaining verified balance, not collect the
+                // order total again. A zero balance is safe and must not block dispatch.
+                if(!in_array($terms,['verified','cod'],true))throw new \DomainException('Select Paid or Collect on delivery.');
+                if($terms==='verified'&&!$prepaid)throw new \DomainException('The saved payment still has an outstanding balance. Use Collect on delivery or correct the payment in Orders.');
                 $items=$db->prepare('SELECT product_name,quantity FROM ops_order_items WHERE order_id=? ORDER BY id');
                 $items->execute([$id]);$lines=[];
                 foreach($items->fetchAll(\PDO::FETCH_ASSOC) as $item)$lines[]=($item['quantity']??'?').' × '.$item['product_name'];
                 $notes=implode("\n",array_filter(['Contents: '.($lines?implode('; ',$lines):'No item lines recorded'),
-                    'Payment: '.['verified'=>'Already paid (verified)','pending'=>'Payment pending','cod'=>'Cash on delivery','other'=>'Other payment arrangement'][$terms].' · '.($order['payment_method']??'Method not recorded'),
+                    'Payment: '.($prepaid?'Paid — no further collection':'Collect remaining balance on delivery').' · '.($order['payment_method']??'Method not recorded'),
                     $notes],static fn($v)=>$v!==''));
                 if(strlen($notes)>4000)throw new \DomainException('Item list and instructions exceed the driver note limit. Review before dispatch.');
             }
@@ -77,7 +81,8 @@ final class PortalOrderRepository
                 'order_number'=>$order['order_number']??('#'.$id),'payment_method'=>$order['payment_method']??'',
                 'fee_cents'=>$fee,'included_fee_cents'=>$fee,'zone_id'=>null,'manual_rate_reason'=>null,
                 'fee_payer'=>$prepaid?'already_paid':'customer','prepaid_reference'=>$prepaid?'order:'.$id:null,
-                'contact_snapshot'=>$storedMobile,'urgent'=>!empty($input['urgent'])?1:0,'notes'=>$notes,'customer_instructions'=>trim((string)($shippingEvidence['customer_instructions']??'').'\n'.(string)($order['notes']??'')),'shipping_evidence'=>$shippingEvidence,'source_order'=>true];
+                'customer_instructions_clean'=>trim((string)($shippingEvidence['customer_instructions']??'')."\n".preg_replace('/^Shipping address:[^\\r\\n]*(?:\\r?\\n|$)/mi','',str_replace('\\n',"\n",(string)($order['notes']??'')))),
+                'original_address'=>$originalAddress,'contact_snapshot'=>$storedMobile,'urgent'=>!empty($input['urgent'])?1:0,'notes'=>$notes,'customer_instructions'=>trim((string)($shippingEvidence['customer_instructions']??'').'\n'.(string)($order['notes']??'')),'shipping_evidence'=>$shippingEvidence,'source_order'=>true];
         }
         $address=trim((string)($input['address']??''));if($address==='')$address=self::shippingAddress((string)($order['notes']??''));
         if($address===''||strlen($address)>2000)throw new \DomainException('Confirm the delivery address.');

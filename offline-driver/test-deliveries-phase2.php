@@ -1,0 +1,60 @@
+<?php
+declare(strict_types=1);
+if(PHP_SAPI!=='cli')exit(1);
+define('BASE_PATH',dirname(__DIR__));define('BASE_URL','');
+require BASE_PATH.'/shared/delivery/DriverAssignments.php';require BASE_PATH.'/shared/delivery/dashboard/Data.php';
+use Hambelela\Delivery\DriverAssignments as A;
+$db=new PDO('mysql:host=127.0.0.1;port=43379;dbname=driver_review;charset=utf8mb4','driver_review',getenv('OFFLINE_PASS'),[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
+$checks=0;function verify($v,$label){global $checks;if(!$v)throw new RuntimeException($label);$checks++;echo "PASS $label\n";}
+$fixed=new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek'));
+$original=A::read($db,3,$fixed);$other=A::read($db,4,$fixed);
+verify($other['counts']['all']===0,'second driver sees no first-driver assignments');
+$denied=false;try{A::find($other,$original['deliveries'][0]['assignmentId']);}catch(DomainException $e){$denied=true;}verify($denied,'cross-driver single-order read rejected');
+foreach([0,1,2,5,99999] as $id){$denied=false;try{A::read($db,$id,$fixed);}catch(DomainException $e){$denied=true;}verify($denied,'reject unauthorized identity '.$id);}
+$dashboard=\Hambelela\Delivery\Dashboard\Data::read($db,3);verify($dashboard['progress']['assigned']===$original['counts']['all']&&$dashboard['progress']['delivered']===$original['counts']['done'],'dashboard uses same-day canonical counts');
+verify($original['counts']['all']===$original['counts']['toCollect']+$original['counts']['onRoute']+$original['counts']['done']+$original['counts']['exceptions'],'all categories reconcile including exceptions');
+$day=$fixed->format('Y-m-d');$j=$db->query("SELECT * FROM delivery_jobs WHERE driver_employee_id=3 AND source='hambelela' AND status='ready' ORDER BY id LIMIT 1")->fetch();
+if(!$j)throw new RuntimeException('Existing local ready fixture required');$id=(int)$j['id'];$oid=(int)$j['order_id'];
+$event=function($type,$meta)use($db,$id){$db->prepare('INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json) VALUES(?,?,3,?)')->execute([$id,$type,json_encode($meta)]);return (int)$db->lastInsertId();};
+$read=function()use($db,$id,$fixed){return A::find(A::read($db,3,$fixed),$id);};
+$db->beginTransaction();
+try{
+ $db->prepare("UPDATE delivery_jobs SET scheduled_date=?,status='ready',started_at=NULL,delivered_at=NULL,completed_at=NULL WHERE id=?")->execute([$day,$id]);
+ $db->exec("UPDATE ops_orders SET payment_method='Cash',payment_status='unpaid',status='in_progress',deleted_at=NULL WHERE id=$oid");
+ $db->exec("DELETE FROM order_payment_allocations WHERE order_id=$oid");
+ $s=$db->query("SELECT id,metadata_json FROM delivery_events WHERE delivery_id=$id AND event_type='arranged' ORDER BY id DESC LIMIT 1");$release=$s->fetch();$meta=json_decode($release['metadata_json'],true);$meta['payment_arrangement']='cod';
+ $db->prepare('UPDATE delivery_events SET metadata_json=? WHERE id=?')->execute([json_encode($meta),$release['id']]);
+ $r=$read();verify($r['stage']==='to_collect'&&$r['displayStatus']==='At store','released ready parcel awaits shop pickup');verify($r['paymentLabel']==='Cash N$120.00'&&!$r['paymentVerified'],'COD comes from authorised terms and actual balance');
+ $db->exec("INSERT INTO order_payment_allocations(order_id,payment_method,amount_cents,source) VALUES($oid,'EFT',4000,'pos')");verify($read()['paymentLabel']==='Cash N$80.00','partial payment reduces actual COD balance');$db->exec("DELETE FROM order_payment_allocations WHERE order_id=$oid");
+ verify($r['distanceKm']===null&&$r['routeSequence']===null&&!$r['isNextStop'],'no invented distance, route sequence or next-stop claim');
+ verify($r['scheduledTimeLocal']===null,'missing time stays missing');
+ $db->exec("UPDATE delivery_jobs SET status='out_for_delivery',started_at=UTC_TIMESTAMP() WHERE id=$id");verify($read()['stage']==='exception','start alone is not physical pickup');
+ $pickup=$event('parcel_collected',['driver_id'=>3]);verify($read()['stage']==='on_route','confirmed current-driver pickup is on route');
+ $revision=$event('dispatch_updated',['field'=>'driver','value'=>4]);verify($read()['stage']==='exception','old pickup invalid after reassignment');$db->exec("DELETE FROM delivery_events WHERE id=$revision");
+ $db->exec("UPDATE delivery_jobs SET status='failed' WHERE id=$id");verify($read()['stage']==='exception','failed work retained as exception');
+ $db->exec("UPDATE delivery_jobs SET status='completed' WHERE id=$id");verify($read()['stage']==='exception','completed flag alone is not done');
+ $db->exec("UPDATE delivery_jobs SET delivered_at=UTC_TIMESTAMP(),completed_at=UTC_TIMESTAMP() WHERE id=$id");$handover=$event('delivered',['status'=>'completed']);verify($read()['stage']==='exception','handover needs authenticated confirmation evidence');
+ $db->prepare('UPDATE delivery_events SET metadata_json=? WHERE id=?')->execute([json_encode(['delivery_payment_confirmed'=>true]),$handover]);verify($read()['stage']==='done'&&!$read()['paymentVerified'],'recorded handover is done with unpaid status kept separate');
+ $db->exec("INSERT INTO order_payment_allocations(order_id,payment_method,amount_cents,source) VALUES($oid,'EFT',12000,'pos')");
+ verify($read()['stage']==='done'&&$read()['paymentLabel']==='EFT paid','confirmed handover and verified settlement count done');
+ $db->exec("UPDATE order_payment_allocations SET payment_method='DPO' WHERE order_id=$oid");verify($read()['paymentLabel']==='DPO paid','DPO paid requires verified allocation');
+ $db->exec("UPDATE delivery_jobs SET status='awaiting_reconciliation' WHERE id=$id");verify($read()['stage']==='done','recorded physical delivery does not return to active during reconciliation');
+ $db->exec("UPDATE delivery_jobs SET status='ready',delivered_at=NULL,completed_at=NULL WHERE id=$id");$db->exec("DELETE FROM delivery_events WHERE id IN ($pickup,$handover)");
+ $db->exec("DELETE FROM order_payment_allocations WHERE order_id=$oid");$db->exec("UPDATE ops_orders SET payment_status='paid',payment_method='EFT' WHERE id=$oid");verify(!$read()['paymentVerified']&&$read()['paymentLabel']==='Payment needs review','legacy paid flag cannot fabricate EFT settlement');
+ $db->exec("UPDATE ops_orders SET payment_status='unpaid',payment_method='Cash',status='refunded' WHERE id=$oid");verify($read()['stage']==='exception','refunded source not dispatch ready');
+ $db->exec("UPDATE ops_orders SET status='in_progress',deleted_at=UTC_TIMESTAMP() WHERE id=$oid");verify($read()['stage']==='exception','deleted source remains visible for review, not dispatch ready');
+ $db->exec("UPDATE ops_orders SET deleted_at=NULL WHERE id=$oid");
+ $badDeadline=$event('deadline_updated',['deadline'=>['mode'=>'before','end_at'=>'not a date']]);verify($read()['scheduledTimeLocal']===null,'invalid deadline has no fake time');$db->exec("DELETE FROM delivery_events WHERE id=$badDeadline");
+ $deadline=$event('deadline_updated',['deadline'=>['mode'=>'before','end_at'=>$day.' 08:30:00']]);verify($read()['scheduledTimeLocal']==='Before 10:30 AM','UTC deadline displays Namibia time');
+ $utcBefore=new DateTimeImmutable($day.' 21:59:59',new DateTimeZone('UTC'));$utcAfter=$utcBefore->modify('+1 second');
+ verify(A::read($db,3,$utcBefore)['businessDate']===$day&&A::read($db,3,$utcAfter)['businessDate']===$fixed->modify('+1 day')->format('Y-m-d'),'Windhoek date changes at 22:00 UTC');
+ verify(!in_array($id,array_column(A::read($db,3,$utcAfter)['deliveries'],'assignmentId'),true),'previous-day assignments do not leak into new day');
+ $db->exec("UPDATE delivery_jobs SET status='cancelled' WHERE id=$id");verify(!in_array($id,array_column(A::read($db,3,$fixed)['deliveries'],'assignmentId'),true),'cancelled assignment excluded');
+ $db->exec("UPDATE delivery_jobs SET status='ready' WHERE id=$id");$db->exec("UPDATE delivery_events SET event_type='test_unreleased' WHERE delivery_id=$id AND event_type='arranged'");verify(!in_array($id,array_column(A::read($db,3,$fixed)['deliveries'],'assignmentId'),true),'unreleased row is not a driver assignment');
+ $db->exec('UPDATE delivery_driver_profiles SET active=0 WHERE employee_id=3');$denied=false;try{A::read($db,3,$fixed);}catch(DomainException $e){$denied=true;}verify($denied,'driver revocation takes effect on next read');
+}finally{$db->rollBack();}
+verify(A::read($db,3,$fixed)===$original,'transaction rolled back without changing original entries');
+$data=$original;$data['deliveries'][0]['customerDisplayName']='<img src=x onerror=alert(1)>';$local=true;$base='';$selected=null;$unavailable=false;
+ob_start();require BASE_PATH.'/shared/delivery/deliveries/View.php';$html=ob_get_clean();verify(strpos($html,'<img src=x')===false&&strpos($html,'&lt;img')!==false,'customer strings escaped in markup and JSON');verify(substr_count($html,'aria-current="page"')===1&&strpos($html,'href="#"')===false,'one selected navigation item and no dummy links');
+$data=['dataStatus'=>'error'];ob_start();require BASE_PATH.'/shared/delivery/deliveries/View.php';$html=ob_get_clean();verify(strpos($html,'No totals are shown')!==false&&strpos($html,'0 assigned')===false,'error is not shown as zero assignments');
+echo "TOTAL $checks checks passed\n";

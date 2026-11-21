@@ -2,6 +2,7 @@
 declare(strict_types=1);
 namespace Hambelela\Delivery;
 require_once __DIR__.'/DeliveryPolicy.php';
+require_once __DIR__.'/ErrandManagementAccess.php';
 final class DriverErrands
 {
     private \PDO $db;
@@ -32,7 +33,7 @@ final class DriverErrands
           KEY errand_history(errand_id,id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
     }
-    private function front(array $a):void{if(!DeliveryPolicy::can($a,'delivery_arrange'))throw new \DomainException('Delivery arrangement access required.');}
+    private function front(array $a):void{if(!ErrandManagementAccess::allowed($a))throw new \DomainException('Errand management access required.');}
     private function driver(array $a):void{if(($a['role']??'')!=='delivery_driver'||!DeliveryPolicy::can($a,'delivery_drive'))throw new \DomainException('Assigned driver access required.');}
     private const DRIVERS="SELECT e.id,e.full_name FROM delivery_driver_profiles p JOIN ops_employees e ON e.id=p.employee_id JOIN ops_roles r ON r.id=e.role_id WHERE p.active=1 AND e.status='active' AND r.role_key='delivery_driver'";
     public function drivers(array $a):array{$this->front($a);return $this->db->query(self::DRIVERS.' ORDER BY e.full_name')->fetchAll(\PDO::FETCH_ASSOC);}
@@ -96,6 +97,8 @@ final class DriverErrands
         $s=$this->db->prepare('SELECT h.action,h.created_at,e.full_name actor_name,h.after_json FROM delivery_errand_events h LEFT JOIN ops_employees e ON e.id=h.actor_id WHERE h.errand_id=? ORDER BY h.id DESC LIMIT 100');$s->execute([$id]);return $s->fetchAll(\PDO::FETCH_ASSOC);
     }
     public function change(array $a,int $id,int $revision,string $action,array $v):array{
+        // Phase 07 business transitions must use versioned commands and assigned evidence policy.
+        if(!in_array($action,['seen','claim','later'],true))throw new \DomainException('Open the Errands page to update this assignment with its current requirements.');
         $isDriver=($a['role']??'')==='delivery_driver';if($isDriver)$this->driver($a);else $this->front($a);
         if(!in_array($action,$isDriver?['seen','claim','later','started','collected','blocked']:['edit','cancel','reopen'],true))throw new \DomainException('Action not permitted.');
         $this->db->beginTransaction();
