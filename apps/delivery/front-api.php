@@ -23,6 +23,10 @@ try{
   echo json_encode(['ok'=>true,'result'=>$result],JSON_THROW_ON_ERROR);exit;
  }
  if($_SERVER['REQUEST_METHOD']!=='GET'){http_response_code(405);exit;}
+ if(($_GET['view']??'')==='handover-pending'){
+  require_once BASE_PATH.'/shared/delivery/HandoverReminders.php';
+  echo json_encode(['items'=>\Hambelela\Delivery\HandoverReminders::pending(db(),$actor),'employee_id'=>$actor['id'],'csrf'=>$_SESSION['delivery_front_csrf']],JSON_THROW_ON_ERROR);exit;
+ }
 if(($_GET['view']??'')==='board'){echo json_encode($core->board($actor,$_GET)+['csrf'=>$_SESSION['delivery_front_csrf']],JSON_THROW_ON_ERROR);exit;}
  if(!\Hambelela\Delivery\DeliveryPolicy::can($actor,'delivery_arrange'))throw new DomainException('Order search requires arrangement permission.');
  $suggest=($_GET['view']??'')==='suggestions';

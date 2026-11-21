@@ -5,13 +5,13 @@ $dsn=getenv('DELIVERY_TEST_DSN')?:'mysql:host=127.0.0.1;port=3306';
 if(!preg_match('/^mysql:host=127\.0\.0\.1;port=\d+$/D',$dsn))throw new RuntimeException('Synthetic loopback database only');
 $db=new PDO($dsn,'root',getenv('DELIVERY_TEST_PASSWORD')?:'synthetic-ci-password',[PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
 $name='delivery_arrangement_'.bin2hex(random_bytes(6));$db->exec('CREATE DATABASE '.$name);$db->exec('USE '.$name);
-require __DIR__.'/../shared/delivery/CoreApi.php';
-require __DIR__.'/../shared/delivery/FrontSession.php';
-require __DIR__.'/../shared/delivery/EmployeeDriverSession.php';
-require __DIR__.'/../shared/delivery/DriverNotices.php';
-require __DIR__.'/../shared/delivery/DriverInbox.php';
+require_once __DIR__.'/../shared/delivery/CoreApi.php';
+require_once __DIR__.'/../shared/delivery/FrontSession.php';
+require_once __DIR__.'/../shared/delivery/EmployeeDriverSession.php';
+require_once __DIR__.'/../shared/delivery/DriverNotices.php';
+require_once __DIR__.'/../shared/delivery/DriverInbox.php';
 use Hambelela\Delivery\DriverInbox;
-require __DIR__.'/../shared/delivery/AccountingService.php';
+require_once __DIR__.'/../shared/delivery/AccountingService.php';
 function ok($value,string $label):void{if(!$value)throw new RuntimeException($label);echo "PASS $label\n";}
 function requestId():string{return bin2hex(random_bytes(4)).'-aaaa-4aaa-8aaa-'.bin2hex(random_bytes(6));}
 // MySQL binary JSON may return object keys in storage order; object member order is not part of the API.

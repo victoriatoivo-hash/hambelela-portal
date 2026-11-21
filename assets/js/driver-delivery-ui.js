@@ -31,11 +31,11 @@
   const c=j.custody;
   if(c?.tracking_version){
    if(!c.acceptance)return button('accept','Accept delivery',j,'check');
-   if(!c.collection&&!c.exception)return c.handover?button('confirm_pickup','Confirm '+c.handover.data.parcel_count+' parcels collected',j,'check'):'<span class="driver-app-muted">Awaiting Front Desk handover</span>';
+   if(!c.collection&&!c.exception)return c.handover?button('confirm_pickup','Confirm parcel collection',j,'check'):'<span class="driver-app-muted">Awaiting Front Desk handover</span>';
   }
   return button('start','Start delivery',j,'play');
  }
- function custody(j,action){form(action==='accept'?'Accept delivery':'Confirm parcel collection',j,'<p>'+esc(action==='accept'?'Confirm that you accept this assignment.':'Confirm you physically received '+j.custody.handover.data.parcel_count+' parcels from Front Desk.')+'</p>',async()=>{await command({action,id:Number(j.id)});});}
+ function custody(j,action){form(action==='accept'?'Accept delivery':'Confirm parcel collection',j,'<p>'+esc(action==='accept'?'Confirm that you accept this assignment.':'Confirm you physically received the parcels from Front Desk.')+'</p>',async()=>{await command({action,id:Number(j.id)});});}
  function card(j){
   const state=toneClass(j),ip=j.status==='out_for_delivery',cancel=j.status==='cancelled',urgent=Number(j.urgent)>0&&!closed(j);
   const payment=j.collection_state==='Collected by Driver'?'Collected':j.remaining==null||j.collection_state==='Shortfall / issue'?'Review':due(j)>0?'Not paid':'Paid';

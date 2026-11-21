@@ -1,4 +1,4 @@
-param([Parameter(Mandatory)][string]$MariaBin,[Parameter(Mandatory)][string]$PhpDir)
+param([Parameter(Mandatory)][string]$MariaBin,[Parameter(Mandatory)][string]$PhpDir,[ValidateSet('delivery-arrangement-regression.php','handover-confirmation.php')][string]$TestFile='delivery-arrangement-regression.php')
 $ErrorActionPreference='Stop'
 $port=13419
 $dir=New-Item -ItemType Directory -Path (Join-Path $env:TEMP ('delivery-accountability-'+[guid]::NewGuid().ToString('N')))
@@ -12,7 +12,7 @@ try{
  $ready=$false
  for($i=0;$i -lt 40;$i++){$client=New-Object Net.Sockets.TcpClient;try{$client.Connect('127.0.0.1',$port);$ready=$true}catch{}finally{$client.Dispose()};if($ready){break};if($server.HasExited){throw 'Synthetic server exited'};Start-Sleep -Milliseconds 250}
  if(!$ready){throw 'Synthetic database unavailable'}
- & "$PhpDir/php.exe" -n -d "extension_dir=$PhpDir/ext" -d extension=pdo_mysql -d extension=mbstring "$PSScriptRoot/delivery-arrangement-regression.php"
+ & "$PhpDir/php.exe" -n -d "extension_dir=$PhpDir/ext" -d extension=pdo_mysql -d extension=mbstring "$PSScriptRoot/$TestFile"
  if($LASTEXITCODE){throw 'Delivery regression tests failed'}
 }finally{
  if(!$server.HasExited){$env:MYSQL_PWD=$env:DELIVERY_TEST_PASSWORD;& "$MariaBin/mariadb-admin.exe" '--host=127.0.0.1' "--port=$port" '--user=root' shutdown;if(!$server.WaitForExit(5000)){$server.Kill()}}

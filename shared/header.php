@@ -127,6 +127,10 @@ $headerUserInitials = $headerUserInitials !== '' ? $headerUserInitials : 'U';
     <script defer src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
     <script defer src="<?= BASE_URL ?>/assets/js/portal-date-picker.js?v=<?= htmlspecialchars($datePickerJsVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
     <script>window.HambelelaPortalUser={id:<?= (int) ($headerUser['id'] ?? 0) ?>,role:<?= json_encode((string) ($headerUser['role_key'] ?? 'guest')) ?>};</script>
+    <?php if (in_array($headerUser['role_key'] ?? '', ['owner_admin','front_desk_admin','front_desk_admin_employee','marketing_sales'], true)): ?>
+    <link rel="stylesheet" href="<?=BASE_URL?>/assets/css/delivery-handover-popup.css?v=<?=filemtime(BASE_PATH.'/assets/css/delivery-handover-popup.css')?>">
+    <script defer data-endpoint="<?=htmlspecialchars(BASE_URL.'/apps/delivery/front-api.php',ENT_QUOTES)?>" src="<?=BASE_URL?>/assets/js/delivery-handover-popup.js?v=<?=filemtime(BASE_PATH.'/assets/js/delivery-handover-popup.js')?>"></script>
+    <?php endif; ?>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/notifications-ui.css?v=<?= filemtime(BASE_PATH . '/assets/css/notifications-ui.css') ?>">
     <script defer src="<?= BASE_URL ?>/assets/js/notifications-ui.js?v=<?= filemtime(BASE_PATH . '/assets/js/notifications-ui.js') ?>"></script>
     <link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/portal-notices.css?v=<?= filemtime(BASE_PATH . '/assets/css/portal-notices.css') ?>">

@@ -317,14 +317,18 @@ final class DeliveryService
 
     public function pickup(array $actor,int $id,string $uuid,int $driver,array $details=[]):array
     {
-        return $this->command($actor,$id,$uuid,'parcel_collected',isset($details['parcel_count'])?[$driver,(int)$details['parcel_count']]:[$driver],function($j)use($actor){
+        $request=isset($details['parcel_count'])?[$driver,(int)$details['parcel_count']]:[$driver];
+        if(array_key_exists('confirmed',$details))$request[]=['confirmed'=>$details['confirmed'],'acceptance_event_id'=>(int)($details['acceptance_event_id']??0)];
+        return $this->command($actor,$id,$uuid,'parcel_collected',$request,function($j)use($actor){
             if($j['source']!=='hambelela'||!DeliveryPolicy::can($actor,'delivery_arrange'))throw new \DomainException('Collection confirmation forbidden.');
         },function($j)use($id,$driver,$actor,$details){
             if((int)$j['driver_employee_id']!==$driver||!in_array($j['status'],['ready','out_for_delivery'],true))throw new \DomainException('Driver or delivery status changed. Refresh before confirming.');
             $custody=DeliveryCustody::read($this->db,$j);
             if($custody['handover'])throw new \DomainException('Parcel pickup is already recorded.');
+            if(isset($details['acceptance_event_id'])&&(int)$details['acceptance_event_id']!==(int)($custody['acceptance']['id']??0))throw new \DomainException('Driver acceptance changed. Refresh before confirming handover.');
             $count=filter_var($details['parcel_count']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1,'max_range'=>1000]]);
-            if($custody['tracking_version']&&$count===false)throw new \DomainException('Record the actual parcel count (1–1,000).');
+            if(isset($details['parcel_count'])&&$count===false)throw new \DomainException('Invalid parcel count.');
+            if($custody['tracking_version']&&$count===false&&($details['confirmed']??false)!==true)throw new \DomainException('Confirm that the parcels have been handed to the driver.');
             $a=$this->row("SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='arranged' ORDER BY id DESC LIMIT 1",[$id]);
             $m=json_decode((string)($a['metadata_json']??''),true);
             $now=new \DateTimeImmutable('now',new \DateTimeZone('UTC'));
