@@ -23,6 +23,8 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/refresh-tests" --ignore-scripts --no-audit --no-fund jsdom@24.1.3
           NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-background-updates.cjs
           NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-driver-action-submit.cjs
+          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-three-step-client.cjs
+          git diff --name-only 21c916e6911fec3a8afcab98643a512f4e1ba77b HEAD -- shared/delivery | grep '\.php$' | while read -r file; do php -l "$file" || exit 1; done
           node offline-driver/test-dashboard-privacy.cjs
           node offline-driver/test-deliveries-refresh.cjs
           node offline-driver/test-order-details-refresh.cjs

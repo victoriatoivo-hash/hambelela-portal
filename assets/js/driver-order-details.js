@@ -9,6 +9,7 @@
   let lastHTML = content.innerHTML, sequence = 0, activeRequest = null, stopped = false, previousFocus = null, saving = false;
   function announce(message) { notice.textContent = message; notice.hidden = !message; }
   function clear(message) {
+    if(stopped)window.hambelelaCloseCompletion?.();
     lastHTML = null;
     content.innerHTML = '<section class="ho-driver-order-details__error"><h1>Order details unavailable</h1><p data-order-error></p><button type="button" class="ho-driver-order-details__retry" data-order-retry>Retry</button></section>';
     content.querySelector('[data-order-error]').textContent = message;
@@ -56,16 +57,20 @@
   root.addEventListener('submit', async event => {
     const form = event.target.closest('[data-driver-action]');if(!form)return;
     event.preventDefault();if(saving||stopped||document.hidden)return;
+    const isStart=form.elements.namedItem('action')?.value==='start';
+    if(isStart&&!window.confirm('I have received the parcels and am leaving. Start this delivery?'))return;
     saving=true;const token=++sequence;if(activeRequest)activeRequest.abort();activeRequest=null;
     const button=form.querySelector('button');button.disabled=true;
     const data=new FormData(form);form.dataset.requestId ||= crypto.randomUUID();data.set('request_id',form.dataset.requestId);
+    if(isStart)data.set('parcels_received','1');
     announce('Saving your delivery update…');
+    const actionRequest=new AbortController(),actionTimeout=setTimeout(()=>actionRequest.abort(),20000);
     try{
       // The hidden input named "action" shadows HTMLFormElement.action in browsers.
       // Read the literal URL attribute, never the named form control.
       const endpoint=form.getAttribute('action');
       if(!endpoint)throw new Error('Delivery action is unavailable. Reopen this order.');
-      const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',cache:'no-store',body:data,headers:{Accept:'application/json'}});
+      const response=await fetch(endpoint,{method:'POST',credentials:'same-origin',cache:'no-store',body:data,signal:actionRequest.signal,headers:{Accept:'application/json'}});
       if(token!==sequence||document.hidden)return;
       if(response.redirected||[401,403].includes(response.status)){stopped=true;clear('Your access has ended. Sign in again.');return;}
       let result;
@@ -73,8 +78,8 @@
       if(!response.ok||!result.ok)throw new Error(result.error||'Update not confirmed. Retry safely.');
       if(result.driverId!==driverId||result.assignmentId!==assignmentId){stopped=true;clear('Your account has changed. Open Deliveries again.');return;}
       saving=false;await refresh(true);
-    }catch(error){if(token===sequence)announce(error.message||'Update not confirmed. Retry safely.');}
-    finally{saving=false;if(button.isConnected)button.disabled=false;}
+    }catch(error){if(token===sequence)announce(error.name==='AbortError'?'No confirmation received yet. Check the order status before retrying; retrying this button uses the same request.':(error.message||'Update not confirmed. Retry safely.'));}
+    finally{clearTimeout(actionTimeout);saving=false;if(button.isConnected)button.disabled=false;}
   });
   root.addEventListener('click', event => {
     const retry = event.target.closest('[data-order-retry]');

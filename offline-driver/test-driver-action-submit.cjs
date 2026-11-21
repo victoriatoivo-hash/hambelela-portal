@@ -6,7 +6,7 @@ const flush=()=>new Promise(r=>setImmediate(r));
   const dom=new JSDOM(html,{url:'https://driver.example.test/',runScripts:'outside-only',pretendToBeVisual:true}),w=dom.window,d=w.document,form=d.querySelector('form'),posts=[];
   // jsdom lacks browser named-form shadowing. Model the native browser property explicitly.
   Object.defineProperty(form,'action',{value:form.elements.namedItem('action')});
-  w.setInterval=()=>0;let bad=false;
+  w.setInterval=()=>0;w.confirm=()=>true;let bad=false;
   w.fetch=async(url,options)=>{
    if(options.method==='POST'){
     posts.push({url,data:options.body});
@@ -19,6 +19,7 @@ const flush=()=>new Promise(r=>setImmediate(r));
   assert.equal(posts[0].url,'/apps/delivery/index.php?delivery=46');assert.equal(posts[0].data.get('action'),action);assert.equal(posts[0].data.get('csrf'),'test-token');assert.equal(posts[0].data.get('actor'),'3');
   assert.match(d.querySelector('[data-order-notice]').textContent,/did not confirm/);assert.doesNotMatch(d.querySelector('[data-order-notice]').textContent,/JSON|Unexpected token/);
   const retry=posts[0].data.get('request_id');assert.ok(retry);bad=false;
+  if(action==='start')assert.equal(posts[0].data.get('parcels_received'),'1');
   form.dispatchEvent(new w.Event('submit',{bubbles:true,cancelable:true}));await flush();await flush();
   assert.equal(posts[1].data.get('request_id'),retry);assert.equal(d.querySelector('[data-order-notice]').textContent,'');
   dom.window.close();

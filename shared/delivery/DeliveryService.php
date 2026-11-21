@@ -101,13 +101,21 @@ final class DeliveryService
         });
     }
 
-    public function start(array $actor,int $id,string $uuid): array
+    public function start(array $actor,int $id,string $uuid,bool $confirmReceipt=false): array
     {
-        return $this->command($actor,$id,$uuid,'started',[],fn($j)=>$this->assigned($actor,$j),function($j)use($id){
+        return $this->command($actor,$id,$uuid,'started',$confirmReceipt?['parcels_received'=>true]:[],fn($j)=>$this->assigned($actor,$j),function($j)use($id,$actor,$confirmReceipt){
             DeliveryIssueState::assertClear($this->db,$id);
             if($j['status']!=='ready')throw new \DomainException('Delivery is not ready.');
             $this->remaining($j);
             $c=DeliveryCustody::read($this->db,$j);
+            if($confirmReceipt){
+                if(!$c['acceptance']||!$c['handover'])throw new \DomainException('Accept the delivery and ask Front Desk to record the parcel handover first.');
+                if(!$c['collection']){
+                    $receipt=['driver_id'=>(int)$actor['id'],'handover_event_id'=>(int)$c['handover']['id'],'parcel_count'=>$c['handover']['data']['parcel_count']??null,'confirmed_with_start'=>true];
+                    $this->exec("INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json,created_at) VALUES(?,'driver_collection_confirmed',?,?,UTC_TIMESTAMP())",[$id,$actor['id'],json_encode($receipt,JSON_THROW_ON_ERROR)]);
+                    $c=DeliveryCustody::read($this->db,$j);
+                }
+            }
             if($c['tracking_version']&&!$c['acceptance'])throw new \DomainException('Accept this delivery first.');
             if($c['tracking_version']&&!$c['exception']&&(!$c['handover']||!$c['collection']))throw new \DomainException('Parcel handover and driver collection confirmation are required before starting.');
             $this->exec("UPDATE delivery_jobs SET status='out_for_delivery',started_at=UTC_TIMESTAMP(),updated_at=UTC_TIMESTAMP(),version=version+1 WHERE id=?",[$id]);

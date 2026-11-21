@@ -39,7 +39,7 @@ final class ProofContext
         $r=self::row($db,"SELECT metadata_json FROM delivery_events WHERE delivery_id=? AND event_type='delivered' ORDER BY id DESC LIMIT 1",[$id]);
         return $r?(json_decode($r['metadata_json'],true)['proof']??null):null;
     }
-    public static function assertLocked(\PDO $db,array $job,array $actor,int $version,bool $arrivalRequired=true):array
+    public static function assertLocked(\PDO $db,array $job,array $actor,int $version,bool $arrivalRequired=true,bool $completionWithoutArrival=false):array
     {
         if(!$db->inTransaction())throw new \LogicException('Completion needs locked state.');
         // Lock the source order before re-reading allocations/status. No remote calls in this transaction.
@@ -49,7 +49,7 @@ final class ProofContext
         }
         if((int)$job['version']!==$version)throw new \DomainException('Delivery changed. Reload and check the details before retrying.');
         $ctx=self::read($db,(int)$actor['id'],(int)$job['id']);
-        $reason=$arrivalRequired?$ctx['reason']:$ctx['operational_reason'];
+        $reason=($arrivalRequired||$completionWithoutArrival)?$ctx['reason']:$ctx['operational_reason'];
         if($reason)throw new \DomainException($reason);
         if($arrivalRequired&&!$ctx['arrival'])throw new \DomainException('Record your arrival at the destination first.');
         return $ctx;

@@ -51,14 +51,22 @@ try{
     $db->exec("UPDATE delivery_jobs SET status='ready',started_at=NULL WHERE id=$id");
     $event('arranged',['tracking_version'=>1,'payment_arrangement'=>'paid']);
     rejects(fn()=>$service->start($actor,$id,uuid5()),'start requires accepted assignment');
+    rejects(fn()=>$service->start($actor,$id,uuid5(),true),'combined start requires acceptance and handover');
     $acceptKey=uuid5();$service->accept($actor,$id,$acceptKey);$service->accept($actor,$id,$acceptKey);
     verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='driver_accepted'")->fetchColumn()===1,'accept is repeat safe');
     rejects(fn()=>$service->confirmPickup($actor,$id,uuid5()),'driver cannot invent front desk handover');
+    rejects(fn()=>$service->start($actor,$id,uuid5(),true),'combined start cannot invent front desk handover');
     $event('parcel_collected',['driver_id'=>3]);
     rejects(fn()=>$service->start($actor,$id,uuid5()),'start requires driver pickup confirmation');
     $service->confirmPickup($actor,$id,uuid5());$startKey=uuid5();$service->start($actor,$id,$startKey);$service->start($actor,$id,$startKey);
     verify($db->query("SELECT status FROM delivery_jobs WHERE id=$id")->fetchColumn()==='out_for_delivery','accepted and confirmed delivery starts');
     verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='started'")->fetchColumn()===1,'start retry records one timer event');
+    $db->exec("UPDATE delivery_jobs SET status='ready',started_at=NULL WHERE id=$id");
+    $db->exec("DELETE FROM delivery_events WHERE delivery_id=$id AND event_type IN ('driver_collection_confirmed','started')");
+    rejects(fn()=>$service->start(EmployeeDriverSession::actor($db,4),$id,uuid5(),true),'combined start rejects another driver');
+    $combined=uuid5();$service->start($actor,$id,$combined,true);$service->start($actor,$id,$combined,true);
+    foreach(['driver_collection_confirmed','started'] as $type)verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='$type'")->fetchColumn()===1,'combined start retry creates one '.$type);
+    verify($db->query("SELECT status FROM delivery_jobs WHERE id=$id")->fetchColumn()==='out_for_delivery','single action records collection and starts delivery');
     $db->exec("DELETE FROM delivery_events WHERE delivery_id=$id AND event_type NOT IN ('arranged')");$db->exec("UPDATE delivery_jobs SET version=10 WHERE id=$id");
     $rep=array_replace($fields,['recipient_type'=>'representative']);rejects(fn()=>new ProofSubmission($rep,['photo'=>$file],10,$policy),'representative requires relationship');
     $rep['relationship']='Recipient-authorized colleague';new ProofSubmission($rep,['photo'=>$file],10,$policy);verify(true,'representative relationship retained');
@@ -68,7 +76,7 @@ try{
     $event('parcel_collected',['driver_id'=>3]);$before=ProofContext::read($db,3,$id);verify(!$before['reason']&&!$before['arrival'],'eligible paid parcel is not automatically arrived');
     $submit=fn($version=10)=>new ProofSubmission($fields,['photo'=>$file],$version,$policy);
     $complete=fn($uuid,$proof,$who=null)=>$service->complete($who??$actor,$id,$uuid,null,['confirmed'=>true,'amount'=>'0','method'=>'already_paid','note'=>''],$proof);
-    rejects(fn()=>$complete(uuid5(),$submit()),'arrival required before completion');
+    $db->beginTransaction();try{$record=$submit()->record($db,$db->query("SELECT * FROM delivery_jobs WHERE id=$id")->fetch(),$actor);verify(isset($record['receipt']),'proof may be validated without a separate arrival event');}finally{$db->rollBack();}
     $arrivalKey=uuid5();$service->arrive($actor,$id,$arrivalKey,10);$service->arrive($actor,$id,$arrivalKey,10);verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='arrived'")->fetchColumn()===1,'arrival retry records one event');
     $ctx=ProofContext::read($db,3,$id);verify($ctx['version']===11&&$ctx['arrival']!==null,'arrival timestamp and version are recorded');
     rejects(fn()=>$complete(uuid5(),$submit(10)),'stale version rejected');
@@ -106,9 +114,11 @@ try{
     $db->exec("UPDATE ops_orders SET payment_status='unpaid',payment_method='Cash' WHERE id=$order");
     $event('arranged',['payment_arrangement'=>'cod']);$event('parcel_collected',['driver_id'=>3]);
     verify(ProofContext::read($db,3,$id)['reason']===null,'authorized unpaid COD can enter proof flow');
-    $service->arrive($actor,$id,uuid5(),20);$codProof=new ProofSubmission($fields,['signature'=>$signature],21,['evidence'=>'signature','representative'=>'relationship']);
+    $codProof=new ProofSubmission($fields,['signature'=>$signature],20,['evidence'=>'signature','representative'=>'relationship']);
+    rejects(fn()=>new ProofSubmission($fields,['photo'=>$file],20,['evidence'=>'signature','representative'=>'relationship']),'simplified completion still requires signature');
     $codKey=uuid5();$codPayment=['confirmed'=>true,'amount'=>'120.00','method'=>'Cash','note'=>''];
     $cod=$service->complete($actor,$id,$codKey,null,$codPayment,$codProof);$service->complete($actor,$id,$codKey,null,$codPayment,$codProof);
+    verify((int)$db->query("SELECT COUNT(*) FROM delivery_events WHERE delivery_id=$id AND event_type='arrived'")->fetchColumn()===0,'completion does not invent an arrival timestamp');
     verify($cod['status']==='awaiting_reconciliation','COD handover is physically complete but not financially reconciled');
     verify((int)$db->query("SELECT COUNT(*) FROM delivery_receipts WHERE delivery_id=$id")->fetchColumn()===1,'COD retry creates one recorded collection');
     verify((int)$db->query("SELECT SUM(order_goods_cents+delivery_fee_cents) FROM delivery_receipts WHERE delivery_id=$id")->fetchColumn()===12000,'actual recorded COD receipt is N$120');

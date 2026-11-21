@@ -64,7 +64,8 @@ final class DriverAssignments
         if($r['status']==='completed'&&$handoverProof&&!empty($r['completed_at'])&&(int)$r['pending_receipts']===0){$stage='done';$label='Delivered';$reason='';}
         elseif(in_array($r['status'],['delivered','awaiting_reconciliation','completed'],true)){$stage=$handoverProof?'done':'exception';$label=$handoverProof?'Delivered · reconciliation pending':'Handover unconfirmed';$reason=$handoverProof?'Customer handover is recorded; financial reconciliation remains separate. Do not deliver again.':'A completed status alone is not proof of customer handover.';}
         elseif($r['status']==='failed'){$label='Delivery exception';$reason='Contact dispatch about the failed or rescheduled delivery.';}
-        elseif(in_array($r['status'],['ready','out_for_delivery'],true)&&$picked){$stage='on_route';$label='Out for delivery';$reason='';}
+        elseif($r['status']==='out_for_delivery'&&$picked){$stage='on_route';$label='Out for delivery';$reason='';}
+        elseif($r['status']==='ready'&&$picked){$stage='to_collect';$label='Ready to start';$reason='';}
         elseif($r['status']==='ready'){$stage='to_collect';$label='At store';$reason='';}
         elseif($r['status']==='out_for_delivery'){$label='Pickup unconfirmed';$reason='Delivery was started, but shop handover to this driver is not recorded.';}
         if($r['source']==='partner'&&$stage==='to_collect'){$stage='exception';$label='Partner pickup unconfirmed';$reason='A verified partner pickup source is not available. This is not a collection from the Hambelela shop.';}

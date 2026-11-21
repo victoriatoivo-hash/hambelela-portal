@@ -6,9 +6,24 @@ release baseline before replacing anything. Backup and readback are mandatory.
 import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
-BASE = '3555e452d23b0f041ca0bb160580bad77fd9196b'
+BASE = '21c916e6911fec3a8afcab98643a512f4e1ba77b'
 FILES = [
+    'assets/css/driver-completion-dialog.css',
+    'assets/css/driver-proof-integration.css',
+    'assets/js/driver-proof-of-delivery.js',
+    'assets/js/driver-completion-dialog.js',
     'assets/js/driver-order-details.js',
+    'shared/delivery/DeliveryService.php',
+    'shared/delivery/CoreApi.php',
+    'shared/delivery/ProofContext.php',
+    'shared/delivery/ProofSubmission.php',
+    'shared/delivery/DriverAssignments.php',
+    'shared/delivery/DriverOrderDetails.php',
+    'shared/delivery/DriverOrderDetailsData.php',
+    'shared/delivery/proof/Helpers.php',
+    'shared/delivery/proof/View.php',
+    'shared/delivery/order-details/Content.php',
+    'shared/delivery/order-details/View.php',
 ]
 BACKUP = ROOT / 'driver-background-backup.zip'
 REPORT = ROOT / 'driver-background-report.json'
@@ -75,7 +90,7 @@ def main(deploy):
                 attempted.append(p);put(ftp,p,data)
             https=[]
             for p,data in wanted.items():
-                if not p.endswith('.js'):continue
+                if not p.endswith(('.js','.css')):continue
                 req=urllib.request.Request('https://portal.hambelelaorganic.com/'+p+'?v='+sha,headers={'Cache-Control':'no-cache','User-Agent':'Hambelela-Release-Verification/1.0'})
                 with urllib.request.urlopen(req,timeout=30) as r:
                     if r.status!=200 or digest(r.read())!=digest(data):raise RuntimeError('HTTPS asset mismatch: '+p)

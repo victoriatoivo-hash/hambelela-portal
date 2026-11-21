@@ -19,11 +19,12 @@ try{
             if((string)($_POST['actor']??'')!==(string)$driverId)throw new DomainException('Account changed. Reload before continuing.');
             $action=$_POST['action']??null;
             if(!is_string($action)||!in_array($action,['accept','confirm_pickup','start'],true))throw new DomainException('Unsupported delivery action.');
+            if($action==='start'&&($_POST['parcels_received']??'')!=='1')throw new DomainException('Confirm that you have received the parcels and are leaving.');
             require_once __DIR__.'/CoreApi.php';
             $source=null;
             if(!$local){require_once BASE_PATH.'/shared/woocommerce.php';$source=static fn($path)=>wc_get($path,[],8);}
             $methods=function_exists('ops_payment_method_map')?ops_payment_method_map():['Cash'=>'Cash','EFT'=>'EFT'];
-            $result=(new \Hambelela\Delivery\CoreApi(db(),$methods,$source))->command($actor,['id'=>$assignmentId,'action'=>$action,'uuid'=>is_string($_POST['request_id']??null)?$_POST['request_id']:'']);
+            $result=(new \Hambelela\Delivery\CoreApi(db(),$methods,$source))->command($actor,['id'=>$assignmentId,'action'=>$action,'parcels_received'=>$action==='start','uuid'=>is_string($_POST['request_id']??null)?$_POST['request_id']:'']);
             \Hambelela\Delivery\NotificationOutbox::attempt(db());
             echo json_encode(['ok'=>true,'driverId'=>$driverId,'assignmentId'=>$assignmentId,'result'=>$result],JSON_THROW_ON_ERROR);return;
         }catch(DomainException $e){http_response_code(409);echo json_encode(['ok'=>false,'error'=>$e->getMessage()],JSON_THROW_ON_ERROR);return;}

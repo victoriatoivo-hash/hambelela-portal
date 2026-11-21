@@ -1,17 +1,17 @@
 (() => {
   'use strict';
-  const root = document.querySelector('[data-proof]'); if (!root) return;
-  const $ = id => document.getElementById(id);
-  document.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
-  document.querySelectorAll('[data-hd-dialog]').forEach(b => b.addEventListener('click', () => $('hd-' + b.dataset.hdDialog).showModal()));
+  window.hambelelaInitProof = (root,onComplete) => {
+  const $ = id => root.querySelector('#'+id);
+  root.querySelectorAll('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+  root.querySelectorAll('[data-hd-dialog]').forEach(b => b.addEventListener('click', () => $('hd-' + b.dataset.hdDialog).showModal()));
   const form = $('proof-form'); if (!form) return;
-  let signature = null, photoUrl = null, signatureUrl = null, dirty = false, busy = false, requestId = null, arrivalId = null;
+  let signature = null, photoUrl = null, signatureUrl = null, dirty = false, busy = false, requestId = null;
   const feedback = text => { $('proof-feedback').textContent = text; $('proof-feedback').hidden = !text; };
   const changed = () => {dirty = true; requestId = null;};
   form.addEventListener('input', changed);
-  document.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => {
+  root.querySelectorAll('[data-type]').forEach(b => b.addEventListener('click', () => {
     form.elements.recipient_type.value = b.dataset.type;
-    document.querySelectorAll('[data-type]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    root.querySelectorAll('[data-type]').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
     const rep = b.dataset.type === 'representative'; $('representative-extra').hidden = !rep; form.elements.relationship.required = rep; changed();
   }));
   $('photo-tile').addEventListener('click', () => $('proof-photo').click());
@@ -39,7 +39,7 @@
   const recipientChanged=()=>{if(signature){$('signature-remove').click();feedback('Recipient changed. Please ask the actual recipient to sign again.');}};
   form.elements.recipient_name.addEventListener('input',recipientChanged);
   form.elements.relationship.addEventListener('input',recipientChanged);
-  document.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click',recipientChanged));
+  root.querySelectorAll('[data-type]').forEach(b=>b.addEventListener('click',recipientChanged));
   const validate = () => {
     if (!form.reportValidity()) return false;
     if (!form.elements.recipient_name.value.trim()) {feedback('Enter the actual recipient name.');return false;}
@@ -50,26 +50,29 @@
     if (!['one','both','signature'].includes(root.dataset.policy)) {feedback('Owner approval of the evidence policy is pending.');return false;}
     return true;
   };
-  form.addEventListener('submit', e => {e.preventDefault();if(busy||!validate())return;feedback('');$('confirmation-recipient').textContent='Received by '+form.elements.recipient_name.value.trim()+' · '+form.elements.recipient_type.value+(form.elements.relationship.required?' · '+form.elements.relationship.value.trim():'');$('proof-confirmation').showModal();});
-  async function send(action) {
-    if(busy)return;if(action==='complete'&&!validate())return;
+  form.addEventListener('submit', e => {e.preventDefault();send();});
+  async function send() {
+    if(busy||$('proof-submit').disabled||!validate())return;
     busy=true;const originalDisabled=$('proof-submit').disabled;
     // Freeze editable controls during upload; values were captured first.
-    const data=new FormData(form);data.set('action',action);
-    if(action==='complete'){requestId ||= crypto.randomUUID();data.set('request_id',requestId);if(signature)data.set('signature',signature,'signature.png');}
-    else {arrivalId ||= crypto.randomUUID();data.set('request_id',arrivalId);data.delete('photo');}
+    const data=new FormData(form);data.set('action','complete');
+    requestId ||= crypto.randomUUID();data.set('request_id',requestId);if(signature)data.set('signature',signature,'signature.png');
     const controls=[...form.querySelectorAll('input,button,select,textarea')];const disabled=controls.map(x=>x.disabled);controls.forEach(x=>x.disabled=true);
-    $('proof-approve').disabled=true;$('proof-confirmation').close();$('proof-transfer').textContent='Uploading and checking with the server…';feedback('');
+    $('proof-transfer').textContent='Uploading and checking with the server…';feedback('');
+    const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),30000);
     try {
-      const response=await fetch(root.dataset.endpoint,{method:'POST',body:data,credentials:'same-origin',cache:'no-store',headers:{Accept:'application/json'}});
+      const response=await fetch(root.dataset.endpoint,{method:'POST',body:data,credentials:'same-origin',cache:'no-store',signal:controller.signal,headers:{Accept:'application/json'}});
       const text=await response.text();let result;try{result=JSON.parse(text);}catch{throw new Error('No confirmation received. Check your connection or sign-in, then retry.');}
       if(!response.ok||!result.ok)throw new Error(result.error||'Delivery was not confirmed.');
-      dirty=false;$('proof-transfer').textContent=action==='complete'?'Server confirmed. Opening your saved receipt…':'Arrival saved.';
-      location.replace(root.dataset.endpoint);
-    }catch(e){feedback(e.message);$('proof-transfer').textContent='Not confirmed on this screen. Evidence is still local. Retry uses the same request ID; refresh checks for a saved receipt.';}
-    finally{busy=false;controls.forEach((x,i)=>x.disabled=disabled[i]);$('proof-submit').disabled=originalDisabled;$('proof-approve').disabled=false;}
+      dirty=false;$('proof-transfer').textContent='Server confirmed. Delivery saved.';
+      if(onComplete)onComplete();
+      else location.replace(root.dataset.endpoint);
+    }catch(e){feedback(e.name==='AbortError'?'No server confirmation received yet. Check the delivery status before retrying.':e.message);$('proof-transfer').textContent='Not confirmed on this screen. Evidence is still local. Retry uses the same request ID; refresh checks for a saved receipt.';}
+    finally{clearTimeout(timeout);busy=false;controls.forEach((x,i)=>x.disabled=disabled[i]);$('proof-submit').disabled=originalDisabled;}
   }
-  $('proof-approve').addEventListener('click', () => send('complete'));
-  $('proof-arrive')?.addEventListener('click', () => {if(dirty){feedback('Record arrival before attaching proof; arrival refreshes this screen. Your unsent form has not been discarded.');return;}send('arrive');});
-  window.addEventListener('beforeunload', e => {if(dirty||busy){e.preventDefault();e.returnValue='';}});
+  const beforeUnload=e=>{if(dirty||busy){e.preventDefault();e.returnValue='';}};
+  window.addEventListener('beforeunload',beforeUnload);
+  return {canClose(){if(busy){feedback('Please wait for the server confirmation before closing.');return false;}return !dirty||window.confirm('Discard the unsent signature and payment details?');},dispose(){window.removeEventListener('beforeunload',beforeUnload);if(photoUrl)URL.revokeObjectURL(photoUrl);if(signatureUrl)URL.revokeObjectURL(signatureUrl);root.querySelectorAll('dialog[open]').forEach(d=>d.close());}};
+  };
+  const root=document.querySelector('[data-proof]');if(root)window.hambelelaInitProof(root);
 })();
