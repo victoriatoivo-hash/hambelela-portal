@@ -1,10 +1,10 @@
-# Admin Driver Operations final integration — 21 November 2026
+# Admin Driver Operations final integration — 22 November 2026
 
 ## State
 
 Production deployment is authorized by the owner's final release brief, but **not performed**. No production files, schema or business records were changed in this integration pass.
 
-Release is blocked by expired hosting authentication. A fresh private production database backup and the reviewed proof-review migration must be completed before publication. The cPanel sign-in tab is open for the owner; credentials must not be sent in chat.
+Hosting authentication has been restored. The release is being prepared; a fresh private production database backup and the reviewed proof-review migration must be completed before publication. Credentials must not be sent in chat.
 
 ## Reused verification
 
@@ -47,3 +47,11 @@ PR stack: #134 proof viewer, #135 dashboard, #136 read-only viewer and final int
 Intended production entry (not yet deployed by this task): `/apps/operations/driver-operations-dashboard.php`.
 
 No production smoke-test success or deployment confirmation is claimed.
+
+## Guarded release preparation
+
+The established `Deploy approved portal change` workflow on `codex/driver-background-updates` now calls the exact-file admin release helper. It checks the approved SHA and all 31 runtime paths against the last live baseline. It refuses unknown live changes without copying their source into public logs.
+
+The first invocation stages a known-source code backup and CLI-only migration helper inside the already protected release directory. No runtime changes occur. The authorized cPanel terminal then creates a database backup outside the web root, verifies its completion and checksum, saves a private code backup, and applies only migration 014. A receipt gates the second invocation, which reuses atomic file replacement, HTTPS asset checksum verification and runtime rollback. Database content never leaves hosting. Retain the append-only review table if runtime rollback is needed.
+
+Existing implementation/integration results are reused. The release job checks syntax and the 22-check read-only bridge; it does not restart the full 12-screen audit.
