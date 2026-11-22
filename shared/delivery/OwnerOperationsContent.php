@@ -14,12 +14,12 @@ $icon=static function($name){$paths=['users'=>'<circle cx="9" cy="7" r="3"/><pat
 <?php endforeach?>
 </section>
 <section class="ho-card ho-issues"><div class="ho-panel-header"><h2>Open Issues</h2><button type="button" class="ho-link" data-filter="issues">Deliveries →</button></div><div class="ho-issue-list" id="operations-issues"><p>Loading reports…</p></div><p class="ho-footnote"><a class="ho-link" href="<?=$escape($base)?>/apps/delivery/index.php?errands=1">Open errand reviews →</a></p></section>
-<section class="ho-card ho-drivers"><div class="ho-panel-header"><h2>Live Drivers</h2><span class="ho-muted" id="driver-count">Duty unverified</span></div><div class="ho-driver-row" id="operations-drivers"></div></section>
+<section class="ho-card ho-drivers"><div class="ho-panel-header"><h2>Live Drivers</h2><span class="ho-muted" id="driver-count">Duty unverified</span><a class="ho-link" id="operations-owner-view" href="<?=$escape($base)?>/apps/operations/view-as-driver.php">View as Driver</a></div><div class="ho-driver-row" id="operations-drivers"></div></section>
 <section class="ho-card ho-actions"><div class="ho-panel-header"><h2>Quick Actions</h2></div><div class="ho-action-grid">
 <a class="ho-action" href="<?=$escape($base)?>/apps/delivery/workspace.php"><?=$icon('box')?>Assign Delivery</a>
 <a class="ho-action" href="<?=$escape($base)?>/apps/delivery/workspace.php" aria-describedby="quick-action-note"><?=$icon('users')?>Reassign Driver</a>
 <button class="ho-action" type="button" disabled aria-describedby="quick-action-note"><?=$icon('alert')?><span>Log an Issue<small>Driver-only</small></span></button>
-<a class="ho-action" href="<?=$escape($base)?>/apps/delivery/index.php?cash=1"><?=$icon('cash')?>Cash Handover Records</a>
+<a class="ho-action" href="<?=$escape($base)?>/apps/operations/bookkeeping.php"><?=$icon('cash')?>Cash Handover Records</a>
 </div><details class="ho-footnote"><summary>Workflow availability</summary><p id="quick-action-note">Choose an eligible delivery, then Edit / reschedule to reassign with a reason. New issue reports are driver-only; owners can respond to existing reports. Cash Book posting remains manual.</p></details></section>
 <section class="ho-card ho-deliveries" id="delivery-table"><div class="ho-delivery-toolbar"><h2>Delivery Operations</h2><button type="button" class="ho-export" id="export-deliveries">Export CSV</button><div class="ho-tabs" role="group" aria-label="Filter deliveries">
 <?php foreach(['all'=>'All','onroute'=>'On Route','delivered'=>'Delivered','issues'=>'Issues'] as $key=>$label):?><button type="button" class="ho-tab <?=$key==='all'?'active':''?>" data-filter="<?=$key?>" aria-pressed="<?=$key==='all'?'true':'false'?>"><?=$label?> <span data-count="<?=$key?>">—</span></button><?php endforeach?>

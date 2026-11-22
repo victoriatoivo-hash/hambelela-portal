@@ -18,44 +18,23 @@ jobs:
         with: {fetch-depth: 0}
       - uses: shivammathur/setup-php@v2
         with: {php-version: '7.4', extensions: mbstring, coverage: none}
-      - name: Targeted background update and privacy checks
+      - name: Verify exact admin release and read-only bridge
         run: |
-          npm install --prefix "$RUNNER_TEMP/refresh-tests" --ignore-scripts --no-audit --no-fund jsdom@24.1.3
-          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-background-updates.cjs
-          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-driver-action-submit.cjs
-          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-three-step-client.cjs
-          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-proof-mobile-inputs.cjs
-          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-delivery-card-actions.cjs
-          git diff --name-only 21c916e6911fec3a8afcab98643a512f4e1ba77b HEAD -- shared/delivery | grep '\.php$' | while read -r file; do php -l "$file" || exit 1; done
-          node offline-driver/test-dashboard-privacy.cjs
-          node offline-driver/test-deliveries-refresh.cjs
-          node offline-driver/test-order-details-refresh.cjs
-          node offline-driver/test-live-route-refresh.cjs
-          node offline-driver/test-route-map-client.cjs
-          node offline-driver/test-route-nearby-client.cjs
-          node offline-driver/test-app-activity.cjs
-          node offline-driver/test-errand-client.cjs
-          node offline-driver/test-issue-client.cjs
-          node offline-driver/test-dispatch-client.cjs
-          node offline-driver/test-cash-client.cjs
-          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-bookkeeping-handovers.cjs
-          NODE_PATH="$RUNNER_TEMP/refresh-tests/node_modules" node offline-driver/test-more-menu.cjs
-          php offline-driver/test-handover-payment-details.php
-          node offline-driver/test-notifications-client.cjs
-          node offline-driver/test-profile-client.cjs
+          node tests/owner-view/bridge.cjs
+          APPROVED_SHA="${{ inputs.approved_sha }}" python3 scripts/release-admin-driver.py
       - name: Back up, publish exact delta and verify HTTPS assets
         env:
           APPROVED_SHA: ${{ inputs.approved_sha }}
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-        run: python3 scripts/release-driver-background.py --deploy
+        run: python3 scripts/release-admin-driver.py --deploy
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: driver-background-recovery-${{ github.run_id }}
+          name: admin-driver-recovery-${{ github.run_id }}
           path: |
-            driver-background-backup.zip
-            driver-background-report.json
+            admin-driver-code-backup.zip
+            admin-driver-report.json
           if-no-files-found: warn
           retention-days: 90
