@@ -216,6 +216,7 @@
       const response = await fetch(`reports-data.php?${params}`, { headers: { Accept: 'application/json' } });
       const data = await readKpiJson(response);
       latest = data;
+      document.dispatchEvent(new CustomEvent('pc:business-data', { detail: data }));
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
