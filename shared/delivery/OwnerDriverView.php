@@ -100,7 +100,14 @@ final class OwnerDriverView
             case 'profile':$out=(new DriverProfileData($this->db))->read($driver);break;
             case 'cash':$out=(new DriverRecordedHandover($this->db))->summary($driver);$out['unread_notifications']=DriverInbox::feed($this->db,$actor)['counts']['all'];break;
             case 'map':$out=DriverLiveRouteData::read($this->db,$driver);break;
-            case 'details':$id=self::id($p['id']??null);$this->job($driver,$id);$out=DriverOrderDetailsData::read($this->db,$driver,$id);break;
+            case 'details':
+                $id=self::id($p['id']??null);$job=$this->job($driver,$id);
+                // The owner may inspect historical assignments already authorized above.
+                // Select the saved scheduling day, not today's driver queue. This is a
+                // read-only projection of current records, not a change to driver eligibility.
+                $day=\DateTimeImmutable::createFromFormat('!Y-m-d',(string)$job['scheduled_date'],new \DateTimeZone('Africa/Windhoek'));
+                if(!$day||$day->format('Y-m-d')!==$job['scheduled_date'])throw new \RuntimeException('Assignment date unavailable.',404);
+                $out=DriverOrderDetailsData::read($this->db,$driver,$id,$day);break;
             case 'errands':$out=ErrandData::board($this->db,$driver);if(!empty($p['id']))$out['focus']=ErrandData::detail($this->db,$driver,self::id($p['id']));break;
             case 'messages':$after=isset($p['after'])?max(0,(int)$p['after']):0;$before=isset($p['before'])?max(0,(int)$p['before']):0;$out=(new DispatchChat($this->db))->feed($driver,0,$after,$before);break;
             case 'notifications':$out=$this->notifications($driver,$p);break;
