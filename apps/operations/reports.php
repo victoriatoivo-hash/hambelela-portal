@@ -22,6 +22,8 @@ $extraStylesheets = $tab === 'business-health' ? [[
     'path' => 'assets/css/performance-dashboard.css',
     'version' => is_file(BASE_PATH . '/assets/css/performance-dashboard.css') ? (string) filemtime(BASE_PATH . '/assets/css/performance-dashboard.css') : '1',
 ]] : [];
+$extraStylesheets[] = ['path'=>'assets/css/performance-command-v2.css','version'=>is_file(BASE_PATH.'/assets/css/performance-command-v2.css')?(string)filemtime(BASE_PATH.'/assets/css/performance-command-v2.css'):'1'];
+$hidePortalSidebar = true;
 $ready = ops_database_ready();
 $message = '';
 $messageType = 'success';
@@ -258,6 +260,7 @@ if ($ready && $tab === 'settings') {
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/performance-command-rail.php';
 ?>
 <main id="<?= $tab === 'business-health' ? 'kpi-management' : ($tab === 'performance-reports' ? 'kpi-reports' : ($tab === 'business-activity' ? 'kpi-business-timeline-page' : 'kpi-management')) ?>" class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
     <section class="module-header">
@@ -287,6 +290,41 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div>
         <div class="ops-alert error" data-kpi-error hidden role="alert"></div>
+
+        <section class="pc-command-top" aria-label="Performance Command Centre">
+            <header class="pc-command-head">
+                <div><h2>Performance Command Centre</h2><p>Operational results, work-in-progress and management priorities based on live reporting evidence.</p></div>
+                <span class="pc-source-note" data-pc-refresh-time>Loading evidence…</span>
+            </header>
+            <div class="pc-command-grid">
+                <article class="pc-graphic-card pc-score-card">
+                    <h3>Operational Health</h3><p class="pc-subtitle">Measured categories only · not a full business score</p>
+                    <div class="pc-score-ring" data-pc-score-ring style="--pc-score:0"><div class="pc-score-ring__inner"><strong data-pc-score>—</strong><span>Operational score</span></div></div>
+                    <p class="pc-score-foot" data-pc-score-status>Loading verified operational evidence…</p>
+                </article>
+                <article class="pc-graphic-card pc-flow-card">
+                    <h3>Order Journey</h3><p class="pc-subtitle">Current reporting-period order statuses</p>
+                    <div class="pc-flow-stages" data-pc-stages aria-live="polite"><span class="pc-runtime-note">Loading order stages…</span></div>
+                    <div class="pc-flow-progress"><span data-pc-complete-track><i></i></span><b data-pc-complete>—</b></div>
+                    <p class="pc-subtitle" data-pc-complete-note>Loading completion ratio…</p>
+                </article>
+                <aside class="pc-graphic-card pc-action-card">
+                    <h3>Action Centre</h3><p class="pc-subtitle">Exceptions from existing performance evidence</p>
+                    <div class="pc-action-list" data-pc-action-list aria-live="polite"><p class="pc-runtime-note">Loading items requiring attention…</p></div>
+                    <div class="pc-action-quick"><a href="orders-board.php">View orders</a><a href="checklists.php">View tasks</a><a href="reports.php?tab=business-activity">Activity timeline</a></div>
+                </aside>
+            </div>
+            <section class="pc-role-strip" aria-label="Role-relative team workload">
+                <header class="pc-role-strip__header"><h3>Team Workload &amp; Performance</h3><small data-pc-team-count>Loading employees…</small></header>
+                <div class="pc-role-people" data-pc-team aria-live="polite"></div>
+            </section>
+            <div class="pc-command-secondary">
+                <a class="pc-mini-card" href="reports.php?tab=orders"><span class="pc-mini-icon"><i data-lucide="shopping-cart"></i></span><b>Orders &amp; Fulfilment</b><small data-pc-work-count>Loading…</small></a>
+                <a class="pc-mini-card" href="<?= BASE_URL ?>/apps/marketing/index.php?view=performance"><span class="pc-mini-icon"><i data-lucide="megaphone"></i></span><b>Marketing Performance</b><small>Open marketing reports and evidence</small></a>
+                <a class="pc-mini-card" href="<?= BASE_URL ?>/apps/delivery/index.php"><span class="pc-mini-icon"><i data-lucide="truck"></i></span><b>Deliveries</b><small>View active and outstanding deliveries</small></a>
+                <a class="pc-mini-card" href="#kpi-business-errors"><span class="pc-mini-icon"><i data-lucide="shield-alert"></i></span><b>Business Quality</b><small data-pc-error-count>Loading…</small></a>
+            </div>
+        </section>
         <header class="kpi-dashboard-section-head"><div><p>Business overview</p><h2>Business Health</h2></div><span>What is working, what is outstanding and what needs attention</span></header>
         <section class="kpi-management-story" data-kpi-management-story aria-live="polite"></section>
         <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
@@ -294,7 +332,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <article class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Order fulfilment</p><h2>Operational completion</h2></div><small>Authoritative order records and status history</small></div><div data-kpi-orders-overview></div></article>
             <article class="kpi-health-panel kpi-dashboard-risk"><div class="kpi-panel-heading"><div><p class="eyebrow">Risks and exceptions</p><h2>Needs attention</h2></div></div><div class="kpi-attention-list" data-kpi-attention></div></article>
         </section>
-        <section class="kpi-health-panel kpi-business-errors-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Business quality</p><h2>Business-Attributed Errors</h2></div><small>Business responsibility only — never charged to an employee</small></div><div data-kpi-business-errors></div></section>
+        <section id="kpi-business-errors" class="kpi-health-panel kpi-business-errors-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Business quality</p><h2>Business-Attributed Errors</h2></div><small>Business responsibility only — never charged to an employee</small></div><div data-kpi-business-errors></div></section>
         <section class="kpi-chart-grid">
             <article class="kpi-health-panel kpi-orders-sales-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Daily activity</p><h2>Orders and Paid Sales</h2></div><small>Order count and paid sales are shown separately</small></div><div class="kpi-orders-sales-summary" data-kpi-orders-sales-summary></div><div class="kpi-orders-sales-charts"><section><h3>Order Volume</h3><p>Number of orders created each day</p><div class="kpi-chart-frame"><canvas data-kpi-order-volume-chart></canvas></div></section><section><h3>Paid Sales Value</h3><p>Paid order value received each day</p><div class="kpi-chart-frame"><canvas data-kpi-paid-sales-chart></canvas></div></section></div></article>
             <article class="kpi-health-panel kpi-physical-output-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Measured packing output</p><h2>Physical Packing Output by Employee</h2></div><div class="kpi-chart-toggle"><button type="button" class="active" data-kpi-chart-mode="items">Items</button><button type="button" data-kpi-chart-mode="weight">Weight (kg)</button><button type="button" data-kpi-chart-mode="volume">Volume (L)</button><button type="button" data-kpi-chart-mode="packages">Packages</button><button type="button" data-kpi-chart-mode="units">Units</button></div></div><div class="kpi-chart-context" data-kpi-packing-context>Completed packing items by employee and completion date.</div><div class="kpi-physical-output-summary" data-kpi-physical-output-summary></div><div class="kpi-chart-frame"><canvas data-kpi-packing-chart></canvas></div></article>
@@ -371,4 +409,5 @@ include BASE_PATH . '/shared/sidebar.php';
         </section>
     <?php endif; ?>
 </main>
-<?php include BASE_PATH . '/shared/footer.php'; ?>
+<?php <script defer src="<?= BASE_URL ?>/assets/js/performance-command-v2.js?v=<?= is_file(BASE_PATH.'/assets/js/performance-command-v2.js') ? (int) filemtime(BASE_PATH.'/assets/js/performance-command-v2.js') : 1 ?>"></script>
+include BASE_PATH . '/shared/footer.php'; ?>
