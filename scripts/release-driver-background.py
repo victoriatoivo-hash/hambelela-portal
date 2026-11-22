@@ -3,7 +3,7 @@
 Uses the existing portal deployment credentials and verifies the installed driver
 release baseline before replacing anything. Backup and readback are mandatory.
 """
-import argparse, ftplib, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile
+import argparse, ftplib, gzip, hashlib, io, json, os, pathlib, socket, ssl, subprocess, urllib.request, zipfile, zlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 BASE = '1b46951b5a258e2c3adde3487b9f7caf0e6ad205'
@@ -75,19 +75,25 @@ def main(deploy):
         with zipfile.ZipFile(BACKUP) as z:
             if z.testzip(): raise RuntimeError('Backup integrity failure')
         state['backup_sha256']=hashlib.sha256(BACKUP.read_bytes()).hexdigest();state['state']='backed-up';report()
-        attempted=[]
+        attempted=[];https=[]
         try:
             for p,data in wanted.items():
-                if digest(before[p])==digest(data):continue
-                # Recheck immediately before write to avoid overwriting a concurrent release.
-                if digest(read(ftp,p))!=digest(before[p]):raise RuntimeError('Concurrent live change: '+p)
-                attempted.append(p);put(ftp,p,data)
-            https=[]
-            for p,data in wanted.items():
+                if digest(before[p])!=digest(data):
+                    # Recheck immediately before write to avoid overwriting a concurrent release.
+                    if digest(read(ftp,p))!=digest(before[p]):raise RuntimeError('Concurrent live change: '+p)
+                    attempted.append(p);put(ftp,p,data)
+                # Assets come first in the admin manifest. Verify before publishing PHP/navigation.
                 if not p.endswith(('.js','.css')):continue
-                req=urllib.request.Request('https://portal.hambelelaorganic.com/'+p+'?v='+sha,headers={'Cache-Control':'no-cache','User-Agent':'Hambelela-Release-Verification/1.0'})
+                req=urllib.request.Request('https://portal.hambelelaorganic.com/'+p+'?v='+sha,headers={'Cache-Control':'no-cache','Accept-Encoding':'identity','User-Agent':'Hambelela-Release-Verification/1.0'})
                 with urllib.request.urlopen(req,timeout=30) as r:
-                    if r.status!=200 or digest(r.read())!=digest(data):raise RuntimeError('HTTPS asset mismatch: '+p)
+                    body=r.read();encoding=(r.headers.get('Content-Encoding') or '').lower()
+                    if encoding=='gzip':body=gzip.decompress(body)
+                    elif encoding=='deflate':body=zlib.decompress(body)
+                    elif encoding not in ('','identity'):raise RuntimeError('Unexpected HTTP content encoding: '+encoding)
+                    if r.status!=200 or digest(body)!=digest(data):
+                        # Diagnostic metadata only, never HTTP bodies/customer data in public logs.
+                        print(json.dumps({'asset':p,'http_status':r.status,'content_type':r.headers.get('Content-Type'),'content_encoding':encoding,'received_bytes':len(body),'received_sha256':digest(body),'expected_sha256':digest(data),'final_url':r.url}),flush=True)
+                        raise RuntimeError('HTTPS asset mismatch: '+p)
                 https.append(p)
             state.update(state='deployed-verified',changed=attempted,https_verified=https,after={p:digest(v) for p,v in wanted.items()});report()
             print(json.dumps(state,indent=2))
