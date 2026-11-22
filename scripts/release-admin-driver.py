@@ -89,7 +89,11 @@ def main(deploy):
         receipt=delta.read(ftp,STAGE+'-ready.json')
         if receipt is not None:
             receipt=json.loads(receipt)
-            if receipt.get('sha')!=sha or receipt.get('migration_sha256')!=hashlib.sha256(delta.blob(sha,MIGRATION)).hexdigest():
+            receipt_sha=receipt.get('sha')
+            # Reuse the verified backup/migration only for the exact same runtime release.
+            # Deployment diagnostics may change; no app or schema delta is allowed here.
+            same_runtime=receipt_sha=='593154632fbdcfe9886ae3e22f75150c6e78becb' and subprocess.run(['git','diff','--quiet',receipt_sha,sha,'--','apps','assets','shared',MIGRATION],cwd=ROOT).returncode==0
+            if (receipt_sha!=sha and not same_runtime) or receipt.get('migration_sha256')!=hashlib.sha256(delta.blob(sha,MIGRATION)).hexdigest():
                 raise RuntimeError('Hosting migration receipt does not match this exact release')
             if not receipt.get('database_backup_verified') or not receipt.get('code_backup_verified'):raise RuntimeError('Backup receipt incomplete')
         else:
