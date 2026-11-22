@@ -11,6 +11,13 @@ spec = importlib.util.spec_from_file_location('delta', ROOT/'scripts/release-dri
 delta = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(delta)
 BASE = '1f4fe6648f414a23d5b9e94051a8a1a603a37a29'
+REVIEWED_LIVE = {
+ # Existing public commit adb33963: retain the installed parcel-confirmation wording.
+ 'assets/js/delivery-core.js': '5816432c9ecee68a7aa8a9a9f72e2c6201f2b75134c9f8421d38cee6519fd5b1',
+ 'assets/js/driver-delivery-ui.js': '7be050618222894943927a7bf50dd406cca9634a8318f6152991bf9a55c550d4',
+ # Existing public commit 38e9ebc3: keep settings, marketing restrictions and badges.
+ 'shared/ess-navigation.php': '35bf664f8663b225b6ac2f282a8254442c6065c4cb18f22e688e9e158b61ea0c',
+}
 # Dependencies first; owner entry points and navigation last.
 FILES = [
  'assets/css/driver-admin-operations.css',
@@ -69,10 +76,16 @@ def main(deploy):
         rules=delta.read(ftp,'.driver-release-staging/.htaccess') or b''
         if b'Require all denied' not in rules or b'Deny from all' not in rules:raise RuntimeError('Protected staging unavailable')
         before={p:delta.read(ftp,p) for p in FILES}
+        unknown=[]
         for p,b in before.items():
-            if delta.digest(b) not in (delta.digest(delta.blob(BASE,p)),delta.digest(delta.blob(sha,p))):
-                # Hashes only: never disclose unreviewed live source to public logs.
-                raise RuntimeError('Live baseline requires review: '+p+' sha256='+str(delta.digest(b)))
+            if delta.digest(b) not in (REVIEWED_LIVE.get(p,delta.digest(delta.blob(BASE,p))),delta.digest(delta.blob(sha,p))):
+                # Hashes and existing public commit IDs only; no unreviewed live source.
+                refs=subprocess.check_output(['git','log','--all','--format=%H','--',p],cwd=ROOT,text=True).splitlines()
+                matches=[r for r in refs if delta.digest(delta.blob(r,p))==delta.digest(b)]
+                unknown.append({'path':p,'sha256':delta.digest(b),'repository_matches':matches})
+        if unknown:
+            print(json.dumps({'unknown_live_baselines':unknown},indent=2))
+            raise RuntimeError('Live baseline review required; nothing changed')
         receipt=delta.read(ftp,STAGE+'-ready.json')
         if receipt is not None:
             receipt=json.loads(receipt)
@@ -96,7 +109,7 @@ def main(deploy):
             (ROOT/'admin-driver-report.json').write_text(json.dumps(report,indent=2))
             print(json.dumps(report,indent=2));return
     # Reuse atomic writes, guarded preflight, backup, HTTPS checks and rollback.
-    delta.BASE=BASE;delta.FILES=FILES
+    delta.BASE=BASE;delta.FILES=FILES;delta.REVIEWED_LIVE=REVIEWED_LIVE
     delta.BACKUP=ROOT/'admin-driver-code-backup.zip';delta.REPORT=ROOT/'admin-driver-report.json'
     delta.main(True)
 
