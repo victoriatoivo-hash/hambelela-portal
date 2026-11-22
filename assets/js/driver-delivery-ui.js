@@ -56,12 +56,14 @@
    (j.started_at?'<div class="df-trip">'+icon('truck')+'<div><span>'+(ip?'Delivery in Progress':'Delivery time')+'</span><time data-driver-timer="'+Number(j.id)+'">'+elapsed(j)+'</time><small title="'+esc(stamp(j.started_at))+'">Started at '+esc(stamp(j.started_at).split(', ').pop())+'</small></div><button type="button" data-trip-history aria-label="Show delivery timing and history">'+icon('clock')+'</button></div>':'')+
    '');
   d.classList.add('df-details-sheet');const body=d.querySelector('.driver-app-sheet-body');
+  if(preview&&board.can_manage_access)body.insertAdjacentHTML('beforeend','<a class="driver-app-primary" href="/apps/operations/driver-delivery-details.php?delivery_id='+Number(j.id)+'">Owner proof viewer</a>');
   const status=document.createElement('button');status.type='button';status.className='df-stage df-badge df-'+(ip?'progress':j.status==='cancelled'?'cancel':'done');status.setAttribute('aria-label',title+' · Delivery options and history');status.innerHTML=(ip?icon('play'):'')+esc(title);d.querySelector('header').append(status);
   function more(){
    const extra=modal('Delivery options',panel('clock','Delivery history','<p>Completed: '+esc(stamp(j.delivered_at||j.completed_at))+'</p><ol>'+(j.history||[]).map(h=>'<li>'+esc(h.type.replaceAll('_',' '))+' · '+esc(stamp(h.at))+(h.note||h.reason?'<p>'+esc(h.note||h.reason)+'</p>':'')+'</li>').join('')+'</ol><small>Namibia time</small>')+
    ((j.receipts||[]).length?panel('note','Payment receipts',j.receipts.map(r=>'<p>'+esc(board.methods[r.payment_method]||r.payment_method)+' · '+money(Number(r.order_goods_cents)+Number(r.delivery_fee_cents)+Number(r.partner_cod_cents))+' · '+esc(r.status)+'</p>').join('')):'')+
    (!closed(j)&&!preview?'<div class="driver-app-actions">'+button('note','Add note',j,'note')+button('fail','Unable to deliver',j,'chevron')+'</div>':''));
    const extraBody=extra.querySelector('.driver-app-sheet-body');
+   if(preview&&board.can_manage_access)extraBody.insertAdjacentHTML('beforeend','<a class="driver-app-primary" href="/apps/operations/driver-delivery-details.php?delivery_id='+Number(j.id)+'">Delivery details &amp; proof audit</a>');
   if(j.declaration)extraBody.insertAdjacentHTML('beforeend','<p>Declared: '+money(j.declaration.declared_cents)+' · '+esc(j.declaration.declared_method)+(j.declaration.declaration_review?' · Difference '+money(j.declaration.difference_cents)+' — pending reconciliation':'')+'</p>');
    const back=document.createElement('button');back.type='button';back.className='driver-app-primary';back.textContent='Back to delivery';back.onclick=()=>details(j);extraBody.append(back);bind(extra);
   }
