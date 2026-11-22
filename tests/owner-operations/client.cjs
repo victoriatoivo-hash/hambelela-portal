@@ -1,0 +1,27 @@
+const fs=require('fs'),assert=require('assert'),{execFileSync}=require('child_process'),{JSDOM}=require('jsdom');
+const html=execFileSync('C:/Users/User/Documents/New project/_driver_php74_check/runtime/php.exe',['-n','tests/owner-operations/content.php'],{encoding:'utf8'});
+const dom=new JSDOM(html,{runScripts:'outside-only',url:'https://portal.test/apps/operations/driver-operations-dashboard.php'}),w=dom.window,d=w.document;
+w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};w.HTMLElement.prototype.scrollIntoView=function(){};
+const row={id:16,reference:'Order 123',customer:'<img src=x onerror=alert(1)>',driver:'Synthetic Driver',driver_id:3,status:'ready',payment:'Due N$ 20.00',proof:'Not recorded',proof_url:'/apps/operations/driver-delivery-details.php?delivery_id=16',workspace_url:'/apps/delivery/workspace.php?delivery=16',can_manage:true};
+const fixture=()=>({generated_at:'TEST TIME',business_date:'2026-11-21',summary:{active_deliveries:1,drivers_total:1,issues_today:1,issues_scope:'New reports today',cash:{available:true,recorded_unconfirmed_minor:17000,declarations_minor:0}},drivers:[{id:3,name:'Synthetic Driver',code:'D-3',active:1}],urgent_issues:[{id:16,reference:'Order 123',driver:'Synthetic Driver',reason:'Missing address',urgent:false,at:'TEST',url:'/apps/delivery/index.php?issue=16'}],deliveries:{rows:[{...row}],page:1,page_size:5,total:1,counts:{all:1,onroute:0,delivered:0,issues:1}},selected_route:null});
+let response=fixture(),failure=0,calls=[],interval;w.setInterval=f=>{interval=f;return 1};w.fetch=async(url,options)=>{calls.push({url,options});return {ok:!failure,status:failure||200,headers:{get:()=> 'application/json'},json:async()=>({ok:!failure,data:structuredClone(response),error:'Unavailable'})}};
+const tick=()=>new Promise(r=>setTimeout(r,0)),q=s=>d.querySelector(s);let n=0;const ok=(b,s)=>{assert(b,s);n++;console.log('PASS '+s)};
+(async()=>{
+ w.eval(fs.readFileSync('assets/js/driver-admin-operations.js','utf8'));await tick();
+ ok(q('#operations-rows').textContent.includes('<img'),'customer escaped as text');ok(!q('#operations-rows img'),'no injected HTML');ok(calls[0].options.credentials==='same-origin','authenticated read');ok(q('#metric-active').textContent==='1','live metric');
+ const first=q('#operations-rows tr');w.dispatchEvent(new w.Event('online'));await tick();ok(first===q('#operations-rows tr'),'unchanged rows not rebuilt on refresh');
+ q('[data-select]').checked=true;q('[data-select]').dispatchEvent(new w.Event('change',{bubbles:true}));ok(q('#export-deliveries').textContent==='Export selected (1)','selected export explained');
+ w.dispatchEvent(new w.Event('online'));await tick();ok(q('[data-select]').checked,'selection preserved by refresh');
+ q('[data-menu]').click();ok(q('#operations-menu').open,'accessible action dialog');ok(q('#operations-menu-content a').href.endsWith('delivery_id=16'),'canonical proof action');q('#close-operations-menu').click();ok(!q('#operations-menu').open,'dialog close');
+ q('[data-driver]').click();await tick();ok(calls.at(-1).url.includes('driver=3'),'driver filter server backed');ok(q('#active-filters').textContent.includes('Synthetic Driver'),'driver filter visible');
+ q('[data-filter=delivered]').click();await tick();ok(calls.at(-1).url.includes('tab=delivered'),'tab server backed');
+ q('#operations-sort').value='customer';q('#operations-sort').dispatchEvent(new w.Event('change'));await tick();ok(calls.at(-1).url.includes('sort=customer'),'sort server backed');
+ q('#operations-query').value='abc';q('#operations-search').dispatchEvent(new w.Event('submit',{cancelable:true}));await tick();ok(calls.at(-1).url.includes('q=abc'),'partial search request');
+ q('[data-metric=issues]').click();await tick();ok(calls.at(-1).url.includes('tab=reported')&&calls.at(-1).url.includes('driver=0'),'new report KPI resets unrelated filters');
+ failure=503;w.dispatchEvent(new w.Event('online'));await tick();ok(q('#operations-sync').textContent.includes('out of date'),'server failure marks stale');ok(q('#operations-rows tr')!==null,'stale rows retained not flashed');
+ w.dispatchEvent(new w.Event('offline'));ok(q('#operations-sync').textContent.includes('Offline'),'offline state explicit');
+ failure=0;response.deliveries.rows=[];response.deliveries.total=0;response.urgent_issues=[];w.dispatchEvent(new w.Event('online'));await tick();ok(q('#operations-rows').textContent.includes('No matching'),'empty state');
+ response=fixture();response.deliveries.rows[0].can_manage=false;response.deliveries.rows[0].status='completed';w.dispatchEvent(new w.Event('online'));await tick();ok(!q('#operations-issues').textContent.includes('No open'),'empty placeholder removed when reports return');q('[data-menu]').click();ok(q('#operations-menu-content').textContent.includes('Reassignment is not offered'),'completed actions restricted');q('#close-operations-menu').click();
+ failure=403;w.dispatchEvent(new w.Event('online'));await tick();ok(!q('#operations-rows').children.length&&!q('#operations-drivers').children.length,'revoked session clears private records');ok(q('#operations-sync').textContent.includes('permission changed'),'revocation explicit');
+ console.log('TOTAL '+n+' client checks passed');dom.window.close();
+})().catch(e=>{console.error(e);dom.window.close();process.exit(1)});
