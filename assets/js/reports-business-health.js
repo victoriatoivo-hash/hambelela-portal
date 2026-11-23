@@ -9,17 +9,7 @@
   const to = q('[data-kpi-to]');
   const custom = root.querySelectorAll('[data-kpi-custom]');
   const includeHistorical = q('[data-kpi-include-historical]');
-  const labels = { orders: 'Orders received', fulfilment: 'Average business-hours order completion', order_start_response: 'Average business-hours New to In Progress', walk_in_completion: 'Average business-hours walk-in completion', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'Completed within six elapsed hours', pack_speed: 'Average working-time packing turnaround', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
-  const compactLabels = { orders: 'Orders received', fulfilment: 'Order completion', order_start_response: 'Packing response', walk_in_completion: 'Walk-in completion', settlement: 'Payment settlement', final_closure: 'Final closure', dispatch: 'Completed within 6h', pack_speed: 'Packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence' };
-  const cardIcon = (key) => {
-    const paths = {
-      orders: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6M9 13h6M9 17h4"/>',
-      revenue: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 15h3"/>',
-      attendance: '<circle cx="9" cy="8" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3M17 5a3 3 0 0 1 0 6M21 21v-3a6 6 0 0 0-3-5"/>',
-      fulfilment: '<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
-    };
-    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${paths[key] || '<circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2M9 2h6M12 2v3"/>'}</svg>`;
-  };
+  const labels = { orders: 'Orders received', fulfilment: 'Average business-hours order completion', order_start_response: 'Average business-hours New to In Progress', walk_in_completion: 'Average business-hours walk-in completion', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'Completed within six elapsed hours', pack_speed: 'Average elapsed packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
   const palette = getComputedStyle(root);
   const colour = (name) => palette.getPropertyValue(name).trim();
   const money = (value) => `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -28,30 +18,9 @@
   let packingChart;
   let latest;
   let packingMode = 'items';
-  let requestVersion = 0;
-  let requestController;
-  let lastRenderKey = '';
-  let workloadController, workloadKey='', workloadAt=0, workloadVersion=0;
-  async function loadWorkload(selectedPeriod){
-    const target=q('[data-packer-business-workload]');if(!target)return;
-    const start=String(selectedPeriod.from).slice(0,10),end=String(selectedPeriod.to).slice(0,10),key=start+'|'+end;
-    if(key===workloadKey&&Date.now()-workloadAt<60000)return;
-    const changed=key!==workloadKey;workloadKey=key;workloadAt=Date.now();workloadController?.abort();workloadController=new AbortController();
-    const controller=workloadController,version=++workloadVersion;let timedOut=false;
-    const timer=setTimeout(()=>{timedOut=true;controller.abort();},20000);
-    if(changed)target.innerHTML='<div class="pw-panel"><h3>Workload &amp; Capacity</h3><p>Loading selected period…</p></div>';
-    target.setAttribute('aria-busy','true');
-    try{
-      const response=await fetch('kpi-packer-orders-preview.php?'+new URLSearchParams({team:'1',from:start,to:end}),{credentials:'same-origin',cache:'no-store',signal:controller.signal});
-      const data=await readKpiJson(response);if(version!==workloadVersion)return;
-      target.innerHTML=window.HambelelaPackerWorkload.render(data);
-    }catch(error){if(version!==workloadVersion||error.name==='AbortError'&&!timedOut)return;if(changed)target.innerHTML='<div class="pw-panel"><h3>Workload &amp; Capacity</h3></div>';target.querySelector('[data-workload-error]')?.remove();target.insertAdjacentHTML('afterbegin',`<p data-workload-error role="alert">${escapeHtml(timedOut?'Workload request timed out.':error.message)} Results have not refreshed. <button type="button" class="btn-secondary" data-workload-retry>Retry</button></p>`);}
-    finally{clearTimeout(timer);if(version===workloadVersion)target.removeAttribute('aria-busy');}
-  }
+  let loading = false;
 
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
-  const employeeScore = (person) => person.summary_score !== null && person.summary_score !== undefined && person.summary_score !== '' && Number.isFinite(Number(person.summary_score)) ? Number(person.summary_score) : null;
-  const employeeHref = (person) => `kpi-employee.php?id=${Number(person.id)}${person.performance_month ? `&month=${encodeURIComponent(person.performance_month)}` : ''}`;
   async function readKpiJson(response) {
     const raw = await response.text();
     if (!raw.trim()) throw new Error(`The performance server returned an empty response (${response.status}).`);
@@ -68,7 +37,7 @@
     return data;
   }
   const display = (metric) => {
-    if (!metric || metric.value == null || metric.value === '' || !Number.isFinite(Number(metric.value))) return '<span class="kpi-unmeasured" title="Not enough measured records in this period">—</span>';
+    if (!metric || metric.value === null) return '<span class="kpi-unmeasured" title="Not enough measured records in this period">—</span>';
     if (metric.format === 'currency') return `N$${Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
     if (metric.format === 'percent') return `${Number(metric.value).toFixed(1)}%`;
     if (metric.format === 'minutes') return formatDuration(Number(metric.value));
@@ -114,9 +83,9 @@
   function renderCards(cards) {
     q('[data-kpi-cards]').innerHTML = Object.entries(cards).map(([key, metric]) => {
       const improving = metric.delta !== null && (metric.lower_is_better ? metric.delta < 0 : metric.delta > 0);
-      const delta = metric.delta === null ? 'No comparison' : `${metric.delta > 0 ? '▲' : metric.delta < 0 ? '▼' : '•'} ${Math.abs(metric.delta)} vs prior`;
-      const badge = metric.low_data ? `<em class="kpi-low-data">Low data · n=${escapeHtml(metric.sample)}</em>` : `<em>n=${escapeHtml(metric.sample)}</em>`;
-      return `<article class="kpi-health-card kpi-measure-card" title="${escapeHtml(labels[key] || key)}"><i class="kpi-measure-icon">${cardIcon(key)}</i><div class="kpi-measure-copy"><span>${escapeHtml(compactLabels[key] || labels[key] || key)}</span><strong>${display(metric)}</strong><small class="${metric.delta === null || metric.delta === 0 ? '' : improving ? 'kpi-delta-good' : 'kpi-delta-bad'}">${escapeHtml(delta)}</small>${badge}</div></article>`;
+      const delta = metric.delta === null ? 'No comparison available' : `${metric.delta > 0 ? '▲' : metric.delta < 0 ? '▼' : '•'} ${Math.abs(metric.delta)} vs prior period`;
+      const badge = metric.low_data ? `<em class="kpi-low-data">Low data · n=${metric.sample}</em>` : `<em>n=${metric.sample}</em>`;
+      return `<article class="kpi-health-card"><span>${escapeHtml(labels[key] || key)}</span><strong>${display(metric)}</strong><small class="${metric.delta === null || metric.delta === 0 ? '' : improving ? 'kpi-delta-good' : 'kpi-delta-bad'}">${escapeHtml(delta)}</small>${badge}</article>`;
     }).join('');
   }
 
@@ -130,39 +99,29 @@
   }
 
   function renderAttention(items) {
-    q('[data-kpi-attention]').innerHTML = items.length ? items.map((item) => `<a class="kpi-attention-row" href="${escapeHtml(item.href)}"><span><strong>${escapeHtml(item.description)}</strong><small><em>${escapeHtml(item.severity || 'Normal')}</em>${item.overdue ? `Overdue ${escapeHtml(item.overdue)}` : 'Due date below'}</small><time>Due ${escapeHtml(activityTime(item.due_at))}</time></span><b aria-label="View evidence">↗</b></a>`).join('') : '<div class="kpi-empty-state">No tracked attention items. Other business risks may not yet be covered.</div>';
-  }
-
-  function activityTime(value) {
-    let stamp = String(value || '').replace(' ', 'T');
-    if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2})?$/.test(stamp)) stamp += '+02:00';
-    const date = new Date(stamp);
-    return Number.isNaN(date.getTime()) ? 'Not recorded' : date.toLocaleString('en-GB', { timeZone: 'Africa/Windhoek', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+    q('[data-kpi-attention]').innerHTML = items.length ? items.map((item) => `<a class="kpi-attention-row is-${escapeHtml(item.severity || 'normal')}" href="${escapeHtml(item.href)}"><span><strong>${escapeHtml(item.description)}</strong><small>${escapeHtml(item.severity || 'Normal')} · Due: ${escapeHtml(item.due_at || 'Not recorded')} · Overdue: ${escapeHtml(item.overdue || 'Not recorded')}</small></span><b>View Evidence</b></a>`).join('') : '<div class="kpi-empty-state">Nothing currently needs attention from 1 July 2026 onward.</div>';
   }
 
   function renderTeam(team) {
     q('[data-kpi-team]').innerHTML = team.length ? team.map((person) => {
-      const score = employeeScore(person);
-      const href = employeeHref(person);
-      return `<article class="kpi-person-overview is-${escapeHtml(person.card_type || 'employee')}"><header><div class="kpi-person-overview__identity"><span class="kpi-person-avatar">${escapeHtml(String(person.name || '?').trim().charAt(0).toUpperCase())}</span><div><h3>${escapeHtml(person.name)}</h3><p>${escapeHtml(person.role)} <i class="kpi-person-dot ${person.online ? 'online' : ''}"></i> ${person.online ? 'Online' : 'Offline'}</p></div></div><div class="kpi-person-overview__score"><small>${escapeHtml(person.summary_label || 'V2 monthly result')}</small><strong>${score === null ? escapeHtml(person.summary_empty || 'Not measured') : `${score.toFixed(1)}%`}</strong><span><i style="width:${score === null ? 0 : Math.max(0, Math.min(100,score))}%"></i></span></div></header><div class="kpi-person-overview__metrics">${(person.metrics || []).map((metric) => metric.rows ? `<div class="kpi-person-overview__metric-group" title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><dl>${metric.rows.map((row) => `<div><dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd></div>`).join('')}</dl></div>` : `<div title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? 'Not measured' : escapeHtml(metric.value)}</strong></div>`).join('')}</div><footer><span>${escapeHtml(person.summary_note || '')}</span><a href="${href}">Open full performance evidence <b>→</b></a></footer></article>`;
+      const score = person.summary_score !== null && person.summary_score !== undefined && person.summary_score !== '' && Number.isFinite(Number(person.summary_score)) ? Number(person.summary_score) : null;
+      const href = `kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}`;
+      return `<article class="kpi-person-overview is-${escapeHtml(person.card_type || 'employee')}"><header><div class="kpi-person-overview__identity"><span class="kpi-person-avatar">${escapeHtml(String(person.name || '?').trim().charAt(0).toUpperCase())}</span><div><h3>${escapeHtml(person.name)}</h3><p>${escapeHtml(person.role)} <i class="kpi-person-dot ${person.online ? 'online' : ''}"></i> ${person.online ? 'Online' : 'Offline'}</p></div></div><div class="kpi-person-overview__score"><small>${escapeHtml(person.summary_label || 'Role completion')}</small><strong>${score === null ? 'Not measured' : `${score.toFixed(1)}%`}</strong><span><i style="width:${score === null ? 0 : score}%"></i></span></div></header><div class="kpi-person-overview__metrics">${(person.metrics || []).map((metric) => metric.rows ? `<div class="kpi-person-overview__metric-group" title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><dl>${metric.rows.map((row) => `<div><dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd></div>`).join('')}</dl></div>` : `<div title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? '—' : escapeHtml(metric.value)}</strong></div>`).join('')}</div><footer><span>${person.hours_today === null ? 'No measured portal time today' : `${Number(person.hours_today).toFixed(1)} hours measured today`}</span><a href="${href}">Open full performance evidence <b>→</b></a></footer></article>`;
     }).join('') : '<div class="kpi-empty-state">No eligible employee performance evidence is available for this period.</div>';
   }
   function renderBusinessErrors(summary={}) {
     const target=q('[data-kpi-business-errors]'); if(!target)return;
     const rows=summary.types||[];
-    target.innerHTML=`<div class="kpi-business-errors-summary"><article><span>Total business errors</span><b>${Number(summary.total||0)}</b></article><article><span>Resolved</span><b>${Number(summary.resolved||0)}</b></article><article><span>Still open</span><b>${Number(summary.open||0)}</b></article><article><span>Recorded financial impact</span><b>${money(summary.financial_impact||0)}</b></article></div><div class="kpi-business-error-types">${rows.map(row=>`<article><div><strong>${escapeHtml(row.error_type||'Uncategorised')}</strong><small>${Number(row.resolved||0)} resolved · ${Number(row.open||0)} open</small></div><b>${Number(row.count||0)}</b><span>${money(row.financial_impact||0)}</span></article>`).join('')||'<div class="kpi-empty-state">No business-attributed errors are recorded for this period.</div>'}</div><p class="kpi-business-errors-note">These incidents belong to Business Health. They are excluded from individual employee scores.</p>`;
+    target.innerHTML=`<div class="kpi-business-errors-summary"><article><span>Total business errors</span><b>${Number(summary.total||0)}</b></article><article><span>Resolved</span><b>${Number(summary.resolved||0)}</b></article><article><span>Still open</span><b>${Number(summary.open||0)}</b></article><article><span>Recorded financial impact</span><b>${money(summary.financial_impact||0)}</b></article></div><div class="kpi-business-error-types">${rows.map(row=>`<article><div><strong>${escapeHtml(row.error_type||'Uncategorised')}</strong><small>${Number(row.resolved||0)} resolved · ${Number(row.open||0)} open</small></div><b>${Number(row.count||0)}</b><span>${money(row.financial_impact||0)}</span></article>`).join('')||'<div class="kpi-empty-state">No business-attributed errors are recorded for this period.</div>'}</div><p class="kpi-business-errors-note">These incidents belong to Business Health. They are excluded from Cecilia, Claudia, Ndinehao and every other employee score.</p>`;
   }
 
   function renderLiveActivity(items) {
-    const moduleNames = { order: 'Orders', orders: 'Orders', packing: 'Packing', packing_task: 'Packing', task: 'Tasks', checklist_task: 'Tasks', waybill: 'Courier', bookkeeping: 'Bookkeeping', website_update: 'Website', error: 'Error Log' };
-    const moduleLinks = { order: 'orders-board.php', orders: 'orders-board.php', packing: 'consignments.php', packing_task: 'consignments.php', task: 'checklists.php', checklist_task: 'checklists.php', waybill: 'courier.php', bookkeeping: 'bookkeeping.php', error: 'errors.php' };
-    const actionLabel = (value) => String(value || 'updated a record').replaceAll('_', ' ').replace(/^\w/, letter => letter.toUpperCase());
-    // A reminder may carry its recipient's ID. Never describe that as their work.
-    const rows = (items || []).filter(item => !/reminder|notification|sync|automatic|background/i.test(String(item.action || ''))).slice(0, 20);
-    q('[data-kpi-live-activity]').innerHTML = rows.length ? `<div class="table-scroll pr-activity-scroll"><table class="data-table pr-activity-table"><thead><tr><th>When · Namibia</th><th>Employee</th><th>Area</th><th>Change recorded</th><th>Record</th></tr></thead><tbody>${rows.map(item => {
-      const module = String(item.module || 'other').toLowerCase();
-      return `<tr><td><time>${escapeHtml(activityTime(item.occurred_at))}</time></td><td><strong>${escapeHtml(item.employee || 'Actor not recorded')}</strong></td><td><span class="pr-area-chip">${escapeHtml(moduleNames[module] || actionLabel(module))}</span></td><td>${escapeHtml(actionLabel(item.action))}</td><td><a href="${escapeHtml(moduleLinks[module] || 'reports.php?tab=business-activity')}">${item.record_id ? `#${Number(item.record_id)}` : 'View'} ↗</a></td></tr>`;
-    }).join('')}</tbody></table></div><p class="pr-activity-note">Recorded portal changes · automated reminders are omitted. POS changes are not yet connected to this feed.</p>` : '<div class="kpi-empty-state">No employee changes in the recent portal feed. Automated reminders are omitted. POS activity is not yet connected.</div>';
+    const moduleNames = { order: 'Orders', orders: 'Orders', packing: 'Packing List', packing_task: 'Packing List', task: 'Task Management', checklist_task: 'Task Management', waybill: 'Courier Waybills', bookkeeping: 'Bookkeeping', website_update: 'Website Updates', error: 'Error Log' };
+    const moduleLinks = { order: 'orders-board.php', orders: 'orders-board.php', packing: 'consignments.php', packing_task: 'consignments.php', task: 'checklists.php', checklist_task: 'checklists.php', waybill: 'courier.php', bookkeeping: 'bookkeeping.php', website_update: 'consignments.php', error: 'errors.php' };
+    const actionLabel = (value) => String(value || 'updated a record').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const timeLabel = (value) => { const date = new Date(String(value || '').replace(' ', 'T')); return Number.isNaN(date.getTime()) ? 'Time unavailable' : date.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' }); };
+    const grouped = (items || []).reduce((groups, item) => { const key = String(item.module || 'other').toLowerCase(); (groups[key] ||= []).push(item); return groups; }, {});
+    q('[data-kpi-live-activity]').innerHTML = Object.keys(grouped).length ? `<div class="kpi-live-activity__grid">${Object.entries(grouped).map(([module, rows]) => `<section><header><span>${escapeHtml(moduleNames[module] || actionLabel(module))}</span><b>${rows.length} update${rows.length === 1 ? '' : 's'}</b></header><div>${rows.slice(0, 6).map((item) => `<a href="${escapeHtml(moduleLinks[module] || 'reports.php?tab=business-activity')}"><i></i><span><strong>${escapeHtml(item.employee || 'Portal user')}</strong><small>${escapeHtml(actionLabel(item.action))}${item.record_id ? ` · Record ${Number(item.record_id)}` : ''}</small></span><time>${escapeHtml(timeLabel(item.occurred_at))}</time></a>`).join('')}</div></section>`).join('')}</div>` : '<div class="kpi-empty-state">No attributable employee activity was recorded in this reporting period.</div>';
   }
 
   function renderOrdersOverview(overview, operationalScore, operationalScoreMessage, operationalComponents = []) {
@@ -174,9 +133,8 @@
     const timingMetric = (key, value, slowestReference = '') => `<span class="kpi-flow-metric is-${timingTone(key)}" title="${key === 'oldest_new' ? 'Business-hours age of the oldest order that is still in New and has not started packing.' : key === 'oldest_outstanding' ? 'Business-hours age of the oldest order currently inside the Front Desk responsibility stage.' : key === 'slowest' && slowestReference ? `Slowest qualifying business-hours order: ${escapeHtml(slowestReference)}` : 'Measured in open business hours from authoritative order status timestamps.'}"><small>${escapeHtml(timingLabel(key))}</small><b>${escapeHtml(value || 'Not calculated')}</b>${key === 'slowest' && slowestReference ? `<em>${escapeHtml(slowestReference)}</em>` : ''}<i></i></span>`;
     const flowSection = (title, start, end, values, slowestReference = '', extra = '', note = '') => `<section class="kpi-flow-card"><header><h3>${escapeHtml(title)}</h3>${note ? `<small>${escapeHtml(note)}</small>` : ''}<div class="kpi-flow-track"><span>${escapeHtml(start)}</span><i></i><span>${escapeHtml(end)}</span></div></header><div class="kpi-flow-metrics">${Object.entries(values || {}).map(([key, value]) => timingMetric(key, value, slowestReference)).join('')}${extra}</div></section>`;
     const evidenceHref = `reports.php?tab=orders&period=${encodeURIComponent(period.value)}&date_from=${encodeURIComponent(from.value)}&date_to=${encodeURIComponent(to.value)}`;
-    const componentSummary = operationalComponents.filter((component) => component.score != null && Number.isFinite(Number(component.score))).map((component) => `<div class="pr-component"><span>${escapeHtml(component.label)}</span><b>${escapeHtml(component.score)}%</b><meter min="0" max="100" value="${Math.max(0,Math.min(100,Number(component.score)))}" aria-label="${escapeHtml(component.label)}"></meter></div>`).join('');
-    const metricCard = ([label, value]) => `<article><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? 'Not measured')}</strong><a href="${evidenceHref}">View evidence</a></article>`;
-    q('[data-kpi-orders-overview]').innerHTML = `<div class="pr-score"><small>Operational score · separate from employee scores</small><strong>${escapeHtml(metrics[0][1])}</strong>${componentSummary ? `<div class="pr-components">${componentSummary}</div>` : '<small>No measured categories</small>'}</div><div class="kpi-orders-overview-grid">${metrics.slice(1,7).map(metricCard).join('')}</div><details class="pr-disclosure"><summary>Order mix &amp; completion detail</summary><div class="kpi-orders-overview-grid">${metrics.slice(7).map(metricCard).join('')}</div></details><details class="pr-disclosure"><summary>Stage timings <span>Measured business hours and waiting time</span></summary><div class="kpi-order-timing">${flowSection('Packing','New','In Progress',timing.packer,timing.packer_slowest_order,'','Business hours only: Mon–Fri 08:00–17:00, Sat 09:00–13:00; Sundays and holidays excluded.')}${flowSection('Front desk','Ready / In Progress','Complete',timing.front_desk,timing.front_desk_slowest_order,timingMetric('in_progress_to_complete',timing.in_progress_to_complete),'Business hours only. Walk-ins are measured from New to Complete.')}</div></details>`;
+    const componentSummary = operationalComponents.filter((component) => component.score !== null).map((component) => `${component.label}: ${component.score}%`).join(' · ');
+    q('[data-kpi-orders-overview]').innerHTML = `<div class="kpi-orders-overview-grid">${metrics.map(([label, value]) => `<article${label === 'Overall Operational Score' ? ` title="${escapeHtml(componentSummary || operationalScoreMessage || 'No measured categories')}"` : ''}><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? '—')}</strong><a href="${evidenceHref}" title="Evidence: ${Number(overview?.evidence_count || 0)} normalized order events">View Evidence</a></article>`).join('')}</div><div class="kpi-order-timing">${flowSection('Packer Flow','New','In Progress',timing.packer,timing.packer_slowest_order,'','Business hours only: Mon–Fri 08:00–17:00, Sat 09:00–13:00; Sundays and holidays excluded.')}${flowSection('Front Desk Flow','Ready / In Progress','Complete',timing.front_desk,timing.front_desk_slowest_order,timingMetric('in_progress_to_complete',timing.in_progress_to_complete),'Business hours only. Walk-ins are measured from New to Complete.')}</div>`;
   }
 
   function renderRecognition(recognition) {
@@ -196,7 +154,7 @@
     const attention = data.attention || [];
     const team = data.team || [];
     const online = team.filter((person) => Number(person.online)).length;
-    q('[data-kpi-management-story]').innerHTML = `<div class="pr-summary-strip"><div><strong>Period overview</strong><p>${escapeHtml(improving ? `${improving} area${improving === 1 ? '' : 's'} improved vs prior period` : 'Prior comparison unavailable')}</p></div><span><small>Measured areas</small><strong>${measured.length} <em>/ ${Object.keys(cards).length}</em></strong><meter min="0" max="${Math.max(1,Object.keys(cards).length)}" value="${measured.length}" aria-label="Measured areas"></meter></span><span><small>Employees online</small><strong>${online} <em>/ ${team.length}</em></strong><meter min="0" max="${Math.max(1,team.length)}" value="${online}" aria-label="Employees online"></meter></span><span><small>Needs attention</small><strong>${attention.length}</strong><a href="#business-attention">Review items →</a></span></div>`;
+    q('[data-kpi-management-story]').innerHTML = `<article class="kpi-management-hero"><div><p class="eyebrow">Business overview</p><h2>Business performance at a glance</h2><p>${escapeHtml(improving ? `${improving} measured area${improving === 1 ? '' : 's'} improved against the prior period.` : 'No reliable period-over-period improvement is available yet.')} ${escapeHtml(attention.length ? `${attention.length} exception${attention.length === 1 ? '' : 's'} need management attention.` : 'No current exception needs management attention.')}</p></div><div class="kpi-management-hero__facts"><span><strong>${measured.length}</strong> measured areas</span><span><strong>${online}</strong> of ${team.length} online</span><span><strong>${attention.length}</strong> attention items</span></div></article>`;
   }
 
   function renderOperationalFlow(data) {
@@ -212,16 +170,12 @@
   }
 
   function renderManagementComparison(team) {
-    const rows = (team || []).map((person) => ({ ...person, percent: employeeScore(person) }));
-    q('[data-kpi-management-comparison]').innerHTML = rows.length ? `<div class="kpi-management-compare-list">${rows.map((person) => `<a href="${employeeHref(person)}"><div><strong>${escapeHtml(person.name)}</strong><small>${escapeHtml(person.summary_label)} · ${escapeHtml(person.performance_month || 'Choose one month')}</small></div><span title="Same published result as employee profile and export; not a completion-only ratio"><i style="width:${person.percent === null ? 0 : Math.max(0,Math.min(100,person.percent))}%"></i></span><b>${person.percent === null ? escapeHtml(person.summary_empty || 'Not measured') : `${person.percent.toFixed(1)}%`}</b></a>`).join('')}</div>` : '<div class="kpi-empty-state">No role-relative employee evidence is available.</div>';
+    const rows = (team || []).map((person) => { const ratio = (person.metrics || []).find((metric) => metric.denominator); const percent = ratio?.denominator ? Math.min(100, 100 * Number(ratio.numerator) / Number(ratio.denominator)) : null; return { ...person, percent }; });
+    q('[data-kpi-management-comparison]').innerHTML = rows.length ? `<div class="kpi-management-compare-list">${rows.map((person) => `<a href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><div><strong>${escapeHtml(person.name)}</strong><small>${person.card_type === 'packer' ? 'Packer Operational Index · completion against assigned packing workload' : 'Front Desk Order Completion Compliance · completed against applicable orders'}</small></div><span title="100% means every eligible assigned/applicable record was completed"><i style="width:${person.percent === null ? 0 : person.percent}%"></i></span><b>${person.percent === null ? 'Not calculated — denominator unavailable' : `${person.percent.toFixed(1)}% · 100% = all applicable work completed`}</b></a>`).join('')}</div>` : '<div class="kpi-empty-state">No role-relative employee evidence is available.</div>';
   }
 
   function renderCharts(data) {
     if (!window.Chart) return;
-    Chart.defaults.font.family = 'Jost, sans-serif';
-    Chart.defaults.font.size = 11;
-    Chart.defaults.color = '#636e64';
-    Chart.defaults.animation = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? false : { duration: 180 };
     if (orderVolumeChart) orderVolumeChart.destroy();
     if (paidSalesChart) paidSalesChart.destroy();
     const orderRows = data.trends.orders || [];
@@ -251,37 +205,31 @@
   }
 
   async function load(refresh = false) {
-    const version = ++requestVersion;
-    requestController?.abort();
-    requestController = new AbortController();
+    if (loading) return;
+    loading = true;
     q('[data-kpi-error]').hidden = true;
     const params = new URLSearchParams({ period: period.value });
     if (period.value === 'custom') { params.set('date_from', from.value); params.set('date_to', to.value); }
     if (includeHistorical.checked) params.set('include_historical', '1');
     if (refresh) params.set('refresh', String(Date.now()));
     try {
-      const response = await fetch(`reports-data.php?${params}`, { headers: { Accept: 'application/json' }, signal: requestController.signal });
+      const response = await fetch(`reports-data.php?${params}`, { headers: { Accept: 'application/json' } });
       const data = await readKpiJson(response);
-      if (version !== requestVersion) return;
       latest = data;
-      loadWorkload(data.period);
-      const renderKey = JSON.stringify(data);
-      if (renderKey === lastRenderKey) return;
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
       q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
       renderCards(data.cards); renderManagementStory(data); renderRecognition(data.recognition); renderOperationalFlow(data); renderOrdersOverview(data.orders_overview, data.operational_score, data.operational_score_message, data.operational_score_components || []); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderBusinessErrors(data.business_errors||{}); renderTeam(data.team); renderLiveActivity(data.live_activity || []); renderManagementComparison(data.team); renderCharts(data);
-      lastRenderKey = renderKey;
     } catch (error) {
-      if (error.name === 'AbortError' || version !== requestVersion) return;
       root.querySelectorAll('.is-loading').forEach((node) => node.classList.remove('is-loading'));
       q('[data-kpi-error]').textContent = error.message;
       q('[data-kpi-error]').hidden = false;
+    } finally {
+      loading = false;
     }
   }
 
   restore(); toggleCustom();
-  root.addEventListener('click',event=>{if(event.target.closest('[data-workload-retry]')&&latest){workloadAt=0;loadWorkload(latest.period);}});
   period.addEventListener('change', () => { toggleCustom(); persist(); if (period.value !== 'custom') load(); });
   [from, to].forEach((input) => input.addEventListener('change', () => { persist(); if (from.value && to.value) load(); }));
   includeHistorical.addEventListener('change', () => { persist(); load(true); });

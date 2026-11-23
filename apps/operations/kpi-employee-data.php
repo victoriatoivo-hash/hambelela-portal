@@ -70,7 +70,9 @@ try {
         foreach($page['records'] as &$record){$record['responsible_name']=$names[(int)($record['employee_id']??0)]??'Identity requires review';$record['fulfilled_by_name']=$names[(int)($record['fulfilled_by']??0)]??'Not recorded';}unset($record);
         header('Cache-Control: private, no-store');kpi_send_json(['ok'=>true,'evidence'=>$page]);
     }
-    if(in_array($requestedAction,['','performance','performance_export'],true)){
+    // Restored employee pages use the original role calculation below. Keep
+    // explicitly requested published V2 results available without rewriting them.
+    if(in_array($requestedAction,['performance','performance_export'],true)){
         require_once BASE_PATH.'/shared/epi/EmployeePerformanceService.php';
         $month=(string)($_GET['month']??date('Y-m'));
         if(!preg_match('/^20\d{2}-(0[1-9]|1[0-2])$/D',$month))kpi_send_json(['ok'=>false,'message'=>'Choose a valid reporting month.'],422);
