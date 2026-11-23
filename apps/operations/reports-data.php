@@ -5,6 +5,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/kpi-reporting.php';
 require_once __DIR__ . '/kpi-event-reporting.php';
+require_once __DIR__ . '/performance-activity.php';
+require_once __DIR__ . '/packing-work-reporting.php';
 require_role('owner_admin');
 header('Content-Type: application/json; charset=utf-8');
 
@@ -76,8 +78,10 @@ try {
     $cacheFile = BASE_PATH . '/logs/kpi_business_health_' . $cacheKey . '.json';
     if (empty($_GET['refresh']) && is_file($cacheFile) && filemtime($cacheFile) >= time() - 60) {
         header('X-KPI-Cache: HIT');
-        readfile($cacheFile);
-        exit;
+        // The restored overview uses its original operational summaries.
+        // Stored V2 results remain intact, but must not replace these cards.
+        $cached=json_decode(file_get_contents($cacheFile),true,512,JSON_THROW_ON_ERROR);
+        kpi_json($cached);
     }
 
     $paidRevenue = kpi_paid_revenue_condition('ops_orders');
