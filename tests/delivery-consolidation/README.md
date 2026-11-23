@@ -33,6 +33,13 @@ archive before writing, atomically publishes the allowlisted files and verifies
 readback plus CSS/JS HTTPS hashes. Unknown live changes stop the release.
 No schema or business-record changes; no database credentials are used.
 
+Initial preflight stopped without writes because four installed shared files
+differed. Exact matching source was located for the shared menu script and two
+Delivery helpers. Their current menu fixes and EmployeeDriverSession routing are
+preserved, and their reviewed hashes are pinned. The fourth file, shared mobile
+navigation, is excluded entirely; a scoped owner-page script adds the Delivery
+active state without replacing the installed shared file.
+
 Legacy owner Driver View and Operations HTML URLs redirect. Their existing API,
 proof-download and action handling is preserved. The current company-phone GPS
 setup/location-history utility remains linked from Route Progress and Delivery;

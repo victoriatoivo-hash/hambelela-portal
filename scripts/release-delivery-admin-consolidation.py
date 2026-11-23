@@ -12,6 +12,7 @@ FILES=[
     'assets/css/driver-admin-proof-viewer.css',
     'assets/css/driver-admin-view-as-driver.css',
     'assets/js/driver-admin-operations.js',
+    'assets/js/delivery-admin.js',
     'assets/js/driver-admin-view-as-driver.js',
     'assets/js/ess-dashboard.js',
     'shared/delivery/OwnerNavigation.php',
@@ -30,7 +31,6 @@ FILES=[
     'assets/js/delivery-core.js',
     'shared/delivery/DashboardView.php',
     'shared/delivery/Navigation.php',
-    'shared/ess-mobile-navigation.php',
     'shared/ess-navigation.php',
 ]
 if __name__=='__main__':
@@ -41,5 +41,11 @@ if __name__=='__main__':
     if sorted(paths)!=sorted(FILES):raise RuntimeError('Unexpected runtime or schema change')
     spec=importlib.util.spec_from_file_location('delta',ROOT/'scripts/release-driver-background.py');delta=importlib.util.module_from_spec(spec);spec.loader.exec_module(delta)
     delta.BASE=BASE;delta.FILES=FILES
+    # Exact live versions reviewed locally; preserve driver actor support and shared menu fixes.
+    delta.REVIEWED_LIVE={
+        'assets/js/ess-dashboard.js':'b4a692f8b4b0ed1f3a0cc1b57a47af0ce92417cda46215af2edbee0b92d03119',
+        'shared/delivery/Navigation.php':'26dbfe58cb320eb1c36a3db2bbaecabedcfb42d4d5aa5261cba6ed5da8ad9a6b',
+        'shared/delivery/DashboardView.php':'b410c0e6af0fc03ded23c6abc75a78519eec5e671c37cc2dd5af03af9a977f56',
+    }
     delta.BACKUP=ROOT/'delivery-admin-consolidation-backup.zip';delta.REPORT=ROOT/'delivery-admin-consolidation-report.json'
     delta.main(args.deploy)

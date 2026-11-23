@@ -1,33 +1,11 @@
 (() => {
   'use strict';
   if (!document.body.classList.contains('ess-dashboard')) return;
-  const sidebarToggle = document.querySelector('[data-ess-sidebar-toggle]');
-  const setSidebarCollapsed = (collapsed, remember = true) => {
-    document.body.classList.toggle('ess-sidebar-collapsed', collapsed);
-    sidebarToggle.setAttribute('aria-expanded', String(!collapsed));
-    sidebarToggle.setAttribute('aria-label', collapsed ? 'Expand sidebar' : 'Collapse sidebar');
-    sidebarToggle.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
-    if (collapsed) document.querySelectorAll('.ess-sidebar [data-ess-subnav-toggle]').forEach(button => {
-      button.setAttribute('aria-expanded', 'false');
-      document.getElementById(button.getAttribute('aria-controls')).hidden = true;
-    });
-    if (remember) { try { localStorage.setItem('ess-sidebar-collapsed', String(collapsed)); } catch (_) {} }
-  };
-  let savedSidebar = null;
-  try { savedSidebar = localStorage.getItem('ess-sidebar-collapsed'); } catch (_) {}
-  setSidebarCollapsed(savedSidebar === null ? matchMedia('(max-width:1024px)').matches : savedSidebar === 'true', false);
-  sidebarToggle.addEventListener('click', () => setSidebarCollapsed(!document.body.classList.contains('ess-sidebar-collapsed')));
-  document.querySelectorAll('[data-ess-subnav-toggle]').forEach(button => {
-    button.addEventListener('click', () => {
-      const open = button.getAttribute('aria-expanded') !== 'true';
-      if (open && button.closest('.ess-sidebar') && document.body.classList.contains('ess-sidebar-collapsed')) setSidebarCollapsed(false);
-      button.setAttribute('aria-expanded', String(open));
-      document.getElementById(button.getAttribute('aria-controls')).hidden = !open;
-    });
-  });
+  // Sidebar and submenu handlers are loaded by the shared sidebar on every page.
+  window.EssSidebar?.initialise();
   const search = document.querySelector('[data-ess-search]');
   const cards = [...document.querySelectorAll('[data-ess-module]')];
-  if (search) search.addEventListener('input', () => {
+  search?.addEventListener('input', () => {
     if (!cards.length) return;
     const query = search.value.trim().toLocaleLowerCase();
     let count = 0;
@@ -49,19 +27,21 @@
     });
   }
   document.addEventListener('keydown', event => {
-    if (search && event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.closest('input,textarea,select,[contenteditable="true"]')) {
-      event.preventDefault(); search.focus();
+    if (event.key === '/' && !event.ctrlKey && !event.metaKey && !event.altKey && !event.target.closest('input,textarea,select,[contenteditable="true"]')) {
+      if (search) { event.preventDefault(); search.focus(); }
     }
   });
   const more = document.querySelector('[data-ess-more]');
   const dialog = document.querySelector('#ess-more-dialog');
+  if (more && dialog) {
   more.addEventListener('click', () => { dialog.showModal(); more.setAttribute('aria-expanded', 'true'); });
-  document.querySelector('[data-ess-close]').addEventListener('click', () => dialog.close());
+  document.querySelector('[data-ess-close]')?.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => { more.setAttribute('aria-expanded', 'false'); more.focus(); });
   dialog.addEventListener('click', event => {
     const box = dialog.getBoundingClientRect();
     if (event.target === dialog && (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom)) dialog.close();
   });
+  }
   if (!document.querySelector('#ess-inspiration-data')) return;
   const catalog = JSON.parse(document.querySelector('#ess-inspiration-data').textContent);
   const hero = document.querySelector('[data-ess-inspiration]');

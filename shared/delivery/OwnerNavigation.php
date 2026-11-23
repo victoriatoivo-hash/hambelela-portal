@@ -31,5 +31,6 @@ final class OwnerNavigation
             echo '<a href="'.$base.'/apps/delivery/'.$page.'"'.($page===$current?' aria-current="page"':'').'>'.$label.'</a>';
         }
         echo '</nav>';
+        echo '<script defer src="'.$base.'/assets/js/delivery-admin.js?v='.filemtime(BASE_PATH.'/assets/js/delivery-admin.js').'"></script>';
     }
 }
