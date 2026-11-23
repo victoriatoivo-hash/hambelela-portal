@@ -409,5 +409,5 @@ include BASE_PATH . '/shared/performance-command-rail.php';
         </section>
     <?php endif; ?>
 </main>
-<?php <script defer src="<?= BASE_URL ?>/assets/js/performance-command-v2.js?v=<?= is_file(BASE_PATH.'/assets/js/performance-command-v2.js') ? (int) filemtime(BASE_PATH.'/assets/js/performance-command-v2.js') : 1 ?>"></script>
-include BASE_PATH . '/shared/footer.php'; ?>
+<script defer src="<?= BASE_URL ?>/assets/js/performance-command-v2.js?v=<?= is_file(BASE_PATH.'/assets/js/performance-command-v2.js') ? (int) filemtime(BASE_PATH.'/assets/js/performance-command-v2.js') : 1 ?>"></script>
+<?php include BASE_PATH . '/shared/footer.php'; ?>
