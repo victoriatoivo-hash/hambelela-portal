@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 if(!defined('BASE_PATH')){http_response_code(404);exit;}
+require_once __DIR__.'/OwnerNavigation.php';
 require_once __DIR__.'/OwnerProofViewer.php';
 use Hambelela\Delivery\{OwnerProofViewer,FrontSession,ProofStorage,NotificationOutbox};
 header('Cache-Control: private, no-store, max-age=0');header('X-Content-Type-Options: nosniff');header('Referrer-Policy: no-referrer');header('X-Frame-Options: SAMEORIGIN');
@@ -52,18 +53,19 @@ try{
         $viewer->authorize();header('Content-Type: application/zip');header('Content-Disposition: attachment; filename="delivery-'.$id.'-proof.zip"');header('Content-Length: '.filesize($download));readfile($download);return;
     }
     if($json){header('Content-Type: application/json');echo json_encode(['ok'=>true,'version'=>$data['version'],'review'=>$data['review'],'open_discrepancies'=>count($data['open'])],JSON_THROW_ON_ERROR);return;}
+    if(\Hambelela\Delivery\OwnerNavigation::redirectLegacy('delivery-details.php'))return;
     if(empty($_SESSION['delivery_front_csrf']))$_SESSION['delivery_front_csrf']=bin2hex(random_bytes(32));
-    $base=rtrim(BASE_URL,'/');$endpoint=$base.'/apps/operations/driver-delivery-details.php?delivery_id='.$id;
+    $base=rtrim(BASE_URL,'/');$endpoint=$base.'/apps/delivery/delivery-details.php?delivery_id='.$id;
     $pageTitle=$data['reference'].' · Delivery Details & Proof Viewer';$activeApp='delivery';$isEssDashboard=true;$pageUsesPortalSidebar=false;
     if(defined('OWNER_PROOF_LAB')&&OWNER_PROOF_LAB){require BASE_PATH.'/tests/owner-proof/shell-top.php';}
     else{
         require_once BASE_PATH.'/shared/ess-navigation.php';$essShellApps=ess_shell_apps();$essActiveModule='Delivery';$essHeadingPartial=BASE_PATH.'/shared/delivery/PortalHeading.php';
-        $extraStylesheets=[['path'=>'assets/css/ess-dashboard.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/ess-dashboard.css')],['path'=>'assets/css/driver-admin-proof-viewer.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/driver-admin-proof-viewer.css')]];
+        $extraStylesheets=\Hambelela\Delivery\OwnerNavigation::styles('proof-viewer');
         require BASE_PATH.'/shared/header.php';require BASE_PATH.'/shared/ess-sidebar.php';echo '<main id="ess-main" class="workspace ess-dashboard-main">';require BASE_PATH.'/shared/ess-topbar.php';
     }
     require __DIR__.'/OwnerProofContent.php';
     if(defined('OWNER_PROOF_LAB')&&OWNER_PROOF_LAB){echo '</main></div></body></html>';}
-    else{echo '</main>';require BASE_PATH.'/shared/ess-mobile-navigation.php';echo '<script defer src="'.$base.'/assets/js/ess-dashboard.js"></script>';require BASE_PATH.'/shared/footer.php';}
+    else{echo '</main>';require BASE_PATH.'/shared/ess-mobile-navigation.php';echo '<script defer src="'.$base.'/assets/js/ess-dashboard.js?v='.filemtime(BASE_PATH.'/assets/js/ess-dashboard.js').'"></script>';require BASE_PATH.'/shared/footer.php';}
 }catch(Throwable $e){
     $status=in_array($e->getCode(),[400,401,403,404,405,409,422,429,503],true)?$e->getCode():500;http_response_code($status);
     $message=$status===500?'Delivery proof viewer is temporarily unavailable. No changes were made.':$e->getMessage();if($status===500)error_log('Owner proof viewer: '.get_class($e));

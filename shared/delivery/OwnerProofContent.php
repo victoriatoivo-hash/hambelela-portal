@@ -1,6 +1,7 @@
 <?php
 use Hambelela\Delivery\OwnerProofViewer;
 if(!isset($data,$viewer))exit;
+require_once __DIR__.'/OwnerNavigation.php';
 $esc=static fn($v)=>htmlspecialchars((string)$v,ENT_QUOTES|ENT_SUBSTITUTE,'UTF-8');
 $money=static fn($c)=>$c===null?'Not recorded':'N$'.number_format((int)$c/100,2);
 $when=static fn($v)=>\Hambelela\Delivery\OwnerProofViewer::time($v);
@@ -14,7 +15,7 @@ $reviewed=$data['review']&&hash_equals($data['review']['evidence_version'],$data
 $fileUrl=static fn($f,$thumb=false)=>$endpoint.'&evidence='.rawurlencode($f['id']).($thumb?'&thumbnail=1':'');
 $email=filter_var($order['customer_email']??'',FILTER_VALIDATE_EMAIL);$map='https://www.google.com/maps/search/?api=1&query='.rawurlencode($data['address']);
 ?>
-<div class="hodpv" data-owner-proof data-endpoint="<?= $esc($endpoint) ?>" data-version="<?= $esc($data['version']) ?>" data-csrf="<?= $esc($_SESSION['delivery_front_csrf']) ?>">
+<div class="hodpv delivery-admin" data-owner-proof data-endpoint="<?= $esc($endpoint) ?>" data-version="<?= $esc($data['version']) ?>" data-csrf="<?= $esc($_SESSION['delivery_front_csrf']) ?>">
 <svg class="hodpv-symbols" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
 <symbol id="hp-user" viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/></symbol>
 <symbol id="hp-pin" viewBox="0 0 24 24"><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="3"/></symbol>
@@ -29,9 +30,10 @@ $email=filter_var($order['customer_email']??'',FILTER_VALIDATE_EMAIL);$map='http
 <symbol id="hp-alert" viewBox="0 0 24 24"><path d="m12 2 10 19H2ZM12 8v6m0 3v1"/></symbol>
 </defs></svg>
 <div class="hodpv-main">
-<nav class="hodpv-breadcrumb" aria-label="Breadcrumb"><a href="<?= $esc($base) ?>/apps/operations/driver-operations-dashboard.php">Driver Operations</a><span>›</span><a href="<?= $esc($base) ?>/apps/delivery/workspace.php">Deliveries</a><span>›</span><strong>Delivery Details &amp; Proof Viewer</strong></nav>
+<?php \Hambelela\Delivery\OwnerNavigation::render(''); ?>
+<nav class="hodpv-breadcrumb delivery-admin-breadcrumb" aria-label="Breadcrumb"><a href="<?= $esc($base) ?>/apps/delivery/index.php">Delivery</a><span>›</span><a href="<?= $esc($base) ?>/apps/delivery/driver-operations.php">Driver Operations</a><span>›</span><strong>Delivery Details &amp; Proof Viewer</strong></nav>
 <header class="hodpv-pageheading"><div><h1><?= $esc($data['reference']) ?></h1><p>Delivery Details &amp; Proof Viewer</p></div><div class="hodpv-actions">
-<?php if(!empty($job['driver_employee_id'])): ?><a class="hodpv-btn" href="<?= $esc($base) ?>/apps/operations/view-as-driver.php?driver=<?= (int)$job['driver_employee_id'] ?>&amp;screen=details&amp;id=<?= $id ?>"><?= $icon('link') ?>Open driver view</a><?php else: ?><button class="hodpv-btn" disabled title="No driver assigned">Open driver view</button><?php endif; ?>
+<?php if(!empty($job['driver_employee_id'])): ?><a class="hodpv-btn" href="<?= $esc($base) ?>/apps/delivery/view-as-driver.php?driver=<?= (int)$job['driver_employee_id'] ?>&amp;screen=details&amp;id=<?= $id ?>"><?= $icon('link') ?>Open driver view</a><?php else: ?><button class="hodpv-btn" disabled title="No driver assigned">Open driver view</button><?php endif; ?>
 <?php if($proof['files']): ?><a class="hodpv-btn" href="<?= $esc($endpoint) ?>&amp;download=1"><?= $icon('download') ?>Download proof</a><?php else: ?><button class="hodpv-btn" disabled title="No proof uploaded"><?= $icon('download') ?>Download proof</button><?php endif; ?>
 <button class="hodpv-btn hodpv-btn-primary" data-dialog="review" <?= !$data['ready']||$reviewed?'disabled':'' ?>><?= $icon('check') ?><?= $reviewed?'Reviewed':'Mark reviewed' ?></button>
 <button class="hodpv-btn hodpv-btn-danger" data-dialog="discrepancy" <?= !$data['ready']?'disabled':'' ?>><?= $icon('alert') ?>Report discrepancy</button></div></header>

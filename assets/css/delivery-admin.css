@@ -1,0 +1,55 @@
+@font-face{font-family:Jost;font-style:normal;font-weight:100 900;font-display:swap;src:url('../fonts/jost-variable.woff2') format('woff2')}
+/* Owner Delivery pages only. Same local Jost, palette and hierarchy as Delivery.
+   No rules reach the driver's iframe, shared business pages or global controls. */
+.delivery-admin{--delivery-olive:#59694a;--delivery-olive-dark:#344126;--delivery-line:#e4e6dc;font-family:Jost,sans-serif;font-size:13px;font-weight:400;line-height:1.5;background:#f8f7f2;color:#1c2118;min-width:0}
+.delivery-admin :is(button,input,select,textarea){font-family:inherit;color:inherit}
+.delivery-admin :is(strong,b,h1,h2,h3,h4){font-weight:500}
+.delivery-admin :is(h1,h2,h3){letter-spacing:normal}
+.delivery-admin :is(.ho-heading h1,.hodpv-pageheading h1,.heading h1){font-size:29px;line-height:1.2;font-weight:500;letter-spacing:normal;overflow-wrap:anywhere}
+.delivery-admin :is(.ho-panel-header h2,.ho-delivery-toolbar h2){font-size:19px;font-weight:500;white-space:normal}
+.delivery-admin :is(.ho-metric h2,.hodpv-panel-title h2,.card-header h2){font-size:14px;font-weight:500}
+.delivery-admin :is(.ho-heading p,.hodpv-pageheading p,.heading p,.ho-route-summary,.ho-route-details p,.hodpv-note-body,.hodpv-row-body span,.hodpv-row-body strong,.hodpv-kv,.kvlist .kv){font-size:13px}
+.delivery-admin :is(.ho-table,.hodpv table,.hodpv-items th,.hodpv-kv strong,.hodpv-timeline-title,.hodpv-timeline-meta){font-size:12px;font-weight:400}
+.delivery-admin :is(th,.ho-order-link,.ho-driver-top strong){font-weight:500}
+.delivery-admin :is(.ho-metric-bottom strong,.cashbox .amount){font-size:27px;font-weight:500;letter-spacing:normal;overflow-wrap:anywhere}
+.delivery-admin :is(.ho-btn,.ho-export,.ho-tab,.ho-pagination button,.ho-action,.hodpv-btn,.btn){font-size:12px;font-weight:500;min-height:40px;border-radius:8px;line-height:1.4}
+.delivery-admin :is(.ho-btn,.ho-tab.active,.hodpv-btn-primary){background:#59694a;color:#fff;border-color:#59694a}
+.delivery-admin :is(.ho-action,.next-box){background:#e7ebdd;color:#344126}
+.delivery-admin :is(.ho-action svg,.ho-link,.link,.hodpv-inline-link){color:#465636}
+.delivery-admin :is(.ho-action:hover,.btn:hover){background:#eef1e8}
+.delivery-admin :is(.ho-link,.link,.hodpv-inline-link){font-size:12px;font-weight:500;white-space:normal}
+.delivery-admin :is(input:not([type=checkbox]),select,textarea){font-size:13px;font-weight:400;border:1px solid #e4e6dc;border-radius:7px;min-height:40px;max-width:100%}
+.delivery-admin label{font-size:12px;font-weight:500}
+.delivery-admin :is(.ho-flag,.ho-state,.ho-severity,.hodpv-pill,.hodpv-chip,.pill){font-size:11px;font-weight:500;line-height:1.4}
+.delivery-admin :is(.ho-card,.hodpv-panel,.card){border-color:#e4e6dc;border-radius:12px}
+.delivery-admin :is(.ho-panel-header,.ho-delivery-toolbar,.card-header){padding:16px;flex-wrap:wrap}
+.delivery-admin :is(.ho-driver-row,.ho-action-grid){padding:0 16px 16px;gap:10px}
+.delivery-admin .ho-metric{padding:16px;min-height:160px;height:auto}
+.delivery-admin .ho-metric-bottom strong{white-space:normal}
+.delivery-admin .ho-metric-link{font-size:14px;font-weight:500;line-height:1.4}
+.delivery-admin .ho-table td{padding:12px 9px;height:50px}
+.delivery-admin .ho-table th{padding:12px 9px;font-weight:500}
+.delivery-admin .ho-search{gap:10px}
+.delivery-admin .ho-search input[type=search]{min-width:0;flex:1 1 180px}
+.delivery-admin .ho-search input[type=date]{min-width:0;flex:0 1 160px}
+.delivery-admin :is(.ho-driver-row,.ho-tabs,.ho-table-scroll){overscroll-behavior-x:contain}
+.delivery-admin .ho-heading{padding:0;margin-bottom:8px}
+.delivery-admin :is(.ho-content,.hodpv-main,.main){padding:0 0 24px;max-width:none}
+.delivery-admin :is(.ho-dialog h2,dialog h2){font-size:19px;font-weight:500}
+.delivery-admin :is(.ho-dialog-content,dialog p){font-size:13px}
+.delivery-admin .ho-btn{font-weight:500}
+.delivery-admin .hodpv-note-compose button{font:500 12px Jost,sans-serif;min-height:40px;background:#59694a}
+.delivery-admin-nav{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;padding:0 0 14px;border-bottom:1px solid #e4e6dc}
+.delivery-admin-nav a{display:inline-flex;align-items:center;justify-content:center;min-height:40px;padding:8px 14px;border:1px solid #e4e6dc;border-radius:8px;background:white;color:#465636;font:500 12px Jost,sans-serif;text-decoration:none;transition:background .18s,border-color .18s}
+.delivery-admin-nav a[aria-current=page]{background:#59694a;border-color:#59694a;color:white}
+.delivery-admin-nav a:hover:not([aria-current]){background:#e7ebdd}
+.delivery-admin-breadcrumb{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin:0 0 14px;color:#62675e;font:400 11px Jost,sans-serif}
+.delivery-admin-breadcrumb a{display:inline-flex;align-items:center;min-height:32px;color:#465636;text-decoration:none}
+.delivery-admin :is(button,a,input,select,textarea):focus-visible{outline:2px solid #667653;outline-offset:3px}
+.delivery-admin .notice{background:#e7ebdd;color:#344126;flex-wrap:wrap}
+.delivery-admin .driverbar{align-items:center;gap:12px}
+.delivery-admin .driverbar input{width:160px}
+.delivery-admin .baritem{overflow-wrap:anywhere}
+@media(max-width:768px){.delivery-admin :is(.ho-heading h1,.hodpv-pageheading h1,.heading h1){font-size:26px}.delivery-admin .heading{margin-left:0;margin-right:0}.delivery-admin .ho-panel-header{align-items:flex-start}.delivery-admin .ho-heading p{line-height:1.5}}
+@media(max-width:430px){.delivery-admin-nav{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.delivery-admin-nav a{padding:8px;white-space:normal;text-align:center}.delivery-admin .ho-metric{padding:12px}.delivery-admin .ho-search input[type=date]{flex:1 1 100%}.delivery-admin .hodpv-actions .hodpv-btn{white-space:normal}.delivery-admin .driverbar :is(input,select){width:100%;flex:1 1 100%}.delivery-admin .card-header{gap:8px}.delivery-admin .card-header h2{flex:1 1 130px}}
+@media(prefers-reduced-motion:reduce){.delivery-admin-nav a{transition:none}}

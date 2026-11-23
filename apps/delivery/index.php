@@ -17,6 +17,10 @@ if(isset($_GET['proof'])){require BASE_PATH.'/shared/delivery/DriverProofOfDeliv
 if(isset($_GET['issue'])){require BASE_PATH.'/shared/delivery/DriverDeliveryIssue.php';exit;}
 if(isset($_GET['errands'])){require BASE_PATH.'/shared/delivery/ErrandView.php';exit;}
 if($driverPage){require BASE_PATH.'/shared/delivery/DriverDeliveries.php';exit;}
+if(($deliveryActor['role']??'')==='owner_admin'){
+    if(!in_array($_SERVER['REQUEST_METHOD']??'GET',['GET','HEAD'],true)){header('Allow: GET, HEAD');http_response_code(405);exit;}
+    header('Location: '.BASE_URL.'/apps/delivery/driver-operations.php',true,302);exit;
+}
 require_once BASE_PATH.'/shared/delivery/ErrandLanding.php';
 \Hambelela\Delivery\ErrandLanding::enforce($deliveryActor);
 require_once BASE_PATH.'/shared/delivery/PortalShell.php';

@@ -13,6 +13,7 @@ final class Navigation
         try{
             $actor=FrontSession::actor(\db(),(int)(\current_user()['id']??0));
             $route=DeliveryPolicy::can($actor,'delivery_view')?'index.php':'accounting.php';
+            if(($actor['role']??'')==='owner_admin')$route='driver-operations.php';
             $entry=['name'=>'Delivery','desc'=>'local deliveries, Driver assignments and collection handovers','icon'=>'bike','href'=>BASE_URL.'/apps/delivery/'.$route,'active'=>true,'tone'=>'green'];
         }catch(\Throwable $e){return null;}
         return $entry;
