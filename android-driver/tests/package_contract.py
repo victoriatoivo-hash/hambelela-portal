@@ -24,9 +24,25 @@ class PackageContract(unittest.TestCase):
             self.assertEqual(len(rules.find(mode).findall('exclude')), 9)
 
     def test_only_launcher_entry_not_all_portal_links(self):
-        self.assertEqual(len(self.app.findall('activity')), 1)
+        self.assertEqual(len(self.app.findall('activity')), 2)
         actions = [a.get(A+'name') for a in self.launcher.findall('intent-filter/action')]
         self.assertEqual(actions, ['android.intent.action.MAIN'])
+
+    def test_required_startup_site_settings_component(self):
+        name = 'com.google.androidbrowserhelper.trusted.ManageDataLauncherActivity'
+        activity = self.app.find("activity[@"+A+"name='"+name+"']")
+        self.assertIsNotNone(activity, 'ABH 2.7.4 toggles this component during startup')
+        self.assertEqual(self.app.get(A+'manageSpaceActivity'), name)
+        self.assertEqual(activity.get(A+'exported'), 'true')
+        self.assertEqual(activity.findall('intent-filter'), [])
+        meta = {m.get(A+'name'):m.get(A+'value') for m in activity.findall('meta-data')}
+        self.assertEqual(meta['android.support.customtabs.trusted.MANAGE_SPACE_URL'],
+                         'https://portal.hambelelaorganic.com/')
+
+    def test_update_version(self):
+        build = (ROOT/'app/build.gradle').read_text()
+        self.assertIn('versionCode 2', build)
+        self.assertIn("versionName '1.0.1'", build)
 
     def test_no_custom_webview_or_javascript_bridge(self):
         self.assertEqual(list((ROOT/'app/src').rglob('*.java')), [])
