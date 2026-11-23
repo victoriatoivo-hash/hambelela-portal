@@ -5,7 +5,7 @@ define('BASE_URL', 'https://portal.example');
 $_SESSION=[];
 $actor=['id'=>123];
 ob_start();require BASE_PATH.'/shared/delivery/profile/View.php';$html=ob_get_clean();
-$url='https://github.com/victoriatoivo-hash/hambelela-portal/releases/download/driver-android-v1.0.0/Hambelela-Driver-1.0.0.apk';
+$url='https://github.com/victoriatoivo-hash/hambelela-portal/releases/download/driver-android-v1.0.1/Hambelela-Driver-1.0.1.apk';
 function check($value,$label){if(!$value)throw new RuntimeException($label);echo 'PASS '.$label.PHP_EOL;}
 check(substr_count($html,'href="'.$url.'"')===2,'download available in profile and shared More menu');
 check(substr_count($html,'rel="noopener noreferrer" referrerpolicy="no-referrer"')===2,'no portal referrer sent with downloads');

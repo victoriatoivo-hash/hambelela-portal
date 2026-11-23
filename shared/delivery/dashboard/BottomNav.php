@@ -12,7 +12,7 @@
  <?php foreach([['Delivery history','/apps/delivery/index.php?history=1'],['Cash handover','/apps/delivery/index.php?cash=1'],['Dispatch chat','/apps/delivery/index.php?dispatch=1'],['My account','/apps/delivery/index.php?profile=1'],['Notifications','/notifications.php']] as [$moreLabel,$morePath]): ?>
  <a href="<?=$h($base.$morePath)?>"><?=$h($moreLabel)?></a>
  <?php endforeach;?>
- <a href="https://github.com/victoriatoivo-hash/hambelela-portal/releases/download/driver-android-v1.0.0/Hambelela-Driver-1.0.0.apk" rel="noopener noreferrer" referrerpolicy="no-referrer">Download Android app</a>
+ <a href="https://github.com/victoriatoivo-hash/hambelela-portal/releases/download/driver-android-v1.0.1/Hambelela-Driver-1.0.1.apk" rel="noopener noreferrer" referrerpolicy="no-referrer">Download Android app</a>
  </nav>
 </dialog>
 <script src="<?=$h($asset('assets/js/driver-more-menu.js'))?>"></script>
