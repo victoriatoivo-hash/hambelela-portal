@@ -1,0 +1,55 @@
+name: Performance Command Centre v2 validation
+
+on:
+  pull_request:
+    paths:
+      - 'apps/operations/reports.php'
+      - 'apps/operations/kpi-employee.php'
+      - 'shared/performance-command-rail.php'
+      - 'assets/css/performance-command-v2.css'
+      - 'assets/js/performance-command-v2.js'
+      - 'assets/js/reports-business-health.js'
+      - 'tests/performance-command-centre-v2-static.mjs'
+      - '.github/workflows/performance-command-v2-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  performance-command-v2:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Validate PHP
+        run: |
+          php -l apps/operations/reports.php
+          php -l apps/operations/kpi-employee.php
+          php -l shared/performance-command-rail.php
+      - name: Validate JavaScript
+        run: |
+          node --check assets/js/performance-command-v2.js
+          node --check assets/js/reports-business-health.js
+          node --check assets/js/reports-employees.js
+          node --check assets/js/kpi-employee.js
+      - name: Validate Concept 02 integration contracts
+        run: |
+          node tests/performance-command-centre-v2-static.mjs
+          node tests/performance-dashboard-consolidation-static.mjs
+          node tests/business-health-role-overview-static.mjs
+          node tests/employee-performance-terminology-static.mjs
+          node tests/employee-recognition-rules-static.mjs
+      - name: Whitespace and conflict markers
+        run: |
+          git diff --check origin/${{ github.base_ref || 'main' }}...HEAD
+          ! grep -RnE '^(<<<<<<<|=======|>>>>>>>)' apps/operations/reports.php apps/operations/kpi-employee.php shared/performance-command-rail.php assets/js/performance-command-v2.js
