@@ -10,9 +10,11 @@ if (!$employee || (string) $employee['role_key'] === 'owner_admin') { http_respo
 $initialAnchor = (string) ($_GET['section'] ?? $_GET['tab'] ?? 'orders');
 if ($initialAnchor === 'order-packing') $initialAnchor = 'orders';
 $isPacker = strpos((string)$employee['role_key'], 'packer') !== false;
+$isDriver = strpos((string)$employee['role_key'], 'driver') !== false;
 $showWebsiteUpdates = !$isPacker && $employeeId !== 2;
 $anchors = $isPacker ? ['orders','packing','tasks','waybills','hr-attendance','quality','activity-log'] : ['orders','packing','tasks','bookkeeping','waybills','hr-attendance','quality','activity-log'];
 if ($showWebsiteUpdates) array_splice($anchors, 6, 0, ['website']);
+if ($isDriver) { $anchors=['orders','tasks','hr-attendance','quality','activity-log']; $showWebsiteUpdates=false; }
 if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'orders';
 $pageTitle = $employee['full_name'] . ' Performance Profile | ' . APP_NAME;
 if (empty($_SESSION['kpi_presence_csrf_token'])) $_SESSION['kpi_presence_csrf_token']=bin2hex(random_bytes(32));
@@ -43,7 +45,7 @@ include BASE_PATH . '/shared/performance-command-rail.php';
     </div>
   </section>
   <?php $profileSections=['orders'=>'Orders Performance','packing'=>'Packing','tasks'=>'Task Management','waybills'=>$isPacker?'Waybill Uploads':'Waybill Status Management','hr-attendance'=>'HR, Leave & Attendance','quality'=>'Errors and Quality','activity-log'=>'Activity Log'];if(!$isPacker)$profileSections=array_slice($profileSections,0,3,true)+['bookkeeping'=>'Bookkeeping']+array_slice($profileSections,3,null,true);if($showWebsiteUpdates)$profileSections=array_slice($profileSections,0,6,true)+['website'=>'Website Updates']+array_slice($profileSections,6,null,true); ?>
-  <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php foreach ($profileSections as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
+  <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php if($isDriver)$profileSections=['orders'=>'Deliveries','tasks'=>'Task Management','hr-attendance'=>'HR, Leave & Attendance','quality'=>'Errors & Quality','activity-log'=>'Activity Log']; foreach ($profileSections as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
   <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
   <section class="employee-kpi-page" data-kpi-employee-content><div class="kpi-health-grid"><?php foreach (range(1, 8) as $unused): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
   <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button><div data-kpi-timeline-content></div></dialog>

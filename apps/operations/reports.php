@@ -7,15 +7,16 @@ require_once __DIR__ . '/kpi-reporting.php';
 require_role('owner_admin');
 
 $phaseThreeTabs = ['attendance'=>'Attendance','orders'=>'Orders','packing-performance'=>'Packing Performance','bookkeeping'=>'Bookkeeping','waybills'=>'Waybills','task-management'=>'Task Management','hr-leave'=>'HR and Leave','website-updates'=>'Website Updates','errors-quality'=>'Errors and Quality','performance-reports'=>'Performance Reports','business-activity'=>'Business Activity Timeline','audit-log'=>'Audit Log'];
-$visiblePerformanceTabs = ['business-activity'=>'Business Activity Timeline'];
+$commandTabs = ['marketing'=>'Marketing Performance','drivers'=>'Driver & Delivery Performance','work-quality'=>'Work & Quality','recognition'=>'Recognition & Rewards'];
+$visiblePerformanceTabs = $commandTabs + ['business-activity'=>'Activity Timeline'];
 $tab = (string) ($_GET['tab'] ?? 'business-health');
 // Retire the standalone presentation report; preserve source data and audit history.
 if ($tab === 'performance-reports') {
     header('Location: reports.php?tab=employees');
     exit;
 }
-if (!in_array($tab, array_merge(['business-health','employees','settings'],array_keys($phaseThreeTabs)), true)) $tab = 'business-health';
-$currentKpiTitle = $tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($phaseThreeTabs[$tab] ?? 'Business Health'));
+if (!in_array($tab, array_merge(['business-health','employees','settings'],array_keys($phaseThreeTabs),array_keys($commandTabs)), true)) $tab = 'business-health';
+$currentKpiTitle = $tab === 'settings' ? 'Performance Settings' : ($tab === 'employees' ? 'Employees' : ($commandTabs[$tab] ?? $phaseThreeTabs[$tab] ?? 'Business Health'));
 $pageTitle = $currentKpiTitle . ' | ' . APP_NAME;
 $activeApp = 'kpi';
 $extraStylesheets = $tab === 'business-health' ? [[
@@ -50,7 +51,9 @@ $settingFields = [
     'portal_activity_adoption_date' => ['Portal activity valid from', 'date', '2026-07-14'],
     'attendance_adoption_date' => ['Attendance sessions valid from', 'date', '2026-07-14'],
     'activity_event_adoption_date' => ['Append-only activity events valid from', 'date', '2026-08-03'],
-    'target_fulfilment_hours' => ['Fulfilment target (hours)', 'number', '6'],
+    'target_fulfilment_hours' => ['Packing New → In Progress target (working hours)', 'number', '2'],
+    'frontdesk_website_target_minutes' => ['Front website update window (working minutes)', 'number', '300'],
+    'front_orders_walkin_completion_minutes' => ['Walk-in completion window (working minutes)', 'number', '120'],
     'on_time_dispatch_hours' => ['On-time dispatch (hours)', 'number', '6'],
     'waybill_overdue_hours' => ['Waybill overdue threshold (hours)', 'number', '24'],
     'website_update_lag_target_minutes' => ['Website update target (minutes)', 'number', '60'],
@@ -157,7 +160,7 @@ if ($ready && $tab === 'settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 if ($database->inTransaction()) $database->rollBack();
                 throw $settingsError;
             }
-            ops_activity_log('kpi_settings_updated', 'kpi_settings', 0, ['changed_by' => current_user()['name'] ?? 'Unknown']);
+            ops_activity_log('kpi_settings_updated', 'kpi_settings', 0, ['changed_by' => current_user()['name'] ?? 'Unknown','configured_values'=>$validatedSettings]);
             $message = 'Performance settings saved.';
         } elseif ($action === 'save_employee_schedule') {
             $employeeId = (int) ($_POST['employee_id'] ?? 0);
@@ -320,8 +323,8 @@ include BASE_PATH . '/shared/performance-command-rail.php';
             </section>
             <div class="pc-command-secondary">
                 <a class="pc-mini-card" href="reports.php?tab=orders"><span class="pc-mini-icon"><i data-lucide="shopping-cart"></i></span><b>Orders &amp; Fulfilment</b><small data-pc-work-count>Loading…</small></a>
-                <a class="pc-mini-card" href="<?= BASE_URL ?>/apps/marketing/index.php?view=performance"><span class="pc-mini-icon"><i data-lucide="megaphone"></i></span><b>Marketing Performance</b><small>Open marketing reports and evidence</small></a>
-                <a class="pc-mini-card" href="<?= BASE_URL ?>/apps/delivery/index.php"><span class="pc-mini-icon"><i data-lucide="truck"></i></span><b>Deliveries</b><small>View active and outstanding deliveries</small></a>
+                <a class="pc-mini-card" href="reports.php?tab=marketing"><span class="pc-mini-icon"><i data-lucide="megaphone"></i></span><b>Marketing Performance</b><small>Campaigns, content and recorded results</small></a>
+                <a class="pc-mini-card" href="reports.php?tab=drivers"><span class="pc-mini-icon"><i data-lucide="truck"></i></span><b>Deliveries</b><small>Driver output and supporting evidence</small></a>
                 <a class="pc-mini-card" href="#kpi-business-errors"><span class="pc-mini-icon"><i data-lucide="shield-alert"></i></span><b>Business Quality</b><small data-pc-error-count>Loading…</small></a>
             </div>
         </section>
@@ -355,6 +358,8 @@ include BASE_PATH . '/shared/performance-command-rail.php';
         </section>
         <nav class="kpi-employee-tabs kpi-employee-directory" data-kpi-employee-tabs aria-label="Employees"></nav>
         <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
+    <?php elseif (isset($commandTabs[$tab])): ?>
+        <?php include __DIR__.'/performance-command-view.php'; ?>
     <?php elseif ($tab === 'performance-reports'): ?>
         <section class="performance-report-controls" aria-label="Performance report filters">
             <label><span>Reporting period</span><select data-performance-period><option value="since_adoption">Since adoption (14 Jul 2026)</option><option value="today">Today</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom date range</option></select></label>
@@ -378,7 +383,8 @@ include BASE_PATH . '/shared/performance-command-rail.php';
         <?php if ($message !== ''): ?><div class="ops-alert <?= $messageType === 'error' ? 'error' : 'success' ?>" role="status"><?= htmlspecialchars($message, ENT_QUOTES, 'UTF-8') ?></div><?php endif; ?>
 
         <section class="panel">
-            <div class="section-row"><div><p class="eyebrow">Calculation controls</p><h2>Global performance settings</h2><p>Role-specific weights are stored for owner review only. Composite scores, bonus bands and rankings remain disabled until every required data-integrity test passes.</p></div></div>
+            <div class="section-row"><div><p class="eyebrow">Owner controls</p><h2>Performance settings</h2><p>The restored role calculation remains authoritative. Packer: Packing 40%, Orders 30%, Tasks 10%, Waybills 10%, Quality 10%. Front: Orders 25%, Website/Packing 8%, Tasks 7%, Bookkeeping 18%, Waybills 12%, Quality 30%. Driver overall scoring is not configured. Scores do not issue rewards or payroll adjustments.</p><p>Below are existing operational controls and retained legacy weight settings; legacy weight fields do not replace the active role templates.</p></div></div>
+            <?php if(!empty($settings['command02_timing_effective_from'])): ?><p class="pc-runtime-note">Approved timing version begins <?= htmlspecialchars($settings['command02_timing_effective_from'],ENT_QUOTES,'UTF-8') ?> Namibia time. Packing: <?= htmlspecialchars($settings['target_fulfilment_hours']??'2',ENT_QUOTES,'UTF-8') ?> working hours; walk-ins: <?= (int)($settings['front_orders_walkin_completion_minutes']??120) ?> working minutes; website updates: <?= (int)($settings['frontdesk_website_target_minutes']??300) ?> working minutes. Earlier work keeps its previous allowance. Existing evidence and stored historical results are unchanged.</p><?php endif; ?>
             <form method="post" class="form-grid">
                 <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrf, ENT_QUOTES, 'UTF-8') ?>">
                 <input type="hidden" name="kpi_action" value="save_settings">

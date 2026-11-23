@@ -12,14 +12,16 @@ $pcOnProfile = basename((string)($_SERVER['SCRIPT_NAME'] ?? '')) === 'kpi-employ
 $pcIcons = [
     'home' => 'house', 'overview' => 'layout-dashboard', 'people' => 'users',
     'work' => 'clipboard-check', 'activity' => 'activity', 'marketing' => 'megaphone',
-    'delivery' => 'truck', 'settings' => 'settings-2', 'back' => 'arrow-left'
+    'delivery' => 'truck', 'settings' => 'settings-2', 'back' => 'arrow-left', 'recognition'=>'award'
 ];
 $pcLinks = [
     ['overview','Business health',BASE_URL.'/apps/operations/reports.php?tab=business-health','business-health'],
     ['people','Employees',BASE_URL.'/apps/operations/reports.php?tab=employees','employees'],
     ['activity','Activity timeline',BASE_URL.'/apps/operations/reports.php?tab=business-activity','business-activity'],
-    ['marketing','Marketing performance',BASE_URL.'/apps/marketing/index.php?view=performance','marketing'],
-    ['delivery','Delivery management',BASE_URL.'/apps/delivery/index.php','delivery'],
+    ['work','Work & quality',BASE_URL.'/apps/operations/reports.php?tab=work-quality','work-quality'],
+    ['marketing','Marketing performance',BASE_URL.'/apps/operations/reports.php?tab=marketing','marketing'],
+    ['delivery','Driver performance',BASE_URL.'/apps/operations/reports.php?tab=drivers','drivers'],
+    ['recognition','Recognition',BASE_URL.'/apps/operations/reports.php?tab=recognition','recognition'],
     ['settings','Performance settings',BASE_URL.'/apps/operations/reports.php?tab=settings','settings'],
 ];
 ?>
@@ -36,3 +38,4 @@ $pcLinks = [
     </div>
     <a class="pc-rail-return" href="<?= htmlspecialchars(BASE_URL.'/index.php',ENT_QUOTES,'UTF-8') ?>" title="Back to portal"><i data-lucide="arrow-left" aria-hidden="true"></i><span>Portal</span></a>
 </nav>
+<script src="<?= BASE_URL ?>/assets/js/performance-command-people.js?v=<?= (int)filemtime(BASE_PATH.'/assets/js/performance-command-people.js') ?>"></script>

@@ -103,6 +103,7 @@
   }
 
   function renderTeam(team) {
+    team = team.filter(window.HambelelaPerformancePeople?.eligible || (()=>true));
     q('[data-kpi-team]').innerHTML = team.length ? team.map((person) => {
       const score = person.summary_score !== null && person.summary_score !== undefined && person.summary_score !== '' && Number.isFinite(Number(person.summary_score)) ? Number(person.summary_score) : null;
       const href = `kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}`;
@@ -170,7 +171,7 @@
   }
 
   function renderManagementComparison(team) {
-    const rows = (team || []).map((person) => { const ratio = (person.metrics || []).find((metric) => metric.denominator); const percent = ratio?.denominator ? Math.min(100, 100 * Number(ratio.numerator) / Number(ratio.denominator)) : null; return { ...person, percent }; });
+    const rows = (team || []).filter(person=>(window.HambelelaPerformancePeople?.eligible(person)??true)&&!/driver/i.test(person.role_key||person.role||'')).map((person) => { const ratio = (person.metrics || []).find((metric) => metric.denominator); const percent = ratio?.denominator ? Math.min(100, 100 * Number(ratio.numerator) / Number(ratio.denominator)) : null; return { ...person, percent }; });
     q('[data-kpi-management-comparison]').innerHTML = rows.length ? `<div class="kpi-management-compare-list">${rows.map((person) => `<a href="kpi-employee.php?id=${Number(person.id)}&period=${encodeURIComponent(period.value)}"><div><strong>${escapeHtml(person.name)}</strong><small>${person.card_type === 'packer' ? 'Packer Operational Index · completion against assigned packing workload' : 'Front Desk Order Completion Compliance · completed against applicable orders'}</small></div><span title="100% means every eligible assigned/applicable record was completed"><i style="width:${person.percent === null ? 0 : person.percent}%"></i></span><b>${person.percent === null ? 'Not calculated — denominator unavailable' : `${person.percent.toFixed(1)}% · 100% = all applicable work completed`}</b></a>`).join('')}</div>` : '<div class="kpi-empty-state">No role-relative employee evidence is available.</div>';
   }
 
