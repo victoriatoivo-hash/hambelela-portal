@@ -18,6 +18,8 @@ assert.match(api, /You may view only your own performance report/);
 assert.match(profile, /You may view only your own performance report/);
 assert.match(profile, /kpi-score-placeholder/);
 assert.doesNotMatch(profile, /epi-profile-v5|performance-month/);
+assert.doesNotMatch(read('apps/operations/reports-data.php'), /BusinessHealthPerformance::attach|EmployeePerformanceService/,
+  'Restored operational overview must not be overwritten with the V2 card payload');
 assert.equal(reports.replace(/\r\n/g,'\n'), baseline('apps/operations/reports.php'));
 assert.equal(read('assets/css/performance-dashboard.css').replace(/\r\n/g,'\n'), baseline('assets/css/performance-dashboard.css'));
 for (const helper of ['kpi-reporting.php','kpi-front-orders.php','kpi-packer-orders.php','kpi-packing-list-performance.php','kpi-task-management-performance.php','kpi-courier-waybills-performance.php','kpi-error-quality.php','kpi-bookkeeping-reconciliation.php']) {
