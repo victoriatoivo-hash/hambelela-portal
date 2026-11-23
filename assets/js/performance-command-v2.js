@@ -73,7 +73,7 @@
         const score = /driver/i.test(person.role_key||person.role||'') ? null : percentage(person.summary_score);
         const name = String(person.name || 'Employee');
         const id = Math.max(0,Number(person.id) || 0);
-        const href = 'kpi-employee.php?id=' + id + '&period=' + encodeURIComponent(q('[data-kpi-period]')?.value||'this_month');
+        const href = 'kpi-employee.php?' + new URLSearchParams({id,period:'custom',date_from:data.period.from,date_to:data.period.to});
         return '<a class="pc-role-person" href="' + href + '"><span class="pc-initial">' +
           esc(name.trim().charAt(0).toUpperCase()) + '</span><strong>' + esc(name) +
           '</strong><small>' + esc(person.role || 'Role not specified') +
