@@ -58,7 +58,7 @@ def main(deploy):
                 if read(ftp,temp)!=wanted: raise RuntimeError('Association upload mismatch')
                 if read(ftp,TARGET) is not None: raise RuntimeError('Concurrent association publication; nothing replaced')
                 ftp.rename(temp,TARGET); changed = True
-            request = urllib.request.Request(URL,headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
+            request = urllib.request.Request(URL,headers={'Cache-Control':'no-cache','Accept-Encoding':'identity','User-Agent':'Hambelela-Release-Verification/1.0'})
             with urllib.request.urlopen(request,timeout=30) as response:
                 if response.url!=URL or response.status!=200 or response.headers.get_content_type()!='application/json':
                     raise RuntimeError('Association must be public HTTPS JSON without redirects')

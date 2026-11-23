@@ -19,7 +19,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with: {gradle-version: '8.13'}
       - name: Check package security contract
-        run: python3 android-driver/tests/package_contract.py
+        run: |
+          python3 android-driver/tests/package_contract.py
+          python3 android-driver/tests/association_release.py
       - name: Build and lint without private keys
         run: gradle -p android-driver --no-daemon :app:assembleRelease :app:lintRelease
       - name: Prepare unsigned APK and standard signing tool
