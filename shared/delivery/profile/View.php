@@ -6,6 +6,7 @@ $paths['calendar']='<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M1
 $paths['card']='<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M15 14h4"/>';
 $paths['chevron']='<path d="m9 18 6-6-6-6"/>';
 $paths['logout']='<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>';
+$paths['download']='<path d="M12 3v12m-5-5 5 5 5-5M5 17v4h14v-4"/>';
 $profileIcon=static fn($key)=>'<svg class="hp-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'.$paths[$key].'</svg>';
 ?><!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f7f9f6"><title>Driver profile · Hambelela</title>
 <?php foreach(['driver-dashboard','driver-dashboard-integration','driver-profile','driver-profile-integration'] as $css):?><link rel="stylesheet" href="<?=$h($asset('assets/css/'.$css.'.css'))?>"><?php endforeach;?></head><body class="ho-driver-page">
@@ -18,6 +19,7 @@ $profileIcon=static fn($key)=>'<svg class="hp-icon" viewBox="0 0 24 24" fill="no
 <section class="hp-section <?=$heading==='Support & settings'?'hp-support':''?>"><h2><?=$h($heading)?></h2><div class="hp-menu"><?php foreach($rows as [$key,$ico,$label,$copy,$url]):?>
 <?php if($url):?><a class="hp-menu-row" href="<?=$h($base.$url)?>" aria-label="<?=$h($label)?>"><?php else:?><button type="button" class="hp-menu-row" data-open="<?=$h($key)?>" aria-label="<?=$h($label)?>"><?php endif;?>
 <span class="hp-menu-ico"><?=$profileIcon($ico)?></span><span class="hp-menu-copy"><strong><?=$h($label)?></strong><small><?=$h($copy)?></small></span><?=$profileIcon('chevron')?><?=$url?'</a>':'</button>'?><?php endforeach;?></div></section><?php endforeach;?>
+<section class="hp-section"><h2>Android app</h2><div class="hp-menu"><a class="hp-menu-row" href="https://github.com/victoriatoivo-hash/hambelela-portal/releases/download/driver-android-v1.0.0/Hambelela-Driver-1.0.0.apk" rel="noopener noreferrer" referrerpolicy="no-referrer" aria-label="Download Android app"><span class="hp-menu-ico"><?=$profileIcon('download')?></span><span class="hp-menu-copy"><strong>Download Android app</strong><small>Install on your phone · Android 8+ · 3.6 MB</small></span><?=$profileIcon('chevron')?></a></div><p class="hp-state">Open the downloaded APK to install, then sign in with your existing driver account. Internet is still required.</p></section>
 <button type="button" class="hp-sign-out" data-open="signout"><?=$profileIcon('logout')?><span>Sign out</span></button></div></div></div>
 <?php require __DIR__.'/../dashboard/BottomNav.php';?>
 <dialog class="hp-dialog" id="hp-dialog" aria-labelledby="hp-dialog-title"><header class="hp-dialog-header"><h2 id="hp-dialog-title">Details</h2><button class="hp-dialog-close" id="hp-close" aria-label="Close dialog" type="button"><?=$profileIcon('close')?></button></header><div class="hp-dialog-body" id="hp-dialog-body"></div><footer class="hp-dialog-actions" id="hp-dialog-actions"></footer></dialog>
