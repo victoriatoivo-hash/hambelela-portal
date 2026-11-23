@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.hambelelaorganic.driver",
+      "sha256_cert_fingerprints": ["08:52:E6:54:22:28:C7:03:D9:6D:6E:E2:31:03:AA:69:E0:F3:76:39:61:F0:4A:C9:09:35:8A:94:C4:41:F6:EF"]
+    }
+  }
+]

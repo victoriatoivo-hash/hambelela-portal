@@ -1,0 +1,22 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'com.hambelelaorganic.driver'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'com.hambelelaorganic.driver'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+    buildTypes {
+        release {
+            // Signed locally after CI: no private signing material on GitHub.
+            minifyEnabled false
+        }
+    }
+    lint { abortOnError true }
+}
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.7.4'
+}
