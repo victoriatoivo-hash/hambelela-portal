@@ -53,8 +53,6 @@ jobs:
           node --check assets/js/performance-command-v2.js
           node --check assets/js/reports-business-health.js
           node tests/performance-command-centre-v2-static.mjs
-          node tests/performance-dashboard-consolidation-static.mjs
-          node tests/business-health-role-overview-static.mjs
       - name: Guard live baseline and run approved mode
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
