@@ -4537,6 +4537,7 @@
     const panelBody = panel.querySelector('.order-panel-body');
     if (panelBody) panelBody.scrollTop = 0;
     panel.scrollTop = 0;
+    panel.dispatchEvent(new CustomEvent('orders:opened',{detail:{orderId:currentOrder.id}}));
     restoreOrdersTablePosition(panelReturnPosition);
   }
 

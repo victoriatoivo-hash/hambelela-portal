@@ -205,11 +205,13 @@ include BASE_PATH . '/shared/ess-sidebar.php';
             <button class="order-panel-tab portal-panel-tab is-active active" type="button" role="tab" aria-selected="true" data-panel-tab="details"><i data-lucide="layout-list" aria-hidden="true"></i><span>Details</span></button>
             <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="items"><i data-lucide="package" aria-hidden="true"></i><span>Items</span></button>
             <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="updates" id="panel-updates-tab"><i data-lucide="message-square" aria-hidden="true"></i><span>Updates</span></button>
+            <?php if(in_array(current_role_key(),['owner_admin','front_desk_admin','marketing_sales','supervisor_manager'],true)): ?><button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="communication"><i data-lucide="messages-square" aria-hidden="true"></i><span>Communication</span></button><?php endif; ?>
             <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="files"><i data-lucide="paperclip" aria-hidden="true"></i><span>Files</span></button>
             <button class="order-panel-tab portal-panel-tab" type="button" role="tab" aria-selected="false" data-panel-tab="activity"><i data-lucide="history" aria-hidden="true"></i><span>Activity</span></button>
         </nav>
         <div class="order-panel-body">
         <section class="order-panel-section updates-tab-panel active" data-panel-name="details"><div id="panel-order-details"></div></section>
+        <section class="order-panel-section updates-tab-panel" data-panel-name="communication"><div data-order-communication aria-live="polite"></div></section>
         <section class="order-panel-section updates-tab-panel" data-panel-name="items"><div class="order-panel-card order-items-card" id="panel-order-items"></div></section>
         <section class="order-panel-section updates-tab-panel" data-panel-name="updates">
             <div class="order-update-composer" id="order-update-composer">
@@ -259,6 +261,8 @@ window.HambelelaBoard = {
 </script>
 <script defer src="<?= BASE_URL ?>/assets/js/portal-column-resize.js?v=<?= is_file(BASE_PATH . '/assets/js/portal-column-resize.js') ? (string) filemtime(BASE_PATH . '/assets/js/portal-column-resize.js') : (string) time() ?>"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/orders-board.js?v=<?= htmlspecialchars($boardAssetVersion, ENT_QUOTES, 'UTF-8') ?>"></script>
+<link rel="stylesheet" href="<?= BASE_URL ?>/assets/css/order-communication.css?v=<?= filemtime(BASE_PATH.'/assets/css/order-communication.css') ?>">
+<script defer src="<?= BASE_URL ?>/assets/js/order-communication.js?v=<?= filemtime(BASE_PATH.'/assets/js/order-communication.js') ?>"></script>
 <?php include BASE_PATH . '/shared/ess-mobile-navigation.php'; ?>
 <script defer src="<?= BASE_URL ?>/assets/js/ess-dashboard.js?v=<?= filemtime(BASE_PATH . '/assets/js/ess-dashboard.js') ?>"></script>
 <script defer src="<?= BASE_URL ?>/assets/js/orders-essentials.js?v=<?= filemtime(BASE_PATH . '/assets/js/orders-essentials.js') ?>"></script>

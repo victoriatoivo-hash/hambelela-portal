@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+const read=p=>fs.readFileSync(new URL(`../${p}`,import.meta.url),'utf8');
+const script=read('assets/js/order-communication.js'),css=read('assets/css/employee-performance.css');
+const listeners={},host={innerHTML:'',addEventListener(){},querySelector(){return null;}};
+const panel={querySelector:s=>s==='[data-order-communication]'?host:{},addEventListener:(name,fn)=>{listeners[name]=fn;}};
+const payload={ok:true,actor_id:101,can_review:false,data:{enabled:true,employees:[{id:101,full_name:'Synthetic <actor>'}],records:[]}};
+vm.runInNewContext(script,{document:{querySelector:()=>panel},window:{HambelelaBoard:{}},Intl,Date,URLSearchParams,
+  crypto:{randomUUID:()=> '00000000-0000-4000-8000-000000000001'},fetch:async()=>({ok:true,json:async()=>payload})});
+listeners['orders:opened']({detail:{orderId:101}});
+await new Promise(r=>setImmediate(r));
+for(const name of ['responsible_employee_id','channel','contact_at','outcome','evidence_reference','follow_up_required','promised_follow_up_at','handover_message_id'])assert.ok(host.innerHTML.includes(`name="${name}"`),name);
+assert.match(host.innerHTML,/Call/);assert.match(host.innerHTML,/Email/);assert.match(host.innerHTML,/Synthetic &lt;actor&gt;/);
+assert.match(host.innerHTML,/not evidence that no off-portal contact occurred/);
+assert.ok(script.includes('if(orderId===id)'),'late POST response cannot replace another order');
+assert.ok(script.includes('mine!==version||id!==orderId'),'late GET response ignored');
+assert.match(css,/--t-olive:#59694a/);assert.match(css,/--t-purple:#7754a5/);
+assert.match(css,/box-shadow:0 3px 12px #34412605/);assert.match(css,/border-radius:12px/);
+assert.ok(css.includes('@media(max-width:600px)'));assert.ok(css.includes('@media(prefers-reduced-motion:reduce)'));
+assert.match(css,/word-break:normal/);assert.match(css,/overflow:auto/);
+const api=read('apps/operations/order-communication.php');
+assert.match(api,/hash_equals/);assert.match(api,/marketing_sales/);assert.match(api,/Owner review required/);
+assert.match(read('apps/operations/orders-board-action.php'),/OrderCommunicationCapture::requireCompletion/);
+assert.match(read('docs/epi-evidence-capture-acceptance.md'),/Operational status versus scoring eligibility/);
+console.log('PASS: order capture controls, escaped data, stale-response guards, authorization, profile tokens and mobile/reduced-motion contracts');

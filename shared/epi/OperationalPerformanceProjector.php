@@ -1,0 +1,331 @@
+<?php
+declare(strict_types=1);
+namespace Hambelela\EPI;
+
+use PDO;
+use RuntimeException;
+require_once __DIR__.'/PerformanceCapturePolicy.php';
+
+/** Read-only projection of actual obligations; never substitutes actor for owner.
+ * Source coverage is an explicit scorecard contract, not inferred from finding rows.
+ */
+final class OperationalPerformanceProjector
+{
+    private $db;
+    private const DEADLINES = [
+        'Orders|acknowledge_order'=>['orders','progression'],
+        'Orders|move_order_out_of_new'=>['orders','progression'],
+        'Orders|complete_order'=>['orders','completion'],
+        'Orders|customer_followup'=>['communication','followup'],
+        'Orders|customer_response'=>['communication','response'],
+        'Tasks|start_task'=>['tasks','start'],
+        'Tasks|complete_task'=>['tasks','timeliness'],
+        'Tasks|complete_handover'=>['communication','handover'],
+        'Packing|pack_order'=>['orders','progression'],
+        'Packing|start_packing'=>['packing','start'],
+        'Packing|complete_packing'=>['packing','timeliness'],
+        'Packing List|start_packing'=>['packing','start'],
+        'Packing List|complete_packing'=>['packing','timeliness'],
+        'Courier|send_courier_documents'=>['courier','timeliness'],
+        'Courier|upload_waybill'=>['courier','upload'],
+        'Packing|upload_waybill'=>['courier','upload'],
+        'Inventory|update_website_stock'=>['inventory','timeliness'],
+        'Bookkeeping|enter_cash_transaction'=>['bookkeeping','timeliness'],
+        'Bookkeeping|record_opening_balance'=>['bookkeeping','controls'],
+        'Bookkeeping|complete_cash_reconciliation'=>['bookkeeping','controls'],
+    ];
+
+    public function __construct(PDO $db){$this->db=$db;}
+
+    /** Canonical work/KPI allocation choices shared with the owner review form. */
+    public static function unitTargets(string $key,string $role=''):array
+    {
+        foreach(['packing_priority:'=>['packing_list','priority'],'packing_compliance:'=>['packing_list','compliance'],'dispatch_compliance:'=>['courier','compliance'],'website_accuracy:'=>['inventory','accuracy']] as $prefix=>$target)
+            if(strpos($key,$prefix)===0)return [$target];
+        if(strpos($key,'ops_whatsapp_conversation:')===0)return [['communication','accuracy']];
+        if(strpos($key,'cash_entry:')===0)return [['bookkeeping','accuracy']];
+        $targets=[];
+        if($role!=='packer'||strpos($key,'packing_task:')===0||strpos($key,'order_packing:')===0)
+            $targets[]=['quality','first_time_right'];
+        if(strpos($key,'order:')===0)$targets[]=['orders','first_time_right'];
+        if(strpos($key,'checklist_task:')===0)$targets[]=['tasks','compliance'];
+        return $targets;
+    }
+
+    public function employee(int $employee,string $period): array
+    {
+        if($employee<1 || !preg_match('/^20\d{2}-(0[1-9]|1[0-2])-01$/D',$period))throw new RuntimeException('Invalid projection period.');
+        $row=V2Store::one($this->db,'SELECT s.policy_json FROM epi_v2_scorecard_assignments a
+            JOIN epi_v2_scorecard_documents s ON s.version=a.scorecard_version
+            WHERE a.employee_id=? AND a.period_start=?',[$employee,$period]);
+        if(!$row)throw new RuntimeException('No assigned scorecard.');
+        $policy=json_decode($row['policy_json'],true,512,JSON_THROW_ON_ERROR);
+        $start=$period.' 00:00:00';$end=Support::timestamp($start)->modify('+1 month')->format('Y-m-d H:i:s');
+        $coverage=[];
+        foreach($policy['categories'] as $category=>$definition)foreach($definition['metrics'] as $metric=>$config){
+            $source=$config['source_coverage']??[];
+            $coverage[$category][$metric]=['complete'=>($source['verified']??false)===true &&
+                !empty($source['verified_by']) && ($source['from']??'9999')<=$start && ($source['to']??'')>=$end,
+                'reason'=>self::sourceRequirement($category,$metric,$policy['role']??'')];
+        }
+        require_once __DIR__.'/OperationalMeasurementPolicy.php';
+        $nativePolicy=OperationalMeasurementPolicy::current($this->db,min(Support::timestamp()->format('Y-m-d H:i:s'),$end));
+        if($nativePolicy)foreach([['packing_list','priority'],['packing_list','compliance'],['courier','compliance'],['inventory','accuracy']] as [$category,$metric]){
+            if(isset($coverage[$category][$metric]))$coverage[$category][$metric]['reason']='Native measurement capture is enabled prospectively from '.$nativePolicy['effective_from'].'. Verified stock audits require evidence; priority exceptions require review. Earlier full-month coverage is not inferred.';
+        }
+        if($nativePolicy&&($policy['role']??'')==='packer'&&isset($coverage['courier']['timeliness']))$coverage['courier']['timeliness']['reason']=$nativePolicy['courier_allocation'].' New obligations are measured automatically; no earlier month coverage is invented.';
+        if(isset($coverage['bookkeeping']['controls'])){
+            require_once __DIR__.'/BookkeepingControlBridge.php';
+            $cashControls=BookkeepingControlBridge::provisional($this->db,min(Support::timestamp()->format('Y-m-d H:i:s'),$end));
+            if($cashControls&&$cashControls['effective_from']<$end)$coverage['bookkeeping']['controls']['reason']='Daily opening/pre-close controls are connected prospectively from '.$cashControls['effective_from'].'; this does not establish earlier full-period coverage or automatically deduct variances.';
+        }
+        $q=$this->db->prepare('SELECT d.*,i.responsible_employee_at_breach,i.root_incident_id,
+            i.metadata_json AS incident_metadata,i.eligibility_state,i.exclusion_reason AS incident_exclusion,
+            c.employee_id AS completion_owner,c.ownership_json AS completion_ownership,c.eligible_at_capture
+            FROM epi_v2_operational_deadlines d LEFT JOIN epi_v2_performance_incidents i
+            ON i.deadline_uuid=d.deadline_uuid LEFT JOIN epi_v2_deadline_completion_eligibility c
+            ON c.deadline_uuid=d.deadline_uuid WHERE d.due_at>=? AND d.due_at<? ORDER BY d.due_at,d.id');
+        $q->execute([$start,$end]);$deadlines=$q->fetchAll(PDO::FETCH_ASSOC);$q->closeCursor();
+        $owners=new OwnershipPeriodEngine($this->db);$opportunities=[];
+        foreach($deadlines as $d){
+            $map=self::DEADLINES[$d['module'].'|'.$d['obligation_key']]??null;
+            if($d['module']==='Packing'&&$d['obligation_key']==='pack_order'&&($policy['role']??'')==='packer'){
+                require_once __DIR__.'/OperationalMeasurementPolicy.php';
+                $measurement=OperationalMeasurementPolicy::current($this->db,$d['starts_at']);
+                $order=V2Store::one($this->db,'SELECT classification,dispatch_at FROM epi_v2_orders_tracking WHERE object_reference=?',[$d['object_reference']]);
+                if($measurement&&($order['classification']??'')==='courier')$map=['courier','timeliness'];
+            }
+            if(!$map || !isset($policy['categories'][$map[0]]['metrics'][$map[1]]))continue;
+            $meta=json_decode((string)($d['incident_metadata']??''),true)?:[];
+            $breached=!empty($d['root_incident_id']);
+            $complete=!empty($d['fulfilled_at']);
+            $success=$complete && $d['fulfilled_at']<=$d['breach_eligible_at'];
+            $corrected=$breached && $success;
+            // Completion rate and completion SLA are separate rates. An unfinished
+            // obligation fails completion; once finished its one breach belongs to
+            // timeliness. Never apply the same root to both weighted metrics.
+            $completionMetric=in_array($d['obligation_key'],['complete_task','complete_packing','enter_cash_transaction'],true)
+                && isset($policy['categories'][$map[0]]['metrics']['completion']);
+            if($completionMetric && !$complete)$map[1]='completion';
+            // Positive work also uses the responsibility interval, not the person who clicked.
+            $owner=$breached&&!$corrected?($meta['owner_interval']??null):(json_decode((string)($d['completion_ownership']??''),true)?:null);
+            $responsible=$breached&&!$corrected?(int)$d['responsible_employee_at_breach']:(int)($d['completion_owner']??0);
+            if($responsible!==$employee)continue;
+            $snapshot=json_decode((string)$d['policy_snapshot_json'],true)?:[];
+            if(!$breached || $corrected) {
+                $meta=PerformanceCapturePolicy::metadata((int)($d['eligible_at_capture']??0));
+            }
+            $reason=($d['exclusion_reason']??null)?:($d['incident_exclusion']?:null);
+            if((int)$d['historical_backfill'])$reason='historical_backfill';
+            elseif(empty($snapshot['event']['score_eligible']))$reason='non_employee_obligation';
+            elseif($d['state']==='excused')$reason='approved_exception';
+            elseif($d['state']==='cancelled'&&!$breached)$reason='cancelled_before_breach';
+            elseif(!$success&&!$breached)$reason='awaiting_watchdog_or_fulfilment';
+            $opportunity=['employee_id'=>$employee,'category'=>$map[0],'metric'=>$map[1],
+                'opportunity_key'=>'deadline:'.$d['deadline_uuid'],'root_incident_id'=>$d['root_incident_id']??null,
+                'module'=>$d['module'],'source_reference'=>$d['object_reference'],'source_deadline_uuid'=>$d['deadline_uuid'],
+                'starts_at'=>$d['starts_at'],'due_at'=>$d['due_at'],'fulfilled_at'=>$d['fulfilled_at'],
+                'fulfilled_by'=>$d['fulfilled_by']===null?null:(int)$d['fulfilled_by'],
+                'ownership'=>$owner,'responsibility_confirmed'=>$owner!==null,'eligible'=>$reason===null,
+                'exclusion_reason'=>$reason,'metadata'=>$meta,'outcome'=>$success?'success':'failure',
+                'expected'=>ucwords(str_replace('_',' ',$d['obligation_key'])).' by '.$d['due_at'],
+                'actual'=>$complete?'Fulfilled at '.$d['fulfilled_at']:($breached?'Still unfulfilled when deadline expired':'Pending'),
+                'current_state'=>$d['state'],'historical_state'=>$corrected?'breach_corrected_by_fulfilment_evidence':($breached?'breach_retained':'on_time'),
+                'late_business_minutes'=>$meta['late_business_minutes']??null];
+            $opportunities[]=$opportunity;
+            if($completionMetric && $complete){
+                $completion=$opportunity;
+                $completion['metric']='completion';$completion['outcome']='success';
+                $completion['root_incident_id']=null;
+                if($breached&&!$corrected)$completion['attribution_basis']='obligation_due';
+                $completion['expected']='Complete the assigned obligation';
+                $opportunities[]=$completion;
+            }
+        }
+        $opportunities=array_merge($opportunities,$this->completedUnits($employee,$start,$end,$policy,$coverage));
+        require_once __DIR__.'/AttendanceEvidenceProjector.php';
+        $opportunities=array_merge($opportunities,AttendanceEvidenceProjector::employee($this->db,$employee,$start,$end,$coverage));
+        if(($policy['status']??'')==='provisional'){
+            require_once __DIR__.'/PerformanceSourceCoverage.php';
+            $coverage=PerformanceSourceCoverage::resolve($this->db,$policy,$period,$coverage);
+        }
+        if(($policy['scope']['kind']??'')==='front_desk_coverage')foreach($opportunities as &$o){
+            if(!self::withinFunctionScope($this->db,$policy,$o['ownership']??null)){$o['eligible']=false;$o['exclusion_reason']='outside_front_desk_function_scope';}
+        }unset($o);
+        return ['opportunities'=>$opportunities,'coverage'=>$coverage];
+    }
+
+    private static function sourceRequirement(string $category,string $metric,string $role):string
+    {
+        $requirements=[
+            'packing_list|priority'=>'An approved priority-sequence target and prospective priority history are required; packing speed alone is not priority compliance.',
+            'packing_list|compliance'=>'The assigned stock-check/confirmation requirements and quantity/process outcome must be captured prospectively.',
+            'courier|compliance'=>'Document/customer-notification completeness needs supporting evidence; a Sent click alone is not proof of every required dispatch step.',
+            'inventory|accuracy'=>'Verified stock/variation change evidence is required; the website-confirmation tick alone does not prove quantity accuracy.',
+            'bookkeeping|controls'=>'Opening/closing/deposit control times must be explicitly configured and supported by native control records.',
+            'orders|stale_prevention'=>'A distinct, allocated Front-controlled stale-order obligation is required; packer New-stage breaches are not Front Desk failures.',
+        ];
+        if($category==='courier'&&$metric==='timeliness'&&$role==='packer')return 'Packer-controlled cutoff/readiness evidence must be linked to its order; Front Desk sending cannot substitute for it.';
+        return $requirements[$category.'|'.$metric]??'The native obligation/completion source is connected, but full-period coverage has not been independently verified.';
+    }
+
+    public static function withinFunctionScope(PDO $db,array $policy,$owner):bool
+    {
+        if(($policy['scope']['kind']??'')!=='front_desk_coverage')return true;
+        if(!is_array($owner))return false;
+        $owner=$owner['operational_interval']??$owner;
+        if(($owner['duty_key']??'')==='front_desk'||($owner['source']??'')==='accepted_counter_order_assignment')return true;
+        $source=(string)($owner['source']??'');
+        if($source==='saved_communication_assignment'&&strpos($owner['object_reference']??'','CONVERSATION-')===0){
+            $conversation=(int)substr($owner['object_reference'],13);
+            $q=$db->prepare("SELECT payload_json FROM epi_v2_outbox WHERE entity_type='ops_whatsapp_conversation' AND entity_id=? AND action='save_whatsapp_conversation' ORDER BY id");$q->execute([$conversation]);$rows=$q->fetchAll(PDO::FETCH_COLUMN);$q->closeCursor();
+            foreach($rows as $json){$p=json_decode($json,true)?:[];$r=$p['record']??[];$m=$p['metadata']??[];
+                if((int)($r['assigned_employee_id']??0)===(int)($owner['employee_id']??0)&&!empty($r['order_id'])&&($m['occurred_at']??'')===($owner['effective_from']??'')&&in_array((int)($m['employee_id']??0),[(int)$owner['employee_id'],(int)(V2Store::activation($db)['approved_by']??0)],true)
+                    &&V2Store::one($db,'SELECT id FROM ops_orders WHERE id=?',[(int)$r['order_id']]))return true;
+            }
+        }
+        if(strpos($source,'handover:')===0){
+            $handover=V2Store::one($db,"SELECT duty_key FROM epi_v2_handovers WHERE handover_uuid=? AND status='accepted'",[substr($source,9)]);
+            return ($handover['duty_key']??'')==='front_desk';
+        }
+        return false;
+    }
+
+    private function completedUnits(int $employee,string $start,string $end,array $policy,array &$coverage):array
+    {
+        $unlinked=V2Store::one($this->db,'SELECT COUNT(*) n FROM epi_v2_quality_revisions r
+            LEFT JOIN epi_v2_incident_correlations c ON c.source_key=r.root_incident_id AND c.superseded_at IS NULL
+            JOIN epi_v2_performance_incidents i ON i.root_incident_id=r.root_incident_id
+            LEFT JOIN epi_v2_completed_work_units u ON u.opportunity_key=c.opportunity_key
+                AND u.employee_id=r.employee_id
+            WHERE r.employee_id=? AND r.superseded_at IS NULL AND r.eligible=1
+            AND (c.id IS NULL OR u.opportunity_key IS NULL OR u.completed_at<? OR u.completed_at>=?)
+            AND i.occurred_at>=? AND i.occurred_at<?',[$employee,$start,$end,$start,$end]);
+        if((int)$unlinked['n']>0)foreach([['quality','first_time_right'],['communication','accuracy']] as $target)
+            if(isset($coverage[$target[0]][$target[1]]))$coverage[$target[0]][$target[1]]=[
+                'complete'=>false,'reason'=>'Confirmed incidents require a reviewed work-opportunity/root correlation.'];
+        $q=$this->db->prepare('SELECT * FROM epi_v2_completed_work_units WHERE employee_id=? AND completed_at>=? AND completed_at<? ORDER BY opportunity_key');
+        $q->execute([$employee,$start,$end]);$units=$q->fetchAll(PDO::FETCH_ASSOC);$q->closeCursor();
+        $q=$this->db->prepare('SELECT c.*,r.snapshot_json,r.eligible FROM epi_v2_incident_correlations c
+            JOIN epi_v2_quality_revisions r ON r.root_incident_id=c.source_key AND r.superseded_at IS NULL
+            WHERE c.employee_id=? AND c.superseded_at IS NULL ORDER BY c.id');
+        $q->execute([$employee]);$links=$q->fetchAll(PDO::FETCH_ASSOC);$q->closeCursor();
+        $out=[];
+        foreach($units as $unit){
+            $snapshot=json_decode($unit['source_snapshot_json'],true)?:[];
+            $cash=strpos($unit['opportunity_key'],'cash_entry:')===0;
+            $targets=self::unitTargets($unit['opportunity_key'],$policy['role']??'');
+            foreach($targets as $target){
+                [$category,$metric]=$target;
+                if(!isset($policy['categories'][$category]['metrics'][$metric]))continue;
+                $captureMode=(int)($snapshot['capture_mode']??(($snapshot['score_eligible_at_capture']??false)===true?1:0));
+                $approved=in_array($captureMode,[1,2],true);
+                $row=['employee_id'=>$employee,'category'=>$category,'metric'=>$metric,
+                    'opportunity_key'=>$unit['opportunity_key'],'root_incident_id'=>null,'module'=>$unit['module'],
+                    'source_reference'=>$unit['object_reference'],'starts_at'=>$unit['starts_at'],'due_at'=>$unit['completed_at'],
+                    'deadline_applies'=>false,'observed_at'=>$unit['completed_at'],
+                    'fulfilled_at'=>$unit['completed_at'],'fulfilled_by'=>$unit['fulfiller_id']===null?null:(int)$unit['fulfiller_id'],
+                    'ownership'=>json_decode((string)$unit['ownership_json'],true),'responsibility_confirmed'=>true,
+                    'eligible'=>true,'outcome'=>'success','metadata'=>PerformanceCapturePolicy::metadata($captureMode),
+                    'expected'=>'Complete this work accurately on the first attempt',
+                    'actual'=>'Completed work; no confirmed correlated failure recorded',
+                    'supporting_evidence'=>[]];
+                if($cash){
+                    $cashProcess=$snapshot['record']['cash_process']??[];
+                    $row['cash_evidence']=$cashProcess;
+                    $row['expected']='Record the received cash amount against its verified order allocation';
+                    $row['actual']=$cashProcess['actual']??'Cash amount evidence is incomplete';
+                    if(empty($cashProcess['measured'])){
+                        $row['eligible']=false;$row['exclusion_reason']='incomplete_explanation';
+                        $row['amount_review_pending']=true;
+                    }
+                }
+                if(isset($snapshot['native_measurement'])){
+                    $native=$snapshot['native_measurement'];
+                    $row['expected']=$native['expected'];$row['actual']=$native['actual'];
+                    $row['process_evidence']=$native;
+                    $row['outcome']=$native['outcome'];
+                    $row['root_incident_id']=$row['outcome']==='failure'?'native-process:'.$unit['opportunity_key']:null;
+                    if(empty($native['measured'])){
+                        $row['eligible']=false;$row['exclusion_reason']='incomplete_explanation';$row['native_review_pending']=true;$row['root_incident_id']=null;
+                        if(in_array($native['responsibility_type']??'',['system','business','supplier','courier','customer'],true)){
+                            $row['exclusion_reason']='reviewed_non_employee_variance';$row['metadata']['excluded_from_scoring']=true;
+                        }
+                    }
+                }
+                if(strpos($unit['opportunity_key'],'packing_task:')===0){
+                    require_once __DIR__.'/PackingProcessEvidence.php';
+                    $packing=$snapshot['packing_process']??PackingProcessEvidence::evaluate($snapshot['record']??[]);
+                    $row['packing_evidence']=$packing;$row['actual']=$packing['actual'];
+                    if(empty($packing['measured'])){
+                        $row['eligible']=false;$row['exclusion_reason']='incomplete_explanation';
+                        $row['quantity_review_pending']=true;
+                    }
+                }
+                if($category==='tasks' && $metric==='compliance'){
+                    $process=$snapshot['process']??[];
+                    if(empty($process['measured'])){
+                        $row['eligible']=false;$row['exclusion_reason']='incomplete_explanation';
+                    }else{
+                        $row['outcome']=$process['outcome'];
+                        $row['root_incident_id']=$process['outcome']==='failure'?'task-process:'.$unit['opportunity_key']:null;
+                        $row['expected']='Complete the required checklist, meaningful note and supporting proof';
+                        $row['actual']=$process['actual'];$row['process_evidence']=$process;
+                    }
+                }
+                foreach($links as $link){
+                    if($link['opportunity_key']!==$unit['opportunity_key'] || $link['category_key']!==$category || $link['metric_key']!==$metric)continue;
+                    $quality=json_decode($link['snapshot_json'],true)?:[];
+                    if(!(int)$link['eligible']) {
+                        $type=$quality['source_record']['attribution_type']??'';
+                        if(in_array($type,['system','business','supplier','courier','customer','delivery_driver'],true)
+                            && !empty($quality['reviewer_id']) && !empty($quality['reviewed_at'])){
+                            if(!empty($row['amount_review_pending'])||!empty($row['quantity_review_pending'])||!empty($row['native_review_pending'])){
+                                // Reviewed external variance is neither an employee
+                                // failure nor a successful employee observation.
+                                $row['eligible']=false;$row['exclusion_reason']='reviewed_non_employee_variance';
+                                $row['metadata']['excluded_from_scoring']=true;
+                                $row['supporting_evidence'][]=['source'=>$link['source_key'],'reviewer'=>$quality['reviewer_id'],
+                                    'reviewed_at'=>$quality['reviewed_at'],'exclusion'=>'reviewed_non_employee_variance'];
+                            }
+                            continue;
+                        }
+                        $row['eligible']=false;$row['exclusion_reason']='correlation_attribution_changed';continue;
+                    }
+                    if((int)($quality['responsible_employee_id']??0)!==$employee || empty($quality['responsibility_confirmed'])){
+                        $row['eligible']=false;$row['exclusion_reason']='correlation_attribution_changed';continue;
+                    }
+                    // A confirmed, explicitly correlated employee incident resolves
+                    // the quantity-fault ambiguity; mere mismatch never deducts.
+                    if((!empty($row['quantity_review_pending']) || !empty($row['amount_review_pending']) || !empty($row['native_review_pending'])) && empty($quality['excluded_from_scoring'])){
+                        $row['eligible']=true;unset($row['exclusion_reason']);
+                    }
+                    // A superseded/excused/system record cannot become a failure through a stale link.
+                    if($row['root_incident_id']!==null && $row['root_incident_id']!==$link['root_incident_id']){
+                        $row['eligible']=false;$row['exclusion_reason']='multiple_roots_need_workload_review';continue;
+                    }
+                    $row['root_incident_id']=$link['root_incident_id'];$row['outcome']='failure';
+                    $row['module']='Error Log';$row['metadata']=$quality;
+                    // Later review cannot promote an unapproved captured work unit.
+                    if(!$approved){$row['metadata']['excluded_from_scoring']=true;$row['metadata']['mode']='shadow';}
+                    elseif($captureMode===2 || ($quality['mode']??'')==='provisional_prospective')$row['metadata']['mode']='provisional_prospective';
+                    $row['ownership']=['employee_id'=>$employee,'reviewer_id'=>$quality['reviewer_id']??null,
+                        'reviewed_at'=>$quality['reviewed_at']??null,'operational_interval'=>$row['ownership']];
+                    $row['actual']='Confirmed attributable error: '.($quality['source_record']['error_title']??$link['source_key']);
+                    $row['supporting_evidence'][]=['source'=>$link['source_key'],'reviewer'=>$quality['reviewer_id']??null,
+                        'reporter'=>$quality['reporter_employee_id']??null,'reviewed_at'=>$quality['reviewed_at']??null];
+                }
+                // Preserve the newer live management-correction review gate. Neither
+                // a stale completion snapshot nor a later quality link clears it.
+                if(!empty($snapshot['management_review_required'])){
+                    $row['eligible']=false;
+                    $row['exclusion_reason']='management_completion_correction';
+                    $row['metadata']['excluded_from_scoring']=true;
+                    $row['actual']='Completion facts were corrected; scoring attribution requires review';
+                }
+                $out[]=$row;
+            }
+        }
+        return $out;
+    }
+}

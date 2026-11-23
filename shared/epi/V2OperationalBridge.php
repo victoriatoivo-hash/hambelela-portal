@@ -3,17 +3,53 @@ declare(strict_types=1);
 namespace Hambelela\EPI;
 use PDO;
 use RuntimeException;
+require_once __DIR__.'/ProvisionalTimingPolicy.php';
 
 /** Outbox belongs to the caller transaction; failed capture remains replayable. */
 final class V2OperationalBridge
 {
  public static function record(PDO $db,string $type,string $action,int $id,array $meta=[]):void {
     $flag=V2Store::one($db,"SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='epi_v2_capture_enabled'");
-    if(!$flag||$flag['setting_value']!=='1'||!V2Store::activation($db)||!in_array($type,['order','checklist_task','error_log'],true))return;
-    $table=['order'=>'ops_orders','checklist_task'=>'ops_checklist_tasks','error_log'=>'ops_error_logs'][$type];
+    if(!$flag||$flag['setting_value']!=='1'||!V2Store::activation($db))return;
+    if($type==='courier_waybill_batch' && !empty($meta['batch_id'])){
+        $s=$db->prepare('SELECT id FROM hambelela_waybills WHERE batch_id=?');$s->execute([$meta['batch_id']]);
+        $ids=$s->fetchAll(PDO::FETCH_COLUMN);$s->closeCursor();
+        foreach($ids as $waybillId)self::record($db,'courier_waybill',$action,(int)$waybillId,$meta);
+        return;
+    }
+    if(!in_array($type,['order','checklist_task','error_log','ops_whatsapp_conversation','packing_task','courier_waybill','cash_entry','front_plan'],true))return;
+    $table=['order'=>'ops_orders','checklist_task'=>'ops_checklist_tasks','error_log'=>'ops_error_logs','ops_whatsapp_conversation'=>'ops_whatsapp_conversations',
+        'packing_task'=>'ops_packing_tasks','courier_waybill'=>'hambelela_waybills','cash_entry'=>'ops_cash_book_entries','front_plan'=>'epi_v2_front_plans'][$type];
     $record=V2Store::one($db,"SELECT * FROM $table WHERE id=?",[$id]);if(!$record)return;
     $meta['occurred_at']=Support::timestamp($meta['occurred_at']??null)->format('Y-m-d H:i:s');
+    if($type==='order' && (int)(ProvisionalTimingPolicy::policy($db,$meta['occurred_at'])['cash_entry_minutes']??0)>0 && in_array($action,['order_created','payment_changed','payment_status_updated','payment_status_auto_walk_in'],true)){
+        $cash=V2Store::one($db,"SELECT COALESCE(SUM(amount_cents),0) amount FROM order_payment_allocations WHERE order_id=? AND payment_method='cash'",[$id]);
+        $meta['cash_receipt_cents']=(int)$cash['amount'];
+        if($action==='payment_status_updated'&&($meta['field']??'')==='portal_paid_confirmation'
+            &&($meta['old_value']??'')==='unpaid'&&($meta['new_value']??'')==='paid'
+            &&in_array($meta['source']??'',['manual_orders_board','manual_orders_board_bulk'],true)&&(int)$cash['amount']>0){
+            $meta['cash_received_at']=$meta['occurred_at'];$meta['cash_receipt_source']='staff_confirmed_paid_cash_allocation';
+        }
+    }
+    $meta['occurred_at']=Support::timestamp($meta['occurred_at']??null)->format('Y-m-d H:i:s');
     $meta['employee_id']=$meta['employee_id']??(function_exists('ops_current_employee_id')?ops_current_employee_id():null);
+    // Some task actions use employee_id for the recipient. Keep the authenticated
+    // actor separate instead of crediting an assignee with an owner's action.
+    $authenticated=function_exists('ops_current_employee_id')?(int)ops_current_employee_id():0;
+    $meta['actor_employee_id']=$authenticated>0?$authenticated:($meta['actor_employee_id']??$meta['employee_id']);
+    if($type==='checklist_task' && in_array($action,['task_completed','task_correction_completed'],true)
+        && (int)($record['completion_evidence_required']??0)===1){
+        $proof=$db->prepare('SELECT id FROM ops_checklist_attachments WHERE task_id=? AND removed_at IS NULL AND created_at<=? ORDER BY id');
+        $proof->execute([$id,$meta['occurred_at']]);$meta['completion_proof_ids']=$proof->fetchAll(PDO::FETCH_COLUMN);$proof->closeCursor();
+    }
+    require_once __DIR__.'/NativeProcessMeasurement.php';
+    try{$meta=NativeProcessMeasurement::metadata($db,$type,$record,$meta);}
+    catch(\Throwable $snapshotError){
+        // Preserve the operational outbox even when a secondary queue snapshot
+        // is unavailable. No missing snapshot is later treated as perfect work.
+        $meta['measurement_snapshot_unavailable']=true;
+        error_log('EPI native process snapshot unavailable; priority needs review: '.$snapshotError->getMessage());
+    }
     $payload=['metadata'=>$meta,'record'=>$record];
     $key=Support::dedupe([$type,$id,$action,$meta['event_uuid']??$meta['activity_id']??Support::json($payload)]);
     $db->prepare('INSERT IGNORE INTO epi_v2_outbox(event_key,entity_type,entity_id,action,payload_json) VALUES(?,?,?,?,?)')->execute([$key,$type,$id,$action,Support::json($payload)]);
@@ -29,7 +65,24 @@ final class V2OperationalBridge
         $p['metadata']['_outbox_id']=(int)$e['id'];
         if($e['entity_type']==='order')self::order($db,$e['action'],$p['record'],$p['metadata']);
         elseif($e['entity_type']==='error_log')V2QualityBridge::capture($db,$e['action'],(int)$e['entity_id'],$p['metadata'],$p['record']);
-        else self::task($db,$e['action'],$p['record'],$p['metadata']);
+        elseif($e['entity_type']==='ops_whatsapp_conversation'){
+            require_once __DIR__.'/CommunicationDeadlineBridge.php';
+            CommunicationDeadlineBridge::capture($db,$e['action'],$p['record'],$p['metadata']);
+        } elseif($e['entity_type']==='checklist_task') self::task($db,$e['action'],$p['record'],$p['metadata']);
+        require_once __DIR__.'/CompletedWorkCapture.php';
+        require_once __DIR__.'/ModuleDeadlineBridge.php';
+        ModuleDeadlineBridge::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
+        require_once __DIR__.'/CourierPackerDeadlineBridge.php';
+        CourierPackerDeadlineBridge::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
+        require_once __DIR__.'/CashDeadlineBridge.php';
+        CashDeadlineBridge::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
+        if($e['entity_type']==='front_plan'){
+            require_once __DIR__.'/HandoverPerformanceBridge.php';
+            HandoverPerformanceBridge::capture($db,$e['action'],$p['record'],$p['metadata']);
+        }
+        CompletedWorkCapture::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
+        require_once __DIR__.'/NativeProcessMeasurement.php';
+        NativeProcessMeasurement::capture($db,$e['entity_type'],$e['action'],$p['record'],$p['metadata']);
         $db->prepare("UPDATE epi_v2_outbox SET state='done',attempts=attempts+1,last_error=NULL WHERE id=?")->execute([$e['id']]);
     });}catch(\Throwable $error){$db->prepare("UPDATE epi_v2_outbox SET attempts=attempts+1,last_error=? WHERE event_key=?")->execute([$error->getMessage(),$key]);error_log('EPI V2 capture pending: '.$error->getMessage());}
  }
@@ -73,10 +126,15 @@ final class V2OperationalBridge
     }
  }
  private static function task(PDO $db,string $action,array $task,array $meta):void {
+    require_once __DIR__.'/TaskCorrectionDeadlineBridge.php';
+    if(TaskCorrectionDeadlineBridge::capture($db,$action,$task,$meta))return;
     $ref='TASK-'.$task['id'];$at=Support::timestamp($meta['occurred_at']);$time=$at->format('Y-m-d H:i:s');
     $employee=(int)($task['assigned_employee_id']??0);$engine=new DeadlineEngine($db);$owners=new OwnershipPeriodEngine($db);$policy=V2Store::policy($db);
-    $actor=(int)($meta['employee_id']??$employee);
-    if(in_array($action,['task_created','task_scheduled','task_assigned','task_reassigned'],true)){
+    $actor=(int)($meta['actor_employee_id']??$meta['employee_id']??$employee);
+    if(in_array($action,['task_created','task_scheduled','task_released','floating_task_allocated','task_assigned','task_reassigned'],true)){
+        // Scheduling is not release: invisible future work must not start an SLA.
+        if(!empty($task['scheduled_at'])&&empty($task['released_at']))return;
+        if(!empty($task['released_at'])&&Support::timestamp($task['released_at'])>$at)return;
         // Explicit activation policy authorizes directed assignment, not fictional employee acknowledgement.
         $activation=V2Store::activation($db);
         if(($policy['activation_scope']??'')==='approved_existing_rules'){

@@ -57,6 +57,7 @@ final class FrontDeskRoster
             if(!$window)return ['status'=>'closed'];
             $from=$day.' '.$window[0].':00';$to=$day.' '.$window[1].':00';
             if($time->format('Y-m-d H:i:s')<$from)return ['status'=>'before_open'];
+            if($time->format('Y-m-d H:i:s')>=$to)return ['status'=>'closed'];
             if($r['approved_at']>$from)return ['status'=>'needs_review','reason'=>'roster_not_approved_before_opening'];
             $active=V2Store::one($db,"SELECT id FROM ops_employees WHERE id=? AND status='active'",[$r['employee_id']]);
             if(!$active)return ['status'=>'needs_review','reason'=>'inactive_rostered_employee'];

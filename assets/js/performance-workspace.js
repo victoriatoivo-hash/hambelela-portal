@@ -1,0 +1,122 @@
+(() => {
+  'use strict';
+  const root = document.querySelector('[data-kpi-tab="dashboard"]');
+  if (!root) return;
+  const q = s => root.querySelector(s);
+  const currentMonth = q('[data-current-month]').dataset.currentMonth;
+  const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const numeric = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
+  const number = v => numeric(v) ? Number(v).toLocaleString('en-GB') : 'Not measured';
+  const percent = v => numeric(v) ? `${Number(v).toFixed(1)}%` : 'Not calculated';
+  const sectionLinks = {orders:'orders',packing:'packing-performance',waybills:'waybills',tasks:'task-management',bookkeeping:'bookkeeping',website:'website-updates',attendance:'attendance',system_issues:'errors-quality',communications:'business-activity',quality:'errors-quality'};
+  const attentionLinks = {waybill:'courier.php',packing:'consignments.php',task:'checklists.php',error:'errors.php'};
+  let generation = 0, controller;
+  const employeeRoles=new Map(Array.from(root.querySelectorAll('[data-pw-employee]'),a=>[a,a.querySelector('small').textContent]));
+  async function loadEmployees(current,signal) {
+    const show=(a,text)=>{a.querySelector('small').textContent=`${employeeRoles.get(a)} · ${text}`;};
+    try {
+      const response=await fetch(`reports-performance-reports-data.php?action=dashboard_summary&month=${encodeURIComponent(currentMonth)}`,{headers:{Accept:'application/json'},cache:'no-store',signal});
+      const data=await response.json();
+      if(!response.ok||data.ok!==true||!Array.isArray(data.employees))throw new Error('Employee results unavailable');
+      if(current!==generation)return;
+      for(const [a] of employeeRoles){
+        const result=data.employees.find(e=>Number(e.employee_id)===Number(a.dataset.pwEmployee));
+        let label='Not calculated';
+        if(result){
+          if(result.status==='official'&&numeric(result.official_score_hundredths))label=`${(Number(result.official_score_hundredths)/100).toFixed(1)} / 100`;
+          else if(['provisional','validation','insufficient_data'].includes(result.status))label='View recorded work';
+          if(result.data_may_be_stale)label+=' · Update pending';
+          const risk=numeric(result.personal_risk_count)?`${number(result.personal_risk_count)} tracked open obligations. `:'';
+          a.title=`${label}. ${risk}Incomplete section evidence is not a complete employee grade. Open the profile for recorded work and review history. ${result.risk_scope||''}`;
+        }
+        show(a,label);
+      }
+    }catch(error){
+      if(error.name==='AbortError'||current!==generation)return;
+      for(const [a] of employeeRoles){show(a,'Result unavailable');a.removeAttribute('title');}
+    }
+  }
+  function periodParams() {
+    return new URLSearchParams({period:'this_month'});
+  }
+  function updateLinks(params) {
+    root.querySelectorAll('[data-pw-employee]').forEach(a => { a.href=`kpi-employee.php?id=${Number(a.dataset.pwEmployee)}&month=${encodeURIComponent(currentMonth)}`; });
+    root.querySelectorAll('[data-pw-health]').forEach(a => { a.href=`reports.php?tab=business-health&${params}`; });
+  }
+  function clearResults(message) {
+    q('[data-pw-score]').textContent='—';q('[data-pw-score-note]').textContent=message;
+    q('[data-pw-metrics]').replaceChildren();q('[data-pw-components]').replaceChildren();
+    q('[data-pw-packing]').textContent=message;q('[data-pw-attention]').textContent=message;
+    q('[data-pw-workload]').textContent=message;q('[data-pw-updated]').textContent=message;
+    q('[data-pw-activity]').textContent=message;
+  }
+  function render(data, params) {
+    const counts=data.orders_overview?.counts || {}, components=data.operational_score_components || [];
+    const measured=components.filter(c=>numeric(c.score));
+    q('[data-pw-score]').textContent=numeric(data.operational_score)?Number(data.operational_score).toFixed(1):'Incomplete coverage';
+    q('[data-pw-score-note]').textContent=numeric(data.operational_score) ? `${measured.length} of ${components.length} operational sections measured. Uses the existing Business Health score.` : (data.operational_score_message || 'Not calculated — insufficient measured operational evidence.');
+    const metrics=[['Order completion',percent(data.orders_overview?.final_completion_percent)],['Completed orders',number(counts.completed)],['Outstanding orders',number(counts.outstanding)]];
+    q('[data-pw-metrics]').innerHTML=metrics.map(([label,value])=>`<article><span>${esc(label)}</span><strong>${esc(value)}</strong></article>`).join('');
+    q('[data-pw-components]').innerHTML=components.map(c=>`<a class="pw-component" href="reports.php?tab=${sectionLinks[c.key] || 'business-health'}&${esc(params)}"><span><strong>${esc(c.label)}</strong><small>${esc(c.reason)}</small></span><b>${esc(percent(c.score))}</b></a>`).join('') || '<p>No section evidence available.</p>';
+    const progress=data.orders_overview?.packing_completion_percent;
+    q('[data-pw-packing]').innerHTML=numeric(progress) ? `<div class="pw-progress-title"><strong>${esc(percent(progress))}</strong><span>Packing stage reached</span></div><progress max="100" value="${Math.max(0,Math.min(100,Number(progress)))}" aria-label="Orders reaching the packing stage"></progress><div class="pw-progress-counts"><span><b>${esc(number(counts.new))}</b> New</span><span><b>${esc(number(counts.in_progress))}</b> In progress</span><span><b>${esc(number(counts.completed))}</b> Completed</span></div><p class="pw-help">In-progress + completed orders / eligible orders. Final completion is shown separately.</p>` : '<p class="pw-empty">Not measured — no eligible order evidence in this period.</p>';
+    q('[data-pw-attention]').innerHTML=(data.attention||[]).map(item=>`<a class="pw-attention-item" href="${attentionLinks[item.type]||'reports.php?tab=business-health'}"><strong>${esc(item.description)}</strong><span>${esc(item.severity==='critical'?'Urgent · ':'')}${esc(item.overdue ? `Outstanding ${item.overdue}` : 'Review required')} <b aria-hidden="true">→</b></span></a>`).join('') || '<p class="pw-empty">No open items reported by the tracked operational sources.</p>';
+    renderWorkload(data.task_workload);
+    renderActivity(data.business_activity);
+    const stamp=new Date(data.last_refreshed_at);
+    q('[data-pw-updated]').textContent=Number.isNaN(stamp.getTime())?'Updated just now':`Updated ${new Intl.DateTimeFormat('en-GB',{hour:'2-digit',minute:'2-digit',timeZone:'Africa/Windhoek'}).format(stamp)} · Namibia`;
+  }
+  function renderWorkload(work) {
+    const target=q('[data-pw-workload]');
+    if(!work || !['total','completed','open','overdue'].every(k=>numeric(work[k])&&Number(work[k])>=0) || Number(work.completed)+Number(work.open)+Number(work.overdue)!==Number(work.total)){target.innerHTML='<p class="pw-empty">Task workload unavailable. Open Task Management to review the source records.</p>';return;}
+    const total=Number(work.total),done=Number(work.completed),open=Number(work.open),overdue=Number(work.overdue);
+    if(!total){target.innerHTML='<p class="pw-empty">No released Task Management tasks this month.</p>';return;}
+    target.innerHTML=`<div class="pw-workload"><div class="pw-donut" role="img" aria-label="${esc(`${done} completed, ${open} open and not overdue, ${overdue} overdue tasks`)}" style="--pw-done:${100*done/total}%;--pw-open:${100*(done+open)/total}%"><span><b>${esc(number(total))}</b>Tasks</span></div><ul class="pw-legend"><li><i aria-hidden="true"></i>Completed <b>${esc(number(done))}</b></li><li><i aria-hidden="true"></i>Open · on time <b>${esc(number(open))}</b></li><li><i aria-hidden="true"></i>Overdue <b>${esc(number(overdue))}</b></li></ul><div class="pw-workload-note"><strong>${esc(number(open+overdue))}</strong>tasks remaining<a href="checklists.php">Open task list →</a></div></div>`;
+  }
+  function renderActivity(activity) {
+    const target=q('[data-pw-activity]'), current=activity?.current, previous=activity?.previous;
+    if(activity?.available!==true || !current || !previous || !Array.isArray(current.days) || current.days.length!==7 || !current.days.every(d=>/^\d{4}-\d{2}-\d{2}$/.test(d.date)&&numeric(d.orders)&&Number(d.orders)>=0)) {
+      target.innerHTML='<p class="pw-empty">Business activity unavailable. Open Orders to check the source records.</p>';return;
+    }
+    const money=value=>numeric(value)?`N$ ${Number(value).toLocaleString('en-GB',{minimumFractionDigits:2,maximumFractionDigits:2})}`:'Not available';
+    const comparison=(now,before)=>{
+      if(!numeric(now)||!numeric(before))return 'Comparison unavailable';
+      const difference=Number(now)-Number(before);
+      if(Number(before)===0)return Number(now)===0?'No activity in either period':'New activity · previous period was zero';
+      return `${difference>0?'+':''}${(100*difference/Number(before)).toFixed(1)}% vs previous 7 days`;
+    };
+    const chart=(key,title,currency)=>{
+      const valid=current.days.every(d=>numeric(d[key])&&Number(d[key])>=0)&&numeric(current[key]);
+      if(!valid)return `<article class="pw-activity-card"><h3>${esc(title)}</h3><p class="pw-empty">Confirmation-date evidence unavailable.</p></article>`;
+      const format=currency?money:number,max=Math.max(1,...current.days.map(d=>Number(d[key])));
+      return `<article class="pw-activity-card ${currency?'pw-activity-paid':''}"><h3>${esc(title)}</h3><strong class="pw-activity-total">${esc(format(current[key]))}</strong><p class="pw-activity-comparison">${esc(comparison(current[key],previous[key]))}</p><div class="pw-bars" role="list" aria-label="${esc(title)} by day">${current.days.map(d=>{
+        const label=new Intl.DateTimeFormat('en-GB',{day:'numeric',month:'short',timeZone:'Africa/Windhoek'}).format(new Date(`${d.date}T12:00:00+02:00`));
+        return `<div class="pw-bar-day" role="listitem" tabindex="0" aria-label="${esc(`${label}: ${format(d[key])}`)}"><span class="pw-bar-track" aria-hidden="true"><i style="height:${100*Number(d[key])/max}%"></i></span><span class="pw-bar-label">${esc(label)}</span><span class="pw-bar-value" aria-hidden="true">${esc(format(d[key]))}</span></div>`;
+      }).join('')}</div></article>`;
+    };
+    const pending=activity.awaiting;
+    target.innerHTML=`<div class="pw-activity-grid">${chart('orders','Orders received',false)}${chart('paid_value','Confirmed paid order value',true)}</div><div class="pw-activity-pending"><div><span>Awaiting fulfilment · orders received this month</span><strong>${esc(numeric(pending?.count)?`${number(pending.count)} orders`:'Not available')}</strong></div><div><span>Order value · not unpaid balance</span><strong>${esc(money(pending?.value))}</strong></div><a href="orders-board.php">Review orders →</a></div><p class="pw-help">Today is partial; comparison ends at the same time seven days ago. Paid value uses each currently paid order’s latest portal confirmation date, including automatic confirmations. It is not bank receipts or a cash-flow report; undated confirmations are excluded.</p>`;
+  }
+  async function load() {
+    const current=++generation;controller?.abort();controller=new AbortController();
+    loadEmployees(current,controller.signal);
+    const params=periodParams(); updateLinks(params);
+    const label=new Intl.DateTimeFormat('en-GB',{month:'long',year:'numeric',timeZone:'Africa/Windhoek'}).format(new Date(`${currentMonth}-01T12:00:00+02:00`));
+    q('[data-pw-health-period]').textContent=`This month · ${label}`;
+    q('[data-pw-packing-period]').textContent=`Orders created in ${label}`;
+    q('[data-pw-error]').hidden=true;q('[data-pw-health-section]').setAttribute('aria-busy','true');clearResults('Loading evidence…');
+    try {
+      const response=await fetch(`reports-data.php?${params}`,{headers:{Accept:'application/json'},cache:'no-store',signal:controller.signal});
+      if (!(response.headers.get('content-type')||'').includes('application/json')) throw new Error('Your session may have expired. Sign in again to load performance.');
+      const data=await response.json();if(!response.ok || data.ok!==true) throw new Error(data.message||'Business Health could not be loaded.');
+      if (current!==generation) return;render(data,params);
+    } catch(error) {
+      if (error.name==='AbortError'||current!==generation) return;
+      clearResults('Unavailable — refresh to retry.');q('[data-pw-error]').textContent=error.message;q('[data-pw-error]').hidden=false;
+    } finally { if(current===generation)q('[data-pw-health-section]').removeAttribute('aria-busy'); }
+  }
+  q('[data-pw-refresh]').addEventListener('click',load);load();
+  // Read published results only; scoring remains in the scheduled worker.
+  const refreshTimer=setInterval(()=>{if(document.visibilityState==='visible'&&!q('[data-pw-health-section]').hasAttribute('aria-busy'))load();},60000);
+  window.addEventListener('pagehide',()=>{clearInterval(refreshTimer);controller?.abort();},{once:true});
+})();

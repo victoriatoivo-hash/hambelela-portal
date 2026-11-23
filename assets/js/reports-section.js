@@ -13,6 +13,7 @@
   const activityAssignment = q('[data-activity-assignment]');
   const activityResult = q('[data-activity-result]');
   let currentPage = 1;
+  let requestVersion = 0, requestController;
 
   const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
   const title = (value) => String(value ?? '').replaceAll('_', ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -77,6 +78,8 @@
   }
 
   async function load(refresh = false, page = 1) {
+    const version = ++requestVersion;
+    requestController?.abort(); requestController = new AbortController();
     currentPage = page;
     const params = new URLSearchParams({ period: period.value, page: String(page), per_page: '50' });
     if (period.value === 'custom') { params.set('date_from', from.value); params.set('date_to', to.value); }
@@ -86,8 +89,9 @@
     if (activityResult?.value) params.set('result', activityResult.value);
     if (refresh) params.set('refresh', Date.now());
     try {
-      const response = await fetch(`reports-${section}-data.php?${params}`);
+      const response = await fetch(`reports-${section}-data.php?${params}`, {signal:requestController.signal});
       const data = await response.json();
+      if (version !== requestVersion) return;
       if (!response.ok || !data.ok) throw new Error(data.message);
       q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
       q('[data-kpi-adoption]').textContent = 'Averages calculated from 14 Jul 2026 (system adoption date).';
@@ -95,6 +99,7 @@
       q('[data-kpi-error]').hidden = true;
       render(data);
     } catch (error) {
+      if (error.name === 'AbortError' || version !== requestVersion) return;
       q('[data-kpi-error]').textContent = error.message;
       q('[data-kpi-error]').hidden = false;
     }

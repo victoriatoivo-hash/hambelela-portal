@@ -1,0 +1,40 @@
+{
+  "files": {
+    "shared/epi/CourierPackerDeadlineBridge.php": {
+      "before": [null],
+      "after": "cb558dc9971d6876b6e9fbf07c2dd43b2875c658fe5a8e386ce4808bf957d568"
+    },
+    "shared/epi/OperationalPerformanceProjector.php": {
+      "before": ["c8a3f3157a602dc392fcb9ae8d1b71cc7d78adc7b64e2b8d8d7e61b63e6df9d8"],
+      "after": "746aa66aff992768c7760289b9ded98a58fa43443e3aa614b5fab2e0f2de5634"
+    },
+    "shared/epi/V2OperationalBridge.php": {
+      "before": ["9807dcd2eb9b66d0bc0ca06bf846dc06ec2fd9f469cfaca20464a2646123ae2f"],
+      "after": "9fdc148d20a8456025ebb31e36f5b2c2907ecc6f742323ba575e88668f5b42eb"
+    },
+    "shared/epi/BookkeepingControlBridge.php": {
+      "before": ["7b3a20f89fcb857e221adb70fc5b363db0d25d36329bdcadbf341d937e8e220c"],
+      "after": "e29bf625f9264adbde509633ee45f9d35e9fb19c651e10556249149eed8dc7e1"
+    },
+    "apps/operations/reports.php": {
+      "before": ["018db19d8328e548060eef7f5c8b38fd9ce333baafa10acabecae915059c75bc"],
+      "after": "26baabaf6196778807e2d38512c4e2dc60447250487dada5a6adc2a5b419a72f"
+    },
+    "apps/operations/performance-timing-settings.php": {
+      "before": ["6fb3f6b1850aaef9d26d45acec5b32558bce8539d70c5f37ae3ba7bdf25fd5eb"],
+      "after": "6aadfff3ba5c9f1126f4290c880ca14e15c5228f1c1598d17abf98300b6c0ac1"
+    }
+  },
+  "dependencies": {
+    "shared/epi/OrdersStageBridge.php": "712154dfeeb5cdf942ef4e913668e9129cba8a440cf2cf04b38612030f20d8db",
+    "shared/epi/OrdersSlaPolicy.php": "408dd71f9863b45950d88ec86c31d0b4b283562c1616573cb0017732d5364ff7",
+    "shared/epi/DeadlineEngine.php": "5b94fb8babc42c1a37cdab848e167ef065599903052bba25b1ceb66ec4c94fcd",
+    "shared/epi/OwnershipPeriodEngine.php": "c8ebfa3aed07229b2239d0debbdf1e1b55b4e760221d42cc968224b01a0ed922",
+    "shared/epi/PerformanceRefreshRuntime.php": "4f9781f228accaae93f6fe085ed4295615b1c6763cb31e745ad168b596718208",
+    "shared/epi/PerformanceCapturePolicy.php": "4c6dcb8ecb76e427911565449eedeaabdd0370b4eab8d3bbd137415c6546ddbf",
+    "shared/epi/V2Store.php": "f31b8590bbe519e4a5b89a700c0986b0118ebd583aa352aedcb37b6ff35d2d41",
+    "shared/epi/CanonicalEventRegistry.php": "5444e0c900a57e47e25795d254f48939db86c24431540d45a57b5f2503841f52",
+    "shared/epi/ProvisionalScorecardAssignments.php": "3980e5bf092c924bfbcd4bffb0a1564d7e60a09d64df124aeb09e00bc0057084",
+    "shared/epi/RateScoreCalculator.php": "df4d3cbbd5fe14412db1d10a1997fd3a527dd62f1798b80235da1884271994ad"
+  }
+}

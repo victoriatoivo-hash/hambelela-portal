@@ -866,6 +866,11 @@ try {
     ops_board_verify_csrf();
     $courierDetails = null;
     $targetStatus = $action === 'set_in_progress' ? 'in_progress' : (in_array($action,['status','update_field','bulk_update'],true) ? (string)($_POST['status'] ?? (($_POST['field']??'')==='status'?($_POST['value']??'') : '')) : '');
+    if($targetStatus==='completed'){
+        require_once BASE_PATH.'/shared/epi/OrderCommunicationCapture.php';
+        $communicationOrderIds=$action==='bulk_update'?array_map('intval',explode(',',(string)($_POST['order_ids']??''))):[(int)($_POST['order_id']??0)];
+        \Hambelela\EPI\OrderCommunicationCapture::requireCompletion(db(),$communicationOrderIds);
+    }
     if ($targetStatus === 'in_progress') {
         courier_requirements_schema();
         if ($action === 'bulk_update') {

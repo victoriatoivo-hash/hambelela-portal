@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__.'/operations.php';
-require_login();require_role('owner_admin','front_desk_admin','marketing_sales');
+require_login();require_role('owner_admin');
 require_once BASE_PATH.'/shared/epi/HrAbsenceEvidence.php';
 require_once BASE_PATH.'/shared/epi/FrontDeskCoverage.php';
 header('Content-Type: application/json; charset=utf-8');

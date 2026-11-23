@@ -1,0 +1,44 @@
+name: EPI scoring regression (no deployment)
+on:
+  push:
+    branches: [codex/epi-v2-p0-shadow-release]
+    paths:
+      - 'shared/epi/**'
+      - 'tests/epi-*.php'
+      - 'tests/epi-*.mjs'
+      - 'assets/js/employee-performance.js'
+      - '.github/workflows/epi-scoring-regression.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['7.4', '8.2']
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+        ports: ['33317:3306']
+        options: >-
+          --health-cmd="healthcheck.sh --connect --innodb_initialized"
+          --health-interval=5s --health-timeout=5s --health-retries=20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_mysql
+      - run: php -l shared/epi/CompletedWorkCapture.php && php -l shared/epi/EmployeePerformanceService.php && php -l shared/epi/BusinessHealthPerformance.php && php -l tests/epi-provisional-timings-db.php && php -l tests/epi-business-health-result.php
+      - run: php tests/epi-business-health-result.php && php tests/epi-evidence-view.php && node tests/epi-history-display.mjs && node tests/epi-capture-ui-static.mjs
+      - run: php tests/epi-v2-p0-forensic-db.php > epi-scoring-regression.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: epi-scoring-regression-${{ matrix.php }}-${{ github.run_id }}
+          path: epi-scoring-regression.json

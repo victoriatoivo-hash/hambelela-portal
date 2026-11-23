@@ -1,13 +1,14 @@
-name: Deploy Courier admin linking
+name: Deploy Employee Performance consistency delta
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Preflight only or deploy the approved Courier delta
+        description: Preflight or deploy the isolated Performance dashboard
         required: true
         type: choice
         options:
+          - inspect
           - preflight
           - deploy
       approved_sha:
@@ -25,28 +26,55 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ALLOW_EMPTY_ROOT_PASSWORD: '1'
+        ports:
+          - 33317:3306
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=5s --health-retries=20
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Validate Courier release
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '7.4'
+      - name: Validate Performance workspace release
         run: |
-          php -l apps/operations/courier.php
-          node tests/courier-sent-state-static.mjs
-          python3 -m py_compile scripts/deploy-courier-admin-link.py
-      - name: Back up and publish only the approved Courier files
+          php -l apps/operations/reports.php
+          php -l apps/operations/reports-data.php
+          php -l apps/operations/performance-workspace.php
+          php -l apps/operations/performance-activity.php
+          php tests/performance-activity.php
+          node --check assets/js/performance-workspace.js
+          npm install --prefix "$RUNNER_TEMP/performance-ui" --no-audit --no-fund jsdom@24.1.3
+          NODE_PATH="$RUNNER_TEMP/performance-ui/node_modules" node tests/performance-workspace-ui.cjs
+          php tests/packing-work-summary.php
+          php tests/packing-work-summary-db.php
+          php tests/epi-business-health-result.php
+          php -l apps/operations/performance-order-scope.php
+          php -l apps/operations/packing-work-reporting.php
+          php -l apps/operations/kpi-packing-work-summary.php
+          node tests/packing-work-summary-ui.cjs
+          node --check assets/js/packer-orders-preview.js
+          node --check assets/js/packing-work-summary.js
+          python3 -m py_compile scripts/deploy-performance-consistency.py
+      - name: Back up and publish only the approved Performance files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           MODE: ${{ inputs.mode }}
           APPROVED_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/deploy-courier-admin-link.py "$MODE" "$APPROVED_SHA"
+        run: python3 scripts/deploy-performance-consistency.py "$MODE" "$APPROVED_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: courier-admin-link-${{ github.run_id }}
+          name: performance-workspace-${{ github.run_id }}
           path: |
-            courier-admin-link-deployment-report.json
-            courier-admin-link-deployment-backup.zip
+            performance-consistency-report.json
+            performance-consistency-backup.zip
+          retention-days: 3
           if-no-files-found: warn

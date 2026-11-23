@@ -215,6 +215,14 @@ function cashbook_log(
     } catch (Throwable $epiError) {
         error_log('Bookkeeping EPI bridge failed: ' . $epiError->getMessage());
     }
+    try {
+        require_once BASE_PATH . '/shared/epi/PerformanceRefreshRuntime.php';
+        if($entryId) \Hambelela\EPI\V2OperationalBridge::record(db(), 'cash_entry', $action, $entryId,
+            ['employee_id'=>$userId, 'activity_id'=>'cashbook:'.$auditId]);
+        \Hambelela\EPI\PerformanceRefreshRuntime::invalidate(db(), 'bookkeeping ' . $action);
+    } catch (Throwable $epiError) {
+        error_log('Bookkeeping performance refresh pending: ' . $epiError->getMessage());
+    }
 }
 
 function ledger_bootstrap_schema(): void

@@ -1018,7 +1018,16 @@ function checklist_seed_recurring_tasks(): void
             $instructions = task_instructions_sanitize_html((string) $template['instructions']);
             $releasedAt=$now->format('Y-m-d H:i:s');
             $stmt->execute([$template['checklist_type'], $template['task_name'], $template['priority'], $employeeId ?: null, $templateAssignmentType, $templateAssignmentType === 'floating' ? ($template['floating_eligible_role'] ?? null) : null, $templateAssignmentType === 'floating' ? 'pending' : null, $templateAssignmentType === 'specific' ? $releasedAt : null, $releaseAt->format('Y-m-d H:i:s'), $releasedAt, $deadline, $instructions, $instructions, $template['checklist_items'], (int)($template['completion_evidence_required']??0), $key, $occurrenceFingerprint, $template['recurring_rule'], $template['id'], $templateAssignmentType === 'specific' ? 1 : 0, $template['created_by']]);
-            $occurrenceId = (int) $taskDb->lastInsertId();$taskDb->commit();$generatedAny=true;
+            $occurrenceId = (int) $taskDb->lastInsertId();
+            // Each occurrence is its own assigned obligation. The template-level
+            // notification alone cannot establish performance ownership/deadlines.
+            ops_activity_log('task_released', 'checklist_task', $occurrenceId, [
+                'occurred_at' => $releasedAt, 'released_at' => $releasedAt,
+                'assigned_employee_id' => $employeeId ?: null,
+                'assignment_type' => $templateAssignmentType,
+                'recurring_template_id' => (int) $template['id'],
+            ]);
+            $taskDb->commit();$generatedAny=true;
             }catch(Throwable $generationError){if($taskDb->inTransaction())$taskDb->rollBack();if($generationError instanceof PDOException&&(string)$generationError->getCode()==='23000')continue;db()->prepare('UPDATE ops_checklist_recurring_templates SET last_error=? WHERE id=?')->execute([substr($generationError->getMessage(),0,500),(int)$template['id']]);ops_activity_log('recurring_occurrence_failed','checklist_recurring_template',(int)$template['id'],['error'=>$generationError->getMessage()]);continue;}
             if ($templateAssignmentType === 'floating') {
                 $allocation = task_floating_allocate($occurrenceId, 'automatic', true);

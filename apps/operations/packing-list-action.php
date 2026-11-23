@@ -1105,6 +1105,7 @@ function packing_import_monday_row(array $row, int $employeeId): int
     $newId = (int) db()->lastInsertId();
     packing_store_workload_components($newId, (string) ($row['received_weight'] ?? ''), (string) ($row['quantity_planned'] ?? ''), (string) ($row['priority'] ?? 'high'));
     packing_publish_assignment($newId, null, !empty($row['assigned_employee_id']) ? (int) $row['assigned_employee_id'] : null, $employeeId);
+    ops_activity_log('packing_item_created', 'packing_task', $newId);
     notifications_notify_packing_loaded($newId);
     return $newId;
 }
@@ -1532,6 +1533,7 @@ try {
         $newId = (int) db()->lastInsertId();
         packing_store_workload_components($newId, $receivedWeight, $quantityPlan, $priority);
         packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
+        ops_activity_log('packing_item_created', 'packing_task', $newId);
         notifications_notify_packing_loaded($newId);
 
         echo json_encode(['ok' => true, 'message' => $quantityWarning !== '' ? 'Packing item created. Quantity-to-pack warning added.' : 'Packing item created.', 'warning' => $quantityWarning]);
@@ -2201,6 +2203,14 @@ try {
             throw new RuntimeException('A valid invoice import reference is required. Re-extract the invoice and try again.');
         }
 
+        $distributionReviewed = (string) ($_POST['distribution_reviewed'] ?? '0') === '1';
+        $reviewedAssignments = $distributionReviewed
+            ? json_decode((string) ($_POST['reviewed_assignments_json'] ?? '[]'), true)
+            : [];
+        if ($distributionReviewed && (!is_array($reviewedAssignments) || count($reviewedAssignments) !== $submittedCount)) {
+            throw new RuntimeException('The reviewed distribution does not include every invoice row. Review it again before creating.');
+        }
+
         $invoiceNumber = ops_post_string('invoice_number', 120);
         $invoiceDate = ops_post_string('invoice_date', 40);
         $supplierName = ops_post_string('supplier_name', 190);
@@ -2258,6 +2268,18 @@ try {
             }
             $validationAssignmentSource = (string) ($row['assignment_source'] ?? 'auto') === 'manual' ? 'manual' : 'auto';
             $validationAssignedId = (int) ($row['assigned_employee_id'] ?? 0);
+            if ($distributionReviewed) {
+                $review = $reviewedAssignments[$rowIndex] ?? null;
+                if (!is_array($review)
+                    || (int) ($review['index'] ?? -1) !== $rowIndex
+                    || trim((string) ($review['item_name'] ?? '')) !== trim((string) ($row['item_name'] ?? ''))
+                    || trim((string) ($review['received_weight'] ?? '')) !== trim((string) ($row['received_weight'] ?? ''))
+                    || trim((string) ($review['quantity_planned'] ?? '')) !== trim((string) ($row['quantity_planned'] ?? ''))
+                    || (int) ($review['assigned_employee_id'] ?? 0) !== $validationAssignedId
+                    || $validationAssignmentSource !== 'manual') {
+                    $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => 'The submitted item or packer no longer matches the reviewed distribution. Review it again.'];
+                }
+            }
             if ($validationAssignmentSource === 'manual' && ($validationAssignedId <= 0 || !ops_employee_can_receive_packing($validationAssignedId, false))) {
                 $failedRows[] = ['index' => $rowIndex, 'line_number' => $rowIndex, 'item' => $validationName, 'reason' => 'Choose an active employee eligible for manual Packing assignment.'];
             }
@@ -2434,6 +2456,7 @@ try {
             $newId = (int) db()->lastInsertId();
             packing_store_workload_components($newId, $receivedWeight, $quantityPlan, $priority);
             packing_publish_assignment($newId, null, $assignedId > 0 ? $assignedId : null, $currentEmployeeId ?: null);
+            ops_activity_log('packing_item_created', 'packing_task', $newId);
             notifications_notify_packing_loaded($newId);
             $insertedIds[] = $newId;
             $acceptedIds[] = $newId;
@@ -2549,6 +2572,27 @@ try {
             ]);
         }
 
+        if ($distributionReviewed) {
+            ops_activity_log('packing_distribution_reviewed', 'packing_import', 0, [
+                'invoice_number' => $invoiceNumber,
+                'import_id' => $importId,
+                'row_count' => $submittedCount,
+                'assignments' => array_map(static fn(array $review): array => [
+                    'item_name' => (string) ($review['item_name'] ?? ''),
+                    'employee_id' => (int) ($review['assigned_employee_id'] ?? 0),
+                ], $reviewedAssignments),
+                'changed_by' => current_user()['name'] ?? 'Unknown',
+            ]);
+            if ((string) ($_POST['distribution_manually_adjusted'] ?? '0') === '1') {
+                ops_activity_log('packing_distribution_manually_adjusted', 'packing_import', 0, [
+                    'invoice_number' => $invoiceNumber,
+                    'import_id' => $importId,
+                    'row_count' => $submittedCount,
+                    'changed_by' => current_user()['name'] ?? 'Unknown',
+                ]);
+            }
+        }
+
         ops_activity_log('packing_invoice_rows_created', 'packing_import', 0, [
             'invoice_number' => $invoiceNumber,
             'import_id' => $importId,
@@ -2608,8 +2652,8 @@ try {
     if ($action === 'confirm_frontdesk_website_update') {
         $taskId = (int) ($_POST['task_id'] ?? 0);
         $employeeId = ops_current_employee_id();
-        if (!user_has_role('front_desk_admin', 'front_desk_admin_employee')) {
-            throw new RuntimeException('Only an authenticated Front Desk employee may confirm this website update.');
+        if (!user_has_role('owner_admin', 'front_desk_admin', 'front_desk_admin_employee', 'marketing_sales')) {
+            throw new RuntimeException('Only admin, Front Desk or Marketing employees may confirm this website update.');
         }
         if ($taskId <= 0 || !$employeeId) {
             throw new RuntimeException('The packing item or authenticated employee could not be identified.');
@@ -2621,7 +2665,7 @@ try {
         $confirmedAt = (new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
         $itemRows = ops_rows('SELECT item_name FROM ops_packing_tasks WHERE id = ? LIMIT 1', [$taskId]);
         $itemName = (string) ($itemRows[0]['item_name'] ?? 'Packing item');
-        $stmt = db()->prepare('UPDATE ops_packing_tasks SET frontdesk_website_updated = 1, frontdesk_website_updated_at = ?, frontdesk_website_updated_by = ?, updated_at = ? WHERE id = ? AND frontdesk_website_updated = 0');
+        $stmt = db()->prepare('UPDATE ops_packing_tasks SET frontdesk_website_updated = 1, frontdesk_website_updated_at = ?, frontdesk_website_updated_by = ?, updated_at = ? WHERE id = ? AND COALESCE(frontdesk_website_updated, 0) = 0');
         $stmt->execute([$confirmedAt, $employeeId, $confirmedAt, $taskId]);
         if ($stmt->rowCount() !== 1) {
             http_response_code(409);

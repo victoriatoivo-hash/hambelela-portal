@@ -29,6 +29,12 @@ try {
         if(ops_table_exists('hambelela_cashbook_log'))$db->prepare("INSERT INTO hambelela_cashbook_log (entry_id,action,field,old_value,new_value,description,user_id,user_name,created_at) SELECT ?,'historical_allocation','related_order_id',?,?,?,e.id,e.full_name,CURRENT_TIMESTAMP FROM ops_employees e WHERE e.id=?")->execute([$entryId,$previous?json_encode($previous,JSON_UNESCAPED_SLASHES):null,(string)$orderId,'Order '.$order['order_number'].' allocation confirmed. '.$note,$actor]);
         $db->commit();
     }catch(Throwable $error){if($db->inTransaction())$db->rollBack();throw $error;}
+    try {
+        require_once dirname(__DIR__,2).'/shared/epi/PerformanceRefreshRuntime.php';
+        \Hambelela\EPI\V2OperationalBridge::record($db,'cash_entry','historical_allocation',$entryId,
+            ['employee_id'=>$actor,'confirmed_order_id'=>$orderId,'confirmed_cash_cents'=>$amountCents,'activity_id'=>'allocation:'.$allocationId.':'.time()]);
+        \Hambelela\EPI\PerformanceRefreshRuntime::invalidate($db,'cash allocation reviewed');
+    }catch(Throwable $error){error_log('Cash allocation performance capture pending: '.$error->getMessage());}
     echo json_encode(['ok'=>true,'message'=>'Bookkeeping allocation confirmed.'],JSON_UNESCAPED_SLASHES);
 } catch (Throwable $error) {
     if(http_response_code()<400)http_response_code(422);

@@ -6,9 +6,15 @@ require_once __DIR__ . '/kpi-reporting.php';
 require_once __DIR__ . '/kpi-front-orders.php';
 require_once BASE_PATH . '/shared/epi/bootstrap.php';
 require_role('owner_admin');
+// Normal reporting uses published shared results. Legacy calculation is opt-in
+// for controlled comparison only, never a fallback when V2 has missing evidence.
+if ((string)($_GET['action']??'') !== 'legacy_comparison') {
+    require __DIR__.'/performance-workforce-response.php';
+    exit;
+}
 header('Cache-Control: private, no-store, no-cache, max-age=0, must-revalidate');
 header('Pragma: no-cache');
-header('X-Performance-Calculation: live-standard-orders-v2');
+header('X-Performance-Calculation: legacy-comparison-not-official');
 
 function performance_scored_metric(?float $score, int $sample, array $supporting = [], array $details = [], bool $forceEligible = false): array
 {

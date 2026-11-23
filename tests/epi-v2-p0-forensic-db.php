@@ -11,6 +11,9 @@ require_once dirname(__DIR__) . '/shared/epi/bootstrap.php';
 use Hambelela\EPI\{Support,OwnershipPeriodEngine,DeadlineEngine,V2OperationalBridge,V2PerformanceQuery,
     QualityActivityBridge,EligibilityPolicy,PerformanceScore,BusinessTimeEngine,SourceCompletenessEngine,V2Store};
 
+// Explicit synthetic HR boundary for the live task-leave prerequisite.
+function ops_hr_db(): ?PDO { global $db; return $db ?? null; }
+
 function connectAudit(?string $database = null): PDO {
     if ($database !== null && !preg_match('/^epi_p0_audit_[a-f0-9]{12}$/', $database)) throw new RuntimeException('Unsafe audit database');
     $pdo = new PDO('mysql:host=127.0.0.1;port=33317;charset=utf8mb4' . ($database ? ';dbname='.$database : ''), 'root', '', [PDO::ATTR_ERRMODE=>PDO::ERRMODE_EXCEPTION,PDO::ATTR_DEFAULT_FETCH_MODE=>PDO::FETCH_ASSOC]);
@@ -62,11 +65,16 @@ CREATE TABLE epi_performance_score_events(id INT PRIMARY KEY,employee_id INT DEF
 CREATE TABLE epi_employee_evidence(id INT PRIMARY KEY,evidence_uuid VARCHAR(100),employee_id INT,module VARCHAR(50),metadata_json LONGTEXT);
 CREATE TABLE ops_employees(id INT PRIMARY KEY,full_name VARCHAR(100));
 INSERT INTO ops_employees VALUES(101,'Synthetic A'),(102,'Synthetic B'),(103,'Synthetic C'),(999,'Synthetic Owner');
+CREATE TABLE employee_user_links(id INT PRIMARY KEY,portal_user_id INT,hr_employee_id INT,linked_at DATETIME,active INT);
+INSERT INTO employee_user_links VALUES(1,101,101,'2026-01-01 00:00:00',1),(2,102,102,'2026-01-01 00:00:00',1),(3,103,103,'2026-01-01 00:00:00',1);
+CREATE TABLE employees(id INT PRIMARY KEY);INSERT INTO employees VALUES(101),(102),(103);
+CREATE TABLE leave_requests(id INT PRIMARY KEY,employee_id INT,status VARCHAR(20),start_date DATE,end_date DATE,approved_at DATETIME,approved_by INT);
 CREATE TABLE epi_scoring_monthly_scores(id INT PRIMARY KEY,employee_id INT,score_year INT,score_month INT,locked INT,final_hundredths INT);
 INSERT INTO epi_scoring_monthly_scores VALUES(1,101,2026,9,1,9000);
 INSERT INTO epi_performance_score_events(id,confirmation_status,automatic_status,confidence_level,reversed) VALUES(1,'confirmed','needs_review','insufficient',0);
 CREATE TABLE epi_employee_business_calendar(business_date DATE PRIMARY KEY,is_working_day INT,opens_at TIME,closes_at TIME);
-CREATE TABLE ops_orders(id INT PRIMARY KEY,order_number VARCHAR(190),fulfilment_mode VARCHAR(50),order_type VARCHAR(50),status VARCHAR(50),customer_name VARCHAR(100),customer_contact VARCHAR(100));
+CREATE TABLE ops_orders(id INT PRIMARY KEY,order_number VARCHAR(190),fulfilment_mode VARCHAR(50),order_type VARCHAR(50),status VARCHAR(50),customer_name VARCHAR(100),customer_contact VARCHAR(100),created_at DATETIME,payment_status VARCHAR(30));
+CREATE TABLE order_payment_allocations(order_id INT,payment_method VARCHAR(30),amount_cents INT);
 CREATE TABLE ops_checklist_tasks(id INT PRIMARY KEY,assigned_employee_id INT,created_by INT,date_assigned DATETIME,deadline DATETIME,released_at DATETIME,scheduled_at DATETIME);
 CREATE TABLE ops_error_logs(id INT PRIMARY KEY,attribution_type VARCHAR(40),attributed_employee_id INT,responsible_employee_id INT,logged_by INT,affects_kpi_accuracy INT,accuracy_verified_by INT,attribution_verified_by INT,accuracy_verified_at DATETIME,attribution_verified_at DATETIME,occurred_at DATETIME,status VARCHAR(40),updated_at DATETIME,category VARCHAR(100),severity VARCHAR(40));
 CREATE TABLE epi_performance_logs(id INT AUTO_INCREMENT PRIMARY KEY,level VARCHAR(30),component VARCHAR(100),message TEXT,context_json LONGTEXT);");
@@ -89,7 +97,7 @@ check('M05 replay preserves configured registry',0,(int)scalar("SELECT active FR
 check('M06 immutable activation boundary exists',true,(bool)scalar("SELECT COUNT(*) FROM information_schema.TABLES WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='epi_v2_activation'"));
 // Explicit fixture policy, not a production default. Fresh migrations remain inactive.
 sql("UPDATE epi_v2_event_registry SET active=1 WHERE event_key='order_new_sla_breached'");
-V2Store::activate($db,'2026-10-01 00:00:00',999,['version'=>'fixture-1','calendar_version'=>'fixture-1','minimum_opportunity_minutes'=>30,'task_assignment_policy'=>'owner_directed','task_start_minutes'=>30,'orders'=>['courier'=>['new_minutes'=>30,'completion_minutes'=>60]]]);
+V2Store::activate($db,'2026-10-01 00:00:00',999,['version'=>'fixture-1','calendar_version'=>'fixture-1','minimum_opportunity_minutes'=>30,'task_assignment_policy'=>'owner_directed','task_start_minutes'=>30,'packing_list_start_minutes'=>60,'packing_list_completion_minutes'=>180,'website_update_minutes'=>480,'courier_front_send_minutes'=>30,'cash_entry_minutes'=>60,'communication_response_minutes'=>30,'orders'=>['courier'=>['new_minutes'=>30,'completion_minutes'=>60]]]);
 sql("UPDATE epi_employee_performance_settings SET setting_value='1' WHERE setting_key='epi_v2_capture_enabled'");
 check('N01 migration field-equivalent old records',$preservedBefore,['events'=>$db->query('SELECT * FROM epi_performance_score_events ORDER BY id')->fetchAll(),'monthly'=>$db->query('SELECT * FROM epi_scoring_monthly_scores ORDER BY id')->fetchAll()]);
 $engine=new DeadlineEngine($db);$owners=new OwnershipPeriodEngine($db);$query=new V2PerformanceQuery($db);
@@ -204,6 +212,25 @@ require __DIR__.'/epi-orders-stages-db.php';
 require __DIR__.'/epi-front-roster-db.php';
 require __DIR__.'/epi-handover-checklist-db.php';
 require __DIR__.'/epi-stage-readiness-db.php';
+require __DIR__.'/epi-employee-performance-db.php';
+require __DIR__.'/epi-operational-projector-db.php';
+require __DIR__.'/epi-quality-correlation-db.php';
+require __DIR__.'/epi-native-module-deadlines-db.php';
+require __DIR__.'/epi-task-process-db.php';
+require __DIR__.'/epi-communication-handover-db.php';
+require __DIR__.'/epi-attendance-reviewed-db.php';
+require __DIR__.'/epi-workforce-contract-db.php';
+require __DIR__.'/epi-packing-process-db.php';
+require __DIR__.'/epi-cash-accuracy-db.php';
+require __DIR__.'/epi-profile-incident-review-db.php';
+require __DIR__.'/epi-bookkeeping-controls-db.php';
+require __DIR__.'/epi-history-continuity-db.php';
+require __DIR__.'/epi-provisional-activation-db.php';
+require __DIR__.'/epi-provisional-timings-db.php';
+require __DIR__.'/epi-integration-closure-db.php';
+require __DIR__.'/epi-available-results-db.php';
+require __DIR__.'/epi-task-release-coverage-db.php';
+require __DIR__.'/epi-communication-capture-db.php';
 $summary=['database'=>$database,'server'=>scalar('SELECT VERSION()'),'timezone'=>'Africa/Windhoek','production_changes'=>false,'pass'=>count(array_filter($results,fn($r)=>$r['status']==='PASS')),'fail'=>count(array_filter($results,fn($r)=>$r['status']==='FAIL')),'tests'=>$results];
 echo json_encode($summary,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES).PHP_EOL;
 exit($summary['fail']?1:0);

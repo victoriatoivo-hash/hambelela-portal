@@ -12,8 +12,9 @@ final class FrontDeskCoverage
     public function __construct(PDO $db, ?PDO $hr) { $this->db=$db; $this->hr=$hr; }
 
     public function enabled(): bool {
-        $r=V2Store::one($this->db,"SELECT setting_value FROM epi_employee_performance_settings WHERE setting_key='epi_v2_front_coverage_enabled'");
-        return $r && $r['setting_value']==='1';
+        // Replaced by OwnerFrontCoverage in Settings. Retain historical plans,
+        // but do not request employee acceptance or manual return confirmations.
+        return false;
     }
 
     public function status(int $actor, $now=null): array {
@@ -102,6 +103,7 @@ final class FrontDeskCoverage
                     if ($action==='decline' && ($reason==='' || strlen($reason)>500)) throw new RuntimeException('Please provide a short reason.');
                     if ($action==='accept') $this->available($cover,$plan['planned_start']);
                     $this->db->prepare('UPDATE epi_v2_front_plans SET state=?,accepted_at=?,reason=? WHERE id=?')->execute([$action==='accept'?'accepted':'declined',$action==='accept'?$at:null,$action==='decline'?$reason:$plan['reason'],$plan['id']]);
+                    if($action==='accept')V2OperationalBridge::record($this->db,'front_plan','handover_accepted',(int)$plan['id'],['employee_id'=>$actor,'occurred_at'=>$at]);
                 } elseif ($action==='start') {
                     if ($actor!==$primary || $plan['state']!=='accepted') throw new RuntimeException('Coverage must be accepted before lunch starts.');
                     if ($at<$plan['planned_start'] || $at>=$plan['planned_end']) throw new RuntimeException('Start within the planned interval; otherwise owner review is required.');
@@ -110,6 +112,7 @@ final class FrontDeskCoverage
                     if (!$current || (int)$current['employee_id']!==$primary) throw new RuntimeException('Confirm your current Front Desk duty before handing it over.');
                     $window=(new BusinessTimeEngine($this->db))->windowForDate($time);
                     if (!$window || $time>=$window[1]) throw new RuntimeException('Outside working hours.');
+                    V2OperationalBridge::record($this->db,'front_plan','handover_started',(int)$plan['id'],['employee_id'=>$actor,'occurred_at'=>$at]);
                     $this->replaceDuty($cover,$actor,$at,$window[1]->format('Y-m-d H:i:s'),'Lunch handover accepted at '.$plan['accepted_at'],$primary);
                     $this->db->prepare("UPDATE epi_v2_front_plans SET state='active',actual_start=? WHERE id=?")->execute([$at,$plan['id']]);
                 } elseif ($action==='resume') {
@@ -123,6 +126,8 @@ final class FrontDeskCoverage
                     $this->db->prepare("UPDATE epi_v2_front_plans SET state='completed',actual_end=? WHERE id=?")->execute([$at,$plan['id']]);
                 } else throw new RuntimeException('Unknown action.');
             }
+            if($plan && in_array($action,['plan','no_lunch','exception'],true))
+                V2OperationalBridge::record($this->db,'front_plan','handover_replanned',(int)$plan['id'],['employee_id'=>$actor,'occurred_at'=>$at,'reason'=>$reason]);
             $after=V2Store::one($this->db,'SELECT * FROM epi_v2_front_plans WHERE work_date=? AND primary_employee_id=?',[$day,$primary]);
             $after['handover_notes']=$handoverNotes;
             if($handover!==null)$after['reviewed_work']=$handover;
