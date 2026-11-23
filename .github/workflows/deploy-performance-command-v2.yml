@@ -1,0 +1,73 @@
+name: Deploy Performance Command Centre v2 (guarded)
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Verify only, or deploy after approved preflight
+        required: true
+        type: choice
+        options: [preflight, deploy]
+        default: preflight
+      approved_sha:
+        description: Exact approved source commit SHA from PR #138
+        required: true
+        type: string
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  performance-command-v2:
+    # Never publish from an unmerged development branch.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify candidate is contained in published main history
+        env:
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+        run: |
+          git fetch origin "${APPROVED_SHA}"
+          git cat-file -e "${APPROVED_SHA}^{commit}"
+          git merge-base --is-ancestor "${APPROVED_SHA}" HEAD
+          python3 -m py_compile scripts/deploy-performance-command-v2.py
+          php -l apps/operations/reports.php
+          php -l apps/operations/kpi-employee.php
+          php -l shared/performance-command-rail.php
+          node --check assets/js/performance-command-v2.js
+          node --check assets/js/reports-business-health.js
+          node tests/performance-command-centre-v2-static.mjs
+      - name: Guard live baseline and run approved mode
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          APPROVED_SHA: ${{ inputs.approved_sha }}
+          MODE: ${{ inputs.mode }}
+        run: python3 scripts/deploy-performance-command-v2.py "$MODE" "$APPROVED_SHA"
+      - name: Preserve preflight or rollback evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: performance-command-v2-${{ github.run_id }}
+          path: |
+            performance-command-v2-release-report.json
+            performance-command-v2-rollback.zip
+          retention-days: 7
+          if-no-files-found: warn

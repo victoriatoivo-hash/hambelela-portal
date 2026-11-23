@@ -17,8 +17,11 @@ if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'orders';
 $pageTitle = $employee['full_name'] . ' Performance Profile | ' . APP_NAME;
 if (empty($_SESSION['kpi_presence_csrf_token'])) $_SESSION['kpi_presence_csrf_token']=bin2hex(random_bytes(32));
 $activeApp = 'kpi';
+$hidePortalSidebar = true;
+$extraStylesheets = [['path'=>'assets/css/performance-command-v2.css','version'=>is_file(BASE_PATH.'/assets/css/performance-command-v2.css')?(string)filemtime(BASE_PATH.'/assets/css/performance-command-v2.css'):'1']];
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
+include BASE_PATH . '/shared/performance-command-rail.php';
 ?>
 <main id="kpi-employee-profile" class="workspace module kpi-health-page kpi-employee-page" data-employee-id="<?= (int) $employee['id'] ?>" data-role-key="<?= htmlspecialchars((string)$employee['role_key'], ENT_QUOTES, 'UTF-8') ?>" data-initial-anchor="<?= htmlspecialchars($initialAnchor, ENT_QUOTES, 'UTF-8') ?>" data-show-website-updates="<?= $showWebsiteUpdates?'1':'0' ?>" data-can-review="<?= $canReview?'1':'0' ?>" data-presence-csrf="<?= htmlspecialchars((string)$_SESSION['kpi_presence_csrf_token'],ENT_QUOTES,'UTF-8') ?>">
   <nav class="kpi-employee-breadcrumb" aria-label="Breadcrumb"><a href="reports.php?tab=employees">Employees</a><span aria-hidden="true">›</span><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></nav>
@@ -45,6 +48,7 @@ include BASE_PATH . '/shared/sidebar.php';
   <section class="employee-kpi-page" data-kpi-employee-content><div class="kpi-health-grid"><?php foreach (range(1, 8) as $unused): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
   <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button><div data-kpi-timeline-content></div></dialog>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <script defer src="<?= BASE_URL ?>/assets/js/performance-command-v2.js?v=<?= is_file(BASE_PATH.'/assets/js/performance-command-v2.js') ? (int) filemtime(BASE_PATH.'/assets/js/performance-command-v2.js') : 1 ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/kpi-employee.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/kpi-employee.js') ?>"></script>
 </main>
 <?php include BASE_PATH . '/shared/footer.php'; ?>

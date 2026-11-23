@@ -1,0 +1,172 @@
+
+/* Performance Command Centre · Concept 02
+   Presentation-only layer. KPI evidence, scoring, permissions and sources remain authoritative.
+   Uses the current Hambelela portal font (Jost) and scoped visual tokens. */
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@300;400;500;600;700&display=swap');
+body:has(.pc-rail){--pc-ink:#243023;--pc-muted:#6b766b;--pc-green:#344826;--pc-olive:#6b824e;--pc-cream:#f7f9f5;--pc-white:#fff;--pc-mint:#d9f8ee;--pc-blue:#e0f1ff;--pc-violet:#eee3ff;--pc-peach:#ffeadc;--pc-yellow:#fff0c9;--pc-pink:#ffe6f3;--pc-border:#e6ebe4;--pc-shadow:0 12px 35px rgba(40,65,48,.075);background:var(--pc-cream);color:var(--pc-ink);font:400 14px 'Jost',sans-serif;}
+body:has(.pc-rail) :is(h1,h2,h3,h4,p,small,strong,button,select,input,label,span,table,th,td,a){font-family:'Jost',sans-serif}
+body:has(.pc-rail) .shell{display:block!important;min-height:100vh;width:100%!important;max-width:none!important;margin:0!important;padding:0 0 0 100px!important;background:radial-gradient(ellipse 65% 30% at 100% 0%,#eaf4e4 0%,transparent 78%),var(--pc-cream)}
+body:has(.pc-rail) .workspace.kpi-health-page{display:block!important;width:100%!important;max-width:1680px!important;min-width:0!important;margin:0 auto!important;padding:35px 30px 60px!important;box-sizing:border-box!important;background:transparent!important;color:var(--pc-ink);font-size:13px}
+body:has(.pc-rail) .workspace.kpi-health-page *{box-sizing:border-box}
+body:has(.pc-rail) .kpi-health-page :is(button,a,input,select){transition:border-color .16s ease,background-color .16s ease,box-shadow .16s ease}
+body:has(.pc-rail) .kpi-health-page :is(a,button,input,select):focus-visible,.pc-rail a:focus-visible{outline:3px solid #75a7e0!important;outline-offset:2px}
+body:has(.pc-rail) .portal-header-status{z-index:80}
+.pc-rail{position:fixed;z-index:95;left:13px;top:18px;bottom:18px;width:76px;padding:16px 8px 11px;border-radius:29px;display:flex;flex-direction:column;align-items:center;gap:16px;background:linear-gradient(172deg,#728755,#425b34 56%,#293e25);color:white;box-shadow:0 14px 30px rgba(38,63,35,.2);}
+.pc-rail-brand{display:flex;width:53px;height:55px;justify-content:center;align-items:center;border-radius:17px;color:#e5f5c6;text-decoration:none}.pc-rail-brand i,.pc-rail-brand svg{width:29px;height:29px}.pc-rail-brand span,.pc-rail-link span,.pc-rail-return span{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.pc-rail-items{display:flex;flex:1;flex-direction:column;align-items:center;gap:9px;width:100%}
+.pc-rail-link,.pc-rail-return{width:53px;height:53px;border-radius:15px;display:flex;align-items:center;justify-content:center;color:#e6efe1;text-decoration:none;border:1px solid transparent}
+.pc-rail-link:hover,.pc-rail-return:hover{background:rgba(255,255,255,.17);color:white}
+.pc-rail-link.is-current{background:var(--pc-white);color:#2b4629;box-shadow:0 6px 16px rgba(15,36,19,.16)}
+.pc-rail-link i,.pc-rail-link svg,.pc-rail-return svg{width:21px;height:21px;stroke-width:1.8}
+.pc-rail-return{height:44px;flex:none}
+.kpi-health-page .module-header{display:flex;align-items:end;justify-content:space-between;gap:15px;margin:0 0 14px!important;padding:8px 0 2px!important;border:0!important;background:transparent!important}
+.kpi-health-page .module-header .eyebrow,.kpi-dashboard-section-head p{color:#649378!important;font-size:10px!important;letter-spacing:.12em!important;font-weight:700!important;text-transform:uppercase!important}
+.kpi-health-page .module-header h1{margin:3px 0 5px!important;color:var(--pc-green)!important;font-size:clamp(26px,3vw,37px)!important;font-weight:650!important;letter-spacing:-.05em!important;line-height:1.13!important}
+.kpi-health-page .module-header p:not(.eyebrow){color:var(--pc-muted)!important;font-size:13px!important}
+.kpi-health-page .kpi-health-tabs{display:flex;flex-wrap:wrap;gap:7px;margin:8px 0 20px;padding:5px;border:1px solid var(--pc-border);border-radius:16px;background:#ffffffdb;box-shadow:0 3px 13px #23382909}
+.kpi-health-page .kpi-health-tabs a{padding:10px 15px!important;border:0!important;border-radius:12px!important;background:transparent!important;text-decoration:none!important;color:#637260!important;font-size:12px!important;font-weight:500!important}
+.kpi-health-page .kpi-health-tabs a:hover{background:#f0f5ed!important;color:#244027!important}
+.kpi-health-page .kpi-health-tabs a.active{background:#405d33!important;color:#fff!important;box-shadow:0 4px 12px #40603125}
+.kpi-health-page .kpi-period-panel{display:flex;flex-wrap:wrap;align-items:end;gap:12px;padding:13px 16px!important;margin:0 0 17px!important;border:1px solid var(--pc-border)!important;border-radius:17px!important;background:white!important;box-shadow:0 5px 15px #293a2609!important}
+.kpi-health-page .kpi-period-panel label{color:var(--pc-muted);font-size:11px}
+.kpi-health-page .kpi-period-panel :is(select,input){min-height:36px;border:1px solid var(--pc-border)!important;border-radius:10px!important;background:#fbfcfb!important;color:var(--pc-ink)!important;padding:7px 11px}
+.kpi-health-page .kpi-period-caption{color:#7b8579;font-size:11px}
+.kpi-health-page :is(.kpi-dashboard-section-head,.kpi-panel-heading){border-bottom-color:#e9eee6!important}
+.kpi-health-page .kpi-dashboard-section-head h2,.kpi-health-page .kpi-panel-heading h2{color:#263f30!important;font-size:18px!important;font-weight:600!important;letter-spacing:-.02em!important}
+.kpi-health-page .kpi-dashboard-section-head>span,.kpi-health-page .kpi-panel-heading small{color:var(--pc-muted)!important}
+.kpi-health-page .kpi-health-card,.kpi-health-page .kpi-health-panel,.kpi-health-page .kpi-person-overview,.kpi-health-page .kpi-recognition-card{border:1px solid var(--pc-border)!important;border-radius:19px!important;background:white!important;box-shadow:var(--pc-shadow)!important;overflow:hidden}
+.kpi-health-page .kpi-health-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(178px,1fr));gap:12px;margin:10px 0 17px}
+.kpi-health-page .kpi-health-grid>.kpi-health-card{min-height:108px;padding:16px!important;border-left:0!important;display:flex;flex-direction:column;gap:8px}
+.kpi-health-page .kpi-health-grid>.kpi-health-card:nth-child(6n+1){background:linear-gradient(130deg,#e1fbef,#fff)!important}
+.kpi-health-page .kpi-health-grid>.kpi-health-card:nth-child(6n+2){background:linear-gradient(130deg,#e3f1ff,#fff)!important}
+.kpi-health-page .kpi-health-grid>.kpi-health-card:nth-child(6n+3){background:linear-gradient(130deg,#f0e7ff,#fff)!important}
+.kpi-health-page .kpi-health-grid>.kpi-health-card:nth-child(6n+4){background:linear-gradient(130deg,#ffecdf,#fff)!important}
+.kpi-health-page .kpi-health-grid>.kpi-health-card:nth-child(6n+5){background:linear-gradient(130deg,#fff0cd,#fff)!important}
+.kpi-health-page .kpi-health-grid>.kpi-health-card:nth-child(6n+6){background:linear-gradient(130deg,#ffe8f2,#fff)!important}
+.kpi-health-page .kpi-health-grid>.kpi-health-card>span{font-size:11px;color:#566755}
+.kpi-health-page .kpi-health-grid>.kpi-health-card>strong{color:#203d2a;font-size:27px;line-height:1.1;font-weight:650;letter-spacing:-.04em}
+.kpi-health-page .kpi-health-grid>.kpi-health-card>small{font-size:10px;color:var(--pc-muted)}
+.kpi-health-page .kpi-management-hero{border:1px solid #d4e9d8!important;border-radius:19px!important;background:linear-gradient(120deg,#e8fbf2,#f9fffc)!important;color:var(--pc-ink)!important;box-shadow:var(--pc-shadow)!important}
+.kpi-health-page .kpi-management-hero h2{color:#28533b!important}
+.kpi-health-page .kpi-management-hero__facts span{border:1px solid #e3ede2;border-radius:12px;padding:10px;background:#ffffffa8;color:#386043}
+.kpi-health-page .kpi-dashboard-operational-grid{grid-template-columns:minmax(0,1.65fr) minmax(295px,.75fr)!important;gap:14px!important}
+.kpi-health-page .kpi-orders-overview-grid{grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:9px}
+.kpi-health-page .kpi-orders-overview-grid article{border-radius:12px!important;border-color:#e8eee7!important;background:#f8fcf9!important;padding:12px!important}
+.kpi-health-page .kpi-orders-overview-grid article:nth-child(4n+2){background:#f0eaff!important}
+.kpi-health-page .kpi-orders-overview-grid article:nth-child(4n+3){background:#eaf4ff!important}
+.kpi-health-page .kpi-orders-overview-grid article:nth-child(4n+4){background:#fff1df!important}
+.kpi-health-page .kpi-attention-row{border:1px solid #f2e9e6!important;border-radius:13px!important;margin-bottom:8px!important;background:#fff9f9!important;padding:11px!important}
+.kpi-health-page .kpi-attention-row b{color:#bb555b!important}
+.kpi-health-page .kpi-person-overview{border-left:0!important}
+.kpi-health-page .kpi-person-overview:nth-child(4n+1)>header{background:linear-gradient(110deg,#e7f8f0,#fff)!important}
+.kpi-health-page .kpi-person-overview:nth-child(4n+2)>header{background:linear-gradient(110deg,#ece8ff,#fff)!important}
+.kpi-health-page .kpi-person-overview:nth-child(4n+3)>header{background:linear-gradient(110deg,#e9f4ff,#fff)!important}
+.kpi-health-page .kpi-person-overview:nth-child(4n+4)>header{background:linear-gradient(110deg,#ffecf2,#fff)!important}
+.kpi-health-page .kpi-person-overview__identity h3{color:#2c442b!important}
+.kpi-health-page .kpi-person-avatar{border-radius:50%!important;background:linear-gradient(145deg,#c5f2d7,#4abfa4)!important;color:#204e40!important}
+.kpi-health-page .kpi-person-overview.is-packer .kpi-person-avatar{background:linear-gradient(145deg,#efe0ff,#aa83f0)!important;color:#50367f!important}
+.kpi-health-page .kpi-person-overview__score strong{color:#356347!important}
+.kpi-health-page .kpi-person-overview__score i{background:linear-gradient(90deg,#30c99e,#82cd56)!important}
+.kpi-health-page .kpi-chart-frame{min-height:185px}
+.kpi-health-page :is(.kpi-orders-sales-panel,.kpi-physical-output-panel){min-width:0}
+.kpi-health-page :is(.kpi-employee-directory-head,.kpi-employee-directory-card){border:1px solid var(--pc-border)!important;border-radius:19px!important;background:#fff!important;box-shadow:var(--pc-shadow)!important}
+.kpi-health-page .kpi-employee-directory-head{padding:20px!important;margin:0 0 15px}
+.kpi-health-page .kpi-employee-directory-head h2{font-size:23px!important;color:#2c4b32!important}
+.kpi-health-page .kpi-employee-directory{display:grid;grid-template-columns:repeat(auto-fit,minmax(225px,1fr));gap:14px}
+.kpi-health-page .kpi-employee-directory-card{display:flex;align-items:center;flex-wrap:wrap;gap:14px;min-height:130px;padding:20px!important;color:var(--pc-ink)!important;text-decoration:none!important}
+.kpi-health-page .kpi-employee-directory-card:nth-child(5n+1){background:linear-gradient(140deg,#dff8eb,#fff 78%)!important}
+.kpi-health-page .kpi-employee-directory-card:nth-child(5n+2){background:linear-gradient(140deg,#e3edff,#fff 78%)!important}
+.kpi-health-page .kpi-employee-directory-card:nth-child(5n+3){background:linear-gradient(140deg,#ffe6f1,#fff 78%)!important}
+.kpi-health-page .kpi-employee-directory-card:nth-child(5n+4){background:linear-gradient(140deg,#f0e6ff,#fff 78%)!important}
+.kpi-health-page .kpi-employee-directory-card:nth-child(5n+5){background:linear-gradient(140deg,#ffeedb,#fff 78%)!important}
+.kpi-health-page .kpi-employee-directory-card:hover{box-shadow:0 15px 37px #315c4030!important;transform:translateY(-2px)}
+.kpi-health-page .kpi-employee-directory-avatar{width:52px;height:52px;border:0;border-radius:50%;display:grid;place-items:center;background:#d7e7d4;color:#315633;font-weight:700;font-size:19px}
+.kpi-health-page .kpi-employee-directory-copy strong{font-size:16px;color:#213f2c}
+.kpi-health-page .kpi-employee-directory-copy small{color:#72806e;font-size:12px}
+.kpi-health-page .kpi-employee-directory-action{font-size:11px;color:#446e45;font-weight:600}
+.kpi-health-page .kpi-employee-breadcrumb{font-size:12px;color:#758c75}
+.kpi-health-page .kpi-employee-identity{display:flex;align-items:center;gap:17px}
+.kpi-health-page .kpi-avatar{width:65px;height:65px;border:6px solid #e5f4e1!important;border-radius:50%!important;background:#afdcac!important;color:#264c30!important;font-size:25px!important}
+.kpi-health-page .kpi-score-placeholder{position:relative;display:flex;align-items:center;gap:26px;min-height:178px;margin:0 0 16px;padding:22px!important;border:1px solid #d3eadb!important;border-radius:25px!important;background:linear-gradient(115deg,#dff8f0,#f8fff9 70%)!important;box-shadow:var(--pc-shadow)}
+.kpi-health-page .kpi-score-placeholder__mark{display:grid;place-items:center;width:130px;height:130px;flex:none;border-radius:50%;background:conic-gradient(#42cfa9 calc(var(--pc-person-score,0)*1%),#e2eae4 0);color:#28503a;font-size:28px;font-weight:700}
+.kpi-health-page .kpi-score-placeholder__mark:after{content:'';position:absolute;width:90px;height:90px;border-radius:50%;background:#f8fffb;z-index:0}
+.kpi-health-page .kpi-score-placeholder__mark{isolation:isolate}
+.kpi-health-page .kpi-score-placeholder__mark:after{z-index:-1}
+.kpi-health-page .kpi-score-placeholder h2{font-size:23px!important;color:#285039!important}
+.kpi-health-page .employee-kpi-jump-nav{display:flex;flex-wrap:wrap;gap:7px;padding:8px;background:#ffffffea;border:1px solid #e5ece3;border-radius:17px;margin-bottom:16px;box-shadow:0 3px 12px #2340270a}
+.kpi-health-page .employee-kpi-jump-nav a{border-radius:11px!important;padding:10px 13px!important;font-size:11px!important;border:0!important;color:#5c755b!important;background:transparent!important}
+.kpi-health-page .employee-kpi-jump-nav a.active{background:#4a7047!important;color:#fff!important}
+.kpi-health-page .employee-kpi-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:12px}
+.kpi-health-page .employee-kpi-metrics .kpi-health-card{padding:17px!important;min-height:115px!important}
+.kpi-health-page .employee-kpi-metrics .kpi-health-card:nth-child(4n+1){background:linear-gradient(145deg,#e5f8eb,#fff)!important}
+.kpi-health-page .employee-kpi-metrics .kpi-health-card:nth-child(4n+2){background:linear-gradient(145deg,#e5f1ff,#fff)!important}
+.kpi-health-page .employee-kpi-metrics .kpi-health-card:nth-child(4n+3){background:linear-gradient(145deg,#eee8ff,#fff)!important}
+.kpi-health-page .employee-kpi-metrics .kpi-health-card:nth-child(4n+4){background:linear-gradient(145deg,#fff0e0,#fff)!important}
+.kpi-health-page .employee-kpi-metrics .kpi-health-card .kpi-number{font-size:24px;color:#264932!important}
+.kpi-health-page .employee-kpi-section{border-radius:19px!important;border-color:var(--pc-border)!important;background:white!important;overflow:hidden}
+.kpi-health-page .employee-kpi-section__header h2{color:#2b4c32!important}
+.kpi-health-page .kpi-live-activity__grid a:hover{background:#eff9f2}
+.kpi-health-page .kpi-task-timing,.kpi-health-page .kpi-flow-card,.kpi-health-page .kpi-management-flow__track article{border-radius:15px!important;border-color:var(--pc-border)!important}
+.kpi-health-page .kpi-flow-card>header{background:#eaf7f0!important}
+.kpi-health-page .kpi-flow-track span{background:#4c815c!important}
+.kpi-health-page .kpi-flow-track span:last-child{background:#6f97d8!important}
+.kpi-health-page .kpi-flow-track i{background:linear-gradient(90deg,#69ba90,#82a7e8)!important}
+
+/* New graphic command area, sourced from existing live report data. */
+.pc-command-top{margin:17px 0 25px}
+.pc-command-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 15px}
+.pc-command-head h2{margin:0;color:#243d29;font-size:22px;letter-spacing:-.035em}
+.pc-command-head p{margin:4px 0 0;font-size:12px;color:#758373}
+.pc-command-head .pc-source-note{font-size:10px;padding:8px 11px;border-radius:99px;background:#fff;color:#66816b;border:1px solid #e1ebe0}
+.pc-command-grid{display:grid;grid-template-columns:minmax(250px,.92fr) minmax(330px,1.35fr) minmax(245px,.82fr);gap:14px}
+.pc-graphic-card{min-width:0;border:1px solid #e3ece8;border-radius:25px;overflow:hidden;box-shadow:var(--pc-shadow);padding:18px}
+.pc-score-card{background:linear-gradient(145deg,#e2fbf1,#d4f4ec 65%,#a7e7df);position:relative}
+.pc-graphic-card h3{margin:0 0 5px;color:#234032;font-size:18px;font-weight:600}
+.pc-graphic-card .pc-subtitle{font-size:11px;color:#62796d;margin:0}
+.pc-score-ring{width:min(220px,94%);aspect-ratio:1;margin:16px auto 8px;padding:16px;border-radius:50%;background:conic-gradient(from -90deg,#35cb9c 0 calc(var(--pc-score,0)*.3%),#76abf2 0 calc(var(--pc-score,0)*.65%),#b67ee3 0 calc(var(--pc-score,0)*1%),#d8e7df 0 100%);display:grid;place-items:center;box-shadow:0 9px 25px #308d7a19}
+.pc-score-ring__inner{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;border:7px solid #ffffffad;background:linear-gradient(140deg,#fff,#f3fff8);box-shadow:inset 0 2px 11px #4d9b7d10}
+.pc-score-ring__inner strong{font-size:clamp(34px,4.2vw,54px);line-height:1.1;letter-spacing:-.07em;color:#1e4937}
+.pc-score-ring__inner span{font-size:11px;color:#617b65}
+.pc-score-card .pc-score-foot{margin:auto;text-align:center;color:#366e55;font-size:11px;font-weight:600}
+.pc-flow-card{background:linear-gradient(135deg,#fff,#f7fcff)}
+.pc-flow-stages{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px;margin-top:21px}
+.pc-flow-stage{padding:14px;border-radius:19px;min-height:108px;text-decoration:none!important;display:flex;flex-direction:column;gap:6px;color:#1e3445!important}
+.pc-flow-stage:nth-child(1){background:#e1f2ff}.pc-flow-stage:nth-child(2){background:#eee4ff}.pc-flow-stage:nth-child(3){background:#fff0cb}.pc-flow-stage:nth-child(4){background:#d8f8e9}
+.pc-flow-stage small{font-size:10px;color:#547086}.pc-flow-stage strong{font-size:28px;line-height:1.1;color:#1f3d3e}.pc-flow-stage em{font-size:10px;font-style:normal;color:#5a6e63}
+.pc-flow-progress{display:flex;align-items:center;gap:11px;margin-top:17px;padding:12px 13px;border-radius:15px;background:#f9fbf8}
+.pc-flow-progress>span{height:10px;flex:1;background:#e4e9e5;border-radius:99px;overflow:hidden}
+.pc-flow-progress i{display:block;height:100%;width:var(--pc-complete,0%);border-radius:inherit;background:linear-gradient(90deg,#33cba1,#7cd86e);transition:width .3s ease}
+.pc-flow-progress b{font-size:12px;color:#41774c}
+.pc-action-card{background:linear-gradient(140deg,#fff0f7,#f1e9ff)}
+.pc-action-list{display:flex;flex-direction:column;gap:9px;margin-top:17px}
+.pc-action-list a,.pc-action-empty{display:flex;align-items:center;gap:11px;min-height:63px;padding:11px 12px;border:1px solid #fff;border-radius:15px;background:#ffffffad;text-decoration:none!important;color:#3d3d47!important}
+.pc-action-list a:hover{background:#fff!important;box-shadow:0 6px 15px #c565a01f}
+.pc-action-list b{font-size:12px;font-weight:600}.pc-action-list small{display:block;margin-top:4px;color:#8b7988;font-size:10px}.pc-action-list .pc-action-count{margin-left:auto;width:24px;height:24px;flex:none;border-radius:50%;display:grid;place-items:center;background:#ffe5d9;color:#b25650;font-size:12px}
+.pc-action-quick{display:flex;flex-wrap:wrap;gap:7px;margin-top:13px}
+.pc-action-quick a{padding:8px 10px;border-radius:10px;background:#ffffffb8;text-decoration:none;color:#685482;font-size:10px}
+.pc-role-strip{margin:15px 0 0;padding:16px;border-radius:23px;border:1px solid #e7dcff;background:linear-gradient(100deg,#ebe2ff,#f9f4ff 80%);box-shadow:var(--pc-shadow)}
+.pc-role-strip__header{display:flex;align-items:baseline;gap:12px;margin:0 0 12px}.pc-role-strip__header h3{font-size:16px;color:#594783;margin:0}.pc-role-strip__header small{font-size:10px;color:#8b799f}
+.pc-role-people{display:grid;grid-template-columns:repeat(auto-fit,minmax(138px,1fr));gap:10px}
+.pc-role-person{display:flex;flex-direction:column;gap:6px;padding:13px;border:1px solid #fff;border-radius:17px;background:#fffeff;box-shadow:0 4px 12px #69557c10;color:#2d3e30;text-decoration:none!important}
+.pc-role-person .pc-initial{width:35px;height:35px;border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:700;background:#ddf8ec;color:#367e5f}
+.pc-role-person:nth-child(5n+2) .pc-initial{background:#dceeff;color:#4276bb}
+.pc-role-person:nth-child(5n+3) .pc-initial{background:#ffe1eb;color:#b94c70}
+.pc-role-person:nth-child(5n+4) .pc-initial{background:#efe1ff;color:#8656c1}
+.pc-role-person:nth-child(5n+5) .pc-initial{background:#ffe9cf;color:#b47727}
+.pc-role-person strong{font-size:12px}.pc-role-person small{font-size:10px;color:#7d8580}.pc-role-person b{font-size:12px;color:#42754b}
+.pc-role-person em{height:6px;border-radius:99px;overflow:hidden;background:#e8ece6}
+.pc-role-person em i{display:block;height:100%;width:var(--pc-pct,0%);background:linear-gradient(90deg,#4dd6b1,#7bce6b);border-radius:inherit}
+.pc-command-secondary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:13px;margin:15px 0 0}
+.pc-mini-card{min-height:116px;display:block;padding:16px 18px;border-radius:20px;border:1px solid #e5ece7;background:white;box-shadow:var(--pc-shadow);text-decoration:none!important;color:#243b32!important}
+.pc-mini-card:nth-child(1){background:linear-gradient(130deg,#fff0ce,#fff)}
+.pc-mini-card:nth-child(2){background:linear-gradient(130deg,#ffdeee,#fff)}
+.pc-mini-card:nth-child(3){background:linear-gradient(130deg,#dff1ff,#fff)}
+.pc-mini-card:nth-child(4){background:linear-gradient(130deg,#e4f8d4,#fff)}
+.pc-mini-card .pc-mini-icon{display:grid;place-items:center;width:33px;height:33px;border-radius:11px;background:#ffffffba;margin-bottom:10px;color:#57794e}
+.pc-mini-card b{display:block;font-size:14px}.pc-mini-card small{display:block;margin-top:4px;font-size:10px;color:#708172}
+.pc-empty{text-align:center;padding:13px;font-size:12px;color:#8a968b}
+.pc-runtime-note{display:inline-block;border-radius:10px;background:#f6f8f4;padding:8px 10px;font-size:11px;color:#69786c}
+@media(max-width:1360px){.pc-command-grid{grid-template-columns:minmax(230px,.85fr) minmax(335px,1.2fr)}.pc-action-card{grid-column:1/-1}.pc-action-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr))}.pc-command-secondary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:1020px){.pc-command-grid{grid-template-columns:1fr 1fr}.pc-score-ring{width:min(200px,88%)}.kpi-health-page .kpi-dashboard-operational-grid{grid-template-columns:1fr!important}.pc-rail{width:64px}.pc-rail-link{width:45px;height:45px}body:has(.pc-rail) .shell{padding-left:82px!important}}
+@media(max-width:760px){body:has(.pc-rail) .shell{padding:0 0 76px!important}body:has(.pc-rail) .workspace.kpi-health-page{padding:22px 13px 35px!important}.pc-rail{top:auto;left:8px;right:8px;bottom:8px;width:auto;height:63px;min-height:0;flex-direction:row;border-radius:20px;padding:7px 8px;gap:7px}.pc-rail-brand,.pc-rail-return{display:none}.pc-rail-items{flex-direction:row;justify-content:space-around;gap:4px;min-width:0}.pc-rail-link{width:calc((100vw - 52px)/7);max-width:55px;height:46px}.pc-command-grid{grid-template-columns:1fr}.pc-action-list{display:flex}.pc-command-head{align-items:flex-start;flex-direction:column}.pc-role-people{grid-template-columns:repeat(2,minmax(0,1fr))}.pc-command-secondary{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi-health-page .module-header{padding-top:34px!important}.kpi-health-page .kpi-health-tabs{overflow:auto;flex-wrap:nowrap}.kpi-health-page .kpi-health-tabs a{white-space:nowrap}.kpi-health-page .kpi-score-placeholder{flex-direction:column;align-items:start}.kpi-health-page .kpi-person-overview__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(prefers-reduced-motion:reduce){.pc-rail a,.pc-mini-card,.pc-flow-progress i{transition:none!important}}
