@@ -10,13 +10,16 @@ $ErrorActionPreference='Stop'
 $privateFull=[IO.Path]::GetFullPath($PrivateDirectory)
 $repoFull=[IO.Path]::GetFullPath((Split-Path $PSScriptRoot))
 if($privateFull.StartsWith($repoFull,[StringComparison]::OrdinalIgnoreCase)){throw 'Keep signing material outside the repository.'}
-New-Item -ItemType Directory -Force -Path $privateFull | Out-Null
-$identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
-$acl=Get-Acl -LiteralPath $privateFull
-$acl.SetAccessRuleProtection($true,$false)
-$rule=New-Object Security.AccessControl.FileSystemAccessRule($identity,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
-$acl.SetAccessRule($rule)
-Set-Acl -LiteralPath $privateFull -AclObject $acl
+if(!(Test-Path $privateFull)) {
+    New-Item -ItemType Directory -Path $privateFull | Out-Null
+    $identity=[Security.Principal.WindowsIdentity]::GetCurrent().Name
+    if($identity -match 'CodexSandbox'){throw 'Create new signing keys under the actual Windows owner account.'}
+    $acl=New-Object Security.AccessControl.DirectorySecurity
+    $acl.SetAccessRuleProtection($true,$false)
+    $rule=New-Object Security.AccessControl.FileSystemAccessRule($identity,'FullControl','ContainerInherit,ObjectInherit','None','Allow')
+    $acl.SetAccessRule($rule)
+    Set-Acl -LiteralPath $privateFull -AclObject $acl
+}
 $keyPath=Join-Path $privateFull 'hambelela-driver.p12'
 $passPath=Join-Path $privateFull 'signing-password.dpapi'
 if((Test-Path $keyPath) -ne (Test-Path $passPath)){throw 'Incomplete signing key pair; do not regenerate.'}

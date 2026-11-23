@@ -19,6 +19,9 @@ class PackageContract(unittest.TestCase):
     def test_no_backup_or_cleartext(self):
         self.assertEqual(self.app.get(A+'allowBackup'), 'false')
         self.assertEqual(self.app.get(A+'usesCleartextTraffic'), 'false')
+        rules=ET.parse(ROOT/'app/src/main/res/xml/data_extraction_rules.xml').getroot()
+        for mode in ('cloud-backup','device-transfer'):
+            self.assertEqual(len(rules.find(mode).findall('exclude')), 9)
 
     def test_only_launcher_entry_not_all_portal_links(self):
         self.assertEqual(len(self.app.findall('activity')), 1)
@@ -46,7 +49,7 @@ class PackageContract(unittest.TestCase):
         self.assertFalse(any(p.suffix in ('.p12','.jks','.keystore','.dpapi') for p in ROOT.rglob('*')))
 
     def test_existing_brand_icon(self):
-        self.assertEqual((ROOT/'app/src/main/res/drawable/driver_icon.png').read_bytes(), (ROOT.parent/'assets/pwa/hambelela-512.png').read_bytes())
+        self.assertEqual((ROOT/'app/src/main/res/drawable-nodpi/driver_icon.png').read_bytes(), (ROOT.parent/'assets/pwa/hambelela-512.png').read_bytes())
 
     def test_pinned_dependencies_and_separate_signing(self):
         build = (ROOT/'app/build.gradle').read_text()

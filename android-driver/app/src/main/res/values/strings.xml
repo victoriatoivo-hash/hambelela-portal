@@ -3,4 +3,5 @@
     <string name="app_name">Hambelela Driver</string>
     <string name="asset_statements" translatable="false">[{\"relation\":[\"delegate_permission/common.handle_all_urls\"],\"target\":{\"namespace\":\"web\",\"site\":\"https://portal.hambelelaorganic.com\"}}]</string>
     <color name="driver_green">#294C38</color>
+    <color name="brand_icon_background">#721B1A</color>
 </resources>
