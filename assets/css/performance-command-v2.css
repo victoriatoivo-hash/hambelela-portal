@@ -123,7 +123,7 @@ body:has(.pc-rail) .portal-header-status{z-index:80}
 .pc-score-card{background:linear-gradient(145deg,#e2fbf1,#d4f4ec 65%,#a7e7df);position:relative}
 .pc-graphic-card h3{margin:0 0 5px;color:#234032;font-size:18px;font-weight:600}
 .pc-graphic-card .pc-subtitle{font-size:11px;color:#62796d;margin:0}
-.pc-score-ring{width:min(220px,94%);aspect-ratio:1;margin:16px auto 8px;padding:16px;border-radius:50%;background:conic-gradient(#35cb9c 0%,#63cdb4 28%,#76abf2 55%,#b67ee3 75%,#eb79ba calc(var(--pc-score,0)*1%),#d8e7df 0%);display:grid;place-items:center;box-shadow:0 9px 25px #308d7a19}
+.pc-score-ring{width:min(220px,94%);aspect-ratio:1;margin:16px auto 8px;padding:16px;border-radius:50%;background:conic-gradient(from -90deg,#35cb9c 0 calc(var(--pc-score,0)*.3%),#76abf2 0 calc(var(--pc-score,0)*.65%),#b67ee3 0 calc(var(--pc-score,0)*1%),#d8e7df 0 100%);display:grid;place-items:center;box-shadow:0 9px 25px #308d7a19}
 .pc-score-ring__inner{display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;height:100%;border-radius:50%;border:7px solid #ffffffad;background:linear-gradient(140deg,#fff,#f3fff8);box-shadow:inset 0 2px 11px #4d9b7d10}
 .pc-score-ring__inner strong{font-size:clamp(34px,4.2vw,54px);line-height:1.1;letter-spacing:-.07em;color:#1e4937}
 .pc-score-ring__inner span{font-size:11px;color:#617b65}
