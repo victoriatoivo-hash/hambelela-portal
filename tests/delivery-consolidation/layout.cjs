@@ -27,6 +27,7 @@ const request=url=>new Promise((resolve,reject)=>require('http').get(url,r=>{r.r
    assert(!metrics.button||metrics.button.includes('Jost'));assert(!metrics.select||metrics.select.includes('Jost'));
    assert(await page.locator('.ess-sidebar a[aria-label="Delivery"].is-active').count()===1,'Delivery is active');
    assert(await page.locator(selector+' .delivery-admin-nav').count()===1,'one Delivery workspace nav');
+   assert(await page.locator('.ess-mobile-nav a[aria-current="page"]').filter({hasText:'Deliveries'}).count()===1,'mobile Delivery active without replacing shared navigation');
    const renderText=await page.textContent('body');assert(!renderText.match(/(?:PHP )?(?:Warning|Fatal error):/),'PHP rendering error: '+renderText.slice(-1800));
    await page.screenshot({path:path.join(out,`${name}-${width}.png`),fullPage:true});results.push({page:name,width,...metrics});
   }
