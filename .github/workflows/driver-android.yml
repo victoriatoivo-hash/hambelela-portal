@@ -1,7 +1,7 @@
 name: Build Driver Android APK
 on:
   push:
-    branches: [codex/driver-android-apk]
+    branches: [codex/driver-android-apk, codex/driver-apk-startup-fix]
     paths: ['android-driver/**', '.github/workflows/driver-android.yml', 'scripts/release-driver-android-association.py']
 permissions:
   contents: read
@@ -23,7 +23,28 @@ jobs:
           python3 android-driver/tests/package_contract.py
           python3 android-driver/tests/association_release.py
       - name: Build and lint without private keys
-        run: gradle -p android-driver --no-daemon :app:assembleRelease :app:lintRelease
+        run: gradle -p android-driver --no-daemon :app:assembleRelease :app:assembleDebug :app:lintRelease
+      - name: Enable Android emulator acceleration
+        run: sudo chmod 666 /dev/kvm
+      - name: Verify APK launch on Android without a browser
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          disable-animations: true
+          script: bash android-driver/tests/launch-smoke.sh
+      - name: Preserve synthetic emulator diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: driver-startup-smoke-${{ github.sha }}
+          path: |
+            android-*-crash.log
+            driver-launch.xml
+            driver-no-browser.xml
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Prepare unsigned APK and standard signing tool
         run: |
           mkdir android-package
