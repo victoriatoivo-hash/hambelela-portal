@@ -24,10 +24,24 @@ if grep -q 'com.hambelelaorganic.driver' android-launch-crash.log; then
     cat android-launch-crash.log
     exit 1
 fi
-# Without a browser the supported-browser explanation must remain visible,
-# rather than crashing or silently closing to the phone launcher.
+# AOSP includes a basic browser: confirm the existing browser fallback opens.
 adb shell uiautomator dump /sdcard/driver-launch.xml
 adb pull /sdcard/driver-launch.xml driver-launch.xml
-grep -q 'package="com.hambelelaorganic.driver"' driver-launch.xml
-grep -qi 'browser' driver-launch.xml
-echo 'PASS: actual Android startup stays open and explains the missing browser.'
+grep -q 'package="org.chromium.webview_shell"' driver-launch.xml
+echo 'PASS: corrected APK launches the browser fallback without crashing.'
+# Exercise a phone with its browser disabled as a separate startup case.
+adb shell am force-stop com.hambelelaorganic.driver
+adb shell pm disable-user --user 0 org.chromium.webview_shell
+adb logcat -c
+adb shell am start -W -n com.hambelelaorganic.driver/com.google.androidbrowserhelper.trusted.LauncherActivity
+sleep 5
+adb logcat -d -b crash > android-no-browser-crash.log
+if grep -q 'com.hambelelaorganic.driver' android-no-browser-crash.log; then
+    cat android-no-browser-crash.log
+    exit 1
+fi
+adb shell uiautomator dump /sdcard/driver-no-browser.xml
+adb pull /sdcard/driver-no-browser.xml driver-no-browser.xml
+grep -q 'package="com.hambelelaorganic.driver"' driver-no-browser.xml
+grep -qi 'browser' driver-no-browser.xml
+echo 'PASS: no-browser startup stays open and explains the missing browser.'
