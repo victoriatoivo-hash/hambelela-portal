@@ -100,6 +100,7 @@
   // The existing report script emits this after it has rendered all source data;
   // one fetch, one data source and no divergence when the reporting period changes.
   document.addEventListener('pc:business-data', (event) => updateBusiness(event.detail));
+  if (window.HambelelaLatestBusinessHealthData) updateBusiness(window.HambelelaLatestBusinessHealthData);
 
   // Employee score can only be drawn when the source report marks it as final.
   const profile = q('.kpi-score-placeholder');
