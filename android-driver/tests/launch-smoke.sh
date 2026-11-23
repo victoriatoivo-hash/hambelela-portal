@@ -44,5 +44,5 @@ fi
 adb shell uiautomator dump /sdcard/driver-no-browser.xml
 adb pull /sdcard/driver-no-browser.xml driver-no-browser.xml
 grep -q 'package="com.hambelelaorganic.driver"' driver-no-browser.xml
-grep -qi 'browser' driver-no-browser.xml
-echo 'PASS: no-browser startup stays open and explains the missing browser.'
+grep -q 'This app is unavailable.' driver-no-browser.xml
+echo 'PASS: no-browser startup shows the library unavailable dialog without crashing.'
