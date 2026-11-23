@@ -59,7 +59,7 @@
     if (attentionHost) attentionHost.innerHTML = attention.length
       ? attention.slice(0,5).map((item,i) => {
         const link = sameOrigin(item.href, orderHref);
-        const due = item.due_at ? 'Due: ' + item.due_at : 'View original record';
+        const due = item.due_at ? (item.type === 'error' ? 'Reported: ' : 'Due: ') + item.due_at : 'View original record';
         return '<a href="' + esc(link) + '"><span class="pc-action-count" aria-hidden="true">' + (i+1) +
           '</span><span><b>' + esc(item.description || 'Needs attention') + '</b><small>' +
           esc(due) + '</small></span><span aria-hidden="true">›</span></a>';
