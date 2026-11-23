@@ -42,11 +42,17 @@ function ess_navigation_children(string $name): array
             'index.php?view=performance'=>'Performance',
         ]],
     ];
+    if (function_exists('current_role_key') && current_role_key() === 'owner_admin') {
+        $groups['Delivery'] = ['delivery', [
+            'driver-operations.php'=>'Driver Operations', 'workspace.php'=>'Front Operations',
+            'tedlaser.php'=>'Partner Deliveries', 'accounting.php'=>'Delivery Accounting',
+            'index.php?errands=1'=>'Driver Errands', 'tracking.php'=>'GPS & Device Setup',
+            'pricing.php'=>'Delivery Pricing', 'settings.php'=>'Delivery Settings',
+            'partner-routing.php'=>'Partner Routing', 'reviews.php'=>'Payment Reviews',
+        ]];
+    }
     if (!isset($groups[$name])) return [];
     [$directory, $routes] = $groups[$name];
-    if ($name === 'Operations' && function_exists('current_role_key') && current_role_key() === 'owner_admin') {
-        $routes = ['driver-operations-dashboard.php'=>'Driver Operations'] + $routes;
-    }
     $links = [];
     foreach ($routes as $route => $label) $links[] = ['label'=>$label, 'href'=>BASE_URL.'/apps/'.$directory.'/'.$route];
     return $links;
@@ -120,7 +126,8 @@ function ess_render_navigation(array $apps, string $active = 'Dashboard'): void
         $children = (!function_exists('current_role_key') || current_role_key() === 'owner_admin') ? ess_navigation_children($app['name']) : [];
         if ($children) {
             $id = 'ess-subnav-'.(++$groupId);
-            echo '<div class="ess-nav-group"><div class="ess-nav-row"><a class="ess-nav-item" href="'.$escape($app['href']).'" aria-label="'.$escape($app['name']).'" title="'.$escape($app['name']).'"><i data-lucide="'.$escape($app['icon']).'" aria-hidden="true"></i><span>'.$escape($app['name']).'</span></a><button type="button" class="ess-subnav-toggle" data-ess-subnav-toggle aria-expanded="false" aria-controls="'.$id.'" aria-label="Toggle '.$escape($app['name']).' submenu" title="Toggle '.$escape($app['name']).' submenu"><i class="ess-nav-chevron" data-lucide="chevron-down" aria-hidden="true"></i></button></div><div class="ess-subnav" id="'.$id.'" hidden>';
+            $deliveryActive = $app['name']==='Delivery' && $active==='Delivery';
+            echo '<div class="ess-nav-group"><div class="ess-nav-row"><a class="ess-nav-item'.($deliveryActive?' is-active':'').'" '.($deliveryActive?'aria-current="location" ':'').'href="'.$escape($app['href']).'" aria-label="'.$escape($app['name']).'" title="'.$escape($app['name']).'"><i data-lucide="'.$escape($app['icon']).'" aria-hidden="true"></i><span>'.$escape($app['name']).'</span></a><button type="button" class="ess-subnav-toggle" data-ess-subnav-toggle aria-expanded="'.($deliveryActive?'true':'false').'" aria-controls="'.$id.'" aria-label="Toggle '.$escape($app['name']).' submenu" title="Toggle '.$escape($app['name']).' submenu"><i class="ess-nav-chevron" data-lucide="chevron-down" aria-hidden="true"></i></button></div><div class="ess-subnav" id="'.$id.'"'.($deliveryActive?'':' hidden').'>';
             echo '<a href="'.$escape($app['href']).'">'.$escape($app['name']).' overview</a>';
             foreach ($children as $child) echo '<a href="'.$escape($child['href']).'">'.$escape($child['label']).ess_navigation_badge($child['label']).'</a>';
             echo '</div></div>';

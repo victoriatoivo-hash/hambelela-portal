@@ -1,5 +1,5 @@
 const fs=require('fs'),assert=require('assert'),{execFileSync}=require('child_process'),{JSDOM}=require('jsdom');
-const html=execFileSync('C:/Users/User/Documents/New project/_driver_php74_check/runtime/php.exe',['-n','tests/owner-operations/content.php'],{encoding:'utf8'});
+const html=execFileSync(process.env.PHP_BIN||'C:/Users/User/Documents/New project/_driver_php74_check/runtime/php.exe',['-n','tests/owner-operations/content.php'],{encoding:'utf8'});
 const dom=new JSDOM(html,{runScripts:'outside-only',url:'https://portal.test/apps/operations/driver-operations-dashboard.php'}),w=dom.window,d=w.document;
 w.HTMLDialogElement.prototype.showModal=function(){this.open=true};w.HTMLDialogElement.prototype.close=function(){this.open=false};w.HTMLElement.prototype.scrollIntoView=function(){};
 const row={id:16,reference:'Order 123',customer:'<img src=x onerror=alert(1)>',driver:'Synthetic Driver',driver_id:3,status:'ready',payment:'Due N$ 20.00',proof:'Not recorded',proof_url:'/apps/operations/driver-delivery-details.php?delivery_id=16',workspace_url:'/apps/delivery/workspace.php?delivery=16',can_manage:true};

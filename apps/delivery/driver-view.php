@@ -26,8 +26,7 @@ if(isset($_GET['view']) && $_GET['view']==='board'){
     }catch(Throwable $e){http_response_code(503);echo '{"error":"Driver preview is temporarily unavailable."}';}
     exit;
 }
-// Same cards as the Driver, but the Owner remains the actor and cannot operate jobs here.
-$driverPage=true;$driverOversight=true;$endpoint='driver-view.php';
-require_once BASE_PATH.'/shared/delivery/PortalShell.php';
-\Hambelela\Delivery\PortalShell::begin(true,true);
-require BASE_PATH.'/shared/delivery/CoreView.php';
+// Preserve the legacy read API above for existing clients, but retire its duplicate page.
+$selected=(int)($_GET['driver_id']??0);
+$destination=$selected>0?'view-as-driver.php?driver='.$selected:'driver-operations.php';
+header('Location: '.BASE_URL.'/apps/delivery/'.$destination,true,302);exit;

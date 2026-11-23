@@ -11,9 +11,9 @@ $_SESSION=['user'=>['id'=>1,'role_key'=>'owner_admin'],'delivery_front_csrf'=>'l
 $session=$_SESSION;$tables=['delivery_jobs','delivery_events','delivery_receipts','ops_orders','order_payment_allocations','delivery_driver_handovers','delivery_owner_proof_actions','delivery_outbox','notification_recipients'];$before=[];
 foreach($tables as $t)$before[$t]=$db->query('SELECT * FROM '.$t.' ORDER BY 1')->fetchAll();
 foreach(['delivery_owner_proof_actions','delivery_outbox'] as $t){$ddl=$db->query('SHOW CREATE TABLE '.$t)->fetch(PDO::FETCH_NUM)[1];$ddl=preg_replace('/^CREATE TABLE/','CREATE TEMPORARY TABLE',$ddl);$ddl=preg_replace('/^\s*CONSTRAINT[^\n]*FOREIGN KEY[^\n]*\n/m','',$ddl);$ddl=preg_replace('/,\s*\) ENGINE/',"\n) ENGINE",$ddl);$db->exec($ddl);}
-$viewer=new OwnerProofViewer($db,1);$ops=new OwnerOperations($db,1);$data=$viewer->read(16);$id=16;$base='';$endpoint='/apps/operations/driver-delivery-details.php?delivery_id=16';
+$viewer=new OwnerProofViewer($db,1);$ops=new OwnerOperations($db,1);$data=$viewer->read(16);$id=16;$base='';$endpoint='/apps/delivery/delivery-details.php?delivery_id=16';
 ob_start();require BASE_PATH.'/shared/delivery/OwnerProofContent.php';$html=ob_get_clean();
-verify(strpos($html,'/apps/operations/driver-operations-dashboard.php')!==false,'proof breadcrumb returns to new dashboard');
+verify(strpos($html,'/apps/delivery/driver-operations.php')!==false,'proof breadcrumb returns to new dashboard');
 verify(strpos($html,'view-as-driver.php?driver=3&amp;screen=details&amp;id=16')!==false,'proof opens selected driver and canonical delivery');
 verify(strpos($html,'/apps/delivery/driver-view.php')===false,'old viewer link retired in proof page');
 $row=static function()use($ops){return $ops->read(['ids'=>'16'])['deliveries']['rows'][0];};

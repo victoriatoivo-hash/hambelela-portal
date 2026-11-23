@@ -72,7 +72,7 @@ final class OwnerOperations
             $declaration=$d['declarations']?end($d['declarations']):null;
             $review=$due===null||$receiptIssue||($declaration['review']??false)||($due!==null&&$collected>$due);
             $payment=$review?'Needs reconciliation':($collected>0?'Driver collected '.CashHandover::money($collected).($due>$collected?' · balance due '.CashHandover::money($due-$collected):' · not reconciled'):($due>0?'Due '.CashHandover::money($due):'No amount due'));
-            $rows[]=['id'=>(int)$job['id'],'reference'=>$d['reference'],'customer'=>$job['customer_name'],'driver'=>$job['driver_name']??'Unassigned','driver_id'=>(int)$job['driver_employee_id'],'status'=>$job['status'],'payment'=>$payment,'payment_review'=>$review,'proof'=>$state,'proof_url'=>'/apps/operations/driver-delivery-details.php?delivery_id='.$job['id'],'workspace_url'=>'/apps/delivery/workspace.php?delivery='.$job['id'],'can_manage'=>in_array($job['status'],['ready','out_for_delivery','failed'],true)];
+            $rows[]=['id'=>(int)$job['id'],'reference'=>$d['reference'],'customer'=>$job['customer_name'],'driver'=>$job['driver_name']??'Unassigned','driver_id'=>(int)$job['driver_employee_id'],'status'=>$job['status'],'payment'=>$payment,'payment_review'=>$review,'proof'=>$state,'proof_url'=>'/apps/delivery/delivery-details.php?delivery_id='.$job['id'],'workspace_url'=>'/apps/delivery/workspace.php?delivery='.$job['id'],'can_manage'=>in_array($job['status'],['ready','out_for_delivery','failed'],true)];
         }
         return ['rows'=>$rows,'total'=>$total,'page'=>$page,'page_size'=>$p['page_size'],'counts'=>$counts];
     }
