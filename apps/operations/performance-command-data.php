@@ -20,16 +20,27 @@ try {
         // Loading function definitions does not call marketing_require_access/schema_ready.
         $ctx=marketing_phase3_context(['period'=>'custom','date_from'=>$from,'date_to'=>$to]);
         $s=$ctx['summary']; $execution=$ctx['execution'];
+        // A missing publishing target is not proof of on-time publication.
+        $publishingDue=array_values(array_filter($ctx['content'],static function(array $item)use($from,$to):bool{
+            $target=(string)($item['publish_at']??'');
+            return $target!=='' && substr($target,0,10)>=$from && substr($target,0,10)<=$to && $target<=(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s');
+        }));
+        $publishingOnTime=count(array_filter($publishingDue,static fn(array $item):bool=>!empty($item['published_at']) && $item['published_at']<=$item['publish_at']));
+        $execution['on_time_rate']=$publishingDue?round(100*$publishingOnTime/count($publishingDue),1):null;
         $cards=[pc_metric('Content published',$s['content_published'],'Published timestamp in selected period'),pc_metric('Active campaigns',$s['campaigns_active'],'Campaign dates overlap selected period'),pc_metric('On-time publishing',$execution['on_time_rate'],'Existing Marketing calculation','percent'),pc_metric('First-pass approval',$execution['first_pass_rate'],'Recorded approval / correction evidence','percent'),pc_metric('Reported advertising spend',$s['spend'],'Marketing records; not a reconciled expense ledger','currency'),pc_metric('Campaign-attributed order value',$s['revenue_attributed'],'Recorded attribution; not profit or cash receipts','currency'),pc_metric('Reported reach',$s['reach'],'Latest valid channel snapshots'),pc_metric('Reported clicks',$s['clicks'],'Latest valid channel snapshots'),pc_metric('Return on ad spend',$s['roas'],'Attributed order value / recorded spend; not ROI','ratio'),pc_metric('Profit-based ROI',null,'No verified campaign costs / margin basis'),pc_metric('Website visitors',null,'No verified traffic integration in this report'),pc_metric('Conversion rate',null,'A comparable visitor/conversation denominator is required')];
         foreach($ctx['content'] as $item) {
             if(substr((string)$item['created_at'],0,10)>$to || (substr((string)$item['created_at'],0,10)<$from && substr((string)$item['due_at'],0,10)<$from && substr((string)$item['published_at'],0,10)<$from)) continue;
-            $rows[]=['reference'=>'Content #'.$item['id'],'title'=>$item['title'],'status'=>$item['status'],'due'=>$item['due_at'],'completed'=>$item['published_at'],'channel'=>$item['platform'],'href'=>BASE_URL.'/apps/marketing/execution.php?id='.(int)$item['id']];
+            $rows[]=['reference'=>'Content #'.$item['id'],'title'=>$item['title'],'status'=>$item['status'],'assignment_due'=>$item['due_at'],'publishing_target'=>$item['publish_at'],'published'=>$item['published_at'],'channel'=>$item['platform'],'href'=>BASE_URL.'/apps/marketing/execution.php?id='.(int)$item['id']];
         }
         foreach($ctx['campaigns'] as $item) {
             if(!empty($item['start_date'])&&$item['start_date']>$to || !empty($item['end_date'])&&$item['end_date']<$from)continue;
             $rows[]=['reference'=>'Campaign #'.$item['id'],'title'=>$item['name'],'status'=>$item['status'],'due'=>$item['end_date'],'completed'=>null,'channel'=>$item['channels_text'],'href'=>BASE_URL.'/apps/marketing/index.php?view=campaigns'];
         }
-        $notes[]='Metrics retain the existing Marketing source and attribution rules. Manual or imported snapshots are reported evidence, not independently verified sales causation. Missing integrations are not zero.';
+        $cards[2]['note']=$publishingOnTime.' on time / '.count($publishingDue).' explicit publishing targets due in period; unscheduled content is not eligible. Assignment deadlines are separate.';
+        $contentRows=array_values(array_filter($rows,static fn(array $row):bool=>strpos($row['reference'],'Content #')===0));
+        $cards[]=pc_metric('Marketing assignments',count($contentRows),'Selected-period created / due / published work in source');
+        $cards[]=pc_metric('Assignments completed',count(array_filter($contentRows,static fn(array $row):bool=>in_array($row['status'],['completed','published'],true))),'Current completed or published state; not proof of publishing');
+        $notes[]='Metrics retain the existing Marketing source and attribution rules. Publishing timing requires an explicit planned publish time; missing targets are excluded, never marked on time. Manual or imported snapshots are reported evidence, not independently verified sales causation. Missing integrations are not zero.';
         if(count($ctx['content'])>=500 || count($ctx['campaigns'])>=250 || count($ctx['metrics'])>=1000)$notes[]='Provisional coverage: the existing Marketing source reached its record limit. Narrow the period and review the source before interpreting these as complete totals.';
     } elseif ($section==='drivers') {
         $zone=new DateTimeZone('Africa/Windhoek');$utc=new DateTimeZone('UTC');

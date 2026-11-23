@@ -172,6 +172,7 @@ body:has(.pc-rail) .portal-header-status{z-index:80}
 @media(prefers-reduced-motion:reduce){.pc-rail a,.pc-mini-card,.pc-flow-progress i{transition:none!important}}
 
 /* Complete Concept 02 surfaces: profiles, evidence, settings and source reports. */
+.pc-profile-trend{margin:0 0 16px;padding:18px 22px;background:linear-gradient(115deg,#f1ebfc,#fff);border:1px solid #e7e2ef;border-radius:20px}.pc-profile-trend summary{cursor:pointer;color:#344826;font-size:14px;font-weight:500}.pc-evidence-trend{display:block;width:100%;max-height:150px;margin-top:12px}.pc-directory-work{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:10px 0}.kpi-health-page .kpi-score-placeholder.is-final .kpi-score-placeholder__mark{width:130px!important;height:130px!important;font-size:30px!important}
 .kpi-health-page{--pc-ink:#232c22;--pc-muted:#7a857b;--pc-border:#e7e9e4}
 .kpi-health-page :is(.panel,.kpi-panel,.employee-kpi-section,.pc-source-section){background:#fff;border:1px solid var(--pc-border);border-radius:23px;padding:22px;margin:0 0 18px;box-shadow:0 10px 30px #232f260e;min-width:0}
 .kpi-health-page :is(input,select,textarea,button){font:400 12px/1.4 'Jost',sans-serif;color:var(--pc-ink)}

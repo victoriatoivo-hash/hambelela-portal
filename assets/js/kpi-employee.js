@@ -96,7 +96,7 @@
   function packingOverdueSection(data={}) {
     const overdue=data.overdue_rows||[];
     const overdueTable=table([['Packing item','item_name',(v,r)=>timeline(r.timeline_module,r.id,v)],['Variation / size','variation'],['Quantity','quantity_planned'],['Loaded into portal','loaded',date],['Website-update deadline','deadline',date],['Business time overdue','overdue_minutes',(v)=>v===null||v===undefined?'—':durationMinutes(v)],['Responsible employee','responsible_employee'],['Current state','result'],['Evidence','id',(v,r)=>timeline(r.timeline_module,r.id,'View Activity')]],overdue);
-    return `<section class="kpi-packing-overdue"><header><div><p class="eyebrow">Needs immediate attention</p><h3>Currently Overdue Packing-List Website Updates</h3><p>Only open Packing List items that have passed the 8-counted-business-hour website-update deadline appear here. Closed hours, Sundays and configured holidays are excluded from the overdue duration.</p></div><strong>${overdue.length}<small>currently overdue</small></strong></header>${overdueTable}</section>`;
+    return `<section class="kpi-packing-overdue"><header><div><p class="eyebrow">Needs immediate attention</p><h3>Currently Overdue Packing-List Website Updates</h3><p>Only open Packing List items past their applicable versioned website-update deadline appear here. New work uses the approved 5-working-hour allowance; earlier work retains its original deadline. Closed hours, Sundays and configured holidays are excluded.</p></div><strong>${overdue.length}<small>currently overdue</small></strong></header>${overdueTable}</section>`;
   }
   function waybillEvidence(data={}) {
     const required=data.required_uploads||[];

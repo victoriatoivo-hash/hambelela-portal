@@ -11,7 +11,7 @@
   const includeHistorical = q('[data-kpi-include-historical]');
   const labels = { orders: 'Orders received', fulfilment: 'Average business-hours order completion', order_start_response: 'Average business-hours New to In Progress', walk_in_completion: 'Average business-hours walk-in completion', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'Completed within six elapsed hours', pack_speed: 'Average elapsed packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
   const palette = getComputedStyle(root);
-  const colour = (name) => palette.getPropertyValue(name).trim();
+  const colour = (name) => ({'--t-orange-red':'#a48ac8','--t-olive':'#729865','--t-amber':'#d9b677','--t-burgundy':'#ba8da8','--t-red':'#c58578'}[name] || palette.getPropertyValue(name).trim());
   const money = (value) => `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   let orderVolumeChart;
   let paidSalesChart;
@@ -155,7 +155,7 @@
     const measured = Object.values(cards).filter((metric) => metric && metric.value !== null);
     const improving = measured.filter((metric) => metric.delta !== null && (metric.lower_is_better ? metric.delta < 0 : metric.delta > 0)).length;
     const attention = data.attention || [];
-    const team = data.team || [];
+    const team = (data.team || []).filter(window.HambelelaPerformancePeople.eligible);
     const online = team.filter((person) => Number(person.online)).length;
     q('[data-kpi-management-story]').innerHTML = `<article class="kpi-management-hero"><div><p class="eyebrow">Business overview</p><h2>Business performance at a glance</h2><p>${escapeHtml(improving ? `${improving} measured area${improving === 1 ? '' : 's'} improved against the prior period.` : 'No reliable period-over-period improvement is available yet.')} ${escapeHtml(attention.length ? `${attention.length} exception${attention.length === 1 ? '' : 's'} need management attention.` : 'No current exception needs management attention.')}</p></div><div class="kpi-management-hero__facts"><span><strong>${measured.length}</strong> measured areas</span><span><strong>${online}</strong> of ${team.length} online</span><span><strong>${attention.length}</strong> attention items</span></div></article>`;
   }

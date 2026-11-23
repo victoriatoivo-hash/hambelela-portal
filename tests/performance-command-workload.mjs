@@ -1,0 +1,13 @@
+import fs from 'node:fs';
+import vm from 'node:vm';
+import assert from 'node:assert/strict';
+const sandbox={window:{}};
+vm.runInNewContext(fs.readFileSync(new URL('../assets/js/performance-command-people.js',import.meta.url),'utf8'),sandbox);
+const {taskSummary,taskTrend}=sandbox.window.HambelelaPerformancePeople;
+const report={period:{from:'2026-11-01',to:'2026-11-30'},presence_summary:{evidence_covered_days:3},sections:{tasks:{status_breakdown:[{label:'Assigned',count:20},{label:'Completed',count:15},{label:'Overdue Open',count:5}],rows:[{completed_at_evidence:'2026-11-20 10:00:00'},{completed_at_evidence:'2026-11-20 11:00:00'},{completed_at_evidence:'2026-10-31 10:00:00'},{}]}}};
+assert.match(taskSummary(report),/Tasks assigned: <b>20/);
+assert.match(taskSummary(report),/Open tasks: <b>5/);
+assert.match(taskTrend(report),/2 dated completions/);
+assert.match(taskSummary({}),/not measured/);
+assert.match(taskTrend({period:report.period,sections:{tasks:{rows:[]}}}),/not a zero performance score/);
+console.log('PASS: assigned denominator, open work, bounded completion dates, missing versus zero');

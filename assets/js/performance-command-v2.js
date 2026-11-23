@@ -132,6 +132,15 @@
   document.addEventListener('pc:profile-data',({detail:data})=>updateDriver(data));
   if(window.HambelelaLatestEmployeeData)updateDriver(window.HambelelaLatestEmployeeData);
 
+  function updateProfileTrend(data){
+    if(!root.classList.contains('kpi-employee-page'))return;
+    let panel=q('[data-pc-profile-trend]');
+    if(!panel){panel=document.createElement('details');panel.dataset.pcProfileTrend='';panel.className='pc-profile-trend';q('.kpi-score-placeholder')?.after(panel);}
+    panel.innerHTML='<summary>Work completion trend & workload</summary>'+window.HambelelaPerformancePeople.taskSummary(data)+window.HambelelaPerformancePeople.taskTrend(data)+'<p class="pc-runtime-note">Recorded task completion dates for this reporting period. Open Task Management for assignment, deadline and evidence details. No historical score is rewritten.</p>';
+  }
+  document.addEventListener('pc:profile-data',({detail:data})=>updateProfileTrend(data));
+  if(window.HambelelaLatestEmployeeData)updateProfileTrend(window.HambelelaLatestEmployeeData);
+
   // Employee score can only be drawn when the source report marks it as final.
   const profile = q('.kpi-score-placeholder');
   if (profile) {
