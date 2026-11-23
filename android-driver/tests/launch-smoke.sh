@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+trap 'for report in driver-launch.xml driver-no-browser.xml; do if test -f "$report"; then cat "$report"; fi; done' ERR
 # Fresh AOSP emulator: no employee account, no customer data and no network.
 adb shell svc wifi disable
 adb shell svc data disable
