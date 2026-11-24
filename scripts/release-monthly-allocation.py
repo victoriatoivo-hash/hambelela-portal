@@ -8,7 +8,7 @@ expected = {p: git('show','0f627ff1:'+p) for p in paths}
 desired = {p: Path(p).read_bytes() for p in paths}
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
 def public_script():
-    req=urllib.request.Request('https://portal.hambelelaorganic.com/assets/js/packing-list.js?v='+git('rev-parse','HEAD').decode().strip(),headers={'Cache-Control':'no-cache','Accept-Encoding':'identity','User-Agent':'Hambelela-Release-Verification/1.0'})
+    req=urllib.request.Request('https://portal.hambelelaorganic.com/assets/js/packing-list.js?v='+git('rev-parse','HEAD').decode().strip()+'-'+secrets.token_hex(8),headers={'Cache-Control':'no-cache','Accept-Encoding':'identity','User-Agent':'Hambelela-Release-Verification/1.0'})
     with urllib.request.urlopen(req,timeout=30) as response: return response.read()
 host=os.environ['FTP_SERVER']
 canonical='s11745.sgp1.stableserver.net'
