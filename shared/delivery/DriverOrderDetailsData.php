@@ -127,7 +127,9 @@ final class DriverOrderDetailsData
             if($type==='arranged'||$type==='partner_arranged'){$label='Delivery assigned';$detail='Released by dispatch. Payment is shown separately above.';}
             elseif($type==='revised'||($type==='dispatch_updated'&&($m['field']??'')==='driver')){$label='Assignment updated';$detail='Dispatch revised this assignment.';}
             elseif($type==='parcel_collected'&&(int)($m['driver_id']??0)===$driver){$label='Parcel collected';$detail='Physical handover to your driver profile recorded.';}
-            elseif($type==='started'&&(int)$e['employee_id']===$driver){$label='Delivery started';$detail='Start recorded; this alone does not confirm shop handover.';}
+            elseif($type==='driver_accepted'&&(int)$e['employee_id']===$driver){$label='Delivery accepted';$detail='You accepted the job. This is not yet confirmation of parcel collection.';}
+            elseif($type==='driver_collection_confirmed'&&(int)$e['employee_id']===$driver&&($m['pickup_source']??'')==='partner'){$label='Partner parcel collected';$detail='You confirmed collection from the partner when starting delivery.';}
+            elseif($type==='started'&&(int)$e['employee_id']===$driver){$label='Delivery started';$detail='Departure recorded. Parcel collection evidence is recorded separately in this timeline.';}
             elseif($type==='delivered'){
                 $confirmed=!empty($m['delivery_payment_confirmed'])||(!empty($m['manual'])&&mb_strlen((string)($m['reason']??''))>=10);
                 $label=$confirmed?'Customer handover recorded':'Handover requires review';$detail='Payment and completion are assessed separately.';
