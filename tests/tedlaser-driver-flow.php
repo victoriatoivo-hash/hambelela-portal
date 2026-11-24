@@ -33,7 +33,7 @@ NotificationOutbox::drain($db,50);
 ok((int)$db->query("SELECT COUNT(*) FROM notification_recipients r JOIN notifications n ON n.id=r.notification_id WHERE r.employee_id=2 AND n.related_id=$id AND n.title='NEW DELIVERY ASSIGNED'")->fetchColumn()===1,'partner request produces one driver assignment notification');
 $read=static fn()=>DriverAssignments::find(DriverAssignments::read($db,2,null,$id),$id);
 $a=$read();ok($a['action']==='accept'&&$a['stage']==='to_collect'&&$a['collectedAt']===null,'partner job shows Accept, without fabricated collection');
-ok($a['codAmountDueNad']===140.0&&!$a['paymentVerified']&&$a['paymentMethod']==='UNKNOWN','partner COD and customer fee displayed without assuming payment');
+ok((float)$a['codAmountDueNad']===140.0&&!$a['paymentVerified']&&$a['paymentMethod']==='UNKNOWN','partner COD and customer fee displayed without assuming payment');
 rejects(fn()=>$service->start($driver,$id,uuid(),true),'cannot start before accepting');
 rejects(fn()=>$service->accept($other,$id,uuid()),'other driver cannot accept');
 $accept=uuid();$accepted=$service->accept($driver,$id,$accept);ok($service->accept($driver,$id,$accept)===$accepted,'accept retry is idempotent');
