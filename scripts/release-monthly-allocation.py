@@ -1,5 +1,5 @@
 """Check every live baseline before writes; publish helpers first and browser entry last."""
-import os, ftplib, io, subprocess, secrets, ssl, socket, zipfile, hashlib, urllib.request
+import os, ftplib, io, subprocess, secrets, ssl, socket, zipfile, urllib.request
 from pathlib import Path
 
 paths = ['apps/operations/packing-monthly-validation.php','assets/js/packing-list.js']
@@ -7,6 +7,9 @@ def git(*args): return subprocess.check_output(['git', *args])
 expected = {p: git('show','0f627ff1:'+p) for p in paths}
 desired = {p: Path(p).read_bytes() for p in paths}
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
+def public_script():
+    req=urllib.request.Request('https://portal.hambelelaorganic.com/assets/js/packing-list.js?v='+git('rev-parse','HEAD').decode().strip(),headers={'Cache-Control':'no-cache','Accept-Encoding':'identity','User-Agent':'Hambelela-Release-Verification/1.0'})
+    with urllib.request.urlopen(req,timeout=30) as response: return response.read()
 host=os.environ['FTP_SERVER']
 canonical='s11745.sgp1.stableserver.net'
 if set(socket.gethostbyname_ex(canonical)[2]) & set(socket.gethostbyname_ex(host)[2]): host=canonical
@@ -35,6 +38,8 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             blob=before[p] or b''
             print('Live normalized Git blob:',hashlib.sha1(b'blob '+str(len(norm(blob))).encode()+b'\0'+norm(blob)).hexdigest())
             raise RuntimeError('Unrecognized baseline; nothing uploaded: '+p)
+    if norm(public_script())!=norm(before['assets/js/packing-list.js']):
+        raise RuntimeError('Public script does not match live source; nothing uploaded')
     # Recovery material stays in the existing access-denied production directory,
     # never in public GitHub artifacts or the public asset tree.
     protection=read('.driver-release-staging/.htaccess') or b''
@@ -57,8 +62,7 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             if norm(before[p])==norm(desired[p]): continue
             put(p,desired[p],before[p]);changed.append(p)
             if read(p)!=desired[p]: raise RuntimeError('Failed readback: '+p)
-        with urllib.request.urlopen('https://portal.hambelelaorganic.com/assets/js/packing-list.js?whole-product='+secrets.token_hex(8),timeout=30) as response:
-            if norm(response.read())!=norm(desired['assets/js/packing-list.js']): raise RuntimeError('Live JavaScript verification failed')
+        if norm(public_script())!=norm(desired['assets/js/packing-list.js']): raise RuntimeError('Live JavaScript verification failed')
     except BaseException:
         for p in reversed(changed):
             if read(p)!=desired[p]: raise RuntimeError('Conflict during rollback: '+p)
