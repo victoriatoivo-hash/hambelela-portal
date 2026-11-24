@@ -497,7 +497,8 @@
     }
     panel.hidden = false;
     const format = total => `${(total.weight/1000).toLocaleString(undefined,{maximumFractionDigits:3})} kg · ${(total.volume/1000).toLocaleString(undefined,{maximumFractionDigits:3})} L · ${total.count.toLocaleString()} pieces${total.unknown ? `<small>${total.unknown} row(s) have missing or unclear quantities; totals are partial.</small>` : ''}`;
-    panel.innerHTML = `<strong>Packer workload</strong><details><summary>About these totals · current filters</summary><p> Remaining shows planned quantities on unfinished rows. Completed uses recorded packed quantities on completed rows, grouped by current assignee—not a historical performance score.</p></details><div class="packing-owner-workload-grid">${packerWorkloadTotals(rows, packers).map(group => `<article><h3>${esc(group.name)} · ${group.rows} items</h3><dl><div><dt>Assigned plan</dt><dd>${format(group.assigned)}</dd></div><div><dt>Still to pack</dt><dd>${format(group.remaining)}</dd></div><div><dt>Completed output</dt><dd>${format(group.completed)}</dd></div></dl></article>`).join('')}</div>`;
+    const period = !state.date ? 'All dates — historical totals' : /^\d{4}-\d{2}$/.test(state.date) ? monthLabel(state.date) : `Year ${state.date}`;
+    panel.innerHTML = `<strong>Packer workload · ${esc(period)}</strong>${state.date !== currentMonth ? ' <button type="button" class="pk-btn" data-packing-current-month>Current month</button>' : ''}<details><summary>About these totals · all matching items, not just this page</summary><p>The period filters rows by date loaded. Still to pack shows planned quantities on unfinished rows. Completed output uses only recorded packed quantities on completed rows, grouped by current assignee—not a historical performance score. Kilograms, litres and units stay separate. Other active filters also apply.</p></details><div class="packing-owner-workload-grid">${packerWorkloadTotals(rows, packers).map(group => `<article><h3>${esc(group.name)} · ${group.rows} items</h3><dl><div><dt>Assigned plan</dt><dd>${format(group.assigned)}</dd></div><div><dt>Still to pack</dt><dd>${format(group.remaining)}</dd></div><div><dt>Completed output</dt><dd>${format(group.completed)}</dd></div></dl></article>`).join('')}</div>`;
   }
 
   function selectedIdsFor(taskId) {
@@ -2456,8 +2457,12 @@
     if (state.sort === 'name') visible.sort((a,b) => String(a.item_name || '').localeCompare(String(b.item_name || '')));
     if (state.sort === 'oldest') visible.sort((a,b) => String(a.date_loaded || '').localeCompare(String(b.date_loaded || '')));
     if (state.sort === 'newest') visible.sort((a,b) => String(b.date_loaded || '').localeCompare(String(a.date_loaded || '')));
-    const pageRows = visible;
-    renderPagination(visible.length);
+    // Search and totals use the full matching set; only expensive row controls
+    // are paged. Never build hundreds of date pickers/menus behind an upload.
+    const pages = Math.max(1, Math.ceil(visible.length / state.pageSize));
+    state.page = Math.min(Math.max(1, state.page), pages);
+    const pageRows = visible.slice((state.page - 1) * state.pageSize, state.page * state.pageSize);
+    renderPagination(visible.length, pages);
     const knownIds = new Set(tasks.map((task) => String(task.id)));
     [...selected].forEach((id) => { if (!knownIds.has(id)) selected.delete(id); });
     if (!visible.length) {
@@ -2543,7 +2548,9 @@
       nav.setAttribute('aria-label', 'Packing item pages');
       body.closest('#packingListViewport').after(nav);
     }
-    nav.innerHTML = `<span role="status">Showing all ${total} matching items on one page</span>`;
+    const first = total ? (state.page - 1) * state.pageSize + 1 : 0;
+    const last = Math.min(state.page * state.pageSize, total);
+    nav.innerHTML = `<span role="status">Showing ${first}–${last} of ${total} matching items · totals include all ${total}</span><div><label>Items per page <select data-packing-page-size aria-label="Packing items per page">${[25,50,100].map(size => `<option value="${size}"${state.pageSize === size ? ' selected' : ''}>${size}</option>`).join('')}</select></label><button type="button" data-packing-page="${state.page-1}" aria-label="Previous packing page"${state.page <= 1 ? ' disabled' : ''}>‹</button><span>Page ${state.page} of ${pages}</span><button type="button" data-packing-page="${state.page+1}" aria-label="Next packing page"${state.page >= pages ? ' disabled' : ''}>›</button></div>`;
     window.PortalCustomSelect?.initialise(nav);
   }
 
@@ -2576,6 +2583,7 @@
 
   function packingHasActiveEditor() {
     return packingFilesUploading
+      || Boolean(invoiceModal && !invoiceModal.hidden)
       || Boolean(document.querySelector('.packing-list-page dialog[open], .packing-list-page .is-editing, .packing-list-page [aria-modal="true"]:not([aria-hidden="true"])'))
       || Boolean(document.activeElement?.closest?.('.packing-list-page input:not([type="checkbox"]), .packing-list-page textarea, .packing-list-page [contenteditable="true"]'));
   }
@@ -4766,7 +4774,13 @@
           row[fieldName] = draftField.value;
           if (['received_weight','unit'].includes(fieldName)) row.quantity_confirmed = false;
           if (fieldName === 'quantity_planned') row.pack_parts = quantityPlanParts(row.quantity_planned || '');
-          row.workload = draftWorkload(row); renderManualWizard(); return;
+          row.workload = draftWorkload(row);
+          // A text field's change fires during blur, before the next button's
+          // click. Replacing the table here destroys that button and loses the
+          // click (unit menu, Add item, Continue). Keep text controls in place.
+          if (draftField.tagName === 'SELECT') renderManualWizard();
+          else updateDraftWorkloadCell(draftField, row);
+          return;
         }
 
         row[fieldName] = draftField.value;
@@ -4788,12 +4802,22 @@
         row.workload = draftWorkload(row);
         if (['quantity_planned', 'priority', 'bulk_remainder'].includes(fieldName)) {
           if (fieldName === 'quantity_planned') row.pack_parts = quantityPlanParts(row.quantity_planned || '');
-          renderInvoiceDraft();
+          if (draftField.tagName === 'SELECT') renderInvoiceDraft();
+          else {
+            updateDraftWorkloadCell(draftField, row);
+            renderDraftWorkloadSummary();
+            saveInvoiceCorrectionDraft();
+          }
           setInvoiceStatus(fieldName === 'priority' ? 'Weighted workload updated. Balance changed; use Redistribute Packers if required.' : 'Packing allocation updated in the background.');
           return;
         }
         if (['received_weight', 'unit'].includes(fieldName)) {
-          renderInvoiceDraft();
+          if (draftField.tagName === 'SELECT') renderInvoiceDraft();
+          else {
+            updateDraftWorkloadCell(draftField, row);
+            renderDraftWorkloadSummary();
+            saveInvoiceCorrectionDraft();
+          }
           setInvoiceStatus('Received quantity changed. Redistribution required after reconfirmation.');
           return;
         }
@@ -4817,6 +4841,11 @@
     applyPackingSearch(event.target.value);
   });
   document.addEventListener('click', event => {
+    if (event.target.closest('[data-packing-current-month]')) {
+      state.date = currentMonth; state.page = 1;
+      document.querySelectorAll('[data-packing-date]').forEach(control => { control.value = currentMonth; });
+      render(); return;
+    }
     const remove = event.target.closest('[data-packing-remove-filter]');
     if (remove) {
       const key = remove.dataset.packingRemoveFilter;
@@ -4838,8 +4867,9 @@
   });
   document.addEventListener('packing:clear-filters', () => {
     window.clearTimeout(packingSearchTimer);
-    state.search = ''; state.date = ''; state.priority = ''; state.status = ''; state.person = ''; state.website = ''; state.sort = ''; state.page = 1;
+    state.search = ''; state.date = currentMonth; state.priority = ''; state.status = ''; state.person = ''; state.website = ''; state.sort = ''; state.page = 1;
     document.querySelectorAll('[data-packing-search],[data-packing-date],[data-packing-filter],.portal-toolbar-search input').forEach(input => { input.value = ''; });
+    document.querySelectorAll('[data-packing-date]').forEach(input => { input.value = currentMonth; });
     document.querySelectorAll('.portal-toolbar-search').forEach(el => el.classList.remove('has-value'));
     render();
   });

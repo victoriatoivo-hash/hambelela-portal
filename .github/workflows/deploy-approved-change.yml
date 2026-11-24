@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   monthly-pack-allocation:
-    if: github.ref == 'refs/heads/codex/packing-whole-product' && github.sha == inputs.approved_sha
+    if: github.ref == 'refs/heads/codex/packing-workload-performance' && github.sha == inputs.approved_sha
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
@@ -40,11 +40,14 @@ jobs:
           for file in apps/operations/packing-{list-{action,data},monthly-{history,validation}}.php; do php -l "$file"; done
           node --check assets/js/packing-list.js
           node tests/packing-monthly-allocation.mjs
+          node tests/packing-workload-performance.mjs
+          node tests/packing-review-search-pagination.mjs
+          node tests/packing-runtime-performance-static.mjs
           php tests/packing-monthly-history.php
           node tests/packing-wizard.mjs
           php tests/packing-wizard.php
           php tests/packing-wizard-batch.php
-      - name: Back up, compare and publish whole-product allocation safeguards
+      - name: Back up, compare and publish packing workload and responsiveness fix
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

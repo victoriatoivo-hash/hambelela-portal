@@ -2,9 +2,9 @@
 import os, ftplib, io, subprocess, secrets, ssl, socket, zipfile, urllib.request
 from pathlib import Path
 
-paths = ['apps/operations/packing-monthly-validation.php','assets/js/packing-list.js']
+paths = ['assets/js/packing-list.js']
 def git(*args): return subprocess.check_output(['git', *args])
-expected = {p: git('show','0f627ff1:'+p) for p in paths}
+expected = {p: git('show','9d1ce82b9da4ad9077431611c343d2f222909d42:'+p) for p in paths}
 desired = {p: Path(p).read_bytes() for p in paths}
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
 def public_script():
@@ -52,7 +52,7 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             archive.writestr(p,data)
     with zipfile.ZipFile(io.BytesIO(backup.getvalue())) as archive:
         if archive.testzip() is not None: raise RuntimeError('Recovery archive failed verification')
-    backup_path='.driver-release-staging/packing-whole-product-'+secrets.token_hex(12)+'.zip'
+    backup_path='.driver-release-staging/packing-workload-performance-'+secrets.token_hex(12)+'.zip'
     ftp.storbinary('STOR '+backup_path,io.BytesIO(backup.getvalue()))
     if read(backup_path)!=backup.getvalue(): raise RuntimeError('Recovery readback failed; nothing uploaded')
     print('Verified private recovery archive: '+backup_path)
@@ -69,4 +69,4 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             if before[p] is None: ftp.delete(p)
             else: put(p,before[p],desired[p])
         raise
-    print('Whole-product client and server validation verified. No database changes or existing task changes.')
+    print('Packing workload period and form responsiveness client verified. No database changes or existing task changes.')
