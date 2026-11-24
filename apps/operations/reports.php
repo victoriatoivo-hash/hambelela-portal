@@ -363,7 +363,7 @@ include BASE_PATH . '/shared/sidebar.php';
             <div><p class="eyebrow">Team performance</p><h2>Choose an employee</h2><p>Open an individual workspace to review role-specific performance, supporting evidence and activity.</p></div>
             <span data-kpi-employee-count>Loading team…</span>
         </section>
-        <nav class="kpi-employee-tabs kpi-employee-directory" data-kpi-employee-tabs aria-label="Employees"></nav>
+        <div class="kpi-employee-directory" data-kpi-employee-tabs role="list" aria-label="Employees"></div>
         <script src="<?= BASE_URL ?>/assets/js/reports-employees.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-employees.js') ?>"></script>
     <?php elseif (isset($commandTabs[$tab])): ?>
         <?php include __DIR__.'/performance-command-view.php'; ?>
