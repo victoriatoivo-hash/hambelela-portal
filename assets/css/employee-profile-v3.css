@@ -1316,6 +1316,7 @@ body .shell > #kpi-employee-profile.workspace {
 #kpi-employee-profile .kpi-score-placeholder__mark::after {display:none;}
 #kpi-employee-profile .kpi-score-placeholder {padding:20px 24px !important;border-radius:20px !important;}
 #kpi-employee-profile .kpi-period-panel :is(input,select,.portal-date-trigger) {height:38px;min-height:38px;}
+#kpi-employee-profile .kpi-period-panel .portal-date-field {height:38px !important;min-height:38px !important;}
 #kpi-employee-profile .kpi-period-panel label {width:auto;flex:0 1 150px;}
 #kpi-employee-profile .employee-kpi-jump-nav a {font-size:12px !important;padding:7px 13px !important;}
 #kpi-employee-profile .employee-kpi-jump-nav a.active {background:var(--ep-olive) !important;}
