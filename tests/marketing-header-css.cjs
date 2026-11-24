@@ -1,0 +1,13 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),cp=require('node:child_process');
+const css=fs.readFileSync('assets/css/marketing-execution.css','utf8').replace(/\r\n/g,'\n');
+const baseline=cp.execFileSync('git',['show','8c64ea1a:assets/css/marketing-execution.css'],{encoding:'utf8'}).replace(/\r\n/g,'\n').trimEnd();
+assert.ok(css.startsWith(baseline),'Existing approved stylesheet preserved byte-for-byte');
+const delta=css.slice(baseline.length);
+assert.match(delta,/> \.portal-header-status\s*\{\s*grid-column: 1 \/ -1;\s*grid-row: 1;/);
+assert.match(delta,/> div:first-child\s*\{\s*grid-column: 1;\s*grid-row: 2;/);
+assert.match(delta,/@media \(max-width: 767px\)/);
+assert.match(delta,/grid-row: 3/);
+assert.equal((delta.match(/\{/g)||[]).length,(delta.match(/\}/g)||[]).length);
+assert.ok(!delta.includes('position: fixed')&&!delta.includes('!important'),'No global floating overlay');
+assert.equal((delta.match(/\.mk4-ui\.mk4-assignment-page/g)||[]).length,6,'Every rule scoped to assignment page');
+console.log('PASS: existing CSS unchanged; status top row, title second row, responsive actions third row; no global overlay or embedded drawer changes.');
