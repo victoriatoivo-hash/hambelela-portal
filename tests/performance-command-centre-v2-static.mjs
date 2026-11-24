@@ -54,6 +54,7 @@ assert.doesNotMatch(profile, /shared\/performance-command-rail\.php/);
 assert.match(profile, /performance-command-people\.js/);
 assert.doesNotMatch(styles, /\.pc-rail/);
 assert.match(styles, /body:has\(\.kpi-health-page\)/);
+assert.match(styles, /body:has\(\.ess-mobile-nav\).*padding-bottom:calc\(96px/);
 assert.match(styles, /Jost/);
 assert.match(styles, /@media\(max-width:760px\)/);
 assert.match(rail, /\$pcIsOwner/);

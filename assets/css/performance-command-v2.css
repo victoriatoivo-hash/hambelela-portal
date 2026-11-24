@@ -163,6 +163,9 @@ body .shell > .workspace.kpi-health-page{display:block!important;width:100%!impo
 @media(max-width:760px){body .shell > .workspace.kpi-health-page{padding:22px 13px 35px!important}.pc-command-grid{grid-template-columns:1fr}.pc-action-list{display:flex}.pc-command-head{align-items:flex-start;flex-direction:column}.pc-role-people{grid-template-columns:repeat(2,minmax(0,1fr))}.pc-command-secondary{grid-template-columns:repeat(2,minmax(0,1fr))}.kpi-health-page .module-header{padding-top:34px!important}.kpi-health-page .kpi-health-tabs{overflow:auto;flex-wrap:nowrap}.kpi-health-page .kpi-health-tabs a{white-space:nowrap}.kpi-health-page .kpi-score-placeholder{flex-direction:column;align-items:start}.kpi-health-page .kpi-person-overview__metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(prefers-reduced-motion:reduce){.pc-mini-card,.pc-flow-progress i{transition:none!important}}
 
+/* Keep the portal's fixed mobile navigation clear of the final content row. */
+@media(max-width:1023px){body:has(.ess-mobile-nav) .shell > .workspace.kpi-health-page{padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))!important}}
+
 /* Complete Concept 02 surfaces: profiles, evidence, settings and source reports. */
 .pc-profile-trend{margin:0 0 16px;padding:18px 22px;background:linear-gradient(115deg,#f1ebfc,#fff);border:1px solid #e7e2ef;border-radius:20px}.pc-profile-trend summary{cursor:pointer;color:#344826;font-size:14px;font-weight:500}.pc-evidence-trend{display:block;width:100%;max-height:150px;margin-top:12px}.pc-directory-work{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:10px 0}.kpi-health-page .kpi-score-placeholder.is-final .kpi-score-placeholder__mark{width:130px!important;height:130px!important;font-size:30px!important}
 .kpi-health-page{--pc-ink:#232c22;--pc-muted:#7a857b;--pc-border:#e7e9e4}
