@@ -1,0 +1,1371 @@
+/* ===========================================================================
+   HAMBELELA ORGANIC — EMPLOYEE PERFORMANCE PROFILE / CONCEPT 02 REFINEMENT
+   CSS implementation reference for Codex, 2026-11-24
+
+   Apply only to apps/operations/kpi-employee.php, AFTER current portal styles.
+   Targets selectors verified in the main-branch PHP and kpi-employee.js.
+   The ep-* selectors are proposed markup for the new compact Overview tab,
+   disclosure panels and source-evidence navigation; Codex must implement them.
+   This stylesheet contains NO score computation or data/permission changes.
+   Keep Essentials navigation and the currently working notification controls.
+   =========================================================================== */
+
+#kpi-employee-profile {
+  --ep-bg: var(--cream, #F8F7F2);
+  --ep-white: #FFFFFF;
+  --ep-ink: var(--text-primary, #1C2118);
+  --ep-muted: var(--text-secondary, #62675E);
+  --ep-soft: var(--text-muted, #91968C);
+  --ep-border: var(--border, #E4E6DC);
+  --ep-olive: var(--olive-900, #344126);
+  --ep-olive-soft: var(--olive-500, #7C8B68);
+  --ep-mint: #D9F8EE;
+  --ep-blue: #E0F1FF;
+  --ep-lavender: #EEE3FF;
+  --ep-pink: #FFE6F3;
+  --ep-peach: #FFEADC;
+  --ep-yellow: #FFF0C9;
+  --ep-green: #D8F8E9;
+  --ep-danger: #A64939;
+  --ep-warning: #A27B31;
+  --ep-radius: 18px;
+  --ep-radius-sm: 12px;
+  --ep-shadow: 0 6px 22px rgba(28,33,24,.055);
+  --ep-gap: 14px;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1540px;
+  min-width: 0;
+  margin-inline: auto;
+  padding: 26px clamp(15px,2.2vw,34px) 50px;
+  background: transparent;
+  color: var(--ep-ink);
+  font: 400 14px/1.45 "Jost", sans-serif;
+}
+#kpi-employee-profile *,
+#kpi-employee-profile *::before,
+#kpi-employee-profile *::after { box-sizing: border-box; }
+#kpi-employee-profile :is(h1,h2,h3,h4,p,button,input,select,textarea,a,th,td,small,span,strong,label) {
+  font-family: "Jost", sans-serif;
+}
+#kpi-employee-profile [hidden] { display: none !important; }
+#kpi-employee-profile :is(button,a,input,select,textarea):focus-visible {
+  outline: 2px solid #7C8B68;
+  outline-offset: 3px;
+  box-shadow: 0 0 0 4px rgba(124,139,104,.14);
+}
+#kpi-employee-profile a { text-decoration-thickness: 1px; text-underline-offset: 3px; }
+#kpi-employee-profile :is(.kpi-number,.ep-stat-value,.kpi-score-gauge strong) {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 01 / Page breadcrumb and employee header ────────────────────────────── */
+#kpi-employee-profile .kpi-employee-breadcrumb {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 0 0 12px;
+  color: var(--ep-muted);
+  font-size: 12px;
+}
+#kpi-employee-profile .kpi-employee-breadcrumb a { color: var(--ep-olive); font-weight: 600; }
+#kpi-employee-profile .module-header.kpi-employee-header {
+  width: 100%;
+  min-height: 124px;
+  margin: 0 0 13px;
+  padding: 24px;
+  border: 1px solid #DCE9DA;
+  border-radius: 22px;
+  background: linear-gradient(107deg,#E3F8EA 0%,#F2F8E9 51%,#EEE5FF 100%);
+  box-shadow: var(--ep-shadow);
+}
+#kpi-employee-profile .kpi-employee-identity {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+  width: 100%;
+}
+#kpi-employee-profile .kpi-employee-identity > div { min-width: 0; flex: 1; }
+#kpi-employee-profile .kpi-avatar {
+  width: 62px;
+  height: 62px;
+  flex: 0 0 62px;
+  display: grid;
+  place-items: center;
+  border: 4px solid rgba(255,255,255,.65);
+  border-radius: 50%;
+  background: #CAE6C6;
+  color: #315F3A;
+  font-size: 26px;
+  font-weight: 600;
+}
+#kpi-employee-profile .kpi-employee-identity .eyebrow {
+  margin: 0 0 4px;
+  color: var(--ep-olive-soft);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+#kpi-employee-profile .kpi-employee-identity h1 {
+  margin: 0 0 5px;
+  color: var(--ep-olive);
+  font-size: clamp(22px,2.25vw,30px);
+  line-height: 1.18;
+  font-weight: 600;
+  letter-spacing: -.025em;
+  overflow-wrap: break-word;
+}
+#kpi-employee-profile .kpi-employee-identity p:not(.eyebrow) {
+  margin: 0;
+  color: var(--ep-muted);
+  font-size: 12px;
+}
+
+/* ── 02 / Reporting toolbar ──────────────────────────────────────────────── */
+#kpi-employee-profile .kpi-period-panel {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 10px 15px;
+  min-width: 0;
+  margin: 0 0 13px;
+  padding: 13px 16px;
+  border: 1px solid var(--ep-border);
+  border-radius: 15px;
+  background: #fff;
+  box-shadow: var(--ep-shadow);
+}
+#kpi-employee-profile .kpi-period-panel label {
+  display: grid;
+  gap: 4px;
+  min-width: 110px;
+  color: var(--ep-muted);
+  font-size: 11px;
+}
+#kpi-employee-profile .kpi-period-panel label > span { font-weight: 500; }
+#kpi-employee-profile .kpi-period-panel :is(select,input[type="date"]) {
+  min-height: 38px;
+  width: 100%;
+  margin: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--ep-border);
+  border-radius: 9px;
+  background: #FCFDFB;
+  color: var(--ep-ink);
+  font-size: 12px;
+}
+#kpi-employee-profile .kpi-period-panel .kpi-period-caption {
+  display: inline-flex;
+  align-items: end;
+  min-width: 0;
+  color: var(--ep-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+#kpi-employee-profile [data-kpi-refreshed] { margin-left: auto; }
+
+/* ── 03 / One authoritative overall score ───────────────────────────────── */
+#kpi-employee-profile .kpi-score-placeholder {
+  display: grid;
+  grid-template-columns: 118px minmax(0,1fr) minmax(180px,235px);
+  align-items: center;
+  gap: 22px;
+  min-height: 162px;
+  margin: 0 0 13px;
+  padding: 20px 24px;
+  border: 1px solid #D8EDE2;
+  border-radius: 20px;
+  background: linear-gradient(115deg,#DEF8EF 0%,#F4FFF9 62%,#EFF8F1 100%);
+  box-shadow: var(--ep-shadow);
+  overflow: hidden;
+}
+#kpi-employee-profile .kpi-score-placeholder__mark {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  width: 116px;
+  height: 116px;
+  display: grid;
+  place-items: center;
+  padding: 12px;
+  border-radius: 50%;
+  background: conic-gradient(from -90deg,#33B898 calc(var(--pc-person-score,0) * 1%),#D9E8DE 0);
+  color: #255941;
+  font-size: 28px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+#kpi-employee-profile .kpi-score-placeholder__mark::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 11px;
+  width: auto;
+  height: auto;
+  border-radius: 50%;
+  background: #FCFFFD;
+}
+#kpi-employee-profile .kpi-score-placeholder__copy { min-width: 0; }
+#kpi-employee-profile .kpi-score-placeholder__copy .eyebrow {
+  margin: 0 0 6px;
+  color: #68816E;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+#kpi-employee-profile .kpi-score-placeholder__copy h2 {
+  margin: 0 0 7px;
+  color: #2F5A3F;
+  font-size: clamp(19px,2.3vw,25px);
+  font-weight: 600;
+  line-height: 1.2;
+}
+#kpi-employee-profile .kpi-score-placeholder__copy p {
+  margin: 0 0 12px;
+  color: var(--ep-muted);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+#kpi-employee-profile .kpi-score-placeholder__status {
+  display: grid;
+  gap: 5px;
+  justify-items: start;
+  min-width: 0;
+  padding-left: 16px;
+  border-left: 1px solid #D7E8D9;
+}
+#kpi-employee-profile .kpi-score-placeholder__status span {
+  color: var(--ep-muted);
+  font-size: 11px;
+}
+#kpi-employee-profile .kpi-score-placeholder__status strong {
+  font-size: 16px;
+  line-height: 1.2;
+  color: #28563A;
+}
+#kpi-employee-profile .kpi-score-placeholder__status small {
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--ep-muted);
+  overflow-wrap: break-word;
+}
+#kpi-employee-profile :is(.kpi-score-action,.kpi-view-evidence,.kpi-panel__actions button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 35px;
+  padding: 7px 12px;
+  border: 1px solid #D3DAC6;
+  border-radius: 9px;
+  background: #FFFFFF;
+  color: var(--ep-olive);
+  font-size: 12px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+#kpi-employee-profile :is(.kpi-score-action,.kpi-view-evidence,.kpi-panel__actions button):hover {
+  background: #F2F4EC;
+  border-color: #9FAB91;
+}
+
+/* ── 04 / Section navigation: one row, sticky on scroll ──────────────────── */
+#kpi-employee-profile .employee-kpi-jump-nav {
+  position: sticky;
+  top: 8px;
+  z-index: 35;
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+  margin: 0 0 13px;
+  padding: 6px;
+  border: 1px solid var(--ep-border);
+  border-radius: 14px;
+  background: rgba(255,255,255,.97);
+  box-shadow: 0 6px 16px rgba(28,33,24,.055);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+#kpi-employee-profile .employee-kpi-jump-nav a {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-height: 35px;
+  padding: 7px 13px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: #586954;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.15;
+  text-decoration: none;
+  white-space: nowrap;
+}
+#kpi-employee-profile .employee-kpi-jump-nav a.active,
+#kpi-employee-profile .employee-kpi-jump-nav a[aria-current="page"] {
+  background: var(--ep-olive);
+  border-color: var(--ep-olive);
+  color: #FFFFFF;
+}
+#kpi-employee-profile .employee-kpi-jump-nav a:not(.active):hover {
+  background: #F2F4EC;
+  color: var(--ep-olive);
+}
+
+/* ── 05 / Proposed compact Overview tab. Codex adds ep-* markup. ────────── */
+#kpi-employee-profile .ep-overview { display: grid; gap: 16px; }
+#kpi-employee-profile .ep-overview-hero {
+  display: grid;
+  grid-template-columns: minmax(0,1.5fr) minmax(250px,.7fr);
+  gap: 14px;
+}
+#kpi-employee-profile .ep-overview-card {
+  min-width: 0;
+  padding: 19px;
+  border: 1px solid var(--ep-border);
+  border-radius: var(--ep-radius);
+  background: #fff;
+  box-shadow: var(--ep-shadow);
+}
+#kpi-employee-profile .ep-overview-card--mint { background: linear-gradient(125deg,#D9F8EE,#fff); }
+#kpi-employee-profile .ep-overview-card--blue { background: linear-gradient(125deg,#E0F1FF,#fff); }
+#kpi-employee-profile .ep-overview-card--lavender { background: linear-gradient(125deg,#EEE3FF,#fff); }
+#kpi-employee-profile .ep-overview-card--peach { background: linear-gradient(125deg,#FFEADC,#fff); }
+#kpi-employee-profile .ep-overview-card--pink { background: linear-gradient(125deg,#FFE6F3,#fff); }
+#kpi-employee-profile .ep-overview-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 12px;
+}
+#kpi-employee-profile .ep-stat-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--ep-muted);
+  font-size: 12px;
+}
+#kpi-employee-profile .ep-stat-value {
+  display: block;
+  color: var(--ep-olive);
+  font-size: 28px;
+  line-height: 1.12;
+  font-weight: 600;
+}
+#kpi-employee-profile .ep-stat-help {
+  display: block;
+  margin-top: 8px;
+  color: var(--ep-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+#kpi-employee-profile .ep-overview-bottom {
+  display: grid;
+  grid-template-columns: minmax(0,1.4fr) minmax(240px,.8fr);
+  gap: 14px;
+}
+#kpi-employee-profile .ep-overview :is(h2,h3) {
+  margin: 0 0 10px;
+  color: var(--ep-olive);
+  font-size: 17px;
+  font-weight: 600;
+}
+#kpi-employee-profile .ep-overview .ep-source-link {
+  display: inline-flex;
+  margin-top: 13px;
+  color: var(--ep-olive);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+/* ── 06 / Shared section panel: orders, packing, tasks, HR, quality... ────── */
+#kpi-employee-profile .employee-kpi-page { min-width: 0; width: 100%; }
+#kpi-employee-profile .employee-kpi-section {
+  min-width: 0;
+  width: 100%;
+  margin: 0 0 18px;
+  padding: clamp(15px,1.8vw,22px);
+  border: 1px solid var(--ep-border);
+  border-radius: 19px;
+  background: var(--ep-white);
+  box-shadow: var(--ep-shadow);
+  overflow: visible;
+  scroll-margin-top: 80px;
+}
+#kpi-employee-profile .employee-kpi-section__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 17px;
+  padding: 0 0 14px;
+  border-bottom: 1px solid #ECF0EA;
+}
+#kpi-employee-profile .employee-kpi-section__header > div { min-width: 0; flex: 1; }
+#kpi-employee-profile .employee-kpi-section__header h2 {
+  margin: 0 0 5px;
+  color: var(--ep-olive);
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  line-height: 1.25;
+}
+#kpi-employee-profile .employee-kpi-section__header p {
+  max-width: 750px;
+  margin: 0;
+  color: var(--ep-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+#kpi-employee-profile .employee-kpi-section__status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 5px 10px;
+  border-radius: 30px;
+  background: #F2F4EC;
+  color: #5B6C50;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: normal;
+}
+
+/* ── 07 / Universal KPI tiles: ACTUAL employee renderer selectors ────────── */
+#kpi-employee-profile .employee-kpi-metrics {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  min-width: 0;
+  margin: 0 0 16px;
+}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card {
+  --ep-card-accent: #82BB8E;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  height: auto;
+  min-height: 134px;
+  margin: 0;
+  padding: 15px 16px;
+  border: 1px solid var(--ep-border);
+  border-left: 3px solid var(--ep-card-accent);
+  border-radius: 14px;
+  background: linear-gradient(140deg,#F3FFF7,#FFFFFF);
+  box-shadow: 0 3px 12px rgba(28,33,24,.035);
+  overflow: hidden;
+}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card:nth-child(5n+2) {
+  --ep-card-accent: #6AA9DF;
+  background: linear-gradient(140deg,#EEF7FF,#FFFFFF);
+}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card:nth-child(5n+3) {
+  --ep-card-accent: #AD89E7;
+  background: linear-gradient(140deg,#F5EEFF,#FFFFFF);
+}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card:nth-child(5n+4) {
+  --ep-card-accent: #E7A16B;
+  background: linear-gradient(140deg,#FFF5EC,#FFFFFF);
+}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card:nth-child(5n+5) {
+  --ep-card-accent: #D994B4;
+  background: linear-gradient(140deg,#FFF0F7,#FFFFFF);
+}
+#kpi-employee-profile .employee-kpi-metrics .kpi-health-card > span:first-child {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+  color: #5B6B5B;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: .015em;
+  line-height: 1.4;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+#kpi-employee-profile .employee-kpi-metrics .kpi-number {
+  display: block;
+  margin: 0;
+  color: #254A32;
+  font-size: clamp(21px,2vw,29px);
+  font-weight: 650;
+  line-height: 1.1;
+  white-space: normal;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+#kpi-employee-profile .employee-kpi-metrics .kpi-health-card > small {
+  color: var(--ep-muted);
+  font-size: 11px;
+  line-height: 1.4;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+#kpi-employee-profile .employee-kpi-metrics .kpi-health-card > .kpi-view-evidence {
+  align-self: flex-start;
+  margin-top: auto;
+  min-height: 27px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  color: #426C49;
+  font-size: 11px;
+  font-weight: 600;
+  text-decoration: underline;
+  box-shadow: none;
+}
+#kpi-employee-profile .employee-kpi-metrics .kpi-health-card.is-unmeasured {
+  border-left-color: #A8B1A9;
+  background: #F8FAF8;
+}
+#kpi-employee-profile .kpi-info-button {
+  width: 19px;
+  height: 19px;
+  min-width: 19px;
+  min-height: 19px;
+  padding: 0;
+  border: 1px solid #C9D4CA;
+  border-radius: 50%;
+  color: #49634E;
+  background: #FFFFFF;
+  font-size: 11px;
+  line-height: 1;
+  cursor: help;
+}
+
+/* ── 08 / Compact explainers and no-result panels ────────────────────────── */
+#kpi-employee-profile :is(.kpi-historical-exclusion,.kpi-empty-state,.kpi-adoption-banner) {
+  padding: 12px 15px;
+  border: 1px solid #E9EAE0;
+  border-radius: 12px;
+  background: #FCFBF7;
+  color: #716E61;
+  font-size: 12px;
+  line-height: 1.5;
+}
+#kpi-employee-profile .kpi-historical-exclusion {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+#kpi-employee-profile .kpi-historical-exclusion strong { display: block; font-size: 12px; }
+#kpi-employee-profile .kpi-historical-exclusion span { font-size: 11px; }
+
+/* ── 09 / Orders / front desk: flow, exceptions, breakdowns ──────────────── */
+#kpi-employee-profile .kpi-front-duty-grid {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  align-items: start;
+  gap: 12px;
+  margin: 14px 0;
+}
+#kpi-employee-profile .kpi-front-duty-card {
+  min-width: 0;
+  min-height: 240px;
+  padding: 16px;
+  border: 1px solid #E8EAE2;
+  border-radius: 15px;
+  background: linear-gradient(145deg,#FFF6F0,#FFFFFF);
+  overflow: hidden;
+}
+#kpi-employee-profile .kpi-front-duty-card:nth-child(3n+2) { background: linear-gradient(145deg,#F5EDFF,#fff); }
+#kpi-employee-profile .kpi-front-duty-card:nth-child(3n+3) { background: linear-gradient(145deg,#F0FAEF,#fff); }
+#kpi-employee-profile .kpi-front-duty-card > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  margin: 0 0 15px;
+}
+#kpi-employee-profile .kpi-front-duty-card > header > div { min-width: 0; }
+#kpi-employee-profile .kpi-front-duty-card h3 {
+  margin: 0;
+  color: var(--ep-olive);
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+#kpi-employee-profile .kpi-front-duty-card > header strong {
+  display: grid;
+  gap: 1px;
+  flex: none;
+  font-size: 21px;
+  line-height: 1.1;
+  color: var(--ep-olive);
+  text-align: right;
+}
+#kpi-employee-profile .kpi-front-duty-card > header strong small {
+  color: var(--ep-muted);
+  font-size: 10px;
+  font-weight: 400;
+}
+#kpi-employee-profile .kpi-front-duty-card__totals {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 6px;
+}
+#kpi-employee-profile .kpi-front-duty-card__totals span {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  padding: 9px;
+  border-radius: 9px;
+  background: rgba(255,255,255,.78);
+  color: var(--ep-muted);
+  font-size: 11px;
+}
+#kpi-employee-profile .kpi-front-duty-card__totals b { color: #284D36; font-size: 12px; }
+#kpi-employee-profile .kpi-front-duty-card__bar {
+  display: flex;
+  width: 100%;
+  height: 9px;
+  margin: 15px 0 10px;
+  border-radius: 999px;
+  background: #E8EBE7;
+  overflow: hidden;
+}
+#kpi-employee-profile .kpi-front-duty-card__bar .is-on-time { background: #66B985; }
+#kpi-employee-profile .kpi-front-duty-card__bar .is-late { background: #D8866B; }
+#kpi-employee-profile .kpi-front-duty-card__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: var(--ep-muted);
+  font-size: 11px;
+}
+#kpi-employee-profile .kpi-front-duty-card > p {
+  margin: 7px 0;
+  color: var(--ep-muted);
+  font-size: 11px;
+  line-height: 1.4;
+}
+#kpi-employee-profile .kpi-pending-timeline {
+  margin: 13px 0;
+  padding: 14px;
+  border: 1px solid #F1E1D7;
+  border-radius: 14px;
+  background: #FFFCF9;
+}
+#kpi-employee-profile .kpi-pending-timeline > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+#kpi-employee-profile .kpi-pending-timeline h3 { margin: 0 0 4px; font-size: 15px; color: #87503D; }
+#kpi-employee-profile .kpi-pending-timeline p { margin: 0; font-size: 11px; color: var(--ep-muted); }
+#kpi-employee-profile .kpi-pending-timeline > div {
+  display: grid;
+  gap: 8px;
+}
+#kpi-employee-profile .kpi-pending-timeline > div > article {
+  display: grid;
+  grid-template-columns: minmax(145px,1.5fr) auto minmax(170px,1.1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 11px;
+  border: 1px solid #E9E5DF;
+  border-radius: 10px;
+  background: #FFFFFF;
+}
+#kpi-employee-profile .kpi-pending-timeline article :is(strong,span,small) { overflow-wrap: normal; word-break: normal; }
+#kpi-employee-profile .kpi-pending-timeline article dl { display: flex; flex-wrap: wrap; gap: 12px; margin: 0; }
+#kpi-employee-profile .kpi-pending-timeline article dl > div { display: grid; gap: 3px; }
+#kpi-employee-profile .kpi-pending-timeline article :is(dt,dd) { margin: 0; font-size: 11px; }
+#kpi-employee-profile .kpi-pending-timeline article dd { font-weight: 600; }
+#kpi-employee-profile .kpi-front-analysis {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  align-items: start;
+  gap: 12px;
+  margin: 14px 0;
+}
+#kpi-employee-profile .kpi-front-analysis > section,
+#kpi-employee-profile .kpi-front-score,
+#kpi-employee-profile .kpi-mode-timing,
+#kpi-employee-profile .kpi-front-risk {
+  min-width: 0;
+  margin: 13px 0;
+  padding: 17px;
+  border: 1px solid #E9EBE4;
+  border-radius: 15px;
+  background: #FFFFFF;
+}
+#kpi-employee-profile .kpi-front-analysis h3,
+#kpi-employee-profile .kpi-front-score h3,
+#kpi-employee-profile .kpi-front-risk h3,
+#kpi-employee-profile .kpi-mode-timing h3 {
+  margin: 0 0 12px;
+  color: var(--ep-olive);
+  font-size: 15px;
+  font-weight: 600;
+}
+#kpi-employee-profile .kpi-front-score {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  background: linear-gradient(125deg,#FFF5ED,#FCFCF9);
+}
+#kpi-employee-profile .kpi-front-score__ring { flex: 0 0 102px; width: 102px; height: 102px; }
+#kpi-employee-profile .kpi-front-score p { color: var(--ep-muted); font-size: 12px; line-height: 1.5; }
+#kpi-employee-profile .kpi-front-risk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  background: #FFFAF6;
+}
+#kpi-employee-profile .kpi-front-risk h3 { flex: 0 0 100%; margin-bottom: 4px; }
+#kpi-employee-profile .kpi-front-risk > span {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid #F0E8E0;
+  border-radius: 999px;
+  background: #FFFFFF;
+  color: #8A725D;
+  font-size: 11px;
+}
+#kpi-employee-profile .kpi-front-risk > span.has-risk { background: #FFEDE6; color: #9B5740; }
+#kpi-employee-profile .kpi-mode-timing > div {
+  display: grid;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+  gap: 12px;
+}
+#kpi-employee-profile .kpi-mode-timing article {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid #E7EADF;
+  border-top: 3px solid #7E9F79;
+  border-radius: 12px;
+  background: #FAFCF8;
+}
+#kpi-employee-profile .kpi-mode-timing article:nth-child(3n+2) { border-top-color: #C18BC3; background:#FFF9FF; }
+#kpi-employee-profile .kpi-mode-timing article:nth-child(3n+3) { border-top-color: #E3AC79; background:#FFFBF6; }
+#kpi-employee-profile .kpi-mode-timing article > div:first-child { display:flex; justify-content:space-between; gap:8px; }
+#kpi-employee-profile .kpi-mode-timing article > b {
+  display: block;
+  margin: 11px 0;
+  color: #2D583B;
+  font-size: 22px;
+  line-height: 1.2;
+}
+#kpi-employee-profile .kpi-mode-timing article > b small { display:block; font-size:10px; font-weight:400; color:var(--ep-muted); }
+#kpi-employee-profile .kpi-mode-timing article dl {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:5px;
+  margin:0;
+}
+#kpi-employee-profile .kpi-mode-timing article dl div { display:grid; gap:3px; padding:8px; border-radius:8px; background:#fff; }
+#kpi-employee-profile .kpi-mode-timing :is(dt,dd) { font-size: 11px; margin: 0; }
+#kpi-employee-profile .kpi-mode-timing dt { color:var(--ep-muted); }
+#kpi-employee-profile .kpi-mode-timing dd { color:var(--ep-ink); font-weight:600; }
+
+/* ── 10 / Packing productivity and workload distributions ────────────────── */
+#kpi-employee-profile :is(.kpi-distribution,.kpi-packing-overdue) {
+  min-width:0;
+  margin:12px 0;
+  padding:14px;
+  border:1px solid #E8ECE5;
+  border-radius:14px;
+  background:#FBFCFA;
+}
+#kpi-employee-profile .kpi-distribution__row {
+  display:grid;
+  grid-template-columns:minmax(125px,.65fr) minmax(0,1.7fr) auto;
+  align-items:center;
+  gap:12px;
+  margin:9px 0;
+  min-width:0;
+  color:#59655B;
+  font-size:12px;
+}
+#kpi-employee-profile .kpi-distribution__row :is(i,progress) {
+  min-width:0;
+  max-width:100%;
+  border-radius:99px;
+}
+#kpi-employee-profile .kpi-packing-overdue > header,
+#kpi-employee-profile .kpi-waybill-breakdown > header {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  flex-wrap:wrap;
+}
+
+/* ── 11 / Task Management: scores, timing, evidence ──────────────────────── */
+#kpi-employee-profile .kpi-task-timing-grid {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin:14px 0;
+}
+#kpi-employee-profile .kpi-task-timing {
+  min-width:0;
+  padding:15px;
+  border:1px solid #E6EAE0;
+  border-radius:14px;
+  background:linear-gradient(125deg,#F2F8EE,#FFFFFF);
+}
+#kpi-employee-profile .kpi-task-timing:nth-child(3n+2) { background:linear-gradient(125deg,#EEF4FF,#fff); }
+#kpi-employee-profile .kpi-task-timing:nth-child(3n+3) { background:linear-gradient(125deg,#F6EDFF,#fff); }
+#kpi-employee-profile .kpi-task-timing > span { display:block; font-size:12px; color:var(--ep-muted); }
+#kpi-employee-profile .kpi-task-timing > strong { display:block; margin:8px 0; font-size:23px; line-height:1.15; color:var(--ep-olive); }
+#kpi-employee-profile .kpi-task-timing small { display:block; font-size:11px; color:var(--ep-muted); }
+#kpi-employee-profile .kpi-task-timing > div { display:grid; gap:6px; margin-top:12px; }
+#kpi-employee-profile .kpi-task-timing > div > span { font-size:11px; }
+#kpi-employee-profile .kpi-task-breakdown,
+#kpi-employee-profile .kpi-task-score,
+#kpi-employee-profile .kpi-task-review-summary {
+  min-width:0;
+  margin:14px 0;
+  padding:17px;
+  border:1px solid #E6EAE2;
+  border-radius:15px;
+  background:#FFFFFF;
+}
+#kpi-employee-profile .kpi-task-score {
+  display:grid;
+  grid-template-columns: minmax(130px,.25fr) minmax(0,1fr);
+  gap:20px;
+  align-items:start;
+  background:linear-gradient(120deg,#F1F9F2,#fff);
+}
+#kpi-employee-profile .kpi-task-breakdown h3,
+#kpi-employee-profile .kpi-task-score h3 { margin:0 0 10px; font-size:16px; color:var(--ep-olive); }
+#kpi-employee-profile .kpi-task-breakdown p,
+#kpi-employee-profile .kpi-task-score p { font-size:12px; color:var(--ep-muted); line-height:1.5; }
+#kpi-employee-profile .kpi-task-breakdown-row,
+#kpi-employee-profile .kpi-component-bars > article {
+  display:grid;
+  grid-template-columns:minmax(165px,.8fr) minmax(0,1fr) minmax(130px,.6fr) auto;
+  align-items:center;
+  gap:12px;
+  padding:9px 0;
+  border-bottom:1px solid #EBEEEA;
+  font-size:11px;
+}
+#kpi-employee-profile .kpi-component-bars > article { grid-template-columns:minmax(150px,.8fr) minmax(0,1fr) minmax(160px,.8fr); }
+#kpi-employee-profile :is(.kpi-task-breakdown-row,.kpi-component-bars > article) > div {
+  height:8px;
+  min-width:0;
+  border-radius:30px;
+  background:#E8EEE8;
+  overflow:hidden;
+}
+#kpi-employee-profile :is(.kpi-task-breakdown-row,.kpi-component-bars > article) > div > i {
+  display:block;
+  height:100%;
+  border-radius:inherit;
+  background:linear-gradient(90deg,#7C8B68,#42B89A);
+}
+
+/* ── 12 / Bookkeeping and reconciliation ─────────────────────────────────── */
+#kpi-employee-profile :is(.kpi-front-risk,.kpi-money-out-section,.kpi-front-analysis,.kpi-money-out-totals,.kpi-quality-reporting__summary) { min-width:0; }
+#kpi-employee-profile .kpi-money-out-totals {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  margin:12px 0;
+}
+#kpi-employee-profile .kpi-money-out-totals > * {
+  min-width:0;
+  padding:14px;
+  border-radius:13px;
+  border:1px solid #EEECE5;
+  background:#FFFBF5;
+}
+#kpi-employee-profile .kpi-money-out-note,
+#kpi-employee-profile .kpi-front-risk p {
+  color:var(--ep-muted);
+  font-size:12px;
+  line-height:1.5;
+}
+
+/* ── 13 / Waybills and driver / delivery evidence ───────────────────────── */
+#kpi-employee-profile .kpi-courier-volume-grid,
+#kpi-employee-profile .kpi-waybill-breakdown {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:12px;
+  min-width:0;
+  margin:14px 0;
+}
+#kpi-employee-profile .kpi-courier-volume-card,
+#kpi-employee-profile .kpi-waybill-breakdown > article {
+  min-width:0;
+  padding:15px;
+  border:1px solid #E7EDE5;
+  border-radius:15px;
+  background:linear-gradient(140deg,#EAF8F6,#fff);
+}
+#kpi-employee-profile .kpi-courier-volume-card:nth-child(3n+2) { background:linear-gradient(140deg,#EEF0FF,#fff); }
+#kpi-employee-profile .kpi-courier-volume-card:nth-child(3n+3) { background:linear-gradient(140deg,#FFF3E7,#fff); }
+#kpi-employee-profile .kpi-courier-volume-card h4 { margin:4px 0 10px; font-size:16px; color:var(--ep-olive); }
+#kpi-employee-profile .kpi-courier-volume-bar {
+  display:flex;
+  gap:0;
+  width:100%;
+  height:10px;
+  overflow:hidden;
+  border-radius:999px;
+  background:#E9EFEB;
+}
+#kpi-employee-profile .kpi-courier-totals { display:flex; flex-wrap:wrap; gap:12px; }
+#kpi-employee-profile .ep-evidence-summary {
+  display:grid;
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:12px;
+}
+#kpi-employee-profile .ep-delivery-records-header,
+#kpi-employee-profile .ep-evidence-toolbar {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  gap:10px;
+  margin:12px 0;
+}
+#kpi-employee-profile .ep-evidence-toolbar :is(input,select) {
+  min-height:36px;
+  padding:6px 10px;
+  border:1px solid var(--ep-border);
+  border-radius:9px;
+  background:#fff;
+  font-size:12px;
+}
+
+/* ── 14 / Attendance, HR, leave, live presence ───────────────────────────── */
+#kpi-employee-profile .kpi-presence-groups {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:start;
+  gap:14px;
+  margin:12px 0;
+}
+#kpi-employee-profile :is(.kpi-presence-live,.kpi-presence-history,.kpi-presence-schedule,.kpi-hr-leave-detail) {
+  min-width:0;
+  padding:16px;
+  border:1px solid var(--ep-border);
+  border-radius:15px;
+  background:#FBFDFB;
+}
+#kpi-employee-profile .kpi-presence-live { background:linear-gradient(140deg,#E7F8EE,#fff); }
+#kpi-employee-profile .kpi-presence-history { background:linear-gradient(140deg,#EDF4FF,#fff); }
+#kpi-employee-profile .kpi-presence-summary {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;
+  margin:11px 0;
+}
+#kpi-employee-profile .kpi-presence-summary article {
+  min-width:0;
+  padding:11px;
+  border:1px solid #E5EEE6;
+  border-radius:10px;
+  background:#FFFFFFDB;
+}
+#kpi-employee-profile .kpi-presence-summary article :is(span,strong,small) { display:block; }
+#kpi-employee-profile .kpi-presence-summary article span { font-size:11px; color:var(--ep-muted); }
+#kpi-employee-profile .kpi-presence-summary article strong { margin:6px 0 3px; font-size:15px; color:var(--ep-olive); overflow-wrap:break-word; }
+#kpi-employee-profile .kpi-presence-summary article small { color:var(--ep-muted); font-size:10px; }
+#kpi-employee-profile .kpi-presence-groups :is(h3,h4) { color:var(--ep-olive); font-size:16px; margin:0 0 6px; }
+#kpi-employee-profile .kpi-presence-groups header p { font-size:12px; color:var(--ep-muted); }
+
+/* ── 15 / Quality and errors ─────────────────────────────────────────────── */
+#kpi-employee-profile .kpi-quality-reporting,
+#kpi-employee-profile .kpi-quality-responsibility {
+  min-width:0;
+  margin:14px 0;
+  padding:16px;
+  border:1px solid #E8EBE3;
+  border-radius:15px;
+  background:#FFFCFA;
+}
+#kpi-employee-profile .kpi-quality-reporting__summary,
+#kpi-employee-profile .kpi-quality-responsibility__summary {
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:10px;
+  margin:12px 0;
+}
+#kpi-employee-profile :is(.kpi-quality-reporting__summary,.kpi-quality-responsibility__summary) > article {
+  min-width:0;
+  padding:14px;
+  border-radius:12px;
+  border:1px solid #EDEBE5;
+  background:#fff;
+}
+#kpi-employee-profile .kpi-quality-type-grid,
+#kpi-employee-profile .kpi-quality-incident-grid {
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:11px;
+}
+#kpi-employee-profile .kpi-quality-type-card,
+#kpi-employee-profile .kpi-quality-incident-card {
+  min-width:0;
+  padding:14px;
+  border:1px solid #EBE9E4;
+  border-radius:12px;
+  background:#FFFFFF;
+}
+#kpi-employee-profile .kpi-quality-type-bar {
+  display:flex;
+  width:100%;
+  height:8px;
+  background:#ECECE8;
+  border-radius:999px;
+  overflow:hidden;
+}
+#kpi-employee-profile .kpi-quality-incident-card__tags {
+  display:flex;
+  flex-wrap:wrap;
+  gap:6px;
+  margin-top:10px;
+}
+#kpi-employee-profile .kpi-quality-incident-card__tags span {
+  display:inline-flex;
+  padding:4px 8px;
+  border-radius:99px;
+  background:#FFF1E9;
+  color:#8A594B;
+  font-size:10px;
+}
+#kpi-employee-profile .kpi-quality-subhead { font-size:16px; font-weight:600; color:var(--ep-olive); }
+
+/* ── 16 / Activity timeline: condensed visible events ───────────────────── */
+#kpi-employee-profile .kpi-significant-events {
+  display:grid;
+  gap:0;
+  min-width:0;
+  margin:10px 0 15px;
+  border:1px solid #E6EAE5;
+  border-radius:14px;
+  background:#FFFFFF;
+  overflow:hidden;
+}
+#kpi-employee-profile .kpi-significant-events article {
+  display:grid;
+  grid-template-columns:minmax(132px,.33fr) minmax(0,1fr);
+  gap:14px;
+  align-items:start;
+  padding:12px 15px;
+  border-bottom:1px solid #EDF0EB;
+}
+#kpi-employee-profile .kpi-significant-events article:last-child { border-bottom:0; }
+#kpi-employee-profile .kpi-significant-events time { color:#72816C; font-size:11px; }
+#kpi-employee-profile .kpi-significant-events article strong { display:block; color:var(--ep-olive); font-size:12px; }
+#kpi-employee-profile .kpi-significant-events article span { display:block; margin-top:3px; font-size:11px; color:var(--ep-muted); }
+
+/* ── 17 / Authoritative evidence tables and accessible dialogs ──────────── */
+#kpi-employee-profile .employee-kpi-evidence {
+  display:block;
+  width:100%;
+  min-width:0;
+  max-height:440px;
+  margin:15px 0;
+  border:1px solid #E5E9E2;
+  border-radius:13px;
+  background:#FFFFFF;
+  overflow:auto;
+  scrollbar-width:thin;
+}
+#kpi-employee-profile .employee-kpi-evidence .data-table {
+  width:100%;
+  min-width:620px;
+  border-spacing:0;
+  border-collapse:separate;
+  font-size:12px;
+}
+#kpi-employee-profile .employee-kpi-evidence .data-table thead th {
+  position:sticky;
+  z-index:2;
+  top:0;
+  padding:11px 13px;
+  background:#EDF2E9;
+  color:#465944;
+  text-align:left;
+  white-space:nowrap;
+  font-size:11px;
+  font-weight:600;
+  border-bottom:1px solid #DCE5D9;
+}
+#kpi-employee-profile .employee-kpi-evidence .data-table tbody td {
+  padding:11px 13px;
+  vertical-align:top;
+  color:#4A544A;
+  border-bottom:1px solid #EEF1EA;
+  line-height:1.35;
+}
+#kpi-employee-profile .employee-kpi-evidence .data-table tbody tr:nth-child(even) td { background:#FAFBF9; }
+#kpi-employee-profile .employee-kpi-evidence .data-table tbody tr:hover td { background:#F2F7F0; }
+#kpi-employee-profile .kpi-panel__actions {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding-top:13px;
+  margin-top:14px;
+  border-top:1px solid #EBEEE9;
+  color:var(--ep-muted);
+  font-size:11px;
+}
+#kpi-employee-profile .kpi-evidence-drawer {
+  width:min(1040px,calc(100vw - 34px));
+  max-height:min(88vh,900px);
+  padding:24px;
+  border:1px solid var(--ep-border);
+  border-radius:20px;
+  background:#FFFFFF;
+  color:var(--ep-ink);
+  box-shadow:0 18px 70px rgba(23,40,21,.22);
+  overflow:auto;
+}
+#kpi-employee-profile .kpi-evidence-drawer::backdrop { background:rgba(20,31,18,.46); }
+#kpi-employee-profile .kpi-evidence-drawer h2 { margin:0 0 8px; font-size:22px; color:var(--ep-olive); }
+#kpi-employee-profile .kpi-evidence-drawer > p { font-size:12px; color:var(--ep-muted); }
+#kpi-employee-profile .kpi-timeline-close {
+  display:grid;
+  place-items:center;
+  width:34px;
+  height:34px;
+  border:1px solid var(--ep-border);
+  border-radius:50%;
+  background:#F9FBF7;
+  color:var(--ep-olive);
+}
+
+/* ── 18 / Compact disclosure panels for lengthy detail (proposed ep-* markup)
+   Use real <details>/<summary> or accessible button + aria-expanded in JS;
+   do not simply hide source records from keyboard / screen-reader users. ─── */
+#kpi-employee-profile .ep-disclosure {
+  margin:12px 0;
+  border:1px solid #E5EBE3;
+  border-radius:14px;
+  background:#FFFFFF;
+  overflow:hidden;
+}
+#kpi-employee-profile .ep-disclosure > summary {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:13px 15px;
+  color:var(--ep-olive);
+  background:#F7FAF5;
+  font-size:13px;
+  font-weight:600;
+  cursor:pointer;
+  list-style:none;
+}
+#kpi-employee-profile .ep-disclosure > summary::-webkit-details-marker { display:none; }
+#kpi-employee-profile .ep-disclosure > summary::after {
+  content:"+";
+  margin-left:auto;
+  color:#64836A;
+  font-size:20px;
+}
+#kpi-employee-profile .ep-disclosure[open] > summary::after { content:"−"; }
+#kpi-employee-profile .ep-disclosure__body { padding:15px; }
+
+/* ── 19 / Role-specific panels: retain same shell and widget language ────── */
+#kpi-employee-profile[data-role-key*="packer"] .employee-kpi-section__header { border-bottom-color:#E4EDE1; }
+#kpi-employee-profile[data-role-key*="front"] .employee-kpi-section__header { border-bottom-color:#E9E1F0; }
+#kpi-employee-profile .ep-role-heading {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin:0 0 10px;
+  font-size:13px;
+  color:var(--ep-muted);
+}
+#kpi-employee-profile .ep-role-note {
+  margin-top:12px;
+  padding:10px 13px;
+  border-left:3px solid #86AB92;
+  border-radius:9px;
+  background:#F2F8F1;
+  color:#556A58;
+  font-size:11px;
+}
+
+/* ── 20 / Responsive: desktop, tablet, mobile ───────────────────────────── */
+@media(max-width:1280px) {
+  #kpi-employee-profile .employee-kpi-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #kpi-employee-profile .ep-overview-kpi-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #kpi-employee-profile .kpi-mode-timing > div { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #kpi-employee-profile .kpi-courier-volume-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:980px) {
+  #kpi-employee-profile .kpi-score-placeholder { grid-template-columns:108px minmax(0,1fr); gap:15px; }
+  #kpi-employee-profile .kpi-score-placeholder__status {
+    grid-column:1/-1;
+    border-left:0;
+    border-top:1px solid #D7E8D9;
+    padding:12px 0 0;
+  }
+  #kpi-employee-profile .kpi-front-duty-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #kpi-employee-profile .kpi-front-duty-grid > :last-child:nth-child(odd) { grid-column:1/-1; }
+  #kpi-employee-profile .kpi-task-timing-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+  #kpi-employee-profile .kpi-presence-groups,
+  #kpi-employee-profile .ep-overview-hero,
+  #kpi-employee-profile .ep-overview-bottom { grid-template-columns:1fr; }
+  #kpi-employee-profile .kpi-pending-timeline > div > article { grid-template-columns:minmax(0,1fr) auto; }
+  #kpi-employee-profile .kpi-pending-timeline article dl { grid-column:1/-1; }
+  #kpi-employee-profile .kpi-task-breakdown-row,
+  #kpi-employee-profile .kpi-component-bars > article { grid-template-columns:minmax(0,1fr) minmax(0,1fr); }
+  #kpi-employee-profile .kpi-task-breakdown-row > :is(strong,button) { grid-column:auto; }
+}
+@media(max-width:720px) {
+  #kpi-employee-profile { padding:16px 12px 95px; }
+  #kpi-employee-profile .module-header.kpi-employee-header { padding:16px; min-height:0; }
+  #kpi-employee-profile .kpi-avatar { width:50px; height:50px; flex-basis:50px; font-size:19px; }
+  #kpi-employee-profile .kpi-employee-identity { gap:12px; }
+  #kpi-employee-profile .kpi-employee-identity h1 { font-size:21px; }
+  #kpi-employee-profile .kpi-score-placeholder { grid-template-columns:1fr; justify-items:start; padding:17px; }
+  #kpi-employee-profile .kpi-score-placeholder__mark { width:104px; height:104px; }
+  #kpi-employee-profile .kpi-score-placeholder__status { width:100%; }
+  #kpi-employee-profile .employee-kpi-jump-nav { top:0; }
+  #kpi-employee-profile .employee-kpi-section { padding:15px; border-radius:15px; }
+  #kpi-employee-profile .employee-kpi-metrics { grid-template-columns:1fr; }
+  #kpi-employee-profile .employee-kpi-metrics > .kpi-health-card { min-height:112px; }
+  #kpi-employee-profile .ep-overview-kpi-grid,
+  #kpi-employee-profile .kpi-front-duty-grid,
+  #kpi-employee-profile .kpi-front-analysis,
+  #kpi-employee-profile .kpi-task-timing-grid,
+  #kpi-employee-profile .kpi-money-out-totals,
+  #kpi-employee-profile .kpi-presence-summary,
+  #kpi-employee-profile .kpi-quality-reporting__summary,
+  #kpi-employee-profile .kpi-quality-responsibility__summary,
+  #kpi-employee-profile .kpi-quality-incident-grid,
+  #kpi-employee-profile .kpi-quality-type-grid,
+  #kpi-employee-profile .ep-evidence-summary,
+  #kpi-employee-profile .kpi-courier-volume-grid,
+  #kpi-employee-profile .kpi-waybill-breakdown,
+  #kpi-employee-profile .kpi-mode-timing > div { grid-template-columns:1fr; }
+  #kpi-employee-profile .kpi-front-duty-grid > :last-child:nth-child(odd) { grid-column:auto; }
+  #kpi-employee-profile .kpi-task-score { grid-template-columns:1fr; }
+  #kpi-employee-profile .kpi-front-score { flex-wrap:wrap; }
+  #kpi-employee-profile .kpi-pending-timeline > div > article { grid-template-columns:1fr; }
+  #kpi-employee-profile .kpi-significant-events article { grid-template-columns:1fr; gap:4px; }
+  #kpi-employee-profile .kpi-distribution__row { grid-template-columns:minmax(90px,.75fr) minmax(0,1fr) auto; gap:7px; }
+  #kpi-employee-profile [data-kpi-refreshed] { margin-left:0; }
+  #kpi-employee-profile .kpi-evidence-drawer { padding:15px; }
+}
+@media(min-width:721px) and (max-width:1024px) {
+  #kpi-employee-profile .kpi-period-panel label { min-width:135px; }
+}
+@media(prefers-reduced-motion:reduce) {
+  #kpi-employee-profile :is(a,button,.ep-disclosure) { scroll-behavior:auto; transition:none; }
+}
+@media print {
+  #kpi-employee-profile .employee-kpi-jump-nav,
+  #kpi-employee-profile .kpi-period-panel,
+  #kpi-employee-profile .kpi-evidence-drawer { display:none !important; }
+  #kpi-employee-profile .employee-kpi-section,
+  #kpi-employee-profile .kpi-score-placeholder { box-shadow:none; break-inside:avoid; }
+  #kpi-employee-profile .employee-kpi-evidence { max-height:none; overflow:visible; }
+}
+
+/* Integration with the existing command-centre layer. These ID-scoped rules
+   replace its older !important profile declarations, never the shared sidebar. */
+body .shell > #kpi-employee-profile.workspace {
+  max-width:1540px !important; padding:26px clamp(15px,2.2vw,34px) 50px !important;
+}
+#kpi-employee-profile .module-header.kpi-employee-header {
+  padding:24px !important; margin:0 0 13px !important; border:1px solid #DCE9DA !important;
+  background:linear-gradient(107deg,#E3F8EA,#F2F8E9 51%,#EEE5FF) !important;
+}
+#kpi-employee-profile .kpi-employee-identity h1 {font-size:clamp(22px,2.25vw,30px) !important;letter-spacing:-.025em !important;}
+#kpi-employee-profile .kpi-score-placeholder .kpi-score-placeholder__mark {
+  width:116px !important;height:116px !important;font-size:28px !important;box-shadow:none;
+  background:radial-gradient(closest-side,#FCFFFD 78%,transparent 79%),conic-gradient(from -90deg,#33B898 calc(var(--pc-person-score,0)*1%),#D9E8DE 0) !important;
+}
+#kpi-employee-profile .kpi-score-placeholder__mark::after {display:none;}
+#kpi-employee-profile .kpi-score-placeholder {padding:20px 24px !important;border-radius:20px !important;}
+#kpi-employee-profile .kpi-period-panel :is(input,select,.portal-date-trigger) {height:38px;min-height:38px;}
+#kpi-employee-profile .kpi-period-panel label {width:auto;flex:0 1 150px;}
+#kpi-employee-profile .employee-kpi-jump-nav a {font-size:12px !important;padding:7px 13px !important;}
+#kpi-employee-profile .employee-kpi-jump-nav a.active {background:var(--ep-olive) !important;}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card {
+  padding:15px 16px !important;min-height:134px !important;border-radius:14px !important;
+  border:1px solid var(--ep-border) !important;border-left:3px solid var(--ep-card-accent) !important;
+  box-shadow:0 3px 12px #1c211809 !important;background:linear-gradient(140deg,#F3FFF7,#FFF) !important;
+}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card:nth-child(5n+2) {background:linear-gradient(140deg,#EEF7FF,#FFF) !important;}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card:nth-child(5n+3) {background:linear-gradient(140deg,#F5EEFF,#FFF) !important;}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card:nth-child(5n+4) {background:linear-gradient(140deg,#FFF5EC,#FFF) !important;}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card:nth-child(5n+5) {background:linear-gradient(140deg,#FFF0F7,#FFF) !important;}
+#kpi-employee-profile .employee-kpi-metrics > .kpi-health-card.is-unmeasured {background:#F8FAF8 !important;}
+#kpi-employee-profile .ep-overview-kpi-grid {grid-template-columns:repeat(3,minmax(0,1fr));}
+#kpi-employee-profile .ep-overview-card {box-shadow:none;}
+#kpi-employee-profile .ep-stat-value {font-size:24px;overflow-wrap:anywhere;}
+#kpi-employee-profile .ep-attention-list {display:grid;gap:10px;}
+#kpi-employee-profile .ep-attention-list article {padding:10px 0;border-bottom:1px solid var(--ep-border);}
+#kpi-employee-profile .ep-attention-list :is(strong,p) {font-size:12px;margin:0 0 5px;}
+#kpi-employee-profile .ep-evidence-toolbar {justify-content:flex-start;align-items:end;}
+#kpi-employee-profile .ep-evidence-toolbar label {display:grid;gap:4px;font-size:11px;flex:1 1 125px;min-width:0;}
+#kpi-employee-profile .ep-evidence-toolbar label:first-child {flex-basis:180px;}
+#kpi-employee-profile .ep-evidence-toolbar :is(input,select) {width:100%;min-width:0;}
+#kpi-employee-profile .ep-pagination {display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;font-size:12px;}
+#kpi-employee-profile .ep-pagination > div {display:flex;gap:8px;}
+#kpi-employee-profile .ep-pagination button:disabled {opacity:.45;cursor:default;}
+#kpi-employee-profile .ep-paged-evidence {min-width:0;}
+#kpi-employee-profile .ep-team-comparison {padding:16px;border:1px solid var(--ep-border);border-radius:14px;margin-top:14px;}
+#kpi-employee-profile .ep-team-comparison h3 {font-size:15px;margin:0 0 12px;}
+#kpi-employee-profile .ep-team-comparison > div {display:grid;grid-template-columns:135px minmax(0,1fr) 45px;gap:12px;align-items:center;font-size:12px;margin:8px 0;}
+#kpi-employee-profile .ep-team-comparison meter {width:100%;height:16px;accent-color:var(--ep-olive-soft);}
+#kpi-employee-profile .ep-team-comparison p {font-size:11px;color:var(--ep-muted);}
+#kpi-employee-profile .ep-disclosure :is(.kpi-task-score,.kpi-front-score__ring) {box-shadow:none;}
+#kpi-employee-profile .kpi-score-gauge {max-width:100px;max-height:100px;font-size:16px;}
+#kpi-employee-profile .ep-source-link {overflow-wrap:anywhere;}
+#kpi-employee-profile .ep-overview .pc-evidence-trend {display:block;width:100% !important;height:160px !important;max-height:160px;margin:14px 0;}
+#kpi-employee-profile .ep-overview .ep-source-link {display:flex;width:fit-content;}
+@media(max-width:1280px){#kpi-employee-profile .ep-overview-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:720px){
+  #kpi-employee-profile .kpi-period-panel label {flex:1 1 120px;}
+  #kpi-employee-profile .kpi-period-panel label:first-child {flex-basis:100%;}
+  #kpi-employee-profile .kpi-period-panel > span {width:100%;font-size:11px;}
+  body .shell > #kpi-employee-profile.workspace{padding:16px 12px 95px !important;}
+  #kpi-employee-profile .module-header.kpi-employee-header{padding:16px !important;}
+  #kpi-employee-profile .kpi-employee-identity h1{font-size:21px !important;}
+  #kpi-employee-profile .ep-overview-kpi-grid{grid-template-columns:1fr;}
+  #kpi-employee-profile .kpi-score-placeholder{grid-template-columns:80px minmax(0,1fr);gap:12px;padding:16px !important;}
+  #kpi-employee-profile .kpi-score-placeholder .kpi-score-placeholder__mark{width:80px !important;height:80px !important;font-size:22px !important;}
+  #kpi-employee-profile .kpi-score-placeholder__copy h2{font-size:18px !important;}
+  #kpi-employee-profile .kpi-score-placeholder__status{grid-column:1/-1;}
+  #kpi-employee-profile .ep-team-comparison > div{grid-template-columns:95px minmax(0,1fr) 35px;gap:6px;}
+  #kpi-employee-profile .employee-kpi-metrics > .kpi-health-card{min-height:112px !important;}
+}

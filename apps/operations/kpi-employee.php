@@ -7,7 +7,7 @@ $employeeId = max(0, (int) ($_GET['id'] ?? $currentEmployeeId));
 if (!$canReview && $employeeId !== $currentEmployeeId) { http_response_code(403); exit('You may view only your own performance report.'); }
 $employee = ops_rows('SELECT e.id,e.full_name,e.status,r.name role_name,r.role_key FROM ops_employees e JOIN ops_roles r ON r.id=e.role_id WHERE e.id=? LIMIT 1', [$employeeId])[0] ?? null;
 if (!$employee || (string) $employee['role_key'] === 'owner_admin') { http_response_code(404); exit('Employee not found.'); }
-$initialAnchor = (string) ($_GET['section'] ?? $_GET['tab'] ?? 'orders');
+$initialAnchor = (string) ($_GET['section'] ?? $_GET['tab'] ?? 'overview');
 if ($initialAnchor === 'order-packing') $initialAnchor = 'orders';
 $isPacker = strpos((string)$employee['role_key'], 'packer') !== false;
 $isDriver = strpos((string)$employee['role_key'], 'driver') !== false;
@@ -15,17 +15,19 @@ $showWebsiteUpdates = !$isPacker && $employeeId !== 2;
 $anchors = $isPacker ? ['orders','packing','tasks','waybills','hr-attendance','quality','activity-log'] : ['orders','packing','tasks','bookkeeping','waybills','hr-attendance','quality','activity-log'];
 if ($showWebsiteUpdates) array_splice($anchors, 6, 0, ['website']);
 if ($isDriver) { $anchors=['orders','tasks','hr-attendance','quality','activity-log']; $showWebsiteUpdates=false; }
-if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'orders';
+array_unshift($anchors, 'overview');
+if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'overview';
 $pageTitle = $employee['full_name'] . ' Performance Profile | ' . APP_NAME;
 if (empty($_SESSION['kpi_presence_csrf_token'])) $_SESSION['kpi_presence_csrf_token']=bin2hex(random_bytes(32));
 $activeApp = 'kpi';
 $hidePortalSidebar = false;
 $extraStylesheets = [['path'=>'assets/css/performance-command-v2.css','version'=>is_file(BASE_PATH.'/assets/css/performance-command-v2.css')?(string)filemtime(BASE_PATH.'/assets/css/performance-command-v2.css'):'1']];
+$extraStylesheets[] = ['path'=>'assets/css/employee-profile-v3.css','version'=>(string)filemtime(BASE_PATH.'/assets/css/employee-profile-v3.css')];
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
 ?>
 <script src="<?= BASE_URL ?>/assets/js/performance-command-people.js?v=<?= (int)filemtime(BASE_PATH.'/assets/js/performance-command-people.js') ?>"></script>
-<main id="kpi-employee-profile" class="workspace module kpi-health-page kpi-employee-page" data-employee-id="<?= (int) $employee['id'] ?>" data-role-key="<?= htmlspecialchars((string)$employee['role_key'], ENT_QUOTES, 'UTF-8') ?>" data-initial-anchor="<?= htmlspecialchars($initialAnchor, ENT_QUOTES, 'UTF-8') ?>" data-show-website-updates="<?= $showWebsiteUpdates?'1':'0' ?>" data-can-review="<?= $canReview?'1':'0' ?>" data-presence-csrf="<?= htmlspecialchars((string)$_SESSION['kpi_presence_csrf_token'],ENT_QUOTES,'UTF-8') ?>">
+<main id="kpi-employee-profile" class="workspace module kpi-health-page kpi-employee-page" data-profile-version="3" data-employee-id="<?= (int) $employee['id'] ?>" data-role-key="<?= htmlspecialchars((string)$employee['role_key'], ENT_QUOTES, 'UTF-8') ?>" data-initial-anchor="<?= htmlspecialchars($initialAnchor, ENT_QUOTES, 'UTF-8') ?>" data-show-website-updates="<?= $showWebsiteUpdates?'1':'0' ?>" data-can-review="<?= $canReview?'1':'0' ?>" data-presence-csrf="<?= htmlspecialchars((string)$_SESSION['kpi_presence_csrf_token'],ENT_QUOTES,'UTF-8') ?>">
   <nav class="kpi-employee-breadcrumb" aria-label="Breadcrumb"><a href="reports.php?tab=employees">Employees</a><span aria-hidden="true">›</span><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></nav>
   <section class="module-header kpi-employee-header">
     <div class="kpi-employee-identity"><span class="kpi-avatar" aria-hidden="true"><?= htmlspecialchars(strtoupper(substr((string) $employee['full_name'], 0, 1)), ENT_QUOTES, 'UTF-8') ?></span><div><p class="eyebrow">Employee Performance</p><h1><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?>’s Performance Profile</h1><p><?= htmlspecialchars((string) $employee['role_name'], ENT_QUOTES, 'UTF-8') ?> · <?= htmlspecialchars(ucfirst((string) $employee['status']), ENT_QUOTES, 'UTF-8') ?> <span data-kpi-online-state>· Checking presence…</span></p></div></div>
@@ -45,11 +47,11 @@ include BASE_PATH . '/shared/sidebar.php';
     </div>
   </section>
   <?php $profileSections=['orders'=>'Orders Performance','packing'=>'Packing','tasks'=>'Task Management','waybills'=>$isPacker?'Waybill Uploads':'Waybill Status Management','hr-attendance'=>'HR, Leave & Attendance','quality'=>'Errors and Quality','activity-log'=>'Activity Log'];if(!$isPacker)$profileSections=array_slice($profileSections,0,3,true)+['bookkeeping'=>'Bookkeeping']+array_slice($profileSections,3,null,true);if($showWebsiteUpdates)$profileSections=array_slice($profileSections,0,6,true)+['website'=>'Website Updates']+array_slice($profileSections,6,null,true); ?>
-  <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php if($isDriver)$profileSections=['orders'=>'Deliveries','tasks'=>'Task Management','hr-attendance'=>'HR, Leave & Attendance','quality'=>'Errors & Quality','activity-log'=>'Activity Log']; foreach ($profileSections as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
+  <nav class="employee-kpi-jump-nav" aria-label="Employee Performance sections"><?php if($isDriver)$profileSections=['orders'=>'Deliveries','tasks'=>'Task Management','hr-attendance'=>'HR, Leave & Attendance','quality'=>'Errors & Quality','activity-log'=>'Activity Log']; $profileSections=['overview'=>'Overview']+$profileSections; if($isPacker)$profileSections['packing']='Packing & Output'; elseif(!$isDriver)$profileSections['packing']='Website Confirmation'; if($isDriver)$profileSections['orders']='Deliveries & Handover'; foreach ($profileSections as $key => $label): ?><a href="?id=<?= $employeeId ?>&amp;section=<?= $key ?>" data-employee-section="<?= $key ?>" class="<?= $initialAnchor===$key?'active':'' ?>"><?= htmlspecialchars($label, ENT_QUOTES, 'UTF-8') ?></a><?php endforeach; ?></nav>
   <div class="kpi-adoption-banner" data-kpi-adoption hidden></div><div class="ops-alert error" data-kpi-error hidden role="alert"></div>
   <section class="employee-kpi-page" data-kpi-employee-content><div class="kpi-health-grid"><?php foreach (range(1, 8) as $unused): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></div></section>
-  <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button><div data-kpi-timeline-content></div></dialog>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <dialog class="kpi-timeline-dialog kpi-evidence-drawer" data-kpi-timeline aria-label="Performance evidence"><button type="button" class="kpi-timeline-close" data-kpi-timeline-close aria-label="Close evidence">×</button><div data-kpi-timeline-content></div></dialog>
+  <script src="<?= BASE_URL ?>/assets/js/employee-profile-v3.js?v=<?= (int)filemtime(BASE_PATH.'/assets/js/employee-profile-v3.js') ?>"></script>
   <script defer src="<?= BASE_URL ?>/assets/js/performance-command-v2.js?v=<?= is_file(BASE_PATH.'/assets/js/performance-command-v2.js') ? (int) filemtime(BASE_PATH.'/assets/js/performance-command-v2.js') : 1 ?>"></script>
   <script src="<?= BASE_URL ?>/assets/js/kpi-employee.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/kpi-employee.js') ?>"></script>
 </main>

@@ -4,6 +4,9 @@
   // visual shell. It does not calculate employee rewards or override source KPIs.
   const root = document.querySelector('.kpi-health-page');
   if (!root) return;
+  // V3 profiles own their compact overview, delivery evidence and score ring.
+  // Leave the shared dashboard and older profile clients unchanged.
+  if (root.dataset.profileVersion === '3') return;
   const q = (sel) => root.querySelector(sel);
   const esc = (value) => String(value ?? '').replace(/[&<>'"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
   const percentage = (value) => {
