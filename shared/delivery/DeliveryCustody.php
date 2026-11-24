@@ -13,7 +13,7 @@ final class DeliveryCustody
             $e['data']=json_decode((string)$e['metadata_json'],true)?:[];unset($e['metadata_json']);$m=$e['data'];$type=$e['event_type'];
             if($type==='arranged')$out['tracking_version']=(int)($m['tracking_version']??0);
             // A new assignment or rescheduled attempt requires fresh custody evidence.
-            if($type==='arranged'||$type==='revised'||($type==='dispatch_updated'&&($m['field']??'')==='driver')){
+            if($type==='arranged'||$type==='partner_arranged'||$type==='revised'||($type==='dispatch_updated'&&($m['field']??'')==='driver')){
                 foreach(['acceptance','handover','collection','exception'] as $k)$out[$k]=null;
             }
             if($type==='driver_accepted'&&(int)$e['employee_id']===(int)$job['driver_employee_id'])$out['acceptance']=$e;

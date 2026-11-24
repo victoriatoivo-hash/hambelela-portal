@@ -20,13 +20,14 @@ final class DriverAssignments
         $paidTickColumn=in_array('portal_paid_confirmed',$orderColumns,true)?'o.portal_paid_confirmed':'NULL';
         $archiveColumn=in_array('archived_at',$orderColumns,true)?'o.archived_at':'NULL';$pendingIssue=DeliveryIssueState::pendingPredicate();
         $assignmentWhere=$assignmentId===null?'':' AND j.id=?';
+        $pickupEvidence="((e.event_type='parcel_collected' AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.driver_id'))=CAST(j.driver_employee_id AS CHAR)) OR (j.source='partner' AND e.event_type='driver_collection_confirmed' AND e.employee_id=j.driver_employee_id AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.pickup_source'))='partner'))";
         $q=$db->prepare("SELECT j.*,o.id linked_order,o.order_number,o.status order_status,o.payment_status,o.payment_method,o.total_amount,o.deleted_at,$archiveColumn archived_at,$refundColumn refund_total,$paidTickColumn portal_paid_confirmed,
             (SELECT COUNT(*) FROM ops_order_items i WHERE i.order_id=j.order_id) item_count,
             (SELECT MAX(e.id) FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type IN ('arranged','partner_arranged')) release_event,
             (SELECT e.metadata_json FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type IN ('arranged','partner_arranged') ORDER BY e.id DESC LIMIT 1) release_json,
             (SELECT MAX(e.id) FROM delivery_events e WHERE e.delivery_id=j.id AND (e.event_type='revised' OR (e.event_type='dispatch_updated' AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.field'))='driver'))) revision_event,
-            (SELECT MAX(e.id) FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type='parcel_collected' AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.driver_id'))=CAST(j.driver_employee_id AS CHAR)) pickup_event,
-            (SELECT MAX(e.created_at) FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type='parcel_collected' AND JSON_UNQUOTE(JSON_EXTRACT(e.metadata_json,'$.driver_id'))=CAST(j.driver_employee_id AS CHAR)) pickup_at,
+            (SELECT MAX(e.id) FROM delivery_events e WHERE e.delivery_id=j.id AND $pickupEvidence) pickup_event,
+            (SELECT MAX(e.created_at) FROM delivery_events e WHERE e.delivery_id=j.id AND $pickupEvidence) pickup_at,
             (SELECT e.metadata_json FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type='delivered' ORDER BY e.id DESC LIMIT 1) handover_json,
             (SELECT e.metadata_json FROM delivery_events e WHERE e.delivery_id=j.id AND e.event_type='deadline_updated' ORDER BY e.id DESC LIMIT 1) deadline_json,
             (SELECT COUNT(*) FROM delivery_receipts r WHERE r.delivery_id=j.id AND r.status IN ('collected','issue')) pending_receipts,
@@ -71,7 +72,7 @@ final class DriverAssignments
         elseif($r['status']==='ready'&&$picked){$stage='to_collect';$label='Ready to start';$reason='';}
         elseif($r['status']==='ready'){$stage='to_collect';$label='At store';$reason='';}
         elseif($r['status']==='out_for_delivery'){$label='Pickup unconfirmed';$reason='Delivery was started, but shop handover to this driver is not recorded.';}
-        if($r['source']==='partner'&&$stage==='to_collect'){$stage='exception';$label='Partner pickup unconfirmed';$reason='A verified partner pickup source is not available. This is not a collection from the Hambelela shop.';}
+        if($r['source']==='partner'&&$stage==='to_collect')$label='Partner collection';
         if((int)$r['reversed_receipts']>0||($r['source']==='hambelela'&&(!$r['linked_order']||$r['deleted_at']||$r['archived_at']||(float)$r['refund_total']>0||in_array(strtolower((string)$r['order_status']),['cancelled','canceled','refunded','failed','trash','deleted'],true)||in_array(strtolower((string)$r['payment_status']),['refunded','reversed'],true)))){
             $stage='exception';$label='Order needs review';$reason='The source order was removed, cancelled, refunded or failed. Check with dispatch before proceeding.';
         }
@@ -95,6 +96,7 @@ final class DriverAssignments
         if($r['status']==='ready'&&$stage==='to_collect'){
             $custody=DeliveryCustody::read($db,$r);
             if(!$custody['acceptance']){$action='accept';$actionLabel='Accept order';}
+            elseif($r['source']==='partner'){$action='start';$actionLabel='Start delivery';$handoverNotice='Start confirms that you collected the parcel from the partner and are leaving. No partner approval is required.';}
             elseif(!$custody['handover'])$handoverNotice='Waiting for Front Desk to record the parcel handover. This updates automatically.';
             else{$action='start';$actionLabel='Start delivery';}
         }
@@ -133,6 +135,10 @@ final class DriverAssignments
                 $method=count($methods)===1?array_key_first($methods):'OTHER';
                 $result['paymentMethod']=$method;
                 $result['paymentLabel']=$allocated>0?(in_array($method,['EFT','DPO','CASH'],true)?($method==='CASH'?'Cash':$method).' paid':'Paid · verified'):'No collection due';
+            }elseif($r['source']==='partner'){
+                // Server-recorded partner COD/fee is an amount due, not evidence
+                // of cash received. The driver records the actual method at completion.
+                $result['codAmountDueNad']=$due/100;$result['paymentLabel']='Collect N$'.number_format($due/100,2);
             }elseif(($release['payment_arrangement']??null)==='cod'){
                 $result['paymentMethod']='CASH';$result['codAmountDueNad']=$due/100;$result['paymentLabel']='Cash N$'.number_format($due/100,2);
             }
