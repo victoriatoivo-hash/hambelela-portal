@@ -12,7 +12,7 @@ if($db->query('SHOW TABLES')->fetchColumn())throw new RuntimeException('Requires
 $db->exec("CREATE TABLE ops_roles(id INT PRIMARY KEY,role_key VARCHAR(80)); CREATE TABLE ops_employees(id INT PRIMARY KEY,role_id INT,status VARCHAR(30),full_name VARCHAR(100)); CREATE TABLE ops_permissions(id INT PRIMARY KEY,permission_key VARCHAR(100));
 CREATE TABLE ops_orders(id INT PRIMARY KEY,order_number VARCHAR(80),status VARCHAR(30),payment_status VARCHAR(30),payment_method VARCHAR(30),total_amount DECIMAL(12,2),deleted_at DATETIME NULL,archived_at DATETIME NULL,refund_total DECIMAL(12,2) DEFAULT 0,portal_paid_confirmed INT DEFAULT 0);
 CREATE TABLE ops_order_items(id INT PRIMARY KEY,order_id INT,product_name VARCHAR(100),quantity INT);
-CREATE TABLE order_payment_allocations(order_id INT,amount_cents INT,payment_method VARCHAR(30));
+CREATE TABLE order_payment_allocations(order_id INT,amount_cents INT,payment_method VARCHAR(30),source VARCHAR(30),transaction_reference VARCHAR(100));
 CREATE TABLE ops_security_events(id INT AUTO_INCREMENT PRIMARY KEY,event_type VARCHAR(80),employee_id INT,metadata_json TEXT);
 CREATE TABLE notifications(id INT AUTO_INCREMENT PRIMARY KEY,title TEXT,message TEXT,module VARCHAR(40),related_type VARCHAR(40),related_id INT,priority VARCHAR(30),deduplication_key VARCHAR(190) UNIQUE,action_link TEXT);
 CREATE TABLE notification_recipients(notification_id INT,employee_id INT,PRIMARY KEY(notification_id,employee_id));");
