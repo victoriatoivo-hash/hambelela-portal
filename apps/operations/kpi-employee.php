@@ -19,12 +19,12 @@ if (!in_array($initialAnchor, $anchors, true)) $initialAnchor = 'orders';
 $pageTitle = $employee['full_name'] . ' Performance Profile | ' . APP_NAME;
 if (empty($_SESSION['kpi_presence_csrf_token'])) $_SESSION['kpi_presence_csrf_token']=bin2hex(random_bytes(32));
 $activeApp = 'kpi';
-$hidePortalSidebar = true;
+$hidePortalSidebar = false;
 $extraStylesheets = [['path'=>'assets/css/performance-command-v2.css','version'=>is_file(BASE_PATH.'/assets/css/performance-command-v2.css')?(string)filemtime(BASE_PATH.'/assets/css/performance-command-v2.css'):'1']];
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
-include BASE_PATH . '/shared/performance-command-rail.php';
 ?>
+<script src="<?= BASE_URL ?>/assets/js/performance-command-people.js?v=<?= (int)filemtime(BASE_PATH.'/assets/js/performance-command-people.js') ?>"></script>
 <main id="kpi-employee-profile" class="workspace module kpi-health-page kpi-employee-page" data-employee-id="<?= (int) $employee['id'] ?>" data-role-key="<?= htmlspecialchars((string)$employee['role_key'], ENT_QUOTES, 'UTF-8') ?>" data-initial-anchor="<?= htmlspecialchars($initialAnchor, ENT_QUOTES, 'UTF-8') ?>" data-show-website-updates="<?= $showWebsiteUpdates?'1':'0' ?>" data-can-review="<?= $canReview?'1':'0' ?>" data-presence-csrf="<?= htmlspecialchars((string)$_SESSION['kpi_presence_csrf_token'],ENT_QUOTES,'UTF-8') ?>">
   <nav class="kpi-employee-breadcrumb" aria-label="Breadcrumb"><a href="reports.php?tab=employees">Employees</a><span aria-hidden="true">›</span><strong><?= htmlspecialchars((string) $employee['full_name'], ENT_QUOTES, 'UTF-8') ?></strong></nav>
   <section class="module-header kpi-employee-header">

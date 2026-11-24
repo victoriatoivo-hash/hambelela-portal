@@ -24,7 +24,7 @@ $extraStylesheets = $tab === 'business-health' ? [[
     'version' => is_file(BASE_PATH . '/assets/css/performance-dashboard.css') ? (string) filemtime(BASE_PATH . '/assets/css/performance-dashboard.css') : '1',
 ]] : [];
 $extraStylesheets[] = ['path'=>'assets/css/performance-command-v2.css','version'=>is_file(BASE_PATH.'/assets/css/performance-command-v2.css')?(string)filemtime(BASE_PATH.'/assets/css/performance-command-v2.css'):'1'];
-$hidePortalSidebar = true;
+$hidePortalSidebar = false;
 $ready = ops_database_ready();
 $message = '';
 $messageType = 'success';
@@ -263,8 +263,8 @@ if ($ready && $tab === 'settings') {
 
 include BASE_PATH . '/shared/header.php';
 include BASE_PATH . '/shared/sidebar.php';
-include BASE_PATH . '/shared/performance-command-rail.php';
 ?>
+<script src="<?= BASE_URL ?>/assets/js/performance-command-people.js?v=<?= (int)filemtime(BASE_PATH.'/assets/js/performance-command-people.js') ?>"></script>
 <main id="<?= $tab === 'business-health' ? 'kpi-management' : ($tab === 'performance-reports' ? 'kpi-reports' : ($tab === 'business-activity' ? 'kpi-business-timeline-page' : 'kpi-management')) ?>" class="workspace module kpi-health-page" data-kpi-tab="<?= htmlspecialchars($tab, ENT_QUOTES, 'UTF-8') ?>">
     <section class="module-header">
         <div>
