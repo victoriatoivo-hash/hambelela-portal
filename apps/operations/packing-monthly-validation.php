@@ -12,10 +12,15 @@ function packing_monthly_sizes(string $plan):array {
     ksort($sizes);return $sizes;
 }
 function packing_validate_monthly_split(array $source,array $rows):void {
-    $actual=[];
+    $actual=[];$owners=[];
     foreach($rows as $row){
         $line=(int)($row['invoice_source_line']??0)-1;$origin=$source[$line]??null;
         if(!$origin||$row['item_name']!==$origin['item_name']||$row['unit']!==$origin['unit'])throw new RuntimeException('The allocation no longer matches its invoice line.');
+        $product=mb_strtolower(preg_replace('/\s+/u',' ',trim((string)$origin['item_name'])),'UTF-8');
+        $owner=(int)($row['assigned_employee_id']??0);
+        if($product===''||$owner<=0||isset($owners[$product])&&$owners[$product]!==$owner)
+            throw new RuntimeException('Allocate each product and all its size variations to one packer. Reopen the allocation review.');
+        $owners[$product]=$owner;
         foreach(packing_monthly_sizes((string)$row['quantity_planned']) as $k=>$v)$actual[$line]['packs'][$k]=($actual[$line]['packs'][$k]??0)+$v;
         $actual[$line]['bulk']=($actual[$line]['bulk']??0)+(float)($row['bulk_remainder']??0);
     }
