@@ -63,6 +63,7 @@ $db->prepare("INSERT INTO delivery_events(delivery_id,event_type,employee_id,met
 rejects(fn()=>$service->start($driver,$id2,uuid(),true),'rescheduled assignment requires fresh acceptance');
 // Hambelela still requires front-desk custody; the partner exception cannot leak.
 $db->exec("INSERT INTO ops_orders(id,order_number,status,payment_status,payment_method,total_amount) VALUES(1,'TEST-SHOP','processing','paid','eft',0)");
+$db->exec("INSERT INTO order_payment_allocations(order_id,amount_cents,payment_method,source) VALUES(1,0,'eft','pos')");
 $db->prepare("INSERT INTO delivery_jobs(public_reference,source,order_id,customer_name,customer_mobile,address,area,fee_cents,fee_payer,scheduled_date,driver_employee_id,arranged_by_employee_id) VALUES('TEST-SHOP','hambelela',1,'Synthetic','0810000000','Synthetic road','Test',0,'already_paid',?,2,1)")->execute([$day]);$shop=(int)$db->lastInsertId();
 $db->prepare("INSERT INTO delivery_events(delivery_id,event_type,employee_id,metadata_json) VALUES(?,'arranged',1,'{\"tracking_version\":1}')")->execute([$shop]);$service->accept($driver,$shop,uuid());
 rejects(fn()=>$service->start($driver,$shop,uuid(),true),'Hambelela front-desk handover remains mandatory');
