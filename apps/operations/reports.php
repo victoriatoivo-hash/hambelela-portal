@@ -284,70 +284,77 @@ include BASE_PATH . '/shared/sidebar.php';
     <?php if (!$ready): ?>
         <?php ops_setup_notice(); ?>
     <?php elseif ($tab === 'business-health'): ?>
-        <section class="kpi-period-panel" aria-label="Reporting period">
-            <label><span>Period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom</option></select></label>
+<section class="kpi-period-panel bh-controls" aria-label="Reporting period">
+            <label><span>Reporting period</span><select data-kpi-period><option value="today">Today</option><option value="yesterday">Yesterday</option><option value="this_week">This week</option><option value="last_week">Last week</option><option value="this_month">This month</option><option value="last_month">Last month</option><option value="custom">Custom dates</option></select></label>
             <label data-kpi-custom hidden><span>From</span><input type="date" data-kpi-from></label>
             <label data-kpi-custom hidden><span>To</span><input type="date" data-kpi-to></label>
             <label class="kpi-historical-toggle"><input type="checkbox" data-kpi-include-historical><span>Include Pre-EPI Historical Records</span></label>
-            <span class="kpi-period-caption" data-kpi-caption aria-live="polite">Loading reporting period…</span>
+            <button type="button" class="btn-secondary" data-bh-refresh>Refresh</button>
+            <div class="bh-period-meta"><span data-kpi-caption aria-live="polite">Loading reporting period…</span><small data-pc-refresh-time>Loading evidence…</small></div>
         </section>
         <div class="kpi-adoption-banner" data-kpi-adoption hidden></div>
         <div class="ops-alert error" data-kpi-error hidden role="alert"></div>
 
-        <section class="pc-command-top" aria-label="Performance Command Centre">
-            <header class="pc-command-head">
-                <div><h2>Performance Command Centre</h2><p>Operational results, work-in-progress and management priorities based on live reporting evidence.</p></div>
-                <span class="pc-source-note" data-pc-refresh-time>Loading evidence…</span>
-            </header>
-            <div class="pc-command-grid">
-                <article class="pc-graphic-card pc-score-card">
-                    <h3>Operational Health</h3><p class="pc-subtitle">Measured categories only · not a full business score</p>
-                    <div class="pc-score-ring" data-pc-score-ring style="--pc-score:0"><div class="pc-score-ring__inner"><strong data-pc-score>—</strong><span>Operational score</span></div></div>
-                    <p class="pc-score-foot" data-pc-score-status>Loading verified operational evidence…</p>
+        <section class="bh-section" aria-labelledby="bh-executive-title">
+            <header class="bh-section-heading"><div><h2 id="bh-executive-title">Performance Command Centre</h2><p>Business results, operational progress and work needing attention.</p></div></header>
+            <div class="bh-executive-grid">
+                <article class="bh-card bh-card--mint">
+                    <h3>Operational Health</h3><p class="bh-description">All required categories · backend-verified calculation</p>
+                    <div class="pc-score-ring" data-pc-score-ring><div class="pc-score-ring__inner"><strong data-pc-score>—</strong><span>Operational score</span></div></div>
+                    <p class="bh-score-status" data-pc-score-status>Loading verified evidence…</p>
+                    <p class="bh-description" data-bh-coverage></p>
+                    <button type="button" class="btn-secondary" data-bh-breakdown>View Score Breakdown</button>
                 </article>
-                <article class="pc-graphic-card pc-flow-card">
-                    <h3>Order Journey</h3><p class="pc-subtitle">Current reporting-period order statuses</p>
-                    <div class="pc-flow-stages" data-pc-stages aria-live="polite"><span class="pc-runtime-note">Loading order stages…</span></div>
+                <article class="bh-card bh-card--blue">
+                    <h3>Order Journey</h3><p class="bh-description">Current status of orders received in the selected period</p>
+                    <div class="pc-flow-stages" data-pc-stages aria-live="polite"></div>
                     <div class="pc-flow-progress"><span data-pc-complete-track><i></i></span><b data-pc-complete>—</b></div>
-                    <p class="pc-subtitle" data-pc-complete-note>Loading completion ratio…</p>
+                    <p class="bh-description" data-pc-complete-note></p>
                 </article>
-                <aside class="pc-graphic-card pc-action-card">
-                    <h3>Action Centre</h3><p class="pc-subtitle">Exceptions from existing performance evidence</p>
-                    <div class="pc-action-list" data-pc-action-list aria-live="polite"><p class="pc-runtime-note">Loading items requiring attention…</p></div>
-                    <div class="pc-action-quick"><a href="orders-board.php">View orders</a><a href="checklists.php">View tasks</a><a href="reports.php?tab=business-activity">Activity timeline</a></div>
+                <aside class="bh-card bh-card--pink bh-action-centre">
+                    <h3>Action Centre</h3><p class="bh-description">Open now · across reporting periods. Not automatic employee deductions.</p>
+                    <div class="bh-action-list" data-pc-action-list aria-live="polite"></div>
+                    <p class="bh-description" data-bh-attention-caption></p>
+                    <div class="bh-inline-links"><a href="checklists.php">Open tasks</a><a href="reports.php?tab=business-activity">Activity timeline</a></div>
                 </aside>
             </div>
-            <section class="pc-role-strip" aria-label="Role-relative team workload">
-                <header class="pc-role-strip__header"><h3>Team Workload &amp; Performance</h3><small data-pc-team-count>Loading employees…</small></header>
-                <div class="pc-role-people" data-pc-team aria-live="polite"></div>
-            </section>
-            <div class="pc-command-secondary">
-                <a class="pc-mini-card" href="reports.php?tab=orders"><span class="pc-mini-icon"><i data-lucide="shopping-cart"></i></span><b>Orders &amp; Fulfilment</b><small data-pc-work-count>Loading…</small></a>
-                <a class="pc-mini-card" href="reports.php?tab=marketing"><span class="pc-mini-icon"><i data-lucide="megaphone"></i></span><b>Marketing Performance</b><small>Campaigns, content and recorded results</small></a>
-                <a class="pc-mini-card" href="reports.php?tab=drivers"><span class="pc-mini-icon"><i data-lucide="truck"></i></span><b>Deliveries</b><small>Driver output and supporting evidence</small></a>
-                <a class="pc-mini-card" href="#kpi-business-errors"><span class="pc-mini-icon"><i data-lucide="shield-alert"></i></span><b>Business Quality</b><small data-pc-error-count>Loading…</small></a>
+        </section>
+        <section class="bh-section" aria-labelledby="bh-team-title">
+            <header class="bh-section-heading"><div><h2 id="bh-team-title">Team Performance</h2><p>Each employee's own role calculation, matched to the profile for this period.</p></div><span data-pc-team-count></span></header>
+            <div class="bh-team-grid" data-pc-team aria-live="polite"></div>
+        </section>
+        <section class="bh-section" aria-labelledby="bh-summary-title">
+            <header class="bh-section-heading"><h2 id="bh-summary-title">Business Summary</h2></header>
+            <div class="bh-summary-grid">
+                <a class="bh-card bh-card--blue" href="#bh-order-detail" data-bh-open-detail><h3>Orders &amp; Fulfilment</h3><strong class="bh-value" data-bh-fulfilment>—</strong><p class="bh-description">Average completion · business hours</p><span>View timing &amp; evidence</span></a>
+                <a class="bh-card bh-card--lavender" href="reports.php?tab=task-management" data-bh-period-link><h3>Work &amp; Task Performance</h3><strong class="bh-value" data-bh-task-work>—</strong><p class="bh-description" data-bh-task-note></p><span>View assigned work</span></a>
+                <a class="bh-card bh-card--peach" href="reports.php?tab=drivers" data-bh-period-link><h3>Deliveries</h3><strong class="bh-value" data-bh-deliveries>—</strong><p class="bh-description" data-bh-delivery-note>Loading delivery evidence…</p><span>View delivery evidence</span></a>
+                <a class="bh-card bh-card--yellow" href="#kpi-business-errors" data-bh-open-detail><h3>Business Quality</h3><strong class="bh-value" data-pc-error-count>—</strong><p class="bh-description" data-bh-quality-note></p><span>View business-attributed issues</span></a>
             </div>
         </section>
-        <header class="kpi-dashboard-section-head"><div><p>Business overview</p><h2>Business Health</h2></div><span>What is working, what is outstanding and what needs attention</span></header>
-        <section class="kpi-management-story" data-kpi-management-story aria-live="polite"></section>
-        <section class="kpi-health-grid" data-kpi-cards aria-label="Business health summary"><?php foreach (range(1, 6) as $placeholder): ?><article class="kpi-health-card is-loading"><span></span><strong></strong><small></small></article><?php endforeach; ?></section>
-        <section class="kpi-dashboard-operational-grid">
-            <article class="kpi-health-panel kpi-orders-first"><div class="kpi-panel-heading"><div><p class="eyebrow">Order fulfilment</p><h2>Operational completion</h2></div><small>Authoritative order records and status history</small></div><div data-kpi-orders-overview></div></article>
-            <article class="kpi-health-panel kpi-dashboard-risk"><div class="kpi-panel-heading"><div><p class="eyebrow">Risks and exceptions</p><h2>Needs attention</h2></div></div><div class="kpi-attention-list" data-kpi-attention></div></article>
+        <section class="bh-section" aria-labelledby="bh-analytics-title">
+            <header class="bh-section-heading"><div><h2 id="bh-analytics-title">Performance Analytics</h2><p>Daily trends for the selected reporting period. Output and sales are not employee scores.</p></div></header>
+            <div class="bh-analytics-grid">
+                <article class="bh-card bh-card--blue"><h3>Order Volume Trend</h3><p class="bh-description">Orders received by creation date</p><div class="bh-chart"><canvas data-kpi-order-volume-chart aria-label="Daily order volume" role="img"></canvas></div></article>
+                <article class="bh-card bh-card--mint"><h3>Paid Sales Trend</h3><p class="bh-description" data-bh-sales-summary></p><p class="bh-description">Currently confirmed paid value, grouped by order creation date; not bank receipt dates.</p><div class="bh-chart"><canvas data-kpi-paid-sales-chart aria-label="Paid order value by order creation date" role="img"></canvas></div></article>
+                <article class="bh-card bh-card--lavender"><h3>Packing Performance Trend</h3><div class="bh-chart-toggle" aria-label="Packing output unit"><button type="button" class="active" aria-pressed="true" data-kpi-chart-mode="items">Items</button><button type="button" aria-pressed="false" data-kpi-chart-mode="weight">kg</button><button type="button" aria-pressed="false" data-kpi-chart-mode="volume">Litres</button><button type="button" aria-pressed="false" data-kpi-chart-mode="packages">Packages</button><button type="button" aria-pressed="false" data-kpi-chart-mode="units">Units</button></div><p class="bh-description" data-kpi-packing-context></p><div class="bh-chart"><canvas data-kpi-packing-chart aria-label="Packing output by employee and completion date" role="img"></canvas></div></article>
+                <article class="bh-card bh-card--yellow"><h3>Operational Completion Trend</h3><p class="bh-description">Current completion rate by order-received date. Not a historical daily score or SLA pass rate.</p><div class="bh-chart"><canvas data-bh-completion-chart aria-label="Current order completion by received date" role="img"></canvas></div><p class="bh-description" data-bh-completion-note></p></article>
+            </div>
+            <details class="bh-details"><summary>Accessible chart data</summary><div class="bh-detail-body table-scroll" data-bh-chart-data></div></details>
         </section>
-        <section id="kpi-business-errors" class="kpi-health-panel kpi-business-errors-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Business quality</p><h2>Business-Attributed Errors</h2></div><small>Business responsibility only — never charged to an employee</small></div><div data-kpi-business-errors></div></section>
-        <section class="kpi-chart-grid">
-            <article class="kpi-health-panel kpi-orders-sales-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Daily activity</p><h2>Orders and Paid Sales</h2></div><small>Order count and paid sales are shown separately</small></div><div class="kpi-orders-sales-summary" data-kpi-orders-sales-summary></div><div class="kpi-orders-sales-charts"><section><h3>Order Volume</h3><p>Number of orders created each day</p><div class="kpi-chart-frame"><canvas data-kpi-order-volume-chart></canvas></div></section><section><h3>Paid Sales Value</h3><p>Paid order value received each day</p><div class="kpi-chart-frame"><canvas data-kpi-paid-sales-chart></canvas></div></section></div></article>
-            <article class="kpi-health-panel kpi-physical-output-panel"><div class="kpi-panel-heading"><div><p class="eyebrow">Measured packing output</p><h2>Physical Packing Output by Employee</h2></div><div class="kpi-chart-toggle"><button type="button" class="active" data-kpi-chart-mode="items">Items</button><button type="button" data-kpi-chart-mode="weight">Weight (kg)</button><button type="button" data-kpi-chart-mode="volume">Volume (L)</button><button type="button" data-kpi-chart-mode="packages">Packages</button><button type="button" data-kpi-chart-mode="units">Units</button></div></div><div class="kpi-chart-context" data-kpi-packing-context>Completed packing items by employee and completion date.</div><div class="kpi-physical-output-summary" data-kpi-physical-output-summary></div><div class="kpi-chart-frame"><canvas data-kpi-packing-chart></canvas></div></article>
+        <section class="bh-section" aria-labelledby="bh-evidence-title">
+            <header class="bh-section-heading"><div><h2 id="bh-evidence-title">Detailed Operational Reports</h2><p>Original records, timing and evidence remain available below.</p></div><a href="reports.php?tab=employees" data-bh-period-link>Employee reports &amp; exports</a></header>
+            <details class="bh-details" id="bh-order-detail"><summary>Order fulfilment evidence · Packer Flow · Front Desk Flow</summary><div class="bh-detail-body" data-kpi-orders-overview></div></details>
+            <details class="bh-details"><summary>Detailed timing &amp; measurement coverage</summary><div class="bh-detail-body bh-metric-grid" data-kpi-cards></div></details>
+            <details class="bh-details" id="kpi-business-errors"><summary>Business-attributed errors</summary><div class="bh-detail-body" data-kpi-business-errors></div></details>
+            <details class="bh-details"><summary>Packing output by employee</summary><div class="bh-detail-body kpi-physical-output-summary" data-kpi-physical-output-summary></div></details>
+            <details class="bh-details"><summary>Recent operational activity</summary><div class="bh-detail-body" data-kpi-live-activity></div><p class="bh-detail-body"><a href="reports.php?tab=business-activity" data-bh-period-link>Open complete activity timeline</a></p></details>
+            <p class="bh-description"><a href="reports.php?tab=recognition" data-bh-period-link>Employee strengths &amp; recognition</a> · <a href="reports.php?tab=employees" data-bh-period-link>Employee evidence directory</a></p>
         </section>
-        <header class="kpi-dashboard-section-head"><div><p>People</p><h2>Operations Team Overview</h2></div><span>Each employee is shown separately using the work that applies to their role</span></header>
-        <section class="kpi-team-stack" data-kpi-team aria-label="Employee performance summaries"></section>
-        <header class="kpi-dashboard-section-head"><div><p>Live operations</p><h2>Recent Work Across the Portal</h2></div><span>Latest attributable employee activity, grouped by portal area</span></header>
-        <section class="kpi-health-panel kpi-live-activity" data-kpi-live-activity aria-live="polite"></section>
-        <header class="kpi-dashboard-section-head"><div><p>Operational detail</p><h2>Section Health and Employee Highlights</h2></div><span>Open any detailed section for its underlying evidence</span></header>
-        <section class="kpi-management-flow" data-kpi-management-flow aria-label="Operational flow"></section>
-        <section class="kpi-recognition" data-kpi-recognition aria-label="Employee awards and recognition"></section>
-        <div data-kpi-scores hidden></div><div data-kpi-management-comparison hidden></div>
+        <dialog class="bh-score-dialog" data-bh-score-dialog aria-labelledby="bh-breakdown-title">
+            <header class="bh-section-heading"><h2 id="bh-breakdown-title">Operational Health — Score Breakdown</h2><form method="dialog"><button class="btn-secondary" aria-label="Close score breakdown">Close</button></form></header>
+            <p data-bh-score-explanation></p><div data-bh-score-components></div>
+        </dialog>
         <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
         <script src="<?= BASE_URL ?>/assets/js/reports-business-health.js?v=<?= (int) @filemtime(BASE_PATH . '/assets/js/reports-business-health.js') ?>"></script>
     <?php elseif ($tab === 'employees'): ?>

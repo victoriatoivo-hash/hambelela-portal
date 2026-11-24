@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/operations.php';
 require_once __DIR__ . '/kpi-reporting.php';
+require_once __DIR__ . '/business-health-coverage.php';
 require_once __DIR__ . '/kpi-event-reporting.php';
 require_once __DIR__ . '/performance-activity.php';
 require_once __DIR__ . '/packing-work-reporting.php';
@@ -74,7 +75,7 @@ try {
     if ($previousFrom < $dataStart) $previousFrom = $dataStart;
     $previousFromSql = $previousFrom->format('Y-m-d 00:00:00'); $previousToSql = $previousTo->format('Y-m-d H:i:s');
 
-    $cacheKey = hash('sha256', implode('|', ['consistent-totals-v1', $periodKey, $fromSql, $toSql]));
+    $cacheKey = hash('sha256', implode('|', ['business-health-refinement-v1', $periodKey, $fromSql, $toSql]));
     $cacheFile = BASE_PATH . '/logs/kpi_business_health_' . $cacheKey . '.json';
     if (empty($_GET['refresh']) && is_file($cacheFile) && filemtime($cacheFile) >= time() - 60) {
         header('X-KPI-Cache: HIT');
@@ -229,7 +230,7 @@ try {
     foreach($ordersPacked as&$candidate){$candidate['result']=(int)$candidate['denominator'];$candidate['display']=(string)(int)$candidate['denominator'];$candidate['numerator']=(int)$candidate['denominator'];}unset($candidate);
     $riskRows=ops_rows("SELECT assigned_employee_id employee_id,COUNT(*) assigned_total,SUM(status NOT IN ('completed','complete','approved') AND deadline<NOW()) result FROM ops_checklist_tasks WHERE employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND COALESCE(released_at,date_assigned) BETWEEN ? AND ? AND deleted_at IS NULL GROUP BY assigned_employee_id",[$fromSql,$toSql]);$overdueCandidates=[];foreach($riskRows as$r){$id=(int)$r['employee_id'];if(!isset($names[$id])||(int)$r['result']<=0)continue;$overdueCandidates[]=['employee_id'=>$id,'employee'=>$names[$id]['full_name'],'role'=>$names[$id]['role_name'],'metric'=>'Overdue assigned tasks','result'=>(int)$r['result'],'display'=>(string)(int)$r['result'],'numerator'=>(int)$r['result'],'denominator'=>(int)$r['assigned_total'],'evidence'=>'ops_checklist_tasks'];}
     $recognition=['overall'=>[['key'=>'best_overall','title'=>'Best Overall Employee','status'=>'not_determined','message'=>'Best Overall Employee not determined — insufficient comparable evidence.','confidence'=>'Insufficient comparable evidence'],['key'=>'most_improved','title'=>'Most Improved Employee','status'=>'not_determined','message'=>'Not determined — two comparable valid overall-score periods are required.','confidence'=>'Insufficient comparable evidence']],'strengths'=>[['key'=>'fastest_packer','title'=>'Fastest Packer']+$recognitionPick($fastest,'min'),['key'=>'most_orders_packed','title'=>'Most Orders Packed']+$recognitionPick($ordersPacked,'max'),['key'=>'front_completion','title'=>'Best Front Desk Order Completion']+$recognitionPick($frontCompletion,'max')],'risks'=>[['key'=>'overdue_tasks','title'=>'Most Overdue Tasks','classification'=>'Operational Risk']+$recognitionPick($overdueCandidates,'max')],'period'=>['from'=>$from->format('Y-m-d'),'to'=>$to->format('Y-m-d')]];
-    $orderTrend=ops_rows("SELECT DATE({$orderDate}) day, COUNT(*) orders, SUM(CASE WHEN {$paidRevenue} THEN 1 ELSE 0 END) paid_orders, COALESCE(SUM(CASE WHEN {$paidRevenue} THEN total_amount ELSE 0 END),0) revenue FROM ops_orders WHERE {$visibleOrders} AND {$orderDate} BETWEEN ? AND ? GROUP BY DATE({$orderDate}) ORDER BY day",[$fromSql,$toSql]);
+    $orderTrend=ops_rows("SELECT DATE({$orderDate}) day, COUNT(*) orders, SUM(status IN ('completed','packed','verified')) completed, SUM(CASE WHEN {$paidRevenue} THEN 1 ELSE 0 END) paid_orders, COALESCE(SUM(CASE WHEN {$paidRevenue} THEN total_amount ELSE 0 END),0) revenue FROM ops_orders WHERE {$visibleOrders} AND {$orderDate} BETWEEN ? AND ? GROUP BY DATE({$orderDate}) ORDER BY day",[$fromSql,$toSql]);
     $packingTrend=kpi_packing_output_trend($packingEmployees,$fromSql,min($toSql,(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s')));
     $measuredScores=array_values(array_filter(array_column($scores,'score'),static function($score){return $score!==null;}));
     // Do not silently average away missing sections. This remains a legacy business
@@ -240,6 +241,8 @@ try {
     $workload=kpi_scalar_row("SELECT COUNT(*) total, COALESCE(SUM(status IN ('completed','complete','approved')),0) completed, COALESCE(SUM(status NOT IN ('completed','complete','approved') AND deadline < ?),0) overdue FROM ops_checklist_tasks WHERE employee_visible=1 AND (scheduled_at IS NULL OR released_at IS NOT NULL) AND COALESCE(released_at,date_assigned) BETWEEN ? AND ? AND deleted_at IS NULL AND status NOT IN ('cancelled','canceled')", [(new DateTimeImmutable('now',new DateTimeZone('Africa/Windhoek')))->format('Y-m-d H:i:s'),$rateFromSql,$toSql]);
     $payload['task_workload']=['total'=>(int)$workload['total'],'completed'=>(int)$workload['completed'],'overdue'=>(int)$workload['overdue'],'open'=>(int)$workload['total']-(int)$workload['completed']-(int)$workload['overdue']];
     $payload['business_errors']=$businessErrors;
+    $payload['operational_coverage']=kpi_business_health_coverage($scores);
+    $payload['attention_scope']='Currently open since tracking start; independent of reporting period';
     try {
         $payload['business_activity'] = pw_business_activity(new DateTimeImmutable('now', new DateTimeZone('Africa/Windhoek')));
     } catch (Throwable $activityError) {

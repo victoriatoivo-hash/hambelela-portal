@@ -1,121 +1,79 @@
 (() => {
-  'use strict';
-
-  const root = document.querySelector('.kpi-health-page[data-kpi-tab="business-health"]');
-  if (!root) return;
-  const q = (selector) => root.querySelector(selector);
-  const period = q('[data-kpi-period]');
-  const from = q('[data-kpi-from]');
-  const to = q('[data-kpi-to]');
-  const custom = root.querySelectorAll('[data-kpi-custom]');
-  const includeHistorical = q('[data-kpi-include-historical]');
-  const labels = { orders: 'Orders received', fulfilment: 'Average business-hours order completion', order_start_response: 'Average business-hours New to In Progress', walk_in_completion: 'Average business-hours walk-in completion', settlement: 'Average payment settlement', final_closure: 'Average final closure', dispatch: 'Completed within six elapsed hours', pack_speed: 'Average elapsed packing task time', revenue: 'Paid order revenue', attendance: 'Portal presence coverage' };
-  const palette = getComputedStyle(root);
-  const colour = (name) => ({'--t-orange-red':'#a48ac8','--t-olive':'#729865','--t-amber':'#d9b677','--t-burgundy':'#ba8da8','--t-red':'#c58578'}[name] || palette.getPropertyValue(name).trim());
-  const money = (value) => `N$${Number(value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  let orderVolumeChart;
-  let paidSalesChart;
-  let packingChart;
-  let latest;
-  let packingMode = 'items';
-  let loading = false;
-
-  const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' }[character]));
-  async function readKpiJson(response) {
-    const raw = await response.text();
-    if (!raw.trim()) throw new Error(`The performance server returned an empty response (${response.status}).`);
-    if (!(response.headers.get('content-type') || '').toLowerCase().includes('application/json')) {
-      console.error('Performance response was not JSON:', raw.slice(0, 500));
-      throw new Error('The performance server returned an invalid response.');
-    }
-    let data;
-    try { data = JSON.parse(raw); } catch (error) {
-      console.error('Performance response could not be parsed:', raw.slice(0, 500), error);
-      throw new Error('The performance server returned incomplete data.');
-    }
-    if (!response.ok || data.ok !== true) throw new Error(data.message || `Performance request failed (${response.status}).`);
-    return data;
-  }
-  const display = (metric) => {
-    if (!metric || metric.value === null) return '<span class="kpi-unmeasured" title="Not enough measured records in this period">—</span>';
-    if (metric.format === 'currency') return `N$${Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-    if (metric.format === 'percent') return `${Number(metric.value).toFixed(1)}%`;
-    if (metric.format === 'minutes') return formatDuration(Number(metric.value));
-    return Number(metric.value).toLocaleString(undefined, { maximumFractionDigits: 1 });
-  };
-  const formatDuration = (rawMinutes) => {
-    const total = Math.max(0, Math.round(Number(rawMinutes) || 0));
-    const months = Math.floor(total / 43200), days = Math.floor((total % 43200) / 1440), hours = Math.floor((total % 1440) / 60), minutes = total % 60;
-    if (months) return `${months} mo${days ? ` ${days} d` : ''}`;
-    if (days) return `${days} d${hours ? ` ${hours} h` : ''}`;
-    if (hours) return `${hours} h${minutes ? ` ${minutes} min` : ''}`;
-    return `${minutes} min`;
-  };
-  const persist = () => {
-    localStorage.setItem('kpiBusinessHealthPeriod', JSON.stringify({ period: period.value, from: from.value, to: to.value, includeHistorical: includeHistorical.checked }));
-    const url = new URL(window.location.href);
-    url.searchParams.set('period', period.value);
-    if (period.value === 'custom') {
-      url.searchParams.set('date_from', from.value);
-      url.searchParams.set('date_to', to.value);
-    } else {
-      url.searchParams.delete('date_from');
-      url.searchParams.delete('date_to');
-    }
-    if (includeHistorical.checked) url.searchParams.set('include_historical', '1');
-    else url.searchParams.delete('include_historical');
-    history.replaceState(null, '', url);
-  };
-  const restore = () => {
-    try {
-      const query = new URLSearchParams(window.location.search);
-      const queryPeriod = query.get('period');
-      const saved = JSON.parse(localStorage.getItem('kpiBusinessHealthPeriod') || '{}');
-      const selected = queryPeriod || saved.period;
-      if ([...period.options].some((option) => option.value === selected)) period.value = selected;
-      from.value = query.get('date_from') || saved.from || '';
-      to.value = query.get('date_to') || saved.to || '';
-      includeHistorical.checked = query.get('include_historical') === '1' || saved.includeHistorical === true;
-    } catch (_) { /* Invalid local preference is safely ignored. */ }
-  };
-  const toggleCustom = () => custom.forEach((node) => { node.hidden = period.value !== 'custom'; });
-
-  function renderCards(cards) {
-    q('[data-kpi-cards]').innerHTML = Object.entries(cards).map(([key, metric]) => {
-      const improving = metric.delta !== null && (metric.lower_is_better ? metric.delta < 0 : metric.delta > 0);
-      const delta = metric.delta === null ? 'No comparison available' : `${metric.delta > 0 ? '▲' : metric.delta < 0 ? '▼' : '•'} ${Math.abs(metric.delta)} vs prior period`;
-      const badge = metric.low_data ? `<em class="kpi-low-data">Low data · n=${metric.sample}</em>` : `<em>n=${metric.sample}</em>`;
-      return `<article class="kpi-health-card"><span>${escapeHtml(labels[key] || key)}</span><strong>${display(metric)}</strong><small class="${metric.delta === null || metric.delta === 0 ? '' : improving ? 'kpi-delta-good' : 'kpi-delta-bad'}">${escapeHtml(delta)}</small>${badge}</article>`;
-    }).join('');
-  }
-
-  function renderScores(scores, disabledMessage = '') {
-    const routes = { orders: 'reports.php?tab=orders', packing: 'reports.php?tab=packing-performance', waybills: 'reports.php?tab=waybills', tasks: 'reports.php?tab=task-management', bookkeeping: 'reports.php?tab=bookkeeping', website: 'reports.php?tab=website-updates', attendance: 'reports.php?tab=attendance' };
-    q('[data-kpi-scores]').innerHTML = disabledMessage ? `<div class="kpi-empty-state">${escapeHtml(disabledMessage)}</div>` : scores.map((score) => {
-      const separator = routes[score.key].includes('?') ? '&' : '?';
-      const href = `${routes[score.key]}${separator}period=${encodeURIComponent(period.value)}&date_from=${encodeURIComponent(from.value)}&date_to=${encodeURIComponent(to.value)}`;
-      return `<a class="kpi-score-row" href="${href}"><div><strong>${escapeHtml(score.label)}</strong><small>${escapeHtml(score.reason)}</small></div><div class="kpi-score-value"><b>${score.score === null ? '<span title="Fewer than 5 measured records">—</span>' : `${score.score}%`}</b>${score.sample < 5 ? `<em>Low data · n=${score.sample}</em>` : ''}</div><span class="kpi-score-track"><i style="width:${score.score === null ? 0 : Math.max(0, Math.min(100, score.score))}%"></i></span></a>`;
-    }).join('');
-  }
-
-  function renderAttention(items) {
-    q('[data-kpi-attention]').innerHTML = items.length ? items.map((item) => `<a class="kpi-attention-row is-${escapeHtml(item.severity || 'normal')}" href="${escapeHtml(item.href)}"><span><strong>${escapeHtml(item.description)}</strong><small>${escapeHtml(item.severity || 'Normal')} · Due: ${escapeHtml(item.due_at || 'Not recorded')} · Overdue: ${escapeHtml(item.overdue || 'Not recorded')}</small></span><b>View Evidence</b></a>`).join('') : '<div class="kpi-empty-state">Nothing currently needs attention from 1 July 2026 onward.</div>';
-  }
-
-  function renderTeam(team) {
-    team = team.filter(window.HambelelaPerformancePeople?.eligible || (()=>true));
-    q('[data-kpi-team]').innerHTML = team.length ? team.map((person) => {
-      if(/driver/i.test(person.role_key||person.role||''))return `<article class="kpi-person-overview is-driver"><header><div class="kpi-person-overview__identity"><span class="kpi-person-avatar">${escapeHtml(String(person.name||'?').charAt(0))}</span><div><h3>${escapeHtml(person.name)}</h3><p>${escapeHtml(person.role)}</p></div></div></header><div class="kpi-person-overview__metrics"><div><small>Driver performance</small><strong>Delivery evidence</strong><p>Assigned deliveries, completed journeys, proof and outstanding issues. Front Desk measures do not apply.</p></div></div><footer><a href="${employeeHref(person.id)}">Open driver profile →</a></footer></article>`;
-      const score = person.summary_score !== null && person.summary_score !== undefined && person.summary_score !== '' && Number.isFinite(Number(person.summary_score)) ? Number(person.summary_score) : null;
-      const href = employeeHref(person.id);
-      return `<article class="kpi-person-overview is-${escapeHtml(person.card_type || 'employee')}"><header><div class="kpi-person-overview__identity"><span class="kpi-person-avatar">${escapeHtml(String(person.name || '?').trim().charAt(0).toUpperCase())}</span><div><h3>${escapeHtml(person.name)}</h3><p>${escapeHtml(person.role)} <i class="kpi-person-dot ${person.online ? 'online' : ''}"></i> ${person.online ? 'Online' : 'Offline'}</p></div></div><div class="kpi-person-overview__score"><small>${escapeHtml(person.summary_label || 'Role completion')}</small><strong>${score === null ? 'Not measured' : `${score.toFixed(1)}%`}</strong><span><i style="width:${score === null ? 0 : score}%"></i></span></div></header><div class="kpi-person-overview__metrics">${(person.metrics || []).map((metric) => metric.rows ? `<div class="kpi-person-overview__metric-group" title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><dl>${metric.rows.map((row) => `<div><dt>${escapeHtml(row.label)}</dt><dd>${escapeHtml(row.value)}</dd></div>`).join('')}</dl></div>` : `<div title="${escapeHtml(metric.tooltip || metric.evidence || '')}"><small>${escapeHtml(metric.label)}</small><strong>${metric.value === null ? '—' : escapeHtml(metric.value)}</strong></div>`).join('')}</div><footer><span>${person.hours_today === null ? 'No measured portal time today' : `${Number(person.hours_today).toFixed(1)} hours measured today`}</span><a href="${href}">Open full performance evidence <b>→</b></a></footer></article>`;
-    }).join('') : '<div class="kpi-empty-state">No eligible employee performance evidence is available for this period.</div>';
-  }
-  function employeeHref(id){const params=new URLSearchParams({id:Number(id),period:period.value});if(period.value==='custom'){params.set('date_from',from.value);params.set('date_to',to.value);}return 'kpi-employee.php?'+params;}
+'use strict';
+const root=document.querySelector('.kpi-health-page[data-kpi-tab="business-health"]');if(!root)return;
+const q=s=>root.querySelector(s),escapeHtml=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const numeric=v=>v!==null&&v!==undefined&&v!==''&&Number.isFinite(Number(v))?Number(v):null;
+const number=v=>numeric(v)===null?'Not measured':Number(v).toLocaleString('en-NA');
+const money=v=>numeric(v)===null?'Not measured':'N$ '+Number(v).toLocaleString('en-NA',{minimumFractionDigits:2,maximumFractionDigits:2});
+const formatDuration=v=>{if(numeric(v)===null)return 'Not measured';const n=Math.max(0,Math.round(Number(v)));return n>=60?Math.floor(n/60)+' h '+n%60+' min':n+' min';};
+const period=q('[data-kpi-period]'),from=q('[data-kpi-from]'),to=q('[data-kpi-to]'),includeHistorical=q('[data-kpi-include-historical]');
+let latest=null,run=0,controller=null,packingMode='items',teamLoadedAt=0,teamPeriod='',charts={};
+const labels={fulfilment:'Order completion · business hours',order_start_response:'New to In Progress · business hours',walk_in_completion:'Walk-in completion · business hours',settlement:'Payment settlement · elapsed time',final_closure:'Final closure · elapsed time',pack_speed:'Packing task work · business hours',attendance:'Today’s portal presence · not physical attendance'};
+const display=m=>!m||numeric(m.value)===null?'Not measured':m.format==='minutes'?formatDuration(m.value):m.format==='currency'?money(m.value):m.format==='percent'?Number(m.value).toFixed(1)+'%':number(m.value);
+const periodParams=()=>new URLSearchParams({period:'custom',date_from:latest.period.from,date_to:latest.period.to,...(includeHistorical.checked?{include_historical:'1'}:{})});
+const reportHref=tab=>'reports.php?tab='+encodeURIComponent(tab)+'&'+periodParams();
+const employeeHref=id=>'kpi-employee.php?id='+Number(id)+'&'+periodParams();
+const safeHref=(href,fallback)=>{try{const u=new URL(href,location.href);return u.origin===location.origin&&/^https?:$/.test(u.protocol)?u.href:fallback;}catch{return fallback;}};
+async function json(url,signal){const r=await fetch(url,{headers:{Accept:'application/json'},signal});if(!(r.headers.get('content-type')||'').includes('application/json'))throw Error('Your session may have expired. Sign in again to load performance evidence.');const d=await r.json();if(!r.ok||!d.ok)throw Error(d.message||'Performance evidence is temporarily unavailable.');return d.data||d;}
+function persist(){
+ try{localStorage.setItem('kpiBusinessHealthPeriod',JSON.stringify({period:period.value,from:from.value,to:to.value,includeHistorical:includeHistorical.checked}));}catch{}
+ const url=new URL(location.href);url.searchParams.set('period',period.value);
+ for(const key of ['date_from','date_to']){if(period.value==='custom')url.searchParams.set(key,key==='date_from'?from.value:to.value);else url.searchParams.delete(key);}
+ if(includeHistorical.checked)url.searchParams.set('include_historical','1');else url.searchParams.delete('include_historical');history.replaceState(null,'',url);
+}
+function restore(){try{const query=new URLSearchParams(location.search),saved=JSON.parse(localStorage.getItem('kpiBusinessHealthPeriod')||'{}'),value=query.get('period')||saved.period||'this_month';if([...period.options].some(o=>o.value===value))period.value=value;from.value=query.get('date_from')||saved.from||'';to.value=query.get('date_to')||saved.to||'';includeHistorical.checked=query.has('period')?query.get('include_historical')==='1':saved.includeHistorical===true;}catch{period.value='this_month';}}
+const toggleCustom=()=>root.querySelectorAll('[data-kpi-custom]').forEach(n=>n.hidden=period.value!=='custom');
+function renderScore(data){
+ const value=numeric(data.operational_score),coverage=data.operational_coverage||{},components=coverage.components||data.operational_score_components||[];
+ q('[data-pc-score]').textContent=value===null?'—':value.toFixed(1)+'%';q('[data-pc-score-ring]').style.setProperty('--pc-score',String(value??0));
+ q('[data-pc-score-ring]').classList.toggle('is-unmeasured',value===null);q('[data-pc-score-status]').textContent=value===null?'Not measured':'Verified operational result';
+ q('[data-bh-coverage]').textContent=components.filter(c=>numeric(c.score)!==null).length+' of '+components.length+' required categories measured. '+(value===null?'Missing: '+components.filter(c=>numeric(c.score)===null).map(c=>c.label).join(', ')+'.':'All required categories included.');
+ q('[data-bh-score-explanation]').textContent=coverage.explanation||data.operational_score_message||'Existing backend category calculation. No missing category is silently omitted.';
+ q('[data-bh-score-components]').innerHTML=components.map(c=>'<article class="bh-component"><header><h3>'+escapeHtml(c.label)+'</h3><strong>'+(numeric(c.score)===null?'Not measured':Number(c.score).toFixed(1)+'%')+'</strong></header><p>'+escapeHtml(c.reason)+'</p><p class="bh-description">'+escapeHtml(c.source||'Original operational evidence')+' · '+number(c.sample)+' observations'+(c.minimum_sample?' / minimum '+number(c.minimum_sample):'')+' · '+escapeHtml(c.scope||'Selected period')+'</p><p>'+escapeHtml(c.needed||'Review the source evidence.')+'</p><a href="'+escapeHtml(reportHref(c.report_tab||'work-quality'))+'">View '+escapeHtml(c.label)+' evidence</a></article>').join('');
+}
+function renderExecutive(data){
+ renderScore(data);const counts=data.orders_overview?.counts||{};
+ q('[data-pc-stages]').innerHTML=[['New',counts.new,'Awaiting work'],['In progress',counts.in_progress,'Packing / processing'],['Completed',counts.completed,'Finalised orders'],['Outstanding',counts.outstanding,'Not yet completed']].map(([label,value,note])=>'<a class="pc-flow-stage" href="'+escapeHtml(reportHref('orders'))+'"><small>'+label+'</small><strong>'+number(value)+'</strong><em>'+note+'</em></a>').join('');
+ const rate=numeric(data.orders_overview?.final_completion_percent);q('[data-pc-complete]').textContent=rate===null?'Not measured':rate.toFixed(1)+'%';q('[data-pc-complete-track]').style.setProperty('--pc-complete',(rate??0)+'%');
+ q('[data-pc-complete-note]').textContent=number(counts.completed)+' completed / '+number(counts.received)+' received · operational rate, not the health score.';
+ const attention=Array.isArray(data.attention)?data.attention:[];
+ q('[data-pc-action-list]').innerHTML=attention.length?attention.map(item=>'<a href="'+escapeHtml(safeHref(item.href,'reports.php?tab=work-quality'))+'"><span class="bh-status">'+escapeHtml(item.severity||'Open')+'</span><strong>'+escapeHtml(item.description)+'</strong><small>'+escapeHtml((item.type==='error'?'Reported: ':'Due: ')+(item.due_at||'Not recorded'))+'</small></a>').join(''):'<p>No open attention items returned by the source.</p>';
+ q('[data-bh-attention-caption]').textContent=attention.length+' open records shown · source returns up to 12 prioritised items.';
+ q('[data-bh-fulfilment]').textContent=formatDuration(data.cards?.fulfilment?.value);const work=data.task_workload;
+ q('[data-bh-task-work]').textContent=work?number(work.completed)+' / '+number(work.total):'Not measured';
+ q('[data-bh-task-note]').textContent=work?'Assigned tasks completed · '+number(work.overdue)+' overdue; '+number(work.open)+' open within deadline.':'Assigned workload evidence unavailable.';
+ q('[data-pc-error-count]').textContent=data.business_errors?number(data.business_errors.open)+' open':'Not measured';
+ q('[data-bh-quality-note]').textContent=data.business_errors?number(data.business_errors.total)+' business-attributed issues · '+number(data.business_errors.resolved)+' resolved. Not employee deductions.':'Business quality evidence unavailable.';
+ q('[data-kpi-cards]').innerHTML=Object.entries(data.cards||{}).filter(([key])=>!['orders','revenue'].includes(key)).map(([key,m])=>'<article class="bh-metric"><span>'+escapeHtml(labels[key]||key)+'</span><strong>'+display(m)+'</strong><small>'+number(m.sample)+' observations'+(m.low_data?' · low data':'')+'</small></article>').join('');
+ const stamp=new Date(data.last_refreshed_at);q('[data-pc-refresh-time]').textContent=Number.isNaN(stamp.getTime())?'Refresh time unavailable':'Updated '+stamp.toLocaleString('en-GB',{day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit',timeZone:'Africa/Windhoek'})+' · Namibia';
+ root.querySelectorAll('[data-bh-period-link]').forEach(a=>{const u=new URL(a.href,location.href);for(const [k,v]of periodParams())u.searchParams.set(k,v);if(!includeHistorical.checked)u.searchParams.delete('include_historical');a.href=u.href;});
+}
+async function renderTeam(data,token,signal){
+ const people=(data.team||[]).filter(window.HambelelaPerformancePeople.eligible),key=periodParams().toString();
+ if(key===teamPeriod&&Date.now()-teamLoadedAt<60000)return;teamPeriod=key;teamLoadedAt=0;
+ q('[data-pc-team-count]').textContent=people.length+' active employee records';
+ q('[data-pc-team]').innerHTML=people.map(p=>'<article class="bh-employee-card" data-person-id="'+Number(p.id)+'"><span class="bh-avatar">'+escapeHtml(String(p.name).trim().split(/\s+/).slice(0,2).map(n=>n[0]).join(''))+'</span><h3>'+escapeHtml(p.name)+'</h3><p class="bh-description">'+escapeHtml(p.role)+'</p><div class="bh-person-result" aria-live="polite">Loading profile evidence…</div><a href="'+escapeHtml(employeeHref(p.id))+'">View Profile</a></article>').join('');
+ // Sequential profile reads avoid five simultaneous heavy calculations.
+ for(const person of people){if(token!==run)return;const host=q('[data-person-id="'+Number(person.id)+'"] .bh-person-result');
+  try{
+   if(/driver/i.test(person.role_key||'')){const d=await json('performance-command-data.php?section=drivers&employee_id='+Number(person.id)+'&'+key,signal);if(token!==run)return;const get=label=>(d.cards||[]).find(c=>c.label===label)?.value;host.innerHTML='<strong>Delivery evidence</strong><span class="bh-status">No approved overall scorecard</span><p>'+number(get('Delivered'))+' delivered · '+number(get('Still outstanding'))+' outstanding</p>';continue;}
+   const report=await json('kpi-employee-data.php?id='+Number(person.id)+'&section=all&'+key,signal);if(token!==run)return;
+   const s=report.sections?.score_breakdown||{},score=numeric(s.score),tasks=report.sections?.tasks?.status_breakdown,count=label=>Array.isArray(tasks)?tasks.find(row=>row.label===label)?.count:null;
+   const assigned=numeric(count('Assigned')),done=numeric(count('Completed')),pending=assigned===null||done===null?null:Math.max(0,assigned-done);
+   host.innerHTML='<strong>'+(score===null?'Not measured':score.toFixed(1)+'%')+'</strong><span class="bh-status">'+(score===null?'Evidence incomplete':s.provisional?'Provisional':'Calculated')+'</span><p>'+number(s.measured_weight)+'% of role weight measured</p><p>'+number(pending)+' open assigned tasks · '+number(count('Overdue Open'))+' overdue</p><small>'+escapeHtml(s.evidence_confidence||'See profile for confidence')+'</small>';
+  }catch(e){if(token!==run)return;host.innerHTML='<strong>Not measured</strong><p>'+escapeHtml(e.message)+'</p>';}
+ }
+ if(token===run)teamLoadedAt=Date.now();
+}
+async function renderDeliveries(token,signal){
+ q('[data-bh-deliveries]').textContent='Loading…';
+ try{const d=await json('performance-command-data.php?section=drivers&'+periodParams(),signal);if(token!==run)return;const get=label=>(d.cards||[]).find(c=>c.label===label)?.value;q('[data-bh-deliveries]').textContent=number(get('Delivered'))+' delivered';q('[data-bh-delivery-note]').textContent=number(get('Still outstanding'))+' outstanding · '+number(get('Past scheduled date'))+' past scheduled date. Selected-period delivery cohort.';}
+ catch(e){if(token===run){q('[data-bh-deliveries]').textContent='Not measured';q('[data-bh-delivery-note]').textContent=e.message;}}
+}
   function renderBusinessErrors(summary={}) {
     const target=q('[data-kpi-business-errors]'); if(!target)return;
     const rows=summary.types||[];
-    target.innerHTML=`<div class="kpi-business-errors-summary"><article><span>Total business errors</span><b>${Number(summary.total||0)}</b></article><article><span>Resolved</span><b>${Number(summary.resolved||0)}</b></article><article><span>Still open</span><b>${Number(summary.open||0)}</b></article><article><span>Recorded financial impact</span><b>${money(summary.financial_impact||0)}</b></article></div><div class="kpi-business-error-types">${rows.map(row=>`<article><div><strong>${escapeHtml(row.error_type||'Uncategorised')}</strong><small>${Number(row.resolved||0)} resolved · ${Number(row.open||0)} open</small></div><b>${Number(row.count||0)}</b><span>${money(row.financial_impact||0)}</span></article>`).join('')||'<div class="kpi-empty-state">No business-attributed errors are recorded for this period.</div>'}</div><p class="kpi-business-errors-note">These incidents belong to Business Health. They are excluded from Cecilia, Claudia, Ndinehao and every other employee score.</p>`;
+    target.innerHTML=`<div class="kpi-business-errors-summary"><article><span>Total business errors</span><b>${Number(summary.total||0)}</b></article><article><span>Resolved</span><b>${Number(summary.resolved||0)}</b></article><article><span>Still open</span><b>${Number(summary.open||0)}</b></article><article><span>Recorded financial impact</span><b>${money(summary.financial_impact||0)}</b></article></div><div class="kpi-business-error-types">${rows.map(row=>`<article><div><strong>${escapeHtml(row.error_type||'Uncategorised')}</strong><small>${Number(row.resolved||0)} resolved · ${Number(row.open||0)} open</small></div><b>${Number(row.count||0)}</b><span>${money(row.financial_impact||0)}</span></article>`).join('')||'<div class="kpi-empty-state">No business-attributed errors are recorded for this period.</div>'}</div><p class="kpi-business-errors-note">Business/process incidents remain separate from employee-attributed quality evidence.</p>`;
   }
 
   function renderLiveActivity(items) {
@@ -129,117 +87,73 @@
 
   function renderOrdersOverview(overview, operationalScore, operationalScoreMessage, operationalComponents = []) {
     const counts = overview?.counts || {};
-    const metrics = [['Overall Operational Score', operationalScore == null ? (operationalScoreMessage || 'Not calculated — insufficient operational data since 1 July 2026') : `${operationalScore}%`], ['Orders Received', counts.received], ['Orders Still New', counts.new], ['Orders Packed / In Progress', counts.in_progress], ['Orders Completed', counts.completed], ['Orders Outstanding', counts.outstanding], ['Orders Reopened', counts.reopened], ['Collection Orders', counts.collection], ['Delivery Orders', counts.delivery], ['Courier Orders', counts.courier], ['Walk-in Orders', counts.walk_in], ['Courier Ready by 14:00', counts.courier_ready_by_1400], ['Packing Completion', overview?.packing_completion_percent == null ? 'Not calculated' : `${overview.packing_completion_percent}%`], ['Final Completion', overview?.final_completion_percent == null ? 'Not calculated' : `${overview.final_completion_percent}%`], ['Completed Order Value', `N$${Number(counts.completed_value || 0).toLocaleString()}`], ['Outstanding Order Value', `N$${Number(counts.outstanding_value || 0).toLocaleString()}`]];
+    const metrics = [['Orders Reopened', counts.reopened], ['Collection Orders', counts.collection], ['Delivery Orders', counts.delivery], ['Courier Orders', counts.courier], ['Walk-ins (overlap with modes)', counts.walk_in], ['Courier Ready by 14:00', counts.courier_ready_by_1400], ['Completed Order Value', money(counts.completed_value)], ['Outstanding Order Value', money(counts.outstanding_value)]];
     const timing = overview?.timing || {};
     const timingLabel = (key) => ({ average: 'Average', median: 'Median', fastest: 'Fastest', slowest: 'Slowest', oldest_new: 'Oldest waiting in New', oldest_outstanding: 'Oldest not completed', in_progress_to_complete: 'In Progress to Complete' }[key] || key.replaceAll('_', ' '));
     const timingTone = (key) => ({ average: 'burgundy', median: 'orange', fastest: 'green', slowest: 'red', oldest_new: 'amber', oldest_outstanding: 'amber', in_progress_to_complete: 'brown' }[key] || 'brown');
     const timingMetric = (key, value, slowestReference = '') => `<span class="kpi-flow-metric is-${timingTone(key)}" title="${key === 'oldest_new' ? 'Business-hours age of the oldest order that is still in New and has not started packing.' : key === 'oldest_outstanding' ? 'Business-hours age of the oldest order currently inside the Front Desk responsibility stage.' : key === 'slowest' && slowestReference ? `Slowest qualifying business-hours order: ${escapeHtml(slowestReference)}` : 'Measured in open business hours from authoritative order status timestamps.'}"><small>${escapeHtml(timingLabel(key))}</small><b>${escapeHtml(value || 'Not calculated')}</b>${key === 'slowest' && slowestReference ? `<em>${escapeHtml(slowestReference)}</em>` : ''}<i></i></span>`;
     const flowSection = (title, start, end, values, slowestReference = '', extra = '', note = '') => `<section class="kpi-flow-card"><header><h3>${escapeHtml(title)}</h3>${note ? `<small>${escapeHtml(note)}</small>` : ''}<div class="kpi-flow-track"><span>${escapeHtml(start)}</span><i></i><span>${escapeHtml(end)}</span></div></header><div class="kpi-flow-metrics">${Object.entries(values || {}).map(([key, value]) => timingMetric(key, value, slowestReference)).join('')}${extra}</div></section>`;
-    const evidenceHref = `reports.php?tab=orders&period=${encodeURIComponent(period.value)}&date_from=${encodeURIComponent(from.value)}&date_to=${encodeURIComponent(to.value)}`;
+    const evidenceHref = reportHref('orders');
     const componentSummary = operationalComponents.filter((component) => component.score !== null).map((component) => `${component.label}: ${component.score}%`).join(' · ');
     q('[data-kpi-orders-overview]').innerHTML = `<div class="kpi-orders-overview-grid">${metrics.map(([label, value]) => `<article${label === 'Overall Operational Score' ? ` title="${escapeHtml(componentSummary || operationalScoreMessage || 'No measured categories')}"` : ''}><small>${escapeHtml(label)}</small><strong>${escapeHtml(value ?? '—')}</strong><a href="${evidenceHref}" title="Evidence: ${Number(overview?.evidence_count || 0)} normalized order events">View Evidence</a></article>`).join('')}</div><div class="kpi-order-timing">${flowSection('Packer Flow','New','In Progress',timing.packer,timing.packer_slowest_order,'','Business hours only: Mon–Fri 08:00–17:00, Sat 09:00–13:00; Sundays and holidays excluded.')}${flowSection('Front Desk Flow','Ready / In Progress','Complete',timing.front_desk,timing.front_desk_slowest_order,timingMetric('in_progress_to_complete',timing.in_progress_to_complete),'Business hours only. Walk-ins are measured from New to Complete.')}</div>`;
   }
 
-  function renderRecognition(recognition) {
-    const periodLabel = `${recognition?.period?.from || ''} to ${recognition?.period?.to || ''}`;
-    const award = (item, risk = false) => {
-      if (item.status === 'not_determined') return `<article class="kpi-recognition-card is-undetermined"><small>${escapeHtml(item.title)}</small><strong>Not determined</strong><p>${escapeHtml(item.message || 'Insufficient comparable evidence.')}</p><em>${escapeHtml(item.confidence || 'Insufficient evidence')}</em></article>`;
-      const winners = item.winners || [];
-      return `<article class="kpi-recognition-card ${risk ? 'is-risk' : 'is-strength'}"><small>${escapeHtml(item.title)}${item.tie ? ' · Tie' : ''}</small>${winners.map((winner) => `<div><strong>${escapeHtml(winner.employee)}</strong><span>${escapeHtml(winner.role)}</span><b>${escapeHtml(winner.metric)}: ${escapeHtml(winner.display)}</b><p>Numerator: ${escapeHtml(winner.numerator)} · Denominator: ${escapeHtml(winner.denominator)} · ${escapeHtml(periodLabel)}</p><em>Confidence: ${escapeHtml(item.confidence || 'Calculated')}</em><a href="${employeeHref(winner.employee_id)}">View Evidence</a></div>`).join('')}</article>`;
-    };
-    q('[data-kpi-recognition]').innerHTML = `<section><header><p class="eyebrow">Overall Recognition</p><h2>Evidence-qualified results</h2></header><div>${(recognition?.overall || []).map((item) => award(item)).join('')}</div></section><section><header><p class="eyebrow">Role-Specific Strengths</p><h2>Individual operational strengths</h2></header><div>${(recognition?.strengths || []).map((item) => award(item)).join('')}</div></section><section class="is-priorities"><header><p class="eyebrow">Current Improvement Priorities</p><h2>Operational risk indicators</h2></header><div>${(recognition?.risks || []).map((item) => award(item, true)).join('')}</div></section>`;
-  }
 
-  function renderManagementStory(data) {
-    const cards = data.cards || {};
-    const measured = Object.values(cards).filter((metric) => metric && metric.value !== null);
-    const improving = measured.filter((metric) => metric.delta !== null && (metric.lower_is_better ? metric.delta < 0 : metric.delta > 0)).length;
-    const attention = data.attention || [];
-    const team = (data.team || []).filter(window.HambelelaPerformancePeople.eligible);
-    const online = team.filter((person) => Number(person.online)).length;
-    q('[data-kpi-management-story]').innerHTML = `<article class="kpi-management-hero"><div><p class="eyebrow">Business overview</p><h2>Business performance at a glance</h2><p>${escapeHtml(improving ? `${improving} measured area${improving === 1 ? '' : 's'} improved against the prior period.` : 'No reliable period-over-period improvement is available yet.')} ${escapeHtml(attention.length ? `${attention.length} exception${attention.length === 1 ? '' : 's'} need management attention.` : 'No current exception needs management attention.')}</p></div><div class="kpi-management-hero__facts"><span><strong>${measured.length}</strong> measured areas</span><span><strong>${online}</strong> of ${team.length} online</span><span><strong>${attention.length}</strong> attention items</span></div></article>`;
+function chart(key,selector,type,labels,datasets,percent=false){
+ charts[key]?.destroy();if(!window.Chart)return;
+ charts[key]=new Chart(q(selector), {
+  type, data:{labels,datasets}, options:{
+   responsive:true, maintainAspectRatio:false, animation:false,
+   plugins:{legend:{display:datasets.length>1,labels:{font:{family:'Jost',size:12},color:'#62675E'}},tooltip:{bodyFont:{family:'Jost'},titleFont:{family:'Jost'}}},
+   scales:{
+    x:{grid:{display:false},ticks:{color:'#62675E',maxTicksLimit:7,font:{family:'Jost',size:12}}},
+    y:{beginAtZero:true,...(percent?{max:100}:{}),grid:{color:'#E4E6DC'},ticks:{color:'#62675E',font:{family:'Jost',size:12},...(percent?{callback:v=>v+'%'}:{})}}
+   }
   }
-
-  function renderOperationalFlow(data) {
-    const cards = data.cards || {};
-    const flow = [
-      ['Orders received', cards.orders],
-      ['Business-hours completion', cards.fulfilment],
-      ['New → In Progress', cards.order_start_response],
-      ['Walk-in New → Complete', cards.walk_in_completion],
-      ['Revenue', cards.revenue]
-    ];
-    q('[data-kpi-management-flow]').innerHTML = `<div class="kpi-panel-heading"><div><p class="eyebrow">Operational flow</p><h2>From order to completion</h2></div><small>Summary measures only · operational records remain in source modules</small></div><div class="kpi-management-flow__track">${flow.map(([label, metric], index) => `<article><span>${escapeHtml(label)}</span><strong>${display(metric)}</strong><small>${metric?.sample ? `n=${Number(metric.sample)}` : 'Evidence unavailable'}</small>${index < flow.length - 1 ? '<i aria-hidden="true">→</i>' : ''}</article>`).join('')}</div>`;
-  }
-
-  function renderManagementComparison(team) {
-    const rows = (team || []).filter(person=>(window.HambelelaPerformancePeople?.eligible(person)??true)&&!/driver/i.test(person.role_key||person.role||'')).map((person) => { const ratio = (person.metrics || []).find((metric) => metric.denominator); const percent = ratio?.denominator ? Math.min(100, 100 * Number(ratio.numerator) / Number(ratio.denominator)) : null; return { ...person, percent }; });
-    q('[data-kpi-management-comparison]').innerHTML = rows.length ? `<div class="kpi-management-compare-list">${rows.map((person) => `<a href="${employeeHref(person.id)}"><div><strong>${escapeHtml(person.name)}</strong><small>${person.card_type === 'packer' ? 'Packer Operational Index · completion against assigned packing workload' : 'Front Desk Order Completion Compliance · completed against applicable orders'}</small></div><span title="100% means every eligible assigned/applicable record was completed"><i style="width:${person.percent === null ? 0 : person.percent}%"></i></span><b>${person.percent === null ? 'Not calculated — denominator unavailable' : `${person.percent.toFixed(1)}% · 100% = all applicable work completed`}</b></a>`).join('')}</div>` : '<div class="kpi-empty-state">No role-relative employee evidence is available.</div>';
-  }
-
-  function renderCharts(data) {
-    if (!window.Chart) return;
-    if (orderVolumeChart) orderVolumeChart.destroy();
-    if (paidSalesChart) paidSalesChart.destroy();
-    const orderRows = data.trends.orders || [];
-    const totalOrders = orderRows.reduce((sum, row) => sum + Number(row.orders || 0), 0);
-    const paidSales = orderRows.reduce((sum, row) => sum + Number(row.revenue || 0), 0);
-    const paidOrders = orderRows.reduce((sum, row) => sum + Number(row.paid_orders || 0), 0);
-    const averagePaidOrder = paidOrders ? paidSales / paidOrders : 0;
-    q('[data-kpi-orders-sales-summary]').innerHTML = `<article><span>Total Orders</span><strong>${totalOrders.toLocaleString()}</strong><small>Created in this period</small></article><article><span>Total Paid Sales</span><strong>${money(paidSales)}</strong><small>${paidOrders.toLocaleString()} paid orders</small></article><article><span>Average Paid Order Value</span><strong>${money(averagePaidOrder)}</strong><small>Paid sales ÷ paid orders</small></article>`;
-    const labels = orderRows.map((row) => row.day);
-    orderVolumeChart = new Chart(q('[data-kpi-order-volume-chart]'), { type: 'bar', data: { labels, datasets: [{ label: 'Orders', data: orderRows.map((row) => row.orders), backgroundColor: colour('--t-orange-red'), borderRadius: 4 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { precision: 0 } } } } });
-    paidSalesChart = new Chart(q('[data-kpi-paid-sales-chart]'), { type: 'line', data: { labels, datasets: [{ label: 'Paid Sales', data: orderRows.map((row) => row.revenue), borderColor: colour('--t-olive'), backgroundColor: 'rgba(141, 169, 43, .12)', fill: true, tension: .25, pointRadius: 3 }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { callback: (value) => `N$ ${Number(value).toLocaleString()}` } } } } });
-    renderPackingChart(data);
-  }
-
-  function renderPackingChart(data) {
-    if (!window.Chart) return;
-    if (packingChart) packingChart.destroy();
-    const rows = data.trends.packing;
-    const days = [...new Set(rows.map((row) => row.day))];
-    const people = [...new Map(rows.map((row) => [String(row.assigned_employee_id), { id: String(row.assigned_employee_id), name: row.employee_name || `Employee ${row.assigned_employee_id}` }])).values()];
-    const colours = ['--t-orange-red', '--t-olive', '--t-amber', '--t-burgundy', '--t-red', '--t-text-mid'];
-    const modes = { items: ['items', 'Completed packing items by employee and completion date.'], weight: ['weight_kg', 'Measured packed weight in kilograms. Volume is not converted into weight.'], volume: ['volume_l', 'Measured packed volume in litres. Weight is shown separately.'], packages: ['packages', 'Total finished packages recorded in completed packing plans.'], units: ['units', 'Individual count-based units recorded in completed packing plans.'] };
-    const [field, context] = modes[packingMode] || modes.items;
-    q('[data-kpi-packing-context]').textContent = context;
-    q('[data-kpi-physical-output-summary]').innerHTML = people.map((person) => { const personRows = rows.filter((row) => String(row.assigned_employee_id) === person.id); const sum = (key) => personRows.reduce((total, row) => total + Number(row[key] || 0), 0); return `<article><strong>${escapeHtml(person.name)}</strong><div><span>${sum('items').toLocaleString()}<small>Items</small></span><span>${sum('weight_kg').toLocaleString(undefined, { maximumFractionDigits: 2 })}<small>kg</small></span><span>${sum('volume_l').toLocaleString(undefined, { maximumFractionDigits: 2 })}<small>litres</small></span><span>${sum('packages').toLocaleString(undefined, { maximumFractionDigits: 0 })}<small>Packages</small></span><span>${sum('units').toLocaleString(undefined, { maximumFractionDigits: 0 })}<small>Units</small></span></div></article>`; }).join('') || '<div class="kpi-empty-state">No completed physical packing data is available for this period.</div>';
-    packingChart = new Chart(q('[data-kpi-packing-chart]'), { type: 'bar', data: { labels: days, datasets: people.map((person, index) => ({ label: person.name, data: days.map((day) => { const row = rows.find((entry) => entry.day === day && String(entry.assigned_employee_id) === person.id); return row ? Number(row[field] || 0) : 0; }), backgroundColor: colour(colours[index % colours.length]), borderRadius: 4 })) }, options: { responsive: true, maintainAspectRatio: false, scales: { x: { stacked: true }, y: { stacked: true, beginAtZero: true } } } });
-  }
-
-  async function load(refresh = false) {
-    if (loading) return;
-    loading = true;
-    q('[data-kpi-error]').hidden = true;
-    const params = new URLSearchParams({ period: period.value });
-    if (period.value === 'custom') { params.set('date_from', from.value); params.set('date_to', to.value); }
-    if (includeHistorical.checked) params.set('include_historical', '1');
-    if (refresh) params.set('refresh', String(Date.now()));
-    try {
-      const response = await fetch(`reports-data.php?${params}`, { headers: { Accept: 'application/json' } });
-      const data = await readKpiJson(response);
-      latest = data;
-      window.HambelelaLatestBusinessHealthData = data;
-      document.dispatchEvent(new CustomEvent('pc:business-data', { detail: data }));
-      q('[data-kpi-caption]').textContent = `${data.period.from} to ${data.period.to}`;
-      q('[data-kpi-adoption]').textContent = `Averages calculated from ${new Date(`${data.period.adoption_date}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })} (system adoption date).`;
-      q('[data-kpi-adoption]').hidden = !data.period.show_adoption_banner;
-      renderCards(data.cards); renderManagementStory(data); renderRecognition(data.recognition); renderOperationalFlow(data); renderOrdersOverview(data.orders_overview, data.operational_score, data.operational_score_message, data.operational_score_components || []); renderScores(data.scores, data.scores_disabled ? data.scores_message : ''); renderAttention(data.attention); renderBusinessErrors(data.business_errors||{}); renderTeam(data.team); renderLiveActivity(data.live_activity || []); renderManagementComparison(data.team); renderCharts(data);
-    } catch (error) {
-      root.querySelectorAll('.is-loading').forEach((node) => node.classList.remove('is-loading'));
-      q('[data-kpi-error]').textContent = error.message;
-      q('[data-kpi-error]').hidden = false;
-    } finally {
-      loading = false;
-    }
-  }
-
-  restore(); toggleCustom();
-  period.addEventListener('change', () => { toggleCustom(); persist(); if (period.value !== 'custom') load(); });
-  [from, to].forEach((input) => input.addEventListener('change', () => { persist(); if (from.value && to.value) load(); }));
-  includeHistorical.addEventListener('change', () => { persist(); load(true); });
-  root.querySelectorAll('[data-kpi-chart-mode]').forEach((button) => button.addEventListener('click', () => { packingMode = button.dataset.kpiChartMode; root.querySelectorAll('[data-kpi-chart-mode]').forEach((item) => item.classList.toggle('active', item === button)); if (latest) renderPackingChart(latest); }));
-  load();
-  window.setInterval(() => { if (!document.hidden) load(true); }, 20000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) load(true); });
+ });
+}
+function renderCharts(data){
+ const rows=data.trends?.orders||[],days=rows.map(r=>r.day);
+ chart('orders','[data-kpi-order-volume-chart]','bar',days,[{label:'Orders received',data:rows.map(r=>r.orders),backgroundColor:'#83B9DB',borderRadius:5}]);
+ chart('sales','[data-kpi-paid-sales-chart]','line',days,[{label:'Paid order value (N$)',data:rows.map(r=>r.revenue),borderColor:'#418564',backgroundColor:'#83C5A63A',fill:true,tension:.2,pointRadius:2}]);
+ const sales=rows.reduce((sum,r)=>sum+Number(r.revenue||0),0),paid=rows.reduce((sum,r)=>sum+Number(r.paid_orders||0),0);
+ q('[data-bh-sales-summary]').textContent=money(sales)+' confirmed paid · average '+(paid?money(sales/paid):'Not measured')+' per paid order';
+ chart('completion','[data-bh-completion-chart]','line',days,[{label:'Current completion (%)',data:rows.map(r=>numeric(r.completed)!==null&&Number(r.orders)>0?100*Number(r.completed)/Number(r.orders):null),borderColor:'#94784D',backgroundColor:'#F5DA8F45',fill:true,tension:.2,spanGaps:false,pointRadius:2}],true);
+ q('[data-bh-completion-note]').textContent=rows.some(r=>numeric(r.completed)!==null)?'Numerator: currently completed. Denominator: orders received on that date.':'Not measured — dated completion totals unavailable.';
+ renderPackingChart(data);
+ q('[data-bh-chart-data]').innerHTML='<table class="bh-table"><caption>Order and sales trend evidence</caption><thead><tr><th>Date</th><th>Orders received</th><th>Currently completed</th><th>Paid order value</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+escapeHtml(r.day)+'</td><td>'+number(r.orders)+'</td><td>'+number(r.completed)+'</td><td>'+money(r.revenue)+'</td></tr>').join('')+'</tbody></table>';
+}
+function renderPackingChart(data){
+ const rows=data.trends?.packing||[],days=[...new Set(rows.map(r=>r.day))],people=[...new Map(rows.map(r=>[String(r.assigned_employee_id),{id:String(r.assigned_employee_id),name:r.employee_name||'Employee '+r.assigned_employee_id}])).values()];
+ const modes={items:['items','Completed packing items'],weight:['weight_kg','Measured packed kilograms'],volume:['volume_l','Measured packed litres'],packages:['packages','Recorded finished packages'],units:['units','Recorded count-based units']},[field,label]=modes[packingMode];
+ q('[data-kpi-packing-context]').textContent=label+' by completion date. Different units are never combined.';
+ chart('packing','[data-kpi-packing-chart]','bar',days,people.map((p,i)=>({label:p.name,data:days.map(day=>rows.filter(r=>r.day===day&&String(r.assigned_employee_id)===p.id).reduce((n,r)=>n+Number(r[field]||0),0)),backgroundColor:['#A48AC8','#729865','#DBAE79'][i%3],borderRadius:4})));
+ q('[data-kpi-physical-output-summary]').innerHTML=people.map(p=>{const selected=rows.filter(r=>String(r.assigned_employee_id)===p.id),sum=k=>selected.reduce((s,r)=>s+Number(r[k]||0),0);return '<article class="bh-metric"><h3>'+escapeHtml(p.name)+'</h3><p>'+number(sum('items'))+' items · '+number(sum('weight_kg'))+' kg · '+number(sum('volume_l'))+' L</p><p>'+number(sum('packages'))+' packages · '+number(sum('units'))+' count-based units</p></article>';}).join('')||'<p>No completed packing output recorded in this period.</p>';
+}
+function invalidate(){++run;controller?.abort();root.removeAttribute('aria-busy');q('[data-pc-team]').innerHTML='<p>Choose a complete reporting range to load matching employee results.</p>';q('[data-pc-score-status]').textContent='Choose both dates';q('[data-pc-refresh-time]').textContent='Previous range displayed until both dates are selected';}
+async function load(refresh=false){
+ if(period.value==='custom'&&(!from.value||!to.value||from.value>to.value)){invalidate();q('[data-kpi-error]').textContent='Choose a valid From and To date.';q('[data-kpi-error]').hidden=false;return;}
+ controller?.abort();controller=new AbortController();const token=++run,signal=controller.signal;
+ q('[data-kpi-error]').hidden=true;root.setAttribute('aria-busy','true');
+ const params=new URLSearchParams({period:period.value});if(period.value==='custom'){params.set('date_from',from.value);params.set('date_to',to.value);}if(includeHistorical.checked)params.set('include_historical','1');if(refresh)params.set('refresh',String(Date.now()));
+ try{
+  const data=await json('reports-data.php?'+params,signal);if(token!==run)return;latest=data;
+  window.HambelelaLatestBusinessHealthData = data;
+  q('[data-kpi-caption]').textContent=data.period.from+' to '+data.period.to;
+  q('[data-kpi-adoption]').textContent='Timing averages begin at the recorded system adoption date: '+data.period.adoption_date+'. Earlier records remain historical.';q('[data-kpi-adoption]').hidden=!data.period.show_adoption_banner;
+  renderExecutive(data);renderOrdersOverview(data.orders_overview,data.operational_score,data.operational_score_message,data.operational_score_components||[]);renderBusinessErrors(data.business_errors||{});renderLiveActivity(data.live_activity||[]);renderCharts(data);
+  await Promise.all([renderTeam(data,token,signal),renderDeliveries(token,signal)]);
+ }catch(e){if(token!==run||e.name==='AbortError')return;q('[data-kpi-error]').textContent=e.message+' Any previously displayed values are not refreshed.';q('[data-kpi-error]').hidden=false;q('[data-pc-refresh-time]').textContent='Refresh failed — previous values may be stale';}
+ finally{if(token===run)root.removeAttribute('aria-busy');}
+}
+q('[data-bh-breakdown]').addEventListener('click',()=>q('[data-bh-score-dialog]').showModal());
+root.querySelectorAll('[data-bh-open-detail]').forEach(a=>a.addEventListener('click',()=>{const target=q(a.getAttribute('href'));if(target)target.open=true;}));
+root.querySelectorAll('[data-kpi-chart-mode]').forEach(b=>b.addEventListener('click',()=>{packingMode=b.dataset.kpiChartMode;root.querySelectorAll('[data-kpi-chart-mode]').forEach(x=>{x.classList.toggle('active',x===b);x.setAttribute('aria-pressed',String(x===b));});if(latest)renderPackingChart(latest);}));
+period.addEventListener('change',()=>{toggleCustom();persist();if(period.value==='custom')invalidate();else load();});
+[from,to].forEach(input=>input.addEventListener('change',()=>{persist();load();}));
+includeHistorical.addEventListener('change',()=>{persist();teamLoadedAt=0;load(true);});
+q('[data-bh-refresh]').addEventListener('click',()=>{teamLoadedAt=0;load(true);});
+restore();toggleCustom();load();
+window.setInterval(()=>{if(!document.hidden&&!root.hasAttribute('aria-busy'))load(true);},60000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!root.hasAttribute('aria-busy'))load(true);});
 })();

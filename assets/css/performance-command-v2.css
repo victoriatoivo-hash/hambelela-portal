@@ -197,3 +197,144 @@ body .shell > .workspace.kpi-health-page{display:block!important;width:100%!impo
 .kpi-health-page progress::-webkit-progress-bar{background:#e5ede5;border-radius:8px}.kpi-health-page progress::-webkit-progress-value{background:linear-gradient(90deg,#4fa982,#a899d5);border-radius:8px}
 .pc-source-section .kpi-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:18px}.pc-source-section .kpi-panel-heading h2{font-size:21px;font-weight:500;margin:3px 0}.pc-source-section .kpi-panel-heading a{font-size:11px;color:#537344;text-decoration:none}.pc-source-section .data-table a{color:#537344;text-decoration:none}
 @media(max-width:760px){.kpi-health-page :is(.panel,.kpi-panel,.employee-kpi-section,.pc-source-section){padding:15px;border-radius:18px}.kpi-health-page :is(.section-row,.employee-kpi-section__header){align-items:flex-start;flex-direction:column}.kpi-health-page .kpi-significant-events article{grid-template-columns:1fr;gap:5px}.kpi-health-page .form-grid{grid-template-columns:1fr}.kpi-health-page .kpi-employee-header h1{font-size:26px!important}.pc-report-controls label{flex:1 1 135px}}
+/* Business Health consolidation. Scoped here; employee/profile and other module styles stay intact. */
+#kpi-management[data-kpi-tab="business-health"]{
+ --bh-olive:var(--olive-900,#344126);--bh-ink:var(--text-primary,#1C2118);--bh-muted:var(--text-secondary,#62675E);
+ --bh-border:var(--border,#E4E6DC);--bh-radius:20px;--bh-shadow:0 8px 24px rgba(28,33,24,.055);
+ --pc-ink:var(--bh-ink);--pc-muted:var(--bh-muted);--pc-border:var(--bh-border);
+ font:400 14px/1.5 'Jost',sans-serif;color:var(--bh-ink);
+}
+#kpi-management[data-kpi-tab="business-health"] .module-header h1{font-size:30px!important;font-weight:500!important;color:var(--bh-ink)!important;letter-spacing:-.035em!important}
+#kpi-management[data-kpi-tab="business-health"] .module-header p:not(.eyebrow){font-size:14px!important;color:var(--bh-muted)!important}
+#kpi-management[data-kpi-tab="business-health"] .kpi-health-tabs a{font-size:12px!important}
+#kpi-management .bh-section{margin:26px 0}
+#kpi-management .bh-section-heading{display:flex;justify-content:space-between;align-items:center;gap:16px;margin:0 0 16px}
+#kpi-management .bh-section-heading h2{font-size:21px;line-height:1.3;font-weight:600;color:var(--bh-olive);margin:0}
+#kpi-management .bh-section-heading p{margin:5px 0 0;color:var(--bh-muted);font-size:13px}
+#kpi-management .bh-section-heading>span{font-size:12px;color:var(--bh-muted)}
+#kpi-management .bh-controls{align-items:center;gap:12px}
+#kpi-management .bh-controls label{font-size:12px;display:flex;flex-direction:column;gap:5px}
+#kpi-management .bh-controls [hidden]{display:none}
+#kpi-management .bh-controls :is(input,select,button){font-size:13px;min-height:38px}
+#kpi-management .bh-controls .kpi-historical-toggle{flex-direction:row;align-items:center;gap:8px;max-width:240px}
+#kpi-management .bh-controls input[type=checkbox]{min-height:16px;width:16px;height:16px;padding:0;accent-color:var(--bh-olive)}
+#kpi-management .bh-period-meta{display:flex;flex-direction:column;gap:4px;margin-left:auto;color:var(--bh-muted);font-size:12px}
+#kpi-management .bh-period-meta small{font-size:12px}
+#kpi-management .bh-executive-grid{display:grid;grid-template-columns:minmax(0,.95fr) minmax(0,1.35fr) minmax(0,.9fr);gap:16px;align-items:stretch}
+#kpi-management .bh-card{padding:20px;border:1px solid var(--bh-border);border-radius:var(--bh-radius);box-shadow:var(--bh-shadow);min-width:0;background:#fff}
+#kpi-management .bh-card--mint{background:linear-gradient(145deg,#D9F8EE,#F6FFFA)}
+#kpi-management .bh-card--blue{background:linear-gradient(145deg,#E0F1FF,#FAFDFF)}
+#kpi-management .bh-card--lavender{background:linear-gradient(145deg,#EEE3FF,#FBF8FF)}
+#kpi-management .bh-card--yellow{background:linear-gradient(145deg,#FFF0C9,#FFFCF3)}
+#kpi-management .bh-card--pink{background:linear-gradient(145deg,#FFE6F3,#FCF4FF)}
+#kpi-management .bh-card--peach{background:linear-gradient(145deg,#FFEADC,#FFFCF8)}
+#kpi-management :is(.bh-card,.bh-employee-card,.bh-component) h3{margin:0 0 6px;font-size:16px;font-weight:600;line-height:1.3;color:var(--bh-ink)}
+#kpi-management .bh-description{margin:6px 0 12px;font-size:13px;color:var(--bh-muted);line-height:1.5}
+#kpi-management .bh-score-status{font-size:16px;font-weight:500;margin:12px 0 4px;text-align:center;color:var(--bh-olive)}
+#kpi-management .pc-score-ring{width:min(210px,100%);margin:20px auto;padding:14px}
+#kpi-management .pc-score-ring__inner strong{font-size:40px;letter-spacing:-.04em}
+#kpi-management .pc-score-ring__inner span{font-size:12px}
+#kpi-management .pc-flow-stages{gap:12px;margin-top:18px}
+#kpi-management .pc-flow-stage{padding:16px;min-height:110px;border-radius:15px}
+#kpi-management .pc-flow-stage small{font-size:12px;color:var(--bh-muted)}
+#kpi-management .pc-flow-stage strong{font-size:32px;color:var(--bh-ink)}
+#kpi-management .pc-flow-stage em{font-size:12px;color:var(--bh-muted);line-height:1.4}
+#kpi-management .pc-flow-progress b{font-size:14px}
+#kpi-management .bh-action-list{display:grid;gap:10px;margin-top:16px;max-height:340px;overflow:auto}
+#kpi-management .bh-action-list a{display:grid;gap:5px;padding:13px;border-radius:13px;background:#ffffffb8;color:var(--bh-ink);text-decoration:none}
+#kpi-management .bh-action-list strong{font-size:13px;font-weight:500;overflow-wrap:anywhere}
+#kpi-management .bh-action-list small{font-size:12px;color:var(--bh-muted)}
+#kpi-management .bh-status{width:fit-content;padding:4px 8px;border-radius:8px;background:#ffffffb0;font-size:11px;font-weight:500;line-height:1.35;color:var(--bh-olive)}
+#kpi-management .bh-inline-links{display:flex;flex-wrap:wrap;gap:12px}
+#kpi-management :is(.bh-inline-links,.bh-section-heading,.bh-card,.bh-details,.bh-score-dialog,.bh-employee-card) a{font-size:13px;color:var(--bh-olive);text-underline-offset:3px}
+#kpi-management .bh-team-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:14px}
+#kpi-management .bh-employee-card{display:flex;flex-direction:column;align-items:start;min-width:0;padding:18px;border:1px solid var(--bh-border);border-radius:18px;box-shadow:var(--bh-shadow);background:linear-gradient(145deg,#D9F8EE,#fff)}
+#kpi-management .bh-employee-card:nth-child(5n+2){background:linear-gradient(145deg,#E0F1FF,#fff)}
+#kpi-management .bh-employee-card:nth-child(5n+3){background:linear-gradient(145deg,#FFEADC,#fff)}
+#kpi-management .bh-employee-card:nth-child(5n+4){background:linear-gradient(145deg,#EEE3FF,#fff)}
+#kpi-management .bh-employee-card:nth-child(5n+5){background:linear-gradient(145deg,#FFE6F3,#fff)}
+#kpi-management .bh-avatar{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:#ffffffb8;color:var(--bh-olive);font-size:15px;font-weight:600;margin-bottom:12px}
+#kpi-management .bh-person-result{display:grid;gap:6px;flex:1;margin:8px 0 16px}
+#kpi-management .bh-person-result>strong{font-size:28px;line-height:1.15;overflow-wrap:anywhere;font-weight:600;color:var(--bh-olive)}
+#kpi-management .bh-person-result :is(p,small){margin:0;font-size:12px;color:var(--bh-muted);overflow-wrap:anywhere}
+#kpi-management .bh-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+#kpi-management .bh-summary-grid>a{text-decoration:none;display:flex;flex-direction:column;color:var(--bh-ink)}
+#kpi-management .bh-summary-grid>a>span{margin-top:auto;text-decoration:underline;font-size:12px}
+#kpi-management .bh-value{display:block;margin:12px 0 4px;font-size:28px;font-weight:600;line-height:1.2;letter-spacing:-.025em;overflow-wrap:anywhere;color:var(--bh-olive)}
+#kpi-management .bh-analytics-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+#kpi-management .bh-chart{position:relative;height:290px;min-width:0;margin-top:16px}
+#kpi-management .bh-chart canvas{width:100%;max-width:100%}
+#kpi-management .bh-chart-toggle{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
+#kpi-management .bh-chart-toggle button{min-height:36px;font-size:12px;padding:7px 12px;border:1px solid var(--bh-border);background:#ffffffad;border-radius:10px;color:var(--bh-olive)}
+#kpi-management .bh-chart-toggle button.active{color:white;background:var(--bh-olive)}
+#kpi-management .bh-details{margin:12px 0;border:1px solid var(--bh-border);border-radius:16px;min-width:0;background:#fff}
+#kpi-management .bh-details summary{padding:18px 20px;cursor:pointer;font-size:15px;font-weight:500;color:var(--bh-olive);border-radius:16px}
+#kpi-management .bh-details summary:hover{background:#F2F4EC}
+#kpi-management .bh-details summary:focus-visible{outline:2px solid var(--bh-olive);outline-offset:2px}
+#kpi-management .bh-detail-body{padding:4px 20px 20px;min-width:0}
+#kpi-management .bh-metric-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+#kpi-management .bh-metric{display:grid;gap:7px;padding:16px;border:1px solid var(--bh-border);border-radius:14px;background:#F8FAF5}
+#kpi-management .bh-metric span{font-size:13px;color:var(--bh-muted)}
+#kpi-management .bh-metric strong{font-size:22px;font-weight:500}
+#kpi-management .bh-metric small{font-size:12px;color:var(--bh-muted)}
+#kpi-management .bh-table{width:100%;border-collapse:collapse;font-size:13px}
+#kpi-management .bh-table :is(th,td){padding:12px;text-align:left;border-bottom:1px solid var(--bh-border)}
+#kpi-management .bh-table th{font-weight:500;background:#F2F4EC}
+#kpi-management .bh-table caption{text-align:left;padding:12px 0;color:var(--bh-muted)}
+#kpi-management .bh-score-dialog{width:min(850px,94vw);max-height:88vh;overflow:auto;padding:24px;border:1px solid var(--bh-border);border-radius:22px;color:var(--bh-ink);background:#F8F7F2;box-shadow:0 24px 70px #26311f40}
+#kpi-management .bh-score-dialog::backdrop{background:#26311f70;backdrop-filter:blur(3px)}
+#kpi-management .bh-component{padding:18px;margin-top:12px;border:1px solid var(--bh-border);border-radius:15px;background:white}
+#kpi-management .bh-component header{display:flex;justify-content:space-between;gap:12px}
+#kpi-management .bh-component p{font-size:13px;margin:8px 0}
+#kpi-management .bh-component strong{font-size:16px;color:var(--bh-olive)}
+/* Retained evidence components use the same palette and readable typography. */
+#kpi-management[data-kpi-tab="business-health"] :is(.kpi-orders-overview-grid,.kpi-business-errors-summary){display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+#kpi-management[data-kpi-tab="business-health"] :is(.kpi-orders-overview-grid,.kpi-business-errors-summary)>article{padding:16px;background:#F2F4EC;border:1px solid var(--bh-border);border-radius:14px;min-width:0}
+#kpi-management[data-kpi-tab="business-health"] :is(.kpi-orders-overview-grid,.kpi-business-errors-summary) :is(strong,b){display:block;font-size:24px;color:var(--bh-olive);overflow-wrap:anywhere}
+#kpi-management[data-kpi-tab="business-health"] :is(.kpi-orders-overview-grid,.kpi-business-errors-summary) :is(small,span){font-size:12px;color:var(--bh-muted)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-order-timing{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:18px}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-card{background:white;border-color:var(--bh-border)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-card>header{background:#E9F3EB!important;padding:16px;border-color:var(--bh-border)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-card h3{font-size:16px;color:var(--bh-olive)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-card>header>small{font-size:12px;color:var(--bh-muted)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-metric{border-color:var(--bh-border);border-radius:12px;padding:12px}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-metric small{font-size:12px!important;color:var(--bh-muted)!important;font-weight:400}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-metric b{font-size:17px;color:var(--bh-ink)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-metric em{font-size:12px;color:var(--bh-muted)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-metric i{background:#99A58A}
+#kpi-management[data-kpi-tab="business-health"] .kpi-flow-track span{font-size:11px}
+#kpi-management[data-kpi-tab="business-health"] .kpi-live-activity__grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+#kpi-management[data-kpi-tab="business-health"] .kpi-live-activity__grid>section{border:1px solid var(--bh-border);border-radius:14px}
+#kpi-management[data-kpi-tab="business-health"] .kpi-live-activity__grid>section>header{padding:12px;background:#E9F3EB;border-color:var(--bh-border)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-live-activity__grid :is(a strong,header span){font-size:13px;color:var(--bh-ink);white-space:normal}
+#kpi-management[data-kpi-tab="business-health"] .kpi-live-activity__grid :is(small,time,header b){font-size:12px;color:var(--bh-muted);white-space:normal}
+#kpi-management[data-kpi-tab="business-health"] .kpi-live-activity__grid a{padding:12px;border-color:var(--bh-border)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-live-activity__grid a>i{background:#7C8B68}
+#kpi-management[data-kpi-tab="business-health"] :is(.kpi-business-errors-note,.kpi-business-error-types small){font-size:13px;color:var(--bh-muted)}
+#kpi-management[data-kpi-tab="business-health"] .kpi-business-error-types article{border-color:var(--bh-border);font-size:13px}
+@media(max-width:1200px){
+ #kpi-management .bh-executive-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #kpi-management .bh-action-centre{grid-column:1/-1}
+ #kpi-management .bh-team-grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+ #kpi-management .bh-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:768px){
+ #kpi-management .bh-executive-grid,#kpi-management .bh-analytics-grid{grid-template-columns:1fr}
+ #kpi-management .bh-action-centre{grid-column:auto}
+ #kpi-management .bh-team-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #kpi-management .bh-card{padding:18px}
+ #kpi-management .bh-section-heading{align-items:flex-start;flex-direction:column;gap:8px}
+ #kpi-management .bh-period-meta{margin-left:0;width:100%}
+ #kpi-management .bh-metric-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ #kpi-management[data-kpi-tab="business-health"] :is(.kpi-order-timing,.kpi-live-activity__grid){grid-template-columns:1fr}
+ #kpi-management[data-kpi-tab="business-health"] :is(.kpi-orders-overview-grid,.kpi-business-errors-summary){grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:480px){
+ #kpi-management .bh-team-grid,#kpi-management .bh-summary-grid{grid-template-columns:1fr}
+ #kpi-management .bh-controls>label{min-width:0;flex:1 1 140px}
+ #kpi-management .bh-score-dialog{padding:16px}
+ #kpi-management .bh-component header{flex-direction:column;gap:4px}
+ #kpi-management .bh-detail-body{padding:4px 12px 16px}
+ #kpi-management .bh-details summary{padding:16px}
+ #kpi-management .bh-table{min-width:510px}
+}
