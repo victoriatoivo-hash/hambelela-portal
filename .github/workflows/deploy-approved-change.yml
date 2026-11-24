@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   monthly-pack-allocation:
-    if: github.ref == 'refs/heads/codex/monthly-pack-allocation' && github.sha == inputs.approved_sha
+    if: github.ref == 'refs/heads/codex/packing-whole-product' && github.sha == inputs.approved_sha
     runs-on: ubuntu-latest
     timeout-minutes: 12
     permissions:
@@ -33,7 +33,7 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.2'
-          extensions: pdo_mysql, pdo_sqlite
+          extensions: pdo_mysql, pdo_sqlite, mbstring
           coverage: none
       - name: Test allocation and invoice write safeguards on fixtures
         run: |
@@ -44,7 +44,7 @@ jobs:
           node tests/packing-wizard.mjs
           php tests/packing-wizard.php
           php tests/packing-wizard-batch.php
-      - name: Compare and publish the two Packing List tally files
+      - name: Back up, compare and publish whole-product allocation safeguards
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

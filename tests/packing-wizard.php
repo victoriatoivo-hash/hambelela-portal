@@ -5,13 +5,18 @@ $start=strpos($source,'function packing_unit_meta(');$end=strpos($source,'functi
 eval(substr($source,$start,$end-$start));
 require_once __DIR__.'/../apps/operations/packing-monthly-validation.php';
 $sourceLine=['item_name'=>'Oil','unit'=>'L','received_weight'=>'51','bulk_remainder'=>1,'quantity_planned'=>'250ml(200)'];
-$a=['invoice_source_line'=>1,'quantity_planned'=>'250ml(50)']+$sourceLine;
-$b=['invoice_source_line'=>1,'quantity_planned'=>'250ml(150)','bulk_remainder'=>0]+$sourceLine;
+$a=['invoice_source_line'=>1,'assigned_employee_id'=>101,'quantity_planned'=>'250ml(50)']+$sourceLine;
+$b=['invoice_source_line'=>1,'assigned_employee_id'=>101,'quantity_planned'=>'250ml(150)','bulk_remainder'=>0]+$sourceLine;
 packing_validate_monthly_split([$sourceLine],[$a,$b]);
-foreach([['quantity_planned'=>'500ml(75)'],['bulk_remainder'=>1],['invoice_source_line'=>2]] as $change){
+foreach([['quantity_planned'=>'500ml(75)'],['bulk_remainder'=>1],['invoice_source_line'=>2],['assigned_employee_id'=>102],['assigned_employee_id'=>0]] as $change){
     try{packing_validate_monthly_split([$sourceLine],[$a,$change+$b]);}catch(RuntimeException $e){continue;}
     throw new RuntimeException('Accepted changed invoice split');
 }
+$second=['item_name'=>' oil ','received_weight'=>'1','bulk_remainder'=>0,'quantity_planned'=>'1L(1)']+$sourceLine;
+$secondRow=['invoice_source_line'=>2,'assigned_employee_id'=>102]+$second;
+try{packing_validate_monthly_split([$sourceLine,$second],[$a,$b,$secondRow]);throw new Exception('Split repeated product accepted');}catch(RuntimeException $e){}
+$secondRow['assigned_employee_id']=101;
+packing_validate_monthly_split([$sourceLine,$second],[$a,$b,$secondRow]);
 echo "PASS server-side conservation by source line, pack size and bulk remainder\n";
 foreach(['(50) units in a pack - quantity 20','50(20)','50 units × 20 packs','20 packs of 50 units','50 units per pouch, 20 pouches'] as $text) {
  $r=packing_quantity_plan_stats($text);if($r['totals']['count']!==1000.0||$r['package_count']!==20.0)throw new RuntimeException($text);

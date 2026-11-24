@@ -1,10 +1,10 @@
 """Check every live baseline before writes; publish helpers first and browser entry last."""
-import os, ftplib, io, subprocess, secrets, ssl, socket
+import os, ftplib, io, subprocess, secrets, ssl, socket, zipfile, hashlib, urllib.request
 from pathlib import Path
 
-paths = ['apps/operations/packing-monthly-history.php','assets/js/packing-list.js']
+paths = ['apps/operations/packing-monthly-validation.php','assets/js/packing-list.js']
 def git(*args): return subprocess.check_output(['git', *args])
-expected = {p: git('show','b0c41bcb:'+p) for p in paths}
+expected = {p: git('show','0f627ff1:'+p) for p in paths}
 desired = {p: Path(p).read_bytes() for p in paths}
 def norm(data): return data.replace(b'\r\n',b'\n') if data is not None else None
 host=os.environ['FTP_SERVER']
@@ -35,16 +35,34 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             blob=before[p] or b''
             print('Live normalized Git blob:',hashlib.sha1(b'blob '+str(len(norm(blob))).encode()+b'\0'+norm(blob)).hexdigest())
             raise RuntimeError('Unrecognized baseline; nothing uploaded: '+p)
+    # Recovery material stays in the existing access-denied production directory,
+    # never in public GitHub artifacts or the public asset tree.
+    protection=read('.driver-release-staging/.htaccess') or b''
+    if b'Require all denied' not in protection and b'Deny from all' not in protection:
+        raise RuntimeError('Private recovery directory not protected; nothing uploaded')
+    backup=io.BytesIO()
+    with zipfile.ZipFile(backup,'w',zipfile.ZIP_DEFLATED) as archive:
+        for p,data in before.items():
+            if data is None: raise RuntimeError('Missing baseline: '+p)
+            archive.writestr(p,data)
+    with zipfile.ZipFile(io.BytesIO(backup.getvalue())) as archive:
+        if archive.testzip() is not None: raise RuntimeError('Recovery archive failed verification')
+    backup_path='.driver-release-staging/packing-whole-product-'+secrets.token_hex(12)+'.zip'
+    ftp.storbinary('STOR '+backup_path,io.BytesIO(backup.getvalue()))
+    if read(backup_path)!=backup.getvalue(): raise RuntimeError('Recovery readback failed; nothing uploaded')
+    print('Verified private recovery archive: '+backup_path)
     changed=[]
     try:
         for p in paths:
             if norm(before[p])==norm(desired[p]): continue
             put(p,desired[p],before[p]);changed.append(p)
             if read(p)!=desired[p]: raise RuntimeError('Failed readback: '+p)
+        with urllib.request.urlopen('https://portal.hambelelaorganic.com/assets/js/packing-list.js?whole-product='+secrets.token_hex(8),timeout=30) as response:
+            if norm(response.read())!=norm(desired['assets/js/packing-list.js']): raise RuntimeError('Live JavaScript verification failed')
     except BaseException:
         for p in reversed(changed):
             if read(p)!=desired[p]: raise RuntimeError('Conflict during rollback: '+p)
             if before[p] is None: ftp.delete(p)
             else: put(p,before[p],desired[p])
         raise
-    print('Both live tally files verified. No database changes.')
+    print('Whole-product client and server validation verified. No database changes or existing task changes.')

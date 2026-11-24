@@ -1565,6 +1565,28 @@
   const emptyPhysical=()=>({weight:0,volume:0,count:0});
   const showPhysical=q=>[ [q.weight/1000,'kg'],[q.volume/1000,'L'],[q.count,'units'] ].map(([v,u])=>v.toLocaleString(undefined,{maximumFractionDigits:6})+' '+u).join(' · ');
   const monthlyKey=()=>JSON.stringify([invoiceImportId,invoiceDraftRows.map(r=>[r.item_name,r.quantity_planned,r.received_weight,r.unit,r.bulk_remainder,r.priority,r.assignment_source,r.assigned_employee_id])]);
+  // Keep the complete product name (including grade) as its identity. Size is
+  // already recorded separately in the packing plan; never group by pack size.
+  const monthlyProductKey=row=>String(row.item_name||'').trim().replace(/\s+/gu,' ').toLowerCase();
+  function monthlyProductGroups(){
+    const groups=new Map();
+    invoiceDraftRows.forEach((row,i)=>{const key=monthlyProductKey(row);if(!key)throw Error('Enter a product name before allocating.');if(!groups.has(key))groups.set(key,[]);groups.get(key).push(i);});
+    return [...groups.values()];
+  }
+  function monthlyProductAllocationValid(m){
+    return monthlyProductGroups().every(indices=>{
+      const owners=new Set();
+      return indices.every(i=>m.lines[i]?.length && m.lines[i].every(l=>{
+        l.shares.forEach((n,k)=>{if(n>0)owners.add(k);});
+        return l.shares.every(n=>Number.isSafeInteger(n)&&n>=0)&&l.shares.reduce((a,b)=>a+b,0)===l.part.count;
+      })) && owners.size===1;
+    });
+  }
+  function assignMonthlyProduct(m,rowIndex,owner){
+    const key=monthlyProductKey(invoiceDraftRows[rowIndex]);
+    invoiceDraftRows.forEach((row,i)=>{if(monthlyProductKey(row)===key)m.lines[i].forEach(l=>{l.shares=m.people.map((p,k)=>k===owner?l.part.count:0);});});
+    m.edited=true;
+  }
   function makeMonthlyReview(history){
     const people=packers.map(p=>({id:String(p.id),name:p.full_name,auto:Number(p.packing_auto_assignable)===1,packed:emptyPhysical(),pending:emptyPhysical(),unknown:0}));
     for(const h of history.rows){
@@ -1575,17 +1597,28 @@
     }
     const loads=people.map(p=>Object.fromEntries(dimensions.map(d=>[d,p.packed[d]+p.pending[d]]))), eligible=people.map((p,i)=>p.auto?i:-1).filter(i=>i>=0);
     const lines=invoiceDraftRows.map(row=>quantityPlanParts(row.quantity_planned).map(part=>({part,shares:people.map(()=>0)})));
-    // Reserve explicit choices first, so suggestions for other lines account for them.
-    for(const manual of [true,false])invoiceDraftRows.forEach((row,i)=>{
-      if((row.assignment_source==='manual')!==manual)return;
-      const assigned=people.findIndex(p=>p.id===String(row.assigned_employee_id));
-      const pool=manual?[assigned]:eligible.length?eligible:[assigned];
-      if(pool.some(k=>k<0))throw Error('Choose an eligible packer before reviewing allocation.');
-      for(const line of lines[i]){
-        const unit=parsePackUnit(line.part.unit), d=unit.dimension, size=unit.factor*line.part.amount;
-        const shares=monthlyShares(pool.map(k=>loads[k][d]),line.part.count,size);
-        pool.forEach((k,j)=>{line.shares[k]=shares[j];loads[k][d]+=shares[j]*size;});
-      }
+    const groups=monthlyProductGroups().map(indices=>{
+      const quantity=emptyPhysical(), manual=new Set();
+      indices.forEach(i=>{
+        const row=invoiceDraftRows[i];
+        if(row.assignment_source==='manual')manual.add(String(row.assigned_employee_id||''));
+        lines[i].forEach(({part})=>{const u=parsePackUnit(part.unit);quantity[u.dimension]+=u.factor*part.amount*part.count;});
+      });
+      if(manual.size>1)throw Error('Choose one packer for all variations of '+invoiceDraftRows[indices[0]].item_name+'.');
+      return {indices,quantity,manual:[...manual]};
+    });
+    // Compare dimensions independently, never adding kilograms to litres or units.
+    // Largest whole products first reduces imbalance without splitting a product.
+    const scale=Object.fromEntries(dimensions.map(d=>[d,Math.max(1,(loads.reduce((n,l)=>n+l[d],0)+groups.reduce((n,g)=>n+g.quantity[d],0))/Math.max(1,eligible.length))]));
+    groups.sort((a,b)=>Number(!!b.manual.length)-Number(!!a.manual.length)||Math.max(...dimensions.map(d=>b.quantity[d]/scale[d]))-Math.max(...dimensions.map(d=>a.quantity[d]/scale[d]))||a.indices[0]-b.indices[0]);
+    groups.forEach(g=>{
+      const fallback=people.findIndex(p=>p.id===String(invoiceDraftRows[g.indices[0]].assigned_employee_id));
+      const pool=g.manual.length?[people.findIndex(p=>p.id===g.manual[0])]:eligible.length?eligible:[fallback];
+      if(!pool.length||pool.some(k=>k<0))throw Error('Choose an eligible packer before reviewing allocation.');
+      const score=k=>dimensions.reduce((n,d)=>n+((loads[k][d]+g.quantity[d])**2-loads[k][d]**2)/scale[d]**2,0);
+      const owner=pool.reduce((best,k)=>score(k)<score(best)?k:best,pool[0]);
+      g.indices.forEach(i=>lines[i].forEach(l=>{l.shares[owner]=l.part.count;}));
+      dimensions.forEach(d=>{loads[owner][d]+=g.quantity[d];});
     });
     return {month:history.month,people,lines,key:monthlyKey()};
   }
@@ -1605,12 +1638,15 @@
       const sum=line.shares.reduce((a,b)=>a+b,0);
       tr.cells[4].textContent=Number.isFinite(sum)?String(sum):'—';
       tr.cells[5].textContent=line.shares.every(n=>Number.isSafeInteger(n)&&n>=0)&&sum===line.part.count?'Balanced':'Allocate exactly '+line.part.count+' packs';
+      tr.querySelectorAll('[data-month-share]').forEach((input,k)=>{const value=Number.isFinite(line.shares[k])?String(line.shares[k]):'';if(input.value!==value)input.value=value;});
     });
-    distributionSummary.innerHTML='<p>Monthly packing balance · '+esc(m.month)+' · kilograms, litres and units are balanced separately.</p>'+m.people.map((p,k)=>'<div class="packing-distribution-card"><span>'+esc(p.name)+'</span><strong>From this invoice: '+showPhysical(added[k])+'</strong><small>Completed this month: '+showPhysical(p.packed)+'<br>Still to pack: '+showPhysical(p.pending)+'<br>Projected: '+showPhysical(Object.fromEntries(dimensions.map(d=>[d,p.packed[d]+p.pending[d]+added[k][d]])))+(p.unknown?'<br>'+p.unknown+' unclear quantities (totals partial)':'')+'</small></div>').join('');
+    valid=valid&&monthlyProductAllocationValid(m);
+    distributionSummary.innerHTML='<p>Monthly packing balance · '+esc(m.month)+' · kilograms, litres and units are balanced separately. Each product and all its sizes stay with one packer. Enter a positive quantity for another packer to move the whole product.</p>'+m.people.map((p,k)=>'<div class="packing-distribution-card"><span>'+esc(p.name)+'</span><strong>From this invoice: '+showPhysical(added[k])+'</strong><small>Completed this month: '+showPhysical(p.packed)+'<br>Still to pack: '+showPhysical(p.pending)+'<br>Projected: '+showPhysical(Object.fromEntries(dimensions.map(d=>[d,p.packed[d]+p.pending[d]+added[k][d]])))+(p.unknown?'<br>'+p.unknown+' unclear quantities (totals partial)':'')+'</small></div>').join('');
     const submit=invoiceModal?.querySelector('[data-confirm-quantities-create]');if(submit)submit.disabled=!valid;
   }
   function monthlySubmission(){
     const m=monthlyReview;if(!m||m.key!==monthlyKey())throw Error('The invoice changed. Review its monthly allocation again.');
+    if(!monthlyProductAllocationValid(m))throw Error('Allocate each product and all its size variations to one packer before confirming.');
     return invoiceDraftRows.flatMap((row,i)=>{
       const parts=m.lines[i];if(!parts.length||parts.some(l=>l.shares.some(n=>!Number.isSafeInteger(n)||n<0)||l.shares.reduce((a,b)=>a+b,0)!==l.part.count))throw Error('Allocate the exact number of packs for every size before confirming.');
       let remainder=Number(row.bulk_remainder||0);
@@ -1649,7 +1685,7 @@
     const finalButton = invoiceModal?.querySelector('[data-confirm-quantities-create]');
     if (finalButton) { finalButton.type = 'submit'; finalButton.textContent = 'Create Packing Items'; }
     distributionReview?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    setInvoiceStatus('Review the monthly split. You can change pack counts for each size before creating the packing items.');
+    setInvoiceStatus('Review whole-product allocations. Changing a packer moves every size of that product together.');
   }
   // Refresh the evidence while a review remains open. Never change an allocation
   // under someone's cursor; Reset to Auto explicitly requests a fresh suggestion.
@@ -4811,8 +4847,11 @@
     const share=event.target.closest('[data-month-share]');
     if(share&&monthlyReview){
       const [i,j,k]=share.dataset.monthShare.split(':').map(Number);
-      monthlyReview.lines[i][j].shares[k]=share.value===''?NaN:Number(share.value);
-      monthlyReview.edited=true;renderMonthlyReview(true);return;
+      const value=share.value===''?0:Number(share.value),line=monthlyReview.lines[i][j];
+      if(!Number.isSafeInteger(value)||value<0){renderMonthlyReview(true);setInvoiceStatus('Choose a packer using a whole, positive quantity. All sizes move together.');return;}
+      if(value>0)assignMonthlyProduct(monthlyReview,i,k);
+      else if(line.shares[k]>0)assignMonthlyProduct(monthlyReview,i,-1);
+      renderMonthlyReview(true);setInvoiceStatus(value>0?'All sizes of this product are allocated to '+monthlyReview.people[k].name+'.':'Assign the whole product to one packer before creating.');return;
     }
     const search = event.target.closest('[data-packing-search]');
     if (search) {
