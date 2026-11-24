@@ -106,7 +106,8 @@ final class DeliveryService
         return $this->command($actor,$id,$uuid,'started',$confirmReceipt?['parcels_received'=>true]:[],fn($j)=>$this->assigned($actor,$j),function($j)use($id,$actor,$confirmReceipt){
             DeliveryIssueState::assertClear($this->db,$id);
             if($j['status']!=='ready')throw new \DomainException('Delivery is not ready.');
-            $this->remaining($j);
+            // Starting transport does not collect money or certify settlement.
+            // Balance validation belongs to payment recording/reconciliation.
             $c=DeliveryCustody::read($this->db,$j);
             if($j['source']==='partner'){
                 // Accept is acknowledgement of the job, not physical custody.

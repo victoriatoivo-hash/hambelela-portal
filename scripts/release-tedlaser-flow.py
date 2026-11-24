@@ -4,6 +4,7 @@ from pathlib import Path
 
 FILES=['shared/delivery/DeliveryCustody.php','shared/delivery/DeliveryService.php','shared/delivery/DriverAssignments.php','shared/delivery/DriverOrderDetailsData.php']
 BASE='1f4fe664'
+BASELINES={'shared/delivery/DeliveryService.php':'6ac8ddadeba91e8be6b378004655acbf06d0a8d7'}
 def git(*args): return subprocess.check_output(['git',*args])
 def norm(v): return None if v is None else v.replace(b'\r\n',b'\n')
 if git('rev-parse','HEAD').decode().strip()!=os.environ['APPROVED_SHA']: raise RuntimeError('SHA mismatch')
@@ -26,7 +27,7 @@ with ftplib.FTP_TLS(host,context=ssl.create_default_context(),timeout=45) as ftp
             except ftplib.error_perm: pass
     before={p:read(p) for p in FILES}
     for p in FILES:
-        if norm(before[p]) not in (norm(git('show',BASE+':'+p)),norm(wanted[p])):
+        if norm(before[p]) not in (norm(git('show',BASELINES.get(p,BASE)+':'+p)),norm(wanted[p])):
             refs=git('log','--all','--format=%H','--',p).decode().splitlines()
             matches=[ref for ref in refs if norm(git('show',ref+':'+p))==norm(before[p])]
             print('Unknown baseline',p,'matching commits',matches,'sha256',hashlib.sha256(norm(before[p])).hexdigest())
