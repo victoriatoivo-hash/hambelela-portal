@@ -45,17 +45,17 @@ const renamedAttributes={};
 const aliasNode={nodeType:3,textContent:'Front Desk Orders in Scope '};
 const aliasHeading={firstChild:aliasNode,children:[{}],querySelector:()=>({setAttribute:(key,value)=>renamedAttributes.help=value}),closest:()=>({querySelector:selector=>({setAttribute:(key,value)=>renamedAttributes[selector]=value})})};
 const overviewLabel={firstChild:{nodeType:3,textContent:'Front Desk Orders in Scope'},children:[],querySelector:()=>null,closest:()=>null};
-const otherLabel={firstChild:{nodeType:3,textContent:'Completed Orders in Scope'},children:[]};
+const additionalLabels=['Completed Orders in Scope','Completed On Time','Completed Late','Orders Still Pending Completion','Completion Compliance'].map(text=>({firstChild:{nodeType:3,textContent:text},children:[],querySelector:()=>null,closest:()=>null}));
 const originalQuery=root.querySelectorAll;
-root.querySelectorAll=selector=>{assert.equal(selector,'#orders .ep-order-stat-copy > span, #overview .ep-stat-label');return [aliasHeading,overviewLabel,otherLabel];};
+root.querySelectorAll=selector=>{assert.equal(selector,'#orders .ep-order-stat-copy > span, #overview .ep-stat-label');return [aliasHeading,overviewLabel,...additionalLabels];};
 api.renameOrderSummaryLabel();api.renameOrderSummaryLabel();
 root.querySelectorAll=originalQuery;
-assert.equal(aliasNode.textContent,'Orders Included in This Summary ');
-assert.equal(overviewLabel.firstChild.textContent,'Orders Included in This Summary');
-assert.equal(otherLabel.firstChild.textContent,'Completed Orders in Scope');
-assert.equal(renamedAttributes.help,'About Orders Included in This Summary');
-assert.equal(renamedAttributes['.kpi-view-evidence'],'View evidence for Orders Included in This Summary');
-assert.equal(renamedAttributes['.ep-order-stat-details > summary'],'Details for Orders Included in This Summary');
+assert.equal(aliasNode.textContent,'Orders ');
+assert.equal(overviewLabel.firstChild.textContent,'Orders');
+assert.deepEqual(additionalLabels.map(heading=>heading.firstChild.textContent),['Orders Completed','Completed On Time','Completed Late','Pending Orders','Completion Compliance']);
+assert.equal(renamedAttributes.help,'About Orders');
+assert.equal(renamedAttributes['.kpi-view-evidence'],'View evidence for Orders');
+assert.equal(renamedAttributes['.ep-order-stat-details > summary'],'Details for Orders');
 // Presentation release must not change any source calculation or permission endpoint.
 for(const file of ['apps/operations/kpi-employee-data.php','apps/operations/performance-command-data.php','assets/js/performance-command-people.js']){
  const baseline=execFileSync('git',['show','b732f77f:'+file],{encoding:'utf8'});

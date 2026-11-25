@@ -8,10 +8,11 @@
   const label = value => String(value || '').replaceAll('_', ' ');
   function renameOrderSummaryLabel() {
     // Presentation alias only: keep the source metric key, values and ordering unchanged.
+    const names={'Front Desk Orders in Scope':'Orders','Completed Orders in Scope':'Orders Completed','Orders Still Pending Completion':'Pending Orders'};
     root.querySelectorAll('#orders .ep-order-stat-copy > span, #overview .ep-stat-label').forEach(heading=>{
       const text=heading.firstChild;
-      if(text?.nodeType!==3||text.textContent.trim()!=='Front Desk Orders in Scope')return;
-      const name='Orders Included in This Summary';
+      const name=text?.nodeType===3?names[text.textContent.trim()]:null;
+      if(!name)return;
       text.textContent=name+(heading.children.length?' ':'');
       heading.querySelector('.kpi-info-button')?.setAttribute('aria-label','About '+name);
       const card=heading.closest('.ep-order-stat');
