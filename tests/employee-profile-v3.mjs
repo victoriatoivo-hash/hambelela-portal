@@ -31,6 +31,9 @@ assert.match(client,/loadController\.signal/);assert.match(code,/driverControlle
 assert.match(code,/No approved|no approved/);assert.match(code,/score\.score==null/);assert.match(code,/No dated|taskTrend/);
 assert.doesNotMatch(code,/method\s*:\s*['"]POST|localStorage|sessionStorage/);
 assert.match(css,/#kpi-employee-profile \.ep-evidence-toolbar/);assert.match(css,/@media\(max-width:720px\)/);
+assert.match(css,/#kpi-employee-profile \.kpi-period-panel \.portal-date-field \{height:38px !important;min-height:38px !important;\}/);
+assert.match(css,/#kpi-employee-profile \.kpi-employee-header \.portal-header-actions\{flex:1 1 auto !important;flex-wrap:wrap !important;justify-content:flex-start !important;\}/);
+assert.match(css,/#kpi-employee-profile \.kpi-employee-header \.portal-header-account\{flex:0 0 auto !important;width:auto !important;\}/);
 // Presentation release must not change any source calculation or permission endpoint.
 for(const file of ['apps/operations/kpi-employee-data.php','apps/operations/performance-command-data.php','assets/js/performance-command-people.js']){
  const baseline=execFileSync('git',['show','b732f77f:'+file],{encoding:'utf8'});

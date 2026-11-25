@@ -1361,6 +1361,9 @@ body .shell > #kpi-employee-profile.workspace {
   #kpi-employee-profile .kpi-period-panel > span {width:100%;font-size:11px;}
   body .shell > #kpi-employee-profile.workspace{padding:16px 12px 95px !important;}
   #kpi-employee-profile .module-header.kpi-employee-header{padding:16px !important;}
+  #kpi-employee-profile .kpi-employee-header .portal-header-status{width:100% !important;flex-wrap:wrap !important;justify-content:space-between !important;}
+  #kpi-employee-profile .kpi-employee-header .portal-header-actions{flex:1 1 auto !important;flex-wrap:wrap !important;justify-content:flex-start !important;}
+  #kpi-employee-profile .kpi-employee-header .portal-header-account{flex:0 0 auto !important;width:auto !important;}
   #kpi-employee-profile .kpi-employee-identity h1{font-size:21px !important;}
   #kpi-employee-profile .ep-overview-kpi-grid{grid-template-columns:1fr;}
   #kpi-employee-profile .kpi-score-placeholder{grid-template-columns:80px minmax(0,1fr);gap:12px;padding:16px !important;}
