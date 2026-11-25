@@ -34,6 +34,13 @@ assert.match(css,/#kpi-employee-profile \.ep-evidence-toolbar/);assert.match(css
 assert.match(css,/#kpi-employee-profile \.kpi-period-panel \.portal-date-field \{height:38px !important;min-height:38px !important;\}/);
 assert.match(css,/#kpi-employee-profile \.kpi-employee-header \.portal-header-actions\{flex:1 1 auto !important;flex-wrap:wrap !important;justify-content:flex-start !important;\}/);
 assert.match(css,/#kpi-employee-profile \.kpi-employee-header \.portal-header-account\{flex:0 0 auto !important;width:auto !important;\}/);
+assert.deepEqual(['Front Desk Orders in Scope','Completed Orders in Scope','Completed On Time','Completed Late','Orders Still Pending Completion','Completion Compliance'].map((name,index)=>api.orderStatAppearance(name,index).tone),['olive','blue','lavender','coral','amber','green']);
+assert.equal(new Set(['Assigned','Delivered','Still outstanding','Past scheduled date','Currently failed','Proof-confirmed outcomes'].map((name,index)=>api.orderStatAppearance(name,index).tone)).size,6);
+assert.match(css,/#kpi-employee-profile #orders \.ep-order-stat-copy > span\{[^}]*500 9px\/1\.1 Jost/);
+assert.match(css,/#kpi-employee-profile #orders \.ep-order-stat-copy \.kpi-number\{[^}]*500 19px\/1 Jost/);
+assert.match(code,/copy\.append\(heading,number\)/); // Move existing data nodes; never recalculate or replace their values.
+assert.match(code,/footer\.append\(evidence\)/); // Preserve the original delegated evidence action.
+assert.match(code,/notes\.forEach\(note=>body\.append\(note\)\)/); // Explanations remain accessible in Details.
 // Presentation release must not change any source calculation or permission endpoint.
 for(const file of ['apps/operations/kpi-employee-data.php','apps/operations/performance-command-data.php','assets/js/performance-command-people.js']){
  const baseline=execFileSync('git',['show','b732f77f:'+file],{encoding:'utf8'});

@@ -11,6 +11,48 @@
   const present = metric => metric?.value == null ? 'Not measured' : metric.format === 'percent' ? Number(metric.value).toFixed(1)+'%' : metric.format === 'minutes' ? Number(metric.value).toFixed(1)+' min' : String(metric.value);
   const disclosure = (title, content) => `<details class="ep-disclosure"><summary>${esc(title)}</summary><div class="ep-disclosure__body">${content}</div></details>`;
   const metricCard = m => `<article class="kpi-health-card ${m.value == null ? 'is-unmeasured' : ''}"><span>${esc(m.label)}</span><strong class="kpi-number">${esc(present(m))}</strong><small>${esc(m.note || m.explanation || '')}</small></article>`;
+  const orderStatIcons = {
+    scope:'<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 10h6M9 14h6"/>',
+    complete:'<path d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    time:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+    late:'<path d="M10.3 3.9L2 18.3A1.8 1.8 0 0 0 3.6 21h16.8a1.8 1.8 0 0 0 1.6-2.7L13.7 3.9a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4M12 17h.01"/>',
+    pending:'<path d="M8 2h8M8 22h8M8 2v6l8 8v6M16 2v6l-8 8v6"/>',
+    rate:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>'
+  };
+  function orderStatAppearance(name,index) {
+    const slots=[['olive','scope'],['blue','complete'],['lavender','time'],['coral','late'],['amber','pending'],['green','rate']];
+    const key=String(name).toLowerCase();
+    const slot=/compliance|on-time rate|proof-confirmed/.test(key)?5:/late|overdue|failed/.test(key)?3:/pending|outstanding/.test(key)?4:/on time|average|median|time/.test(key)?2:/completed|delivered/.test(key)?1:/scope|assigned|moved/.test(key)?0:index%slots.length;
+    // Colour distinguishes each summary card; the icon describes its metric, not a score rule.
+    return {tone:slots[index%slots.length][0],icon:orderStatIcons[slots[slot][1]]};
+  }
+  function compactOrderCards(section) {
+    if(!section)return;
+    section.querySelectorAll('.employee-kpi-metrics').forEach(grid=>{
+      grid.classList.add('ep-order-stats');
+      [...grid.children].forEach((card,index)=>{
+        if(card.dataset.epOrderStat||!card.classList.contains('kpi-health-card'))return;
+        const heading=card.querySelector(':scope > span'),number=card.querySelector(':scope > .kpi-number');
+        if(!heading||!number)return;
+        const name=heading.firstChild?.textContent.trim()||'',style=orderStatAppearance(name,index);
+        card.dataset.epOrderStat='1';card.dataset.orderTone=style.tone;card.classList.add('ep-order-stat');
+        const icon=document.createElement('span');icon.className='ep-order-stat-icon';icon.setAttribute('aria-hidden','true');
+        icon.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" focusable="false">${style.icon}</svg>`;
+        const copy=document.createElement('div');copy.className='ep-order-stat-copy';copy.append(heading,number);
+        const footer=document.createElement('div');footer.className='ep-order-stat-footer';
+        const evidence=card.querySelector(':scope > .kpi-view-evidence');
+        if(evidence){evidence.setAttribute('aria-label','View evidence for '+name);footer.append(evidence);}
+        const notes=[...card.querySelectorAll(':scope > small')];
+        if(notes.some(note=>note.textContent.trim())){
+          const details=document.createElement('details');details.className='ep-order-stat-details';
+          const summary=document.createElement('summary');summary.textContent='Details';summary.setAttribute('aria-label','Details for '+name);
+          const body=document.createElement('div');body.className='ep-order-stat-notes';notes.forEach(note=>body.append(note));
+          details.append(summary,body);footer.append(details);
+        }
+        card.prepend(icon,copy);if(footer.children.length)card.append(footer);
+      });
+    });
+  }
   const tableStates = new Map(); let nextTable = 0, driverController = null, driverVersion = 0;
   const dateKeys = ['occurred_at','scheduled','day','date','transaction_date','service_date','logged_at','assigned_at','date_loaded','start_date','created_at','changed_at','payment_date'];
 
@@ -137,6 +179,7 @@
     });
     const folds={'.kpi-front-duty-grid':'Walk-in and other Front Desk duties','.kpi-front-score':'Order timing methodology','.kpi-front-analysis':'Order mix and on-time results','.kpi-mode-timing':'Completion time by order type','.kpi-task-score':'Task score calculation and weights','.kpi-task-breakdown':'Task completion breakdown','.kpi-quality-reporting':'Reporting performance — separate from responsibility','.kpi-quality-responsibility':'Attributed incidents, recurrence and impact','.kpi-money-out-section':'Money out breakdown','.kpi-distribution':'Source record distribution'};
     Object.entries(folds).forEach(([selector,title])=>root.querySelectorAll(selector).forEach(node=>wrap(node,title)));
+    compactOrderCards(root.querySelector('#orders'));
     if(packer){const packing=root.querySelector('#packing');packing?.insertAdjacentHTML('beforeend',teamComparison(data));}
     const schedule=data.schedule||{};
     root.querySelector('#attendance')?.insertAdjacentHTML('beforeend',`<p class="ep-role-note">${schedule.configured?`Schedule effective ${esc(schedule.effective_from||'from the configured date')}${schedule.effective_to?' to '+esc(schedule.effective_to):''} · ${esc(schedule.timezone||'Africa/Windhoek')} · Lunch ${esc(schedule.lunch_start?.slice(0,5)||'not set')}–${esc(schedule.lunch_end?.slice(0,5)||'not set')} · ${esc(schedule.late_grace_minutes??'Not recorded')} minute grace.`:'No reliable employee schedule is configured; schedule compliance is not measured.'} Portal activity is not physical attendance.</p>`);
@@ -161,8 +204,9 @@
       const history=paged(sourceRows,rows=>`<div class="employee-kpi-evidence"><table class="data-table"><thead><tr>${columns.map(c=>`<th scope="col">${esc(c[0])}</th>`).join('')}<th scope="col">Original evidence</th></tr></thead><tbody>${rows.map(r=>`<tr>${columns.map(c=>`<td>${esc(r[c[1]]||'Not recorded')}</td>`).join('')}<td>${sourceButton(r,'orders','Handover & proof')}</td></tr>`).join('')||'<tr><td colspan="7">No matching delivery records.</td></tr>'}</tbody></table></div>`,{columns,dateKey:'scheduled',statusKey:'status'});
       const cards=delivery.cards||[],primary=['Assigned','Delivered','Still outstanding','Past scheduled date','Currently failed','Proof-confirmed outcomes'];
       host.innerHTML=`<header class="employee-kpi-section__header"><div><h2>Deliveries & Handover</h2><p>Assigned delivery work and source-verified outcomes; no approved overall driver score.</p></div><span class="employee-kpi-section__status">Operational evidence</span></header><div class="employee-kpi-metrics">${cards.filter(c=>primary.includes(c.label)).map(metricCard).join('')}</div>${disclosure('Turnaround, completion and proof outcomes',`<div class="employee-kpi-metrics">${cards.filter(c=>!primary.includes(c.label)).map(metricCard).join('')}</div>`)}${disclosure('Delivery history · '+sourceRows.length+' records',history)}${(delivery.notes||[]).map(n=>`<p class="ep-role-note">${esc(n)}</p>`).join('')}`;
+      compactOrderCards(host);
       const old=root.querySelector('#overview'),hidden=old.hidden;old.outerHTML=overview(data,delivery);root.querySelector('#overview').hidden=hidden;mountTables();
     }catch(error){if(error.name==='AbortError'||version!==driverVersion)return;host.innerHTML=`<h2>Deliveries & Handover</h2><p role="alert">${esc(error.message)}</p>`;const card=root.querySelector('#overview');card?.querySelectorAll('.ep-stat-help').forEach(el=>{if(el.textContent.includes('Loading delivery'))el.textContent='Delivery evidence unavailable. See Deliveries for details.';});}
   }
-  window.HambelelaEmployeeProfileV3={paged,enhance,mountTables,resetTables(){tableStates.clear();},safeHref};
+  window.HambelelaEmployeeProfileV3={paged,enhance,mountTables,resetTables(){tableStates.clear();},safeHref,orderStatAppearance};
 })();

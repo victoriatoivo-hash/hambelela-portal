@@ -1373,3 +1373,40 @@ body .shell > #kpi-employee-profile.workspace {
   #kpi-employee-profile .ep-team-comparison > div{grid-template-columns:95px minmax(0,1fr) 35px;gap:6px;}
   #kpi-employee-profile .employee-kpi-metrics > .kpi-health-card{min-height:112px !important;}
 }
+
+/* Orders only: Task Management's Jost typography, icon tiles and compact cards. */
+#kpi-employee-profile #orders .ep-order-stats{grid-template-columns:repeat(6,minmax(0,1fr));gap:10px;}
+#kpi-employee-profile #orders .ep-order-stats > .ep-order-stat{
+  --order-accent:#65764F;--order-tint:#EEF2E6;
+  position:relative;display:grid;grid-template-columns:40px minmax(0,1fr);grid-template-rows:auto auto;
+  align-content:start;align-items:center;gap:9px 12px;min-height:100px !important;height:auto;
+  padding:13px 14px !important;border:1px solid #E4E6DC !important;border-radius:13px !important;
+  background:rgba(255,255,255,.92) !important;box-shadow:0 2px 8px rgba(28,33,24,.04) !important;
+  font-family:Jost,sans-serif;overflow:hidden;
+}
+#kpi-employee-profile #orders .ep-order-stat[data-order-tone="blue"]{--order-accent:#467998;--order-tint:#EAF2F8;}
+#kpi-employee-profile #orders .ep-order-stat[data-order-tone="lavender"]{--order-accent:#8062A6;--order-tint:#F1EBF8;}
+#kpi-employee-profile #orders .ep-order-stat[data-order-tone="coral"]{--order-accent:#984638;--order-tint:#F7E9E6;}
+#kpi-employee-profile #orders .ep-order-stat[data-order-tone="amber"]{--order-accent:#966313;--order-tint:#F3E9D8;}
+#kpi-employee-profile #orders .ep-order-stat[data-order-tone="green"]{--order-accent:#3F6737;--order-tint:#EDF3E9;}
+#kpi-employee-profile #orders .ep-order-stat::before{content:'';position:absolute;inset:14px auto 14px 0;width:3px;border-radius:0 3px 3px 0;background:var(--order-accent);}
+#kpi-employee-profile #orders .ep-order-stat .ep-order-stat-icon{display:grid;place-items:center;width:40px;height:40px;border-radius:10px;background:var(--order-tint);color:var(--order-accent);}
+#kpi-employee-profile #orders .ep-order-stat-icon svg{width:19px !important;height:19px !important;}
+#kpi-employee-profile #orders .ep-order-stat-copy{min-width:0;}
+#kpi-employee-profile #orders .ep-order-stat-copy > span{display:block;font:500 9px/1.1 Jost,sans-serif !important;letter-spacing:.495px;text-transform:uppercase;color:#91968C !important;overflow-wrap:anywhere;}
+#kpi-employee-profile #orders .ep-order-stat-copy .kpi-number{display:block;margin:3px 0 0 !important;font:500 19px/1 Jost,sans-serif !important;color:#1C2118 !important;overflow-wrap:anywhere;}
+#kpi-employee-profile #orders .ep-order-stat.is-unmeasured .kpi-number{font-size:13px !important;line-height:1.2 !important;}
+#kpi-employee-profile #orders .ep-order-stat .kpi-info-button{display:inline-grid;place-items:center;vertical-align:middle;width:13px;height:13px;min-width:13px;padding:0;margin-left:2px;font:400 9px/1 Jost,sans-serif;letter-spacing:0;}
+#kpi-employee-profile #orders .ep-order-stat-footer{position:relative;grid-column:1/-1;align-self:end;min-width:0;min-height:18px;font:400 10px/1.3 Jost,sans-serif;}
+#kpi-employee-profile #orders .ep-order-stat-footer > .kpi-view-evidence{position:absolute;left:0;top:0;min-height:18px;margin:0;padding:0;border:0;border-radius:3px;background:transparent;box-shadow:none;color:#58674A;font:400 10px/1.3 Jost,sans-serif;text-decoration:underline;}
+#kpi-employee-profile #orders .ep-order-stat-details{padding:0;margin:0;border:0;background:transparent;}
+#kpi-employee-profile #orders .ep-order-stat-details > summary{display:block;margin-left:auto;width:fit-content;min-height:18px;color:#747A70;font:400 10px/1.3 Jost,sans-serif;cursor:pointer;}
+#kpi-employee-profile #orders .ep-order-stat-details > summary::after{content:' +';}
+#kpi-employee-profile #orders .ep-order-stat-details[open] > summary::after{content:' −';}
+#kpi-employee-profile #orders .ep-order-stat-details > summary::-webkit-details-marker{display:none;}
+#kpi-employee-profile #orders .ep-order-stat-notes{display:grid;gap:5px;padding-top:9px;margin-top:5px;border-top:1px solid #E4E6DC;}
+#kpi-employee-profile #orders .ep-order-stat-notes small{font:300 10px/1.4 Jost,sans-serif;color:#747A70;overflow-wrap:anywhere;}
+#kpi-employee-profile #orders .ep-order-stat :is(button,summary):focus-visible{outline:2px solid var(--order-accent);outline-offset:3px;}
+@media(max-width:1279px){#kpi-employee-profile #orders .ep-order-stats{grid-template-columns:repeat(3,minmax(0,1fr));}}
+@media(max-width:719px){#kpi-employee-profile #orders .ep-order-stats{grid-template-columns:repeat(2,minmax(0,1fr));}}
+@media(max-width:479px){#kpi-employee-profile #orders .ep-order-stats{grid-template-columns:1fr;}}
