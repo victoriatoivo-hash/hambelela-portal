@@ -6,6 +6,19 @@
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const safeHref = value => { try { const u = new URL(value, location.href); return ['http:','https:'].includes(u.protocol) && u.origin === location.origin ? u.href : ''; } catch { return ''; } };
   const label = value => String(value || '').replaceAll('_', ' ');
+  function renameOrderSummaryLabel() {
+    // Presentation alias only: keep the source metric key, values and ordering unchanged.
+    root.querySelectorAll('#orders .ep-order-stat-copy > span, #overview .ep-stat-label').forEach(heading=>{
+      const text=heading.firstChild;
+      if(text?.nodeType!==3||text.textContent.trim()!=='Front Desk Orders in Scope')return;
+      const name='Orders Included in This Summary';
+      text.textContent=name+(heading.children.length?' ':'');
+      heading.querySelector('.kpi-info-button')?.setAttribute('aria-label','About '+name);
+      const card=heading.closest('.ep-order-stat');
+      card?.querySelector('.kpi-view-evidence')?.setAttribute('aria-label','View evidence for '+name);
+      card?.querySelector('.ep-order-stat-details > summary')?.setAttribute('aria-label','Details for '+name);
+    });
+  }
   // Some legacy source_page values are log-table references, not URLs.
   const sourceHref = value => /(?:^|\/)\w[\w/-]*\.php(?:[?#]|$)/.test(String(value||'')) ? safeHref(value) : '';
   const present = metric => metric?.value == null ? 'Not measured' : metric.format === 'percent' ? Number(metric.value).toFixed(1)+'%' : metric.format === 'minutes' ? Number(metric.value).toFixed(1)+' min' : String(metric.value);
@@ -180,6 +193,7 @@
     const folds={'.kpi-front-duty-grid':'Walk-in and other Front Desk duties','.kpi-front-score':'Order timing methodology','.kpi-front-analysis':'Order mix and on-time results','.kpi-mode-timing':'Completion time by order type','.kpi-task-score':'Task score calculation and weights','.kpi-task-breakdown':'Task completion breakdown','.kpi-quality-reporting':'Reporting performance — separate from responsibility','.kpi-quality-responsibility':'Attributed incidents, recurrence and impact','.kpi-money-out-section':'Money out breakdown','.kpi-distribution':'Source record distribution'};
     Object.entries(folds).forEach(([selector,title])=>root.querySelectorAll(selector).forEach(node=>wrap(node,title)));
     compactOrderCards(root.querySelector('#orders'));
+    renameOrderSummaryLabel();
     if(packer){const packing=root.querySelector('#packing');packing?.insertAdjacentHTML('beforeend',teamComparison(data));}
     const schedule=data.schedule||{};
     root.querySelector('#attendance')?.insertAdjacentHTML('beforeend',`<p class="ep-role-note">${schedule.configured?`Schedule effective ${esc(schedule.effective_from||'from the configured date')}${schedule.effective_to?' to '+esc(schedule.effective_to):''} · ${esc(schedule.timezone||'Africa/Windhoek')} · Lunch ${esc(schedule.lunch_start?.slice(0,5)||'not set')}–${esc(schedule.lunch_end?.slice(0,5)||'not set')} · ${esc(schedule.late_grace_minutes??'Not recorded')} minute grace.`:'No reliable employee schedule is configured; schedule compliance is not measured.'} Portal activity is not physical attendance.</p>`);
@@ -208,5 +222,5 @@
       const old=root.querySelector('#overview'),hidden=old.hidden;old.outerHTML=overview(data,delivery);root.querySelector('#overview').hidden=hidden;mountTables();
     }catch(error){if(error.name==='AbortError'||version!==driverVersion)return;host.innerHTML=`<h2>Deliveries & Handover</h2><p role="alert">${esc(error.message)}</p>`;const card=root.querySelector('#overview');card?.querySelectorAll('.ep-stat-help').forEach(el=>{if(el.textContent.includes('Loading delivery'))el.textContent='Delivery evidence unavailable. See Deliveries for details.';});}
   }
-  window.HambelelaEmployeeProfileV3={paged,enhance,mountTables,resetTables(){tableStates.clear();},safeHref,orderStatAppearance};
+  window.HambelelaEmployeeProfileV3={paged,enhance,mountTables,resetTables(){tableStates.clear();},safeHref,orderStatAppearance,renameOrderSummaryLabel};
 })();

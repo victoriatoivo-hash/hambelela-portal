@@ -41,6 +41,21 @@ assert.match(css,/#kpi-employee-profile #orders \.ep-order-stat-copy \.kpi-numbe
 assert.match(code,/copy\.append\(heading,number\)/); // Move existing data nodes; never recalculate or replace their values.
 assert.match(code,/footer\.append\(evidence\)/); // Preserve the original delegated evidence action.
 assert.match(code,/notes\.forEach\(note=>body\.append\(note\)\)/); // Explanations remain accessible in Details.
+const renamedAttributes={};
+const aliasNode={nodeType:3,textContent:'Front Desk Orders in Scope '};
+const aliasHeading={firstChild:aliasNode,children:[{}],querySelector:()=>({setAttribute:(key,value)=>renamedAttributes.help=value}),closest:()=>({querySelector:selector=>({setAttribute:(key,value)=>renamedAttributes[selector]=value})})};
+const overviewLabel={firstChild:{nodeType:3,textContent:'Front Desk Orders in Scope'},children:[],querySelector:()=>null,closest:()=>null};
+const otherLabel={firstChild:{nodeType:3,textContent:'Completed Orders in Scope'},children:[]};
+const originalQuery=root.querySelectorAll;
+root.querySelectorAll=selector=>{assert.equal(selector,'#orders .ep-order-stat-copy > span, #overview .ep-stat-label');return [aliasHeading,overviewLabel,otherLabel];};
+api.renameOrderSummaryLabel();api.renameOrderSummaryLabel();
+root.querySelectorAll=originalQuery;
+assert.equal(aliasNode.textContent,'Orders Included in This Summary ');
+assert.equal(overviewLabel.firstChild.textContent,'Orders Included in This Summary');
+assert.equal(otherLabel.firstChild.textContent,'Completed Orders in Scope');
+assert.equal(renamedAttributes.help,'About Orders Included in This Summary');
+assert.equal(renamedAttributes['.kpi-view-evidence'],'View evidence for Orders Included in This Summary');
+assert.equal(renamedAttributes['.ep-order-stat-details > summary'],'Details for Orders Included in This Summary');
 // Presentation release must not change any source calculation or permission endpoint.
 for(const file of ['apps/operations/kpi-employee-data.php','apps/operations/performance-command-data.php','assets/js/performance-command-people.js']){
  const baseline=execFileSync('git',['show','b732f77f:'+file],{encoding:'utf8'});
