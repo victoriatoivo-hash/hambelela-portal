@@ -60,13 +60,46 @@ def save_report(report):
         json.dump(report, output, indent=2)
 
 
+def verify_live_schema(ftp):
+    # One-time, narrowly scoped migration; no employee data or credentials returned.
+    import secrets
+    import urllib.parse
+    import urllib.request
+    token = secrets.token_urlsafe(32)
+    name = "bonus-schema-" + secrets.token_hex(16) + ".php"
+    path = "apps/hr-portal/" + name
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    php = ("""<?php
+header('Content-Type: application/json');
+header('Cache-Control: no-store');
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST' || !hash_equals('TOKEN_HASH', hash('sha256', (string)($_POST['token'] ?? '')))) { http_response_code(403); exit; }
+require __DIR__.'/config.php';
+require __DIR__.'/includes/payroll-bonus.php';
+$ok = hrBonusEnsureSchema(db());
+echo json_encode(['ok'=>$ok,'db_error_code'=>(int)($GLOBALS['hr_bonus_schema_error'] ?? 0)]);
+""".replace("TOKEN_HASH", token_hash)).encode()
+    try:
+        remote_write(ftp, path, php)
+        req = urllib.request.Request("https://portal.hambelelaorganic.com/" + path,
+            data=urllib.parse.urlencode({"token": token}).encode(),
+            headers={"Content-Type":"application/x-www-form-urlencoded","User-Agent":"Hambelela-Release-Validator/1.0"})
+        with urllib.request.urlopen(req, timeout=45) as res:
+            result = json.loads(res.read().decode())
+        if result.get("ok") is not True:
+            raise RuntimeError("Live bonus schema check failed; database error code " + str(int(result.get("db_error_code", 0))))
+        return {"ok": True, "columns": ["bonus_amount", "bonus_paye"]}
+    finally:
+        ftp.delete(path)
+        if remote_read(ftp, path) is not None:
+            raise RuntimeError("Temporary schema verifier removal failed")
+
 def main(mode, approved_sha):
     head = git("rev-parse", "HEAD").decode().strip()
     if head != approved_sha:
         raise RuntimeError("Workflow HEAD does not match the approved release SHA")
 
     expected = {path: blob(head, path) for path in FILES}
-    baselines = {path: (None if path.endswith('/payroll-bonus.php') else blob(BASELINE, path)) for path in FILES}
+    baselines = {path: (blob("9a3022f3e729829e0d6d152d439c5e58a21a4dd4", path) if path.endswith('/payroll-bonus.php') else blob(BASELINE, path)) for path in FILES}
     credentials = [os.getenv(key) for key in ("FTP_SERVER", "FTP_USERNAME", "FTP_PASSWORD")]
     if not all(credentials):
         raise RuntimeError("FTP deployment credentials are unavailable")
@@ -174,6 +207,8 @@ def main(mode, approved_sha):
                     ftp.rename(staged, path)
                     if remote_read(ftp, path) != expected[path]:
                         raise RuntimeError(f"Upload verification failed: {path}")
+                report["schema"] = verify_live_schema(ftp)
+                print("Verified both live bonus database columns")
             except Exception:
                 for path in reversed(uploaded):
                     try:

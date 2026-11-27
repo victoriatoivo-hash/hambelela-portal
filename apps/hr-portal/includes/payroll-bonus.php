@@ -1,8 +1,29 @@
 <?php
 // Gross performance awards are explicit, period-specific payroll snapshots.
+function hrBonusColumnExists(PDO $db, string $column): bool {
+    $stmt = $db->prepare("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME='payslips' AND COLUMN_NAME=?");
+    $stmt->execute([$column]);
+    return (int)$stmt->fetchColumn() === 1;
+}
 function hrBonusEnsureSchema(PDO $db): bool {
-    return hrAddColumnSafe($db, 'payslips', 'bonus_amount', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00')
-        && hrAddColumnSafe($db, 'payslips', 'bonus_paye', 'DECIMAL(10,2) NOT NULL DEFAULT 0.00');
+    try {
+        foreach (['bonus_amount', 'bonus_paye'] as $column) {
+            if (!hrBonusColumnExists($db, $column)) {
+                try {
+                    $db->exec("ALTER TABLE payslips ADD COLUMN `{$column}` DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+                } catch (PDOException $e) {
+                    // Concurrent administrator requests can create the same column.
+                    if ((int)($e->errorInfo[1] ?? 0) !== 1060) throw $e;
+                }
+            }
+            if (!hrBonusColumnExists($db, $column)) return false;
+        }
+        return true;
+    } catch (Throwable $e) {
+        $GLOBALS['hr_bonus_schema_error'] = $e instanceof PDOException ? (int)($e->errorInfo[1] ?? 0) : 0;
+        error_log('HR bonus schema initialization failed: database error code ' . $GLOBALS['hr_bonus_schema_error']);
+        return false;
+    }
 }
 function hrBonusCsrf(): string {
     if (empty($_SESSION['hr_bonus_csrf'])) $_SESSION['hr_bonus_csrf'] = bin2hex(random_bytes(32));

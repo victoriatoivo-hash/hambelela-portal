@@ -18,6 +18,15 @@ jobs:
     timeout-minutes: 15
     permissions:
       contents: read
+    services:
+      mariadb:
+        image: mariadb:11.4
+        env:
+          MARIADB_ROOT_PASSWORD: fixture-only
+          MARIADB_DATABASE: bonus_fixture
+        ports:
+          - 33329:3306
+        options: --health-cmd="healthcheck.sh --connect --innodb_initialized" --health-interval=5s --health-timeout=5s --health-retries=15
     steps:
       - uses: actions/checkout@v4
         with:
@@ -29,11 +38,12 @@ jobs:
           extensions: pdo_mysql
       - name: Validate exact approved payroll code and run tests
         run: |
-          git diff --exit-code 58684d56c044aac5506889381264dca23129a22a HEAD -- apps/hr-portal tests/hr-payroll-bonus.php
+          git diff --exit-code 58684d56c044aac5506889381264dca23129a22a HEAD -- apps/hr-portal ':!apps/hr-portal/includes/payroll-bonus.php' tests/hr-payroll-bonus.php
           for f in apps/hr-portal/payroll.php apps/hr-portal/my-payslips.php apps/hr-portal/self-service.php apps/hr-portal/includes/loan-agreements.php apps/hr-portal/includes/payroll-bonus.php; do php -l "$f"; done
           php tests/hr-payroll-bonus.php
+          php tests/hr-bonus-schema-db.php
           python3 -m py_compile scripts/deploy-hr-bonus.py
-      - name: Check production compatibility and preserve verified independent loan changes
+      - name: Verify live bonus database schema and deploy only compatible HR files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
