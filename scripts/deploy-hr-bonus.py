@@ -114,7 +114,7 @@ def main(mode, approved_sha):
             try:
                 for path in changed:
                     uploaded.append(path)
-                    staged = path + ".hr-bonus-upload"
+                    staged = path + ".hr-bonus-upload.php"
                     remote_write(ftp, staged, expected[path])
                     if remote_read(ftp, staged) != expected[path]:
                         raise RuntimeError(f"Staged upload verification failed: {path}")
@@ -124,7 +124,7 @@ def main(mode, approved_sha):
             except Exception:
                 for path in reversed(uploaded):
                     try:
-                        ftp.delete(path + ".hr-bonus-upload")
+                        ftp.delete(path + ".hr-bonus-upload.php")
                     except ftplib.error_perm:
                         pass
                     if existing[path] is not None:

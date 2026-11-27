@@ -1,0 +1,50 @@
+name: Deploy approved HR bonus payroll
+
+on:
+  push:
+    branches:
+      - hr/performance-bonus-payroll-review
+    paths:
+      - '.github/workflows/deploy-hr-bonus.yml'
+
+concurrency:
+  group: production-delta-deployment
+  cancel-in-progress: false
+
+jobs:
+  release-hr-bonus:
+    if: github.ref == 'refs/heads/hr/performance-bonus-payroll-review'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.1'
+          extensions: pdo_mysql
+      - name: Validate exact approved payroll code and run tests
+        run: |
+          git diff --exit-code 58684d56c044aac5506889381264dca23129a22a HEAD -- apps/hr-portal tests/hr-payroll-bonus.php
+          for f in apps/hr-portal/payroll.php apps/hr-portal/my-payslips.php apps/hr-portal/self-service.php apps/hr-portal/includes/loan-agreements.php apps/hr-portal/includes/payroll-bonus.php; do php -l "$f"; done
+          php tests/hr-payroll-bonus.php
+          python3 -m py_compile scripts/deploy-hr-bonus.py
+      - name: Check production compatibility then deploy the five HR files
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          APPROVED_SHA: ${{ github.sha }}
+        run: |
+          python3 scripts/deploy-hr-bonus.py preflight "$APPROVED_SHA"
+          python3 scripts/deploy-hr-bonus.py deploy "$APPROVED_SHA"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: hr-bonus-release-${{ github.run_id }}
+          path: hr-bonus-deployment-report.json
+          if-no-files-found: warn

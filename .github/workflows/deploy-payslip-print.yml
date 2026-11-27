@@ -1,18 +1,17 @@
-name: Deploy HR bonus payroll (review branch)
+name: Deploy payslip print correction
 
 on:
   workflow_dispatch:
     inputs:
       mode:
-        description: Preflight only or deploy the approved HR bonus files
+        description: Preflight only or deploy the approved payslip print correction
         required: true
         type: choice
         options:
           - preflight
           - deploy
-        default: preflight
       approved_sha:
-        description: Exact HR bonus review branch commit SHA
+        description: Exact main commit SHA to verify and deploy
         required: true
         type: string
 
@@ -21,40 +20,34 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release-hr-bonus:
-    if: github.ref == 'refs/heads/hr/performance-bonus-payroll-review'
+  deploy-payslip-print:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false
-      - uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.1'
-          extensions: pdo_mysql
-      - name: Test exact reviewed PHP files and bonus validation
-        env:
-          APPROVED_SHA: ${{ inputs.approved_sha }}
+      - name: Validate payslip release
         run: |
-          test "$(git rev-parse HEAD)" = "$APPROVED_SHA"
-          for f in apps/hr-portal/payroll.php apps/hr-portal/my-payslips.php apps/hr-portal/self-service.php apps/hr-portal/includes/loan-agreements.php apps/hr-portal/includes/payroll-bonus.php; do php -l "$f"; done
-          php tests/hr-payroll-bonus.php
-          python3 -m py_compile scripts/deploy-hr-bonus.py
-      - name: Read-only baseline check and guarded release
+          php -l apps/hr-portal/payroll.php
+          php -l apps/hr-portal/my-payslips.php
+          node --check apps/hr-portal/includes/payslip-print.js
+          python3 -m py_compile scripts/deploy-payslip-print.py
+      - name: Back up and publish only the approved payslip files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           MODE: ${{ inputs.mode }}
           APPROVED_SHA: ${{ inputs.approved_sha }}
-        run: python3 scripts/deploy-hr-bonus.py "$MODE" "$APPROVED_SHA"
+        run: python3 scripts/deploy-payslip-print.py "$MODE" "$APPROVED_SHA"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: hr-bonus-release-${{ github.run_id }}
-          path: hr-bonus-deployment-report.json
+          name: payslip-print-${{ github.run_id }}
+          path: |
+            payslip-print-deployment-report.json
+            payslip-print-deployment-backup.zip
           if-no-files-found: warn
