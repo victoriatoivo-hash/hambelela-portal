@@ -43,7 +43,7 @@ jobs:
           php tests/hr-payroll-bonus.php
           php tests/hr-bonus-schema-db.php
           python3 -m py_compile scripts/deploy-hr-bonus.py
-      - name: Verify live bonus database schema and deploy only compatible HR files
+      - name: Deploy tested schema helper only; live migration runs under authenticated admin session
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
