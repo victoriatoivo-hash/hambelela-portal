@@ -92,9 +92,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         // Create or get run
         $run = $db->prepare("SELECT id FROM payroll_runs WHERE period_month=? AND period_year=?");
         $run->execute([$month,$year]); $run = $run->fetchColumn();
-        if ($run && $bonusRun) {
-            $db->rollBack();
-            header('Location: payroll.php?msg=bonus_existing'); exit;
+        if ($run) {
+            $bonusCheck = $db->prepare("SELECT COUNT(*) FROM payslips WHERE run_id=? AND bonus_amount>0");
+            $bonusCheck->execute([$run]);
+            if ($bonusRun || (int)$bonusCheck->fetchColumn() > 0) {
+                if ($db->inTransaction()) $db->rollBack();
+                header('Location: payroll.php?run='.(int)$run.'&msg=bonus_existing'); exit;
+            }
         }
         if (!$run) {
             $db->prepare("INSERT INTO payroll_runs (period_label,period_month,period_year,generated_by) VALUES (?,?,?,?)")

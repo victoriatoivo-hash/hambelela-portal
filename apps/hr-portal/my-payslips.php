@@ -48,7 +48,7 @@ foreach ($payslips as $idx => $p) {
 // View single payslip
 $viewPayslip = null;
 if (isset($_GET['id'])) {
-    $viewPayslip = $db->prepare("SELECT ps.*, $medicalAidSelect, r.period_month AS ps_period_month, r.period_year AS ps_period_year, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=?");
+    $viewPayslip = $db->prepare("SELECT ps.*, $medicalAidSelect, r.period_month AS ps_period_month, r.period_year AS ps_period_year, CONCAT(e.first_name,' ',e.last_name) as emp_name, e.emp_number, e.bank_name, e.bank_account, e.tax_number, $socialSecuritySelect, e.job_title, e.department, e.id_number, e.basic_salary as contract_salary FROM payslips ps JOIN employees e ON e.id=ps.employee_id JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.id=? AND ps.employee_id=? AND r.status='finalised'");
     $viewPayslip->execute([(int)$_GET['id'], $empId]); $viewPayslip = $viewPayslip->fetch();
     if ($viewPayslip) {
         $medicalProfile = hrApplyMedicalAidToEmployee(['id' => (int)$viewPayslip['employee_id']], $medicalAidProfiles);
