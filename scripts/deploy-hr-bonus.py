@@ -72,7 +72,13 @@ def main(mode, approved_sha):
         raise RuntimeError("FTP deployment credentials are unavailable")
 
     import ssl
-    ftp = ftplib.FTP_TLS(credentials[0], timeout=45, context=ssl.create_default_context())
+    import socket
+    host = credentials[0]
+    canonical = 's11745.sgp1.stableserver.net'
+    # Same canonical server and DNS overlap guard as the existing employee release.
+    if set(socket.gethostbyname_ex(host)[2]) & set(socket.gethostbyname_ex(canonical)[2]):
+        host = canonical
+    ftp = ftplib.FTP_TLS(host, timeout=45, context=ssl.create_default_context())
     ftp.login(credentials[1], credentials[2])
     ftp.prot_p()
     try:

@@ -33,7 +33,7 @@ jobs:
           for f in apps/hr-portal/payroll.php apps/hr-portal/my-payslips.php apps/hr-portal/self-service.php apps/hr-portal/includes/loan-agreements.php apps/hr-portal/includes/payroll-bonus.php; do php -l "$f"; done
           php tests/hr-payroll-bonus.php
           python3 -m py_compile scripts/deploy-hr-bonus.py
-      - name: Check production compatibility then deploy the five HR files
+      - name: Check production compatibility over verified FastComet FTPS then deploy the five HR files
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
