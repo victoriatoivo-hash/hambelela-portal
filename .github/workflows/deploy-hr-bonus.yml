@@ -45,7 +45,7 @@ jobs:
           php tests/hr-bonus-csrf.php
           python3 tests/hr-bonus-http-flow.py
           python3 -m py_compile scripts/deploy-hr-bonus.py
-      - name: Deploy audited payroll flow and matching employee views
+      - name: Deploy audited payroll flow after actual HTTP integration tests
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
