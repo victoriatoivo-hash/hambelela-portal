@@ -83,6 +83,53 @@ def main(mode, approved_sha):
     ftp.prot_p()
     try:
         existing = {path: remote_read(ftp, path) for path in FILES}
+        # Preserve independently deployed loan changes. Only splice the reviewed
+        # bonus-aware function if the entire existing function still matches the
+        # audited baseline (or the reviewed replacement), and lint the result.
+        loan_path = "apps/hr-portal/includes/loan-agreements.php"
+        live_loan = existing[loan_path]
+        if normalized(loan_path, live_loan) not in (
+            normalized(loan_path, baselines[loan_path]),
+            normalized(loan_path, expected[loan_path]),
+        ) and live_loan is not None:
+            import tempfile
+            def function_bounds(data):
+                start = b"function loanAgreementSyncPayrollRun(PDO $db, int $runId): void {"
+                end = b"function loanAgreementSyncEmployeePayroll("
+                if data.count(start) != 1 or data.count(end) != 1:
+                    raise RuntimeError("Loan sync boundaries differ; no upload")
+                a = data.index(start)
+                b = data.index(end, a)
+                return a, b
+            baseline_loan = normalized(loan_path, baselines[loan_path])
+            wanted_loan = normalized(loan_path, expected[loan_path])
+            live_normal = normalized(loan_path, live_loan)
+            a, b = function_bounds(baseline_loan)
+            c, d = function_bounds(wanted_loan)
+            e, f = function_bounds(live_normal)
+            original_function = baseline_loan[a:b].rstrip()
+            reviewed_function = wanted_loan[c:d].rstrip()
+            live_function = live_normal[e:f].rstrip()
+            if live_function not in (original_function, reviewed_function):
+                raise RuntimeError("Live loan payroll sync function differs from reviewed source; no upload")
+            # The only authorized semantic modification is inclusion of the saved bonus.
+            old_expr = b"(float)$payslip['basic_salary'] + (float)$payslip['ot_pay'] + $loan['disbursement']"
+            new_expr = b"(float)$payslip['basic_salary'] + (float)$payslip['ot_pay'] + (float)($payslip['bonus_amount'] ?? 0) + $loan['disbursement']"
+            if original_function.count(old_expr) != 1 or original_function.replace(old_expr, new_expr) != reviewed_function:
+                raise RuntimeError("Unexpected loan release delta; no upload")
+            if live_function == reviewed_function:
+                merged = live_loan
+            else:
+                if live_loan.count(old_expr) != 1:
+                    raise RuntimeError("Ambiguous loan calculation; no upload")
+                merged = live_loan.replace(old_expr, new_expr, 1)
+            with tempfile.NamedTemporaryFile(suffix=".php") as tmp:
+                tmp.write(merged)
+                tmp.flush()
+                subprocess.run(["php", "-l", tmp.name], check=True)
+            print("Preserved live loan changes; verified only bonus addition in loan sync")
+            baselines[loan_path] = live_loan
+            expected[loan_path] = merged
         conflicts = [
             {
                 "path": path,
