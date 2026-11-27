@@ -38,13 +38,14 @@ jobs:
           extensions: pdo_mysql
       - name: Validate exact approved payroll code and run tests
         run: |
-          git diff --exit-code f834a9c6fee4c6b80a44a8e5696ff2dec263d674 HEAD -- apps/hr-portal ':!apps/hr-portal/includes/payroll-bonus.php' ':!apps/hr-portal/payroll.php' tests/hr-payroll-bonus.php tests/hr-bonus-schema-db.php
+          git diff --exit-code d30c92c38e99922e0da625f051b72a5e25eb60d9 HEAD -- apps/hr-portal ':!apps/hr-portal/includes/payroll-bonus.php' ':!apps/hr-portal/payroll.php' ':!apps/hr-portal/my-payslips.php' ':!apps/hr-portal/self-service.php' tests/hr-payroll-bonus.php tests/hr-bonus-schema-db.php tests/hr-bonus-csrf.php
           for f in apps/hr-portal/payroll.php apps/hr-portal/my-payslips.php apps/hr-portal/self-service.php apps/hr-portal/includes/loan-agreements.php apps/hr-portal/includes/payroll-bonus.php; do php -l "$f"; done
           php tests/hr-payroll-bonus.php
           php tests/hr-bonus-schema-db.php
           php tests/hr-bonus-csrf.php
+          python3 tests/hr-bonus-http-flow.py
           python3 -m py_compile scripts/deploy-hr-bonus.py
-      - name: Deploy verified payroll form and CSRF helper only
+      - name: Deploy audited payroll flow and matching employee views
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}

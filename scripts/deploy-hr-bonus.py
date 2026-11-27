@@ -10,8 +10,8 @@ import sys
 import zipfile
 
 
-BASELINE = "f834a9c6fee4c6b80a44a8e5696ff2dec263d674"
-FILES = ("apps/hr-portal/includes/payroll-bonus.php", "apps/hr-portal/payroll.php")
+BASELINE = "d30c92c38e99922e0da625f051b72a5e25eb60d9"
+FILES = ("apps/hr-portal/includes/payroll-bonus.php", "apps/hr-portal/my-payslips.php", "apps/hr-portal/self-service.php", "apps/hr-portal/payroll.php")
 REPORT = "hr-bonus-deployment-report.json"
 BACKUP = "hr-bonus-deployment-backup.zip"
 

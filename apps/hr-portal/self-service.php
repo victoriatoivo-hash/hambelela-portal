@@ -45,7 +45,11 @@ $latestMedicalAidFund = trim((string)($medicalAidProfile['medical_aid_fund'] ?? 
 $latestMedicalAidTotal = 0;
 $latestMedicalAidCompany = 0;
 $latestMedicalAidEmployee = 0;
-if ($latestPS) {
+if ($latestPS && (float)($latestPS['bonus_amount'] ?? 0)>0) {
+  $latestMedicalAidTotal=(float)($latestPS['medical_aid_total'] ?? 0);
+  $latestMedicalAidCompany=(float)($latestPS['medical_aid_company'] ?? 0);
+  $latestMedicalAidEmployee=(float)($latestPS['medical_aid_employee'] ?? 0);
+} elseif ($latestPS) {
   $latestMedicalAidProfile = hrApplyMedicalAidToEmployee(['id' => $empId], $medicalAidProfiles);
   if (hrMedicalAidEffectiveForPeriod($latestMedicalAidProfile, (int)$latestPS['period_month'], (int)$latestPS['period_year'])) {
     $latestMedicalAidFund = trim((string)($latestPS['medical_aid_fund'] ?? '')) ?: (string)$latestMedicalAidProfile['medical_aid_fund'];

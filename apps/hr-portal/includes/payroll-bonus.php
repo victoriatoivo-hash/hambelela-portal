@@ -58,20 +58,62 @@ function hrBonusMoney($value): float {
 function hrBonusValidate($amounts, $taxes, array $employees): array {
     if (!is_array($amounts) || !is_array($taxes)) throw new InvalidArgumentException('Invalid bonus input');
     $active = [];
-    foreach ($employees as $employee) $active[(int)$employee['id']] = true;
+    foreach ($employees as $employee) $active[(int)$employee['id']] = trim(($employee['first_name'] ?? '').' '.($employee['last_name'] ?? '')) ?: 'Employee #'.(int)$employee['id'];
     $result = [];
     foreach ($amounts + $taxes as $id => $ignored) {
         if (!isset($active[$id])) throw new InvalidArgumentException('Unknown employee');
         $raw = $amounts[$id] ?? '';
         $tax = $taxes[$id] ?? '';
-        $amount = $raw === '' ? 0.0 : hrBonusMoney($raw);
+        try { $amount = $raw === '' ? 0.0 : hrBonusMoney($raw); }
+        catch (InvalidArgumentException $e) { throw new InvalidArgumentException($active[$id].': enter a valid gross bonus amount.'); }
         if ($amount === 0.0) {
-            if ($tax !== '' && hrBonusMoney($tax) !== 0.0) throw new InvalidArgumentException('Tax without bonus');
+            if ($tax !== '' && hrBonusMoney($tax) !== 0.0) throw new InvalidArgumentException($active[$id].': remove additional PAYE when no bonus is awarded.');
             continue;
         }
-        $paye = hrBonusMoney($tax);
-        if ($paye > $amount) throw new InvalidArgumentException('Additional PAYE exceeds bonus');
+        try { $paye = hrBonusMoney($tax); }
+        catch (InvalidArgumentException $e) { throw new InvalidArgumentException($active[$id].': enter the verified additional PAYE (0 if confirmed none).'); }
+        if ($paye > $amount) throw new InvalidArgumentException($active[$id].': additional PAYE cannot exceed the bonus.');
         $result[(int)$id] = ['amount'=>$amount,'paye'=>$paye];
     }
     return $result;
+}
+
+class HrBonusFormException extends RuntimeException {}
+function hrBonusMedicalColumnsReady(PDO $db): bool {
+    try {
+        foreach (['medical_aid_fund','medical_aid_total','medical_aid_company','medical_aid_employee'] as $c) {
+            if (!hrBonusColumnExists($db,$c)) return false;
+        }
+        return true;
+    } catch (Throwable $e) { return false; }
+}
+function hrBonusFormDraft(array $post): array {
+    $result=['bonus'=>[],'bonus_paye'=>[]];
+    foreach ($result as $key=>$unused) {
+        if (!is_array($post[$key] ?? null)) continue;
+        foreach ($post[$key] as $id=>$value) {
+            if (ctype_digit((string)$id) && is_scalar($value) && strlen((string)$value)<=30) $result[$key][(int)$id]=(string)$value;
+        }
+    }
+    return $result;
+}
+function hrBonusCents($amount): int { return (int)round((float)$amount*100); }
+function hrBonusVerifySavedPayroll(array $rows,array $employees,array $bonuses): void {
+    $byId=[];
+    foreach ($rows as $row) {
+        $id=(int)$row['employee_id'];
+        if (isset($byId[$id])) throw new RuntimeException('Duplicate payslip');
+        $byId[$id]=$row;
+    }
+    foreach ($employees as $employee) {
+        $id=(int)$employee['id']; $row=$byId[$id] ?? null;
+        if (!$row) throw new RuntimeException('Missing payslip');
+        $award=$bonuses[$id] ?? ['amount'=>0,'paye'=>0];
+        if (hrBonusCents($row['bonus_amount'] ?? 0)!==hrBonusCents($award['amount']) ||
+            hrBonusCents($row['bonus_paye'] ?? 0)!==hrBonusCents($award['paye'])) throw new RuntimeException('Bonus snapshot mismatch');
+        $net=0;
+        foreach (['basic_salary','ot_pay','bonus_amount','loan_disbursement'] as $key) $net+=hrBonusCents($row[$key] ?? 0);
+        foreach (['paye','ssf','lwop_deduction','other_deductions','loan_deduction','medical_aid_employee'] as $key) $net-=hrBonusCents($row[$key] ?? 0);
+        if ($net!==hrBonusCents($row['net_salary'])) throw new RuntimeException('Net pay snapshot mismatch');
+    }
 }
