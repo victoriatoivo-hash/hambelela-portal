@@ -25,9 +25,29 @@ function hrBonusEnsureSchema(PDO $db): bool {
         return false;
     }
 }
-function hrBonusCsrf(): string {
-    if (empty($_SESSION['hr_bonus_csrf'])) $_SESSION['hr_bonus_csrf'] = bin2hex(random_bytes(32));
-    return $_SESSION['hr_bonus_csrf'];
+// A host-only, Secure, HttpOnly cookie avoids relying on HR's bridged PHP
+// session being writable/persistent. The form token is bound to the current
+// authenticated admin ID; another origin cannot read or plant the __Host cookie.
+const HR_BONUS_CSRF_COOKIE = '__Host-HRPayrollCSRF';
+function hrBonusCsrfFromCookie($cookie, int $userId): ?string {
+    if ($userId <= 0 || !is_string($cookie) || !preg_match('/^[a-f0-9]{64}$/D', $cookie)) return null;
+    return hash_hmac('sha256', 'hambelela-hr-payroll-v1:' . $userId, $cookie);
+}
+function hrBonusCsrf(int $userId = 0): string {
+    if ($userId <= 0 && function_exists('currentUser')) $userId = (int)(currentUser()['id'] ?? 0);
+    $cookie = $_COOKIE[HR_BONUS_CSRF_COOKIE] ?? null;
+    $token = hrBonusCsrfFromCookie($cookie, $userId);
+    if ($token !== null) return $token;
+    if (($_SERVER['REQUEST_METHOD'] ?? 'GET') !== 'GET' || $userId <= 0) return bin2hex(random_bytes(32));
+    $cookie = bin2hex(random_bytes(32));
+    if (!setcookie(HR_BONUS_CSRF_COOKIE, $cookie, [
+        'expires'=>0, 'path'=>'/', 'secure'=>true, 'httponly'=>true, 'samesite'=>'Strict'
+    ])) return bin2hex(random_bytes(32));
+    return hrBonusCsrfFromCookie($cookie, $userId);
+}
+function hrBonusCsrfValid(int $userId, $provided, $cookie): bool {
+    $expected = hrBonusCsrfFromCookie($cookie, $userId);
+    return $expected !== null && is_string($provided) && hash_equals($expected, $provided);
 }
 function hrBonusMoney($value): float {
     if (!is_string($value) && !is_int($value) && !is_float($value)) throw new InvalidArgumentException('Invalid amount');

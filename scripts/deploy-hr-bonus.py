@@ -10,8 +10,8 @@ import sys
 import zipfile
 
 
-BASELINE = "13873172579e9207d70e713740a61b873bd32431"
-FILES = ("apps/hr-portal/includes/payroll-bonus.php",)
+BASELINE = "f834a9c6fee4c6b80a44a8e5696ff2dec263d674"
+FILES = ("apps/hr-portal/includes/payroll-bonus.php", "apps/hr-portal/payroll.php")
 REPORT = "hr-bonus-deployment-report.json"
 BACKUP = "hr-bonus-deployment-backup.zip"
 
@@ -60,7 +60,7 @@ def main(mode, approved_sha):
         raise RuntimeError("Workflow HEAD does not match the approved release SHA")
 
     expected = {path: blob(head, path) for path in FILES}
-    baselines = {path: (blob("9a3022f3e729829e0d6d152d439c5e58a21a4dd4", path) if path.endswith('/payroll-bonus.php') else blob(BASELINE, path)) for path in FILES}
+    baselines = {path: blob(BASELINE, path) for path in FILES}
     credentials = [os.getenv(key) for key in ("FTP_SERVER", "FTP_USERNAME", "FTP_PASSWORD")]
     if not all(credentials):
         raise RuntimeError("FTP deployment credentials are unavailable")
@@ -121,8 +121,8 @@ def main(mode, approved_sha):
                     ftp.rename(staged, path)
                     if remote_read(ftp, path) != expected[path]:
                         raise RuntimeError(f"Upload verification failed: {path}")
-                report["schema"] = {"state": "pending_authenticated_admin_check", "fixture_tests": "passed"}
-                print("Schema helper uploaded; live migration runs on authenticated payroll page load")
+                report["form"] = {"state": "code_verified", "authenticated_browser_test": "pending"}
+                print("Payroll form and CSRF helper uploaded; authenticated browser submission not executed")
             except Exception:
                 for path in reversed(uploaded):
                     try:

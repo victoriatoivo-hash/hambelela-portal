@@ -42,7 +42,8 @@ $user = currentUser();
 $db   = db();
 hrEnsureOvertimeReviewSchema($db);
 $bonusSchemaReady = hrBonusEnsureSchema($db);
-$bonusCsrf = hrBonusCsrf();
+header('Cache-Control: private, no-store, max-age=0');
+$bonusCsrf = hrBonusCsrf((int)$user['id']);
 loanAgreementEnsureSchema($db);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 $socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
@@ -71,8 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'generate') {
         $month = (int)($_POST['period_month'] ?? date('n'));
         $year  = (int)($_POST['period_year']  ?? date('Y'));
-        if (!hash_equals($bonusCsrf, (string)($_POST['bonus_csrf'] ?? ''))) {
-            http_response_code(403); exit('Invalid payroll request. Refresh and try again.');
+        if (!hrBonusCsrfValid((int)$user['id'], $_POST['bonus_csrf'] ?? null, $_COOKIE[HR_BONUS_CSRF_COOKIE] ?? null)) {
+            header('Location: payroll.php?msg=bonus_form_expired', true, 303); exit;
         }
         if (!$bonusSchemaReady || $month < 1 || $month > 12 || $year < 2020 || $year > 2030) {
             header('Location: payroll.php?msg=bonus_unavailable'); exit;
@@ -557,6 +558,7 @@ if (isset($_GET['payslip'])) {
 
   <div class="content">
   <?php $bonusMessages = [
+    'bonus_form_expired'=>'Payroll form expired or cookies were unavailable. No payroll was generated. Reopen Generate Payroll and enter the amounts again.',
     'bonus_unavailable'=>'Bonus schema or pay period unavailable. No payroll was generated. Contact your administrator.',
     'bonus_invalid'=>'Enter valid bonus amounts and confirm the additional PAYE for every award, including zero. Only active employees can receive an award.',
     'bonus_existing'=>'This pay period already has a payroll run. New bonus awards cannot be added by rerunning payroll.',
@@ -853,7 +855,7 @@ if (isset($_GET['payslip'])) {
 <div class="overlay no-print" id="generateModal">
   <div class="modal" style="max-width:720px">
     <div class="modal-header"><div class="modal-title"><i class="fa-solid fa-bolt"></i> Generate Payroll</div><button class="modal-close" onclick="closeModal('generateModal')"><i class="fa-solid fa-xmark"></i></button></div>
-    <form method="POST">
+    <form method="POST" action="payroll.php">
       <input type="hidden" name="action" value="generate">
       <input type="hidden" name="bonus_csrf" value="<?=htmlspecialchars($bonusCsrf)?>">
       <div class="modal-body">

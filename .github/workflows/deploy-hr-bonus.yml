@@ -38,12 +38,13 @@ jobs:
           extensions: pdo_mysql
       - name: Validate exact approved payroll code and run tests
         run: |
-          git diff --exit-code 58684d56c044aac5506889381264dca23129a22a HEAD -- apps/hr-portal ':!apps/hr-portal/includes/payroll-bonus.php' tests/hr-payroll-bonus.php
+          git diff --exit-code f834a9c6fee4c6b80a44a8e5696ff2dec263d674 HEAD -- apps/hr-portal ':!apps/hr-portal/includes/payroll-bonus.php' ':!apps/hr-portal/payroll.php' tests/hr-payroll-bonus.php tests/hr-bonus-schema-db.php
           for f in apps/hr-portal/payroll.php apps/hr-portal/my-payslips.php apps/hr-portal/self-service.php apps/hr-portal/includes/loan-agreements.php apps/hr-portal/includes/payroll-bonus.php; do php -l "$f"; done
           php tests/hr-payroll-bonus.php
           php tests/hr-bonus-schema-db.php
+          php tests/hr-bonus-csrf.php
           python3 -m py_compile scripts/deploy-hr-bonus.py
-      - name: Deploy tested schema helper only; live migration runs under authenticated admin session
+      - name: Deploy verified payroll form and CSRF helper only
         env:
           FTP_SERVER: ${{ secrets.FTP_SERVER }}
           FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
