@@ -17,7 +17,7 @@ $medicalAidSelect = $hasMedicalAidPayslipColumns
     ? "ps.medical_aid_fund, ps.medical_aid_total, ps.medical_aid_company, ps.medical_aid_employee"
     : "'' AS medical_aid_fund, 0 AS medical_aid_total, 0 AS medical_aid_company, 0 AS medical_aid_employee";
 
-$payslips = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year, r.id as run_id FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC");
+$payslips = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year, r.id as run_id FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? AND r.status='finalised' ORDER BY r.period_year DESC, r.period_month DESC");
 $payslips->execute([$empId]); $payslips = $payslips->fetchAll();
 foreach ($payslips as $idx => $p) {
     $medicalProfile = hrApplyMedicalAidToEmployee(['id' => $empId], $medicalAidProfiles);
@@ -41,7 +41,7 @@ foreach ($payslips as $idx => $p) {
         + (float)($p['loan_deduction'] ?? 0)
         + (float)($p['medical_aid_employee'] ?? 0);
     $p['display_total_deductions'] = $displayDeductions;
-    $p['display_net_salary'] = round((float)$p['basic_salary'] + (float)$p['ot_pay'] + (float)($p['loan_disbursement'] ?? 0) - $displayDeductions, 2);
+    $p['display_net_salary'] = round((float)$p['basic_salary'] + (float)$p['ot_pay'] + (float)($p['bonus_amount'] ?? 0) + (float)($p['loan_disbursement'] ?? 0) - $displayDeductions, 2);
     $payslips[$idx] = $p;
 }
 
@@ -155,7 +155,8 @@ foreach (['company_name','company_reg','company_address','company_city','company
   <?php if ($viewPayslip):
     $runRow = $db->prepare("SELECT id, period_label,period_month,period_year,generated_at FROM payroll_runs WHERE id=(SELECT run_id FROM payslips WHERE id=?)");
     $runRow->execute([$viewPayslip['id']]); $runRow = $runRow->fetch();
-    $gross = (float)$viewPayslip['basic_salary']+(float)$viewPayslip['ot_pay'];
+    $bonusAmount = (float)($viewPayslip['bonus_amount'] ?? 0);
+    $gross = (float)$viewPayslip['basic_salary']+(float)$viewPayslip['ot_pay']+$bonusAmount;
     $loanDisbursement = (float)($viewPayslip['loan_disbursement'] ?? 0);
     $loanDed = isset($viewPayslip['loan_deduction']) ? (float)$viewPayslip['loan_deduction'] : 0;
     $medicalAidCompany = (float)($viewPayslip['medical_aid_company'] ?? 0);
@@ -237,6 +238,7 @@ foreach (['company_name','company_reg','company_address','company_city','company
         <table class="ps-col-table">
           <tr><td>Basic Salary</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['basic_salary'],2)?></span></td></tr>
           <?php if($viewPayslip['ot_pay']>0): ?><tr><td>Overtime Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ot_pay'],2)?></span></td></tr><?php endif ?>
+          <?php if ($bonusAmount > 0): ?><tr><td>Performance Bonus</td><td><span class="money">N$ <?=number_format($bonusAmount,2)?></span></td></tr><?php endif ?>
           <?php if($loanDisbursement>0): ?><tr><td>Employee Loan Payout <small>(non-taxable)</small></td><td><span class="money">N$ <?=number_format($loanDisbursement,2)?></span></td></tr><?php endif ?>
           <?php if($medicalAidCompany>0): ?><tr><td>Medical Aid Employer Contribution</td><td><span class="money">N$ <?=number_format($medicalAidCompany,2)?></span></td></tr><?php endif ?>
           <tr><td><strong>Gross Earnings</strong></td><td><strong class="money">N$ <?=number_format($gross,2)?></strong></td></tr>
@@ -271,6 +273,21 @@ foreach (['company_name','company_reg','company_address','company_city','company
 
   <?php else: ?>
   <!-- PAYSLIP LIST -->
+  <?php $bonusHistory = array_filter($payslips, static function($p) { return (float)($p['bonus_amount'] ?? 0)>0; }); ?>
+  <?php if ($bonusHistory): ?>
+  <div class="card" style="margin-bottom:16px">
+    <div class="card-header"><div class="card-title"><i class="fa-solid fa-award" style="color:var(--green)"></i> My Performance Bonuses</div></div>
+    <div style="padding:16px;display:grid;gap:10px">
+      <?php foreach ($bonusHistory as $award): ?>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><strong><?=htmlspecialchars($award['period_label'])?></strong><div style="font-size:12px;color:var(--text-mid)">Included in payroll · Gross bonus</div></div>
+        <strong style="color:var(--green)">N$ <?=number_format((float)$award['bonus_amount'],2)?></strong>
+        <a class="btn btn-secondary btn-sm" href="my-payslips.php?id=<?=(int)$award['id']?>">View payslip</a>
+      </div>
+      <?php endforeach ?>
+    </div>
+  </div>
+  <?php endif ?>
   <div class="card">
     <div class="card-header"><div class="card-title"><i class="fa-solid fa-file-lines" style="color:var(--green)"></i> All My Payslips</div></div>
     <?php if (empty($payslips)): ?>

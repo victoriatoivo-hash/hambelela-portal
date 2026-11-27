@@ -198,6 +198,8 @@ CREATE TABLE IF NOT EXISTS `payslips` (
   `employee_id`     INT UNSIGNED NOT NULL,
   `basic_salary`    DECIMAL(10,2) NOT NULL,
   `ot_pay`          DECIMAL(10,2) DEFAULT 0.00,
+  `bonus_amount`    DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+  `bonus_paye`      DECIMAL(10,2) NOT NULL DEFAULT 0.00,
   `lwop_deduction`  DECIMAL(10,2) DEFAULT 0.00,
   `paye`            DECIMAL(10,2) DEFAULT 0.00,
   `ssf`             DECIMAL(10,2) DEFAULT 0.00,

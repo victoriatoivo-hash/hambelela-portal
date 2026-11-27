@@ -38,7 +38,7 @@ $shutdownEndYear = substr($shutdownSettings['end_md'], 0, 2) === '01' ? (int)dat
 $shutdownEnd = date('d F', strtotime($shutdownEndYear . '-' . $shutdownSettings['end_md']));
 
 // Latest payslip
-$latestPS = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? ORDER BY r.period_year DESC, r.period_month DESC LIMIT 1");
+$latestPS = $db->prepare("SELECT ps.*, r.period_label, r.period_month, r.period_year FROM payslips ps JOIN payroll_runs r ON r.id=ps.run_id WHERE ps.employee_id=? AND r.status='finalised' ORDER BY r.period_year DESC, r.period_month DESC LIMIT 1");
 $latestPS->execute([$empId]); $latestPS = $latestPS->fetch();
 $latestSSF = $latestPS ? (float)$latestPS['ssf'] : 0;
 $latestMedicalAidFund = trim((string)($medicalAidProfile['medical_aid_fund'] ?? 'Medical Aid'));
@@ -60,8 +60,9 @@ if ($latestPS) {
 $latestTotalDeductions = $latestPS
   ? (float)$latestPS['paye'] + $latestSSF + (float)($latestPS['lwop_deduction'] ?? 0) + (float)($latestPS['other_deductions'] ?? 0) + (float)($latestPS['loan_deduction'] ?? 0) + $latestMedicalAidEmployee
   : 0;
-$latestGross = $latestPS ? (float)$latestPS['basic_salary'] + (float)$latestPS['ot_pay'] : 0;
-$latestNetPay = $latestPS ? round($latestGross - $latestTotalDeductions, 2) : 0;
+$latestBonus = $latestPS ? (float)($latestPS['bonus_amount'] ?? 0) : 0;
+$latestGross = $latestPS ? (float)$latestPS['basic_salary'] + (float)$latestPS['ot_pay'] + $latestBonus : 0;
+$latestNetPay = $latestPS ? round($latestGross + (float)($latestPS['loan_disbursement'] ?? 0) - $latestTotalDeductions, 2) : 0;
 
 // Unread notifications
 $notifs = $db->prepare("SELECT * FROM notifications WHERE user_id=? ORDER BY created_at DESC LIMIT 10");
@@ -291,6 +292,15 @@ $currentPage = 'self-service.php';
     </div>
     <?php endif ?>
 
+    <?php if ($latestBonus > 0): ?>
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-header"><div class="card-title"><i class="fa-solid fa-award" style="color:var(--green)"></i> My Performance Bonus</div></div>
+      <div style="padding:18px 20px;display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+        <div><div style="font-size:12px;color:var(--text-mid)"><?=htmlspecialchars($latestPS['period_label'])?> · Included in payroll</div><div style="font-size:24px;font-weight:800;color:var(--green)">N$ <?=number_format($latestBonus,2)?></div><div style="font-size:12px;color:var(--text-mid)">Gross performance bonus, before deductions</div></div>
+        <a href="my-payslips.php?id=<?=(int)$latestPS['id']?>" class="btn btn-secondary btn-sm">View payslip</a>
+      </div>
+    </div>
+    <?php endif ?>
     <!-- Latest Payslip preview -->
     <?php if ($latestPS): ?>
     <div class="card">

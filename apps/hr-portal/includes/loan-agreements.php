@@ -168,7 +168,7 @@ function loanAgreementSyncPayrollRun(PDO $db, int $runId): void {
     foreach ($payslips->fetchAll() as $payslip) {
         $loan = loanAgreementPayrollAmounts($db, (int)$payslip['employee_id'], (int)$run['period_month'], (int)$run['period_year']);
         $net = round(
-            (float)$payslip['basic_salary'] + (float)$payslip['ot_pay'] + $loan['disbursement']
+            (float)$payslip['basic_salary'] + (float)$payslip['ot_pay'] + (float)($payslip['bonus_amount'] ?? 0) + $loan['disbursement']
             - (float)$payslip['paye'] - (float)$payslip['ssf']
             - (float)($payslip['lwop_deduction'] ?? 0) - (float)($payslip['other_deductions'] ?? 0)
             - $loan['deduction'] - (float)($payslip['medical_aid_employee'] ?? 0),

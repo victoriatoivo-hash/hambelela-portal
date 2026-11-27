@@ -35,11 +35,14 @@
 require_once __DIR__ . '/config.php';
 require_once __DIR__ . '/includes/loan-agreements.php';
 requireAdmin();
+require_once __DIR__ . '/includes/payroll-bonus.php';
 require_once __DIR__ . '/includes/email.php';
 require_once __DIR__ . '/includes/overtime-review.php';
 $user = currentUser();
 $db   = db();
 hrEnsureOvertimeReviewSchema($db);
+$bonusSchemaReady = hrBonusEnsureSchema($db);
+$bonusCsrf = hrBonusCsrf();
 loanAgreementEnsureSchema($db);
 $hasSocialSecurity = hrColumnExists($db, 'employees', 'social_security_number');
 $socialSecuritySelect = $hasSocialSecurity ? "e.social_security_number" : "'' AS social_security_number";
@@ -68,20 +71,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'generate') {
         $month = (int)($_POST['period_month'] ?? date('n'));
         $year  = (int)($_POST['period_year']  ?? date('Y'));
+        if (!hash_equals($bonusCsrf, (string)($_POST['bonus_csrf'] ?? ''))) {
+            http_response_code(403); exit('Invalid payroll request. Refresh and try again.');
+        }
+        if (!$bonusSchemaReady || $month < 1 || $month > 12 || $year < 2020 || $year > 2030) {
+            header('Location: payroll.php?msg=bonus_unavailable'); exit;
+        }
         $label = date('F Y', mktime(0,0,0,$month,1,$year));
+        $employees = $db->query("SELECT * FROM employees WHERE status='active'")->fetchAll();
+        try {
+            $bonuses = hrBonusValidate($_POST['bonus'] ?? [], $_POST['bonus_paye'] ?? [], $employees);
+        } catch (InvalidArgumentException $e) {
+            header('Location: payroll.php?msg=bonus_invalid'); exit;
+        }
+        $bonusRun = count($bonuses) > 0;
+        $deferredBonusEmails = [];
+        if ($bonusRun) $db->beginTransaction();
+        try {
 
         // Create or get run
         $run = $db->prepare("SELECT id FROM payroll_runs WHERE period_month=? AND period_year=?");
         $run->execute([$month,$year]); $run = $run->fetchColumn();
+        if ($run && $bonusRun) {
+            $db->rollBack();
+            header('Location: payroll.php?msg=bonus_existing'); exit;
+        }
         if (!$run) {
             $db->prepare("INSERT INTO payroll_runs (period_label,period_month,period_year,generated_by) VALUES (?,?,?,?)")
                ->execute([$label,$month,$year,$user['id']]);
             $run = (int)$db->lastInsertId();
         }
 
-        // Generate payslips for all active employees
-        $employees = $db->query("SELECT * FROM employees WHERE status='active'")->fetchAll();
+        // Generate payslips for all active employees; only explicitly awarded employees receive a bonus.
         foreach ($employees as $emp) {
+            $bonus = $bonuses[(int)$emp['id']]['amount'] ?? 0.0;
+            $bonusPaye = $bonuses[(int)$emp['id']]['paye'] ?? 0.0;
             $loanPayroll = loanAgreementPayrollAmounts($db, (int)$emp['id'], $month, $year);
             $loan_disbursement = $loanPayroll['disbursement'];
             $loan_deduction = $loanPayroll['deduction'];
@@ -105,7 +129,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $updatedNet = round(
                         (float)($existingPayslip['basic_salary'] ?? 0)
-                        + (float)($existingPayslip['ot_pay'] ?? 0)
+                        + (float)($existingPayslip['ot_pay'] ?? 0) + (float)($existingPayslip['bonus_amount'] ?? 0)
                         + $loan_disbursement
                         - (float)($existingPayslip['paye'] ?? 0)
                         - (float)($existingPayslip['ssf'] ?? 0)
@@ -124,7 +148,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 } else {
                     $updatedNet = round(
-                        (float)($existingPayslip['basic_salary'] ?? 0) + (float)($existingPayslip['ot_pay'] ?? 0) + $loan_disbursement
+                        (float)($existingPayslip['basic_salary'] ?? 0) + (float)($existingPayslip['ot_pay'] ?? 0) + (float)($existingPayslip['bonus_amount'] ?? 0) + $loan_disbursement
                         - (float)($existingPayslip['paye'] ?? 0) - (float)($existingPayslip['ssf'] ?? 0)
                         - (float)($existingPayslip['lwop_deduction'] ?? 0) - (float)($existingPayslip['other_deductions'] ?? 0)
                         - $loan_deduction,
@@ -143,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $ot->execute([$emp['id'],$month,$year]);
             $ot_pay = (float)($ot->fetchColumn() ?? 0);
 
-            $paye = calculateNamibiaPAYE($basic + $ot_pay);
+            $paye = calculateNamibiaPAYE($basic + $ot_pay) + $bonusPaye;
             $ssf = calculateEmployeeSSF($basic);
 
             $medicalAidFund = $medicalAidDefaults['fund'];
@@ -160,17 +184,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $medicalAidEmployee = (float)($emp['medical_aid_employee'] ?? $medicalAidDefaults['employee']);
             }
 
-            $net = round($basic + $ot_pay + $loan_disbursement - $paye - $ssf - $loan_deduction - $medicalAidEmployee, 2);
+            $net = round($basic + $ot_pay + $bonus + $loan_disbursement - $paye - $ssf - $loan_deduction - $medicalAidEmployee, 2);
 
             try {
                 if ($hasMedicalAidPayslipColumns) {
-                    $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,paye,ssf,loan_deduction,loan_disbursement,medical_aid_fund,medical_aid_total,medical_aid_company,medical_aid_employee,net_salary) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
-                       ->execute([$run,$emp['id'],$basic,$ot_pay,$paye,$ssf,$loan_deduction,$loan_disbursement,$medicalAidFund,$medicalAidTotal,$medicalAidCompany,$medicalAidEmployee,$net]);
+                    $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,bonus_amount,bonus_paye,paye,ssf,loan_deduction,loan_disbursement,medical_aid_fund,medical_aid_total,medical_aid_company,medical_aid_employee,net_salary) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
+                       ->execute([$run,$emp['id'],$basic,$ot_pay,$bonus,$bonusPaye,$paye,$ssf,$loan_deduction,$loan_disbursement,$medicalAidFund,$medicalAidTotal,$medicalAidCompany,$medicalAidEmployee,$net]);
                 } else {
-                    $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,paye,ssf,loan_deduction,loan_disbursement,net_salary) VALUES (?,?,?,?,?,?,?,?,?)")
-                       ->execute([$run,$emp['id'],$basic,$ot_pay,$paye,$ssf,$loan_deduction,$loan_disbursement,$net]);
+                    $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,bonus_amount,bonus_paye,paye,ssf,loan_deduction,loan_disbursement,net_salary) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+                       ->execute([$run,$emp['id'],$basic,$ot_pay,$bonus,$bonusPaye,$paye,$ssf,$loan_deduction,$loan_disbursement,$net]);
                 }
             } catch (Exception $e) {
+                if ($bonusRun) throw $e;
                 $db->prepare("INSERT INTO payslips (run_id,employee_id,basic_salary,ot_pay,paye,ssf,net_salary) VALUES (?,?,?,?,?,?,?)")
                    ->execute([$run,$emp['id'],$basic,$ot_pay,$paye,$ssf,$net]);
             }
@@ -184,7 +209,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($empContact) {
                 $toEmail = trim((string)($empContact['user_email'] ?: $empContact['employee_email']));
                 $toName = $empContact['user_name'] ?: $empContact['employee_name'];
-                if ($toEmail !== '') emailPayslipReady($toEmail, $toName, $label, $net);
+                if ($toEmail !== '') {
+                    if ($bonusRun) $deferredBonusEmails[] = [$toEmail, $toName, $label, $net];
+                    else emailPayslipReady($toEmail, $toName, $label, $net);
+                }
             }
         }
 
@@ -192,6 +220,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $db->prepare("UPDATE payroll_runs SET status='finalised' WHERE id=?")->execute([$run]);
         $db->prepare("UPDATE overtime SET payroll_run_id=?, payroll_processed_at=NOW() WHERE status='approved' AND approved_amount IS NOT NULL AND MONTH(ot_date)=? AND YEAR(ot_date)=? AND payroll_run_id IS NULL")
            ->execute([$run,$month,$year]);
+        if ($bonusRun) $db->commit();
+        } catch (Throwable $e) {
+            if ($db->inTransaction()) $db->rollBack();
+            error_log('HR payroll generation failed: ' . get_class($e));
+            header('Location: payroll.php?msg=bonus_failed'); exit;
+        }
+        foreach ($deferredBonusEmails as $mail) {
+            try { emailPayslipReady(...$mail); } catch (Throwable $e) { error_log('HR payslip email failed'); }
+        }
         try {
             $summary = $db->prepare("SELECT COUNT(*) AS employee_count, COALESCE(SUM(net_salary),0) AS total_net, COALESCE(SUM(ssf),0) AS total_ssf FROM payslips WHERE run_id=?");
             $summary->execute([$run]);
@@ -205,6 +242,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'delete_run') {
         $runId = (int)($_POST['run_id'] ?? 0);
         if ($runId) {
+            if ($bonusSchemaReady) {
+                $checkBonus = $db->prepare("SELECT COUNT(*) FROM payslips WHERE run_id=? AND bonus_amount>0");
+                $checkBonus->execute([$runId]);
+                if ((int)$checkBonus->fetchColumn() > 0) {
+                    header('Location: payroll.php?run='.$runId.'&msg=bonus_locked'); exit;
+                }
+            } else { header('Location: payroll.php?msg=bonus_unavailable'); exit; }
             $db->prepare("UPDATE overtime SET payroll_run_id=NULL, payroll_processed_at=NULL WHERE payroll_run_id=?")->execute([$runId]);
             $db->prepare("DELETE FROM payslips WHERE run_id=?")->execute([$runId]);
             $db->prepare("DELETE FROM payroll_runs WHERE id=?")->execute([$runId]);
@@ -220,6 +264,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $lwop   = (float)($_POST['lwop_deduction'] ?? 0);
         $other  = (float)($_POST['other_deductions']??0);
 
+        if (!$bonusSchemaReady) { header('Location: payroll.php?msg=bonus_unavailable'); exit; }
+        $bonusCheck = $db->prepare("SELECT run_id, bonus_amount, bonus_paye FROM payslips WHERE id=?");
+        $bonusCheck->execute([$psId]);
+        $bonusSnapshot = $bonusCheck->fetch();
+        if (!$bonusSnapshot) { header('Location: payroll.php'); exit; }
+        if ((float)$bonusSnapshot['bonus_amount'] > 0) {
+            header('Location: payroll.php?run='.(int)$bonusSnapshot['run_id'].'&msg=bonus_locked'); exit;
+        }
         $paye = calculateNamibiaPAYE($basic + $ot_pay);
         $ssf  = calculateEmployeeSSF($basic);
 
@@ -294,7 +346,7 @@ $runs  = $db->query("SELECT * FROM payroll_runs ORDER BY period_year DESC, perio
 
 $currentRun  = null;
 $payslips    = [];
-$runTotals   = ['basic'=>0,'ot'=>0,'paye'=>0,'ssf'=>0,'net'=>0,'medical_total'=>0,'medical_company'=>0,'medical_employee'=>0,'medical_active'=>0];
+$runTotals   = ['basic'=>0,'ot'=>0,'bonus'=>0,'paye'=>0,'ssf'=>0,'net'=>0,'medical_total'=>0,'medical_company'=>0,'medical_employee'=>0,'medical_active'=>0];
 $medicalAidPayment = null;
 
 if ($runId) {
@@ -321,7 +373,7 @@ if ($runId) {
         }
         $p['net_salary'] = round(
             (float)($p['basic_salary'] ?? 0)
-            + (float)($p['ot_pay'] ?? 0)
+            + (float)($p['ot_pay'] ?? 0) + (float)($p['bonus_amount'] ?? 0)
             + (float)($p['loan_disbursement'] ?? 0)
             - (float)($p['paye'] ?? 0)
             - (float)($p['ssf'] ?? 0)
@@ -334,6 +386,7 @@ if ($runId) {
         $payslips[$idx] = $p;
         $runTotals['basic'] += $p['basic_salary'];
         $runTotals['ot']    += $p['ot_pay'];
+        $runTotals['bonus'] += (float)($p['bonus_amount'] ?? 0);
         $runTotals['paye']  += $p['paye'];
         $runTotals['ssf']   += $p['ssf'];
         $runTotals['net']   += $p['net_salary'];
@@ -499,14 +552,22 @@ if (isset($_GET['payslip'])) {
   </div>
 
   <div class="content">
-
+  <?php $bonusMessages = [
+    'bonus_unavailable'=>'Bonus schema or pay period unavailable. No payroll was generated. Contact your administrator.',
+    'bonus_invalid'=>'Enter valid bonus amounts and confirm the additional PAYE for every award, including zero. Only active employees can receive an award.',
+    'bonus_existing'=>'This pay period already has a payroll run. New bonus awards cannot be added by rerunning payroll.',
+    'bonus_locked'=>'A bonus payslip or bonus payroll run is locked against routine edits/deletion. Use a verified payroll correction process.',
+    'bonus_failed'=>'Payroll generation failed. If a bonus was entered, the bonus transaction was rolled back. Review payroll before retrying.'
+  ]; ?>
+  <?php if (isset($bonusMessages[$msg])): ?><div class="card" style="padding:16px;margin-bottom:12px;color:var(--red)" role="alert"><?=htmlspecialchars($bonusMessages[$msg])?></div><?php endif ?>
   <?php if ($viewPayslip): ?>
   <!-- ── PAYSLIP VIEW ── -->
   <div class="payslip-doc payslip-document" id="payslipDoc">
     <?php
     $runRow = $db->prepare("SELECT id, period_label, period_month, period_year, generated_at FROM payroll_runs WHERE id=(SELECT run_id FROM payslips WHERE id=?)");
     $runRow->execute([$viewPayslip['id']]); $runRow = $runRow->fetch();
-    $gross = (float)$viewPayslip['basic_salary'] + (float)$viewPayslip['ot_pay'];
+    $bonusAmount = (float)($viewPayslip['bonus_amount'] ?? 0);
+    $gross = (float)$viewPayslip['basic_salary'] + (float)$viewPayslip['ot_pay'] + $bonusAmount;
     $loanDisbursement = (float)($viewPayslip['loan_disbursement'] ?? 0);
     $loanDed = isset($viewPayslip['loan_deduction']) ? (float)$viewPayslip['loan_deduction'] : 0;
     $medicalAidCompany = (float)($viewPayslip['medical_aid_company'] ?? 0);
@@ -607,6 +668,7 @@ if (isset($_GET['payslip'])) {
           <?php if($viewPayslip['ot_pay'] > 0): ?>
           <tr><td>Overtime Pay</td><td><span class="money">N$ <?=number_format((float)$viewPayslip['ot_pay'],2)?></span></td></tr>
           <?php endif ?>
+          <?php if ($bonusAmount > 0): ?><tr><td>Performance Bonus</td><td><span class="money">N$ <?=number_format($bonusAmount,2)?></span></td></tr><?php endif ?>
           <?php if($loanDisbursement > 0): ?>
           <tr><td>Employee Loan Payout <small>(non-taxable)</small></td><td><span class="money">N$ <?=number_format($loanDisbursement,2)?></span></td></tr>
           <?php endif ?>
@@ -741,7 +803,7 @@ if (isset($_GET['payslip'])) {
         <?php else: ?>
         <table>
           <thead>
-            <tr><th>Employee</th><th>Basic Salary</th><th>Overtime</th><th>PAYE</th><th>SSF</th><th>Net Salary</th><th>Payslip</th></tr>
+            <tr><th>Employee</th><th>Basic Salary</th><th>Overtime</th><?php if ($runTotals['bonus'] > 0): ?><th>Bonus</th><?php endif ?><th>PAYE</th><th>SSF</th><th>Net Salary</th><th>Payslip</th></tr>
           </thead>
           <tbody>
           <?php foreach ($payslips as $p): ?>
@@ -749,6 +811,7 @@ if (isset($_GET['payslip'])) {
             <td style="font-weight:600"><?=htmlspecialchars($p['emp_name'])?><br><span style="font-size:11px;color:var(--text-mid)"><?=htmlspecialchars($p['emp_number'])?></span></td>
             <td style="font-family:monospace">N$ <?=number_format((float)$p['basic_salary'],2)?></td>
             <td style="font-family:monospace;color:var(--green)">+ N$ <?=number_format((float)$p['ot_pay'],2)?></td>
+            <?php if ($runTotals['bonus'] > 0): ?><td><?= (float)($p['bonus_amount'] ?? 0) > 0 ? 'N$ '.number_format((float)$p['bonus_amount'],2) : '—' ?></td><?php endif ?>
             <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format((float)$p['paye'],2)?></td>
             <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format((float)$p['ssf'],2)?></td>
             <td style="font-family:monospace;font-weight:800;font-size:15px">N$ <?=number_format((float)$p['net_salary'],2)?></td>
@@ -763,6 +826,7 @@ if (isset($_GET['payslip'])) {
             <td>TOTALS</td>
             <td style="font-family:monospace">N$ <?=number_format($runTotals['basic'],2)?></td>
             <td style="font-family:monospace;color:var(--green)">+ N$ <?=number_format($runTotals['ot'],2)?></td>
+            <?php if ($runTotals['bonus'] > 0): ?><td>N$ <?=number_format($runTotals['bonus'],2)?></td><?php endif ?>
             <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format($runTotals['paye'],2)?></td>
             <td style="font-family:monospace;color:var(--red)">- N$ <?=number_format($runTotals['ssf'],2)?></td>
             <td style="font-family:monospace;font-size:16px">N$ <?=number_format($runTotals['net'],2)?></td>
@@ -783,10 +847,11 @@ if (isset($_GET['payslip'])) {
 
 <!-- GENERATE MODAL -->
 <div class="overlay no-print" id="generateModal">
-  <div class="modal" style="max-width:420px">
+  <div class="modal" style="max-width:720px">
     <div class="modal-header"><div class="modal-title"><i class="fa-solid fa-bolt"></i> Generate Payroll</div><button class="modal-close" onclick="closeModal('generateModal')"><i class="fa-solid fa-xmark"></i></button></div>
     <form method="POST">
       <input type="hidden" name="action" value="generate">
+      <input type="hidden" name="bonus_csrf" value="<?=htmlspecialchars($bonusCsrf)?>">
       <div class="modal-body">
         <p style="font-size:13px;color:var(--text-mid);margin-bottom:18px">This will generate payslips for all <?=count($employees)?> active employee(s), including approved overtime for the selected period.</p>
         <div class="form-grid">
@@ -803,10 +868,25 @@ if (isset($_GET['payslip'])) {
             <input class="form-input" type="number" name="period_year" value="<?=date('Y')?>" min="2020" max="2030">
           </div>
         </div>
+        <section style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border)">
+          <h3 style="font-size:15px;margin-bottom:8px;color:var(--green)">Performance Bonus (optional)</h3>
+          <p style="font-size:12px;color:var(--text-mid);margin-bottom:12px">Enter a gross bonus only for employees you have confirmed qualify. Leave other amounts blank. Enter the verified additional PAYE for each award (0 if none). Amounts are for this pay period only and are not repeated. Bonus payroll cannot be routinely edited or deleted once generated.</p>
+          <?php if (!$bonusSchemaReady): ?><p role="alert" style="color:var(--red)">Bonus setup is unavailable; generation is disabled until the database migration succeeds.</p><?php else: ?>
+          <div style="display:grid;gap:10px">
+          <?php foreach ($employees as $bonusEmp): $bid=(int)$bonusEmp['id']; ?>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px;align-items:end">
+              <div style="font-size:13px;font-weight:600"><?=htmlspecialchars($bonusEmp['first_name'].' '.$bonusEmp['last_name'])?><div style="font-size:11px;font-weight:400;color:var(--text-mid)">Started: <?=htmlspecialchars((string)($bonusEmp['start_date'] ?? '—'))?></div></div>
+              <label style="font-size:12px">Gross bonus (N$)<input aria-label="Gross bonus for <?=htmlspecialchars($bonusEmp['first_name'].' '.$bonusEmp['last_name'])?>" class="form-input" type="number" min="0" max="99999999.99" step="0.01" name="bonus[<?=$bid?>]" placeholder="Not awarded"></label>
+              <label style="font-size:12px">Additional PAYE (N$)<input aria-label="Additional PAYE for <?=htmlspecialchars($bonusEmp['first_name'].' '.$bonusEmp['last_name'])?>" class="form-input" type="number" min="0" max="99999999.99" step="0.01" name="bonus_paye[<?=$bid?>]" placeholder="Confirm if awarded"></label>
+            </div>
+          <?php endforeach ?>
+          </div>
+          <?php endif ?>
+        </section>
       </div>
       <div class="modal-footer">
         <button type="button" class="btn btn-secondary" onclick="closeModal('generateModal')">Cancel</button>
-        <button type="submit" class="btn btn-primary"><i class="fa-solid fa-bolt"></i> Generate</button>
+        <button type="submit" class="btn btn-primary" <?=$bonusSchemaReady?'':'disabled'?>><i class="fa-solid fa-bolt"></i> Generate</button>
       </div>
     </form>
   </div>
